@@ -8,12 +8,13 @@ import (
 )
 
 type BaseOAuth2 struct {
-	ClientId     string
-	ClientSecret string
-	CallbackURL  string
-	HandleUser   HandleUserFunc
-	oauthConfig  oauth2.Config
-	mux          *http.ServeMux
+	ClientId       string
+	ClientSecret   string
+	CallbackURL    string
+	HandleUser     HandleUserFunc
+	AuthFailureUrl string
+	oauthConfig    oauth2.Config
+	mux            *http.ServeMux
 }
 
 func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string) *BaseOAuth2 {
@@ -27,10 +28,11 @@ func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string) *Ba
 		callbackUrl = os.Getenv("OAUTH2_CALLBACK_URL")
 	}
 	out := &BaseOAuth2{
-		ClientId:     clientId,
-		ClientSecret: clientSecret,
-		CallbackURL:  callbackUrl,
-		mux:          http.NewServeMux(),
+		ClientId:       clientId,
+		ClientSecret:   clientSecret,
+		CallbackURL:    callbackUrl,
+		AuthFailureUrl: "/auth/failed",
+		mux:            http.NewServeMux(),
 		oauthConfig: oauth2.Config{
 			ClientID:     clientId,
 			ClientSecret: clientSecret,

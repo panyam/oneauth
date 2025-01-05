@@ -57,7 +57,7 @@ func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 			MaxAge: 0,
 		})
 		http.Error(w, fmt.Sprintf("invalid oauth google state: %s, CookieOauthState: %s", r.FormValue("state"), oauthState.Value), http.StatusBadRequest)
-		// ctx.Redirect(http.StatusFound, "/auth/google/fail/")
+		// ctx.Redirect(http.StatusFound, g.AuthFailureUrl)
 		return
 	}
 
@@ -78,7 +78,7 @@ func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		log.Println("Error, so redirecting: ", err)
-		http.Redirect(w, r, "/auth/google/fail/", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, g.AuthFailureUrl, http.StatusTemporaryRedirect)
 	}
 }
 

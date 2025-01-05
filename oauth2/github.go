@@ -57,7 +57,7 @@ func (g *GithubOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 			MaxAge: 0,
 		})
 		http.Error(w, fmt.Sprintf("invalid oauth github state: %s, CookieOauthState: %s", r.FormValue("state"), oauthState.Value), http.StatusBadRequest)
-		// ctx.Redirect(http.StatusFound, "/auth/github/fail/")
+		// ctx.Redirect(http.StatusFound, g.AuthFailureUrl)
 		return
 	}
 
@@ -76,7 +76,7 @@ func (g *GithubOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		http.Redirect(w, r, "/auth/github/fail/", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, g.AuthFailureUrl, http.StatusTemporaryRedirect)
 	}
 }
 
