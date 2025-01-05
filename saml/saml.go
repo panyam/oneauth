@@ -30,6 +30,8 @@ var SAML_METADATA_URL = strings.TrimSpace(os.Getenv("SAML_METADATA_URL"))
 const SAML_CERT_FILE = "saml_service.cert"
 const SAML_KEY_FILE = "saml_service.key"
 
+type HandleUserFunc func(authtype string, provider string, token *oauth2.Token, userInfo map[string]interface{}, w http.ResponseWriter, r *http.Request)
+
 func logout(w http.ResponseWriter, r *http.Request) {
 	log.Println("did we come here for logout????")
 	nameID := samlsp.AttributeFromContext(r.Context(), "urn:oasis:names:tc:SAML:attribute:subject-id")

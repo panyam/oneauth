@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 type GoogleOAuth2 struct {
@@ -29,6 +30,11 @@ func NewGoogleOAuth2(clientId string, clientSecret string, callbackUrl string, h
 
 	out := GoogleOAuth2{
 		BaseOAuth2: NewBaseOAuth2(clientId, clientSecret, callbackUrl),
+	}
+	out.BaseOAuth2.oauthConfig.Endpoint = google.Endpoint
+	out.BaseOAuth2.oauthConfig.Scopes = []string{
+		"https://www.googleapis.com/auth/userinfo.email",
+		"https://www.googleapis.com/auth/userinfo.profile",
 	}
 
 	// rg.HandleFunc("/google/callback/", func(w http.ResponseWriter, r *http.Request) {

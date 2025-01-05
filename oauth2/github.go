@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gorilla/mux"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
@@ -32,6 +31,11 @@ func NewGithubOAuth2(clientId string, clientSecret string, callbackUrl string, h
 	out := GithubOAuth2{
 		BaseOAuth2: NewBaseOAuth2(clientId, clientSecret, callbackUrl),
 	}
+	out.BaseOAuth2.oauthConfig.Endpoint = github.Endpoint
+	out.BaseOAuth2.oauthConfig.Scopes = []string{
+		"https://www.githubapis.com/auth/userinfo.email",
+		"https://www.githubapis.com/auth/userinfo.profile",
+	}
 
 	// rg.HandleFunc("/google/callback/", func(w http.ResponseWriter, r *http.Request) {
 	out.mux.HandleFunc("/callback/", out.handleCallback)
@@ -39,88 +43,49 @@ func NewGithubOAuth2(clientId string, clientSecret string, callbackUrl string, h
 	return &out
 }
 
-func RegisterGithubAuth(rg *mux.Router, clientId string, clientSecret string, callbackUrl string, handleUser HandleUserFunc) {
-	oauthConfig := &oauth2.Config{
-		ClientID:     clientId,
-		ClientSecret: clientSecret,
-		RedirectURL:  callbackUrl,
-		Scopes: []string{
-			"https://www.githubapis.com/auth/userinfo.email",
-			"https://www.githubapis.com/auth/userinfo.profile",
-		},
-		Endpoint: github.Endpoint,
+func (g *GithubOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
+	oauthState, _ := r.Cookie("oauthstate")
+	log.Println("OauthState: ", oauthState)
+	log.Println("FormState: ", r.FormValue("state"), "==?", r.URL.Query().Get("state"))
+	if oauthState == nil {
+		http.Error(w, "OauthState is nil", http.StatusBadRequest)
+		return
+	}
+	if r.FormValue("state") != oauthState.Value {
+		http.SetCookie(w, &http.Cookie{
+			Name:   "oauthstate",
+			MaxAge: 0,
+		})
+		http.Error(w, fmt.Sprintf("invalid oauth github state: %s, CookieOauthState: %s", r.FormValue("state"), oauthState.Value), http.StatusBadRequest)
+		// ctx.Redirect(http.StatusFound, "/auth/github/fail/")
+		return
 	}
 
-	rg.HandleFunc("/github", OauthRedirector(oauthConfig))
-
-	// An "easier" way to login by github if we already have the access tokens
-	// If the access tokens have expired then the user would have to re login
-	/*
-		rg.HandleFunc("/github/login/", func(w http.ResponseWriter, r *http.Request) {
-			var token oauth2.Token
-			var err error
-			if err = ctx.BindJSON(&token); err != nil {
-				log.Println("Bind Error: ", err)
-				// TOCHECK - should this be json?
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			} else {
-				userInfo, err := validateGithubAccessTokenToken(w, r, &token)
-				if err != nil {
-					// TOCHECK - should this be json?
-					http.Error(w, "Could not validate access token", http.StatusBadRequest)
-				} else {
-					handleUser("github", &token, userInfo, w, r)
-				}
-			}
-		}).Methods("POST")
-	*/
-
-	rg.HandleFunc("/github/callback/", func(w http.ResponseWriter, r *http.Request) {
-		oauthState, _ := r.Cookie("oauthstate")
-		log.Println("OauthState: ", oauthState)
-		log.Println("FormState: ", r.FormValue("state"), "==?", r.URL.Query().Get("state"))
-		if oauthState == nil {
-			http.Error(w, fmt.Sprintf("OauthState is nil"), http.StatusBadRequest)
-			return
+	// Get auth token
+	var userInfo map[string]any
+	code := r.FormValue("code")
+	// token, err := getAuthTokens(oauthConfig, code)
+	token, err := g.oauthConfig.Exchange(context.Background(), code)
+	if err != nil {
+		log.Println("code exchange wrong: ", err)
+	} else {
+		log.Println("Received Token: ", token)
+		userInfo, err = validateGithubAccessTokenToken(token)
+		if err == nil {
+			g.HandleUser("oauth", "github", token, userInfo, w, r)
 		}
-		if r.FormValue("state") != oauthState.Value {
-			http.SetCookie(w, &http.Cookie{
-				Name:   "oauthstate",
-				MaxAge: 0,
-			})
-			http.Error(w, fmt.Sprintf("invalid oauth github state: %s, CookieOauthState: %s", r.FormValue("state"), oauthState.Value), http.StatusBadRequest)
-			// ctx.Redirect(http.StatusFound, "/auth/github/fail/")
-			return
-		}
-
-		// Get auth token
-		var userInfo map[string]any
-		code := r.FormValue("code")
-		// token, err := getAuthTokens(oauthConfig, code)
-		token, err := oauthConfig.Exchange(context.Background(), code)
-		if err != nil {
-			log.Println("code exchange wrong: ", err)
-		} else {
-			log.Println("Received Token: ", token)
-			userInfo, err = validateGithubAccessTokenToken(token)
-			if err == nil {
-				handleUser("oauth", "github", token, userInfo, w, r)
-			}
-		}
-		if err != nil {
-			http.Redirect(w, r, "/auth/github/fail/", http.StatusTemporaryRedirect)
-		}
-	}).Methods("GET")
+	}
+	if err != nil {
+		http.Redirect(w, r, "/auth/github/fail/", http.StatusTemporaryRedirect)
+	}
 }
 
 func validateGithubAccessTokenToken(token *oauth2.Token) (userInfo map[string]any, err error) {
-	log.Println("Validating Token: ", token)
+	log.Println("Validating Token ...")
+	var data []byte
+	data, err = getUserDataFromGithub(token)
 	if err == nil {
-		var data []byte
-		data, err = getUserDataFromGithub(token)
-		if err == nil {
-			err = json.Unmarshal(data, &userInfo)
-		}
+		err = json.Unmarshal(data, &userInfo)
 	}
 	if err != nil {
 		log.Println("Error validating login tokens: ", err.Error())
@@ -130,7 +95,7 @@ func validateGithubAccessTokenToken(token *oauth2.Token) (userInfo map[string]an
 
 func getUserDataFromGithub(token *oauth2.Token) ([]byte, error) {
 	// Use code to get token and get user info from Github.
-	log.Println("Getting User dat from github....")
+	log.Println("Getting User data from github....")
 	const oauthGithubUrlAPI = "https://www.githubapis.com/oauth2/v2/userinfo?access_token="
 	response, err := http.Get(oauthGithubUrlAPI + token.AccessToken)
 	if err != nil {

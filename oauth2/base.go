@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
 type BaseOAuth2 struct {
@@ -36,11 +35,6 @@ func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string) *Ba
 			ClientID:     clientId,
 			ClientSecret: clientSecret,
 			RedirectURL:  callbackUrl,
-			Scopes: []string{
-				"https://www.googleapis.com/auth/userinfo.email",
-				"https://www.googleapis.com/auth/userinfo.profile",
-			},
-			Endpoint: google.Endpoint,
 		},
 	}
 	out.setupHandlers()
@@ -50,4 +44,26 @@ func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string) *Ba
 func (b *BaseOAuth2) setupHandlers() {
 	// rg.HandleFunc("/google", OauthRedirector(oauthConfig))
 	b.mux.HandleFunc("", OauthRedirector(&b.oauthConfig))
+
+	// An "easier" way to login by X if we already have the access tokens
+	// If the access tokens have expired then the user would have to re login
+	/*
+		rg.HandleFunc("/login/", func(w http.ResponseWriter, r *http.Request) {
+			var token oauth2.Token
+			var err error
+			if err = ctx.BindJSON(&token); err != nil {
+				log.Println("Bind Error: ", err)
+				// TOCHECK - should this be json?
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			} else {
+				userInfo, err := validateGithubAccessTokenToken(w, r, &token)
+				if err != nil {
+					// TOCHECK - should this be json?
+					http.Error(w, "Could not validate access token", http.StatusBadRequest)
+				} else {
+					handleUser("X", &token, userInfo, w, r)
+				}
+			}
+		}).Methods("POST")
+	*/
 }
