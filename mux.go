@@ -12,11 +12,7 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/gorilla/mux"
 	"golang.org/x/oauth2"
-
-	oa2 "github.com/panyam/oneauth/oauth2"
-	"github.com/panyam/oneauth/saml"
 )
 
 type User interface {
@@ -37,8 +33,10 @@ type UserStore interface {
 type OneAuth struct {
 	mux        *http.ServeMux
 	Session    *scs.SessionManager
-	BaseUrl    *url.URL
 	Middleware *Middleware
+
+	// Optional name that can be used as a prefix for all required vars
+	AppName string
 
 	// Name of the session variable where the auth token is stored
 	AuthTokenSessionVar string
@@ -46,22 +44,32 @@ type OneAuth struct {
 	// Must be passed in
 	UserStore UserStore
 
+	// All the domains where the auth token cookies will be set on a login success or logout
+	CookieDomains []string
+
+	// A function that can validate username/passwords
+	ValidateUsernamePassword func(username string, password string) bool
+
 	// JWT related fields
 	JwtIssuer    string
 	JWTSecretKey string
 }
 
 func New() *OneAuth {
-	return (&OneAuth{}).EnsureDefaults()
+	out := (&OneAuth{}).EnsureDefaults()
+	return out
 }
 
 func (a *OneAuth) EnsureDefaults() *OneAuth {
 	// ensure some defaults
+	if a.AppName == "" {
+		a.AppName = "OneAuth"
+	}
 	if a.JwtIssuer == "" {
-		a.JwtIssuer = "oneauth-issuer"
+		a.JwtIssuer = fmt.Sprintf("%s-Issuer", a.AppName)
 	}
 	if a.AuthTokenSessionVar == "" {
-		a.AuthTokenSessionVar = "OneAuthToken"
+		a.AuthTokenSessionVar = fmt.Sprintf("%sAuthToken", a.AppName)
 	}
 	if a.JWTSecretKey == "" {
 		a.JWTSecretKey = strings.TrimSpace(os.Getenv("ONEAUTH_JWT_SECRET_KEY"))
@@ -75,50 +83,35 @@ func (a *OneAuth) EnsureDefaults() *OneAuth {
 	return a
 }
 
-func (a *OneAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	a.mux.ServeHTTP(w, r)
+func (a *OneAuth) Handler() http.Handler {
+	a.setupRoutes()
+	return a.mux
 }
 
-func (a *OneAuth) SetupRoutes(router *mux.Router) {
-	var err error
-	baseUrl := strings.TrimSpace(os.Getenv("OAUTH2_BASE_URL"))
-	a.BaseUrl, err = url.Parse(baseUrl)
-	if err != nil {
-		log.Fatal("Invalid Base Url: ", err)
-		panic(err)
+func (a *OneAuth) AddAuth(prefix string, handler http.Handler) *OneAuth {
+	if a.mux == nil {
+		a.setupRoutes()
 	}
+	prefix = strings.TrimSuffix(prefix, "/")
+	a.mux.Handle(fmt.Sprintf("%s/", prefix), http.StripPrefix(prefix, handler))
+	return a
+}
 
-	log.Println("Creating OneAuth Router with base url ", a.BaseUrl)
-	// log.Println("UserStore: ", a.UserStore)
+func (a *OneAuth) setupRoutes() *OneAuth {
+	a.mux = http.NewServeMux()
+	a.mux.HandleFunc("/login", a.onUsernameLogin)
+	a.mux.HandleFunc("/logout", a.onLogout)
 
-	router.HandleFunc("/profile", a.onUserProfile).Methods("GET")
-	router.HandleFunc("/login", a.onUsernameLogin).Methods("POST")
-
-	router.HandleFunc("/logout", a.onLogout).Methods("GET", "POST")
-
-	if os.Getenv("OAUTH2_GOOGLE_CLIENT_ID") != "" {
-		clientId := os.Getenv("OAUTH2_GOOGLE_CLIENT_ID")
-		clientSecret := os.Getenv("OAUTH2_GOOGLE_CLIENT_SECRET")
-		callbackUrl := os.Getenv("OAUTH2_GOOGLE_CALLBACK_URL")
-		oauthCallbackUrl := a.BaseUrl.String() + callbackUrl
-		oa2.RegisterGoogleAuth(router, clientId, clientSecret, oauthCallbackUrl, a.SaveUserAndRedirect)
-	}
-
-	if os.Getenv("OAUTH2_GITHUB_CLIENT_ID") != "" {
-		clientId := os.Getenv("OAUTH2_GITHUB_CLIENT_ID")
-		clientSecret := os.Getenv("OAUTH2_GITHUB_CLIENT_SECRET")
-		callbackUrl := os.Getenv("OAUTH2_GITHUB_CALLBACK_URL")
-		oauthCallbackUrl := a.BaseUrl.String() + callbackUrl
-		oa2.RegisterGithubAuth(router, clientId, clientSecret, oauthCallbackUrl, a.SaveUserAndRedirect)
-	}
-
-	if os.Getenv("SAML_CALLBACK_URL") != "" && os.Getenv("SAML_ISSUER") != "" {
-		samlCallbackUrl := a.BaseUrl.String() + strings.TrimSpace(os.Getenv("SAML_CALLBACK_URL"))
-		if err = saml.RegisterSamlAuth(router, samlCallbackUrl, a.SaveUserAndRedirect); err != nil {
-			log.Fatal("Error registering SAML handlers: ", err)
+	/*
+		var err error
+		baseUrl := strings.TrimSpace(os.Getenv("OAUTH2_BASE_URL"))
+		a.BaseUrl, err = url.Parse(baseUrl)
+		if err != nil {
+			log.Fatal("Invalid Base Url: ", err)
 			panic(err)
 		}
-	}
+	*/
+	return a
 }
 
 func (a *OneAuth) verifyJWT(tokenString string) (loggedInUserId string, t any, err error) {
@@ -151,19 +144,8 @@ func (a *OneAuth) verifyJWT(tokenString string) (loggedInUserId string, t any, e
 	return sub, token, nil
 }
 
-func (a *OneAuth) onUserProfile(w http.ResponseWriter, r *http.Request) {
-	// return the User's profile
-	userId := a.Middleware.GetLoggedInUserId(r)
-	log.Println("Logged In User: ", userId)
-	if userId == "" {
-		http.Error(w, `{"error": "User not logged in"}`, http.StatusUnauthorized)
-	}
-}
-
 // For now we only accept JSON encoded username/password (as a proxy for Grafana)
 func (a *OneAuth) onUsernameLogin(w http.ResponseWriter, r *http.Request) {
-	grafanaAdminPassword := strings.TrimSpace(os.Getenv("GRAFANA_ADMIN_PASSWORD"))
-
 	var data map[string]any
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil || data == nil {
@@ -179,18 +161,18 @@ func (a *OneAuth) onUsernameLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	u, ok := username.(string)
 	if !ok || u == "" {
-		http.Error(w, `{"error": "Invalid credentials"}`, http.StatusUnauthorized)
+		http.Error(w, `{"error": "Invalid username"}`, http.StatusUnauthorized)
 		return
 	}
 	p, ok := password.(string)
 	if !ok || p == "" {
-		http.Error(w, `{"error": "Invalid credentials"}`, http.StatusUnauthorized)
+		http.Error(w, `{"error": "Invalid password"}`, http.StatusUnauthorized)
 		return
 	}
 
-	log.Println("Secret Key: ", a.JWTSecretKey, grafanaAdminPassword)
 	log.Println("Username, Password: ", username, password)
-	if username != "admin" || password != grafanaAdminPassword {
+	if !a.ValidateUsernamePassword(u, p) {
+		// if !username != "admin" || password != grafanaAdminPassword {
 		http.Error(w, `{"error": "Invalid credentials"}`, http.StatusUnauthorized)
 		return
 	}
@@ -267,8 +249,8 @@ func (a *OneAuth) SaveUserAndRedirect(authtype, provider string, token *oauth2.T
 func (a *OneAuth) setLoggedInUser(user User, w http.ResponseWriter, r *http.Request) string {
 	a.EnsureDefaults()
 	// Add extra domains here if needed
-	cookieDomains := []string{a.BaseUrl.Hostname()}
-	for _, cookieDomain := range cookieDomains {
+	// cookieDomains := []string{a.BaseUrl.Hostname()}
+	for _, cookieDomain := range a.CookieDomains {
 		http.SetCookie(w, &http.Cookie{
 			Name:   "oauthstate",
 			Value:  "",

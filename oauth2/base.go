@@ -17,6 +17,10 @@ type BaseOAuth2 struct {
 	mux            *http.ServeMux
 }
 
+func (b *BaseOAuth2) Handler() http.Handler {
+	return b.mux
+}
+
 func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string) *BaseOAuth2 {
 	if clientId == "" {
 		clientId = os.Getenv("OAUTH2_CLIENT_ID")
