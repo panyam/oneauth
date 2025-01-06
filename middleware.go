@@ -34,9 +34,12 @@ func (a *Middleware) EnsureReasonableDefaults() {
 
 // Get the ID of the logged in user from the current request
 func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
-	loggedInUserId := r.Context().Value(userParamNameKey(a.UserParamName)).(string)
-	if loggedInUserId != "" {
-		return loggedInUserId
+	v := r.Context().Value(userParamNameKey(a.UserParamName))
+	if v != nil {
+		loggedInUserId := v.(string)
+		if loggedInUserId != "" {
+			return loggedInUserId
+		}
 	}
 
 	userParam := a.SessionGetter(r, a.UserParamName)

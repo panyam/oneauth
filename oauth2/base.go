@@ -49,7 +49,7 @@ func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string) *Ba
 
 func (b *BaseOAuth2) setupHandlers() {
 	// rg.HandleFunc("/google", OauthRedirector(oauthConfig))
-	b.mux.HandleFunc("", OauthRedirector(&b.oauthConfig))
+	b.mux.HandleFunc("/", OauthRedirector(&b.oauthConfig))
 
 	// An "easier" way to login by X if we already have the access tokens
 	// If the access tokens have expired then the user would have to re login

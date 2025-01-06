@@ -33,7 +33,7 @@ type UserStore interface {
 type OneAuth struct {
 	mux        *http.ServeMux
 	Session    *scs.SessionManager
-	Middleware *Middleware
+	Middleware Middleware
 
 	// Optional name that can be used as a prefix for all required vars
 	AppName string
