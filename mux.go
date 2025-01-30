@@ -89,28 +89,18 @@ func (a *OneAuth) Handler() http.Handler {
 }
 
 func (a *OneAuth) AddAuth(prefix string, handler http.Handler) *OneAuth {
-	if a.mux == nil {
-		a.setupRoutes()
-	}
+	a.setupRoutes()
 	prefix = strings.TrimSuffix(prefix, "/")
 	a.mux.Handle(fmt.Sprintf("%s/", prefix), http.StripPrefix(prefix, handler))
 	return a
 }
 
 func (a *OneAuth) setupRoutes() *OneAuth {
-	a.mux = http.NewServeMux()
-	a.mux.HandleFunc("/login", a.onUsernameLogin)
-	a.mux.HandleFunc("/logout", a.onLogout)
-
-	/*
-		var err error
-		baseUrl := strings.TrimSpace(os.Getenv("OAUTH2_BASE_URL"))
-		a.BaseUrl, err = url.Parse(baseUrl)
-		if err != nil {
-			log.Fatal("Invalid Base Url: ", err)
-			panic(err)
-		}
-	*/
+	if a.mux == nil {
+		a.mux = http.NewServeMux()
+		// a.mux.HandleFunc("/login", a.onUsernameLogin)
+		a.mux.HandleFunc("/logout", a.onLogout)
+	}
 	return a
 }
 
@@ -212,7 +202,7 @@ func (a *OneAuth) onLogout(w http.ResponseWriter, r *http.Request) {
 func (a *OneAuth) SaveUserAndRedirect(authtype, provider string, token *oauth2.Token, userInfo map[string]interface{}, w http.ResponseWriter, r *http.Request) {
 	// log.Println("Provider: ", provider)
 	// log.Println("Token: ", token)
-	// log.Println("userInfo: ", a.UserStore, userInfo)
+	log.Println("userInfo: ", a.UserStore, userInfo)
 	user, err := a.UserStore.EnsureAuthUser(authtype, provider, token, userInfo)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)

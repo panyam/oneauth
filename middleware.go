@@ -49,8 +49,8 @@ func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
 
 	// Otherwise check the Auth header
 	authHeader := r.Header.Get("Authorization")
-	log.Println("Auth Headers: ", authHeader)
-	log.Println("Cookies: ", r.Cookies())
+	// log.Println("Auth Headers: ", authHeader)
+	// log.Println("Cookies: ", r.Cookies())
 
 	// TODO - Decouple jwt details from Auth Middleware
 	if authHeader != "" && a.VerifyToken != nil {

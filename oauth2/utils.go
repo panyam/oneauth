@@ -25,6 +25,7 @@ func generateStateOauthCookie(w http.ResponseWriter) string {
 }
 
 func OauthRedirector(oauthConfig *oauth2.Config) func(w http.ResponseWriter, r *http.Request) {
+	log.Println("creating redirector= ")
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Create oauthState cookie and callback url cookie so we know where to redirect back to
 		callbackURL := r.URL.Query().Get("callbackURL")

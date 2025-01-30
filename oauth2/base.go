@@ -21,7 +21,7 @@ func (b *BaseOAuth2) Handler() http.Handler {
 	return b.mux
 }
 
-func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string) *BaseOAuth2 {
+func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string, handleUser HandleUserFunc) *BaseOAuth2 {
 	if clientId == "" {
 		clientId = os.Getenv("OAUTH2_CLIENT_ID")
 	}
@@ -32,6 +32,7 @@ func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string) *Ba
 		callbackUrl = os.Getenv("OAUTH2_CALLBACK_URL")
 	}
 	out := &BaseOAuth2{
+		HandleUser:     handleUser,
 		ClientId:       clientId,
 		ClientSecret:   clientSecret,
 		CallbackURL:    callbackUrl,
@@ -48,7 +49,6 @@ func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string) *Ba
 }
 
 func (b *BaseOAuth2) setupHandlers() {
-	// rg.HandleFunc("/google", OauthRedirector(oauthConfig))
 	b.mux.HandleFunc("/", OauthRedirector(&b.oauthConfig))
 
 	// An "easier" way to login by X if we already have the access tokens

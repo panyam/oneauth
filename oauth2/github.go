@@ -29,7 +29,7 @@ func NewGithubOAuth2(clientId string, clientSecret string, callbackUrl string, h
 	}
 
 	out := GithubOAuth2{
-		BaseOAuth2: NewBaseOAuth2(clientId, clientSecret, callbackUrl),
+		BaseOAuth2: NewBaseOAuth2(clientId, clientSecret, callbackUrl, handleUser),
 	}
 	out.BaseOAuth2.oauthConfig.Endpoint = github.Endpoint
 	out.BaseOAuth2.oauthConfig.Scopes = []string{

@@ -29,7 +29,7 @@ func NewGoogleOAuth2(clientId string, clientSecret string, callbackUrl string, h
 	}
 
 	out := GoogleOAuth2{
-		BaseOAuth2: NewBaseOAuth2(clientId, clientSecret, callbackUrl),
+		BaseOAuth2: NewBaseOAuth2(clientId, clientSecret, callbackUrl, handleUser),
 	}
 	out.BaseOAuth2.oauthConfig.Endpoint = google.Endpoint
 	out.BaseOAuth2.oauthConfig.Scopes = []string{
@@ -44,6 +44,7 @@ func NewGoogleOAuth2(clientId string, clientSecret string, callbackUrl string, h
 }
 
 func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
+	log.Println("Did we come here????")
 	oauthState, _ := r.Cookie("oauthstate")
 	// log.Println("OauthState: ", oauthState, "FormState: ", r.FormValue("state"), "==?", r.URL.Query().Get("state"))
 	if oauthState == nil {
