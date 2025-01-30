@@ -2,13 +2,12 @@ package oauth2
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
 
+	ghttp "github.com/panyam/goutils/http"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
@@ -33,8 +32,7 @@ func NewGithubOAuth2(clientId string, clientSecret string, callbackUrl string, h
 	}
 	out.BaseOAuth2.oauthConfig.Endpoint = github.Endpoint
 	out.BaseOAuth2.oauthConfig.Scopes = []string{
-		"https://www.githubapis.com/auth/userinfo.email",
-		"https://www.githubapis.com/auth/userinfo.profile",
+		"read:user", "user:email",
 	}
 
 	// rg.HandleFunc("/google/callback/", func(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +67,8 @@ func (g *GithubOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("code exchange wrong: ", err)
 	} else {
-		log.Println("Received Token: ", token)
+		// log.Println("Received Token Type: ", reflect.TypeOf(token))
+		// log.Println("Received Token: ", token)
 		userInfo, err = validateGithubAccessTokenToken(token)
 		if err == nil {
 			g.HandleUser("oauth", "github", token, userInfo, w, r)
@@ -81,11 +80,14 @@ func (g *GithubOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func validateGithubAccessTokenToken(token *oauth2.Token) (userInfo map[string]any, err error) {
-	log.Println("Validating Token ...")
-	var data []byte
-	data, err = getUserDataFromGithub(token)
+	log.Println("Validating Token: ", token)
+	response, err := getUserDataFromGithub(token)
 	if err == nil {
-		err = json.Unmarshal(data, &userInfo)
+		if userInfo, ok := response.(map[string]any); !ok {
+			return nil, nil
+		} else {
+			return userInfo, nil
+		}
 	}
 	if err != nil {
 		log.Println("Error validating login tokens: ", err.Error())
@@ -93,18 +95,11 @@ func validateGithubAccessTokenToken(token *oauth2.Token) (userInfo map[string]an
 	return
 }
 
-func getUserDataFromGithub(token *oauth2.Token) ([]byte, error) {
+func getUserDataFromGithub(token *oauth2.Token) (any, error) {
 	// Use code to get token and get user info from Github.
 	log.Println("Getting User data from github....")
-	const oauthGithubUrlAPI = "https://www.githubapis.com/oauth2/v2/userinfo?access_token="
-	response, err := http.Get(oauthGithubUrlAPI + token.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed getting user info: %s", err.Error())
-	}
-	defer response.Body.Close()
-	contents, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed read response: %s", err.Error())
-	}
-	return contents, nil
+	req, _ := ghttp.NewRequest("GET", "https://api.github.com/user", nil)
+	req.Header.Set("Authorization", token.AccessToken)
+	// response, err := http.Get(oauthGithubUrlAPI + token.AccessToken)
+	return ghttp.Call(req, nil)
 }
