@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ type BasicUser struct {
 func (b *BasicUser) Id() string { return b.id }
 
 type UserStore interface {
-	GetUserByID(userId string) (User, error)
+	// GetUserByID(userId string) (User, error)
 	EnsureAuthUser(authtype string, provider string, token *oauth2.Token, userInfo map[string]any) (User, error)
 }
 
@@ -55,8 +56,8 @@ type OneAuth struct {
 	JWTSecretKey string
 }
 
-func New() *OneAuth {
-	out := (&OneAuth{}).EnsureDefaults()
+func New(appName string) *OneAuth {
+	out := (&OneAuth{AppName: appName}).EnsureDefaults()
 	return out
 }
 
@@ -77,6 +78,10 @@ func (a *OneAuth) EnsureDefaults() *OneAuth {
 			a.JWTSecretKey = "MyTestJWTSecretKey123456"
 		}
 	}
+	if a.Middleware.AuthTokenCookieName == "" {
+		a.Middleware.AuthTokenCookieName = a.AuthTokenSessionVar
+	}
+
 	if a.Middleware.VerifyToken == nil {
 		a.Middleware.VerifyToken = a.verifyJWT
 	}
@@ -173,11 +178,6 @@ func (a *OneAuth) onUsernameLogin(w http.ResponseWriter, r *http.Request) {
 
 func (a *OneAuth) onLogout(w http.ResponseWriter, r *http.Request) {
 	log.Println("Logging out user...")
-	callbackURL := r.URL.Query().Get("callbackURL")
-	if callbackURL == "" {
-		callbackURL = "/"
-	}
-	log.Println("Callback URL: ", callbackURL)
 	a.setLoggedInUser(nil, w, r)
 	log.Println("Accept Header Type: ", r.Header["Accept"])
 	// c.Redirect(http.StatusFound, callbackURL)
@@ -240,7 +240,12 @@ func (a *OneAuth) setLoggedInUser(user User, w http.ResponseWriter, r *http.Requ
 	a.EnsureDefaults()
 	// Add extra domains here if needed
 	// cookieDomains := []string{a.BaseUrl.Hostname()}
-	for _, cookieDomain := range a.CookieDomains {
+	log.Println("ReqHost, Cookie Domains: ", r.Host, a.CookieDomains)
+	domains := a.CookieDomains
+	if slices.Index(a.CookieDomains, "") < 0 { // default domain
+		domains = append(domains, "")
+	}
+	for _, cookieDomain := range domains {
 		http.SetCookie(w, &http.Cookie{
 			Name:   "oauthstate",
 			Value:  "",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,12 +13,14 @@ import (
 type userParamNameKey string
 
 type Middleware struct {
-	UserParamName      string
-	CallbackURLParam   string
-	SessionGetter      func(r *http.Request, param string) any
-	GetRedirURL        func(r *http.Request) string
-	DefaultRedirectURL string
-	VerifyToken        func(tokenString string) (loggedInUserId string, token any, err error)
+	AuthTokenHeaderName string
+	AuthTokenCookieName string
+	UserParamName       string
+	CallbackURLParam    string
+	SessionGetter       func(r *http.Request, param string) any
+	GetRedirURL         func(r *http.Request) string
+	DefaultRedirectURL  string
+	VerifyToken         func(tokenString string) (loggedInUserId string, token any, err error)
 }
 
 /**
@@ -29,6 +32,9 @@ func (a *Middleware) EnsureReasonableDefaults() {
 	}
 	if a.CallbackURLParam == "" {
 		a.CallbackURLParam = "/"
+	}
+	if a.AuthTokenHeaderName == "" {
+		a.AuthTokenHeaderName = "Authorization"
 	}
 }
 
@@ -47,21 +53,34 @@ func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
 		return userParam.(string)
 	}
 
-	// Otherwise check the Auth header
-	authHeader := r.Header.Get("Authorization")
-	// log.Println("Auth Headers: ", authHeader)
-	// log.Println("Cookies: ", r.Cookies())
-
 	// TODO - Decouple jwt details from Auth Middleware
-	if authHeader != "" && a.VerifyToken != nil {
-		loggedInUserId, _, err := a.VerifyToken(authHeader)
-		if err == nil {
-			return loggedInUserId
+	if a.VerifyToken == nil {
+		slog.Warn("No auth token verifier found.  Please set one")
+		return ""
+	}
+
+	// Otherwise check the Auth header
+	authTokens := r.Header.Values(a.AuthTokenHeaderName)
+	for _, cookie := range r.CookiesNamed(a.AuthTokenCookieName) {
+		if len(cookie.Value) > 0 {
+			// see if a cookie was sent instead - as we may be making non-api calls
+			authTokens = append(authTokens, cookie.Value)
 		}
-		log.Println("Error verifying token: ", err)
+	}
+	log.Println("Auth Tokens Found: ", authTokens)
+	log.Println("Cookies: ", r.Cookies())
+
+	for _, authToken := range authTokens {
+		loggedInUserId, _, err := a.VerifyToken(authToken)
+		if err == nil && loggedInUserId != "" {
+			return loggedInUserId
+		} else if err != nil {
+			slog.Warn("Error verifying token: ", "token", authToken, "error", err)
+		}
 	}
 
 	// Verify the JWT
+	log.Println("No User Found...")
 	return ""
 }
 
