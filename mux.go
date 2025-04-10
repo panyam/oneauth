@@ -199,7 +199,7 @@ func (a *OneAuth) onLogout(w http.ResponseWriter, r *http.Request) {
  * 	1. Create a userId that is unique to our system based on userInfo
  *	2. Set the right session cookies from this.
  */
-func (a *OneAuth) SaveUserAndRedirect(authtype, provider string, token *oauth2.Token, userInfo map[string]interface{}, w http.ResponseWriter, r *http.Request) {
+func (a *OneAuth) SaveUserAndRedirect(authtype, provider string, token *oauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {
 	// log.Println("Provider: ", provider)
 	// log.Println("Token: ", token)
 	log.Println("userInfo: ", a.UserStore, userInfo)
