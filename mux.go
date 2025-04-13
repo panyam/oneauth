@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -144,7 +145,7 @@ func (a *OneAuth) onUsernameLogin(w http.ResponseWriter, r *http.Request) {
 	var data map[string]any
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil || data == nil {
-		log.Println("Invalid post body: ", err)
+		slog.Error("Invalid post body: ", "err", err)
 		http.Error(w, `{"error": "Invalid Post Body"}`, http.StatusBadRequest)
 		return
 	}
@@ -283,7 +284,7 @@ func (a *OneAuth) setLoggedInUser(user User, w http.ResponseWriter, r *http.Requ
 			})
 			tokenString, err := token.SignedString([]byte(a.JWTSecretKey))
 			if err != nil {
-				log.Println("error signing token: ", err)
+				slog.Info("error signing token", "err", err)
 			}
 
 			a.Session.Put(r.Context(), a.AuthTokenSessionVar, tokenString)
@@ -300,7 +301,7 @@ func (a *OneAuth) setLoggedInUser(user User, w http.ResponseWriter, r *http.Requ
 			log.Println("Logging out user")
 			// session.Set("loggedInUserId", "")
 			if err := a.Session.Clear(r.Context()); err != nil {
-				log.Println("Error clearning session: ", err)
+				slog.Warn("error clearing session ", "err", err)
 			}
 			http.SetCookie(w, &http.Cookie{
 				Name:    "loggedInUserId",

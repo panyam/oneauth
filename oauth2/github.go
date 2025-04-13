@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -43,8 +44,7 @@ func NewGithubOAuth2(clientId string, clientSecret string, callbackUrl string, h
 
 func (g *GithubOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 	oauthState, _ := r.Cookie("oauthstate")
-	log.Println("OauthState: ", oauthState)
-	log.Println("FormState: ", r.FormValue("state"), "==?", r.URL.Query().Get("state"))
+	// log.Println("OauthState: ", oauthState, "FormState: ", r.FormValue("state"), "==?", r.URL.Query().Get("state"))
 	if oauthState == nil {
 		http.Error(w, "OauthState is nil", http.StatusBadRequest)
 		return
@@ -65,7 +65,7 @@ func (g *GithubOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 	// token, err := getAuthTokens(oauthConfig, code)
 	token, err := g.oauthConfig.Exchange(context.Background(), code)
 	if err != nil {
-		log.Println("code exchange wrong: ", err)
+		slog.Info("Invalid code exchange", "err", err)
 	} else {
 		// log.Println("Received Token Type: ", reflect.TypeOf(token))
 		// log.Println("Received Token: ", token)
@@ -75,6 +75,7 @@ func (g *GithubOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
+		slog.Info("redirecting due to error ", "err", err)
 		http.Redirect(w, r, g.AuthFailureUrl, http.StatusTemporaryRedirect)
 	}
 }
@@ -90,7 +91,7 @@ func validateGithubAccessTokenToken(token *oauth2.Token) (userInfo map[string]an
 		}
 	}
 	if err != nil {
-		log.Println("Error validating login tokens: ", err.Error())
+		slog.Info("error validating tokens", "err", err)
 	}
 	return
 }

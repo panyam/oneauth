@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -44,11 +44,9 @@ func NewGoogleOAuth2(clientId string, clientSecret string, callbackUrl string, h
 }
 
 func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
-	log.Println("Did we come here????")
 	oauthState, _ := r.Cookie("oauthstate")
 	// log.Println("OauthState: ", oauthState, "FormState: ", r.FormValue("state"), "==?", r.URL.Query().Get("state"))
 	if oauthState == nil {
-		log.Println("oauth state is nil")
 		http.Error(w, "OauthState is nil", http.StatusBadRequest)
 		return
 	}
@@ -68,7 +66,7 @@ func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 	// token, err := getAuthTokens(oauthConfig, code)
 	token, err := g.oauthConfig.Exchange(context.Background(), code)
 	if err != nil {
-		log.Println("code exchange wrong: ", err)
+		slog.Info("Invalid code exchange", "err", err)
 	} else {
 		// log.Println("Received Token Type: ", reflect.TypeOf(token))
 		// log.Println("Received Token: ", token)
@@ -78,20 +76,19 @@ func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		log.Println("Error, so redirecting: ", err)
+		slog.Info("redirecting due to error ", "err", err)
 		http.Redirect(w, r, g.AuthFailureUrl, http.StatusTemporaryRedirect)
 	}
 }
 
 func validateGoogleAccessTokenToken(token *oauth2.Token) (userInfo map[string]any, err error) {
-	log.Println("Validating Token ...")
 	var data []byte
 	data, err = getUserDataFromGoogle(token)
 	if err == nil {
 		err = json.Unmarshal(data, &userInfo)
 	}
 	if err != nil {
-		log.Println("Error validating login tokens: ", err.Error())
+		slog.Info("error validating tokens", "err", err)
 	}
 	return
 }
@@ -99,10 +96,9 @@ func validateGoogleAccessTokenToken(token *oauth2.Token) (userInfo map[string]an
 func getUserDataFromGoogle(token *oauth2.Token) ([]byte, error) {
 	// Use code to get token and get user info from Google.
 	const oauthGoogleUrlAPI = "https://www.googleapis.com/oauth2/v2/userinfo?access_token="
-	log.Println("Getting User data from google: ", oauthGoogleUrlAPI)
 	response, err := http.Get(oauthGoogleUrlAPI + token.AccessToken)
 	if err != nil {
-		return nil, fmt.Errorf("failed getting user info: %s", err.Error())
+		return nil, fmt.Errorf("failed getting user info from google: %s", err.Error())
 	}
 	defer response.Body.Close()
 	contents, err := io.ReadAll(response.Body)
