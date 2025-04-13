@@ -3,7 +3,6 @@ package oneauth
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -80,7 +79,6 @@ func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
 	}
 
 	// Verify the JWT
-	log.Println("No User Found...")
 	return ""
 }
 
