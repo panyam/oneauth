@@ -39,7 +39,7 @@ func OauthRedirector(oauthConfig *oauth2.Config) func(w http.ResponseWriter, r *
 				// Domain:  cookieDomain,
 				Path:    "/",
 				Expires: expiration,
-				MaxAge:  3600,
+				MaxAge:  120, // keep this short
 			})
 		}
 		oauthState := generateStateOauthCookie(w)

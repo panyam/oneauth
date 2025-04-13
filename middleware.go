@@ -67,8 +67,8 @@ func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
 			authTokens = append(authTokens, cookie.Value)
 		}
 	}
-	log.Println("Auth Tokens Found: ", authTokens)
-	log.Println("Cookies: ", r.Cookies())
+	// log.Println("Auth Tokens Found: ", authTokens)
+	// log.Println("Cookies: ", r.Cookies())
 
 	for _, authToken := range authTokens {
 		loggedInUserId, _, err := a.VerifyToken(authToken)

@@ -216,6 +216,7 @@ func (a *OneAuth) SaveUserAndRedirect(authtype, provider string, token *oauth2.T
 	// Auth done - go back to where we need to be
 	callbackURL := "/"
 	callbackURLCookie, _ := r.Cookie("oauthCallbackURL")
+	// log.Println("Callback URL Cookie value before: ", callbackURLCookie)
 	if callbackURLCookie != nil {
 		callbackURL = callbackURLCookie.Value
 	}
@@ -227,6 +228,14 @@ func (a *OneAuth) SaveUserAndRedirect(authtype, provider string, token *oauth2.T
 		callbackURL = os.Getenv("OAUTH2_BASE_URL") + callbackURL
 	}
 	log.Println("Redirecting to CallbackURL: ", callbackURL)
+	// then delete it too so it wont be used for subsequent redirects
+	http.SetCookie(w, &http.Cookie{
+		Name:   "oauthCallbackURL",
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1, Expires: time.Now(),
+		// Domain: cookieDomain,
+	})
 	http.Redirect(w, r, callbackURL, http.StatusFound)
 }
 
