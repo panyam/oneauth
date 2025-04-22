@@ -1,7 +1,6 @@
 package oneauth
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -19,13 +18,16 @@ import (
 
 type User interface {
 	Id() string
+	Profile() map[string]any
 }
 
 type BasicUser struct {
-	id string
+	id      string
+	profile map[string]any
 }
 
-func (b *BasicUser) Id() string { return b.id }
+func (b *BasicUser) Id() string              { return b.id }
+func (b *BasicUser) Profile() map[string]any { return b.profile }
 
 type UserStore interface {
 	// GetUserByID(userId string) (User, error)
@@ -48,9 +50,6 @@ type OneAuth struct {
 
 	// All the domains where the auth token cookies will be set on a login success or logout
 	CookieDomains []string
-
-	// A function that can validate username/passwords
-	ValidateUsernamePassword func(username string, password string) bool
 
 	// JWT related fields
 	JwtIssuer    string
@@ -90,21 +89,20 @@ func (a *OneAuth) EnsureDefaults() *OneAuth {
 }
 
 func (a *OneAuth) Handler() http.Handler {
-	a.setupRoutes()
-	return a.mux
+	return a.setupRoutes().mux
 }
 
 func (a *OneAuth) AddAuth(prefix string, handler http.Handler) *OneAuth {
 	a.setupRoutes()
 	prefix = strings.TrimSuffix(prefix, "/")
-	a.mux.Handle(fmt.Sprintf("%s/", prefix), http.StripPrefix(prefix, handler))
+	log.Println("Adding Auth for prefix: ", prefix)
+	a.mux.Handle(fmt.Sprintf("%s", prefix), http.StripPrefix(prefix, handler))
 	return a
 }
 
 func (a *OneAuth) setupRoutes() *OneAuth {
 	if a.mux == nil {
 		a.mux = http.NewServeMux()
-		// a.mux.HandleFunc("/login", a.onUsernameLogin)
 		a.mux.HandleFunc("/logout", a.onLogout)
 	}
 	return a
@@ -112,7 +110,7 @@ func (a *OneAuth) setupRoutes() *OneAuth {
 
 func (a *OneAuth) verifyJWT(tokenString string) (loggedInUserId string, t any, err error) {
 	// Parse the token with the secret key
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		return []byte(a.JWTSecretKey), nil
 	})
 
@@ -138,43 +136,6 @@ func (a *OneAuth) verifyJWT(tokenString string) (loggedInUserId string, t any, e
 		return "", nil, err
 	}
 	return sub, token, nil
-}
-
-// For now we only accept JSON encoded username/password (as a proxy for Grafana)
-func (a *OneAuth) onUsernameLogin(w http.ResponseWriter, r *http.Request) {
-	var data map[string]any
-	err := json.NewDecoder(r.Body).Decode(&data)
-	if err != nil || data == nil {
-		slog.Error("Invalid post body: ", "err", err)
-		http.Error(w, `{"error": "Invalid Post Body"}`, http.StatusBadRequest)
-		return
-	}
-
-	username, password := data["username"], data["password"]
-	if username == nil || username == "" || password == "" || password == nil {
-		http.Error(w, `{"error": "Invalid credentials"}`, http.StatusUnauthorized)
-		return
-	}
-	u, ok := username.(string)
-	if !ok || u == "" {
-		http.Error(w, `{"error": "Invalid username"}`, http.StatusUnauthorized)
-		return
-	}
-	p, ok := password.(string)
-	if !ok || p == "" {
-		http.Error(w, `{"error": "Invalid password"}`, http.StatusUnauthorized)
-		return
-	}
-
-	log.Println("Username, Password: ", username, password)
-	if !a.ValidateUsernamePassword(u, p) {
-		// if !username != "admin" || password != grafanaAdminPassword {
-		http.Error(w, `{"error": "Invalid credentials"}`, http.StatusUnauthorized)
-		return
-	}
-
-	authToken := a.setLoggedInUser(&BasicUser{id: u}, w, r)
-	fmt.Fprintf(w, `{"token": "%s"}`, authToken)
 }
 
 func (a *OneAuth) onLogout(w http.ResponseWriter, r *http.Request) {
