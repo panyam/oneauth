@@ -239,7 +239,7 @@ func (a *OneAuth) setLoggedInUser(user User, w http.ResponseWriter, r *http.Requ
 				Value:   bytes,
 				Domain:  cookieDomain,
 				Path:    "/",
-				Expires: time.Now().Add(a.SessionTimeoutInSeconds * time.Second), MaxAge: a.SessionTimeoutInSeconds,
+				Expires: time.Now().Add(time.Second * time.Duration(a.SessionTimeoutInSeconds)), MaxAge: a.SessionTimeoutInSeconds,
 			})
 
 			token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -260,7 +260,7 @@ func (a *OneAuth) setLoggedInUser(user User, w http.ResponseWriter, r *http.Requ
 				Value:   tokenString,
 				Domain:  cookieDomain,
 				Path:    "/",
-				Expires: time.Now().Add(a.SessionTimeoutInSeconds * time.Second), MaxAge: a.SessionTimeoutInSeconds,
+				Expires: time.Now().Add(time.Second * time.Duration(a.SessionTimeoutInSeconds)), MaxAge: a.SessionTimeoutInSeconds,
 			})
 			return tokenString
 		} else {
