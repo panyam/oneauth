@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	ghttp "github.com/panyam/goutils/http"
+	ghttp "github.com/panyam/servicekit/http"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
