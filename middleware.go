@@ -118,7 +118,7 @@ func (a *Middleware) EnsureUser(next http.Handler) http.Handler {
 				shouldRedirect := redirUrl != ""
 				if shouldRedirect {
 					originalUrl := r.URL.Path
-					encodedUrl := strings.Replace(url.QueryEscape(originalUrl), "+", "%20", -1)
+					encodedUrl := strings.ReplaceAll(url.QueryEscape(originalUrl), "+", "%20")
 					fullRedirUrl := fmt.Sprintf("%s?%s=%s", redirUrl, a.CallbackURLParam, encodedUrl)
 					http.Redirect(w, r, fullRedirUrl, http.StatusFound)
 				} else {
