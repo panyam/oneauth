@@ -271,7 +271,7 @@ See LICENSE file for terms and conditions.
 
 - Report issues: GitHub Issues
 - Documentation: DEVELOPER_GUIDE.md and USER_GUIDE.md
-- Examples: examples/ directory
+- Examples: See test files (local_test.go, auth_flows_test.go) for usage patterns
 
 ### Acknowledgments
 

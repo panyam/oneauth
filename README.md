@@ -416,7 +416,7 @@ Passwords are hashed using bcrypt with default cost. Plain-text passwords are ne
 
 ## Examples
 
-See the `examples/` directory for complete applications.
+Complete example applications are planned for a future release. See the test files (`local_test.go`, `auth_flows_test.go`) for usage examples in the meantime.
 
 ## Limitations & Extensibility
 

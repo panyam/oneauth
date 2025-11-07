@@ -608,8 +608,8 @@ token, _ := tokenStore.CreateToken(userID, email,
 
 ## Examples
 
-See the `examples/` directory for complete applications:
+Complete example applications are planned for a future release. For now, refer to:
 
-- `examples/basic/`: Minimal local authentication
-- `examples/oauth/`: Local + OAuth integration
-- `examples/production/`: Production-ready setup with database stores
+- Test files: `local_test.go`, `auth_flows_test.go` show complete usage patterns
+- Quick Start section above for basic integration
+- Helper functions section for common patterns
