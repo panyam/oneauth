@@ -79,7 +79,8 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 
 func (a *LocalAuth) parseSignupForm(r *http.Request) (*Credentials, error) {
 	contentType := r.Header.Get("Content-Type")
-	usernameField := a.getUsernameField()
+	// For signup, always use "username" field (UsernameField is for login only)
+	usernameField := "username"
 	emailField := a.getEmailField()
 	phoneField := a.getPhoneField()
 	passwordField := a.getPasswordField()
