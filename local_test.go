@@ -198,6 +198,33 @@ func TestLoginFlow(t *testing.T) {
 			if rr.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Body: %s", tt.expectedStatus, rr.Code, rr.Body.String())
 			}
+
+			// For successful login, verify userInfo contains email
+			if tt.expectedStatus == http.StatusOK {
+				var response map[string]any
+				if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+					t.Fatalf("Failed to decode response: %v", err)
+				}
+
+				user, ok := response["user"].(map[string]any)
+				if !ok {
+					t.Fatal("Response missing 'user' field")
+				}
+
+				// Verify email is present in userInfo
+				email, hasEmail := user["email"].(string)
+				if !hasEmail {
+					t.Error("userInfo missing 'email' field - this will cause 'no valid identity found' error")
+				}
+				if email != tt.email {
+					t.Errorf("Expected email %q in userInfo, got %q", tt.email, email)
+				}
+
+				// Verify username is also present
+				if _, hasUsername := user["username"]; !hasUsername {
+					t.Error("userInfo missing 'username' field")
+				}
+			}
 		})
 	}
 }

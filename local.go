@@ -84,8 +84,20 @@ func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Create user info for HandleUser callback
 	// Note: token is nil for local auth (no OAuth tokens)
-	userInfo := map[string]any{
-		"username": username,
+	// Start with user's profile and add/override with username
+	userInfo := user.Profile()
+	if userInfo == nil {
+		userInfo = make(map[string]any)
+	}
+
+	// Add username to userInfo
+	userInfo["username"] = username
+
+	// Ensure email or phone is in userInfo based on login type
+	if usernameType == "email" && userInfo["email"] == nil {
+		userInfo["email"] = username
+	} else if usernameType == "phone" && userInfo["phone"] == nil {
+		userInfo["phone"] = username
 	}
 
 	// Call the authentication success handler
