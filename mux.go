@@ -16,11 +16,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type User interface {
-	Id() string
-	Profile() map[string]any
-}
-
+// BasicUser is a simple implementation of the User interface
 type BasicUser struct {
 	id      string
 	profile map[string]any
@@ -29,8 +25,14 @@ type BasicUser struct {
 func (b *BasicUser) Id() string              { return b.id }
 func (b *BasicUser) Profile() map[string]any { return b.profile }
 
-type UserStore interface {
-	// GetUserByID(userId string) (User, error)
+// AuthUserStore combines the store interfaces needed for authentication
+type AuthUserStore interface {
+	UserStore
+	IdentityStore
+	ChannelStore
+
+	// EnsureAuthUser orchestrates user creation/lookup across stores
+	// This is the main entry point for OAuth and local authentication
 	EnsureAuthUser(authtype string, provider string, token *oauth2.Token, userInfo map[string]any) (User, error)
 }
 
@@ -46,7 +48,7 @@ type OneAuth struct {
 	AuthTokenSessionVar string
 
 	// Must be passed in
-	UserStore UserStore
+	UserStore AuthUserStore
 
 	// All the domains where the auth token cookies will be set on a login success or logout
 	CookieDomains []string
