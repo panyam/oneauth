@@ -11,6 +11,7 @@ A Go authentication library providing unified local and OAuth-based authenticati
 - **Email workflows**: Built-in email verification and password reset flows
 - **Security focused**: bcrypt password hashing, secure token generation, single-use tokens
 - **Testing friendly**: No HTTP server required, uses httptest for isolated testing
+- **gRPC support**: Authentication context utilities and interceptors for gRPC services
 - **Production ready**: Flexible validation with sensible defaults, comprehensive error handling, and documentation (use database-backed stores for production scale)
 
 ## Quick Start
@@ -104,6 +105,54 @@ Each channel stores its own credentials and profile:
 - Local channel: bcrypt password hash, username
 - Google channel: OAuth tokens, Google profile data
 - GitHub channel: OAuth tokens, GitHub profile data
+
+## gRPC Authentication
+
+OneAuth provides gRPC authentication utilities in the `grpc` subpackage for passing user identity between HTTP gateways and gRPC services.
+
+### Context Utilities
+
+```go
+import oagrpc "github.com/panyam/oneauth/grpc"
+
+// In your gRPC gateway, inject user ID into metadata
+md := metadata.Pairs(oagrpc.DefaultMetadataKeyUserID, userID)
+ctx = metadata.NewOutgoingContext(ctx, md)
+
+// In your gRPC service, extract user ID from context
+userID := oagrpc.UserIDFromContext(ctx)
+if userID == "" {
+    return nil, status.Error(codes.Unauthenticated, "not authenticated")
+}
+```
+
+### Auth Interceptors
+
+```go
+import oagrpc "github.com/panyam/oneauth/grpc"
+
+// Require authentication for all methods
+server := grpc.NewServer(
+    grpc.UnaryInterceptor(oagrpc.UnaryAuthInterceptor(nil)),
+    grpc.StreamInterceptor(oagrpc.StreamAuthInterceptor(nil)),
+)
+
+// Allow some methods to be public
+config := oagrpc.NewPublicMethodsConfig(
+    "/pkg.Service/PublicMethod",
+    "/pkg.Service/AnotherPublicMethod",
+)
+server := grpc.NewServer(
+    grpc.UnaryInterceptor(oagrpc.UnaryAuthInterceptor(config)),
+)
+
+// Optional auth (allow unauthenticated requests)
+server := grpc.NewServer(
+    grpc.UnaryInterceptor(oagrpc.UnaryAuthInterceptor(oagrpc.OptionalAuthConfig())),
+)
+```
+
+See the Developer Guide for complete gRPC integration documentation.
 
 ## Documentation
 

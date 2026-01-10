@@ -8,7 +8,9 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gorilla/mux v1.8.1
 	github.com/panyam/servicekit v0.0.2
+	golang.org/x/crypto v0.22.0
 	golang.org/x/oauth2 v0.24.0
+	google.golang.org/grpc v1.59.0
 )
 
 require (
@@ -24,8 +26,9 @@ require (
 	github.com/panyam/goutils v0.1.8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/russellhaering/goxmldsig v1.3.0 // indirect
-	golang.org/x/crypto v0.22.0 // indirect
+	golang.org/x/net v0.24.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
-	google.golang.org/grpc v1.59.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 )
