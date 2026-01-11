@@ -102,9 +102,36 @@ func (a *OneAuth) Handler() http.Handler {
 
 func (a *OneAuth) AddAuth(prefix string, handler http.Handler) *OneAuth {
 	a.setupRoutes()
+	a.EnsureDefaults()
 	prefix = strings.TrimSuffix(prefix, "/")
 	log.Println("Adding Auth for prefix: ", prefix)
-	a.mux.Handle(fmt.Sprintf("%s", prefix), http.StripPrefix(prefix, handler))
+	// Register the handler at prefix/ (with trailing slash) for subtree matching.
+	// This allows the handler to receive requests like /google/, /google/callback/, etc.
+	withSlashPattern := prefix + "/"
+	a.mux.Handle(withSlashPattern, http.StripPrefix(prefix, handler))
+
+	// Register a redirect handler at prefix (without trailing slash) that redirects
+	// to the original path with trailing slash. This fixes the issue where
+	// requests to /google (after StripPrefix) would result in an empty path.
+	//
+	// We use r.RequestURI to get the original unmodified request path, which
+	// preserves any parent prefixes that were stripped (e.g., /auth/google even
+	// though our mux only sees /google after the parent's StripPrefix).
+	a.mux.HandleFunc(prefix, func(w http.ResponseWriter, r *http.Request) {
+		// Parse the original request URI to get the full path
+		origPath := r.RequestURI
+		// Remove query string if present to get just the path
+		if idx := strings.Index(origPath, "?"); idx != -1 {
+			origPath = origPath[:idx]
+		}
+		// Add trailing slash and reconstruct with query string
+		target := origPath + "/"
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, target, http.StatusMovedPermanently)
+	})
+
 	return a
 }
 
