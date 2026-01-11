@@ -1,7 +1,6 @@
 package oauth2
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +14,10 @@ import (
 
 type GoogleOAuth2 struct {
 	*BaseOAuth2
+
+	// UserInfoURL is the URL to fetch user info from. Defaults to Google's API.
+	// Can be overridden for testing.
+	UserInfoURL string
 }
 
 func NewGoogleOAuth2(clientId string, clientSecret string, callbackUrl string, handleUser HandleUserFunc) *GoogleOAuth2 {
@@ -29,7 +32,8 @@ func NewGoogleOAuth2(clientId string, clientSecret string, callbackUrl string, h
 	}
 
 	out := GoogleOAuth2{
-		BaseOAuth2: NewBaseOAuth2(clientId, clientSecret, callbackUrl, handleUser),
+		BaseOAuth2:  NewBaseOAuth2(clientId, clientSecret, callbackUrl, handleUser),
+		UserInfoURL: "https://www.googleapis.com/oauth2/v2/userinfo",
 	}
 	out.BaseOAuth2.oauthConfig.Endpoint = google.Endpoint
 	out.BaseOAuth2.oauthConfig.Scopes = []string{
@@ -64,13 +68,13 @@ func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 	var userInfo map[string]any
 	code := r.FormValue("code")
 	// token, err := getAuthTokens(oauthConfig, code)
-	token, err := g.oauthConfig.Exchange(context.Background(), code)
+	token, err := g.oauthConfig.Exchange(g.ExchangeContext(), code)
 	if err != nil {
 		slog.Info("Invalid code exchange", "err", err)
 	} else {
 		// log.Println("Received Token Type: ", reflect.TypeOf(token))
 		// log.Println("Received Token: ", token)
-		userInfo, err = validateGoogleAccessTokenToken(token)
+		userInfo, err = g.validateAccessToken(token)
 		if err == nil {
 			g.HandleUser("oauth", "google", token, userInfo, w, r)
 		}
@@ -81,9 +85,9 @@ func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func validateGoogleAccessTokenToken(token *oauth2.Token) (userInfo map[string]any, err error) {
+func (g *GoogleOAuth2) validateAccessToken(token *oauth2.Token) (userInfo map[string]any, err error) {
 	var data []byte
-	data, err = getUserDataFromGoogle(token)
+	data, err = g.getUserData(token)
 	if err == nil {
 		err = json.Unmarshal(data, &userInfo)
 	}
@@ -93,10 +97,10 @@ func validateGoogleAccessTokenToken(token *oauth2.Token) (userInfo map[string]an
 	return
 }
 
-func getUserDataFromGoogle(token *oauth2.Token) ([]byte, error) {
+func (g *GoogleOAuth2) getUserData(token *oauth2.Token) ([]byte, error) {
 	// Use code to get token and get user info from Google.
-	const oauthGoogleUrlAPI = "https://www.googleapis.com/oauth2/v2/userinfo?access_token="
-	response, err := http.Get(oauthGoogleUrlAPI + token.AccessToken)
+	url := g.UserInfoURL + "?access_token=" + token.AccessToken
+	response, err := g.getHTTPClient().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting user info from google: %s", err.Error())
 	}
