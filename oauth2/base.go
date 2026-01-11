@@ -1,6 +1,7 @@
 package oauth2
 
 import (
+	"context"
 	"net/http"
 	"os"
 
@@ -15,6 +16,39 @@ type BaseOAuth2 struct {
 	AuthFailureUrl string
 	oauthConfig    oauth2.Config
 	mux            *http.ServeMux
+
+	// HTTPClient is used for making HTTP requests during OAuth flows.
+	// If nil, http.DefaultClient is used. This can be set for testing.
+	HTTPClient *http.Client
+}
+
+// SetHTTPClient sets the HTTP client used for OAuth requests.
+// This is primarily used for testing with mock servers.
+func (b *BaseOAuth2) SetHTTPClient(client *http.Client) {
+	b.HTTPClient = client
+}
+
+// getHTTPClient returns the HTTP client to use, defaulting to http.DefaultClient
+func (b *BaseOAuth2) getHTTPClient() *http.Client {
+	if b.HTTPClient != nil {
+		return b.HTTPClient
+	}
+	return http.DefaultClient
+}
+
+// ExchangeContext returns a context configured with the HTTP client for token exchange
+func (b *BaseOAuth2) ExchangeContext() context.Context {
+	ctx := context.Background()
+	if b.HTTPClient != nil {
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, b.HTTPClient)
+	}
+	return ctx
+}
+
+// SetOAuthEndpoint sets the OAuth endpoint (auth URL and token URL).
+// This is primarily used for testing with mock servers.
+func (b *BaseOAuth2) SetOAuthEndpoint(endpoint oauth2.Endpoint) {
+	b.oauthConfig.Endpoint = endpoint
 }
 
 func (b *BaseOAuth2) Handler() http.Handler {
