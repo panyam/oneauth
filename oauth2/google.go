@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -22,13 +23,13 @@ type GoogleOAuth2 struct {
 
 func NewGoogleOAuth2(clientId string, clientSecret string, callbackUrl string, handleUser HandleUserFunc) *GoogleOAuth2 {
 	if clientId == "" {
-		clientId = os.Getenv("OAUTH2_GOOGLE_CLIENT_ID")
+		clientId = strings.TrimSpace(os.Getenv("OAUTH2_GOOGLE_CLIENT_ID"))
 	}
 	if clientSecret == "" {
-		clientSecret = os.Getenv("OAUTH2_GOOGLE_CLIENT_SECRET")
+		clientSecret = strings.TrimSpace(os.Getenv("OAUTH2_GOOGLE_CLIENT_SECRET"))
 	}
 	if callbackUrl == "" {
-		callbackUrl = os.Getenv("OAUTH2_GOOGLE_CALLBACK_URL")
+		callbackUrl = strings.TrimSpace(os.Getenv("OAUTH2_GOOGLE_CALLBACK_URL"))
 	}
 
 	out := GoogleOAuth2{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 
 	"golang.org/x/oauth2"
 )
@@ -57,13 +58,13 @@ func (b *BaseOAuth2) Handler() http.Handler {
 
 func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string, handleUser HandleUserFunc) *BaseOAuth2 {
 	if clientId == "" {
-		clientId = os.Getenv("OAUTH2_CLIENT_ID")
+		clientId = strings.TrimSpace(os.Getenv("OAUTH2_CLIENT_ID"))
 	}
 	if clientSecret == "" {
-		clientSecret = os.Getenv("OAUTH2_CLIENT_SECRET")
+		clientSecret = strings.TrimSpace(os.Getenv("OAUTH2_CLIENT_SECRET"))
 	}
 	if callbackUrl == "" {
-		callbackUrl = os.Getenv("OAUTH2_CALLBACK_URL")
+		callbackUrl = strings.TrimSpace(os.Getenv("OAUTH2_CALLBACK_URL"))
 	}
 	out := &BaseOAuth2{
 		HandleUser:     handleUser,

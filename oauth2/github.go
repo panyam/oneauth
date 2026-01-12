@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
@@ -23,13 +24,13 @@ type GithubOAuth2 struct {
 
 func NewGithubOAuth2(clientId string, clientSecret string, callbackUrl string, handleUser HandleUserFunc) *GithubOAuth2 {
 	if clientId == "" {
-		clientId = os.Getenv("OAUTH2_GITHUB_CLIENT_ID")
+		clientId = strings.TrimSpace(os.Getenv("OAUTH2_GITHUB_CLIENT_ID"))
 	}
 	if clientSecret == "" {
-		clientSecret = os.Getenv("OAUTH2_GITHUB_CLIENT_SECRET")
+		clientSecret = strings.TrimSpace(os.Getenv("OAUTH2_GITHUB_CLIENT_SECRET"))
 	}
 	if callbackUrl == "" {
-		callbackUrl = os.Getenv("OAUTH2_GITHUB_CALLBACK_URL")
+		callbackUrl = strings.TrimSpace(os.Getenv("OAUTH2_GITHUB_CALLBACK_URL"))
 	}
 
 	out := GithubOAuth2{
