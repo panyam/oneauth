@@ -15,20 +15,20 @@ OneAuth is a Go authentication library that provides unified local and OAuth-bas
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                         User                             │
+│                         User                            │
 │  - Unique account in the system                         │
 │  - Contains profile data                                │
 │  - Has multiple identities                              │
 └────────────────────────┬────────────────────────────────┘
                          │
-           ┌─────────────┼─────────────┐
-           │             │             │
-           ▼             ▼             ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│   Identity   │ │   Identity   │ │   Identity   │
-│  email:...   │ │  phone:...   │ │  email:...   │
-│  (verified)  │ │ (unverified) │ │  (verified)  │
-└──────┬───────┘ └──────────────┘ └──────┬───────┘
+           ┌─────────────┼──────────────┐
+           │             │              │
+           ▼             ▼              ▼
+┌──────────────┐ ┌──────────────┐  ┌──────────────┐
+│   Identity   │ │   Identity   │  │   Identity   │
+│  email:...   │ │  phone:...   │  │  email:...   │
+│  (verified)  │ │ (unverified) │  │  (verified)  │
+└──────┬───────┘ └──────────────┘  └──────┬───────┘
        │                                  │
        │         ┌────────────────────────┤
        │         │                        │
@@ -110,7 +110,7 @@ Client → GET /api/resource (Bearer token) → APIMiddleware → Handler
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Store Interfaces                      │
+│                    Store Interfaces                     │
 │  UserStore | IdentityStore | ChannelStore | TokenStore  │
 │  RefreshTokenStore | APIKeyStore                        │
 └─────────────────────────────┬───────────────────────────┘
@@ -252,6 +252,40 @@ func (s *SMTPSender) SendPasswordResetEmail(to, link string) error
 
 ### Custom Stores
 Implement the six store interfaces for any database.
+
+## Client SDK Architecture
+
+For CLI tools and programmatic clients consuming oneauth-protected APIs:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     AuthClient                          │
+│  - Login/Logout                                         │
+│  - Automatic token refresh                              │
+│  - HTTPClient() returns authenticated client            │
+└─────────────────────────────┬───────────────────────────┘
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌───────────────┐    ┌───────────────┐    ┌────────────────┐
+│CredentialStore│    │ AuthTransport │    │RefreshTransport│
+│  (interface)  │    │  (Bearer hdr) │    │  (401 retry)   │
+└───────┬───────┘    └───────────────┘    └────────────────┘
+        │
+        ▼
+┌────────────────┐
+│client/stores/fs│
+│ JSON file      │
+│~/.config/<app> │
+└────────────────┘
+```
+
+### Features
+- **CredentialStore interface**: Pluggable storage (FS now, GORM/GAE planned)
+- **Automatic refresh**: On 401 or 5 min before expiry
+- **Thread-safe**: Mutex protects concurrent access
+- **Configurable**: Custom HTTP client, transport, token endpoint
 
 ## Positioning
 

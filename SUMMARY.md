@@ -26,9 +26,11 @@ Three-layer data model separating concerns:
 oneauth/
 ├── *.go              # Core types and handlers
 ├── stores/
-│   ├── fs/           # File-based stores
+│   ├── fs/           # File-based stores (server)
 │   ├── gorm/         # GORM SQL stores
 │   └── gae/          # Google Datastore stores
+├── client/           # Client SDK for token management
+│   └── stores/fs/    # File-based credential store
 ├── grpc/             # gRPC utilities
 ├── oauth2/           # OAuth2 providers
 └── saml/             # SAML support (planned)
@@ -53,6 +55,27 @@ mux.Handle("/api/login", http.HandlerFunc(apiAuth.HandleLogin))
 // Protect endpoints
 middleware := &oneauth.APIMiddleware{...}
 mux.Handle("/api/protected", middleware.ValidateToken(handler))
+```
+
+### Client SDK (for CLI/programmatic access)
+
+```go
+import (
+    "github.com/panyam/oneauth/client"
+    "github.com/panyam/oneauth/client/stores/fs"
+)
+
+// Create credential store
+store, _ := fs.NewFSCredentialStore("", "myapp")
+
+// Create auth client
+authClient := client.NewAuthClient("https://api.example.com", store)
+
+// Login
+authClient.Login("user@example.com", "password", "read write")
+
+// Use authenticated HTTP client (auto-refresh on 401)
+resp, _ := authClient.HTTPClient().Get("https://api.example.com/resource")
 ```
 
 ## Current Version
