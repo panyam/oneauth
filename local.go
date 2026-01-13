@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"golang.org/x/oauth2"
 )
@@ -109,7 +110,7 @@ func (a *LocalAuth) parseLoginForm(r *http.Request) (username, password string, 
 	usernameField := a.getUsernameField()
 	passwordField := a.getPasswordField()
 
-	if contentType == "application/x-www-form-urlencoded" {
+	if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
 		if err = r.ParseForm(); err != nil {
 			return "", "", fmt.Errorf("error parsing form")
 		}

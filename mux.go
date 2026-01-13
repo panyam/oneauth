@@ -129,7 +129,9 @@ func (a *OneAuth) AddAuth(prefix string, handler http.Handler) *OneAuth {
 		if r.URL.RawQuery != "" {
 			target += "?" + r.URL.RawQuery
 		}
-		http.Redirect(w, r, target, http.StatusMovedPermanently)
+		// Use 308 PermanentRedirect to preserve the HTTP method (POST, PUT, etc.)
+		// 301 MovedPermanently changes POST to GET which breaks API endpoints
+		http.Redirect(w, r, target, http.StatusPermanentRedirect)
 	})
 
 	return a

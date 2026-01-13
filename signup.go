@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // HandleSignup processes user registration
@@ -87,7 +88,7 @@ func (a *LocalAuth) parseSignupForm(r *http.Request) (*Credentials, error) {
 
 	var username, email, phone, password string
 
-	if contentType == "application/x-www-form-urlencoded" {
+	if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
 		if err := r.ParseForm(); err != nil {
 			return nil, fmt.Errorf("error parsing form")
 		}
