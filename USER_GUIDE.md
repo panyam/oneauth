@@ -228,12 +228,54 @@ OneAuth is a library integrated by application developers. For issues with speci
 
 ### API Access
 
-Some applications provide API access alongside web authentication. Consult the application's API documentation for details on:
+Applications using OneAuth may provide API access for programmatic use. This includes:
 
-- API key generation
-- OAuth client credentials
-- Bearer token usage
-- Rate limits
+**API Login**
+```bash
+curl -X POST https://app.example.com/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"grant_type":"password","username":"your@email.com","password":"yourpassword"}'
+```
+
+This returns an access token and refresh token for subsequent API calls.
+
+**Using Access Tokens**
+```bash
+curl https://app.example.com/api/resource \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+Access tokens expire quickly (typically 15 minutes). Use the refresh token to get a new access token.
+
+**Refreshing Tokens**
+```bash
+curl -X POST https://app.example.com/api/login \
+  -d '{"grant_type":"refresh_token","refresh_token":"YOUR_REFRESH_TOKEN"}'
+```
+
+**API Keys**
+
+For long-lived access (CI/CD, scripts, automation), create an API key:
+
+1. Log in to the application
+2. Navigate to API settings or developer settings
+3. Create a new API key with appropriate scopes
+4. Store the key securely - it's only shown once
+
+Use API keys like access tokens:
+```bash
+curl https://app.example.com/api/resource \
+  -H "Authorization: Bearer oa_YOUR_API_KEY"
+```
+
+**Scopes**
+
+API tokens have scopes that limit what they can access:
+- `read` - Read data
+- `write` - Modify data
+- `profile` - Access profile information
+
+When creating API keys, request only the scopes you need.
 
 ### Browser Requirements
 

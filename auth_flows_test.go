@@ -12,21 +12,21 @@ import (
 	"time"
 
 	oa "github.com/panyam/oneauth"
-	"github.com/panyam/oneauth/stores"
+	"github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
 )
 
 // setupTestAuthComplete creates a fully configured LocalAuth for testing all flows
-func setupTestAuthComplete(t *testing.T) (*oa.LocalAuth, *stores.FSUserStore, *stores.FSIdentityStore, *stores.FSChannelStore, *stores.FSTokenStore, string) {
+func setupTestAuthComplete(t *testing.T) (*oa.LocalAuth, *fs.FSUserStore, *fs.FSIdentityStore, *fs.FSChannelStore, *fs.FSTokenStore, string) {
 	tmpDir, err := os.MkdirTemp("", "oneauth-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	userStore := stores.NewFSUserStore(tmpDir)
-	identityStore := stores.NewFSIdentityStore(tmpDir)
-	channelStore := stores.NewFSChannelStore(tmpDir)
-	tokenStore := stores.NewFSTokenStore(tmpDir)
+	userStore := fs.NewFSUserStore(tmpDir)
+	identityStore := fs.NewFSIdentityStore(tmpDir)
+	channelStore := fs.NewFSChannelStore(tmpDir)
+	tokenStore := fs.NewFSTokenStore(tmpDir)
 
 	localAuth := &oa.LocalAuth{
 		ValidateCredentials:      oa.NewCredentialsValidator(identityStore, channelStore, userStore),

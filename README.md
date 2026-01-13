@@ -6,13 +6,15 @@ A Go authentication library providing unified local and OAuth-based authenticati
 
 - **Unified authentication**: Password and OAuth through a single interface
 - **Multi-provider support**: One account accessible via password, Google, GitHub, etc.
+- **API authentication**: JWT access tokens, refresh tokens, and API keys for programmatic access
 - **Separation of concerns**: Users, identities, and authentication channels as distinct concepts
-- **Flexible storage**: Database-agnostic store interfaces with file-based reference implementation
+- **Flexible storage**: Database-agnostic store interfaces with file-based, GORM, and GAE/Datastore implementations
 - **Email workflows**: Built-in email verification and password reset flows
-- **Security focused**: bcrypt password hashing, secure token generation, single-use tokens
+- **Security focused**: bcrypt password hashing, JWT tokens, secure token generation, single-use tokens
+- **Scopes & permissions**: Fine-grained access control with scope validation
 - **Testing friendly**: No HTTP server required, uses httptest for isolated testing
 - **gRPC support**: Authentication context utilities and interceptors for gRPC services
-- **Production ready**: Flexible validation with sensible defaults, comprehensive error handling, and documentation (use database-backed stores for production scale)
+- **Production ready**: Flexible validation with sensible defaults, comprehensive error handling, and documentation
 
 ## Quick Start
 
@@ -27,15 +29,15 @@ Set up stores and authentication:
 ```go
 import (
     "github.com/panyam/oneauth"
-    "github.com/panyam/oneauth/stores"
+    "github.com/panyam/oneauth/stores/fs"
 )
 
 // Initialize stores
 storagePath := "/path/to/storage"
-userStore := stores.NewFSUserStore(storagePath)
-identityStore := stores.NewFSIdentityStore(storagePath)
-channelStore := stores.NewFSChannelStore(storagePath)
-tokenStore := stores.NewFSTokenStore(storagePath)
+userStore := fs.NewFSUserStore(storagePath)
+identityStore := fs.NewFSIdentityStore(storagePath)
+channelStore := fs.NewFSChannelStore(storagePath)
+tokenStore := fs.NewFSTokenStore(storagePath)
 
 // Create authentication callbacks
 createUser := oneauth.NewCreateUserFunc(userStore, identityStore, channelStore)
@@ -154,6 +156,92 @@ server := grpc.NewServer(
 
 See the Developer Guide for complete gRPC integration documentation.
 
+## API Authentication
+
+OneAuth provides a complete API authentication system for mobile apps, SPAs, CLI tools, and service-to-service communication.
+
+### Token Architecture
+
+- **Access Tokens**: Short-lived JWTs (15 min default) for stateless API authentication
+- **Refresh Tokens**: Long-lived opaque tokens (7 days) for obtaining new access tokens
+- **API Keys**: Long-lived keys for CI/CD, scripts, and automation
+
+### API Login
+
+```go
+import (
+    "github.com/panyam/oneauth"
+    "github.com/panyam/oneauth/stores/fs"
+)
+
+// Setup stores
+storagePath := "/path/to/storage"
+refreshTokenStore := fs.NewFSRefreshTokenStore(storagePath)
+apiKeyStore := fs.NewFSAPIKeyStore(storagePath)
+
+// Configure API authentication
+apiAuth := &oneauth.APIAuth{
+    ValidateCredentials: validateCreds,
+    RefreshTokenStore:   refreshTokenStore,
+    APIKeyStore:         apiKeyStore,
+    JWTSecretKey:        "your-secret-key",
+    JWTIssuer:           "yourapp.com",
+    GetUserScopes: func(userID string) ([]string, error) {
+        return []string{"read", "write", "profile"}, nil
+    },
+}
+
+// Mount API routes
+mux.Handle("/api/login", http.HandlerFunc(apiAuth.HandleLogin))
+mux.Handle("/api/logout", http.HandlerFunc(apiAuth.HandleLogout))
+mux.Handle("/api/keys", http.HandlerFunc(apiAuth.HandleAPIKeys))
+```
+
+### API Middleware
+
+Protect your API endpoints with JWT validation:
+
+```go
+middleware := &oneauth.APIMiddleware{
+    JWTSecretKey: "your-secret-key",
+    JWTIssuer:    "yourapp.com",
+    APIKeyStore:  apiKeyStore,
+}
+
+// Require authentication
+mux.Handle("/api/protected", middleware.ValidateToken(protectedHandler))
+
+// Require specific scopes
+mux.Handle("/api/write", middleware.RequireScopes("write")(writeHandler))
+
+// Optional authentication
+mux.Handle("/api/public", middleware.Optional(publicHandler))
+```
+
+### API Requests
+
+```bash
+# Login with password
+curl -X POST http://localhost:8080/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"grant_type":"password","username":"user@example.com","password":"secret"}'
+
+# Response: {"access_token":"eyJ...", "refresh_token":"abc123...", "token_type":"Bearer"}
+
+# Use access token
+curl http://localhost:8080/api/protected \
+  -H "Authorization: Bearer eyJ..."
+
+# Refresh tokens
+curl -X POST http://localhost:8080/api/login \
+  -d '{"grant_type":"refresh_token","refresh_token":"abc123..."}'
+
+# Create API key
+curl -X POST http://localhost:8080/api/keys \
+  -H "Authorization: Bearer eyJ..." \
+  -d '{"name":"CI Key","scopes":["read"]}'
+```
+
 ## Documentation
 
 - **[Developer Guide](DEVELOPER_GUIDE.md)**: Complete integration instructions, architecture details, and API reference
@@ -163,7 +251,7 @@ See the Developer Guide for complete gRPC integration documentation.
 
 ## Store Interfaces
 
-OneAuth defines four store interfaces for data persistence:
+OneAuth defines six store interfaces for data persistence:
 
 ### UserStore
 
@@ -216,20 +304,98 @@ type TokenStore interface {
 }
 ```
 
-## File-Based Stores
+### RefreshTokenStore
 
-The `stores` package provides file-based implementations suitable for development and small applications:
+Manages refresh tokens for API authentication.
 
 ```go
-import "github.com/panyam/oneauth/stores"
-
-userStore := stores.NewFSUserStore("/path/to/storage")
-identityStore := stores.NewFSIdentityStore("/path/to/storage")
-channelStore := stores.NewFSChannelStore("/path/to/storage")
-tokenStore := stores.NewFSTokenStore("/path/to/storage")
+type RefreshTokenStore interface {
+    CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string, expiresIn time.Duration) (*RefreshToken, error)
+    GetRefreshToken(token string) (*RefreshToken, error)
+    RotateRefreshToken(oldToken string, expiresIn time.Duration) (*RefreshToken, error)
+    RevokeRefreshToken(token string) error
+    RevokeUserTokens(userID string) error
+    RevokeTokenFamily(family string) error
+}
 ```
 
-For production use with larger user bases, implement the store interfaces backed by your database.
+### APIKeyStore
+
+Manages API keys for long-lived programmatic access.
+
+```go
+type APIKeyStore interface {
+    CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (fullKey string, apiKey *APIKey, err error)
+    GetAPIKeyByID(keyID string) (*APIKey, error)
+    ValidateAPIKey(fullKey string) (*APIKey, error)
+    RevokeAPIKey(keyID string) error
+    ListUserAPIKeys(userID string) ([]*APIKey, error)
+}
+```
+
+## Store Implementations
+
+OneAuth provides three store implementations:
+
+### File-Based Stores
+
+For development and small applications (< 1000 users):
+
+```go
+import "github.com/panyam/oneauth/stores/fs"
+
+storagePath := "/path/to/storage"
+userStore := fs.NewFSUserStore(storagePath)
+identityStore := fs.NewFSIdentityStore(storagePath)
+channelStore := fs.NewFSChannelStore(storagePath)
+tokenStore := fs.NewFSTokenStore(storagePath)
+refreshTokenStore := fs.NewFSRefreshTokenStore(storagePath)
+apiKeyStore := fs.NewFSAPIKeyStore(storagePath)
+```
+
+### GORM Stores
+
+For SQL databases (PostgreSQL, MySQL, SQLite):
+
+```go
+import (
+    "github.com/panyam/oneauth/stores/gorm"
+    gormdb "gorm.io/gorm"
+)
+
+db, _ := gormdb.Open(postgres.Open(dsn), &gormdb.Config{})
+
+userStore := gorm.NewGORMUserStore(db)
+identityStore := gorm.NewGORMIdentityStore(db)
+channelStore := gorm.NewGORMChannelStore(db)
+tokenStore := gorm.NewGORMTokenStore(db)
+refreshTokenStore := gorm.NewGORMRefreshTokenStore(db)
+apiKeyStore := gorm.NewGORMAPIKeyStore(db)
+
+// Auto-migrate tables
+gorm.AutoMigrate(db)
+```
+
+### GAE/Datastore Stores
+
+For Google App Engine and Cloud Datastore:
+
+```go
+import (
+    "github.com/panyam/oneauth/stores/gae"
+    "cloud.google.com/go/datastore"
+)
+
+client, _ := datastore.NewClient(ctx, projectID)
+namespace := "myapp"
+
+userStore := gae.NewUserStore(client, namespace)
+identityStore := gae.NewIdentityStore(client, namespace)
+channelStore := gae.NewChannelStore(client, namespace)
+tokenStore := gae.NewTokenStore(client, namespace)
+refreshTokenStore := gae.NewRefreshTokenStore(client, namespace)
+apiKeyStore := gae.NewAPIKeyStore(client, namespace)
+```
 
 ## Authentication Flows
 
@@ -420,7 +586,7 @@ func TestLogin(t *testing.T) {
     defer os.RemoveAll(tmpDir)
 
     // Set up stores and auth
-    userStore := stores.NewFSUserStore(tmpDir)
+    userStore := fs.NewFSUserStore(tmpDir)
     // ... configure localAuth
 
     // Create request
@@ -465,16 +631,22 @@ Passwords are hashed using bcrypt with default cost. Plain-text passwords are ne
 
 ## Examples
 
-Complete example applications are planned for a future release. See the test files (`local_test.go`, `auth_flows_test.go`) for usage examples in the meantime.
+Complete example applications are planned for a future release. See the test files for usage examples:
+
+- `local_test.go`, `auth_flows_test.go`: Browser-based authentication flows
+- `api_auth_test.go`: API authentication with JWT, refresh tokens, and API keys
+- `grpc/context_test.go`, `grpc/interceptor_test.go`: gRPC integration patterns
 
 ## Limitations & Extensibility
 
 OneAuth is designed to be flexible and extensible. Some features are intentionally left to the application layer:
 
-### File-Based Stores
+### Store Options
 
-- **Development & small apps**: Suitable for <1000 users
-- **Production**: Implement database-backed stores for larger scale
+- **File-based stores**: Suitable for development and <1000 users
+- **GORM stores**: For production SQL databases
+- **GAE stores**: For Google Cloud deployments
+- **Custom stores**: Implement interfaces for other databases
 
 ### Application Responsibilities
 
@@ -492,7 +664,10 @@ See the Developer Guide for implementation patterns and best practices.
 
 - Go 1.21 or later
 - `golang.org/x/crypto/bcrypt` for password hashing (required)
+- `github.com/golang-jwt/jwt/v5` for JWT tokens (required for API auth)
 - `golang.org/x/oauth2` for OAuth providers (optional)
+- `gorm.io/gorm` for GORM stores (optional)
+- `cloud.google.com/go/datastore` for GAE stores (optional)
 
 ## License
 

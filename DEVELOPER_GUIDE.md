@@ -45,19 +45,23 @@ go get github.com/panyam/oneauth
 
 ### Setting Up Stores
 
-OneAuth requires four stores: users, identities, channels, and tokens. The library provides file-based implementations:
+OneAuth requires stores for users, identities, channels, and tokens. For API authentication, you also need refresh token and API key stores. The library provides file-based implementations:
 
 ```go
 import (
     "github.com/panyam/oneauth"
-    "github.com/panyam/oneauth/stores"
+    "github.com/panyam/oneauth/stores/fs"
 )
 
 storagePath := "/path/to/storage"
-userStore := stores.NewFSUserStore(storagePath)
-identityStore := stores.NewFSIdentityStore(storagePath)
-channelStore := stores.NewFSChannelStore(storagePath)
-tokenStore := stores.NewFSTokenStore(storagePath)
+userStore := fs.NewFSUserStore(storagePath)
+identityStore := fs.NewFSIdentityStore(storagePath)
+channelStore := fs.NewFSChannelStore(storagePath)
+tokenStore := fs.NewFSTokenStore(storagePath)
+
+// For API authentication
+refreshTokenStore := fs.NewFSRefreshTokenStore(storagePath)
+apiKeyStore := fs.NewFSAPIKeyStore(storagePath)
 ```
 
 ### Implementing Local Authentication
@@ -387,9 +391,9 @@ func TestSignup(t *testing.T) {
     tmpDir, _ := os.MkdirTemp("", "test-*")
     defer os.RemoveAll(tmpDir)
 
-    userStore := stores.NewFSUserStore(tmpDir)
-    identityStore := stores.NewFSIdentityStore(tmpDir)
-    channelStore := stores.NewFSChannelStore(tmpDir)
+    userStore := fs.NewFSUserStore(tmpDir)
+    identityStore := fs.NewFSIdentityStore(tmpDir)
+    channelStore := fs.NewFSChannelStore(tmpDir)
 
     createUser := oneauth.NewCreateUserFunc(userStore, identityStore, channelStore)
 
@@ -594,6 +598,235 @@ token, _ := tokenStore.CreateToken(userID, email,
     oneauth.TokenTypeEmailVerification,
     48 * time.Hour)  // 48 hours instead of default 24
 ```
+
+## API Authentication
+
+OneAuth provides a complete API authentication system for mobile apps, SPAs, CLI tools, and service-to-service communication.
+
+### Token Architecture
+
+OneAuth uses a hybrid token architecture:
+
+- **Access Tokens**: Short-lived JWTs (15 min default) containing user ID, scopes, and expiry. Validated statelessly without database lookup.
+- **Refresh Tokens**: Long-lived opaque tokens (7 days default) stored in the database. Rotated on each use with theft detection.
+- **API Keys**: Long-lived keys for automation. Stored as bcrypt hashes like passwords.
+
+### Setting Up API Authentication
+
+```go
+import (
+    "github.com/panyam/oneauth"
+    "github.com/panyam/oneauth/stores/fs"
+)
+
+// Setup stores
+storagePath := "/path/to/storage"
+refreshTokenStore := fs.NewFSRefreshTokenStore(storagePath)
+apiKeyStore := fs.NewFSAPIKeyStore(storagePath)
+
+// Configure API authentication
+apiAuth := &oneauth.APIAuth{
+    ValidateCredentials: validateCreds, // From NewCredentialsValidator
+    RefreshTokenStore:   refreshTokenStore,
+    APIKeyStore:         apiKeyStore,
+    JWTSecretKey:        os.Getenv("JWT_SECRET"),
+    JWTIssuer:           "yourapp.com",
+    JWTAudience:         "yourapp-api",
+    AccessTokenExpiry:   15 * time.Minute,
+    RefreshTokenExpiry:  7 * 24 * time.Hour,
+
+    // Scope resolution callback
+    GetUserScopes: func(userID string) ([]string, error) {
+        // Return scopes based on user roles, profile, etc.
+        return []string{"read", "write", "profile"}, nil
+    },
+}
+
+// Mount routes
+mux.Handle("/api/login", http.HandlerFunc(apiAuth.HandleLogin))
+mux.Handle("/api/logout", http.HandlerFunc(apiAuth.HandleLogout))
+mux.Handle("/api/logout-all", http.HandlerFunc(apiAuth.HandleLogoutAll))
+mux.Handle("/api/keys", http.HandlerFunc(apiAuth.HandleAPIKeys))
+```
+
+### API Endpoints
+
+#### Password Grant
+
+```http
+POST /api/login
+Content-Type: application/json
+
+{"grant_type":"password","username":"user@example.com","password":"secret"}
+```
+
+Response:
+```json
+{
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "refresh_token": "a1b2c3d4e5f6...",
+    "token_type": "Bearer",
+    "expires_in": 900,
+    "scope": "read write profile"
+}
+```
+
+#### Refresh Token Grant
+
+```http
+POST /api/login
+Content-Type: application/json
+
+{"grant_type":"refresh_token","refresh_token":"a1b2c3d4e5f6..."}
+```
+
+Returns a new token pair. The old refresh token is invalidated (rotation).
+
+#### Logout
+
+```http
+POST /api/logout
+Content-Type: application/json
+
+{"refresh_token":"a1b2c3d4e5f6..."}
+```
+
+Revokes the specified refresh token.
+
+#### Logout All Sessions
+
+```http
+POST /api/logout-all
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+Revokes all refresh tokens for the authenticated user.
+
+### API Middleware
+
+Protect API endpoints with the APIMiddleware:
+
+```go
+middleware := &oneauth.APIMiddleware{
+    JWTSecretKey:  apiAuth.JWTSecretKey,
+    JWTIssuer:     apiAuth.JWTIssuer,
+    JWTAudience:   apiAuth.JWTAudience,
+    APIKeyStore:   apiKeyStore,
+    AuthHeader:    "Authorization", // Default
+}
+
+// Require valid token
+mux.Handle("/api/protected", middleware.ValidateToken(handler))
+
+// Require specific scopes
+mux.Handle("/api/write", middleware.RequireScopes("write")(handler))
+
+// Optional authentication (allows anonymous)
+mux.Handle("/api/public", middleware.Optional(handler))
+```
+
+### Extracting User Info in Handlers
+
+```go
+func protectedHandler(w http.ResponseWriter, r *http.Request) {
+    userID := oneauth.GetUserIDFromAPIContext(r.Context())
+    scopes := oneauth.GetScopesFromAPIContext(r.Context())
+    authType := oneauth.GetAuthTypeFromAPIContext(r.Context()) // "jwt" or "api_key"
+
+    // Use userID, scopes...
+}
+```
+
+### API Key Management
+
+#### Create API Key
+
+```http
+POST /api/keys
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+Content-Type: application/json
+
+{"name":"CI/CD Key","scopes":["read","write"]}
+```
+
+Response:
+```json
+{
+    "key": "oa_abc123...xyz789",
+    "key_id": "oa_abc123",
+    "name": "CI/CD Key",
+    "scopes": ["read", "write"],
+    "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+**Important**: The full key is only shown once at creation time.
+
+#### List API Keys
+
+```http
+GET /api/keys
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+#### Revoke API Key
+
+```http
+DELETE /api/keys/oa_abc123
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+### Using API Keys
+
+API keys can be used instead of JWTs:
+
+```bash
+curl https://api.example.com/endpoint \
+  -H "Authorization: Bearer oa_abc123...xyz789"
+```
+
+The middleware automatically detects API keys (by prefix) vs JWTs.
+
+### Scopes
+
+OneAuth provides built-in scopes:
+
+```go
+const (
+    ScopeRead    = "read"     // Read user data
+    ScopeWrite   = "write"    // Modify user data
+    ScopeProfile = "profile"  // Access profile info
+    ScopeOffline = "offline"  // Enable refresh tokens
+)
+```
+
+Use `ValidateScopes` to check if requested scopes are allowed:
+
+```go
+granted := oneauth.ValidateScopes(requested, allowed)
+```
+
+### Token Rotation and Theft Detection
+
+Refresh tokens are rotated on each use. If a token is reused (indicating potential theft), the entire token family is revoked:
+
+```go
+// First use: success, returns new token pair
+newToken, err := refreshTokenStore.RotateRefreshToken(token, expiry)
+
+// Second use of same token: ErrTokenReused
+newToken, err := refreshTokenStore.RotateRefreshToken(token, expiry)
+// err == oneauth.ErrTokenReused
+// Entire family revoked automatically
+```
+
+### Security Considerations
+
+1. **JWT Secret**: Use a strong, random secret (32+ bytes). Store in environment variables.
+2. **HTTPS**: Always use HTTPS in production to protect tokens in transit.
+3. **Token Expiry**: Keep access tokens short-lived (15 min). Use refresh tokens for longer sessions.
+4. **API Key Storage**: Store API keys securely. They cannot be recovered if lost.
+5. **Scope Validation**: Always validate scopes in your handlers for defense-in-depth.
 
 ## gRPC Authentication
 
@@ -831,7 +1064,9 @@ func main() {
 
 Complete example applications are planned for a future release. For now, refer to:
 
-- Test files: `local_test.go`, `auth_flows_test.go` show complete usage patterns
+- Test files: `local_test.go`, `auth_flows_test.go` show complete browser auth patterns
+- Test files: `api_auth_test.go` for API authentication with JWT, refresh tokens, and API keys
 - Test files: `grpc/context_test.go`, `grpc/interceptor_test.go` for gRPC patterns
 - Quick Start section above for basic integration
 - Helper functions section for common patterns
+- API Authentication section for programmatic access

@@ -1,5 +1,128 @@
 # OneAuth Release Notes
 
+## Version 0.2.0
+
+### Overview
+
+Major release adding API authentication support for mobile apps, SPAs, CLI tools, and service-to-service communication. Also includes store reorganization with GORM and GAE/Datastore implementations.
+
+### New Features
+
+#### API Authentication
+
+- **JWT Access Tokens**: Short-lived (15 min default) stateless tokens for API authentication
+- **Refresh Tokens**: Long-lived (7 days default) opaque tokens with rotation and theft detection
+- **API Keys**: Long-lived keys for CI/CD, scripts, and automation
+- **Token Rotation**: Automatic rotation on refresh with family-based theft detection
+- **Scopes**: Fine-grained access control with built-in scopes (read, write, profile, offline)
+
+#### New Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/login` | POST | Password grant and refresh token grant |
+| `/api/logout` | POST | Revoke single refresh token |
+| `/api/logout-all` | POST | Revoke all user sessions |
+| `/api/keys` | GET | List user's API keys |
+| `/api/keys` | POST | Create new API key |
+| `/api/keys/:id` | DELETE | Revoke API key |
+
+#### APIMiddleware
+
+New middleware for protecting API endpoints:
+
+```go
+middleware := &oneauth.APIMiddleware{
+    JWTSecretKey: "secret",
+    APIKeyStore:  apiKeyStore,
+}
+
+// Require valid token
+mux.Handle("/api/protected", middleware.ValidateToken(handler))
+
+// Require specific scopes
+mux.Handle("/api/write", middleware.RequireScopes("write")(handler))
+
+// Optional authentication
+mux.Handle("/api/public", middleware.Optional(handler))
+```
+
+#### Store Reorganization
+
+Stores moved to subdirectories for better organization:
+
+- `github.com/panyam/oneauth/stores/fs` - File-based stores
+- `github.com/panyam/oneauth/stores/gorm` - GORM stores for SQL databases
+- `github.com/panyam/oneauth/stores/gae` - Google App Engine/Datastore stores
+
+#### New Store Interfaces
+
+- **RefreshTokenStore**: Manage refresh tokens with rotation and revocation
+- **APIKeyStore**: Manage API keys with creation, validation, and revocation
+
+#### GORM Store Implementation
+
+Complete SQL database support via GORM:
+
+```go
+import "github.com/panyam/oneauth/stores/gorm"
+
+userStore := gorm.NewGORMUserStore(db)
+// ... all six stores available
+gorm.AutoMigrate(db)
+```
+
+#### GAE/Datastore Store Implementation
+
+Complete Google Cloud Datastore support:
+
+```go
+import "github.com/panyam/oneauth/stores/gae"
+
+userStore := gae.NewUserStore(client, namespace)
+// ... all six stores available
+```
+
+### Breaking Changes
+
+#### Import Path Changes
+
+```go
+// Old
+import "github.com/panyam/oneauth/stores"
+stores.NewFSUserStore(path)
+
+// New
+import "github.com/panyam/oneauth/stores/fs"
+fs.NewFSUserStore(path)
+```
+
+### Migration Guide
+
+1. Update imports from `github.com/panyam/oneauth/stores` to `github.com/panyam/oneauth/stores/fs`
+2. Change `stores.` prefix to `fs.` for all store constructors
+3. Run `go mod tidy` to update dependencies
+
+### New Dependencies
+
+- `github.com/golang-jwt/jwt/v5` - JWT token handling
+- `gorm.io/gorm` - GORM ORM (optional, for GORM stores)
+- `cloud.google.com/go/datastore` - Google Cloud Datastore (optional, for GAE stores)
+
+### Testing
+
+New comprehensive test coverage for API authentication:
+
+- `api_auth_test.go` - Tests for password grant, refresh tokens, token rotation, theft detection, JWT validation, scope enforcement, API key authentication, and API key management
+
+### Documentation
+
+- Updated README.md with API authentication section
+- Updated DEVELOPER_GUIDE.md with detailed API auth integration guide
+- Updated USER_GUIDE.md with API access instructions for technical users
+
+---
+
 ## Version 0.1.0 (Initial Release)
 
 ### Overview

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	oa "github.com/panyam/oneauth"
-	"github.com/panyam/oneauth/stores"
+	"github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
 )
 
@@ -32,10 +32,10 @@ func setupTestAuth(t *testing.T) (*testAuthService, string) {
 	}
 
 	service := &testAuthService{
-		UserStore:     stores.NewFSUserStore(tmpDir),
-		IdentityStore: stores.NewFSIdentityStore(tmpDir),
-		ChannelStore:  stores.NewFSChannelStore(tmpDir),
-		TokenStore:    stores.NewFSTokenStore(tmpDir),
+		UserStore:     fs.NewFSUserStore(tmpDir),
+		IdentityStore: fs.NewFSIdentityStore(tmpDir),
+		ChannelStore:  fs.NewFSChannelStore(tmpDir),
+		TokenStore:    fs.NewFSTokenStore(tmpDir),
 	}
 
 	return service, tmpDir
