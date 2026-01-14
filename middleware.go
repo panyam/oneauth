@@ -89,11 +89,19 @@ func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
 	// log.Println("Cookies: ", r.Cookies())
 
 	for _, authToken := range authTokens {
-		loggedInUserId, _, err := a.VerifyToken(authToken)
+		// Strip "Bearer " prefix if present
+		token := authToken
+		if strings.HasPrefix(strings.ToLower(authToken), "bearer ") {
+			token = strings.TrimSpace(authToken[7:])
+		}
+		if token == "" {
+			continue
+		}
+		loggedInUserId, _, err := a.VerifyToken(token)
 		if err == nil && loggedInUserId != "" {
 			return loggedInUserId
 		} else if err != nil {
-			slog.Warn("Error verifying token: ", "token", authToken, "error", err)
+			slog.Warn("Error verifying token: ", "token", token[:min(len(token), 20)]+"...", "error", err)
 		}
 	}
 

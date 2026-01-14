@@ -344,6 +344,18 @@ func (a *APIAuth) createAccessToken(userID string, scopes []string) (string, int
 	return tokenString, int64(expiry.Seconds()), nil
 }
 
+// VerifyTokenFunc returns a function that can be used as Middleware.VerifyToken.
+// This allows the Middleware to validate Bearer tokens using the APIAuth's JWT configuration.
+func (a *APIAuth) VerifyTokenFunc() func(tokenString string) (userID string, token any, err error) {
+	return func(tokenString string) (string, any, error) {
+		userID, scopes, err := a.ValidateAccessToken(tokenString)
+		if err != nil {
+			return "", nil, err
+		}
+		return userID, scopes, nil
+	}
+}
+
 // ValidateAccessToken validates a JWT access token and returns the claims
 func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes []string, err error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {

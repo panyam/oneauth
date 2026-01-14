@@ -78,6 +78,28 @@ authClient.Login("user@example.com", "password", "read write")
 resp, _ := authClient.HTTPClient().Get("https://api.example.com/resource")
 ```
 
+## Unified Auth for HTTP Handlers
+
+The `Middleware` can validate both session-based auth (for browsers) and Bearer tokens (for API/CLI clients) through a unified interface:
+
+```go
+// Wire up APIAuth's JWT validation to Middleware
+apiAuth := &oneauth.APIAuth{
+    JWTSecretKey: "secret",
+    JWTIssuer:    "myapp",
+    // ...
+}
+oneauth.Middleware.VerifyToken = apiAuth.VerifyTokenFunc()
+
+// Now GetLoggedInUserId checks both session AND Bearer token
+userID := middleware.GetLoggedInUserId(r)  // Works for browser and API clients
+```
+
+The `Middleware.GetLoggedInUserId()` now:
+1. Checks request context (previously set by ExtractUser)
+2. Checks session (for browser clients)
+3. Checks Authorization header for Bearer tokens (for API/CLI clients)
+
 ## Current Version
 
 v0.2.0 - Added API authentication with JWT, refresh tokens, API keys, and multiple store implementations.
