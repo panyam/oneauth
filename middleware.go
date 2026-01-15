@@ -121,8 +121,8 @@ func (a *Middleware) ExtractUser(next http.Handler) http.Handler {
 	a.EnsureReasonableDefaults()
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			// See if the userId session token is set
-			userParam := a.getLoggedInUserId(r)
+			// Check session, context, and Authorization header for user ID
+			userParam := a.GetLoggedInUserId(r)
 			// set the logged in user ID as the request scoped variable
 			next.ServeHTTP(w, a.setLoggedInUserId(userParam, r))
 		},
@@ -133,8 +133,8 @@ func (a *Middleware) EnsureUser(next http.Handler) http.Handler {
 	a.EnsureReasonableDefaults()
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			// See if the userId session token is set
-			userParam := a.getLoggedInUserId(r)
+			// Check session, context, and Authorization header for user ID
+			userParam := a.GetLoggedInUserId(r)
 			if userParam == "" {
 				// Redirect to a login if user not logged in
 				// `/${a.redirectURLPrefix || "auth"}/login?callbackURL=${encodeURIComponent(req.originalUrl)}`;
@@ -159,15 +159,6 @@ func (a *Middleware) EnsureUser(next http.Handler) http.Handler {
 			}
 		},
 	)
-}
-
-// Gets the logged in user from the session first
-func (a *Middleware) getLoggedInUserId(r *http.Request) string {
-	out := a.SessionGetter(r, a.UserParamName)
-	if out == nil {
-		return ""
-	}
-	return out.(string)
 }
 
 // Set the logged in user id into the request's variable set
