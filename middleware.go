@@ -58,6 +58,8 @@ func (a *Middleware) EnsureReasonableDefaults() {
 
 // Get the ID of the logged in user from the current request
 func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
+	a.EnsureReasonableDefaults()
+
 	v := r.Context().Value(userParamNameKey(a.UserParamName))
 	if v != nil {
 		loggedInUserId := v.(string)
@@ -66,9 +68,11 @@ func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
 		}
 	}
 
-	userParam := a.SessionGetter(r, a.UserParamName)
-	if userParam != "" && userParam != nil {
-		return userParam.(string)
+	if a.SessionGetter != nil {
+		userParam := a.SessionGetter(r, a.UserParamName)
+		if userParam != "" && userParam != nil {
+			return userParam.(string)
+		}
 	}
 
 	// TODO - Decouple jwt details from Auth Middleware
