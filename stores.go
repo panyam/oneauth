@@ -15,6 +15,8 @@ type Identity struct {
 	UserID    string    `json:"user_id"`    // which user owns this identity
 	Verified  bool      `json:"verified"`   // has any channel verified this identity?
 	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Version   int       `json:"version"` // optimistic locking version
 }
 
 // Channel represents an authentication mechanism/provider
@@ -25,6 +27,16 @@ type Channel struct {
 	Profile     map[string]any `json:"profile"`      // optional data from provider
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
+	ExpiresAt   time.Time      `json:"expires_at"` // when channel auth expires and needs re-auth
+	Version     int            `json:"version"`    // optimistic locking version
+}
+
+// IsExpired returns true if the channel has an expiration time set and it has passed
+func (c *Channel) IsExpired() bool {
+	if c.ExpiresAt.IsZero() {
+		return false
+	}
+	return time.Now().After(c.ExpiresAt)
 }
 
 // UserStore manages unified user accounts

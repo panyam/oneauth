@@ -32,12 +32,15 @@ func (s *FSIdentityStore) GetIdentity(identityType, identityValue string, create
 
 	if err != nil {
 		if os.IsNotExist(err) && createIfMissing {
+			now := time.Now()
 			identity := &oa.Identity{
 				Type:      identityType,
 				Value:     identityValue,
 				UserID:    "", // Not assigned yet
 				Verified:  false,
-				CreatedAt: time.Now(),
+				CreatedAt: now,
+				UpdatedAt: now,
+				Version:   1,
 			}
 			if err := s.SaveIdentity(identity); err != nil {
 				return nil, false, err
@@ -78,6 +81,8 @@ func (s *FSIdentityStore) SetUserForIdentity(identityType, identityValue string,
 	}
 
 	identity.UserID = newUserId
+	identity.UpdatedAt = time.Now()
+	identity.Version++
 	return s.SaveIdentity(identity)
 }
 
@@ -88,6 +93,8 @@ func (s *FSIdentityStore) MarkIdentityVerified(identityType, identityValue strin
 	}
 
 	identity.Verified = true
+	identity.UpdatedAt = time.Now()
+	identity.Version++
 	return s.SaveIdentity(identity)
 }
 

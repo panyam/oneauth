@@ -211,13 +211,16 @@ func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIf
 
 	if err == datastore.ErrNoSuchEntity {
 		if createIfMissing {
+			now := time.Now()
 			entity = IdentityEntity{
 				Key:       key,
 				Type:      identityType,
 				Value:     identityValue,
 				UserID:    "",
 				Verified:  false,
-				CreatedAt: time.Now(),
+				CreatedAt: now,
+				UpdatedAt: now,
+				Version:   1,
 			}
 			if _, err := s.client.Put(s.ctx, key, &entity); err != nil {
 				return nil, false, err
@@ -249,6 +252,8 @@ func (s *IdentityStore) SetUserForIdentity(identityType, identityValue string, n
 			return err
 		}
 		entity.UserID = newUserId
+		entity.UpdatedAt = time.Now()
+		entity.Version++
 		_, err := tx.Put(key, &entity)
 		return err
 	})
@@ -264,6 +269,8 @@ func (s *IdentityStore) MarkIdentityVerified(identityType, identityValue string)
 			return err
 		}
 		entity.Verified = true
+		entity.UpdatedAt = time.Now()
+		entity.Version++
 		_, err := tx.Put(key, &entity)
 		return err
 	})
@@ -347,6 +354,7 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 				Profile:     nil,
 				CreatedAt:   now,
 				UpdatedAt:   now,
+				Version:     1,
 			}
 			if _, err := s.client.Put(s.ctx, key, &entity); err != nil {
 				return nil, false, err
@@ -358,6 +366,7 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 				Profile:     make(map[string]any),
 				CreatedAt:   now,
 				UpdatedAt:   now,
+				Version:     1,
 			}, true, nil
 		}
 		return nil, false, fmt.Errorf("channel not found")
@@ -381,6 +390,8 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 		Profile:     profile,
 		CreatedAt:   entity.CreatedAt,
 		UpdatedAt:   entity.UpdatedAt,
+		ExpiresAt:   entity.ExpiresAt,
+		Version:     entity.Version,
 	}, false, nil
 }
 
@@ -395,13 +406,14 @@ func (s *ChannelStore) SaveChannel(channel *oa.Channel) error {
 		profileBytes, _ = json.Marshal(channel.Profile)
 	}
 
-	// Get existing to preserve CreatedAt
+	// Get existing to preserve CreatedAt and increment Version
 	var existing ChannelEntity
 	err := s.client.Get(s.ctx, key, &existing)
 	if err != nil && err != datastore.ErrNoSuchEntity {
 		return err
 	}
 
+	now := time.Now()
 	entity := &ChannelEntity{
 		Key:         key,
 		Provider:    channel.Provider,
@@ -409,10 +421,13 @@ func (s *ChannelStore) SaveChannel(channel *oa.Channel) error {
 		Credentials: credBytes,
 		Profile:     profileBytes,
 		CreatedAt:   existing.CreatedAt,
-		UpdatedAt:   time.Now(),
+		UpdatedAt:   now,
+		ExpiresAt:   channel.ExpiresAt,
+		Version:     existing.Version + 1,
 	}
 	if existing.CreatedAt.IsZero() {
-		entity.CreatedAt = time.Now()
+		entity.CreatedAt = now
+		entity.Version = 1
 	}
 
 	_, err = s.client.Put(s.ctx, key, entity)
@@ -453,6 +468,8 @@ func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*oa.Channel,
 			Profile:     profile,
 			CreatedAt:   entity.CreatedAt,
 			UpdatedAt:   entity.UpdatedAt,
+			ExpiresAt:   entity.ExpiresAt,
+			Version:     entity.Version,
 		})
 	}
 	return channels, nil

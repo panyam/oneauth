@@ -34,13 +34,15 @@ func (s *FSChannelStore) GetChannel(provider string, identityKey string, createI
 
 	if err != nil {
 		if os.IsNotExist(err) && createIfMissing {
+			now := time.Now()
 			channel := &oa.Channel{
 				Provider:    provider,
 				IdentityKey: identityKey,
 				Credentials: make(map[string]any),
 				Profile:     make(map[string]any),
-				CreatedAt:   time.Now(),
-				UpdatedAt:   time.Now(),
+				CreatedAt:   now,
+				UpdatedAt:   now,
+				Version:     1,
 			}
 			if err := s.SaveChannel(channel); err != nil {
 				return nil, false, err
@@ -69,6 +71,9 @@ func (s *FSChannelStore) SaveChannel(channel *oa.Channel) error {
 	channel.UpdatedAt = time.Now()
 	if channel.CreatedAt.IsZero() {
 		channel.CreatedAt = time.Now()
+		channel.Version = 1
+	} else {
+		channel.Version++
 	}
 
 	data, err := json.MarshalIndent(channel, "", "  ")

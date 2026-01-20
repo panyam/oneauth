@@ -121,4 +121,4 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
-v0.3.0 - Added SignupPolicy for configurable validation, structured AuthError handling, UsernameStore for username uniqueness, and channel linking for multiple auth methods per user.
+v0.0.28 - Added optimistic locking fields (`Version`, `UpdatedAt`) to Identity and Channel models. Added `ExpiresAt` field to Channel for tracking when OAuth tokens or auth sessions need re-authentication. Added `IsExpired()` helper method to Channel. Updated all store implementations (GAE, FS, GORM).

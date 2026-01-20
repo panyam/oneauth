@@ -62,6 +62,7 @@ type UserModel struct {
 	Profile   JSONMap   `gorm:"type:jsonb"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+	Version   int       `gorm:"default:1"`
 }
 
 func (UserModel) TableName() string {
@@ -75,6 +76,8 @@ type IdentityModel struct {
 	UserID    string    `gorm:"size:64;index"`
 	Verified  bool      `gorm:"default:false"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+	Version   int       `gorm:"default:1"`
 }
 
 func (IdentityModel) TableName() string {
@@ -88,6 +91,8 @@ func (m *IdentityModel) ToIdentity() *oa.Identity {
 		UserID:    m.UserID,
 		Verified:  m.Verified,
 		CreatedAt: m.CreatedAt,
+		UpdatedAt: m.UpdatedAt,
+		Version:   m.Version,
 	}
 }
 
@@ -98,6 +103,8 @@ func IdentityToModel(i *oa.Identity) *IdentityModel {
 		UserID:    i.UserID,
 		Verified:  i.Verified,
 		CreatedAt: i.CreatedAt,
+		UpdatedAt: i.UpdatedAt,
+		Version:   i.Version,
 	}
 }
 
@@ -109,6 +116,8 @@ type ChannelModel struct {
 	Profile     JSONMap   `gorm:"type:jsonb"`
 	CreatedAt   time.Time `gorm:"autoCreateTime"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
+	ExpiresAt   time.Time `gorm:"index"` // when channel auth expires
+	Version     int       `gorm:"default:1"`
 }
 
 func (ChannelModel) TableName() string {
@@ -123,6 +132,8 @@ func (m *ChannelModel) ToChannel() *oa.Channel {
 		Profile:     m.Profile,
 		CreatedAt:   m.CreatedAt,
 		UpdatedAt:   m.UpdatedAt,
+		ExpiresAt:   m.ExpiresAt,
+		Version:     m.Version,
 	}
 }
 
@@ -134,6 +145,8 @@ func ChannelToModel(c *oa.Channel) *ChannelModel {
 		Profile:     JSONMap(c.Profile),
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
+		ExpiresAt:   c.ExpiresAt,
+		Version:     c.Version,
 	}
 }
 

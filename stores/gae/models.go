@@ -17,6 +17,7 @@ type UserEntity struct {
 	Profile   []byte         `datastore:"profile,noindex"` // JSON encoded
 	CreatedAt time.Time      `datastore:"created_at"`
 	UpdatedAt time.Time      `datastore:"updated_at"`
+	Version   int            `datastore:"version"`
 }
 
 // IdentityEntity is the Datastore entity for identities
@@ -28,6 +29,8 @@ type IdentityEntity struct {
 	UserID    string         `datastore:"user_id"`
 	Verified  bool           `datastore:"verified"`
 	CreatedAt time.Time      `datastore:"created_at"`
+	UpdatedAt time.Time      `datastore:"updated_at"`
+	Version   int            `datastore:"version"`
 }
 
 func (e *IdentityEntity) ToIdentity() *oa.Identity {
@@ -37,6 +40,8 @@ func (e *IdentityEntity) ToIdentity() *oa.Identity {
 		UserID:    e.UserID,
 		Verified:  e.Verified,
 		CreatedAt: e.CreatedAt,
+		UpdatedAt: e.UpdatedAt,
+		Version:   e.Version,
 	}
 }
 
@@ -48,6 +53,8 @@ func IdentityToEntity(i *oa.Identity, key *datastore.Key) *IdentityEntity {
 		UserID:    i.UserID,
 		Verified:  i.Verified,
 		CreatedAt: i.CreatedAt,
+		UpdatedAt: i.UpdatedAt,
+		Version:   i.Version,
 	}
 }
 
@@ -61,6 +68,8 @@ type ChannelEntity struct {
 	Profile     []byte         `datastore:"profile,noindex"`     // JSON encoded
 	CreatedAt   time.Time      `datastore:"created_at"`
 	UpdatedAt   time.Time      `datastore:"updated_at"`
+	ExpiresAt   time.Time      `datastore:"expires_at"` // when channel auth expires
+	Version     int            `datastore:"version"`
 }
 
 // AuthTokenEntity is the Datastore entity for verification/reset tokens
