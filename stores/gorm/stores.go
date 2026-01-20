@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -24,6 +25,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&AuthTokenModel{},
 		&RefreshTokenModel{},
 		&APIKeyModel{},
+		&UsernameModel{},
 	)
 }
 
@@ -573,4 +575,222 @@ func (s *APIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
 	return s.db.Model(&APIKeyModel{}).
 		Where("key_id = ?", keyID).
 		Update("last_used_at", time.Now()).Error
+}
+
+// =============================================================================
+// UsernameStore
+// =============================================================================
+
+// UsernameStore implements oa.UsernameStore using GORM with optimistic concurrency.
+//
+// # Purpose
+//
+// Provides username uniqueness enforcement and username-based login lookup.
+// This is optional - only configure it if your app needs:
+//   - Username uniqueness (prevent two users from having same username)
+//   - Username-based login (login with "johndoe" instead of email)
+//
+// # Concurrency Model
+//
+// Uses optimistic locking with version numbers. Updates use "WHERE version = ?"
+// clauses to detect concurrent modifications. If a conflict occurs, the operation
+// returns an error and can be retried.
+//
+// # Setup
+//
+//	db, _ := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+//	gorm.AutoMigrate(db) // Creates usernames table
+//	usernameStore := gorm.NewUsernameStore(db)
+//
+//	// Use with LocalAuth
+//	localAuth := &oneauth.LocalAuth{
+//	    UsernameStore: usernameStore,
+//	    SignupPolicy: &oneauth.SignupPolicy{
+//	        RequireUsername:       true,
+//	        EnforceUsernameUnique: true,
+//	    },
+//	}
+type UsernameStore struct {
+	db *gorm.DB
+}
+
+// NewUsernameStore creates a new GORM-backed UsernameStore
+func NewUsernameStore(db *gorm.DB) *UsernameStore {
+	return &UsernameStore{db: db}
+}
+
+// normalizeUsername converts username to lowercase for case-insensitive lookup
+func (s *UsernameStore) normalizeUsername(username string) string {
+	return strings.ToLower(username)
+}
+
+// ReserveUsername reserves a username for a user.
+// Returns error if username is already taken by a different user.
+//
+// # Concurrency
+//
+// Uses database unique constraint on primary key. Concurrent inserts for the
+// same username will have one succeed and one fail with a constraint violation.
+func (s *UsernameStore) ReserveUsername(username string, userID string) error {
+	normalized := s.normalizeUsername(username)
+
+	// First check if it exists
+	var existing UsernameModel
+	err := s.db.First(&existing, "normalized_username = ?", normalized).Error
+
+	if err == nil {
+		// Username exists - check if same user
+		if existing.UserID == userID {
+			// Same user - update the case-preserved version if different
+			if existing.Username != username {
+				result := s.db.Model(&UsernameModel{}).
+					Where("normalized_username = ? AND version = ?", normalized, existing.Version).
+					Updates(map[string]any{
+						"username": username,
+						"version":  existing.Version + 1,
+					})
+				if result.RowsAffected == 0 {
+					return fmt.Errorf("concurrent modification detected, please retry")
+				}
+			}
+			return nil
+		}
+		return fmt.Errorf("username already taken")
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		return err
+	}
+
+	// Create new reservation - rely on primary key constraint for uniqueness
+	model := &UsernameModel{
+		NormalizedUsername: normalized,
+		Username:           username,
+		UserID:             userID,
+		Version:            1,
+	}
+	if err := s.db.Create(model).Error; err != nil {
+		// Check if it's a duplicate key error (race condition)
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "UNIQUE") {
+			return fmt.Errorf("username already taken")
+		}
+		return err
+	}
+	return nil
+}
+
+// GetUserByUsername looks up a userID by username (case-insensitive).
+//
+// # Usage
+//
+// Called by NewCredentialsValidatorWithUsername during login when
+// user enters a username instead of email.
+func (s *UsernameStore) GetUserByUsername(username string) (string, error) {
+	normalized := s.normalizeUsername(username)
+
+	var model UsernameModel
+	if err := s.db.First(&model, "normalized_username = ?", normalized).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return "", fmt.Errorf("username not found")
+		}
+		return "", err
+	}
+	return model.UserID, nil
+}
+
+// ReleaseUsername removes a username reservation.
+//
+// # When to Use
+//
+// Call this when:
+//   - User deletes their account
+//   - Admin removes a username (e.g., for policy violations)
+func (s *UsernameStore) ReleaseUsername(username string) error {
+	normalized := s.normalizeUsername(username)
+	return s.db.Delete(&UsernameModel{}, "normalized_username = ?", normalized).Error
+}
+
+// ChangeUsername atomically changes a username using optimistic concurrency.
+// Returns error if new username is already taken or concurrent modification detected.
+//
+// # Usage
+//
+// Called from a "Change Username" profile page handler.
+//
+// # Concurrency
+//
+// Uses version check to detect concurrent modifications. If another process
+// modifies the username between read and update, returns error for retry.
+func (s *UsernameStore) ChangeUsername(oldUsername, newUsername, userID string) error {
+	oldNormalized := s.normalizeUsername(oldUsername)
+	newNormalized := s.normalizeUsername(newUsername)
+
+	// If same normalized username, just update the case
+	if oldNormalized == newNormalized {
+		var existing UsernameModel
+		if err := s.db.First(&existing, "normalized_username = ?", oldNormalized).Error; err != nil {
+			return fmt.Errorf("username not found")
+		}
+		if existing.UserID != userID {
+			return fmt.Errorf("username not owned by user")
+		}
+
+		result := s.db.Model(&UsernameModel{}).
+			Where("normalized_username = ? AND version = ?", oldNormalized, existing.Version).
+			Updates(map[string]any{
+				"username": newUsername,
+				"version":  existing.Version + 1,
+			})
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("concurrent modification detected, please retry")
+		}
+		return nil
+	}
+
+	// Different username - need to delete old and create new
+
+	// First verify old username exists and belongs to user
+	var oldModel UsernameModel
+	if err := s.db.First(&oldModel, "normalized_username = ?", oldNormalized).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("old username not found")
+		}
+		return err
+	}
+	if oldModel.UserID != userID {
+		return fmt.Errorf("old username not owned by user")
+	}
+
+	// Check new username is available
+	var newModel UsernameModel
+	err := s.db.First(&newModel, "normalized_username = ?", newNormalized).Error
+	if err == nil {
+		return fmt.Errorf("new username already taken")
+	}
+	if err != gorm.ErrRecordNotFound {
+		return err
+	}
+
+	// Delete old with version check
+	result := s.db.Where("normalized_username = ? AND version = ?", oldNormalized, oldModel.Version).
+		Delete(&UsernameModel{})
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("concurrent modification detected, please retry")
+	}
+
+	// Create new - rely on primary key constraint
+	newModel = UsernameModel{
+		NormalizedUsername: newNormalized,
+		Username:           newUsername,
+		UserID:             userID,
+		Version:            1,
+	}
+	if err := s.db.Create(&newModel).Error; err != nil {
+		// Race condition - someone else took the username. Re-create the old one.
+		oldModel.Version++
+		s.db.Create(&oldModel) // Best effort to restore
+		return fmt.Errorf("new username already taken")
+	}
+
+	return nil
 }

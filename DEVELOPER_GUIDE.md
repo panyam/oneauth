@@ -164,6 +164,46 @@ type ChannelStore interface {
 
 Providers: `"local"`, `"google"`, `"github"`, etc.
 
+### UsernameStore (Optional)
+
+Manages username uniqueness and username-based login. Only needed if your app requires:
+- Unique usernames across all users
+- Login with username (in addition to email)
+
+```go
+type UsernameStore interface {
+    ReserveUsername(username string, userID string) error
+    GetUserByUsername(username string) (userID string, err error)
+    ReleaseUsername(username string) error
+    ChangeUsername(oldUsername, newUsername, userID string) error
+}
+```
+
+**Why separate from IdentityStore?**
+- Username is a display handle, not a contact method
+- Different validation rules than email/phone
+- Username changes are more common
+- Enables O(1) username lookup for username-based login
+
+```go
+// Setup
+usernameStore := fs.NewFSUsernameStore(storagePath)
+// or
+usernameStore := gorm.NewUsernameStore(db)
+// or
+usernameStore := gae.NewUsernameStore(datastoreClient, namespace)
+
+// Use with LocalAuth
+localAuth := &oneauth.LocalAuth{
+    UsernameStore: usernameStore,
+    SignupPolicy: &oneauth.SignupPolicy{
+        RequireUsername:       true,
+        EnforceUsernameUnique: true,
+    },
+    // ...
+}
+```
+
 ### TokenStore
 
 Manages verification and password reset tokens.
@@ -205,9 +245,50 @@ func (s *PostgresUserStore) CreateUser(userId string, isActive bool, profile map
 
 ## Validation
 
-### Default Signup Validator
+### SignupPolicy (Recommended)
 
-OneAuth provides a default validator with these rules:
+OneAuth provides a policy-based validation system that gives you fine-grained control over signup requirements:
+
+```go
+// Use a preset policy
+localAuth.SignupPolicy = &oneauth.PolicyEmailOnly // Username optional, email required
+
+// Or create a custom policy
+localAuth.SignupPolicy = &oneauth.SignupPolicy{
+    RequireUsername:       true,  // Is username required?
+    RequireEmail:          true,  // Is email required?
+    RequirePhone:          false, // Is phone required?
+    RequirePassword:       true,  // Is password required?
+    EnforceUsernameUnique: true,  // Check UsernameStore?
+    EnforceEmailUnique:    true,  // Check IdentityStore?
+    MinPasswordLength:     12,    // Minimum password length
+    UsernamePattern:       `^[a-z][a-z0-9_]{2,19}$`, // Custom regex
+}
+```
+
+#### Preset Policies
+
+| Policy | Username | Email | Password | Use Case |
+|--------|----------|-------|----------|----------|
+| `PolicyEmailOnly` | Optional | Required | Required | Most web apps (email login) |
+| `PolicyUsernameRequired` | Required | Required | Required | Apps needing unique usernames |
+| `PolicyFlexible` | Optional | Optional | Optional | OAuth-first apps |
+
+#### Custom Username Patterns
+
+The `UsernamePattern` field accepts a regex pattern:
+
+```go
+// Lowercase only, 4-16 chars, must start with letter
+policy.UsernamePattern = `^[a-z][a-z0-9_]{3,15}$`
+
+// Allow uppercase, 3-20 chars
+policy.UsernamePattern = `^[a-zA-Z][a-zA-Z0-9_-]{2,19}$`
+```
+
+### Default Signup Validator (Legacy)
+
+For backwards compatibility, the legacy `ValidateSignup` callback is still supported:
 
 - Username: 3-20 characters, alphanumeric plus underscore and hyphen
 - Email: Valid email format (if provided)
@@ -215,7 +296,7 @@ OneAuth provides a default validator with these rules:
 - At least one of email or phone required
 - Password: Minimum 8 characters
 
-### Custom Validator
+### Custom Validator (Legacy)
 
 ```go
 customValidator := func(creds *oneauth.Credentials) error {
@@ -237,6 +318,8 @@ customValidator := func(creds *oneauth.Credentials) error {
 
 localAuth.ValidateSignup = customValidator
 ```
+
+**Note:** If `SignupPolicy` is set, it takes precedence over `ValidateSignup`.
 
 ## Email Integration
 
@@ -336,6 +419,158 @@ oneauth.AddAuth("/github", oauth2.NewGithubOAuth2(
 // Add local auth
 oneauth.AddAuth("/login", localAuth)
 ```
+
+## Channel Linking (Multiple Auth Methods)
+
+OneAuth supports linking multiple authentication methods to the same user account. A user can sign up with email/password and later link their Google account, or vice versa.
+
+### How Channels Work
+
+Multiple channels can point to the same user via shared email:
+
+```
+User (id: abc123)
+├── Identity: email → user@example.com (verified)
+├── Channel: local → email:user@example.com (has password_hash)
+├── Channel: google → email:user@example.com (has oauth profile)
+└── Channel: github → email:user@example.com (has oauth profile)
+```
+
+The user profile tracks linked providers: `profile["channels"] = ["local", "google", "github"]`
+
+### Setting Up Channel-Aware User Creation
+
+Use `NewEnsureAuthUserFunc` for OAuth callbacks that automatically link channels:
+
+```go
+config := oneauth.EnsureAuthUserConfig{
+    UserStore:     userStore,
+    IdentityStore: identityStore,
+    ChannelStore:  channelStore,
+    UsernameStore: usernameStore, // Optional
+}
+
+ensureUser := oneauth.NewEnsureAuthUserFunc(config)
+
+// Use with OAuth
+oneauth.UserStore = &myAuthUserStore{ensureUser: ensureUser}
+```
+
+When a user logs in with Google:
+1. If no user exists with that email → create new user + Google channel
+2. If user exists (signed up with password) → link Google channel to existing user
+
+### Adding Password to OAuth User
+
+Allow OAuth-only users to add email/password login:
+
+```go
+// Mount the handler
+linkConfig := oneauth.LinkCredentialsConfig{
+    UserStore:     userStore,
+    IdentityStore: identityStore,
+    ChannelStore:  channelStore,
+    UsernameStore: usernameStore, // Optional
+}
+
+getUser := func(r *http.Request) (string, error) {
+    return getLoggedInUserIDFromSession(r), nil
+}
+
+mux.Handle("POST /auth/link-credentials",
+    localAuth.HandleLinkCredentials(linkConfig, getUser))
+```
+
+Frontend form:
+```html
+<form action="/auth/link-credentials" method="POST">
+    <input name="username" placeholder="Username (optional)">
+    <input name="password" type="password" placeholder="Password" required>
+    <button type="submit">Add Password Login</button>
+</form>
+```
+
+### Adding OAuth to Password User
+
+Allow password-only users to link OAuth providers:
+
+```go
+// Step 1: Start linking flow
+func handleLinkGoogle(w http.ResponseWriter, r *http.Request) {
+    userID := getLoggedInUserID(r)
+    oneAuth.StartLinkOAuth(r, userID)
+    http.Redirect(w, r, "/auth/google/", http.StatusFound)
+}
+
+// Step 2: In your OAuth callback, detect linking mode
+func googleCallback(w http.ResponseWriter, r *http.Request) {
+    // ... exchange code for token, get userInfo ...
+
+    // Check if this is a linking flow
+    linkingUserID := oneAuth.GetLinkingUserID(r)
+    if linkingUserID != "" {
+        // Linking flow - add OAuth to existing user
+        linkConfig := oneauth.LinkOAuthConfig{
+            UserStore:     userStore,
+            IdentityStore: identityStore,
+            ChannelStore:  channelStore,
+        }
+        oneAuth.HandleLinkOAuthCallback(linkConfig, linkingUserID, "google", userInfo, w, r)
+        return
+    }
+
+    // Normal login/signup flow
+    oneAuth.SaveUserAndRedirect("oauth", "google", token, userInfo, w, r)
+}
+```
+
+### Username-Based Login
+
+Enable login with username (in addition to email):
+
+```go
+// Use the username-aware validator
+validateCreds := oneauth.NewCredentialsValidatorWithUsername(
+    identityStore,
+    channelStore,
+    userStore,
+    usernameStore, // Required for username login
+)
+
+localAuth := &oneauth.LocalAuth{
+    ValidateCredentials: validateCreds,
+    // ...
+}
+```
+
+Users can then login with either:
+- Email: `user@example.com` + password
+- Username: `johndoe` + password
+
+### Programmatic Channel Linking
+
+Link credentials programmatically (e.g., from a profile settings handler):
+
+```go
+config := oneauth.EnsureAuthUserConfig{
+    UserStore:     userStore,
+    IdentityStore: identityStore,
+    ChannelStore:  channelStore,
+    UsernameStore: usernameStore,
+}
+
+// Add password to OAuth user
+err := oneauth.LinkLocalCredentials(config, userID, "newusername", "password123", userEmail)
+if err != nil {
+    // Handle error: "local credentials already exist", "username taken", etc.
+}
+```
+
+### Security Considerations
+
+1. **Email Matching**: OAuth linking verifies the OAuth email matches the user's existing email
+2. **Cannot Link Different Emails**: Users cannot link an OAuth account with a different email address
+3. **Duplicate Prevention**: The same provider can only be linked once per identity
 
 ## Helper Functions
 
@@ -464,18 +699,81 @@ mux.Handle("/auth/login", rateLimiter.Wrap(localAuth))
 
 ## Error Handling
 
-Authentication handlers return appropriate HTTP status codes:
+### Structured Errors (AuthError)
+
+OneAuth provides structured errors with field-level information:
+
+```go
+type AuthError struct {
+    Code    string // "email_exists", "username_taken", "weak_password", etc.
+    Message string // Human-readable message
+    Field   string // Which form field has the error (e.g., "email", "username")
+}
+```
+
+#### Error Codes
+
+| Code | Description |
+|------|-------------|
+| `email_exists` | Email already registered |
+| `username_taken` | Username already taken |
+| `weak_password` | Password doesn't meet requirements |
+| `invalid_username` | Username format invalid |
+| `invalid_email` | Email format invalid |
+| `invalid_phone` | Phone format invalid |
+| `missing_field` | Required field not provided |
+| `invalid_credentials` | Wrong email/password combination |
+
+### Custom Error Handlers
+
+Configure custom error handlers for signup and login errors:
+
+```go
+localAuth := &oneauth.LocalAuth{
+    // ... other config ...
+
+    // Custom signup error handler
+    OnSignupError: func(err *oneauth.AuthError, w http.ResponseWriter, r *http.Request) bool {
+        // Option 1: Redirect with flash message (using your session library)
+        session.SetFlash(r, "error", err.Message)
+        session.SetFlash(r, "error_field", err.Field)
+        http.Redirect(w, r, "/signup", http.StatusSeeOther)
+        return true // Error handled
+
+        // Option 2: Return custom JSON
+        // w.WriteHeader(http.StatusUnprocessableEntity)
+        // json.NewEncoder(w).Encode(map[string]any{"validation_error": err})
+        // return true
+    },
+
+    // Custom login error handler
+    OnLoginError: func(err *oneauth.AuthError, w http.ResponseWriter, r *http.Request) bool {
+        session.SetFlash(r, "login_error", err.Message)
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return true
+    },
+}
+```
+
+If the handler returns `false` (or is nil), OneAuth uses the default JSON response.
+
+### Default JSON Error Response
+
+```json
+{
+    "error": "Email already registered",
+    "code": "email_exists",
+    "field": "email"
+}
+```
+
+### HTTP Status Codes
 
 - `200 OK`: Successful authentication
 - `400 Bad Request`: Invalid input or validation failure
 - `401 Unauthorized`: Invalid credentials
+- `409 Conflict`: Resource already exists (e.g., linking credentials that exist)
 - `500 Internal Server Error`: Server-side error
-
-Error responses are JSON-formatted:
-
-```json
-{"error": "Invalid credentials"}
-```
 
 ## Migration Guide
 

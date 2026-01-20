@@ -125,3 +125,12 @@ type APIKeyEntity struct {
 	RevokedAt  time.Time      `datastore:"revoked_at,omitempty"`
 	Revoked    bool           `datastore:"revoked"`
 }
+
+// UsernameEntity is the Datastore entity for username -> userID mapping
+// Key is the username (lowercased for case-insensitive lookup)
+type UsernameEntity struct {
+	Key       *datastore.Key `datastore:"__key__"`
+	Username  string         `datastore:"username"`  // Original case-preserved username
+	UserID    string         `datastore:"user_id"`
+	CreatedAt time.Time      `datastore:"created_at"`
+}

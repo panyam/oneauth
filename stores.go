@@ -124,3 +124,26 @@ type APIKeyStore interface {
 	// UpdateAPIKeyLastUsed updates the last used timestamp
 	UpdateAPIKeyLastUsed(keyID string) error
 }
+
+// UsernameStore manages username uniqueness (optional - for apps that need username-based login)
+// This is separate from IdentityStore because:
+// - Username is a display handle, not a contact method
+// - Different validation rules than email/phone
+// - Username changes are more common
+// - Enables O(1) username lookup for username-based login
+type UsernameStore interface {
+	// ReserveUsername reserves a username for a user (creates username -> userID mapping)
+	// Returns error if username is already taken
+	ReserveUsername(username string, userID string) error
+
+	// GetUserByUsername looks up a userID by username
+	// Returns error if username not found
+	GetUserByUsername(username string) (userID string, err error)
+
+	// ReleaseUsername removes a username reservation
+	ReleaseUsername(username string) error
+
+	// ChangeUsername atomically changes a username (release old, reserve new)
+	// Returns error if new username is already taken
+	ChangeUsername(oldUsername, newUsername, userID string) error
+}

@@ -8,9 +8,11 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 
 - **Browser Authentication**: Password login, OAuth (Google, GitHub), email verification, password reset
 - **API Authentication**: JWT access tokens, refresh tokens, API keys for programmatic access
-- **Multi-provider**: Single account accessible via password, Google, GitHub, etc.
+- **Multi-provider**: Single account accessible via password, Google, GitHub, etc. with channel linking
 - **Flexible Storage**: File-based, GORM (SQL), and GAE/Datastore implementations
 - **Scope-based Access**: Fine-grained permissions for API endpoints
+- **Policy-Based Validation**: Configurable signup requirements (SignupPolicy)
+- **Username Support**: Optional username uniqueness with username-based login
 
 ## Architecture
 
@@ -100,6 +102,23 @@ The `Middleware.GetLoggedInUserId()` now:
 2. Checks session (for browser clients)
 3. Checks Authorization header for Bearer tokens (for API/CLI clients)
 
+## Channel Linking
+
+OneAuth supports linking multiple auth methods to the same account:
+
+```go
+// OAuth callback automatically links to existing user with same email
+ensureUser := oneauth.NewEnsureAuthUserFunc(config)
+
+// OAuth-only user can add password later
+oneauth.LinkLocalCredentials(config, userID, "username", "password", email)
+
+// Password user can link Google account
+oneauth.StartLinkOAuth(r, userID)  // In "Link Google" handler
+// Then in OAuth callback:
+oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
+```
+
 ## Current Version
 
-v0.2.0 - Added API authentication with JWT, refresh tokens, API keys, and multiple store implementations.
+v0.3.0 - Added SignupPolicy for configurable validation, structured AuthError handling, UsernameStore for username uniqueness, and channel linking for multiple auth methods per user.

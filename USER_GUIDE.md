@@ -53,6 +53,53 @@ OneAuth allows you to use multiple ways to sign into the same account:
 
 This provides flexibility while keeping your account unified.
 
+### Linking Additional Login Methods
+
+If you signed up with one method, you can add others:
+
+#### Adding Password to Social Login Account
+
+If you signed up with Google or GitHub and want to add password login:
+
+1. Log in with your social account
+2. Navigate to account settings or profile
+3. Look for "Add Password" or "Link Password"
+4. Enter your desired password (optionally a username)
+5. Click "Save" or "Link"
+
+Now you can log in with either Google or email/password.
+
+#### Adding Social Login to Password Account
+
+If you signed up with email/password and want to add Google login:
+
+1. Log in with your password
+2. Navigate to account settings
+3. Look for "Link Google Account" or similar
+4. Click the link button
+5. Authorize the application in Google's window
+6. You'll be redirected back and the accounts are linked
+
+Now you can log in with either method.
+
+### Viewing Linked Accounts
+
+In account settings, you can typically see which login methods are linked:
+
+- **Email/Password**: Shows if you have a password set
+- **Google**: Shows if Google is linked
+- **GitHub**: Shows if GitHub is linked
+
+### Unlinking Accounts
+
+Some applications allow you to unlink login methods:
+
+1. Navigate to account settings
+2. Find the linked account section
+3. Click "Unlink" next to the method you want to remove
+
+**Note**: You cannot unlink your last login method. At least one must remain.
+
 ## Email Verification
 
 Some applications require email verification for security:

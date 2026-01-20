@@ -19,6 +19,37 @@
 
 ---
 
+## Completed (v0.3.0)
+
+### SignupPolicy - Configurable Signup Requirements
+- [x] `SignupPolicy` type with configurable field requirements
+- [x] Preset policies: `PolicyUsernameRequired`, `PolicyEmailOnly`, `PolicyFlexible`
+- [x] Custom username patterns via regex
+- [x] Configurable minimum password length
+
+### Structured Error Handling
+- [x] `AuthError` type with code, message, and field
+- [x] Custom error handlers (`OnSignupError`, `OnLoginError`)
+- [x] Field-level error codes for form validation
+- [x] Backwards-compatible JSON error responses
+
+### Username Uniqueness (UsernameStore)
+- [x] `UsernameStore` interface for username → userID mapping
+- [x] FS implementation with atomic file operations
+- [x] GORM implementation with optimistic concurrency
+- [x] GAE implementation with Datastore transactions
+- [x] Case-insensitive lookup with case-preserving storage
+
+### Channel Linking (Multiple Auth Methods)
+- [x] `NewEnsureAuthUserFunc` - channel-aware user creation for OAuth
+- [x] `LinkLocalCredentials` - add password to OAuth-only users
+- [x] `HandleLinkCredentials` - HTTP handler for linking credentials
+- [x] `HandleLinkOAuthCallback` - link OAuth to existing password users
+- [x] `NewCredentialsValidatorWithUsername` - username-based login
+- [x] Profile tracking of linked channels (`profile["channels"]`)
+
+---
+
 ## Completed (v0.2.0)
 
 ### Core Authentication
@@ -36,14 +67,14 @@
 - [x] Cryptographically secure token generation
 
 ### Storage Backends
-- [x] File-based stores (`stores/fs/`) - all 6 interfaces
-- [x] GORM stores (`stores/gorm/`) - SQL databases with auto-migration
-- [x] GAE/Datastore stores (`stores/gae/`) - Google Cloud
+- [x] File-based stores (`stores/fs/`) - all 6 interfaces + UsernameStore
+- [x] GORM stores (`stores/gorm/`) - SQL databases with auto-migration + UsernameStore
+- [x] GAE/Datastore stores (`stores/gae/`) - Google Cloud + UsernameStore
 
 ### Infrastructure
 - [x] gRPC support - context utilities, auth interceptors
 - [x] Session management - cookie and header-based
-- [x] Comprehensive test coverage (~2,600 lines)
+- [x] Comprehensive test coverage (~3,000+ lines)
 
 ---
 
@@ -147,10 +178,10 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
   >
   > **Urgency**: Required for SOC2, HIPAA compliance. Can defer if not targeting regulated industries yet.
 
-- [ ] **P2** `[ADOPTION]` Username-based login (currently email/phone only)
+- [x] **P2** `[ADOPTION]` Username-based login (previously email/phone only) ✅ **COMPLETED v0.3.0**
   > **Scenario**: Gaming platform where users prefer handles like "DragonSlayer99" over email. `auth.Login("DragonSlayer99", password)` should work alongside email login.
   >
-  > **Urgency**: Blocks adoption for gaming/social platforms. Not needed for B2B SaaS.
+  > **Implementation**: Added `UsernameStore` interface with FS, GORM, and GAE implementations. Use `NewCredentialsValidatorWithUsername()` for username-based login support.
 
 ---
 

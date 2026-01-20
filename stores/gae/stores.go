@@ -27,6 +27,7 @@ const (
 	KindAuthToken    = "AuthToken"
 	KindRefreshToken = "RefreshToken"
 	KindAPIKey       = "APIKey"
+	KindUsername     = "Username"
 )
 
 // ============================================================================
@@ -1192,6 +1193,165 @@ func (s *APIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
 
 		entity.LastUsedAt = time.Now()
 		_, err := tx.Put(key, &entity)
+		return err
+	})
+	return err
+}
+
+// ============================================================================
+// UsernameStore
+// ============================================================================
+
+// UsernameStore implements oa.UsernameStore using Google Cloud Datastore
+type UsernameStore struct {
+	client    *datastore.Client
+	namespace string
+	ctx       context.Context
+}
+
+// NewUsernameStore creates a new Datastore-backed UsernameStore
+func NewUsernameStore(client *datastore.Client, namespace string) *UsernameStore {
+	return &UsernameStore{
+		client:    client,
+		namespace: namespace,
+		ctx:       context.Background(),
+	}
+}
+
+func (s *UsernameStore) WithContext(ctx context.Context) *UsernameStore {
+	return &UsernameStore{
+		client:    s.client,
+		namespace: s.namespace,
+		ctx:       ctx,
+	}
+}
+
+func (s *UsernameStore) namespacedKey(kind, name string) *datastore.Key {
+	key := datastore.NameKey(kind, name, nil)
+	key.Namespace = s.namespace
+	return key
+}
+
+// normalizeUsername converts username to lowercase for case-insensitive lookup
+func (s *UsernameStore) normalizeUsername(username string) string {
+	return strings.ToLower(username)
+}
+
+func (s *UsernameStore) ReserveUsername(username string, userID string) error {
+	normalizedUsername := s.normalizeUsername(username)
+	key := s.namespacedKey(KindUsername, normalizedUsername)
+
+	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+		var existing UsernameEntity
+		err := tx.Get(key, &existing)
+		if err == nil {
+			// Username already exists
+			if existing.UserID == userID {
+				// Same user, just update the original case
+				existing.Username = username
+				_, err = tx.Put(key, &existing)
+				return err
+			}
+			return fmt.Errorf("username already taken")
+		}
+		if err != datastore.ErrNoSuchEntity {
+			return err
+		}
+
+		// Create new username reservation
+		entity := &UsernameEntity{
+			Key:       key,
+			Username:  username,
+			UserID:    userID,
+			CreatedAt: time.Now(),
+		}
+		_, err = tx.Put(key, entity)
+		return err
+	})
+	return err
+}
+
+func (s *UsernameStore) GetUserByUsername(username string) (string, error) {
+	normalizedUsername := s.normalizeUsername(username)
+	key := s.namespacedKey(KindUsername, normalizedUsername)
+
+	var entity UsernameEntity
+	if err := s.client.Get(s.ctx, key, &entity); err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			return "", fmt.Errorf("username not found")
+		}
+		return "", err
+	}
+	return entity.UserID, nil
+}
+
+func (s *UsernameStore) ReleaseUsername(username string) error {
+	normalizedUsername := s.normalizeUsername(username)
+	key := s.namespacedKey(KindUsername, normalizedUsername)
+	return s.client.Delete(s.ctx, key)
+}
+
+func (s *UsernameStore) ChangeUsername(oldUsername, newUsername, userID string) error {
+	oldNormalized := s.normalizeUsername(oldUsername)
+	newNormalized := s.normalizeUsername(newUsername)
+
+	// If same normalized username, just update the case
+	if oldNormalized == newNormalized {
+		key := s.namespacedKey(KindUsername, oldNormalized)
+		_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+			var entity UsernameEntity
+			if err := tx.Get(key, &entity); err != nil {
+				return err
+			}
+			if entity.UserID != userID {
+				return fmt.Errorf("username not owned by user")
+			}
+			entity.Username = newUsername
+			_, err := tx.Put(key, &entity)
+			return err
+		})
+		return err
+	}
+
+	// Different username - need to atomically release old and reserve new
+	oldKey := s.namespacedKey(KindUsername, oldNormalized)
+	newKey := s.namespacedKey(KindUsername, newNormalized)
+
+	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+		// Check old username exists and belongs to user
+		var oldEntity UsernameEntity
+		if err := tx.Get(oldKey, &oldEntity); err != nil {
+			if err == datastore.ErrNoSuchEntity {
+				return fmt.Errorf("old username not found")
+			}
+			return err
+		}
+		if oldEntity.UserID != userID {
+			return fmt.Errorf("old username not owned by user")
+		}
+
+		// Check new username is available
+		var newEntity UsernameEntity
+		err := tx.Get(newKey, &newEntity)
+		if err == nil {
+			return fmt.Errorf("new username already taken")
+		}
+		if err != datastore.ErrNoSuchEntity {
+			return err
+		}
+
+		// Delete old, create new
+		if err := tx.Delete(oldKey); err != nil {
+			return err
+		}
+
+		newEntity = UsernameEntity{
+			Key:       newKey,
+			Username:  newUsername,
+			UserID:    userID,
+			CreatedAt: time.Now(),
+		}
+		_, err = tx.Put(newKey, &newEntity)
 		return err
 	})
 	return err

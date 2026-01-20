@@ -319,3 +319,227 @@ func (a *OneAuth) setLoggedInUser(user User, w http.ResponseWriter, r *http.Requ
 	}
 	return ""
 }
+
+// =============================================================================
+// OAuth Linking (Phase 4)
+// =============================================================================
+
+// LinkOAuthConfig holds configuration for OAuth account linking
+type LinkOAuthConfig struct {
+	UserStore     UserStore
+	IdentityStore IdentityStore
+	ChannelStore  ChannelStore
+}
+
+// HandleLinkOAuthCallback returns an HTTP handler for linking an OAuth provider
+// to an existing local-only user.
+//
+// # Who Calls This
+//
+// This is called by OAuth providers after the user authorizes linking. The flow is:
+//
+//  1. Local-only user visits profile, clicks "Link Google Account"
+//  2. App stores user ID in session as "linkingUserID"
+//  3. App redirects to Google OAuth with special state
+//  4. Google redirects back to /auth/google/callback
+//  5. OAuth callback sees "linkingUserID" in session
+//  6. Instead of normal login, calls this handler to link the account
+//
+// # How to Set Up
+//
+// Modify your OAuth callback to detect linking mode:
+//
+//	func googleCallback(w http.ResponseWriter, r *http.Request) {
+//	    // ... exchange code for token, get userInfo ...
+//
+//	    // Check if this is a linking flow
+//	    linkingUserID := session.Get("linkingUserID")
+//	    if linkingUserID != "" {
+//	        session.Delete("linkingUserID")
+//	        linkConfig := oneauth.LinkOAuthConfig{
+//	            UserStore:     stores.UserStore,
+//	            IdentityStore: stores.IdentityStore,
+//	            ChannelStore:  stores.ChannelStore,
+//	        }
+//	        oneAuth.HandleLinkOAuthCallback(linkConfig, linkingUserID, "google", userInfo, w, r)
+//	        return
+//	    }
+//
+//	    // Normal login flow
+//	    oneAuth.SaveUserAndRedirect("oauth", "google", token, userInfo, w, r)
+//	}
+//
+// # What It Does
+//
+//  1. Verifies the OAuth email matches the user's existing email identity
+//  2. Creates OAuth channel for the provider
+//  3. Updates user profile["channels"] to include the new provider
+//  4. Redirects to callback URL (or returns JSON success)
+//
+// # Security
+//
+// The OAuth email MUST match the user's existing email to prevent account hijacking.
+// Users cannot link to a different email address.
+func (a *OneAuth) HandleLinkOAuthCallback(config LinkOAuthConfig, linkingUserID, provider string, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {
+	// Get the OAuth email
+	oauthEmail, _ := userInfo["email"].(string)
+	if oauthEmail == "" {
+		http.Error(w, `{"error": "OAuth provider did not return email"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Get the user being linked
+	user, err := config.UserStore.GetUserById(linkingUserID)
+	if err != nil {
+		http.Error(w, `{"error": "User not found"}`, http.StatusNotFound)
+		return
+	}
+
+	// Get user's email from profile
+	profile := user.Profile()
+	userEmail, _ := profile["email"].(string)
+
+	// SECURITY: OAuth email must match user's email
+	if userEmail == "" {
+		http.Error(w, `{"error": "User has no email identity to link"}`, http.StatusBadRequest)
+		return
+	}
+	if !strings.EqualFold(oauthEmail, userEmail) {
+		log.Printf("OAuth link rejected: OAuth email %s != user email %s", oauthEmail, userEmail)
+		http.Error(w, `{"error": "OAuth email does not match your account email"}`, http.StatusForbidden)
+		return
+	}
+
+	// Create identity key
+	identityKey := IdentityKey("email", userEmail)
+
+	// Check if channel already exists
+	existingChannel, _, err := config.ChannelStore.GetChannel(provider, identityKey, false)
+	if err == nil && existingChannel != nil {
+		// Channel already exists - that's fine, just update it
+		log.Printf("Updating existing %s channel for user %s", provider, linkingUserID)
+	}
+
+	// Create/update OAuth channel
+	channel := &Channel{
+		Provider:    provider,
+		IdentityKey: identityKey,
+		Credentials: make(map[string]any),
+		Profile:     userInfo,
+	}
+	if err := config.ChannelStore.SaveChannel(channel); err != nil {
+		http.Error(w, `{"error": "Failed to link OAuth account"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Update user profile with linked channel
+	if profile == nil {
+		profile = make(map[string]any)
+	}
+	channels := getProfileChannels(profile)
+	if !containsChannel(channels, provider) {
+		channels = append(channels, provider)
+		profile["channels"] = channels
+
+		// Also update profile with OAuth info if not set
+		if profile["name"] == nil || profile["name"] == "" {
+			if name, ok := userInfo["name"].(string); ok && name != "" {
+				profile["name"] = name
+			}
+		}
+		if profile["picture"] == nil || profile["picture"] == "" {
+			if picture, ok := userInfo["picture"].(string); ok && picture != "" {
+				profile["picture"] = picture
+			}
+		}
+
+		updatedUser := &BasicUser{id: linkingUserID, profile: profile}
+		if err := config.UserStore.SaveUser(updatedUser); err != nil {
+			log.Printf("Warning: failed to update user profile: %v", err)
+		}
+	}
+
+	log.Printf("Linked %s account to user %s", provider, linkingUserID)
+
+	// Redirect back to app
+	callbackURL := "/"
+	if callbackCookie, _ := r.Cookie("oauthCallbackURL"); callbackCookie != nil && callbackCookie.Value != "" {
+		callbackURL = callbackCookie.Value
+	}
+
+	// Clear the callback cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:   "oauthCallbackURL",
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
+	})
+
+	http.Redirect(w, r, callbackURL, http.StatusFound)
+}
+
+// getProfileChannels extracts channels list from profile
+func getProfileChannels(profile map[string]any) []string {
+	if profile == nil {
+		return []string{}
+	}
+	switch v := profile["channels"].(type) {
+	case []string:
+		return v
+	case []any:
+		result := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				result = append(result, s)
+			}
+		}
+		return result
+	default:
+		return []string{}
+	}
+}
+
+// containsChannel checks if provider is in channels list
+func containsChannel(channels []string, provider string) bool {
+	for _, c := range channels {
+		if c == provider {
+			return true
+		}
+	}
+	return false
+}
+
+// StartLinkOAuth initiates OAuth account linking by storing the user ID in session.
+// Call this from your "Link [Provider] Account" button handler.
+//
+// # Example Usage
+//
+//	func handleLinkGoogle(w http.ResponseWriter, r *http.Request) {
+//	    userID := getLoggedInUserID(r)
+//	    oneAuth.StartLinkOAuth(r, userID)
+//	    // Redirect to Google OAuth
+//	    http.Redirect(w, r, "/auth/google/", http.StatusFound)
+//	}
+func (a *OneAuth) StartLinkOAuth(r *http.Request, userID string) {
+	a.Session.Put(r.Context(), "linkingUserID", userID)
+}
+
+// GetLinkingUserID retrieves and clears the linking user ID from session.
+// Call this in your OAuth callback to detect linking mode.
+//
+// # Example Usage
+//
+//	func googleCallback(w http.ResponseWriter, r *http.Request) {
+//	    linkingUserID := oneAuth.GetLinkingUserID(r)
+//	    if linkingUserID != "" {
+//	        // Linking flow
+//	        oneAuth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
+//	        return
+//	    }
+//	    // Normal login flow
+//	    oneAuth.SaveUserAndRedirect(...)
+//	}
+func (a *OneAuth) GetLinkingUserID(r *http.Request) string {
+	userID := a.Session.PopString(r.Context(), "linkingUserID")
+	return userID
+}

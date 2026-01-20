@@ -55,6 +55,12 @@ OneAuth is a Go authentication library that provides unified local and OAuth-bas
 - Authentication mechanism (local, google, github)
 - Stores provider-specific credentials
 - Password hash for local, OAuth tokens for OAuth providers
+- Multiple channels can point to the same user via shared email identity
+
+### UsernameStore (Optional)
+- Separate store for username → userID mapping
+- Enables username uniqueness enforcement
+- Supports username-based login (in addition to email)
 
 ## Authentication Modes
 
@@ -112,7 +118,7 @@ Client → GET /api/resource (Bearer token) → APIMiddleware → Handler
 ┌─────────────────────────────────────────────────────────┐
 │                    Store Interfaces                     │
 │  UserStore | IdentityStore | ChannelStore | TokenStore  │
-│  RefreshTokenStore | APIKeyStore                        │
+│  RefreshTokenStore | APIKeyStore | UsernameStore (opt)  │
 └─────────────────────────────┬───────────────────────────┘
                               │
         ┌─────────────────────┼─────────────────────┐
@@ -227,9 +233,50 @@ const (
 3. Intersection granted to token
 4. Middleware validates endpoint requires subset
 
+## Channel Linking
+
+Multiple authentication channels can point to the same user via shared email identity:
+
+```
+User (id: abc123)
+├── Identity: email → user@example.com
+├── Channel: local   → email:user@example.com (password_hash)
+├── Channel: google  → email:user@example.com (oauth profile)
+└── Channel: github  → email:user@example.com (oauth profile)
+```
+
+### Linking Flows
+
+1. **OAuth to Existing User**: OAuth callback finds existing identity by email → links channel
+2. **Add Password to OAuth User**: `LinkLocalCredentials()` creates local channel
+3. **Add OAuth to Password User**: `HandleLinkOAuthCallback()` creates OAuth channel
+
+### Profile Tracking
+
+User profile tracks linked channels: `profile["channels"] = ["local", "google", "github"]`
+
 ## Extension Points
 
-### Custom Validation
+### SignupPolicy
+```go
+localAuth.SignupPolicy = &oneauth.SignupPolicy{
+    RequireUsername:       true,
+    RequireEmail:          true,
+    MinPasswordLength:     12,
+    UsernamePattern:       `^[a-z][a-z0-9_]{2,19}$`,
+}
+```
+
+### Custom Error Handlers
+```go
+localAuth.OnSignupError = func(err *AuthError, w http.ResponseWriter, r *http.Request) bool {
+    session.SetFlash(r, "error", err.Message)
+    http.Redirect(w, r, "/signup", http.StatusSeeOther)
+    return true
+}
+```
+
+### Custom Validation (Legacy)
 ```go
 localAuth.ValidateSignup = func(creds *Credentials) error {
     // Custom rules

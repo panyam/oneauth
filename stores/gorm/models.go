@@ -277,3 +277,19 @@ func APIKeyToModel(k *oa.APIKey) *APIKeyModel {
 		Revoked:    k.Revoked,
 	}
 }
+
+// UsernameModel is the GORM model for username -> userID mapping
+// Used for enforcing username uniqueness and enabling username-based login
+type UsernameModel struct {
+	// NormalizedUsername is the lowercase version (primary key for case-insensitive lookup)
+	NormalizedUsername string    `gorm:"primaryKey;size:64"`
+	Username           string    `gorm:"size:64;not null"` // Original case-preserved
+	UserID             string    `gorm:"size:64;index;not null"`
+	Version            int       `gorm:"default:1"` // For optimistic concurrency control
+	CreatedAt          time.Time `gorm:"autoCreateTime"`
+	UpdatedAt          time.Time `gorm:"autoUpdateTime"`
+}
+
+func (UsernameModel) TableName() string {
+	return "usernames"
+}
