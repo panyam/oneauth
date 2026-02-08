@@ -285,8 +285,9 @@ func NewEnsureAuthUserFunc(config EnsureAuthUserConfig) func(authtype string, pr
 func handleExistingUser(config EnsureAuthUserConfig, identity *Identity, authtype, provider, identityKey string, userInfo map[string]any) (User, error) {
 	// Get existing user
 	user, err := config.UserStore.GetUserById(identity.UserID)
+	log.Println("User Store: ", config.UserStore)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, fmt.Errorf("failed to get user for identity (%v): : %w", identity, err)
 	}
 
 	// Check if channel already exists for this provider

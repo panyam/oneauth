@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -109,6 +110,7 @@ func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]
 
 func (s *UserStore) GetUserById(userId string) (oa.User, error) {
 	key := s.namespacedKey(KindUser, userId)
+	log.Println("UserStore Key: ", key, KindUser, userId)
 	var entity UserEntity
 	if err := s.client.Get(s.ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
