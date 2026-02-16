@@ -544,6 +544,71 @@ func TestJourney7_UsernameChange(t *testing.T) {
 }
 
 // =============================================================================
+// Journey 8: OAuth User Resets Password (No Local Channel)
+// =============================================================================
+
+func TestJourney8_OAuthUserPasswordReset(t *testing.T) {
+	j := setupJourney(t)
+	defer j.Cleanup()
+
+	email := "oauthonly@example.com"
+	newPassword := "newpassword123"
+
+	// Day 1: User signs up via Google OAuth (no local channel)
+	oauthUserInfo := map[string]any{
+		"email": email,
+		"name":  "OAuth User",
+	}
+	user, err := j.EnsureUser("oauth", "google", nil, oauthUserInfo)
+	if err != nil {
+		t.Fatalf("OAuth signup failed: %v", err)
+	}
+	userID := user.Id()
+
+	// Verify NO local channel exists
+	identityKey := oa.IdentityKey("email", email)
+	localChannel, _, _ := j.ChannelStore.GetChannel("local", identityKey, false)
+	if localChannel != nil {
+		t.Fatal("Local channel should NOT exist for OAuth-only user")
+	}
+
+	// Day 2: User clicks "Forgot Password" and resets via email link
+	// UpdatePassword should create a local channel instead of erroring
+	updatePassword := oa.NewUpdatePasswordFunc(j.IdentityStore, j.ChannelStore)
+	err = updatePassword(email, newPassword)
+	if err != nil {
+		t.Fatalf("Password reset should succeed for OAuth-only user: %v", err)
+	}
+
+	// Verify local channel NOW exists
+	localChannel, _, err = j.ChannelStore.GetChannel("local", identityKey, false)
+	if err != nil || localChannel == nil {
+		t.Fatal("Local channel should exist after password reset")
+	}
+
+	// Verify can login with email + new password
+	validator := oa.NewCredentialsValidator(j.IdentityStore, j.ChannelStore, j.UserStore)
+	loggedInUser, err := validator(email, newPassword, "email")
+	if err != nil {
+		t.Fatalf("Login with new password should work: %v", err)
+	}
+	if loggedInUser.Id() != userID {
+		t.Error("Should login to the same user")
+	}
+
+	// Verify can still login via OAuth
+	user2, err := j.EnsureUser("oauth", "google", nil, oauthUserInfo)
+	if err != nil {
+		t.Fatalf("OAuth login should still work: %v", err)
+	}
+	if user2.Id() != userID {
+		t.Error("OAuth should login to same user")
+	}
+
+	t.Log("Journey 8 PASSED: OAuth-only user can set password via reset flow")
+}
+
+// =============================================================================
 // Edge Case Tests
 // =============================================================================
 

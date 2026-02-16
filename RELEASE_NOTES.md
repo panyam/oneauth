@@ -1,5 +1,22 @@
 # OneAuth Release Notes
 
+## Version 0.0.29
+
+### Bug Fix: Password Reset for OAuth-Only Users
+
+`NewUpdatePasswordFunc` now creates a local channel when one doesn't exist, instead of returning "local auth not configured for this user". This enables OAuth-only users to set a password via the standard password reset flow.
+
+Previously, an OAuth user clicking "Forgot Password" would get an error because no local channel existed. Now `NewUpdatePasswordFunc` detects the missing channel and creates one with the new password hash.
+
+**Changed:**
+- `helpers.go`: `NewUpdatePasswordFunc` creates local channel on-demand during password reset
+
+**Added:**
+- `user_journeys_test.go`: Journey 8 test covering OAuth user password reset
+- `docs/AUTH_FLOWS.md`: Documented Journey 8 and updated channel linking summary
+
+---
+
 ## Version 0.2.0
 
 ### Overview

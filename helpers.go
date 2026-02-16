@@ -152,7 +152,8 @@ func NewVerifyEmailFunc(identityStore IdentityStore, tokenStore TokenStore) Veri
 	}
 }
 
-// NewUpdatePasswordFunc creates an UpdatePasswordFunc from stores
+// NewUpdatePasswordFunc creates an UpdatePasswordFunc from stores.
+// If the user has no local channel (e.g. OAuth-only user), one is created automatically.
 func NewUpdatePasswordFunc(identityStore IdentityStore, channelStore ChannelStore) UpdatePasswordFunc {
 	return func(email, newPassword string) error {
 		// Get the identity
@@ -167,11 +168,19 @@ func NewUpdatePasswordFunc(identityStore IdentityStore, channelStore ChannelStor
 			return fmt.Errorf("failed to hash password: %w", err)
 		}
 
-		// Get local channel
+		// Get or create local channel (supports OAuth-only users setting a password via reset)
 		identityKey := IdentityKey("email", email)
 		channel, _, err := channelStore.GetChannel("local", identityKey, false)
-		if err != nil {
-			return fmt.Errorf("local auth not configured for this user")
+		if err != nil || channel == nil {
+			channel = &Channel{
+				Provider:    "local",
+				IdentityKey: identityKey,
+				Credentials: map[string]any{},
+				Profile: map[string]any{
+					"email": email,
+				},
+			}
+			log.Printf("Creating local channel for user %s (password set via reset)", identity.UserID)
 		}
 
 		// Update password

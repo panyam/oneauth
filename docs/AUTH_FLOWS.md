@@ -191,7 +191,7 @@ This shows what happens when a user with existing auth tries another method:
 └─────────────────────────┴─────────────┴─────────────┴─────────────┴──────────────┘
 
 * "Fails" = Signup with email fails because Identity exists, but no local Channel.
-  User should use OAuth to login, then set password via Profile page.
+  User should use OAuth to login, then set password via Profile page or password reset.
 ```
 
 **Key insight**: Same email = same account (via Identity), regardless of how you authenticate.
@@ -308,7 +308,11 @@ For users who signed up via OAuth and want to add email/password login:
 2. Create password reset token (time-limited)
 3. Email link with token
 4. User clicks link, enters new password
-5. Update password hash
+5. Update password hash in local Channel (or create local Channel if user is OAuth-only)
+
+**OAuth-Only Users:** If the user signed up via OAuth and has no local Channel,
+`NewUpdatePasswordFunc` automatically creates a local Channel with the new password.
+This enables OAuth users to add email/password login via the standard password reset flow.
 
 ## Channel Linking Summary
 
@@ -318,6 +322,7 @@ For users who signed up via OAuth and want to add email/password login:
 | New user | OAuth login | User + OAuth channel |
 | Local user | OAuth login (same email) | Adds OAuth channel |
 | OAuth user | Set password | Adds local channel |
+| OAuth user | Password reset | Creates local channel |
 | Any user | Set username | Updates UsernameStore |
 
 All channels pointing to the same email Identity = same user account.
@@ -445,6 +450,26 @@ Step 3: UsernameStore.ChangeUsername("oldname", "newname", userID)
   - This is ATOMIC: reserves new, releases old, or fails entirely
 Step 4: Update Profile["username"] = "newname"
 Step 5: User can now login with "newname" (not "oldname")
+```
+
+### Journey 8: OAuth User Resets Password (No Local Channel)
+
+OAuth-only user uses "Forgot Password" to establish local auth.
+
+```
+Day 1: User clicks "Continue with Google"
+  - Creates: User(id: user_008), Identity, Channel(google)
+  - No local Channel exists (no password set)
+
+Day 2: User clicks "Forgot Password", enters email
+  - Reset token created and emailed
+  - User clicks link, enters new password
+  - NewUpdatePasswordFunc detects no local Channel
+  - Creates: Channel(local) with password_hash
+
+Result: User can now login TWO ways:
+  1. Google OAuth button
+  2. Email + password
 ```
 
 ## Edge Cases
