@@ -72,6 +72,16 @@ type LocalAuth struct {
 
 	// Optional UsernameStore for enforcing username uniqueness
 	UsernameStore UsernameStore
+
+	// ForgotPasswordURL: if set, GET /forgot-password redirects here and
+	// POST /forgot-password redirects here with ?sent=true on success.
+	// If empty, GET renders a basic HTML form and POST returns JSON.
+	ForgotPasswordURL string
+
+	// ResetPasswordURL: if set, GET /reset-password redirects here (with ?token=...)
+	// and POST redirects here with ?success=true on success or ?error=... on failure.
+	// If empty, GET renders a basic HTML form and POST returns JSON.
+	ResetPasswordURL string
 }
 
 // ServeHTTP handles login requests
@@ -221,8 +231,13 @@ func (a *LocalAuth) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 // HandleForgotPasswordForm shows the forgot password form (GET)
 func (a *LocalAuth) HandleForgotPasswordForm(w http.ResponseWriter, r *http.Request) {
-	// This should render a template page
-	// For now, return a simple message
+	// Redirect mode: let the app handle rendering
+	if a.ForgotPasswordURL != "" {
+		http.Redirect(w, r, a.ForgotPasswordURL, http.StatusFound)
+		return
+	}
+
+	// Default: render a basic HTML form
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html>
@@ -244,10 +259,13 @@ func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Parse form
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, `{"error": "Invalid form data"}`, http.StatusBadRequest)
-		return
+	// Parse form (supports both url-encoded and multipart)
+	if err := r.ParseMultipartForm(32 << 10); err != nil {
+		// ParseMultipartForm fails for non-multipart; fall back to ParseForm
+		if err2 := r.ParseForm(); err2 != nil {
+			http.Error(w, `{"error": "Invalid form data"}`, http.StatusBadRequest)
+			return
+		}
 	}
 
 	email := r.FormValue("email")
@@ -271,7 +289,13 @@ func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// Always return success for security
+	// Redirect mode: redirect back to the forgot password page with success flag
+	if a.ForgotPasswordURL != "" {
+		http.Redirect(w, r, a.ForgotPasswordURL+"?sent=true", http.StatusSeeOther)
+		return
+	}
+
+	// JSON mode (default): return JSON response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
@@ -283,6 +307,17 @@ func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request)
 // HandleResetPasswordForm shows the reset password form (GET)
 func (a *LocalAuth) HandleResetPasswordForm(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
+
+	// Redirect mode: let the app handle rendering
+	if a.ResetPasswordURL != "" {
+		target := a.ResetPasswordURL
+		if token != "" {
+			target += "?token=" + token
+		}
+		http.Redirect(w, r, target, http.StatusFound)
+		return
+	}
+
 	if token == "" {
 		http.Error(w, "Token required", http.StatusBadRequest)
 		return
@@ -296,7 +331,7 @@ func (a *LocalAuth) HandleResetPasswordForm(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	// Render form
+	// Default: render a basic HTML form
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html>
@@ -319,41 +354,43 @@ func (a *LocalAuth) HandleResetPassword(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Parse form
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, `{"error": "Invalid form data"}`, http.StatusBadRequest)
-		return
+	// Parse form (supports both url-encoded and multipart)
+	if err := r.ParseMultipartForm(32 << 10); err != nil {
+		if err2 := r.ParseForm(); err2 != nil {
+			http.Error(w, `{"error": "Invalid form data"}`, http.StatusBadRequest)
+			return
+		}
 	}
 
 	token := r.FormValue("token")
 	password := r.FormValue("password")
 
 	if token == "" || password == "" {
-		http.Error(w, `{"error": "Token and password required"}`, http.StatusBadRequest)
+		a.resetPasswordError(w, r, token, "Token and password required")
 		return
 	}
 
 	// Validate token
 	authToken, err := a.TokenStore.GetToken(token)
 	if err != nil {
-		http.Error(w, `{"error": "Invalid or expired token"}`, http.StatusBadRequest)
+		a.resetPasswordError(w, r, token, "Invalid or expired reset link")
 		return
 	}
 
 	if authToken.Type != TokenTypePasswordReset {
-		http.Error(w, `{"error": "Invalid token type"}`, http.StatusBadRequest)
+		a.resetPasswordError(w, r, token, "Invalid token type")
 		return
 	}
 
 	// Password validation
 	if len(password) < 8 {
-		http.Error(w, `{"error": "Password must be at least 8 characters"}`, http.StatusBadRequest)
+		a.resetPasswordError(w, r, token, "Password must be at least 8 characters")
 		return
 	}
 
 	// Update the password via callback
 	if err := a.UpdatePassword(authToken.Email, password); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		a.resetPasswordError(w, r, token, err.Error())
 		return
 	}
 
@@ -362,6 +399,13 @@ func (a *LocalAuth) HandleResetPassword(w http.ResponseWriter, r *http.Request) 
 		log.Printf("Warning: failed to delete token: %v", err)
 	}
 
+	// Redirect mode
+	if a.ResetPasswordURL != "" {
+		http.Redirect(w, r, a.ResetPasswordURL+"?success=true", http.StatusSeeOther)
+		return
+	}
+
+	// JSON mode (default)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
@@ -369,6 +413,21 @@ func (a *LocalAuth) HandleResetPassword(w http.ResponseWriter, r *http.Request) 
 		"message": "Password reset successfully",
 		"email":   authToken.Email,
 	})
+}
+
+// resetPasswordError returns an error for reset password requests.
+// In redirect mode, redirects back to the reset page with error in query param.
+// In JSON mode, returns a JSON error response.
+func (a *LocalAuth) resetPasswordError(w http.ResponseWriter, r *http.Request, token, message string) {
+	if a.ResetPasswordURL != "" {
+		target := a.ResetPasswordURL + "?error=" + message
+		if token != "" {
+			target += "&token=" + token
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
+		return
+	}
+	http.Error(w, fmt.Sprintf(`{"error": "%s"}`, message), http.StatusBadRequest)
 }
 
 // handleLoginError handles login errors using the configured handler or default JSON
