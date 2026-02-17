@@ -1,5 +1,40 @@
 # OneAuth Release Notes
 
+## Version 0.0.30
+
+### Redirect Mode for Password Reset Flows
+
+`LocalAuth` now supports redirect-based password reset flows for server-rendered applications. Two new fields control the behavior:
+
+- `ForgotPasswordURL`: When set, GET requests redirect to this URL and POST requests redirect with `?sent=true` on success
+- `ResetPasswordURL`: When set, GET requests redirect with `?token=...` and POST requests redirect with `?success=true` or `?error=...`
+
+When these fields are empty (default), the handlers behave as before: GET renders a basic HTML form and POST returns JSON responses.
+
+**Example (redirect mode):**
+```go
+localAuth := &oneauth.LocalAuth{
+    // ... other fields ...
+    ForgotPasswordURL: "/forgot-password",  // App renders its own themed page
+    ResetPasswordURL:  "/reset-password",   // App renders its own themed page
+}
+```
+
+### Bug Fix: Multipart Form Parsing
+
+`HandleForgotPassword` and `HandleResetPassword` now correctly parse both `application/x-www-form-urlencoded` and `multipart/form-data` request bodies. Previously, `r.ParseForm()` was called which only parses URL-encoded bodies. JavaScript `new FormData(form)` sends `multipart/form-data`, causing `r.FormValue()` to return empty strings and the handlers to return 400 errors.
+
+**Changed:**
+- `local.go`: Added `ForgotPasswordURL` and `ResetPasswordURL` fields to `LocalAuth`
+- `local.go`: `HandleForgotPassword` and `HandleResetPassword` use `ParseMultipartForm` with fallback to `ParseForm`
+- `local.go`: Added `HandleForgotPasswordForm` and `HandleResetPasswordForm` for GET requests with redirect support
+- `local.go`: Added `resetPasswordError` helper for redirect-mode error handling
+
+**Added:**
+- `local_test.go`: Tests for forgot/reset password flows (JSON and redirect modes), end-to-end flow test
+
+---
+
 ## Version 0.0.29
 
 ### Bug Fix: Password Reset for OAuth-Only Users

@@ -62,8 +62,20 @@ mux := http.NewServeMux()
 mux.Handle("/auth/login", localAuth)
 mux.Handle("/auth/signup", http.HandlerFunc(localAuth.HandleSignup))
 mux.Handle("/auth/verify-email", http.HandlerFunc(localAuth.HandleVerifyEmail))
-mux.Handle("/auth/forgot-password", http.HandlerFunc(localAuth.HandleForgotPassword))
-mux.Handle("/auth/reset-password", http.HandlerFunc(localAuth.HandleResetPassword))
+mux.HandleFunc("/auth/forgot-password", func(w http.ResponseWriter, r *http.Request) {
+    if r.Method == http.MethodGet {
+        localAuth.HandleForgotPasswordForm(w, r)
+    } else {
+        localAuth.HandleForgotPassword(w, r)
+    }
+})
+mux.HandleFunc("/auth/reset-password", func(w http.ResponseWriter, r *http.Request) {
+    if r.Method == http.MethodGet {
+        localAuth.HandleResetPasswordForm(w, r)
+    } else {
+        localAuth.HandleResetPassword(w, r)
+    }
+})
 ```
 
 ## Architecture
@@ -461,7 +473,7 @@ Content-Type: application/x-www-form-urlencoded
 email=john@example.com
 ```
 
-Response:
+Response (JSON mode, default):
 ```json
 {
   "success": true,
@@ -478,7 +490,7 @@ Content-Type: application/x-www-form-urlencoded
 token=xyz789...&password=newsecret456
 ```
 
-Response:
+Response (JSON mode, default):
 ```json
 {
   "success": true,
@@ -486,6 +498,28 @@ Response:
   "email": "john@example.com"
 }
 ```
+
+### Redirect Mode (Server-Rendered Apps)
+
+For server-rendered applications that use their own themed pages, set `ForgotPasswordURL` and `ResetPasswordURL` on `LocalAuth`. When set, the handlers redirect instead of returning JSON:
+
+```go
+localAuth := &oneauth.LocalAuth{
+    // ... other fields ...
+    ForgotPasswordURL: "/forgot-password",
+    ResetPasswordURL:  "/reset-password",
+}
+```
+
+| Endpoint | Method | Redirect Mode Behavior |
+|----------|--------|----------------------|
+| `/auth/forgot-password` | GET | Redirects to `ForgotPasswordURL` |
+| `/auth/forgot-password` | POST | Redirects to `ForgotPasswordURL?sent=true` |
+| `/auth/reset-password` | GET | Redirects to `ResetPasswordURL?token=...` |
+| `/auth/reset-password` | POST (success) | Redirects to `ResetPasswordURL?success=true` |
+| `/auth/reset-password` | POST (error) | Redirects to `ResetPasswordURL?error=...&token=...` |
+
+Your application renders the pages at the redirect URLs, reading query parameters for state.
 
 ## Validation
 

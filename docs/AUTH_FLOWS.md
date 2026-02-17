@@ -302,7 +302,7 @@ For users who signed up via OAuth and want to add email/password login:
 
 ### 7. Password Reset
 
-**Handlers:** `HandleForgotPassword`, `HandleResetPassword`
+**Handlers:** `HandleForgotPasswordForm` (GET), `HandleForgotPassword` (POST), `HandleResetPasswordForm` (GET), `HandleResetPassword` (POST)
 
 1. User submits email
 2. Create password reset token (time-limited)
@@ -313,6 +313,17 @@ For users who signed up via OAuth and want to add email/password login:
 **OAuth-Only Users:** If the user signed up via OAuth and has no local Channel,
 `NewUpdatePasswordFunc` automatically creates a local Channel with the new password.
 This enables OAuth users to add email/password login via the standard password reset flow.
+
+**Two Response Modes:**
+
+| Mode | When | Behavior |
+|------|------|----------|
+| JSON (default) | `ForgotPasswordURL` / `ResetPasswordURL` empty | GET renders basic HTML form, POST returns JSON |
+| Redirect | URLs set | GET redirects to app page, POST redirects with query params |
+
+In redirect mode, the application renders its own themed pages at the configured URLs,
+reading query parameters (`?sent=true`, `?token=...`, `?success=true`, `?error=...`) to
+determine what state to display. This keeps all presentation in the application layer.
 
 ## Channel Linking Summary
 
