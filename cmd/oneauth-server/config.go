@@ -77,18 +77,23 @@ func expandEnvVars(data []byte) []byte {
 }
 
 // LoadConfig reads and parses a YAML config file with env var substitution.
+// If the config file doesn't exist, falls back to pure environment variable configuration.
 func LoadConfig(path string) (*Config, error) {
+	var cfg Config
+
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file %s: %w", path, err)
-	}
-
-	// Expand environment variables
-	data = expandEnvVars(data)
-
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config file %s: %w", path, err)
+		if os.IsNotExist(err) {
+			// No config file — build config entirely from env vars
+			cfg = configFromEnv()
+		} else {
+			return nil, fmt.Errorf("failed to read config file %s: %w", path, err)
+		}
+	} else {
+		data = expandEnvVars(data)
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse config file %s: %w", path, err)
+		}
 	}
 
 	// Defaults
@@ -106,4 +111,35 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// configFromEnv builds a Config purely from environment variables.
+// Used when no config file is present (e.g., GAE deployments).
+func configFromEnv() Config {
+	return Config{
+		Server: ServerConfig{
+			Port: os.Getenv("PORT"),
+			Host: os.Getenv("HOST"),
+		},
+		KeyStore: KeyStoreConfig{
+			Type: os.Getenv("KEYSTORE_TYPE"),
+			GORM: GORMConfig{
+				Driver: os.Getenv("GORM_DRIVER"),
+				DSN:    os.Getenv("DATABASE_URL"),
+			},
+			FS: FSConfig{
+				Path: os.Getenv("KEYSTORE_PATH"),
+			},
+			GAE: GAEConfig{
+				Project:   os.Getenv("GCP_PROJECT"),
+				Namespace: os.Getenv("GAE_NAMESPACE"),
+			},
+		},
+		AdminAuth: AdminAuthConfig{
+			Type: os.Getenv("ADMIN_AUTH_TYPE"),
+			APIKey: APIKeyConfig{
+				Key: os.Getenv("ADMIN_API_KEY"),
+			},
+		},
+	}
 }

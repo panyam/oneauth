@@ -51,13 +51,13 @@ spec:
                   key: admin-api-key
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /_ah/health
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /_ah/health
               port: 8080
             initialDelaySeconds: 3
             periodSeconds: 5

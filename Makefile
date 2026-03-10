@@ -139,4 +139,15 @@ testrealDS:
 	DATASTORE_TEST_NAMESPACE=$(DS_REAL_NAMESPACE) \
 	go test -v ./stores/gae/...
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS
+# =============================================================================
+# GAE deployment
+# =============================================================================
+GAE_PROJECT ?= oneauthsvc
+
+deploygae:
+	gcloud app deploy --appyaml=cmd/oneauth-server/deploy-examples/gae/app.yaml --project=$(GAE_PROJECT) --quiet .
+
+gaelogs:
+	gcloud app logs tail -s default --project=$(GAE_PROJECT)
+
+.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs
