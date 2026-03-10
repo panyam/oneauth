@@ -112,6 +112,41 @@ Client → GET /api/resource (Bearer token) → APIMiddleware → Handler
 - Prefixed with `oa_` for identification
 - User-manageable
 
+## Multi-Tenant JWT and KeyStore
+
+For federated systems where multiple Hosts mint JWTs verified by a shared Relay, oneauth supports multi-tenant signing key management:
+
+### KeyStore Interface
+
+```go
+type KeyStore interface {
+    GetVerifyKey(clientID string) (any, error)    // []byte for HMAC, crypto.PublicKey for asymmetric
+    GetSigningKey(clientID string) (any, error)
+    GetExpectedAlg(clientID string) (string, error)  // algorithm confusion prevention
+}
+```
+
+### Custom Claims
+
+`APIAuth.CustomClaimsFunc` injects custom claims into JWTs at minting time (e.g., `client_id`, `max_rooms`). Standard claims (`sub`, `iss`, `aud`, `exp`, `iat`, `type`, `scopes`) cannot be overridden.
+
+`APIAuth.ValidateAccessTokenFull()` returns custom claims separately from standard claims for downstream extraction.
+
+### Multi-Tenant Validation Flow
+
+When `APIMiddleware.KeyStore` is set:
+1. Extract `client_id` from unverified JWT claims
+2. Look up expected algorithm via `KeyStore.GetExpectedAlg(clientID)` — prevents algorithm confusion
+3. Look up verification key via `KeyStore.GetVerifyKey(clientID)`
+4. Verify JWT signature with the per-client key
+
+When `KeyStore` is nil, falls back to single `JWTSecretKey` (backwards-compatible).
+
+### Implementations
+
+- `InMemoryKeyStore` — thread-safe map, for testing and simple deployments
+- FS/GORM/GAE KeyStore — planned (#5)
+
 ## Store Architecture
 
 ```
@@ -119,6 +154,7 @@ Client → GET /api/resource (Bearer token) → APIMiddleware → Handler
 │                    Store Interfaces                     │
 │  UserStore | IdentityStore | ChannelStore | TokenStore  │
 │  RefreshTokenStore | APIKeyStore | UsernameStore (opt)  │
+│  KeyStore (multi-tenant JWT)                            │
 └─────────────────────────────┬───────────────────────────┘
                               │
         ┌─────────────────────┼─────────────────────┐

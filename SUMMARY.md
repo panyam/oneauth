@@ -11,6 +11,7 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 - **Multi-provider**: Single account accessible via password, Google, GitHub, etc. with channel linking
 - **Flexible Storage**: File-based, GORM (SQL), and GAE/Datastore implementations
 - **Scope-based Access**: Fine-grained permissions for API endpoints
+- **Multi-tenant JWT**: KeyStore interface for per-client signing keys, custom claims, algorithm confusion prevention
 - **Policy-Based Validation**: Configurable signup requirements (SignupPolicy)
 - **Username Support**: Optional username uniqueness with username-based login
 
@@ -120,5 +121,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 ```
 
 ## Current Version
+
+v0.0.29 - Added `CustomClaimsFunc` on `APIAuth` for injecting custom claims into JWTs. Added `KeyStore` interface and `InMemoryKeyStore` for multi-tenant JWT validation. Added `ValidateAccessTokenFull` for extracting custom claims. `APIMiddleware` supports per-client key lookup via `KeyStore` with algorithm confusion prevention. Backwards-compatible — existing single-key setups work unchanged.
 
 v0.0.28 - Added optimistic locking fields (`Version`, `UpdatedAt`) to Identity and Channel models. Added `ExpiresAt` field to Channel for tracking when OAuth tokens or auth sessions need re-authentication. Added `IsExpired()` helper method to Channel. Updated all store implementations (GAE, FS, GORM).

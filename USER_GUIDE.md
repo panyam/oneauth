@@ -324,6 +324,15 @@ API tokens have scopes that limit what they can access:
 
 When creating API keys, request only the scopes you need.
 
+**Federated Access**
+
+Some applications use OneAuth in a federated model where you authenticate with one service (your "host") and the token grants access to another (e.g., a relay server). In this case:
+
+- You log in to your host application normally
+- The host mints a short-lived token scoped for the relay
+- Your client uses this token to connect to the relay
+- If the token expires, your client reconnects automatically with a fresh token from the host
+
 ### Browser Requirements
 
 OneAuth works with modern browsers that support:
