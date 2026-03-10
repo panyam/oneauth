@@ -87,7 +87,8 @@
   > `HostStore` interface, HTTP handlers for Host CRUD, `MintRelayToken` helper
 - [ ] **P1** Asymmetric signing support — RS256/ES256 (#4)
   > Compatible extension: per-host algorithm choice, both HS256 and asymmetric coexist
-- [ ] **P1** Persistent `KeyStore` implementations — FS, GORM, GAE (#5)
+- [x] **P1** Persistent `KeyStore` implementations — FS, GORM, GAE (#5) ✅
+  > `WritableKeyStore` interface, shared test suite (`keystoretest`), GORM/FS/GAE implementations
 
 ### Phase 3: OAuth Integration for API
 

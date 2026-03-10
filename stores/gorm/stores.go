@@ -26,6 +26,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&RefreshTokenModel{},
 		&APIKeyModel{},
 		&UsernameModel{},
+		&SigningKeyModel{},
 	)
 }
 

@@ -1,4 +1,4 @@
-package oneauth_test
+package fs
 
 import (
 	"testing"
@@ -7,8 +7,9 @@ import (
 	"github.com/panyam/oneauth/keystoretest"
 )
 
-func TestInMemoryKeyStore(t *testing.T) {
+func TestFSKeyStore(t *testing.T) {
 	keystoretest.RunAll(t, func(t *testing.T) oa.WritableKeyStore {
-		return oa.NewInMemoryKeyStore()
+		dir := t.TempDir()
+		return NewFSKeyStore(dir)
 	})
 }
