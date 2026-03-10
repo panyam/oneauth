@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	cloud.google.com/go/datastore v1.21.0
+	cloud.google.com/go/secretmanager v1.16.0
 	github.com/alexedwards/scs/v2 v2.8.0
 	github.com/crewjam/saml v0.4.14
 	github.com/golang-jwt/jwt/v5 v5.2.1
@@ -12,6 +13,7 @@ require (
 	golang.org/x/oauth2 v0.34.0
 	google.golang.org/api v0.259.0
 	google.golang.org/grpc v1.78.0
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
@@ -22,6 +24,7 @@ require (
 	cloud.google.com/go/auth v0.18.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	cloud.google.com/go/iam v1.5.3 // indirect
 	github.com/beevik/etree v1.1.0 // indirect
 	github.com/crewjam/httperr v0.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect

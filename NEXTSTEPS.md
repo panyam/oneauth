@@ -83,8 +83,8 @@
 ### Federated Auth (Relay + Host)
 
 - [x] **P0** `[BLOCKER]` `CustomClaimsFunc` + multi-tenant `KeyStore` interface (#2) ✅
-- [ ] **P0** `[BLOCKER]` Host registration API + service component (#3)
-  > `HostStore` interface, HTTP handlers for Host CRUD, `MintRelayToken` helper
+- [x] **P0** `[BLOCKER]` Host registration API + service component (#3) ✅
+  > `AdminAuth` interface, `HostRegistrar` HTTP handler, `MintRelayToken` helper, reference server
 - [ ] **P1** Asymmetric signing support — RS256/ES256 (#4)
   > Compatible extension: per-host algorithm choice, both HS256 and asymmetric coexist
 - [x] **P1** Persistent `KeyStore` implementations — FS, GORM, GAE (#5) ✅

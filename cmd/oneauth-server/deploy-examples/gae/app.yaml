@@ -1,0 +1,49 @@
+# Google App Engine deployment for oneauth-server
+#
+# Deploy from the repo root (source must be the module root):
+#   gcloud app deploy --appyaml=cmd/oneauth-server/deploy-examples/gae/app.yaml --project=oneauthsvc .
+#   or: make deploygae
+#
+# Prerequisites:
+#   1. gcloud app create --project=oneauthsvc --region=us-west1
+#   2. gcloud services enable datastore.googleapis.com secretmanager.googleapis.com --project=oneauthsvc
+#   3. Create admin key secret:
+#      openssl rand -hex 32 | gcloud secrets create oneauth-admin-key --data-file=- --project=oneauthsvc
+#   4. Grant App Engine service account access:
+#      gcloud secrets add-iam-policy-binding oneauth-admin-key \
+#        --project=oneauthsvc \
+#        --member="serviceAccount:oneauthsvc@appspot.gserviceaccount.com" \
+#        --role="roles/secretmanager.secretAccessor"
+#
+# Free tier limits (as of 2026):
+#   - 28 instance-hours/day for F1 instances
+#   - 1 GB Datastore storage, 50K reads/day, 20K writes/day
+#   - 5 GB outgoing bandwidth/month
+#   See: https://cloud.google.com/appengine/pricing
+
+runtime: go124
+main: ./cmd/oneauth-server
+
+env_variables:
+  KEYSTORE_TYPE: "gae"
+  GCP_PROJECT: "oneauthsvc"
+  GAE_NAMESPACE: "prod"
+  ADMIN_AUTH_TYPE: "api-key"
+  # Admin API key is fetched from Secret Manager at startup.
+  # The secret "oneauth-admin-key" must exist in the project.
+  # Set ADMIN_API_KEY_SECRET to the full resource name, or it defaults to:
+  #   projects/<GCP_PROJECT>/secrets/oneauth-admin-key/versions/latest
+  # To use a plain env var instead, set ADMIN_API_KEY directly.
+
+handlers:
+- url: /.*
+  script: auto
+
+automatic_scaling:
+  max_instances: 2
+
+# Other scaling options (defaults are free-tier friendly with scale-to-zero):
+#   instance_class: F1       # 128 MB / 600 MHz (default, free tier)
+#   automatic_scaling:
+#     min_instances: 0       # Scale to zero when idle (default)
+#     target_cpu_utilization: 0.8

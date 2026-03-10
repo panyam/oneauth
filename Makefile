@@ -2,6 +2,10 @@
 test:
 	go test -v ./...
 
+alltests: test
+	make downdb updb testpg downdb
+
+
 # =============================================================================
 # PostgreSQL test database configuration
 # =============================================================================
@@ -135,4 +139,21 @@ testrealDS:
 	DATASTORE_TEST_NAMESPACE=$(DS_REAL_NAMESPACE) \
 	go test -v ./stores/gae/...
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS
+# =============================================================================
+# GAE deployment
+# =============================================================================
+GAE_PROJECT ?= oneauthsvc
+
+deploygae:
+	gcloud app deploy --appyaml=cmd/oneauth-server/deploy-examples/gae/app.yaml --project=$(GAE_PROJECT) --quiet .
+
+gaelogs:
+	gcloud app logs tail -s default --project=$(GAE_PROJECT)
+
+# =============================================================================
+# Integration tests
+# =============================================================================
+integ:
+	$(MAKE) -C tests/integration all
+
+.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ
