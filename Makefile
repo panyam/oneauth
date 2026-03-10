@@ -150,4 +150,10 @@ deploygae:
 gaelogs:
 	gcloud app logs tail -s default --project=$(GAE_PROJECT)
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs
+# =============================================================================
+# Integration tests
+# =============================================================================
+integ:
+	$(MAKE) -C tests/integration all
+
+.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ
