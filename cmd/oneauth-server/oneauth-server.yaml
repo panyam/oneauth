@@ -1,0 +1,49 @@
+# Example oneauth-server configuration.
+# Environment variables are substituted: ${VAR_NAME} or ${VAR_NAME:-default}
+#
+# Quick start:
+#   export ADMIN_API_KEY="$(openssl rand -hex 32)"
+#   go run ./cmd/oneauth-server
+#
+# Then register a host:
+#   curl -X POST http://localhost:8080/hosts/register \
+#     -H "X-Admin-Key: $ADMIN_API_KEY" \
+#     -H "Content-Type: application/json" \
+#     -d '{"client_domain": "myapp.com"}'
+
+server:
+  port: "${PORT:-8080}"
+  host: "0.0.0.0"
+
+# Where signing keys are stored.
+# Options: memory, fs, gorm, gae
+keystore:
+  type: "${KEYSTORE_TYPE:-fs}"
+  fs:
+    path: "${KEYSTORE_PATH:-./data}"
+
+  # SQL database via GORM (type: gorm)
+  # gorm:
+  #   driver: postgres    # postgres | sqlite | mysql
+  #   dsn: "${DATABASE_URL}"
+
+  # Google Cloud Datastore (type: gae)
+  # gae:
+  #   project: "${GCP_PROJECT}"
+  #   namespace: "prod"
+
+# How admin endpoints are protected.
+# Options: api-key, oidc (future), iap (future), none (dev only)
+#
+# IMPORTANT: Always use api-key or stronger in production.
+# Generate a key: openssl rand -hex 32
+admin_auth:
+  type: "${ADMIN_AUTH_TYPE:-api-key}"
+  api_key:
+    key: "${ADMIN_API_KEY}"
+
+# TLS (optional — typically terminated at the load balancer)
+tls:
+  enabled: false
+  # cert: /etc/ssl/cert.pem
+  # key: /etc/ssl/key.pem

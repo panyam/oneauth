@@ -2,6 +2,10 @@
 test:
 	go test -v ./...
 
+alltests: test
+	make downdb updb testpg downdb
+
+
 # =============================================================================
 # PostgreSQL test database configuration
 # =============================================================================

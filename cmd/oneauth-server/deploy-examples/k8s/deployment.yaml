@@ -1,0 +1,82 @@
+# Kubernetes deployment for oneauth-server with PostgreSQL
+#
+# Prerequisites:
+#   1. Build and push the Docker image:
+#      docker build -t your-registry/oneauth-server:latest -f cmd/oneauth-server/Dockerfile .
+#      docker push your-registry/oneauth-server:latest
+#
+#   2. Create the admin key secret:
+#      kubectl create secret generic oneauth-secrets \
+#        --from-literal=admin-api-key="$(openssl rand -hex 32)" \
+#        --from-literal=database-url="host=postgres port=5432 user=oneauth password=... dbname=oneauth sslmode=require"
+#
+# Deploy:
+#   kubectl apply -f deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oneauth-server
+  labels:
+    app: oneauth-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oneauth-server
+  template:
+    metadata:
+      labels:
+        app: oneauth-server
+    spec:
+      containers:
+        - name: oneauth-server
+          image: your-registry/oneauth-server:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: KEYSTORE_TYPE
+              value: "gorm"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: oneauth-secrets
+                  key: database-url
+            - name: ADMIN_AUTH_TYPE
+              value: "api-key"
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: oneauth-secrets
+                  key: admin-api-key
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oneauth-server
+spec:
+  selector:
+    app: oneauth-server
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP

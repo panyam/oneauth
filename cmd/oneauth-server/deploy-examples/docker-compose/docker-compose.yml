@@ -1,0 +1,70 @@
+# Docker Compose for oneauth-server with PostgreSQL
+#
+# Usage:
+#   # Generate an admin key
+#   export ADMIN_API_KEY="$(openssl rand -hex 32)"
+#
+#   # Start everything
+#   docker compose up -d
+#
+#   # Register a host
+#   curl -X POST http://localhost:8080/hosts/register \
+#     -H "X-Admin-Key: $ADMIN_API_KEY" \
+#     -H "Content-Type: application/json" \
+#     -d '{"client_domain": "myapp.com"}'
+#
+#   # Stop
+#   docker compose down
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: oneauth
+      POSTGRES_PASSWORD: oneauth-dev
+      POSTGRES_DB: oneauth
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oneauth"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  oneauth-server:
+    build:
+      context: ../../../..
+      dockerfile: cmd/oneauth-server/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      KEYSTORE_TYPE: gorm
+      DATABASE_URL: "host=postgres port=5432 user=oneauth password=oneauth-dev dbname=oneauth sslmode=disable"
+      ADMIN_AUTH_TYPE: api-key
+      ADMIN_API_KEY: "${ADMIN_API_KEY}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    configs:
+      - source: server-config
+        target: /etc/oneauth/oneauth-server.yaml
+
+configs:
+  server-config:
+    content: |
+      server:
+        port: "8080"
+      keystore:
+        type: "${KEYSTORE_TYPE:-gorm}"
+        gorm:
+          driver: postgres
+          dsn: "${DATABASE_URL}"
+      admin_auth:
+        type: "${ADMIN_AUTH_TYPE:-api-key}"
+        api_key:
+          key: "${ADMIN_API_KEY}"
+
+volumes:
+  pgdata:

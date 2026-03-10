@@ -122,6 +122,8 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+v0.0.31 - Added Host Registration API (#3): `AdminAuth` interface with `APIKeyAuth` and `NoAuth` implementations, `HostRegistrar` embeddable HTTP handler for Host CRUD (register, list, get, delete, rotate secret), `MintRelayToken` helper for minting relay-scoped JWTs. Added config-driven reference server in `cmd/oneauth-server/` with YAML config, env var substitution, Dockerfile, and deploy examples (Docker Compose with Postgres 18, GAE, Kubernetes).
+
 v0.0.30 - Added `WritableKeyStore` interface extending `KeyStore` with `RegisterKey`, `DeleteKey`, `ListKeys`. Implemented persistent KeyStore for all 3 backends: `GORMKeyStore` (SQL), `FSKeyStore` (filesystem), `GAEKeyStore` (Datastore). Shared test suite in `keystoretest` package runs identical tests against all implementations. Added `SigningKeyModel` to GORM AutoMigrate.
 
 v0.0.29 - Added `CustomClaimsFunc` on `APIAuth` for injecting custom claims into JWTs. Added `KeyStore` interface and `InMemoryKeyStore` for multi-tenant JWT validation. Added `ValidateAccessTokenFull` for extracting custom claims. `APIMiddleware` supports per-client key lookup via `KeyStore` with algorithm confusion prevention. Backwards-compatible — existing single-key setups work unchanged.

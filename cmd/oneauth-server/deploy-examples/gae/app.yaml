@@ -1,0 +1,27 @@
+# Google App Engine deployment for oneauth-server
+#
+# Prerequisites:
+#   1. Create a GCP project and enable App Engine
+#   2. Set up Secret Manager with your admin key:
+#      gcloud secrets create oneauth-admin-key --data-file=-
+#   3. Grant the App Engine service account access to the secret
+#
+# Deploy:
+#   gcloud app deploy
+#
+# The server uses Datastore (included with App Engine) for key storage.
+
+runtime: go123
+service: oneauth
+
+env_variables:
+  KEYSTORE_TYPE: "gae"
+  GCP_PROJECT: "your-project-id"
+  ADMIN_AUTH_TYPE: "api-key"
+  # Reference Secret Manager (use runtime config or env injection)
+  # ADMIN_API_KEY is injected via Cloud Build or runtime secret mounting
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 5
+  target_cpu_utilization: 0.65
