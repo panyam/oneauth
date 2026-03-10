@@ -13,7 +13,7 @@ import (
 // SigningKeyModel is the GORM model for per-client signing keys.
 type SigningKeyModel struct {
 	ClientID  string    `gorm:"primaryKey;size:128"`
-	Key       []byte    `gorm:"type:blob;not null"`
+	Key       []byte    `gorm:"not null"`
 	Algorithm string    `gorm:"size:16;not null"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime"`
