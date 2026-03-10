@@ -1126,6 +1126,126 @@ newToken, err := refreshTokenStore.RotateRefreshToken(token, expiry)
 4. **API Key Storage**: Store API keys securely. They cannot be recovered if lost.
 5. **Scope Validation**: Always validate scopes in your handlers for defense-in-depth.
 
+### Custom Claims
+
+You can inject application-specific claims into JWTs using `CustomClaimsFunc`. This is useful for embedding metadata like tenant IDs, quotas, or client identifiers:
+
+```go
+apiAuth := &oneauth.APIAuth{
+    JWTSecretKey: os.Getenv("JWT_SECRET"),
+    JWTIssuer:    "yourapp.com",
+    CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+        // Look up application-specific data for this user
+        tenant := getTenantForUser(userID)
+        return map[string]any{
+            "tenant_id":  tenant.ID,
+            "plan":       tenant.Plan,
+            "max_seats":  tenant.MaxSeats,
+        }, nil
+    },
+}
+```
+
+**Important**: Standard JWT claims (`sub`, `iss`, `aud`, `exp`, `iat`, `type`, `scopes`) cannot be overridden. If `CustomClaimsFunc` returns keys that collide with standard claims, they are logged and silently ignored.
+
+To extract custom claims on the validation side, use `ValidateAccessTokenFull`:
+
+```go
+userID, scopes, customClaims, err := apiAuth.ValidateAccessTokenFull(tokenString)
+if err != nil {
+    // handle error
+}
+tenantID := customClaims["tenant_id"].(string)
+```
+
+If `CustomClaimsFunc` is nil, behavior is identical to before (backwards-compatible). If the callback returns an error, `CreateAccessToken` fails and the error propagates.
+
+### Multi-Tenant JWT Validation (KeyStore)
+
+For architectures where multiple clients (hosts, tenants) each mint their own JWTs — such as federated relay systems — use a `KeyStore` for per-client key lookup instead of a single shared secret.
+
+#### The Problem
+
+With a single `JWTSecretKey`, all token issuers share one secret. This means:
+- You can't revoke access for one issuer without rotating the key for all
+- A compromised secret affects all clients
+- You can't have different clients use different signing algorithms
+
+#### The Solution: KeyStore Interface
+
+```go
+type KeyStore interface {
+    GetVerifyKey(clientID string) (any, error)    // verification key for this client
+    GetSigningKey(clientID string) (any, error)    // signing key for this client
+    GetExpectedAlg(clientID string) (string, error) // expected algorithm
+}
+```
+
+#### Setting Up Multi-Tenant Validation
+
+```go
+// 1. Create a KeyStore and register client keys
+keyStore := oneauth.NewInMemoryKeyStore()
+keyStore.RegisterKey("host-alpha", []byte("alpha-secret-key"), "HS256")
+keyStore.RegisterKey("host-beta",  []byte("beta-secret-key"),  "HS256")
+
+// 2. Configure middleware with KeyStore (replaces JWTSecretKey)
+middleware := &oneauth.APIMiddleware{
+    KeyStore:    keyStore,
+    JWTIssuer:   "relay.example.com", // optional: still validates issuer
+    APIKeyStore: apiKeyStore,         // optional: API keys still work
+}
+
+// 3. Protect endpoints — tokens are verified per-client
+mux.Handle("/api/resource", middleware.ValidateToken(handler))
+```
+
+#### How It Works
+
+When a JWT arrives, the middleware:
+
+1. Parses the token without verifying the signature
+2. Extracts the `client_id` claim from the unverified payload
+3. Calls `KeyStore.GetExpectedAlg(clientID)` — if the JWT's `alg` header doesn't match, the token is rejected (prevents algorithm confusion attacks)
+4. Calls `KeyStore.GetVerifyKey(clientID)` — returns the key material for this client
+5. Verifies the JWT signature with the client-specific key
+
+If `KeyStore` is nil, the middleware falls back to single `JWTSecretKey` behavior (backwards-compatible).
+
+#### Minting Tokens for Multi-Tenant Systems
+
+On the host/client side, use `CustomClaimsFunc` to embed the `client_id`:
+
+```go
+hostAuth := &oneauth.APIAuth{
+    JWTSecretKey: hostSharedSecret,  // the secret registered with the relay
+    JWTIssuer:    "relay.example.com",
+    CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+        return map[string]any{
+            "client_id":     "host-alpha",
+            "client_domain": "alpha.example.com",
+            "max_rooms":     10,
+            "max_msg_rate":  30.0,
+        }, nil
+    },
+}
+
+// Mint a relay-scoped token for a user
+token, _, err := hostAuth.CreateAccessToken("user-123", []string{"read", "write"})
+```
+
+#### Algorithm Confusion Prevention
+
+The `KeyStore.GetExpectedAlg()` method prevents algorithm confusion attacks. For example, if a client is registered with `HS256` but sends a token with `alg: none` or `alg: RS256`, the token is rejected before signature verification.
+
+#### Future: Asymmetric Keys
+
+The `KeyStore` interface is designed for forward compatibility with asymmetric signing:
+- `GetVerifyKey` can return `*rsa.PublicKey` or `*ecdsa.PublicKey` for RS256/ES256
+- `GetSigningKey` can return `*rsa.PrivateKey` or `*ecdsa.PrivateKey`
+- Per-client algorithm choice: some clients use HS256, others use RS256
+- Both modes coexist on the same middleware
+
 ## gRPC Authentication
 
 OneAuth provides gRPC authentication utilities in the `grpc` subpackage for integrating authentication with gRPC services.
@@ -1364,6 +1484,8 @@ Complete example applications are planned for a future release. For now, refer t
 
 - Test files: `local_test.go`, `auth_flows_test.go` show complete browser auth patterns
 - Test files: `api_auth_test.go` for API authentication with JWT, refresh tokens, and API keys
+- Test files: `custom_claims_test.go` for custom claims injection and multi-tenant JWT validation
+- Test files: `keystore_test.go` for KeyStore interface and InMemoryKeyStore usage
 - Test files: `grpc/context_test.go`, `grpc/interceptor_test.go` for gRPC patterns
 - Quick Start section above for basic integration
 - Helper functions section for common patterns

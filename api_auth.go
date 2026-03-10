@@ -34,6 +34,12 @@ type APIAuth struct {
 	OnLoginSuccess      func(userID string, r *http.Request) // Optional: for logging/analytics
 	OnLoginFailure      func(username string, r *http.Request, err error) // Optional: for logging/analytics
 
+	// CustomClaimsFunc is called during token creation to inject additional claims
+	// into the JWT (e.g., client_id, max_rooms for relay-scoped tokens).
+	// Standard claims (sub, iss, aud, exp, iat, type, scopes) cannot be overridden.
+	// If nil, no custom claims are added (backwards-compatible).
+	CustomClaimsFunc func(userID string, scopes []string) (map[string]any, error)
+
 	// Rate limiting (optional)
 	RateLimiter RateLimiter
 }
@@ -132,7 +138,7 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 	}
 
 	// Create access token (JWT)
-	accessToken, expiresIn, err := a.createAccessToken(user.Id(), grantedScopes)
+	accessToken, expiresIn, err := a.CreateAccessToken(user.Id(), grantedScopes)
 	if err != nil {
 		log.Printf("Error creating access token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -193,7 +199,7 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 	}
 
 	// Create new access token
-	accessToken, expiresIn, err := a.createAccessToken(refreshToken.UserID, refreshToken.Scopes)
+	accessToken, expiresIn, err := a.CreateAccessToken(refreshToken.UserID, refreshToken.Scopes)
 	if err != nil {
 		log.Printf("Error creating access token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -303,8 +309,15 @@ func (a *APIAuth) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// createAccessToken creates a signed JWT access token
-func (a *APIAuth) createAccessToken(userID string, scopes []string) (string, int64, error) {
+// standardClaims is the set of JWT claim keys that cannot be overridden by CustomClaimsFunc.
+var standardClaims = map[string]bool{
+	"sub": true, "iss": true, "aud": true, "exp": true,
+	"iat": true, "type": true, "scopes": true,
+}
+
+// CreateAccessToken creates a signed JWT access token. If CustomClaimsFunc is set,
+// its returned claims are merged into the token (standard claims cannot be overridden).
+func (a *APIAuth) CreateAccessToken(userID string, scopes []string) (string, int64, error) {
 	expiry := a.AccessTokenExpiry
 	if expiry == 0 {
 		expiry = TokenExpiryAccessToken
@@ -326,6 +339,21 @@ func (a *APIAuth) createAccessToken(userID string, scopes []string) (string, int
 	}
 	if a.JWTAudience != "" {
 		claims["aud"] = a.JWTAudience
+	}
+
+	// Merge custom claims (cannot override standard claims)
+	if a.CustomClaimsFunc != nil {
+		custom, err := a.CustomClaimsFunc(userID, scopes)
+		if err != nil {
+			return "", 0, fmt.Errorf("custom claims func failed: %w", err)
+		}
+		for k, v := range custom {
+			if standardClaims[k] {
+				log.Printf("Warning: CustomClaimsFunc attempted to override standard claim %q (ignored)", k)
+			} else {
+				claims[k] = v
+			}
+		}
 	}
 
 	signingMethod := jwt.SigningMethodHS256
@@ -408,6 +436,68 @@ func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes
 	}
 
 	return userID, scopes, nil
+}
+
+// ValidateAccessTokenFull validates a JWT access token and returns the standard claims
+// plus any custom claims (non-standard keys) as a separate map.
+func (a *APIAuth) ValidateAccessTokenFull(tokenString string) (userID string, scopes []string, customClaims map[string]any, err error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(a.JWTSecretKey), nil
+	})
+
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	if !token.Valid {
+		return "", nil, nil, fmt.Errorf("invalid token")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", nil, nil, fmt.Errorf("invalid claims")
+	}
+
+	// Verify token type
+	if tokenType, ok := claims["type"].(string); !ok || tokenType != "access" {
+		return "", nil, nil, fmt.Errorf("invalid token type")
+	}
+
+	// Verify issuer if configured
+	if a.JWTIssuer != "" {
+		if iss, ok := claims["iss"].(string); !ok || iss != a.JWTIssuer {
+			return "", nil, nil, fmt.Errorf("invalid issuer")
+		}
+	}
+
+	// Extract user ID
+	userID, ok = claims["sub"].(string)
+	if !ok || userID == "" {
+		return "", nil, nil, fmt.Errorf("missing subject")
+	}
+
+	// Extract scopes
+	if scopesRaw, ok := claims["scopes"].([]any); ok {
+		scopes = make([]string, 0, len(scopesRaw))
+		for _, s := range scopesRaw {
+			if str, ok := s.(string); ok {
+				scopes = append(scopes, str)
+			}
+		}
+	}
+
+	// Extract custom claims (everything that's not a standard JWT claim)
+	customClaims = make(map[string]any)
+	for k, v := range claims {
+		if !standardClaims[k] {
+			customClaims[k] = v
+		}
+	}
+
+	return userID, scopes, customClaims, nil
 }
 
 // tokenResponse sends a successful token response
@@ -651,6 +741,11 @@ type APIMiddleware struct {
 	JWTAudience   string
 	JWTSigningAlg string
 
+	// KeyStore for multi-tenant JWT validation. When set, the middleware extracts
+	// client_id from unverified JWT claims and looks up the signing key per-client.
+	// When nil, falls back to JWTSecretKey (single-tenant, backwards-compatible).
+	KeyStore KeyStore
+
 	// API key validation (optional)
 	APIKeyStore APIKeyStore
 
@@ -795,7 +890,31 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes 
 // validateJWT validates a JWT access token
 func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes []string, authType string, err error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-		// Validate signing method
+		// If KeyStore is configured, use multi-tenant key lookup
+		if m.KeyStore != nil {
+			// Extract client_id from unverified claims to look up the key
+			claims, ok := token.Claims.(jwt.MapClaims)
+			if !ok {
+				return nil, fmt.Errorf("invalid claims")
+			}
+			clientID, _ := claims["client_id"].(string)
+			if clientID == "" {
+				return nil, fmt.Errorf("missing client_id claim")
+			}
+
+			// Validate algorithm matches what we expect for this client
+			expectedAlg, err := m.KeyStore.GetExpectedAlg(clientID)
+			if err != nil {
+				return nil, fmt.Errorf("unknown client: %w", err)
+			}
+			if token.Header["alg"] != expectedAlg {
+				return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", expectedAlg, token.Header["alg"])
+			}
+
+			return m.KeyStore.GetVerifyKey(clientID)
+		}
+
+		// Fallback: single-key validation (backwards-compatible)
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}

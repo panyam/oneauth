@@ -80,6 +80,15 @@
 
 ## Short-term
 
+### Federated Auth (Relay + Host)
+
+- [x] **P0** `[BLOCKER]` `CustomClaimsFunc` + multi-tenant `KeyStore` interface (#2) ✅
+- [ ] **P0** `[BLOCKER]` Host registration API + service component (#3)
+  > `HostStore` interface, HTTP handlers for Host CRUD, `MintRelayToken` helper
+- [ ] **P1** Asymmetric signing support — RS256/ES256 (#4)
+  > Compatible extension: per-host algorithm choice, both HS256 and asymmetric coexist
+- [ ] **P1** Persistent `KeyStore` implementations — FS, GORM, GAE (#5)
+
 ### Phase 3: OAuth Integration for API
 
 - [ ] **P0** `[BLOCKER]` Add API mode to OAuth callbacks (return tokens instead of session)
@@ -284,10 +293,10 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
   >
   > **Requires**: Organization support (for org-scoped roles)
 
-- [ ] **P2** `[DX]` Custom claims in JWT
-  > **Scenario**: App needs tenant_id in every token. Configure: `JWTClaims: func(user) { return map{"tenant_id": user.TenantID} }`. All tokens include custom claim.
-  >
-  > **Urgency**: Flexibility feature. Workaround: fetch from user store on each request.
+- [x] **P2** `[DX]` Custom claims in JWT ✅ **COMPLETED (oneauth#2)**
+  > `CustomClaimsFunc` on `APIAuth` + `ValidateAccessTokenFull` for extraction.
+  > Multi-tenant `KeyStore` interface with `InMemoryKeyStore` implementation.
+  > `APIMiddleware` supports per-client key lookup via `KeyStore`.
 
 - [ ] **P2** `[DX]` Device management UI components
   > **Scenario**: User views "Active Sessions" page: "Chrome on MacBook (current), Safari on iPhone, Firefox on Windows". Can click "Sign out" on any device.

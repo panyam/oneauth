@@ -7,6 +7,7 @@ A Go authentication library providing unified local and OAuth-based authenticati
 - **Unified authentication**: Password and OAuth through a single interface
 - **Multi-provider support**: One account accessible via password, Google, GitHub, etc.
 - **API authentication**: JWT access tokens, refresh tokens, and API keys for programmatic access
+- **Multi-tenant JWT**: KeyStore interface for per-client signing keys, custom claims injection, algorithm confusion prevention
 - **Separation of concerns**: Users, identities, and authentication channels as distinct concepts
 - **Flexible storage**: Database-agnostic store interfaces with file-based, GORM, and GAE/Datastore implementations
 - **Email workflows**: Built-in email verification and password reset flows
@@ -209,11 +210,41 @@ mux.Handle("/api/logout", http.HandlerFunc(apiAuth.HandleLogout))
 mux.Handle("/api/keys", http.HandlerFunc(apiAuth.HandleAPIKeys))
 ```
 
+### Custom Claims
+
+Inject application-specific claims into JWTs at minting time:
+
+```go
+apiAuth := &oneauth.APIAuth{
+    JWTSecretKey: "your-secret-key",
+    JWTIssuer:    "yourapp.com",
+    // Inject custom claims into every token
+    CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+        return map[string]any{
+            "client_id":     "my-host-id",
+            "client_domain": "myapp.com",
+            "max_rooms":     10,
+        }, nil
+    },
+}
+
+// Mint a token with custom claims
+token, expiresIn, err := apiAuth.CreateAccessToken("user-123", []string{"read", "write"})
+
+// Validate and extract custom claims
+userID, scopes, customClaims, err := apiAuth.ValidateAccessTokenFull(token)
+// customClaims["client_id"] == "my-host-id"
+// customClaims["max_rooms"] == 10
+```
+
+Standard claims (`sub`, `iss`, `aud`, `exp`, `iat`, `type`, `scopes`) cannot be overridden by custom claims. Attempts are logged and ignored.
+
 ### API Middleware
 
 Protect your API endpoints with JWT validation:
 
 ```go
+// Single-tenant (backwards-compatible)
 middleware := &oneauth.APIMiddleware{
     JWTSecretKey: "your-secret-key",
     JWTIssuer:    "yourapp.com",
@@ -229,6 +260,33 @@ mux.Handle("/api/write", middleware.RequireScopes("write")(writeHandler))
 // Optional authentication
 mux.Handle("/api/public", middleware.Optional(publicHandler))
 ```
+
+### Multi-Tenant JWT Validation
+
+For systems where multiple hosts mint JWTs (e.g., federated relay architectures), use a `KeyStore` for per-client key lookup:
+
+```go
+// Register signing keys for each host
+keyStore := oneauth.NewInMemoryKeyStore()
+keyStore.RegisterKey("host-alpha", []byte("alpha-secret"), "HS256")
+keyStore.RegisterKey("host-beta", []byte("beta-secret"), "HS256")
+
+// Middleware uses KeyStore instead of a single secret
+middleware := &oneauth.APIMiddleware{
+    KeyStore: keyStore,  // per-client key lookup
+}
+
+// Tokens are verified using the key for their client_id claim
+mux.Handle("/api/resource", middleware.ValidateToken(handler))
+```
+
+When `KeyStore` is set, the middleware:
+1. Extracts `client_id` from the JWT's unverified claims
+2. Looks up the expected algorithm and signing key for that client
+3. Validates the algorithm matches (prevents algorithm confusion attacks)
+4. Verifies the JWT signature with the client-specific key
+
+When `KeyStore` is nil, falls back to single `JWTSecretKey` (backwards-compatible).
 
 ### API Requests
 
@@ -344,6 +402,20 @@ type APIKeyStore interface {
     ListUserAPIKeys(userID string) ([]*APIKey, error)
 }
 ```
+
+### KeyStore
+
+Manages per-client signing keys for multi-tenant JWT validation.
+
+```go
+type KeyStore interface {
+    GetVerifyKey(clientID string) (any, error)
+    GetSigningKey(clientID string) (any, error)
+    GetExpectedAlg(clientID string) (string, error)
+}
+```
+
+`InMemoryKeyStore` is provided for testing and simple deployments. Persistent implementations (FS, GORM, GAE) are planned.
 
 ## Store Implementations
 
