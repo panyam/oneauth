@@ -26,6 +26,22 @@ type KeyStore interface {
 	GetExpectedAlg(clientID string) (string, error)
 }
 
+// WritableKeyStore extends KeyStore with write operations for key registration and management.
+// All persistent KeyStore implementations (GORM, FS, GAE) implement this interface.
+// InMemoryKeyStore also implements it for testing.
+type WritableKeyStore interface {
+	KeyStore
+
+	// RegisterKey adds or overwrites a signing key for the given client_id.
+	RegisterKey(clientID string, key any, algorithm string) error
+
+	// DeleteKey removes the signing key for the given client_id.
+	DeleteKey(clientID string) error
+
+	// ListKeys returns all registered client IDs.
+	ListKeys() ([]string, error)
+}
+
 // keyEntry stores key material and metadata for a single client.
 type keyEntry struct {
 	Key       any    // []byte for HMAC, crypto.PublicKey for asymmetric (future)
@@ -98,4 +114,15 @@ func (s *InMemoryKeyStore) GetExpectedAlg(clientID string) (string, error) {
 		return "", ErrKeyNotFound
 	}
 	return entry.Algorithm, nil
+}
+
+// ListKeys returns all registered client IDs.
+func (s *InMemoryKeyStore) ListKeys() ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	keys := make([]string, 0, len(s.keys))
+	for k := range s.keys {
+		keys = append(keys, k)
+	}
+	return keys, nil
 }
