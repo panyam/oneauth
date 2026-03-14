@@ -693,3 +693,229 @@ func TestAPITokenExpiry(t *testing.T) {
 		}
 	})
 }
+
+// TestQueryParamToken tests token extraction from query parameter
+func TestQueryParamToken(t *testing.T) {
+	apiAuth, _, apiKeyStore, tmpDir := setupAPIAuthTest(t)
+	defer cleanupAPIAuthTest(t, tmpDir)
+
+	// Get tokens
+	loginBody := map[string]string{
+		"grant_type": "password",
+		"username":   "apitest@example.com",
+		"password":   "password123",
+	}
+	body, _ := json.Marshal(loginBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	apiAuth.ServeHTTP(rr, req)
+
+	var loginResponse oa.TokenPair
+	json.NewDecoder(rr.Body).Decode(&loginResponse)
+
+	mw := &oa.APIMiddleware{
+		JWTSecretKey:    apiAuth.JWTSecretKey,
+		JWTIssuer:       apiAuth.JWTIssuer,
+		APIKeyStore:     apiKeyStore,
+		TokenQueryParam: "token",
+	}
+
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := oa.GetUserIDFromAPIContext(r.Context())
+		json.NewEncoder(w).Encode(map[string]any{
+			"user_id": userID,
+		})
+	})
+
+	t.Run("token from query param", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/resource?token="+loginResponse.AccessToken, nil)
+		rr := httptest.NewRecorder()
+
+		mw.ValidateToken(testHandler).ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+		}
+
+		var response map[string]any
+		json.NewDecoder(rr.Body).Decode(&response)
+		if response["user_id"] == "" {
+			t.Error("Expected user_id in response")
+		}
+	})
+
+	t.Run("header takes precedence over query param", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/resource?token=invalid-token", nil)
+		req.Header.Set("Authorization", "Bearer "+loginResponse.AccessToken)
+		rr := httptest.NewRecorder()
+
+		mw.ValidateToken(testHandler).ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("query param disabled when TokenQueryParam empty", func(t *testing.T) {
+		mwNoQP := &oa.APIMiddleware{
+			JWTSecretKey: apiAuth.JWTSecretKey,
+			JWTIssuer:    apiAuth.JWTIssuer,
+			APIKeyStore:  apiKeyStore,
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/resource?token="+loginResponse.AccessToken, nil)
+		rr := httptest.NewRecorder()
+
+		mwNoQP.ValidateToken(testHandler).ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", rr.Code)
+		}
+	})
+}
+
+// TestCustomClaimsInContext tests that custom JWT claims are stored in context
+func TestCustomClaimsInContext(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "oneauth-customclaims-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create stores
+	userStore := fs.NewFSUserStore(tmpDir)
+	identityStore := fs.NewFSIdentityStore(tmpDir)
+	channelStore := fs.NewFSChannelStore(tmpDir)
+	refreshTokenStore := fs.NewFSRefreshTokenStore(tmpDir)
+	apiKeyStore := fs.NewFSAPIKeyStore(tmpDir)
+
+	// Create test user
+	testEmail := "customclaims@example.com"
+	createUser := oa.NewCreateUserFunc(userStore, identityStore, channelStore)
+	_, err = createUser(&oa.Credentials{
+		Username: "customuser",
+		Email:    &testEmail,
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	apiAuth := &oa.APIAuth{
+		RefreshTokenStore:   refreshTokenStore,
+		APIKeyStore:         apiKeyStore,
+		JWTSecretKey:        "test-secret-custom-claims",
+		JWTIssuer:           "oneauth-test",
+		ValidateCredentials: oa.NewCredentialsValidator(identityStore, channelStore, userStore),
+		GetUserScopes: func(userID string) ([]string, error) {
+			return []string{oa.ScopeRead, oa.ScopeWrite}, nil
+		},
+		CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+			return map[string]any{
+				"client_id":    "host-alpha",
+				"max_rooms":    float64(10),
+				"max_msg_rate": 50.0,
+			}, nil
+		},
+	}
+
+	// Get tokens
+	loginBody := map[string]string{
+		"grant_type": "password",
+		"username":   "customclaims@example.com",
+		"password":   "password123",
+	}
+	body, _ := json.Marshal(loginBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	apiAuth.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Login failed: %s", rr.Body.String())
+	}
+
+	var loginResponse oa.TokenPair
+	json.NewDecoder(rr.Body).Decode(&loginResponse)
+
+	mw := &oa.APIMiddleware{
+		JWTSecretKey: apiAuth.JWTSecretKey,
+		JWTIssuer:    apiAuth.JWTIssuer,
+		APIKeyStore:  apiKeyStore,
+	}
+
+	t.Run("ValidateToken stores custom claims", func(t *testing.T) {
+		var capturedClaims map[string]any
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedClaims = oa.GetCustomClaimsFromContext(r.Context())
+			w.WriteHeader(http.StatusOK)
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/resource", nil)
+		req.Header.Set("Authorization", "Bearer "+loginResponse.AccessToken)
+		rr := httptest.NewRecorder()
+
+		mw.ValidateToken(testHandler).ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d", rr.Code)
+		}
+		if capturedClaims == nil {
+			t.Fatal("Expected custom claims in context")
+		}
+		if capturedClaims["client_id"] != "host-alpha" {
+			t.Errorf("Expected client_id=host-alpha, got %v", capturedClaims["client_id"])
+		}
+		if capturedClaims["max_rooms"] != float64(10) {
+			t.Errorf("Expected max_rooms=10, got %v", capturedClaims["max_rooms"])
+		}
+		if capturedClaims["max_msg_rate"] != 50.0 {
+			t.Errorf("Expected max_msg_rate=50, got %v", capturedClaims["max_msg_rate"])
+		}
+	})
+
+	t.Run("Optional stores custom claims when token present", func(t *testing.T) {
+		var capturedClaims map[string]any
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedClaims = oa.GetCustomClaimsFromContext(r.Context())
+			w.WriteHeader(http.StatusOK)
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/resource", nil)
+		req.Header.Set("Authorization", "Bearer "+loginResponse.AccessToken)
+		rr := httptest.NewRecorder()
+
+		mw.Optional(testHandler).ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d", rr.Code)
+		}
+		if capturedClaims == nil {
+			t.Fatal("Expected custom claims in context (optional mode)")
+		}
+		if capturedClaims["client_id"] != "host-alpha" {
+			t.Errorf("Expected client_id=host-alpha, got %v", capturedClaims["client_id"])
+		}
+	})
+
+	t.Run("Optional returns nil custom claims when no token", func(t *testing.T) {
+		var capturedClaims map[string]any
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedClaims = oa.GetCustomClaimsFromContext(r.Context())
+			w.WriteHeader(http.StatusOK)
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/resource", nil)
+		rr := httptest.NewRecorder()
+
+		mw.Optional(testHandler).ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d", rr.Code)
+		}
+		if capturedClaims != nil {
+			t.Errorf("Expected nil custom claims, got %v", capturedClaims)
+		}
+	})
+}

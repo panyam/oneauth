@@ -730,7 +730,8 @@ type apiContextKey string
 const (
 	contextKeyUserID   apiContextKey = "api_user_id"
 	contextKeyScopes   apiContextKey = "api_scopes"
-	contextKeyAuthType apiContextKey = "api_auth_type" // "jwt" or "api_key"
+	contextKeyAuthType    apiContextKey = "api_auth_type" // "jwt" or "api_key"
+	contextKeyCustomClaims apiContextKey = "api_custom_claims"
 )
 
 // APIMiddleware provides middleware for validating API tokens
@@ -751,6 +752,11 @@ type APIMiddleware struct {
 
 	// Token header configuration
 	AuthHeader string // Defaults to "Authorization"
+
+	// TokenQueryParam is the query parameter name to check for a token as fallback
+	// when the Authorization header is missing (e.g., "token" for ?token=...).
+	// Empty string disables query param extraction (default).
+	TokenQueryParam string
 
 	// Error handling
 	OnAuthError func(w http.ResponseWriter, r *http.Request, err error)
@@ -786,22 +792,33 @@ func GetAuthTypeFromAPIContext(ctx context.Context) string {
 	return ""
 }
 
+// GetCustomClaimsFromContext retrieves the custom (non-standard) JWT claims from context.
+// Returns nil if no custom claims are present (e.g., API key auth or no token).
+func GetCustomClaimsFromContext(ctx context.Context) map[string]any {
+	if v := ctx.Value(contextKeyCustomClaims); v != nil {
+		if claims, ok := v.(map[string]any); ok {
+			return claims
+		}
+	}
+	return nil
+}
+
 // ValidateToken middleware validates Bearer tokens (JWT or API key) and sets user info in context
 func (m *APIMiddleware) ValidateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID, scopes, authType, err := m.validateRequest(r)
+		userID, scopes, authType, customClaims, err := m.validateRequest(r)
 		if err != nil {
 			m.handleAuthError(w, r, err)
 			return
 		}
 
-		// Set authenticated user info in context
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, contextKeyUserID, userID)
 		ctx = context.WithValue(ctx, contextKeyScopes, scopes)
 		ctx = context.WithValue(ctx, contextKeyAuthType, authType)
-
-		// Also set in the default context for compatibility
+		if customClaims != nil {
+			ctx = context.WithValue(ctx, contextKeyCustomClaims, customClaims)
+		}
 		ctx = SetUserIDInContext(ctx, userID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -812,24 +829,24 @@ func (m *APIMiddleware) ValidateToken(next http.Handler) http.Handler {
 func (m *APIMiddleware) RequireScopes(requiredScopes ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// First validate the token
-			userID, grantedScopes, authType, err := m.validateRequest(r)
+			userID, grantedScopes, authType, customClaims, err := m.validateRequest(r)
 			if err != nil {
 				m.handleAuthError(w, r, err)
 				return
 			}
 
-			// Check if all required scopes are present
 			if !ContainsAllScopes(grantedScopes, requiredScopes) {
 				m.handleAuthError(w, r, fmt.Errorf("insufficient scope: requires %v", requiredScopes))
 				return
 			}
 
-			// Set authenticated user info in context
 			ctx := r.Context()
 			ctx = context.WithValue(ctx, contextKeyUserID, userID)
 			ctx = context.WithValue(ctx, contextKeyScopes, grantedScopes)
 			ctx = context.WithValue(ctx, contextKeyAuthType, authType)
+			if customClaims != nil {
+				ctx = context.WithValue(ctx, contextKeyCustomClaims, customClaims)
+			}
 			ctx = SetUserIDInContext(ctx, userID)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -840,47 +857,57 @@ func (m *APIMiddleware) RequireScopes(requiredScopes ...string) func(http.Handle
 // Optional middleware allows requests without auth but sets user info if present
 func (m *APIMiddleware) Optional(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID, scopes, authType, err := m.validateRequest(r)
+		userID, scopes, authType, customClaims, err := m.validateRequest(r)
 		if err == nil && userID != "" {
-			// Set authenticated user info in context
 			ctx := r.Context()
 			ctx = context.WithValue(ctx, contextKeyUserID, userID)
 			ctx = context.WithValue(ctx, contextKeyScopes, scopes)
 			ctx = context.WithValue(ctx, contextKeyAuthType, authType)
+			if customClaims != nil {
+				ctx = context.WithValue(ctx, contextKeyCustomClaims, customClaims)
+			}
 			ctx = SetUserIDInContext(ctx, userID)
 			r = r.WithContext(ctx)
 		}
-		// Continue even if not authenticated
 		next.ServeHTTP(w, r)
 	})
 }
 
 // validateRequest extracts and validates the token from the request
-func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes []string, authType string, err error) {
+func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
 	header := m.AuthHeader
 	if header == "" {
 		header = "Authorization"
 	}
 
 	authHeader := r.Header.Get(header)
+
+	// Fallback to query param if no header and TokenQueryParam is configured
+	if authHeader == "" && m.TokenQueryParam != "" {
+		if qp := r.URL.Query().Get(m.TokenQueryParam); qp != "" {
+			authHeader = "Bearer " + qp
+		}
+	}
+
 	if authHeader == "" {
-		return "", nil, "", fmt.Errorf("missing authorization header")
+		return "", nil, "", nil, fmt.Errorf("missing authorization header")
 	}
 
 	// Parse Bearer token
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return "", nil, "", fmt.Errorf("invalid authorization header format")
+		return "", nil, "", nil, fmt.Errorf("invalid authorization header format")
 	}
 
 	token := strings.TrimSpace(parts[1])
 	if token == "" {
-		return "", nil, "", fmt.Errorf("empty token")
+		return "", nil, "", nil, fmt.Errorf("empty token")
 	}
 
 	// Check if it's an API key (starts with "oa_")
 	if strings.HasPrefix(token, "oa_") && m.APIKeyStore != nil {
-		return m.validateAPIKey(token)
+		userID, scopes, authType, err := m.validateAPIKey(token)
+		return userID, scopes, authType, nil, err
 	}
 
 	// Otherwise try JWT
@@ -888,7 +915,7 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes 
 }
 
 // validateJWT validates a JWT access token
-func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes []string, authType string, err error) {
+func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		// If KeyStore is configured, use multi-tenant key lookup
 		if m.KeyStore != nil {
@@ -922,41 +949,41 @@ func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes [
 	})
 
 	if err != nil {
-		return "", nil, "", fmt.Errorf("invalid token: %w", err)
+		return "", nil, "", nil, fmt.Errorf("invalid token: %w", err)
 	}
 
 	if !token.Valid {
-		return "", nil, "", fmt.Errorf("token validation failed")
+		return "", nil, "", nil, fmt.Errorf("token validation failed")
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return "", nil, "", fmt.Errorf("invalid claims")
+		return "", nil, "", nil, fmt.Errorf("invalid claims")
 	}
 
 	// Verify token type
 	if tokenType, ok := claims["type"].(string); !ok || tokenType != "access" {
-		return "", nil, "", fmt.Errorf("invalid token type")
+		return "", nil, "", nil, fmt.Errorf("invalid token type")
 	}
 
 	// Verify issuer if configured
 	if m.JWTIssuer != "" {
 		if iss, ok := claims["iss"].(string); !ok || iss != m.JWTIssuer {
-			return "", nil, "", fmt.Errorf("invalid issuer")
+			return "", nil, "", nil, fmt.Errorf("invalid issuer")
 		}
 	}
 
 	// Verify audience if configured
 	if m.JWTAudience != "" {
 		if aud, ok := claims["aud"].(string); !ok || aud != m.JWTAudience {
-			return "", nil, "", fmt.Errorf("invalid audience")
+			return "", nil, "", nil, fmt.Errorf("invalid audience")
 		}
 	}
 
 	// Extract user ID
 	userID, ok = claims["sub"].(string)
 	if !ok || userID == "" {
-		return "", nil, "", fmt.Errorf("missing subject")
+		return "", nil, "", nil, fmt.Errorf("missing subject")
 	}
 
 	// Extract scopes
@@ -969,7 +996,15 @@ func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes [
 		}
 	}
 
-	return userID, scopes, "jwt", nil
+	// Extract custom claims (everything that's not a standard JWT claim)
+	customClaims = make(map[string]any)
+	for k, v := range claims {
+		if !standardClaims[k] {
+			customClaims[k] = v
+		}
+	}
+
+	return userID, scopes, "jwt", customClaims, nil
 }
 
 // validateAPIKey validates an API key

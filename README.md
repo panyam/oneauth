@@ -249,6 +249,8 @@ middleware := &oneauth.APIMiddleware{
     JWTSecretKey: "your-secret-key",
     JWTIssuer:    "yourapp.com",
     APIKeyStore:  apiKeyStore,
+    // Enable ?token= query param fallback (useful for WebSocket clients)
+    TokenQueryParam: "token",
 }
 
 // Require authentication
@@ -259,6 +261,14 @@ mux.Handle("/api/write", middleware.RequireScopes("write")(writeHandler))
 
 // Optional authentication
 mux.Handle("/api/public", middleware.Optional(publicHandler))
+
+// Access custom claims in handlers
+handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    userID := oneauth.GetUserIDFromAPIContext(r.Context())
+    custom := oneauth.GetCustomClaimsFromContext(r.Context())
+    clientID, _ := custom["client_id"].(string)
+    // ...
+})
 ```
 
 ### Multi-Tenant JWT Validation
@@ -314,9 +324,11 @@ curl -X POST http://localhost:8080/api/keys \
 
 ## Documentation
 
-- **[Developer Guide](DEVELOPER_GUIDE.md)**: Complete integration instructions, architecture details, and API reference
-- **[User Guide](USER_GUIDE.md)**: End-user documentation for applications using OneAuth
-- **[Release Notes](RELEASE_NOTES.md)**: Version history, features, and known limitations
+- **[Architecture](docs/ARCHITECTURE.md)**: Design decisions, data model, token lifecycle, federated auth
+- **[Developer Guide](docs/DEVELOPER_GUIDE.md)**: Complete integration instructions and API reference
+- **[Auth Flows](docs/AUTH_FLOWS.md)**: Login/signup decision trees, user journeys, channel linking
+- **[User Guide](docs/USER_GUIDE.md)**: End-user documentation for applications using OneAuth
+- **[Release Notes](docs/RELEASE_NOTES.md)**: Version history and changelog
 - **[API Documentation](https://pkg.go.dev/github.com/panyam/oneauth)**: Generated godoc reference
 
 ## Store Interfaces
@@ -415,7 +427,51 @@ type KeyStore interface {
 }
 ```
 
-`InMemoryKeyStore` is provided for testing and simple deployments. Persistent implementations (FS, GORM, GAE) are planned.
+`InMemoryKeyStore` is provided for testing. Persistent implementations are available: `FSKeyStore`, `GORMKeyStore`, `GAEKeyStore`.
+
+### Host Registration (Federated Auth)
+
+For systems where multiple host applications register credentials and mint scoped JWTs:
+
+```go
+// Set up host registration
+keyStore := gorm.NewGORMKeyStore(db)  // or fs.NewFSKeyStore, gae.NewGAEKeyStore
+registrar := &oneauth.HostRegistrar{
+    KeyStore:  keyStore,
+    AdminAuth: oneauth.NewAPIKeyAuth("admin-secret"),
+}
+
+// Mount registration endpoints
+mux.Handle("/hosts", registrar)           // POST=register, GET=list
+mux.Handle("/hosts/", registrar)          // GET=get, DELETE=delete
+mux.Handle("/hosts/rotate", registrar)    // POST=rotate secret
+
+// Hosts mint relay-scoped JWTs for their users
+token, err := oneauth.MintRelayToken(clientID, clientSecret, userID, scopes, customClaims)
+```
+
+### Client SDK
+
+For CLI tools and programmatic clients consuming oneauth-protected APIs:
+
+```go
+import (
+    "github.com/panyam/oneauth/client"
+    "github.com/panyam/oneauth/client/stores/fs"
+)
+
+// Create credential store (persists to ~/.config/myapp/credentials.json)
+store, _ := fs.NewFSCredentialStore("", "myapp")
+
+// Create auth client
+authClient := client.NewAuthClient("https://api.example.com", store)
+
+// Login
+authClient.Login("user@example.com", "password", "read write")
+
+// Use authenticated HTTP client (auto-refresh on 401 or before expiry)
+resp, _ := authClient.HTTPClient().Get("https://api.example.com/resource")
+```
 
 ## Store Implementations
 

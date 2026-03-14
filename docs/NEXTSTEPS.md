@@ -19,6 +19,31 @@
 
 ---
 
+## Completed (Client SDK — Phase 4)
+
+### Client SDK (`client/` package)
+
+- [x] `CredentialStore` interface (Get, Set, Remove, List credentials) ✅
+- [x] `ServerCredential` struct (access token, refresh token, expiry, user info) ✅
+- [x] `client/stores/fs/` — FS-based credential store (`~/.config/<app>/credentials.json`) ✅
+- [x] `AuthTransport` — `http.RoundTripper` that injects Bearer headers ✅
+- [x] `NewHTTPClient` convenience wrapper ✅
+- [x] Automatic token refresh (on 401 and before expiry) ✅
+
+---
+
+## Completed (Federated Auth)
+
+- [x] **P0** `CustomClaimsFunc` + multi-tenant `KeyStore` interface (#2) ✅
+- [x] **P0** Host registration API + service component (#3) ✅
+  > `AdminAuth` interface, `HostRegistrar` HTTP handler, `MintRelayToken` helper, reference server
+- [x] **P1** Persistent `KeyStore` implementations — FS, GORM, GAE (#5) ✅
+  > `WritableKeyStore` interface, shared test suite (`keystoretest`), GORM/FS/GAE implementations
+- [x] **P1** `APIMiddleware` enhancements — `TokenQueryParam` for query-param token extraction, `GetCustomClaimsFromContext()` for custom claims in context ✅
+  > Needed for WebSocket auth where clients can't always set Authorization headers.
+
+---
+
 ## Completed (v0.3.0)
 
 ### SignupPolicy - Configurable Signup Requirements
@@ -80,15 +105,10 @@
 
 ## Short-term
 
-### Federated Auth (Relay + Host)
+### Federated Auth (Remaining)
 
-- [x] **P0** `[BLOCKER]` `CustomClaimsFunc` + multi-tenant `KeyStore` interface (#2) ✅
-- [x] **P0** `[BLOCKER]` Host registration API + service component (#3) ✅
-  > `AdminAuth` interface, `HostRegistrar` HTTP handler, `MintRelayToken` helper, reference server
 - [ ] **P1** Asymmetric signing support — RS256/ES256 (#4)
   > Compatible extension: per-host algorithm choice, both HS256 and asymmetric coexist
-- [x] **P1** Persistent `KeyStore` implementations — FS, GORM, GAE (#5) ✅
-  > `WritableKeyStore` interface, shared test suite (`keystoretest`), GORM/FS/GAE implementations
 
 ### Phase 3: OAuth Integration for API
 
@@ -111,49 +131,14 @@
   >
   > **Requires**: API mode OAuth callbacks
 
-### Phase 4: Client SDK
-
-Reference implementation: `lilbattle/cmd/cli/cmd/{credentials.go,login.go}` and `connectclient/worlds_client.go`
-
-- [ ] **P0** `[BLOCKER]` Create `client/` package with stores pattern:
-  - [ ] `CredentialStore` interface (Get, Set, Remove, List credentials)
-  - [ ] `ServerCredential` struct (access token, refresh token, expiry, user info)
-  - [ ] `client/stores/fs/` - FS-based credential store (`~/.config/<app>/credentials.json`)
-  - [ ] Future: `client/stores/gorm/`, `client/stores/gae/`
-  > **Scenario**: CLI tool stores credentials locally: `store.Set("prod", cred)` saves to `~/.config/mycli/credentials.json`, enabling `mycli --profile=prod list-items` without re-login.
-  >
-  > **Urgency**: Foundation for all client-side auth. Blocks AuthTransport, token refresh, and CLI tools.
-
-- [ ] **P0** `[BLOCKER]` `AuthTransport` - `http.RoundTripper` that injects Bearer headers
-  > **Scenario**: `client := &http.Client{Transport: oneauth.NewAuthTransport(store)}` — all requests automatically include `Authorization: Bearer <token>` header.
-  >
-  > **Urgency**: Core building block. Every authenticated HTTP client needs this.
-  >
-  > **Requires**: CredentialStore interface
-
-- [ ] **P1** `[DX]` `NewHTTPClient(serverURL, store)` - creates authenticated HTTP client
-  > **Scenario**: `client := oneauth.NewHTTPClient("https://api.example.com", store)` — one-liner to get a fully configured authenticated client.
-  >
-  > **Urgency**: Convenience wrapper. Reduces boilerplate for consumers.
-  >
-  > **Requires**: AuthTransport
-
-- [ ] **P0** `[BLOCKER]` Automatic token refresh:
-  - [ ] Store refresh tokens alongside access tokens
-  - [ ] Transparent refresh on 401 or before expiry
-  - [ ] `grant_type=refresh_token` support
-  > **Scenario**: Long-running daemon makes API call, token expired. Transport auto-refreshes using stored refresh token, retries request — no manual token management needed.
-  >
-  > **Urgency**: Without this, tokens expire and break long-running processes. Users must manually re-authenticate.
-  >
-  > **Requires**: AuthTransport, CredentialStore
+### Phase 4: Client SDK (Remaining)
 
 - [ ] **P1** `[ADOPTION]` Migrate lilbattle CLI to use oneauth/client package
   > **Scenario**: Validate the client SDK works end-to-end by replacing lilbattle's hand-rolled auth with `oneauth/client`.
   >
   > **Urgency**: Proves the SDK works in real usage. Finds edge cases before wider adoption.
   >
-  > **Requires**: Full client SDK (CredentialStore, AuthTransport, token refresh)
+  > **Requires**: Full client SDK (CredentialStore, AuthTransport, token refresh) — all done
 
 ### Phase 5: Model Generation with protoc-gen-dal
 
@@ -187,11 +172,6 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
   > **Scenario**: Security team needs to investigate suspicious activity. `AuditLog.Query(userID, "login_failed", last24h)` returns all failed login attempts with IP, timestamp, and user agent.
   >
   > **Urgency**: Required for SOC2, HIPAA compliance. Can defer if not targeting regulated industries yet.
-
-- [x] **P2** `[ADOPTION]` Username-based login (previously email/phone only) ✅ **COMPLETED v0.3.0**
-  > **Scenario**: Gaming platform where users prefer handles like "DragonSlayer99" over email. `auth.Login("DragonSlayer99", password)` should work alongside email login.
-  >
-  > **Implementation**: Added `UsernameStore` interface with FS, GORM, and GAE implementations. Use `NewCredentialsValidatorWithUsername()` for username-based login support.
 
 ---
 
@@ -330,7 +310,7 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
   >
   > **Urgency**: Developer convenience. Can use jwt.io or similar tools.
   >
-  > **Requires**: Client SDK
+  > **Requires**: Client SDK — now complete
 
 ---
 
@@ -341,11 +321,11 @@ Phase 3: OAuth API Mode
     └── Mobile OAuth flows
     └── PKCE support
 
-Phase 4: Client SDK
+Phase 4: Client SDK ✅ COMPLETE
     CredentialStore ──► AuthTransport ──► NewHTTPClient
                               │
                               ▼
-                       Token Refresh ──► lilbattle migration
+                       Token Refresh ──► lilbattle migration (remaining)
 
 Infrastructure (parallel track)
     Redis Store ──► Token Blacklist ──► MFA
@@ -360,13 +340,15 @@ Compliance (can be parallel)
 
 ## Recommended Execution Order
 
-1. **Phase 3 + Phase 4** (P0 blockers) — Unblocks mobile/SPA/CLI clients
-2. **Redis Store** (P1) — Unblocks production deployments
-3. **Token Blacklist + Account Lockout** (P1 security) — Basic security hardening
-4. **GDPR + Audit Logging** (P1 compliance) — If targeting EU/enterprise
-5. **MFA** (P1 security) — Enterprise requirement
-6. **Examples** (P1 adoption) — Accelerates adoption
-7. **Everything else** (P2) — As needed
+1. **Phase 3** (P0 blockers) — Unblocks mobile/SPA OAuth clients
+2. **lilbattle migration** (P1) — Validates the completed Client SDK end-to-end
+3. **Asymmetric signing (#4)** (P1) — Completes federated auth
+4. **Redis Store** (P1) — Unblocks production deployments
+5. **Token Blacklist + Account Lockout** (P1 security) — Basic security hardening
+6. **GDPR + Audit Logging** (P1 compliance) — If targeting EU/enterprise
+7. **MFA** (P1 security) — Enterprise requirement
+8. **Examples** (P1 adoption) — Accelerates adoption
+9. **Everything else** (P2) — As needed
 
 ---
 
