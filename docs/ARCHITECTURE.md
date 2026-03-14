@@ -137,12 +137,12 @@ OneAuth supports three authentication modes, each targeting a different client t
 │   Authorization: Bearer    POST /api/login {grant_type: refresh_token}    │
 │            │                      │                                       │
 │            │                      ▼                                       │
-│            │              ┌──────────────────┐                            │
+│            │              ┌───────────────────┐                           │
 │            │              │  Rotate: old      │                           │
 │            │              │  revoked, new     │                           │
 │            │              │  refresh + access │                           │
 │            │              │  tokens issued    │                           │
-│            │              └──────────────────┘                            │
+│            │              └───────────────────┘                           │
 │            │                      │                                       │
 │            │                      ▼                                       │
 │            │              Theft detection:                                │
