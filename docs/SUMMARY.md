@@ -14,6 +14,9 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 - **Multi-tenant JWT**: KeyStore interface for per-client signing keys, custom claims, algorithm confusion prevention
 - **Policy-Based Validation**: Configurable signup requirements (SignupPolicy)
 - **Username Support**: Optional username uniqueness with username-based login
+- **Host Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), HostRegistrar HTTP handler for Host CRUD, MintRelayToken for relay-scoped JWTs
+- **Client SDK**: AuthClient with CredentialStore, HTTPClient wrapper with automatic token refresh on 401
+- **Reference Server**: Config-driven server in `cmd/oneauth-server/`, deployable to GAE, Docker, and Kubernetes
 
 ## Architecture
 
@@ -27,16 +30,19 @@ Three-layer data model separating concerns:
 
 ```
 oneauth/
-├── *.go              # Core types and handlers
+├── *.go                  # Core types and handlers
 ├── stores/
-│   ├── fs/           # File-based stores (server)
-│   ├── gorm/         # GORM SQL stores
-│   └── gae/          # Google Datastore stores
-├── client/           # Client SDK for token management
-│   └── stores/fs/    # File-based credential store
-├── grpc/             # gRPC utilities
-├── oauth2/           # OAuth2 providers
-└── saml/             # SAML support (planned)
+│   ├── fs/               # File-based stores (server)
+│   ├── gorm/             # GORM SQL stores
+│   └── gae/              # Google Datastore stores
+├── client/               # Client SDK for token management
+│   └── stores/fs/        # File-based credential store
+├── cmd/oneauth-server/   # Reference server (config-driven, GAE/Docker/K8s)
+├── keystoretest/         # Shared KeyStore test suite
+├── tests/integration/    # Integration tests
+├── grpc/                 # gRPC utilities
+├── oauth2/               # OAuth2 providers
+└── saml/                 # SAML support
 ```
 
 ## Quick Start
@@ -55,12 +61,18 @@ mux.Handle("/auth/login", localAuth)
 apiAuth := &oneauth.APIAuth{...}
 mux.Handle("/api/login", http.HandlerFunc(apiAuth.HandleLogin))
 
-// Protect endpoints
-middleware := &oneauth.APIMiddleware{...}
+// Protect endpoints with APIMiddleware
+middleware := &oneauth.APIMiddleware{
+    TokenQueryParam: "token",  // optional: accept token as query param
+    // ...
+}
 mux.Handle("/api/protected", middleware.ValidateToken(handler))
+
+// Extract custom claims in handlers
+claims := oneauth.GetCustomClaimsFromContext(r.Context())
 ```
 
-### Client SDK (for CLI/programmatic access)
+### Client SDK
 
 ```go
 import (
@@ -122,10 +134,8 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
-v0.0.31 - Added Host Registration API (#3): `AdminAuth` interface with `APIKeyAuth` and `NoAuth` implementations, `HostRegistrar` embeddable HTTP handler for Host CRUD (register, list, get, delete, rotate secret), `MintRelayToken` helper for minting relay-scoped JWTs. Added config-driven reference server in `cmd/oneauth-server/` with YAML config, env var substitution, Dockerfile, and deploy examples (Docker Compose with Postgres 18, GAE, Kubernetes).
-
-v0.0.30 - Added `WritableKeyStore` interface extending `KeyStore` with `RegisterKey`, `DeleteKey`, `ListKeys`. Implemented persistent KeyStore for all 3 backends: `GORMKeyStore` (SQL), `FSKeyStore` (filesystem), `GAEKeyStore` (Datastore). Shared test suite in `keystoretest` package runs identical tests against all implementations. Added `SigningKeyModel` to GORM AutoMigrate.
-
-v0.0.29 - Added `CustomClaimsFunc` on `APIAuth` for injecting custom claims into JWTs. Added `KeyStore` interface and `InMemoryKeyStore` for multi-tenant JWT validation. Added `ValidateAccessTokenFull` for extracting custom claims. `APIMiddleware` supports per-client key lookup via `KeyStore` with algorithm confusion prevention. Backwards-compatible — existing single-key setups work unchanged.
-
-v0.0.28 - Added optimistic locking fields (`Version`, `UpdatedAt`) to Identity and Channel models. Added `ExpiresAt` field to Channel for tracking when OAuth tokens or auth sessions need re-authentication. Added `IsExpired()` helper method to Channel. Updated all store implementations (GAE, FS, GORM).
+- **v0.0.32**: APIMiddleware enhancements (TokenQueryParam, GetCustomClaimsFromContext).
+- **v0.0.31**: Host Registration API (AdminAuth, HostRegistrar, MintRelayToken). Config-driven reference server (`cmd/oneauth-server/`).
+- **v0.0.30**: WritableKeyStore interface. Persistent KeyStore backends (GORM, FS, GAE). Shared test suite in `keystoretest/`.
+- **v0.0.29**: CustomClaimsFunc, KeyStore interface, InMemoryKeyStore, multi-tenant JWT validation with algorithm confusion prevention.
+- **v0.0.28**: Optimistic locking (Version, UpdatedAt) on Identity/Channel. ExpiresAt on Channel for OAuth token expiry tracking.
