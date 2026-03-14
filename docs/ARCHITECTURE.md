@@ -85,11 +85,11 @@ OneAuth supports three authentication modes, each targeting a different client t
 ### Browser Authentication (LocalAuth)
 
 ```
-┌──────────┐                 ┌───────────┐                ┌──────────────┐
-│  Browser │ ── POST ──────→ │ LocalAuth │ ── callback ─→ │  HandleUser  │
+┌──────────┐                  ┌───────────┐                ┌──────────────┐
+│  Browser │ ── POST ──────→  │ LocalAuth │ ── callback ─→ │  HandleUser  │
 │          │    /auth/login   │           │                │  (app-owned) │
-│          │ ←─ cookie ────  │           │                │  set session │
-└──────────┘                 └───────────┘                └──────────────┘
+│          │ ←─ cookie ────   │           │                │  set session │
+└──────────┘                  └───────────┘                └──────────────┘
 ```
 
 - Form-based login/signup
@@ -121,39 +121,39 @@ OneAuth supports three authentication modes, each targeting a different client t
 ## Token Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                           Token Lifecycle                                  │
-│                                                                            │
-│   Login                                                                    │
-│     │                                                                      │
-│     ▼                                                                      │
+┌───────────────────────────────────────────────────────────────────────────┐
+│                           Token Lifecycle                                 │
+│                                                                           │
+│   Login                                                                   │
+│     │                                                                     │
+│     ▼                                                                     │
 │   ┌─────────────────┐    ┌──────────────────┐                             │
-│   │  Access Token   │    │  Refresh Token    │                             │
-│   │  (JWT, 15 min)  │    │  (opaque, 7 days) │                             │
+│   │  Access Token   │    │  Refresh Token    │                            │
+│   │  (JWT, 15 min)  │    │  (opaque, 7 days) │                            │
 │   └────────┬────────┘    └────────┬─────────┘                             │
-│            │                      │                                        │
-│            ▼                      ▼                                        │
+│            │                      │                                       │
+│            ▼                      ▼                                       │
 │   API requests with        On access token expiry:                        │
 │   Authorization: Bearer    POST /api/login {grant_type: refresh_token}    │
-│            │                      │                                        │
-│            │                      ▼                                        │
-│            │              ┌──────────────────┐                             │
-│            │              │  Rotate: old      │                             │
-│            │              │  revoked, new     │                             │
-│            │              │  refresh + access │                             │
-│            │              │  tokens issued    │                             │
-│            │              └──────────────────┘                             │
-│            │                      │                                        │
-│            │                      ▼                                        │
-│            │              Theft detection:                                 │
-│            │              reuse of old token                               │
-│            │              → revoke entire family                           │
-│            │                                                               │
+│            │                      │                                       │
+│            │                      ▼                                       │
+│            │              ┌──────────────────┐                            │
+│            │              │  Rotate: old      │                           │
+│            │              │  revoked, new     │                           │
+│            │              │  refresh + access │                           │
+│            │              │  tokens issued    │                           │
+│            │              └──────────────────┘                            │
+│            │                      │                                       │
+│            │                      ▼                                       │
+│            │              Theft detection:                                │
+│            │              reuse of old token                              │
+│            │              → revoke entire family                          │
+│            │                                                              │
 │   ┌────────┴────────┐                                                     │
 │   │   API Key       │  Long-lived, prefixed oa_                           │
 │   │   (bcrypt hash) │  For CI/CD, scripts, automation                     │
 │   └─────────────────┘                                                     │
-└────────────────────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Access Tokens (JWT)
@@ -220,10 +220,10 @@ Incoming JWT
 └────────────┬───────────────┘
              │
              ▼
-┌────────────────────────────┐     ┌──────────────────┐
+┌────────────────────────────┐     ┌───────────────────┐
 │ 2. KeyStore.GetExpectedAlg │────→│ Algorithm match?  │── no ──→ 401 Reject
 │    (client_id)             │     │ (HS256? RS256?)   │
-└────────────────────────────┘     └────────┬─────────┘
+└────────────────────────────┘     └────────┬──────────┘
                                             │ yes
                                             ▼
                                    ┌──────────────────┐
@@ -269,9 +269,9 @@ All persistent implementations satisfy both `KeyStore` and `WritableKeyStore`. A
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Store Interfaces                       │
-│  UserStore | IdentityStore | ChannelStore | TokenStore       │
-│  RefreshTokenStore | APIKeyStore | UsernameStore (opt)       │
-│  KeyStore | WritableKeyStore (multi-tenant JWT)              │
+│  UserStore | IdentityStore | ChannelStore | TokenStore      │
+│  RefreshTokenStore | APIKeyStore | UsernameStore (opt)      │
+│  KeyStore | WritableKeyStore (multi-tenant JWT)             │
 └──────────────────────────┬──────────────────────────────────┘
                            │
         ┌──────────────────┼──────────────────┐
@@ -309,7 +309,7 @@ OneAuth supports a federated authentication model where multiple Hosts (applicat
 ### Architecture
 
 ```
-┌───────────┐     register      ┌──────────────────┐
+┌───────────┐     register      ┌───────────────────┐
 │  Host App │ ─────────────────→│  OneAuth Server   │
 │           │ ←───────────────  │  (HostRegistrar)  │
 │           │  client_id/secret │                   │
@@ -318,11 +318,11 @@ OneAuth supports a federated authentication model where multiple Hosts (applicat
       │ authenticate user                │ shared KeyStore
       │ mint relay-scoped JWT            │
       ▼                                  ▼
-┌───────────┐    validate JWT   ┌──────────────────┐
+┌───────────┐    validate JWT   ┌───────────────────┐
 │  End User │ ─────────────────→│ Resource Server   │
 │  (client) │                   │ (APIMiddleware +  │
 │           │                   │  KeyStore)        │
-└───────────┘                   └──────────────────┘
+└───────────┘                   └───────────────────┘
 ```
 
 ### Key Components
