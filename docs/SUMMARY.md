@@ -132,6 +132,18 @@ oneauth.StartLinkOAuth(r, userID)  // In "Link Google" handler
 oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 ```
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | High-level overview and design principles |
+| [BROWSER_AUTH.md](BROWSER_AUTH.md) | Browser-based auth (LocalAuth, OAuth, sessions, validation) |
+| [API_AUTH.md](API_AUTH.md) | API auth (JWT, refresh tokens, API keys, KeyStore) |
+| [FEDERATED_AUTH.md](FEDERATED_AUTH.md) | Federated auth (HostRegistrar, MintRelayToken, AdminAuth) |
+| [AUTH_FLOWS.md](AUTH_FLOWS.md) | Detailed decision trees, user journeys, edge cases |
+| [CLIENT_SDK.md](CLIENT_SDK.md) | Client SDK for CLI/programmatic access |
+| [STORES.md](STORES.md) | Store interfaces and implementations |
+
 ## Current Version
 
 - **v0.0.32**: APIMiddleware enhancements (TokenQueryParam, GetCustomClaimsFromContext).

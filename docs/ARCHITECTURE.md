@@ -42,36 +42,19 @@ OneAuth is a Go authentication library that provides unified local and OAuth-bas
 └──────────┘ └──────────┘          └──────────┘
 ```
 
-### User
-- Unique account identified by user ID
-- Contains profile information (name, avatar, etc.)
-- Application-controlled creation and management
+- **User**: Unique account identified by user ID. Contains profile information.
+- **Identity**: Contact method (email, phone) with verification status. Shared across auth channels.
+- **Channel**: Authentication mechanism (local, google, github) with provider-specific credentials.
+- **UsernameStore** (Optional): Username uniqueness enforcement and username-based login.
 
-### Identity
-- Contact method (email, phone)
-- Has verification status
-- Links to user account
-- Shared across authentication channels
+Multiple channels can point to the same user via shared email identity, enabling multi-provider login.
 
-### Channel
-- Authentication mechanism (local, google, github)
-- Stores provider-specific credentials
-- Password hash for local, OAuth tokens for OAuth providers
-- Multiple channels can point to the same user via shared email identity
-
-### UsernameStore (Optional)
-- Separate store for username → userID mapping
-- Enables username uniqueness enforcement
-- Supports username-based login (in addition to email)
-
-## Authentication Modes
+## Three Authentication Modes
 
 OneAuth supports three authentication modes, each targeting a different client type:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Authentication Modes                            │
-├─────────────────────┬───────────────────────┬───────────────────────────┤
+┌─────────────────────┬───────────────────────┬───────────────────────────┐
 │   Browser Auth      │   API Auth            │   Federated Auth          │
 │   (LocalAuth)       │   (APIAuth)           │   (HostRegistrar +        │
 │                     │                       │    MintRelayToken)        │
@@ -82,187 +65,12 @@ OneAuth supports three authentication modes, each targeting a different client t
 └─────────────────────┴───────────────────────┴───────────────────────────┘
 ```
 
-### Browser Authentication (LocalAuth)
+Each mode has its own detailed documentation:
 
-```
-┌──────────┐                  ┌───────────┐                ┌──────────────┐
-│  Browser │ ── POST ──────→  │ LocalAuth │ ── callback ─→ │  HandleUser  │
-│          │    /auth/login   │           │                │  (app-owned) │
-│          │ ←─ cookie ────   │           │                │  set session │
-└──────────┘                  └───────────┘                └──────────────┘
-```
-
-- Form-based login/signup
-- Email verification flow
-- Password reset flow (JSON + redirect modes)
-- Session management via callback
-
-### API Authentication (APIAuth)
-
-```
-┌──────────┐   POST /api/login    ┌──────────┐   JWT + refresh token
-│  Client  │ ───────────────────→ │ APIAuth  │ ──────────────────────→ Client stores tokens
-│ (SPA,    │                      │          │
-│  mobile, │   GET /api/resource  ├──────────┤
-│  CLI)    │ ───────────────────→ │ APIMid-  │ ── validates JWT ──→ Handler (userID in ctx)
-│          │   Authorization:     │ dleware  │
-│          │   Bearer <jwt>       │          │
-│          │   — or —             │          │
-│          │   ?token=<jwt>       │          │
-└──────────┘                      └──────────┘
-```
-
-- JWT access tokens (stateless, 15 min)
-- Refresh tokens (database, 7 days, rotating)
-- API keys (long-lived, for automation)
-- Scope-based access control
-- Custom claims injection + extraction
-
-## Token Architecture
-
-```
-┌───────────────────────────────────────────────────────────────────────────┐
-│                           Token Lifecycle                                 │
-│                                                                           │
-│   Login                                                                   │
-│     │                                                                     │
-│     ▼                                                                     │
-│   ┌─────────────────┐    ┌──────────────────┐                             │
-│   │  Access Token   │    │  Refresh Token    │                            │
-│   │  (JWT, 15 min)  │    │  (opaque, 7 days) │                            │
-│   └────────┬────────┘    └────────┬─────────┘                             │
-│            │                      │                                       │
-│            ▼                      ▼                                       │
-│   API requests with        On access token expiry:                        │
-│   Authorization: Bearer    POST /api/login {grant_type: refresh_token}    │
-│            │                      │                                       │
-│            │                      ▼                                       │
-│            │              ┌───────────────────┐                           │
-│            │              │  Rotate: old      │                           │
-│            │              │  revoked, new     │                           │
-│            │              │  refresh + access │                           │
-│            │              │  tokens issued    │                           │
-│            │              └───────────────────┘                           │
-│            │                      │                                       │
-│            │                      ▼                                       │
-│            │              Theft detection:                                │
-│            │              reuse of old token                              │
-│            │              → revoke entire family                          │
-│            │                                                              │
-│   ┌────────┴────────┐                                                     │
-│   │   API Key       │  Long-lived, prefixed oa_                           │
-│   │   (bcrypt hash) │  For CI/CD, scripts, automation                     │
-│   └─────────────────┘                                                     │
-└───────────────────────────────────────────────────────────────────────────┘
-```
-
-### Access Tokens (JWT)
-- Short-lived (15 min default)
-- Stateless validation
-- Contains: user ID, scopes, issuer, audience, expiry, custom claims
-- Signed with HS256 (asymmetric RS256/ES256 planned)
-
-### Refresh Tokens
-- Long-lived (7 days default)
-- Stored in database
-- Rotated on each use
-- Family tracking for theft detection
-- Revocable
-
-### API Keys
-- Long-lived (optional expiry)
-- Stored as bcrypt hash
-- Prefixed with `oa_` for identification
-- User-manageable
-
-## Multi-Tenant JWT and KeyStore
-
-For federated systems where multiple Hosts mint JWTs verified by a shared resource server, oneauth supports multi-tenant signing key management.
-
-### KeyStore Interface
-
-```go
-type KeyStore interface {
-    GetVerifyKey(clientID string) (any, error)    // []byte for HMAC, crypto.PublicKey for asymmetric
-    GetSigningKey(clientID string) (any, error)
-    GetExpectedAlg(clientID string) (string, error)  // algorithm confusion prevention
-}
-```
-
-### WritableKeyStore Interface
-
-Extends `KeyStore` with mutation operations for dynamic key management:
-
-```go
-type WritableKeyStore interface {
-    KeyStore
-    RegisterKey(clientID string, key any, alg string) error
-    DeleteKey(clientID string) error
-    ListKeys() ([]string, error)
-}
-```
-
-### Custom Claims
-
-`APIAuth.CustomClaimsFunc` injects custom claims into JWTs at minting time (e.g., `client_id`, `max_rooms`). Standard claims (`sub`, `iss`, `aud`, `exp`, `iat`, `type`, `scopes`) cannot be overridden.
-
-`APIAuth.ValidateAccessTokenFull()` returns custom claims separately from standard claims for downstream extraction.
-
-### Multi-Tenant Validation Flow
-
-```
-Incoming JWT
-     │
-     ▼
-┌────────────────────────────┐
-│ 1. Parse unverified claims │
-│    extract client_id       │
-└────────────┬───────────────┘
-             │
-             ▼
-┌────────────────────────────┐     ┌───────────────────┐
-│ 2. KeyStore.GetExpectedAlg │────→│ Algorithm match?  │── no ──→ 401 Reject
-│    (client_id)             │     │ (HS256? RS256?)   │
-└────────────────────────────┘     └────────┬──────────┘
-                                            │ yes
-                                            ▼
-                                   ┌──────────────────┐
-                                   │ 3. KeyStore.     │
-                                   │    GetVerifyKey  │
-                                   │    (client_id)   │
-                                   └────────┬─────────┘
-                                            │
-                                            ▼
-                                   ┌──────────────────┐
-                                   │ 4. Verify JWT    │── fail ──→ 401 Reject
-                                   │    signature     │
-                                   └────────┬─────────┘
-                                            │ pass
-                                            ▼
-                                   ┌──────────────────┐
-                                   │ 5. Store in ctx: │
-                                   │  - userID        │
-                                   │  - scopes        │
-                                   │  - custom claims │
-                                   └──────────────────┘
-```
-
-When `KeyStore` is nil, falls back to single `JWTSecretKey` (backwards-compatible).
-
-### APIMiddleware Enhancements
-
-- **`TokenQueryParam`**: When set (e.g., `"token"`), the middleware extracts JWTs from the query parameter in addition to the `Authorization` header. This supports WebSocket clients and other contexts where setting HTTP headers is not possible.
-- **`GetCustomClaimsFromContext(ctx)`**: Extracts custom claims that were stored in the request context by the middleware during validation.
-- **`validateRequest` / `validateJWT`**: Both return custom claims alongside standard claims, making them available to downstream handlers.
-
-### KeyStore Implementations
-
-- **`InMemoryKeyStore`** — thread-safe map, for testing and simple deployments
-- **`FSKeyStore`** (`keystores/fs/`) — file-system-based, JSON on disk, suitable for single-node deployments
-- **`GORMKeyStore`** (`keystores/gorm/`) — SQL-backed via GORM, production-ready
-- **`GAEKeyStore`** (`keystores/gae/`) — Google Cloud Datastore, serverless-friendly
-
-All persistent implementations satisfy both `KeyStore` and `WritableKeyStore`. A shared test suite in `keystoretest/` ensures consistent behavior across all implementations.
+- **[Browser Auth](BROWSER_AUTH.md)** — Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error handling
+- **[API Auth](API_AUTH.md)** — JWT access tokens, refresh tokens with rotation and theft detection, API keys, scope-based access control, custom claims, multi-tenant JWT validation via KeyStore
+- **[Federated Auth](FEDERATED_AUTH.md)** — Host Registration API (AdminAuth, HostRegistrar), relay token minting (MintRelayToken), multi-service architecture with shared KeyStore
+- **[Auth Flows](AUTH_FLOWS.md)** — Detailed decision trees for login/signup, provider linking matrix, user journeys, edge cases
 
 ## Store Architecture
 
@@ -284,262 +92,52 @@ All persistent implementations satisfy both `KeyStore` and `WritableKeyStore`. A
 └───────────────┘   └───────────────┘   └───────────────┘
 ```
 
-### File-Based Stores (stores/fs)
-- JSON files on disk
-- Suitable for development and <1000 users
-- Atomic writes for consistency
-- No external dependencies
+For store interfaces, implementations, and KeyStore details, see **[Stores](STORES.md)**.
 
-### GORM Stores (stores/gorm)
-- SQL databases (PostgreSQL, MySQL, SQLite)
-- Production-ready
-- Auto-migration support
-- Connection pooling via GORM
+## Client SDK
 
-### GAE Stores (stores/gae)
-- Google Cloud Datastore
-- Namespace support for multi-tenancy
-- Serverless-friendly
-- Automatic scaling
-
-## Federated Auth and Host Registration
-
-OneAuth supports a federated authentication model where multiple Hosts (applications) register with a central auth service, obtain credentials, and mint scoped JWTs that downstream resource servers validate using a shared KeyStore.
-
-### Architecture
+For CLI tools and programmatic clients consuming oneauth-protected APIs:
 
 ```
-┌───────────┐     register      ┌───────────────────┐
-│  Host App │ ─────────────────→│  OneAuth Server   │
-│           │ ←───────────────  │  (HostRegistrar)  │
-│           │  client_id/secret │                   │
-└─────┬─────┘                   └────────┬──────────┘
-      │                                  │
-      │ authenticate user                │ shared KeyStore
-      │ mint relay-scoped JWT            │
-      ▼                                  ▼
-┌───────────┐    validate JWT   ┌───────────────────┐
-│  End User │ ─────────────────→│ Resource Server   │
-│  (client) │                   │ (APIMiddleware +  │
-│           │                   │  KeyStore)        │
-└───────────┘                   └───────────────────┘
+AuthClient → Login/Logout → CredentialStore (persists tokens)
+           → HTTPClient() → refreshTransport (auto-refresh on 401)
 ```
 
-### Key Components
-
-- **`AdminAuth` interface**: Pluggable admin authentication for the registration API. Implementations include `APIKeyAuth` (bearer token) and `NoAuth` (for development).
-- **`HostRegistrar`**: Embeddable HTTP handler providing Host CRUD operations — register, list, get, delete, and rotate secret. Stores host credentials in the backing `WritableKeyStore`.
-- **`MintRelayToken`**: Helper function for minting relay-scoped JWTs. Hosts call this after authenticating their users to produce tokens that downstream services can validate.
-
-### Flow
-
-1. Host registers with the OneAuth server → receives `client_id` + `client_secret`
-2. Host authenticates its users (via its own login flow)
-3. Host calls `MintRelayToken` to produce a scoped JWT signed with its `client_secret`
-4. End user presents the JWT to the downstream resource server
-5. Resource server validates via `APIMiddleware` + shared `KeyStore` (looks up the signing key by `client_id`)
-
-### Reference Server (`cmd/oneauth-server/`)
-
-A config-driven YAML reference server that bundles `HostRegistrar`, `AdminAuth`, and KeyStore wiring. Deployable on:
-- Google App Engine (GAE)
-- Docker / Docker Compose
-- Kubernetes
+See **[Client SDK](CLIENT_SDK.md)** for full details.
 
 ## Security Architecture
 
 ### Password Security
 - bcrypt hashing with cost 10
-- No plain-text storage
 - Constant-time comparison
 
 ### Token Security
 - Cryptographically secure random generation (32 bytes)
-- Single-use verification tokens
-- Expiry enforcement
-- Lazy cleanup on access
+- Single-use verification tokens (deleted after use)
+- Expiry enforcement with lazy cleanup
 
 ### JWT Security
-- HS256 signing (asymmetric algorithms planned)
+- HS256 signing (asymmetric RS256/ES256 planned)
 - Audience and issuer validation
-- Expiry validation
-- Secret key rotation support
 - Algorithm confusion prevention via `GetExpectedAlg`
 
 ### Refresh Token Security
 - Rotation on use
-- Family-based theft detection
+- Family-based theft detection (reuse → revoke entire family)
 - Immediate revocation capability
-- Device tracking support
-
-## Request Flow
-
-### Browser Login
-```
-1. POST /auth/login (email, password)
-2. LocalAuth.ServeHTTP
-3. ValidateCredentials callback
-4. Channel lookup → password verification
-5. Identity lookup → user lookup
-6. HandleUser callback → session creation
-```
-
-### API Login
-```
-1. POST /api/login (grant_type=password, username, password)
-2. APIAuth.HandleLogin
-3. ValidateCredentials callback
-4. Generate JWT access token
-5. Create refresh token in store
-6. Return token pair
-```
-
-### API Request
-```
-1. GET /api/resource (Authorization: Bearer <jwt>)
-   — or: GET /api/resource?token=<jwt> (when TokenQueryParam is set)
-2. APIMiddleware.ValidateToken
-3. Parse and validate JWT (returns standard + custom claims)
-4. Extract user ID and scopes
-5. Add to request context (including custom claims)
-6. Call handler
-```
-
-### Token Refresh
-```
-1. POST /api/login (grant_type=refresh_token, refresh_token)
-2. APIAuth.HandleLogin
-3. Get refresh token from store
-4. Rotate token (invalidate old, create new)
-5. Generate new JWT
-6. Return new token pair
-```
-
-## Scope Model
-
-```go
-const (
-    ScopeRead    = "read"     // Read user data
-    ScopeWrite   = "write"    // Modify user data
-    ScopeProfile = "profile"  // Access profile info
-    ScopeOffline = "offline"  // Enable refresh tokens
-)
-```
-
-### Scope Resolution
-1. User logs in, requests scopes
-2. GetUserScopes callback returns allowed scopes
-3. Intersection granted to token
-4. Middleware validates endpoint requires subset
-
-## Channel Linking
-
-Multiple authentication channels can point to the same user via shared email identity:
-
-```
-User (id: abc123)
-├── Identity: email → user@example.com
-├── Channel: local   → email:user@example.com (password_hash)
-├── Channel: google  → email:user@example.com (oauth profile)
-└── Channel: github  → email:user@example.com (oauth profile)
-```
-
-### Linking Flows
-
-1. **OAuth to Existing User**: OAuth callback finds existing identity by email → links channel
-2. **Add Password to OAuth User**: `LinkLocalCredentials()` creates local channel
-3. **Add OAuth to Password User**: `HandleLinkOAuthCallback()` creates OAuth channel
-
-### Profile Tracking
-
-User profile tracks linked channels: `profile["channels"] = ["local", "google", "github"]`
 
 ## Extension Points
 
-### SignupPolicy
-```go
-localAuth.SignupPolicy = &oneauth.SignupPolicy{
-    RequireUsername:       true,
-    RequireEmail:          true,
-    MinPasswordLength:     12,
-    UsernamePattern:       `^[a-z][a-z0-9_]{2,19}$`,
-}
-```
-
-### Custom Error Handlers
-```go
-localAuth.OnSignupError = func(err *AuthError, w http.ResponseWriter, r *http.Request) bool {
-    session.SetFlash(r, "error", err.Message)
-    http.Redirect(w, r, "/signup", http.StatusSeeOther)
-    return true
-}
-```
-
-### Custom Validation (Legacy)
-```go
-localAuth.ValidateSignup = func(creds *Credentials) error {
-    // Custom rules
-}
-```
-
-### Custom Scope Resolution
-```go
-apiAuth.GetUserScopes = func(userID string) ([]string, error) {
-    // Lookup roles, permissions, etc.
-}
-```
-
-### Custom Email Sender
-```go
-type SMTPSender struct{}
-func (s *SMTPSender) SendVerificationEmail(to, link string) error
-func (s *SMTPSender) SendPasswordResetEmail(to, link string) error
-```
-
-### Custom Stores
-Implement the store interfaces for any database.
-
-## Client SDK (`client/`)
-
-For CLI tools and programmatic clients consuming oneauth-protected APIs:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     AuthClient                          │
-│  - Login/Logout                                         │
-│  - Automatic token refresh                              │
-│  - HTTPClient() returns authenticated client            │
-└─────────────────────────────┬───────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌───────────────┐    ┌───────────────┐    ┌────────────────┐
-│CredentialStore│    │ AuthTransport │    │RefreshTransport│
-│  (interface)  │    │  (Bearer hdr) │    │  (401 retry)   │
-└───────┬───────┘    └───────────────┘    └────────────────┘
-        │
-        ▼
-┌────────────────┐
-│client/stores/fs│
-│ JSON file      │
-│~/.config/<app> │
-└────────────────┘
-```
-
-### Components
-
-- **`AuthClient`**: High-level client for login, logout, and obtaining authenticated HTTP clients. Manages token lifecycle.
-- **`CredentialStore` interface**: Pluggable credential persistence. `Save`, `Load`, `Clear` operations.
-- **`HTTPClient`**: Returns an `*http.Client` with authentication transport wired in.
-- **`AuthTransport`**: `http.RoundTripper` that injects `Authorization: Bearer <token>` headers on every request.
-- **`RefreshTransport`**: `http.RoundTripper` that intercepts 401 responses, refreshes the access token, and retries the original request.
-- **`client/stores/fs/`**: File-based `CredentialStore` implementation using JSON on disk (e.g., `~/.config/<app>/credentials.json`).
-
-### Features
-- **Automatic refresh**: On 401 or before token expiry
-- **Thread-safe**: Mutex protects concurrent access
-- **Configurable**: Custom HTTP client, transport, token endpoint
+| Extension | Purpose | Doc |
+|-----------|---------|-----|
+| `SignupPolicy` | Configurable signup requirements | [Browser Auth](BROWSER_AUTH.md#signuppolicy-recommended) |
+| `OnSignupError` / `OnLoginError` | Custom error handlers | [Browser Auth](BROWSER_AUTH.md#custom-error-handlers) |
+| `ValidateSignup` (legacy) | Custom signup validation | [Browser Auth](BROWSER_AUTH.md#custom-validator-legacy) |
+| `GetUserScopes` | Custom scope resolution | [API Auth](API_AUTH.md#scopes) |
+| `CustomClaimsFunc` | Inject custom JWT claims | [API Auth](API_AUTH.md#custom-claims) |
+| `EmailSender` | Custom email delivery | [Browser Auth](BROWSER_AUTH.md#email-integration) |
+| `AdminAuth` | Pluggable admin authentication | [Federated Auth](FEDERATED_AUTH.md#adminauth-interface) |
+| Store interfaces | Custom database backends | [Stores](STORES.md#custom-store-implementation) |
 
 ## Positioning
 
@@ -553,6 +151,23 @@ OneAuth differentiates from alternatives by being:
 - **Federated-ready** (multi-tenant KeyStore, host registration, relay token minting)
 
 Closest alternatives:
-- `go-pkgz/auth` - Similar middleware focus, less flexible model
-- `Ory Kratos` - Full IAM platform, more complex
-- `Authelia` - Reverse proxy companion, different architecture
+- `go-pkgz/auth` — Similar middleware focus, less flexible model
+- `Ory Kratos` — Full IAM platform, more complex
+- `Authelia` — Reverse proxy companion, different architecture
+
+## Documentation Index
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | This file — high-level overview |
+| [BROWSER_AUTH.md](BROWSER_AUTH.md) | Browser-based authentication (LocalAuth, OAuth, sessions) |
+| [API_AUTH.md](API_AUTH.md) | API authentication (JWT, refresh tokens, API keys, KeyStore) |
+| [FEDERATED_AUTH.md](FEDERATED_AUTH.md) | Federated auth (HostRegistrar, MintRelayToken, AdminAuth) |
+| [AUTH_FLOWS.md](AUTH_FLOWS.md) | Detailed decision trees, user journeys, edge cases |
+| [CLIENT_SDK.md](CLIENT_SDK.md) | Client SDK for CLI/programmatic access |
+| [STORES.md](STORES.md) | Store interfaces and implementations |
+| [GETTING_STARTED.md](GETTING_STARTED.md) | Quick start guide |
+| [USER_GUIDE.md](USER_GUIDE.md) | User guide |
+| [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | Developer guide |
+| [TESTING.md](TESTING.md) | Testing guide |
+| [GRPC.md](GRPC.md) | gRPC integration |
