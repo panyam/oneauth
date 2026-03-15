@@ -5,6 +5,8 @@ settings:
   prefix_max_length: 12
   default_debounce_delay: 800ms
   max_parallel_rules: 5
+  http_port: 19999
+  grpc_port: 15555
 
 rules:
   # PostgreSQL via Docker — only restarts if docker-compose changes
@@ -76,7 +78,7 @@ rules:
       ONEAUTH_URL: "http://localhost:9999"
       ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
     commands:
-      - "until curl -sf http://localhost:9999/_ah/health > /dev/null 2>&1; do sleep 1; done"
+      - "until nc -z localhost 9999 2>/dev/null; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/demo-hostapp"
 
   # ChatApp (demo app #2) — no direct PG dependency, waits for auth server
@@ -104,7 +106,7 @@ rules:
       ONEAUTH_URL: "http://localhost:9999"
       ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
     commands:
-      - "until curl -sf http://localhost:9999/_ah/health > /dev/null 2>&1; do sleep 1; done"
+      - "until nc -z localhost 9999 2>/dev/null; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/demo-hostapp"
 
   # Resource Server A — needs PG for shared KeyStore
