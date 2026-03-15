@@ -18,7 +18,7 @@ rules:
           - "docker-compose.yml"
     commands:
       - "docker compose -f docker-compose.yml up -d --remove-orphans postgres"
-      - "sleep 2"
+      - "until pg_isready -h localhost -p 5432 -U oneauth -q; do sleep 0.5; done"
 
   # OneAuth Server (central auth + app registration)
   - name: "oneauth-server"
@@ -48,9 +48,10 @@ rules:
       JWT_SECRET_KEY: "demo-jwt-secret-key-change-me"
       JWT_ISSUER: "oneauth-demo"
     commands:
+      - "until pg_isready -h localhost -p 5432 -U oneauth -q; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/oneauth-server"
 
-  # DrawApp (demo app #1)
+  # DrawApp (demo app #1) — no direct PG dependency, waits for auth server
   - name: "drawapp"
     color: "blue"
     prefix: "draw"
@@ -75,10 +76,10 @@ rules:
       ONEAUTH_URL: "http://localhost:9999"
       ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
     commands:
-      - "sleep 1"
+      - "until curl -sf http://localhost:9999/_ah/health > /dev/null 2>&1; do sleep 1; done"
       - "go run -buildvcs=false ./cmd/demo-hostapp"
 
-  # ChatApp (demo app #2)
+  # ChatApp (demo app #2) — no direct PG dependency, waits for auth server
   - name: "chatapp"
     color: "yellow"
     prefix: "chat"
@@ -103,10 +104,10 @@ rules:
       ONEAUTH_URL: "http://localhost:9999"
       ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
     commands:
-      - "sleep 1"
+      - "until curl -sf http://localhost:9999/_ah/health > /dev/null 2>&1; do sleep 1; done"
       - "go run -buildvcs=false ./cmd/demo-hostapp"
 
-  # Resource Server A
+  # Resource Server A — needs PG for shared KeyStore
   - name: "resource-a"
     color: "green"
     prefix: "res-a"
@@ -129,9 +130,10 @@ rules:
       PORT: "4001"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
     commands:
+      - "until pg_isready -h localhost -p 5432 -U oneauth -q; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/demo-resource-server"
 
-  # Resource Server B
+  # Resource Server B — needs PG for shared KeyStore
   - name: "resource-b"
     color: "green"
     prefix: "res-b"
@@ -154,4 +156,5 @@ rules:
       PORT: "4002"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
     commands:
+      - "until pg_isready -h localhost -p 5432 -U oneauth -q; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/demo-resource-server"
