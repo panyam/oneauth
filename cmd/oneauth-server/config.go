@@ -11,10 +11,25 @@ import (
 
 // Config is the top-level server configuration.
 type Config struct {
-	Server    ServerConfig    `yaml:"server"`
-	KeyStore  KeyStoreConfig  `yaml:"keystore"`
-	AdminAuth AdminAuthConfig `yaml:"admin_auth"`
-	TLS       TLSConfig       `yaml:"tls"`
+	Server     ServerConfig     `yaml:"server"`
+	KeyStore   KeyStoreConfig   `yaml:"keystore"`
+	UserStores UserStoresConfig `yaml:"user_stores"`
+	JWT        JWTConfig        `yaml:"jwt"`
+	AdminAuth  AdminAuthConfig  `yaml:"admin_auth"`
+	TLS        TLSConfig        `yaml:"tls"`
+}
+
+// UserStoresConfig configures persistent stores for users, identities, channels, tokens.
+type UserStoresConfig struct {
+	Type string   `yaml:"type"` // fs, gorm (defaults to fs)
+	FS   FSConfig `yaml:"fs"`
+	// When type=gorm, reuses keystore.gorm config
+}
+
+// JWTConfig configures JWT signing for browser sessions and API tokens.
+type JWTConfig struct {
+	SecretKey string `yaml:"secret_key"` // Secret key for signing JWTs
+	Issuer    string `yaml:"issuer"`     // JWT issuer claim
 }
 
 type ServerConfig struct {
@@ -109,6 +124,15 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.AdminAuth.Type == "" {
 		cfg.AdminAuth.Type = "none"
 	}
+	if cfg.UserStores.Type == "" {
+		cfg.UserStores.Type = "fs"
+	}
+	if cfg.UserStores.FS.Path == "" {
+		cfg.UserStores.FS.Path = "./data/server"
+	}
+	if cfg.JWT.Issuer == "" {
+		cfg.JWT.Issuer = "oneauth"
+	}
 
 	return &cfg, nil
 }
@@ -140,6 +164,16 @@ func configFromEnv() Config {
 			APIKey: APIKeyConfig{
 				Key: os.Getenv("ADMIN_API_KEY"),
 			},
+		},
+		UserStores: UserStoresConfig{
+			Type: os.Getenv("USER_STORES_TYPE"),
+			FS: FSConfig{
+				Path: os.Getenv("USER_STORES_PATH"),
+			},
+		},
+		JWT: JWTConfig{
+			SecretKey: os.Getenv("JWT_SECRET_KEY"),
+			Issuer:    os.Getenv("JWT_ISSUER"),
 		},
 	}
 }

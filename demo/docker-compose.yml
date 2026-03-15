@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: oneauth
+      POSTGRES_USER: oneauth
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oneauth-demo-pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oneauth"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  oneauth-server:
+    build:
+      context: ..
+      dockerfile: cmd/oneauth-server/Dockerfile
+    ports:
+      - "9999:9999"
+    environment:
+      PORT: "9999"
+      KEYSTORE_TYPE: gorm
+      GORM_DRIVER: postgres
+      DATABASE_URL: "host=postgres user=oneauth password=${POSTGRES_PASSWORD:-oneauth-demo-pass} dbname=oneauth port=5432 sslmode=disable"
+      ADMIN_AUTH_TYPE: api-key
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-demo-admin-key-12345}
+      USER_STORES_TYPE: gorm
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-demo-jwt-secret-key-change-me}
+      JWT_ISSUER: oneauth-demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  drawapp:
+    build:
+      context: ..
+      dockerfile: cmd/demo-hostapp/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      APP_NAME: drawapp
+      PORT: "3001"
+      DATA_DIR: /data
+      ONEAUTH_URL: http://oneauth-server:9999
+      ONEAUTH_ADMIN_KEY: ${ADMIN_API_KEY:-demo-admin-key-12345}
+    volumes:
+      - drawapp-data:/data
+    depends_on:
+      - oneauth-server
+
+  chatapp:
+    build:
+      context: ..
+      dockerfile: cmd/demo-hostapp/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      APP_NAME: chatapp
+      PORT: "3002"
+      DATA_DIR: /data
+      ONEAUTH_URL: http://oneauth-server:9999
+      ONEAUTH_ADMIN_KEY: ${ADMIN_API_KEY:-demo-admin-key-12345}
+    volumes:
+      - chatapp-data:/data
+    depends_on:
+      - oneauth-server
+
+  relay-a:
+    build:
+      context: ..
+      dockerfile: cmd/demo-relay/Dockerfile
+    ports:
+      - "4001:4001"
+    environment:
+      RELAY_NAME: relay-a
+      PORT: "4001"
+      DATABASE_URL: "host=postgres user=oneauth password=${POSTGRES_PASSWORD:-oneauth-demo-pass} dbname=oneauth port=5432 sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  relay-b:
+    build:
+      context: ..
+      dockerfile: cmd/demo-relay/Dockerfile
+    ports:
+      - "4002:4002"
+    environment:
+      RELAY_NAME: relay-b
+      PORT: "4002"
+      DATABASE_URL: "host=postgres user=oneauth password=${POSTGRES_PASSWORD:-oneauth-demo-pass} dbname=oneauth port=5432 sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  drawapp-data:
+  chatapp-data:

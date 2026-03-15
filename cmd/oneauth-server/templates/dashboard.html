@@ -1,0 +1,47 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+  <div class="bg-white shadow rounded-lg p-6">
+    <h2 class="text-lg font-semibold mb-2">Your Account</h2>
+    <dl class="text-sm space-y-1">
+      <div class="flex justify-between"><dt class="text-gray-500">User ID</dt><dd class="font-mono text-xs">{{.UserID}}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Email</dt><dd>{{.UserEmail}}</dd></div>
+    </dl>
+  </div>
+  <div class="bg-white shadow rounded-lg p-6">
+    <h2 class="text-lg font-semibold mb-2">API Token</h2>
+    <p class="text-sm text-gray-500 mb-3">Use this endpoint to get access + refresh tokens:</p>
+    <pre class="text-xs bg-gray-50 p-2 rounded overflow-x-auto">POST /api/token
+{"grant_type":"password","username":"...","password":"..."}</pre>
+  </div>
+</div>
+
+<h2 class="text-xl font-semibold mb-4">Registered Hosts</h2>
+{{if .Hosts}}
+<div class="bg-white shadow rounded-lg overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="px-4 py-2 text-left">Client ID</th>
+        <th class="px-4 py-2 text-left">Domain</th>
+        <th class="px-4 py-2 text-left">Algorithm</th>
+        <th class="px-4 py-2 text-left">Created</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y">
+      {{range .Hosts}}
+      <tr>
+        <td class="px-4 py-2 font-mono text-xs">{{.ClientID}}</td>
+        <td class="px-4 py-2">{{.ClientDomain}}</td>
+        <td class="px-4 py-2">{{.SigningAlg}}</td>
+        <td class="px-4 py-2">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p class="text-gray-500 text-sm">No hosts registered yet. Use the Host Registration API to register apps.</p>
+{{end}}
+{{end}}

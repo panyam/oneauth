@@ -21,16 +21,24 @@ keystore:
   type: "${KEYSTORE_TYPE:-fs}"
   fs:
     path: "${KEYSTORE_PATH:-./data}"
+  gorm:
+    driver: "${GORM_DRIVER}"
+    dsn: "${DATABASE_URL}"
+  gae:
+    project: "${GCP_PROJECT}"
+    namespace: "${GAE_NAMESPACE}"
 
-  # SQL database via GORM (type: gorm)
-  # gorm:
-  #   driver: postgres    # postgres | sqlite | mysql
-  #   dsn: "${DATABASE_URL}"
+# User stores for auth pages (signup, login, password reset).
+# Options: fs, gorm (when type=gorm, reuses keystore.gorm config)
+user_stores:
+  type: "${USER_STORES_TYPE:-fs}"
+  fs:
+    path: "${USER_STORES_PATH:-./data/server}"
 
-  # Google Cloud Datastore (type: gae)
-  # gae:
-  #   project: "${GCP_PROJECT}"
-  #   namespace: "prod"
+# JWT signing for browser sessions and API tokens.
+jwt:
+  secret_key: "${JWT_SECRET_KEY}"
+  issuer: "${JWT_ISSUER:-oneauth}"
 
 # How admin endpoints are protected.
 # Options: api-key, oidc (future), iap (future), none (dev only)

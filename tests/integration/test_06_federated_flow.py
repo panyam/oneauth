@@ -1,0 +1,141 @@
+"""Federated auth flow — register host, mint relay token, relay validates, claims correct."""
+
+import base64
+import json
+import os
+
+import pytest
+import requests
+
+
+@pytest.fixture(scope="module")
+def demo_urls():
+    return {
+        "server": os.environ.get("DEMO_SERVER_URL", "http://localhost:9999"),
+        "relay_a": os.environ.get("DEMO_RELAY_A_URL", "http://localhost:4001"),
+        "relay_b": os.environ.get("DEMO_RELAY_B_URL", "http://localhost:4002"),
+    }
+
+
+@pytest.fixture(scope="module")
+def admin_key():
+    return os.environ.get("DEMO_ADMIN_KEY", "demo-admin-key-12345")
+
+
+@pytest.fixture(scope="module")
+def skip_if_not_running(demo_urls):
+    """Skip tests if demo stack is not running."""
+    for name, url in demo_urls.items():
+        try:
+            r = requests.get(f"{url}/health", timeout=3)
+            if r.status_code != 200:
+                pytest.skip(f"{name} not responding at {url}")
+        except requests.ConnectionError:
+            pytest.skip(f"{name} not running at {url}")
+
+
+def _decode_jwt_payload(token: str) -> dict:
+    payload_b64 = token.split(".")[1]
+    padding = 4 - len(payload_b64) % 4
+    return json.loads(base64.urlsafe_b64decode(payload_b64 + "=" * padding))
+
+
+def _mint_relay_jwt(client_id, client_secret, user_id="testuser@example.com"):
+    """Mint a relay-scoped JWT using the oneauth library convention."""
+    import hashlib
+    import hmac
+    import time as _time
+
+    header = base64.urlsafe_b64encode(
+        json.dumps({"alg": "HS256", "typ": "JWT"}).encode()
+    ).rstrip(b"=")
+    now = int(_time.time())
+    payload = base64.urlsafe_b64encode(
+        json.dumps({
+            "sub": user_id,
+            "client_id": client_id,
+            "type": "access",
+            "scopes": ["collab"],
+            "max_rooms": 10,
+            "max_msg_rate": 100,
+            "iat": now,
+            "exp": now + 900,
+        }).encode()
+    ).rstrip(b"=")
+    sig_input = header + b"." + payload
+    sig = base64.urlsafe_b64encode(
+        hmac.new(client_secret.encode(), sig_input, hashlib.sha256).digest()
+    ).rstrip(b"=")
+    return (sig_input + b"." + sig).decode()
+
+
+class TestFederatedFlow:
+    def test_register_host_and_validate_token(self, demo_urls, admin_key, skip_if_not_running):
+        server = demo_urls["server"]
+        relay = demo_urls["relay_a"]
+
+        # Register a host
+        r = requests.post(f"{server}/hosts/register", json={
+            "client_domain": "fed-test.example.com",
+            "signing_alg": "HS256",
+        }, headers={
+            "X-Admin-Key": admin_key,
+            "Content-Type": "application/json",
+        })
+        assert r.status_code == 201, f"Registration failed: {r.text}"
+        host = r.json()
+        client_id = host["client_id"]
+        client_secret = host["client_secret"]
+
+        try:
+            # Mint a relay token
+            token = _mint_relay_jwt(client_id, client_secret, "fed-user@example.com")
+            claims = _decode_jwt_payload(token)
+            assert claims["sub"] == "fed-user@example.com"
+            assert claims["client_id"] == client_id
+
+            # Validate against relay
+            r = requests.post(f"{relay}/validate", headers={
+                "Authorization": f"Bearer {token}",
+            })
+            assert r.status_code == 200, f"Validation failed: {r.text}"
+            result = r.json()
+            assert result["valid"] is True
+            assert result["user_id"] == "fed-user@example.com"
+            assert result["custom_claims"]["client_id"] == client_id
+
+        finally:
+            # Cleanup
+            requests.delete(f"{server}/hosts/{client_id}", headers={
+                "X-Admin-Key": admin_key,
+            })
+
+    def test_wrong_secret_rejected_by_relay(self, demo_urls, admin_key, skip_if_not_running):
+        server = demo_urls["server"]
+        relay = demo_urls["relay_a"]
+
+        # Register host
+        r = requests.post(f"{server}/hosts/register", json={
+            "client_domain": "bad-secret.example.com",
+        }, headers={
+            "X-Admin-Key": admin_key,
+            "Content-Type": "application/json",
+        })
+        assert r.status_code == 201
+        host = r.json()
+        client_id = host["client_id"]
+
+        try:
+            # Mint with wrong secret
+            token = _mint_relay_jwt(client_id, "wrong-secret-value", "hacker@evil.com")
+
+            # Should be rejected by relay
+            r = requests.post(f"{relay}/validate", headers={
+                "Authorization": f"Bearer {token}",
+            })
+            assert r.status_code == 401
+
+        finally:
+            requests.delete(f"{server}/hosts/{client_id}", headers={
+                "X-Admin-Key": admin_key,
+            })

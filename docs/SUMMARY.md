@@ -17,6 +17,7 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 - **Host Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), HostRegistrar HTTP handler for Host CRUD, MintRelayToken for relay-scoped JWTs
 - **Client SDK**: AuthClient with CredentialStore, HTTPClient wrapper with automatic token refresh on 401
 - **Reference Server**: Config-driven server in `cmd/oneauth-server/`, deployable to GAE, Docker, and Kubernetes
+- **Federated Auth Demo**: 6-service Docker Compose demo (oneauth-server, 2 host apps, 2 relays, PostgreSQL) in `demo/`
 
 ## Architecture
 
@@ -38,8 +39,11 @@ oneauth/
 ├── client/               # Client SDK for token management
 │   └── stores/fs/        # File-based credential store
 ├── cmd/oneauth-server/   # Reference server (config-driven, GAE/Docker/K8s)
+├── cmd/demo-hostapp/     # Demo host app (DrawApp/ChatApp)
+├── cmd/demo-relay/       # Demo relay (JWT validation service)
+├── demo/                 # Docker Compose demo (6 services)
 ├── keystoretest/         # Shared KeyStore test suite
-├── tests/integration/    # Integration tests
+├── tests/integration/    # Integration tests (GAE + demo stack)
 ├── grpc/                 # gRPC utilities
 ├── oauth2/               # OAuth2 providers
 └── saml/                 # SAML support
@@ -143,9 +147,11 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 | [AUTH_FLOWS.md](AUTH_FLOWS.md) | Detailed decision trees, user journeys, edge cases |
 | [CLIENT_SDK.md](CLIENT_SDK.md) | Client SDK for CLI/programmatic access |
 | [STORES.md](STORES.md) | Store interfaces and implementations |
+| [DEMOS.md](DEMOS.md) | Runnable demos, scenarios, and production vs. demo comparison |
 
 ## Current Version
 
+- **v0.0.33**: Federated auth demo (6-service Docker Compose), reference server browser UI with templates, demo host apps and relay services, integration tests for browser auth/federated flow/multi-host/token refresh.
 - **v0.0.32**: APIMiddleware enhancements (TokenQueryParam, GetCustomClaimsFromContext).
 - **v0.0.31**: Host Registration API (AdminAuth, HostRegistrar, MintRelayToken). Config-driven reference server (`cmd/oneauth-server/`).
 - **v0.0.30**: WritableKeyStore interface. Persistent KeyStore backends (GORM, FS, GAE). Shared test suite in `keystoretest/`.

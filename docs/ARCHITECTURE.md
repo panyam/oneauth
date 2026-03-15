@@ -94,6 +94,10 @@ Each mode has its own detailed documentation:
 
 For store interfaces, implementations, and KeyStore details, see **[Stores](STORES.md)**.
 
+## Demos
+
+See **[DEMOS.md](DEMOS.md)** for runnable demos that exercise key scenarios end-to-end, including what each demo simplifies vs. production usage.
+
 ## Client SDK
 
 For CLI tools and programmatic clients consuming oneauth-protected APIs:
@@ -169,5 +173,6 @@ Closest alternatives:
 | [GETTING_STARTED.md](GETTING_STARTED.md) | Quick start guide |
 | [USER_GUIDE.md](USER_GUIDE.md) | User guide |
 | [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | Developer guide |
+| [DEMOS.md](DEMOS.md) | Runnable demos & production vs. demo comparison |
 | [TESTING.md](TESTING.md) | Testing guide |
 | [GRPC.md](GRPC.md) | gRPC integration |

@@ -38,6 +38,14 @@ func (h *HostRegistrar) init() {
 	}
 }
 
+// RLockHosts calls fn with a read-locked view of all registered hosts.
+func (h *HostRegistrar) RLockHosts(fn func(map[string]*HostRegistration)) {
+	h.mu.RLock()
+	h.init()
+	fn(h.hosts)
+	h.mu.RUnlock()
+}
+
 // Handler returns an http.Handler for host registration endpoints.
 func (h *HostRegistrar) Handler() http.Handler {
 	mux := http.NewServeMux()

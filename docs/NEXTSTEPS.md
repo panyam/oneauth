@@ -19,6 +19,29 @@
 
 ---
 
+## Completed (Federated Auth Demo)
+
+### Reference Server Browser UI
+- [x] Template-based HTML pages (landing, login, signup, dashboard, forgot/reset password)
+- [x] `APIAuth` wiring for `POST /api/token` (password + refresh token grants)
+- [x] User stores (FS and GORM) via config
+- [x] JWT-based session cookies (`oa_token`)
+
+### Demo Stack (`demo/` + `cmd/demo-hostapp/` + `cmd/demo-relay/`)
+- [x] 6-service Docker Compose: PostgreSQL, oneauth-server, 2 host apps, 2 relays
+- [x] Host auto-registration with oneauth-server on startup
+- [x] Independent FS-backed user databases per host app
+- [x] Interactive relay token minting and validation UI
+- [x] Cross-host and cross-relay JWT validation via shared KeyStore
+
+### Integration Tests (test_05 through test_08)
+- [x] Browser auth flow (signup, login, logout, cookie management)
+- [x] Federated flow (host registration, token minting, relay validation)
+- [x] Multi-host scenarios (cross-relay, signature mismatch rejection)
+- [x] Token refresh lifecycle (password grant, refresh grant, token reuse detection, revocation)
+
+---
+
 ## Completed (Client SDK — Phase 4)
 
 ### Client SDK (`client/` package)
