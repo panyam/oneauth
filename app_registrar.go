@@ -257,12 +257,6 @@ func (h *AppRegistrar) jsonError(w http.ResponseWriter, code, message string, st
 	json.NewEncoder(w).Encode(map[string]string{"error": code, "message": message})
 }
 
-// Deprecated: HostRegistrar is the old name for AppRegistrar. Use AppRegistrar instead.
-type HostRegistrar = AppRegistrar
-
-// Deprecated: HostRegistration is the old name for AppRegistration. Use AppRegistration instead.
-type HostRegistration = AppRegistration
-
 // generateClientID creates a random client ID like "app_a1b2c3d4e5f6"
 func generateClientID() (string, error) {
 	b := make([]byte, 12)

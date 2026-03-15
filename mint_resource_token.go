@@ -40,11 +40,3 @@ func MintResourceToken(userID, appClientID, appSecret string, quota AppQuota, sc
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(appSecret))
 }
-
-// Deprecated: MintRelayToken is the old name for MintResourceToken. Use MintResourceToken instead.
-func MintRelayToken(userID, hostClientID, hostSecret string, quota AppQuota, scopes []string) (string, error) {
-	return MintResourceToken(userID, hostClientID, hostSecret, quota, scopes)
-}
-
-// Deprecated: HostQuota is the old name for AppQuota. Use AppQuota instead.
-type HostQuota = AppQuota
