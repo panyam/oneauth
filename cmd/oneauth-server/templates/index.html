@@ -32,7 +32,8 @@
       <h2 class="text-lg font-semibold mb-1">Auth Server</h2>
       <p class="text-gray-500 text-sm mb-1">Central authority. Manages users, issues signing keys to apps.</p>
       <p class="text-xs text-gray-400 mb-3">In production: Auth0, Okta, or your own identity provider.</p>
-      <a href="/auth/login" class="inline-block px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm">Login / Sign Up</a>
+      <a href="/auth/login" class="inline-block px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm">Login</a>
+      <a href="/auth/signup" class="inline-block px-4 py-2 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 text-sm">Sign Up</a>
     </div>
     {{range .Services}}
     <div class="bg-white rounded-lg shadow p-6 border-l-4 {{if eq .Name "DrawApp"}}border-blue-500{{else if eq .Name "ChatApp"}}border-purple-500{{else}}border-emerald-500{{end}}">
