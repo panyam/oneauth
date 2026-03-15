@@ -17,7 +17,7 @@ rules:
         patterns:
           - "docker-compose.yml"
     commands:
-      - "docker compose -f docker-compose.yml up -d postgres"
+      - "docker compose -f docker-compose.yml up -d --remove-orphans postgres"
       - "sleep 2"
 
   # OneAuth Server (central auth + app registration)
@@ -48,7 +48,7 @@ rules:
       JWT_SECRET_KEY: "demo-jwt-secret-key-change-me"
       JWT_ISSUER: "oneauth-demo"
     commands:
-      - "go build -o ./bin/oneauth-server ./cmd/oneauth-server"
+      - "go build -buildvcs=false -o ./bin/oneauth-server ./cmd/oneauth-server"
       - "./bin/oneauth-server"
 
   # DrawApp (demo app #1)
@@ -76,7 +76,7 @@ rules:
       ONEAUTH_URL: "http://localhost:9999"
       ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
     commands:
-      - "go build -o ./bin/demo-hostapp ./cmd/demo-hostapp"
+      - "go build -buildvcs=false -o ./bin/demo-hostapp ./cmd/demo-hostapp"
       - "sleep 1"
       - "./bin/demo-hostapp"
 
@@ -105,7 +105,7 @@ rules:
       ONEAUTH_URL: "http://localhost:9999"
       ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
     commands:
-      - "go build -o ./bin/demo-hostapp ./cmd/demo-hostapp"
+      - "go build -buildvcs=false -o ./bin/demo-hostapp ./cmd/demo-hostapp"
       - "sleep 1"
       - "./bin/demo-hostapp"
 
@@ -132,7 +132,7 @@ rules:
       PORT: "4001"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
     commands:
-      - "go build -o ./bin/demo-resource-server ./cmd/demo-resource-server"
+      - "go build -buildvcs=false -o ./bin/demo-resource-server ./cmd/demo-resource-server"
       - "./bin/demo-resource-server"
 
   # Resource Server B
@@ -158,5 +158,5 @@ rules:
       PORT: "4002"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
     commands:
-      - "go build -o ./bin/demo-resource-server ./cmd/demo-resource-server"
+      - "go build -buildvcs=false -o ./bin/demo-resource-server ./cmd/demo-resource-server"
       - "./bin/demo-resource-server"
