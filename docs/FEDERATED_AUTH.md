@@ -12,7 +12,7 @@ Three projects collaborate in a federated deployment:
 
 ```
 ┌───────────────┐     1. register         ┌───────────────────┐
-│   Host App    │ ───────────────────────→ │  OneAuth Server   │
+│   Host App    │ ──────────────────────→ │  OneAuth Server   │
 │ (excaliframe) │ ←─────────────────────  │  (HostRegistrar)  │
 │               │  client_id + secret     │                   │
 └───────┬───────┘                         └────────┬──────────┘
@@ -22,7 +22,7 @@ Three projects collaborate in a federated deployment:
         │                                          │
         ▼                                          ▼
 ┌───────────────┐  4. connect with JWT    ┌───────────────────┐
-│   End User    │ ───────────────────────→ │ Resource Server   │
+│   End User    │ ──────────────────────→ │ Resource Server   │
 │   (browser)   │                         │ (APIMiddleware +  │
 │               │                         │  KeyStore)        │
 └───────────────┘                         └───────────────────┘

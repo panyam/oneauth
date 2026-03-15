@@ -121,28 +121,28 @@ oneauth.AddAuth("/github", oa2.NewGithubOAuth2(clientID, clientSecret, callbackU
 LOGIN ATTEMPT
      │
      ├─── OAuth (Google/GitHub) ──────────────────────────────────┐
-     │                                                             │
-     │    1. Provider authenticates user                           │
-     │    2. Callback receives: email, name, avatar                │
-     │    3. Look up Identity by email                             │
-     │         │                                                   │
-     │         ├── NOT found → Create User + Identity + Channel    │
-     │         └── FOUND → Get User, add/update OAuth Channel      │
-     │                                                             │
+     │                                                            │
+     │    1. Provider authenticates user                          │
+     │    2. Callback receives: email, name, avatar               │
+     │    3. Look up Identity by email                            │
+     │         │                                                  │
+     │         ├── NOT found → Create User + Identity + Channel   │
+     │         └── FOUND → Get User, add/update OAuth Channel     │
+     │                                                            │
      └─── Email/Username + Password ──────────────────────────────┤
-               │                                                   │
-          Contains "@"?                                            │
-               │                                                   │
-               ├── YES → Look up Identity by email                 │
-               │         ├── NOT found → "Invalid credentials"     │
-               │         └── FOUND → Get local Channel             │
-               │                    ├── No local Channel → error   │
-               │                    └── Verify password            │
-               │                                                   │
-               └── NO → UsernameStore.GetUserByUsername()           │
-                        ├── NOT found → "Invalid credentials"      │
-                        └── FOUND → resolve to email, continue ────┘
-                                                                   │
+               │                                                  │
+          Contains "@"?                                           │
+               │                                                  │
+               ├── YES → Look up Identity by email                │
+               │         ├── NOT found → "Invalid credentials"    │
+               │         └── FOUND → Get local Channel            │
+               │                    ├── No local Channel → error  │
+               │                    └── Verify password           │
+               │                                                  │
+               └── NO → UsernameStore.GetUserByUsername()         │
+                        ├── NOT found → "Invalid credentials"     │
+                        └── FOUND → resolve to email, continue ───┘
+                                                                  │
                                                           LOGIN SUCCESS
                                                           Create Session
 ```
@@ -208,7 +208,7 @@ The user profile tracks linked providers: `profile["channels"] = ["local", "goog
 ### Provider Linking Matrix
 
 ```
-                          │         SECOND AUTH ATTEMPT                   │
+                          │         SECOND AUTH ATTEMPT                  │
                           ├─────────────┬─────────────┬──────────────────┤
                           │ Local Email │   Google    │  Different Email │
                           │  + Password │   OAuth     │                  │

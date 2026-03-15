@@ -6,10 +6,10 @@ The `client/` package provides a Go SDK for CLI tools and programmatic clients c
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        AuthClient                            │
-│  - Login / Logout                                            │
-│  - GetToken() with automatic refresh                         │
-│  - HTTPClient() returns authenticated *http.Client           │
+│                        AuthClient                           │
+│  - Login / Logout                                           │
+│  - GetToken() with automatic refresh                        │
+│  - HTTPClient() returns authenticated *http.Client          │
 └──────────────────────────┬──────────────────────────────────┘
                            │
          ┌─────────────────┼──────────────────────┐
@@ -23,11 +23,11 @@ The `client/` package provides a Go SDK for CLI tools and programmatic clients c
 └────────┬───────┘  └──────────────┘   └─────────────────┘
          │
          ▼
-┌─────────────────┐
+┌──────────────────┐
 │ client/stores/fs │
 │  JSON file       │
 │ ~/.config/<app>  │
-└─────────────────┘
+└──────────────────┘
 ```
 
 ## Quick Start

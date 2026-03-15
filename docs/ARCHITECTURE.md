@@ -58,8 +58,8 @@ OneAuth supports three authentication modes, each targeting a different client t
 │   Browser Auth      │   API Auth            │   Federated Auth          │
 │   (LocalAuth)       │   (APIAuth)           │   (HostRegistrar +        │
 │                     │                       │    MintRelayToken)        │
-│   Form login/signup │   JWT access tokens   │   Host registers,        │
-│   Email verify      │   Refresh tokens      │   mints scoped JWTs,     │
+│   Form login/signup │   JWT access tokens   │   Host registers,         │
+│   Email verify      │   Refresh tokens      │   mints scoped JWTs,      │
 │   Password reset    │   API keys            │   resource server         │
 │   Session cookies   │   Scope enforcement   │   validates via KeyStore  │
 └─────────────────────┴───────────────────────┴───────────────────────────┘

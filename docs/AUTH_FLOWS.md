@@ -47,13 +47,13 @@ LOGIN ATTEMPT
 └─────────────────────────────────────┘
      │
      ├─── OAuth (Google/GitHub) ──────────────────────────────────┐
-     │                                                             │
+     │                                                            │
      │    ┌─────────────────────────────────────────────────────┐ │
      │    │ 1. OAuth provider authenticates user                │ │
      │    │ 2. Callback receives: email, name, avatar           │ │
      │    │ 3. Look up Identity by email                        │ │
      │    └─────────────────────────────────────────────────────┘ │
-     │         │                                                   │
+     │         │                                                  │
      │         ├── Identity NOT found ────────────────────────────┤
      │         │         │                                        │
      │         │         ▼                                        │
@@ -69,9 +69,9 @@ LOGIN ATTEMPT
      │                                                            │
      └─── Email/Username + Password ──────────────────────────────┤
                    │                                              │
-     ┌─────────────────────────────────────────────────────┐     │
-     │ Does input contain "@"?                             │     │
-     └─────────────────────────────────────────────────────┘     │
+     ┌─────────────────────────────────────────────────────┐      │
+     │ Does input contain "@"?                             │      │
+     └─────────────────────────────────────────────────────┘      │
           │                                                       │
           ├── YES (treat as email) ───────────────────────────────┤
           │         │                                             │
@@ -163,8 +163,8 @@ SIGNUP ATTEMPT (email + password)
 This shows what happens when a user with existing auth tries another method:
 
 ```
-                          ┌─────────────────────────────────────────────────────────┐
-                          │              SECOND AUTH ATTEMPT                        │
+                          ┌────────────────────────────────────────────────────────┐
+                          │              SECOND AUTH ATTEMPT                       │
                           ├─────────────┬─────────────┬─────────────┬──────────────┤
                           │ Local Email │   Google    │   GitHub    │  Different   │
                           │  + Password │   OAuth     │   OAuth     │   Email      │
