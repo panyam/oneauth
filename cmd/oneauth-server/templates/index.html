@@ -21,10 +21,10 @@
   <h2 class="text-lg font-semibold text-gray-700 mb-1">Try it &mdash; suggested order:</h2>
   <ol class="text-sm text-gray-600 mb-6 list-decimal list-inside space-y-1">
     <li><strong>Sign up here</strong> on the Auth Server (the Login card below) to see the dashboard and registered apps.</li>
-    <li>Open <strong>DrawApp</strong> &mdash; sign up with a different email. This is a completely separate user database.</li>
+    <li>Open <a href="http://localhost:3001" target="_blank" class="text-blue-600 hover:underline font-semibold">DrawApp (:3001)</a> &mdash; sign up with a different email. This is a completely separate user database.</li>
     <li>Click <strong>"Get Resource Token"</strong> in DrawApp to mint a JWT signed with DrawApp's secret.</li>
     <li>Click <strong>"Validate"</strong> to send that JWT to a Resource Server. It has never seen DrawApp &mdash; it trusts the shared KeyStore.</li>
-    <li>Repeat with <strong>ChatApp</strong>. Try validating ChatApp tokens on both Resource Servers.</li>
+    <li>Repeat with <a href="http://localhost:3002" target="_blank" class="text-purple-600 hover:underline font-semibold">ChatApp (:3002)</a>. Try validating tokens on both <a href="http://localhost:4001" target="_blank" class="text-emerald-600 hover:underline">Resource Server A</a> and <a href="http://localhost:4002" target="_blank" class="text-emerald-600 hover:underline">B</a>.</li>
   </ol>
 
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl">
