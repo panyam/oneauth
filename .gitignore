@@ -29,5 +29,11 @@ go.work.sum
 __pycache__/
 .pytest_cache/
 
+# Build output
+bin/
+
+# Demo data (devloop local runs)
+demo/data/
+
 # GAE
 .gcloudignore

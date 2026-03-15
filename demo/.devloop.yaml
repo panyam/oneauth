@@ -1,0 +1,162 @@
+settings:
+  project_id: "oneauth-demo"
+  color_logs: true
+  prefix_logs: true
+  prefix_max_length: 12
+  default_debounce_delay: 800ms
+  max_parallel_rules: 5
+
+rules:
+  # PostgreSQL via Docker — only restarts if docker-compose changes
+  - name: "postgres"
+    color: "cyan"
+    prefix: "pg"
+    run_on_init: true
+    watch:
+      - action: "include"
+        patterns:
+          - "docker-compose.yml"
+    commands:
+      - "docker compose -f docker-compose.yml up -d postgres"
+      - "sleep 2"
+
+  # OneAuth Server (central auth + app registration)
+  - name: "oneauth-server"
+    color: "magenta"
+    prefix: "auth"
+    workdir: ".."
+    watch:
+      - action: "include"
+        patterns:
+          - "*.go"
+          - "cmd/oneauth-server/**"
+          - "stores/**/*.go"
+          - "go.mod"
+          - "go.sum"
+      - action: "exclude"
+        patterns:
+          - "cmd/demo-*/**"
+          - "**/*_test.go"
+    env:
+      PORT: "9999"
+      KEYSTORE_TYPE: "gorm"
+      GORM_DRIVER: "postgres"
+      DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
+      ADMIN_AUTH_TYPE: "api-key"
+      ADMIN_API_KEY: "demo-admin-key-12345"
+      USER_STORES_TYPE: "gorm"
+      JWT_SECRET_KEY: "demo-jwt-secret-key-change-me"
+      JWT_ISSUER: "oneauth-demo"
+    commands:
+      - "go build -o ./bin/oneauth-server ./cmd/oneauth-server"
+      - "./bin/oneauth-server"
+
+  # DrawApp (demo app #1)
+  - name: "drawapp"
+    color: "blue"
+    prefix: "draw"
+    workdir: ".."
+    watch:
+      - action: "include"
+        patterns:
+          - "*.go"
+          - "cmd/demo-hostapp/**"
+          - "stores/**/*.go"
+          - "go.mod"
+          - "go.sum"
+      - action: "exclude"
+        patterns:
+          - "cmd/oneauth-server/**"
+          - "cmd/demo-resource-server/**"
+          - "**/*_test.go"
+    env:
+      APP_NAME: "drawapp"
+      PORT: "3001"
+      DATA_DIR: "./demo/data"
+      ONEAUTH_URL: "http://localhost:9999"
+      ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
+    commands:
+      - "go build -o ./bin/demo-hostapp ./cmd/demo-hostapp"
+      - "sleep 1"
+      - "./bin/demo-hostapp"
+
+  # ChatApp (demo app #2)
+  - name: "chatapp"
+    color: "yellow"
+    prefix: "chat"
+    workdir: ".."
+    watch:
+      - action: "include"
+        patterns:
+          - "*.go"
+          - "cmd/demo-hostapp/**"
+          - "stores/**/*.go"
+          - "go.mod"
+          - "go.sum"
+      - action: "exclude"
+        patterns:
+          - "cmd/oneauth-server/**"
+          - "cmd/demo-resource-server/**"
+          - "**/*_test.go"
+    env:
+      APP_NAME: "chatapp"
+      PORT: "3002"
+      DATA_DIR: "./demo/data"
+      ONEAUTH_URL: "http://localhost:9999"
+      ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
+    commands:
+      - "go build -o ./bin/demo-hostapp ./cmd/demo-hostapp"
+      - "sleep 1"
+      - "./bin/demo-hostapp"
+
+  # Resource Server A
+  - name: "resource-a"
+    color: "green"
+    prefix: "res-a"
+    workdir: ".."
+    watch:
+      - action: "include"
+        patterns:
+          - "*.go"
+          - "cmd/demo-resource-server/**"
+          - "stores/**/*.go"
+          - "go.mod"
+          - "go.sum"
+      - action: "exclude"
+        patterns:
+          - "cmd/oneauth-server/**"
+          - "cmd/demo-hostapp/**"
+          - "**/*_test.go"
+    env:
+      RESOURCE_SERVER_NAME: "resource-server-a"
+      PORT: "4001"
+      DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
+    commands:
+      - "go build -o ./bin/demo-resource-server ./cmd/demo-resource-server"
+      - "./bin/demo-resource-server"
+
+  # Resource Server B
+  - name: "resource-b"
+    color: "green"
+    prefix: "res-b"
+    workdir: ".."
+    watch:
+      - action: "include"
+        patterns:
+          - "*.go"
+          - "cmd/demo-resource-server/**"
+          - "stores/**/*.go"
+          - "go.mod"
+          - "go.sum"
+      - action: "exclude"
+        patterns:
+          - "cmd/oneauth-server/**"
+          - "cmd/demo-hostapp/**"
+          - "**/*_test.go"
+    env:
+      RESOURCE_SERVER_NAME: "resource-server-b"
+      PORT: "4002"
+      DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
+    commands:
+      - "go build -o ./bin/demo-resource-server ./cmd/demo-resource-server"
+      - "./bin/demo-resource-server"
