@@ -10,17 +10,17 @@ import (
 	oa "github.com/panyam/oneauth"
 )
 
-func setupRegistrar(t *testing.T) (*oa.HostRegistrar, *oa.InMemoryKeyStore) {
+func setupRegistrar(t *testing.T) (*oa.AppRegistrar, *oa.InMemoryKeyStore) {
 	t.Helper()
 	ks := oa.NewInMemoryKeyStore()
-	reg := &oa.HostRegistrar{
+	reg := &oa.AppRegistrar{
 		KeyStore: ks,
 		Auth:     oa.NewNoAuth(),
 	}
 	return reg, ks
 }
 
-func TestHostRegistrar_Register(t *testing.T) {
+func TestAppRegistrar_Register(t *testing.T) {
 	reg, ks := setupRegistrar(t)
 	handler := reg.Handler()
 
@@ -31,7 +31,7 @@ func TestHostRegistrar_Register(t *testing.T) {
 		"max_msg_rate":  30.0,
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/hosts/register", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -67,7 +67,7 @@ func TestHostRegistrar_Register(t *testing.T) {
 	}
 }
 
-func TestHostRegistrar_Register_DefaultAlg(t *testing.T) {
+func TestAppRegistrar_Register_DefaultAlg(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
 
@@ -75,7 +75,7 @@ func TestHostRegistrar_Register_DefaultAlg(t *testing.T) {
 		"client_domain": "example.com",
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/hosts/register", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -93,14 +93,14 @@ func TestHostRegistrar_Register_DefaultAlg(t *testing.T) {
 	}
 }
 
-func TestHostRegistrar_ListHosts(t *testing.T) {
+func TestAppRegistrar_ListApps(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
 
-	// Register two hosts
+	// Register two apps
 	for _, domain := range []string{"alpha.com", "beta.com"} {
 		body, _ := json.Marshal(map[string]any{"client_domain": domain})
-		req := httptest.NewRequest(http.MethodPost, "/hosts/register", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -110,7 +110,7 @@ func TestHostRegistrar_ListHosts(t *testing.T) {
 	}
 
 	// List
-	req := httptest.NewRequest(http.MethodGet, "/hosts", nil)
+	req := httptest.NewRequest(http.MethodGet, "/apps", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -120,16 +120,16 @@ func TestHostRegistrar_ListHosts(t *testing.T) {
 
 	var resp map[string]any
 	json.NewDecoder(rr.Body).Decode(&resp)
-	hosts, ok := resp["hosts"].([]any)
+	apps, ok := resp["apps"].([]any)
 	if !ok {
-		t.Fatal("Expected hosts array in response")
+		t.Fatal("Expected apps array in response")
 	}
-	if len(hosts) != 2 {
-		t.Errorf("Expected 2 hosts, got %d", len(hosts))
+	if len(apps) != 2 {
+		t.Errorf("Expected 2 apps, got %d", len(apps))
 	}
 }
 
-func TestHostRegistrar_GetHost(t *testing.T) {
+func TestAppRegistrar_GetApp(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
 
@@ -138,7 +138,7 @@ func TestHostRegistrar_GetHost(t *testing.T) {
 		"client_domain": "excaliframe.com",
 		"max_rooms":     5,
 	})
-	req := httptest.NewRequest(http.MethodPost, "/hosts/register", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -147,7 +147,7 @@ func TestHostRegistrar_GetHost(t *testing.T) {
 	clientID := regResp["client_id"].(string)
 
 	// Get
-	req = httptest.NewRequest(http.MethodGet, "/hosts/"+clientID, nil)
+	req = httptest.NewRequest(http.MethodGet, "/apps/"+clientID, nil)
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -169,11 +169,11 @@ func TestHostRegistrar_GetHost(t *testing.T) {
 	}
 }
 
-func TestHostRegistrar_GetHost_NotFound(t *testing.T) {
+func TestAppRegistrar_GetApp_NotFound(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/hosts/nonexistent", nil)
+	req := httptest.NewRequest(http.MethodGet, "/apps/nonexistent", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -182,13 +182,13 @@ func TestHostRegistrar_GetHost_NotFound(t *testing.T) {
 	}
 }
 
-func TestHostRegistrar_DeleteHost(t *testing.T) {
+func TestAppRegistrar_DeleteApp(t *testing.T) {
 	reg, ks := setupRegistrar(t)
 	handler := reg.Handler()
 
 	// Register
 	body, _ := json.Marshal(map[string]any{"client_domain": "delete-me.com"})
-	req := httptest.NewRequest(http.MethodPost, "/hosts/register", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -197,7 +197,7 @@ func TestHostRegistrar_DeleteHost(t *testing.T) {
 	clientID := regResp["client_id"].(string)
 
 	// Delete
-	req = httptest.NewRequest(http.MethodDelete, "/hosts/"+clientID, nil)
+	req = httptest.NewRequest(http.MethodDelete, "/apps/"+clientID, nil)
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -212,11 +212,11 @@ func TestHostRegistrar_DeleteHost(t *testing.T) {
 	}
 }
 
-func TestHostRegistrar_DeleteHost_NotFound(t *testing.T) {
+func TestAppRegistrar_DeleteApp_NotFound(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
 
-	req := httptest.NewRequest(http.MethodDelete, "/hosts/nonexistent", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/apps/nonexistent", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -225,13 +225,13 @@ func TestHostRegistrar_DeleteHost_NotFound(t *testing.T) {
 	}
 }
 
-func TestHostRegistrar_RotateSecret(t *testing.T) {
+func TestAppRegistrar_RotateSecret(t *testing.T) {
 	reg, ks := setupRegistrar(t)
 	handler := reg.Handler()
 
 	// Register
 	body, _ := json.Marshal(map[string]any{"client_domain": "rotate-me.com"})
-	req := httptest.NewRequest(http.MethodPost, "/hosts/register", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -241,7 +241,7 @@ func TestHostRegistrar_RotateSecret(t *testing.T) {
 	oldSecret := regResp["client_secret"].(string)
 
 	// Rotate
-	req = httptest.NewRequest(http.MethodPost, "/hosts/"+clientID+"/rotate", nil)
+	req = httptest.NewRequest(http.MethodPost, "/apps/"+clientID+"/rotate", nil)
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -267,11 +267,11 @@ func TestHostRegistrar_RotateSecret(t *testing.T) {
 	}
 }
 
-func TestHostRegistrar_RotateSecret_NotFound(t *testing.T) {
+func TestAppRegistrar_RotateSecret_NotFound(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
 
-	req := httptest.NewRequest(http.MethodPost, "/hosts/nonexistent/rotate", nil)
+	req := httptest.NewRequest(http.MethodPost, "/apps/nonexistent/rotate", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -280,10 +280,10 @@ func TestHostRegistrar_RotateSecret_NotFound(t *testing.T) {
 	}
 }
 
-// TestHostRegistrar_AdminAuth_APIKey tests that admin auth is enforced
-func TestHostRegistrar_AdminAuth_APIKey(t *testing.T) {
+// TestAppRegistrar_AdminAuth_APIKey tests that admin auth is enforced
+func TestAppRegistrar_AdminAuth_APIKey(t *testing.T) {
 	ks := oa.NewInMemoryKeyStore()
-	reg := &oa.HostRegistrar{
+	reg := &oa.AppRegistrar{
 		KeyStore: ks,
 		Auth:     oa.NewAPIKeyAuth("super-secret-admin-key"),
 	}
@@ -293,7 +293,7 @@ func TestHostRegistrar_AdminAuth_APIKey(t *testing.T) {
 
 	// No auth header — should be 401
 	t.Run("no auth header", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/hosts/register", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -304,7 +304,7 @@ func TestHostRegistrar_AdminAuth_APIKey(t *testing.T) {
 
 	// Wrong key — should be 403
 	t.Run("wrong key", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/hosts/register", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Admin-Key", "wrong-key")
 		rr := httptest.NewRecorder()
@@ -316,7 +316,7 @@ func TestHostRegistrar_AdminAuth_APIKey(t *testing.T) {
 
 	// Correct key — should succeed
 	t.Run("correct key", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/hosts/register", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Admin-Key", "super-secret-admin-key")
 		rr := httptest.NewRecorder()
@@ -327,17 +327,17 @@ func TestHostRegistrar_AdminAuth_APIKey(t *testing.T) {
 	})
 }
 
-// TestHostRegistrar_AdminAuth_ReadEndpoints tests that GET endpoints also require auth
-func TestHostRegistrar_AdminAuth_ReadEndpoints(t *testing.T) {
+// TestAppRegistrar_AdminAuth_ReadEndpoints tests that GET endpoints also require auth
+func TestAppRegistrar_AdminAuth_ReadEndpoints(t *testing.T) {
 	ks := oa.NewInMemoryKeyStore()
-	reg := &oa.HostRegistrar{
+	reg := &oa.AppRegistrar{
 		KeyStore: ks,
 		Auth:     oa.NewAPIKeyAuth("admin-key"),
 	}
 	handler := reg.Handler()
 
 	// List without auth
-	req := httptest.NewRequest(http.MethodGet, "/hosts", nil)
+	req := httptest.NewRequest(http.MethodGet, "/apps", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
@@ -345,7 +345,7 @@ func TestHostRegistrar_AdminAuth_ReadEndpoints(t *testing.T) {
 	}
 
 	// List with auth
-	req = httptest.NewRequest(http.MethodGet, "/hosts", nil)
+	req = httptest.NewRequest(http.MethodGet, "/apps", nil)
 	req.Header.Set("X-Admin-Key", "admin-key")
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)

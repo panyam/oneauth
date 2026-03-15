@@ -4,10 +4,10 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=1 go build -o /demo-relay ./cmd/demo-relay/
+RUN CGO_ENABLED=1 go build -o /demo-resource-server ./cmd/demo-resource-server/
 
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /demo-relay /usr/local/bin/demo-relay
+COPY --from=builder /demo-resource-server /usr/local/bin/demo-resource-server
 EXPOSE 4001
-ENTRYPOINT ["demo-relay"]
+ENTRYPOINT ["demo-resource-server"]

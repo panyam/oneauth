@@ -27,17 +27,17 @@
 - [x] User stores (FS and GORM) via config
 - [x] JWT-based session cookies (`oa_token`)
 
-### Demo Stack (`demo/` + `cmd/demo-hostapp/` + `cmd/demo-relay/`)
-- [x] 6-service Docker Compose: PostgreSQL, oneauth-server, 2 host apps, 2 relays
-- [x] Host auto-registration with oneauth-server on startup
-- [x] Independent FS-backed user databases per host app
-- [x] Interactive relay token minting and validation UI
-- [x] Cross-host and cross-relay JWT validation via shared KeyStore
+### Demo Stack (`demo/` + `cmd/demo-hostapp/` + `cmd/demo-resource-server/`)
+- [x] 6-service Docker Compose: PostgreSQL, oneauth-server, 2 apps, 2 resource servers
+- [x] App auto-registration with oneauth-server on startup
+- [x] Independent FS-backed user databases per app
+- [x] Interactive resource token minting and validation UI
+- [x] Cross-app and cross-resource-server JWT validation via shared KeyStore
 
 ### Integration Tests (test_05 through test_08)
 - [x] Browser auth flow (signup, login, logout, cookie management)
-- [x] Federated flow (host registration, token minting, relay validation)
-- [x] Multi-host scenarios (cross-relay, signature mismatch rejection)
+- [x] Federated flow (app registration, token minting, resource server validation)
+- [x] Multi-app scenarios (cross-resource-server, signature mismatch rejection)
 - [x] Token refresh lifecycle (password grant, refresh grant, token reuse detection, revocation)
 
 ---
@@ -58,8 +58,8 @@
 ## Completed (Federated Auth)
 
 - [x] **P0** `CustomClaimsFunc` + multi-tenant `KeyStore` interface (#2) ✅
-- [x] **P0** Host registration API + service component (#3) ✅
-  > `AdminAuth` interface, `HostRegistrar` HTTP handler, `MintRelayToken` helper, reference server
+- [x] **P0** App registration API + service component (#3) ✅
+  > `AdminAuth` interface, `AppRegistrar` HTTP handler (formerly `HostRegistrar`), `MintResourceToken` helper (formerly `MintRelayToken`), reference server
 - [x] **P1** Persistent `KeyStore` implementations — FS, GORM, GAE (#5) ✅
   > `WritableKeyStore` interface, shared test suite (`keystoretest`), GORM/FS/GAE implementations
 - [x] **P1** `APIMiddleware` enhancements — `TokenQueryParam` for query-param token extraction, `GetCustomClaimsFromContext()` for custom claims in context ✅
@@ -131,7 +131,7 @@
 ### Federated Auth (Remaining)
 
 - [ ] **P1** Asymmetric signing support — RS256/ES256 (#4)
-  > Compatible extension: per-host algorithm choice, both HS256 and asymmetric coexist
+  > Compatible extension: per-app algorithm choice, both HS256 and asymmetric coexist
 
 ### Phase 3: OAuth Integration for API
 

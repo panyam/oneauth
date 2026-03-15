@@ -36,7 +36,7 @@ type validationEntry struct {
 }
 
 func main() {
-	name := flag.String("name", envOrDefault("RELAY_NAME", "relay"), "Relay name")
+	name := flag.String("name", envOrDefault("RESOURCE_SERVER_NAME", "resource-server"), "Resource server name")
 	port := flag.String("port", envOrDefault("PORT", "4001"), "Port to listen on")
 	dsn := flag.String("dsn", os.Getenv("DATABASE_URL"), "PostgreSQL DSN for shared KeyStore")
 	flag.Parse()
@@ -91,7 +91,7 @@ func main() {
 	// Health check
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"status": "ok", "relay": *name})
+		json.NewEncoder(w).Encode(map[string]any{"status": "ok", "resource_server": *name})
 	})
 
 	// Status page
@@ -103,10 +103,10 @@ func main() {
 		entries := getEntries()
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		templates.ExecuteTemplate(w, "layout", map[string]any{
-			"Title":   *name + " — Status",
-			"Relay":   *name,
-			"Entries": entries,
-			"Page":    "status",
+			"Title":          *name + " — Status",
+			"ResourceServer": *name,
+			"Entries":        entries,
+			"Page":           "status",
 		})
 	})
 
@@ -114,9 +114,9 @@ func main() {
 	mux.HandleFunc("GET /test", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		templates.ExecuteTemplate(w, "layout", map[string]any{
-			"Title": *name + " — Test JWT",
-			"Relay": *name,
-			"Page":  "test",
+			"Title":          *name + " — Test JWT",
+			"ResourceServer": *name,
+			"Page":           "test",
 		})
 	})
 
@@ -135,10 +135,10 @@ func main() {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"valid":         true,
-			"user_id":       userID,
-			"custom_claims": customClaims,
-			"relay":         *name,
+			"valid":           true,
+			"user_id":         userID,
+			"custom_claims":   customClaims,
+			"resource_server": *name,
 		})
 	}))
 
@@ -167,7 +167,7 @@ func main() {
 	})
 
 	addr := ":" + *port
-	log.Printf("[%s] Demo relay listening on %s", *name, addr)
+	log.Printf("[%s] Resource server listening on %s", *name, addr)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 

@@ -1,6 +1,11 @@
 {{define "content"}}
 <div class="max-w-md mx-auto">
-  <h1 class="text-2xl font-bold mb-6">Sign Up</h1>
+  <h1 class="text-2xl font-bold mb-2">Sign Up</h1>
+  <p class="text-sm text-gray-500 mb-6">
+    Create an account on the <strong>Auth Server</strong>.
+    This account is only for the central server's dashboard &mdash;
+    DrawApp and ChatApp have their own separate user databases.
+  </p>
   <form method="POST" action="/auth/signup" class="bg-white shadow rounded-lg p-6 space-y-4">
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>

@@ -1,4 +1,4 @@
-"""Federated auth flow — register host, mint relay token, relay validates, claims correct."""
+"""Federated auth flow — register app, mint resource server token, resource server validates, claims correct."""
 
 import base64
 import json
@@ -12,8 +12,8 @@ import requests
 def demo_urls():
     return {
         "server": os.environ.get("DEMO_SERVER_URL", "http://localhost:9999"),
-        "relay_a": os.environ.get("DEMO_RELAY_A_URL", "http://localhost:4001"),
-        "relay_b": os.environ.get("DEMO_RELAY_B_URL", "http://localhost:4002"),
+        "resource_a": os.environ.get("DEMO_RESOURCE_A_URL", "http://localhost:4001"),
+        "resource_b": os.environ.get("DEMO_RESOURCE_B_URL", "http://localhost:4002"),
     }
 
 
@@ -40,8 +40,8 @@ def _decode_jwt_payload(token: str) -> dict:
     return json.loads(base64.urlsafe_b64decode(payload_b64 + "=" * padding))
 
 
-def _mint_relay_jwt(client_id, client_secret, user_id="testuser@example.com"):
-    """Mint a relay-scoped JWT using the oneauth library convention."""
+def _mint_resource_jwt(client_id, client_secret, user_id="testuser@example.com"):
+    """Mint a resource-server-scoped JWT using the oneauth library convention."""
     import hashlib
     import hmac
     import time as _time
@@ -70,12 +70,12 @@ def _mint_relay_jwt(client_id, client_secret, user_id="testuser@example.com"):
 
 
 class TestFederatedFlow:
-    def test_register_host_and_validate_token(self, demo_urls, admin_key, skip_if_not_running):
+    def test_register_app_and_validate_token(self, demo_urls, admin_key, skip_if_not_running):
         server = demo_urls["server"]
-        relay = demo_urls["relay_a"]
+        resource = demo_urls["resource_a"]
 
-        # Register a host
-        r = requests.post(f"{server}/hosts/register", json={
+        # Register an app
+        r = requests.post(f"{server}/apps/register", json={
             "client_domain": "fed-test.example.com",
             "signing_alg": "HS256",
         }, headers={
@@ -83,19 +83,19 @@ class TestFederatedFlow:
             "Content-Type": "application/json",
         })
         assert r.status_code == 201, f"Registration failed: {r.text}"
-        host = r.json()
-        client_id = host["client_id"]
-        client_secret = host["client_secret"]
+        app = r.json()
+        client_id = app["client_id"]
+        client_secret = app["client_secret"]
 
         try:
-            # Mint a relay token
-            token = _mint_relay_jwt(client_id, client_secret, "fed-user@example.com")
+            # Mint a resource server token
+            token = _mint_resource_jwt(client_id, client_secret, "fed-user@example.com")
             claims = _decode_jwt_payload(token)
             assert claims["sub"] == "fed-user@example.com"
             assert claims["client_id"] == client_id
 
-            # Validate against relay
-            r = requests.post(f"{relay}/validate", headers={
+            # Validate against resource server
+            r = requests.post(f"{resource}/validate", headers={
                 "Authorization": f"Bearer {token}",
             })
             assert r.status_code == 200, f"Validation failed: {r.text}"
@@ -106,36 +106,36 @@ class TestFederatedFlow:
 
         finally:
             # Cleanup
-            requests.delete(f"{server}/hosts/{client_id}", headers={
+            requests.delete(f"{server}/apps/{client_id}", headers={
                 "X-Admin-Key": admin_key,
             })
 
-    def test_wrong_secret_rejected_by_relay(self, demo_urls, admin_key, skip_if_not_running):
+    def test_wrong_secret_rejected_by_resource_server(self, demo_urls, admin_key, skip_if_not_running):
         server = demo_urls["server"]
-        relay = demo_urls["relay_a"]
+        resource = demo_urls["resource_a"]
 
-        # Register host
-        r = requests.post(f"{server}/hosts/register", json={
+        # Register app
+        r = requests.post(f"{server}/apps/register", json={
             "client_domain": "bad-secret.example.com",
         }, headers={
             "X-Admin-Key": admin_key,
             "Content-Type": "application/json",
         })
         assert r.status_code == 201
-        host = r.json()
-        client_id = host["client_id"]
+        app = r.json()
+        client_id = app["client_id"]
 
         try:
             # Mint with wrong secret
-            token = _mint_relay_jwt(client_id, "wrong-secret-value", "hacker@evil.com")
+            token = _mint_resource_jwt(client_id, "wrong-secret-value", "hacker@evil.com")
 
-            # Should be rejected by relay
-            r = requests.post(f"{relay}/validate", headers={
+            # Should be rejected by resource server
+            r = requests.post(f"{resource}/validate", headers={
                 "Authorization": f"Bearer {token}",
             })
             assert r.status_code == 401
 
         finally:
-            requests.delete(f"{server}/hosts/{client_id}", headers={
+            requests.delete(f"{server}/apps/{client_id}", headers={
                 "X-Admin-Key": admin_key,
             })

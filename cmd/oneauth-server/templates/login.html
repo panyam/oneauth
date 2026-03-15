@@ -1,6 +1,10 @@
 {{define "content"}}
 <div class="max-w-md mx-auto">
-  <h1 class="text-2xl font-bold mb-6">Login</h1>
+  <h1 class="text-2xl font-bold mb-2">Login</h1>
+  <p class="text-sm text-gray-500 mb-6">
+    Sign in to the <strong>Auth Server</strong> to view the dashboard and see registered hosts.
+    This is separate from the host app accounts &mdash; each service manages its own users.
+  </p>
   <form method="POST" action="/auth/login" class="bg-white shadow rounded-lg p-6 space-y-4">
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>

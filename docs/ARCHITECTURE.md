@@ -56,9 +56,9 @@ OneAuth supports three authentication modes, each targeting a different client t
 ```
 ┌─────────────────────┬───────────────────────┬───────────────────────────┐
 │   Browser Auth      │   API Auth            │   Federated Auth          │
-│   (LocalAuth)       │   (APIAuth)           │   (HostRegistrar +        │
-│                     │                       │    MintRelayToken)        │
-│   Form login/signup │   JWT access tokens   │   Host registers,         │
+│   (LocalAuth)       │   (APIAuth)           │   (AppRegistrar +         │
+│                     │                       │    MintResourceToken)     │
+│   Form login/signup │   JWT access tokens   │   App registers,          │
 │   Email verify      │   Refresh tokens      │   mints scoped JWTs,      │
 │   Password reset    │   API keys            │   resource server         │
 │   Session cookies   │   Scope enforcement   │   validates via KeyStore  │
@@ -69,7 +69,7 @@ Each mode has its own detailed documentation:
 
 - **[Browser Auth](BROWSER_AUTH.md)** — Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error handling
 - **[API Auth](API_AUTH.md)** — JWT access tokens, refresh tokens with rotation and theft detection, API keys, scope-based access control, custom claims, multi-tenant JWT validation via KeyStore
-- **[Federated Auth](FEDERATED_AUTH.md)** — Host Registration API (AdminAuth, HostRegistrar), relay token minting (MintRelayToken), multi-service architecture with shared KeyStore
+- **[Federated Auth](FEDERATED_AUTH.md)** — App Registration API (AdminAuth, AppRegistrar; formerly HostRegistrar), resource token minting (MintResourceToken; formerly MintRelayToken), multi-service architecture with shared KeyStore
 - **[Auth Flows](AUTH_FLOWS.md)** — Detailed decision trees for login/signup, provider linking matrix, user journeys, edge cases
 
 ## Store Architecture
@@ -152,7 +152,7 @@ OneAuth differentiates from alternatives by being:
 - **Simple model** (User → Identity → Channel)
 - **Multiple store options** (file, SQL, NoSQL)
 - **Callback-based** (app controls sessions)
-- **Federated-ready** (multi-tenant KeyStore, host registration, relay token minting)
+- **Federated-ready** (multi-tenant KeyStore, app registration, resource token minting)
 
 Closest alternatives:
 - `go-pkgz/auth` — Similar middleware focus, less flexible model
@@ -166,7 +166,7 @@ Closest alternatives:
 | [ARCHITECTURE.md](ARCHITECTURE.md) | This file — high-level overview |
 | [BROWSER_AUTH.md](BROWSER_AUTH.md) | Browser-based authentication (LocalAuth, OAuth, sessions) |
 | [API_AUTH.md](API_AUTH.md) | API authentication (JWT, refresh tokens, API keys, KeyStore) |
-| [FEDERATED_AUTH.md](FEDERATED_AUTH.md) | Federated auth (HostRegistrar, MintRelayToken, AdminAuth) |
+| [FEDERATED_AUTH.md](FEDERATED_AUTH.md) | Federated auth (AppRegistrar, MintResourceToken, AdminAuth) |
 | [AUTH_FLOWS.md](AUTH_FLOWS.md) | Detailed decision trees, user journeys, edge cases |
 | [CLIENT_SDK.md](CLIENT_SDK.md) | Client SDK for CLI/programmatic access |
 | [STORES.md](STORES.md) | Store interfaces and implementations |

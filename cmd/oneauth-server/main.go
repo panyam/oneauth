@@ -61,8 +61,8 @@ func main() {
 		log.Fatalf("Failed to create user stores: %v", err)
 	}
 
-	// Build HostRegistrar
-	registrar := &oa.HostRegistrar{
+	// Build AppRegistrar
+	registrar := &oa.AppRegistrar{
 		KeyStore: keyStore,
 		Auth:     adminAuth,
 	}
@@ -112,10 +112,10 @@ func main() {
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		user := getUserFromCookie(r, cfg.JWT.SecretKey)
 		services := []map[string]string{
-			{"Name": "DrawApp", "Description": "Drawing collaboration host app", "URL": "http://localhost:3001"},
-			{"Name": "ChatApp", "Description": "Chat collaboration host app", "URL": "http://localhost:3002"},
-			{"Name": "Relay-A", "Description": "JWT-validating relay server", "URL": "http://localhost:4001"},
-			{"Name": "Relay-B", "Description": "JWT-validating relay server", "URL": "http://localhost:4002"},
+			{"Name": "DrawApp", "Description": "Drawing collaboration app", "URL": "http://localhost:3001"},
+			{"Name": "ChatApp", "Description": "Chat collaboration app", "URL": "http://localhost:3002"},
+			{"Name": "Resource Server A", "Description": "JWT-validating resource server", "URL": "http://localhost:4001"},
+			{"Name": "Resource Server B", "Description": "JWT-validating resource server", "URL": "http://localhost:4002"},
 		}
 		renderTemplate(w, "index.html", map[string]any{"Title": "Home", "User": user, "Services": services})
 	})
@@ -164,17 +164,17 @@ func main() {
 		userID := getUserIDFromCookie(r, cfg.JWT.SecretKey)
 		email := getUserEmailFromCookie(r, cfg.JWT.SecretKey)
 
-		// Get registered hosts from registrar
-		var hosts []*oa.HostRegistration
-		registrar.RLockHosts(func(h map[string]*oa.HostRegistration) {
-			for _, reg := range h {
-				hosts = append(hosts, reg)
+		// Get registered apps from registrar
+		var apps []*oa.AppRegistration
+		registrar.RLockApps(func(a map[string]*oa.AppRegistration) {
+			for _, reg := range a {
+				apps = append(apps, reg)
 			}
 		})
 
 		renderTemplate(w, "dashboard.html", map[string]any{
 			"Title": "Dashboard", "User": user, "UserID": userID,
-			"UserEmail": email, "Hosts": hosts,
+			"UserEmail": email, "Apps": apps,
 		})
 	})
 
@@ -182,9 +182,9 @@ func main() {
 	mux.HandleFunc("POST /api/token", apiAuth.ServeHTTP)
 	mux.HandleFunc("POST /api/logout", apiAuth.HandleLogout)
 
-	// Host registration API
-	mux.Handle("/hosts/", registrar.Handler())
-	mux.Handle("/hosts", registrar.Handler())
+	// App registration API
+	mux.Handle("/apps/", registrar.Handler())
+	mux.Handle("/apps", registrar.Handler())
 
 	addr := cfg.Server.Host + ":" + cfg.Server.Port
 	log.Printf("oneauth-server listening on %s (keystore=%s, user_stores=%s, auth=%s)",

@@ -1,21 +1,60 @@
 {{define "content"}}
-<div class="text-center py-12">
-  <h1 class="text-4xl font-bold text-gray-900 mb-4">OneAuth Demo</h1>
-  <p class="text-lg text-gray-600 mb-8">Federated authentication for multi-tenant relay systems</p>
+<div class="py-8">
+  <h1 class="text-4xl font-bold text-gray-900 mb-3">OneAuth Demo</h1>
+  <p class="text-lg text-gray-600 mb-2">Federated authentication for distributed services</p>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-lg font-semibold mb-2">Auth Server</h2>
-      <p class="text-gray-500 text-sm mb-4">User signup, login, JWT tokens, host registration</p>
-      <a href="/auth/login" class="inline-block px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Login</a>
+  <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-8 text-sm text-indigo-900">
+    <p class="font-semibold mb-2">What this demo shows</p>
+    <p class="mb-2">
+      Multiple independent <strong>Apps</strong> register with this central auth server,
+      authenticate their own users, and mint <strong>resource-scoped JWTs</strong>.
+      Resource Servers validate those tokens using a <strong>shared signing key database</strong>
+      &mdash; without ever talking to the apps.
+    </p>
+    <p>
+      This is the same pattern used by Auth0, Okta, and Firebase for federated identity &mdash;
+      but here the trust anchor is a shared PostgreSQL <code class="bg-indigo-100 px-1 rounded">signing_keys</code> table
+      instead of a JWKS endpoint.
+    </p>
+  </div>
+
+  <h2 class="text-lg font-semibold text-gray-700 mb-1">Try it &mdash; suggested order:</h2>
+  <ol class="text-sm text-gray-600 mb-6 list-decimal list-inside space-y-1">
+    <li><strong>Sign up here</strong> on the Auth Server (the Login card below) to see the dashboard and registered apps.</li>
+    <li>Open <strong>DrawApp</strong> &mdash; sign up with a different email. This is a completely separate user database.</li>
+    <li>Click <strong>"Get Resource Token"</strong> in DrawApp to mint a JWT signed with DrawApp's secret.</li>
+    <li>Click <strong>"Validate"</strong> to send that JWT to a Resource Server. It has never seen DrawApp &mdash; it trusts the shared KeyStore.</li>
+    <li>Repeat with <strong>ChatApp</strong>. Try validating ChatApp tokens on both Resource Servers.</li>
+  </ol>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl">
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
+      <h2 class="text-lg font-semibold mb-1">Auth Server</h2>
+      <p class="text-gray-500 text-sm mb-1">Central authority. Manages users, issues signing keys to apps.</p>
+      <p class="text-xs text-gray-400 mb-3">In production: Auth0, Okta, or your own identity provider.</p>
+      <a href="/auth/login" class="inline-block px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm">Login / Sign Up</a>
     </div>
     {{range .Services}}
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-lg font-semibold mb-2">{{.Name}}</h2>
-      <p class="text-gray-500 text-sm mb-4">{{.Description}}</p>
-      <a href="{{.URL}}" class="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">Open</a>
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 {{if eq .Name "DrawApp"}}border-blue-500{{else if eq .Name "ChatApp"}}border-purple-500{{else}}border-emerald-500{{end}}">
+      <h2 class="text-lg font-semibold mb-1">{{.Name}}</h2>
+      <p class="text-gray-500 text-sm mb-1">{{.Description}}</p>
+      {{if eq .Name "DrawApp"}}<p class="text-xs text-gray-400 mb-3">App #1 &mdash; has its own users, mints resource tokens.</p>
+      {{else if eq .Name "ChatApp"}}<p class="text-xs text-gray-400 mb-3">App #2 &mdash; same code, separate user DB and signing key.</p>
+      {{else}}<p class="text-xs text-gray-400 mb-3">Validates JWTs from any registered app via shared KeyStore.</p>
+      {{end}}
+      <a href="{{.URL}}" target="_blank" class="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">Open</a>
     </div>
     {{end}}
+  </div>
+
+  <div class="mt-8 bg-gray-100 rounded-lg p-4 text-xs text-gray-500">
+    <p class="font-semibold text-gray-600 mb-1">Architecture (what's running)</p>
+    <pre class="font-mono">PostgreSQL :5432  &larr; shared signing_keys table (trust anchor)
+  &boxvr;&boxh; Auth Server :9999       writes keys at app registration
+  &boxvr;&boxh; Resource Server A :4001 reads keys at token validation
+  &boxvr;&boxh; Resource Server B :4002 reads keys at token validation
+  &boxvr;&boxh; DrawApp :3001           registered app, owns users, mints JWTs
+  &boxur;&boxh; ChatApp :3002           registered app, owns users, mints JWTs</pre>
   </div>
 </div>
 {{end}}

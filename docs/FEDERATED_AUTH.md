@@ -1,24 +1,24 @@
 # Federated Authentication
 
-OneAuth supports a federated authentication model where multiple Hosts (applications) register with a central auth service, obtain credentials, and mint scoped JWTs that downstream resource servers (e.g., a WebSocket relay) validate using a shared KeyStore.
+OneAuth supports a federated authentication model where multiple Apps (formerly called "Hosts") register with a central auth service, obtain credentials, and mint scoped JWTs that downstream resource servers (e.g., a WebSocket relay like massrelay) validate using a shared KeyStore.
 
 ## Architecture Overview
 
 Three projects collaborate in a federated deployment:
 
-1. **oneauth** (this repo) — shared auth library + Host Registration API
-2. **Resource server** (e.g., massrelay) — validates relay-scoped JWTs using KeyStore
-3. **Host app** (e.g., excaliframe) — registers as a Host, authenticates users locally, mints relay tokens
+1. **oneauth** (this repo) — shared auth library + App Registration API (formerly Host Registration API)
+2. **Resource server** (e.g., massrelay) — validates resource-scoped JWTs using KeyStore
+3. **App** (e.g., excaliframe) — registers as an App, authenticates users locally, mints resource tokens
 
 ```
 ┌───────────────┐     1. register         ┌───────────────────┐
-│   Host App    │ ──────────────────────→ │  OneAuth Server   │
-│ (excaliframe) │ ←─────────────────────  │  (HostRegistrar)  │
+│     App       │ ──────────────────────→ │  OneAuth Server   │
+│ (excaliframe) │ ←─────────────────────  │  (AppRegistrar)   │
 │               │  client_id + secret     │                   │
 └───────┬───────┘                         └────────┬──────────┘
         │                                          │
         │ 2. authenticate user locally             │ shared KeyStore
-        │ 3. mint relay-scoped JWT                 │ (GORM, FS, GAE)
+        │ 3. mint resource-scoped JWT              │ (GORM, FS, GAE)
         │                                          │
         ▼                                          ▼
 ┌───────────────┐  4. connect with JWT    ┌───────────────────┐
@@ -30,12 +30,12 @@ Three projects collaborate in a federated deployment:
 
 ## End-to-End Flow
 
-### Step 1: Host Registers with OneAuth Server
+### Step 1: App Registers with OneAuth Server
 
-The Host sends a registration request to the OneAuth server, protected by admin authentication.
+The App sends a registration request to the OneAuth server, protected by admin authentication.
 
 ```bash
-curl -X POST https://auth.example.com/hosts/register \
+curl -X POST https://auth.example.com/apps/register \
   -H "X-Admin-Key: your-admin-key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -49,7 +49,7 @@ curl -X POST https://auth.example.com/hosts/register \
 Response (201 Created):
 ```json
 {
-  "client_id": "host_a1b2c3d4e5f6",
+  "client_id": "app_a1b2c3d4e5f6",
   "client_secret": "64-char-hex-string...",
   "client_domain": "excaliframe.com",
   "signing_alg": "HS256",
@@ -61,22 +61,22 @@ Response (201 Created):
 
 The `client_secret` is stored in the `WritableKeyStore` and shared with the resource server.
 
-### Step 2: Host Authenticates Users Locally
+### Step 2: App Authenticates Users Locally
 
-The Host uses its own authentication system (could be oneauth's `LocalAuth`, OAuth, or anything else) to verify the user's identity.
+The App uses its own authentication system (could be oneauth's `LocalAuth`, OAuth, or anything else) to verify the user's identity.
 
-### Step 3: Host Mints a Relay Token
+### Step 3: App Mints a Resource Token
 
-After authenticating a user, the Host mints a relay-scoped JWT using `MintRelayToken`:
+After authenticating a user, the App mints a resource-scoped JWT using `MintResourceToken` (formerly `MintRelayToken`):
 
 ```go
 import oa "github.com/panyam/oneauth"
 
-token, err := oa.MintRelayToken(
+token, err := oa.MintResourceToken(
     "user-42",              // userID (goes to JWT "sub" claim)
-    "host_a1b2c3d4e5f6",   // hostClientID (goes to "client_id" claim)
-    "64-char-hex-string",   // hostSecret (HS256 signing key)
-    oa.HostQuota{           // embedded as custom claims
+    "app_a1b2c3d4e5f6",    // appClientID (goes to "client_id" claim)
+    "64-char-hex-string",   // appSecret (HS256 signing key)
+    oa.AppQuota{            // embedded as custom claims (formerly HostQuota)
         MaxRooms:   10,
         MaxMsgRate: 30.0,
     },
@@ -88,7 +88,7 @@ The resulting JWT contains:
 ```json
 {
   "sub": "user-42",
-  "client_id": "host_a1b2c3d4e5f6",
+  "client_id": "app_a1b2c3d4e5f6",
   "type": "access",
   "scopes": ["relay:connect", "relay:publish"],
   "max_rooms": 10,
@@ -135,16 +135,16 @@ Validation flow:
 5. Verify JWT signature with client-specific key
 6. Store userID, scopes, and custom claims in request context
 
-## Host Registration API
+## App Registration API
 
-The `HostRegistrar` provides a complete CRUD API for managing host registrations.
+The `AppRegistrar` (formerly `HostRegistrar`) provides a complete CRUD API for managing app registrations.
 
 ### Setup
 
 ```go
 import oa "github.com/panyam/oneauth"
 
-registrar := &oa.HostRegistrar{
+registrar := &oa.AppRegistrar{
     KeyStore: keyStore,                          // WritableKeyStore
     Auth:     oa.NewAPIKeyAuth("admin-secret"),  // or oa.NewNoAuth() for dev
 }
@@ -156,10 +156,10 @@ mux.Handle("/", registrar.Handler())
 
 All endpoints require admin authentication via `X-Admin-Key` header (when using `APIKeyAuth`).
 
-#### Register Host
+#### Register App
 
 ```http
-POST /hosts/register
+POST /apps/register
 Content-Type: application/json
 X-Admin-Key: admin-secret
 
@@ -171,39 +171,39 @@ X-Admin-Key: admin-secret
 }
 ```
 
-Returns `201 Created` with `client_id` (format: `host_<12-byte-hex>`) and `client_secret` (32-byte hex).
+Returns `201 Created` with `client_id` (format: `app_<12-byte-hex>`) and `client_secret` (32-byte hex).
 
-#### List Hosts
+#### List Apps
 
 ```http
-GET /hosts
+GET /apps
 X-Admin-Key: admin-secret
 ```
 
-Returns array of `HostRegistration` objects (secrets are not included).
+Returns JSON with `"apps"` key containing an array of `AppRegistration` (formerly `HostRegistration`) objects (secrets are not included).
 
-#### Get Host
+#### Get App
 
 ```http
-GET /hosts/{client_id}
+GET /apps/{client_id}
 X-Admin-Key: admin-secret
 ```
 
-Returns the host's metadata (secret not included).
+Returns the app's metadata (secret not included).
 
-#### Delete Host
+#### Delete App
 
 ```http
-DELETE /hosts/{client_id}
+DELETE /apps/{client_id}
 X-Admin-Key: admin-secret
 ```
 
-Removes the host and its key from the KeyStore. Existing tokens signed with the old secret will fail validation.
+Removes the app and its key from the KeyStore. Existing tokens signed with the old secret will fail validation.
 
 #### Rotate Secret
 
 ```http
-POST /hosts/{client_id}/rotate
+POST /apps/{client_id}/rotate
 X-Admin-Key: admin-secret
 ```
 
@@ -215,12 +215,12 @@ Generates a new `client_secret`, updates the KeyStore. Returns the new secret. O
 |--------|-----------|
 | `401 Unauthorized` | Missing `X-Admin-Key` header |
 | `403 Forbidden` | Wrong admin key |
-| `404 Not Found` | Host not found |
+| `404 Not Found` | App not found |
 | `405 Method Not Allowed` | Wrong HTTP method |
 
 ## AdminAuth Interface
 
-Pluggable authentication for the Host Registration API.
+Pluggable authentication for the App Registration API.
 
 ```go
 type AdminAuth interface {
@@ -235,7 +235,7 @@ Reads `X-Admin-Key` header and compares using `crypto/subtle.ConstantTimeCompare
 ```go
 auth := oa.NewAPIKeyAuth("your-secret-admin-key")
 
-registrar := &oa.HostRegistrar{
+registrar := &oa.AppRegistrar{
     KeyStore: keyStore,
     Auth:     auth,
 }
@@ -249,44 +249,44 @@ Allows all requests without authentication. Never use in production.
 auth := oa.NewNoAuth()
 ```
 
-## MintRelayToken
+## MintResourceToken
 
-Helper function for Hosts to mint relay-scoped JWTs after authenticating their users.
+Helper function for Apps to mint resource-scoped JWTs after authenticating their users. Formerly named `MintRelayToken`; the deprecated alias still works.
 
 ```go
-func MintRelayToken(
+func MintResourceToken(
     userID string,
-    hostClientID string,
-    hostSecret string,
-    quota HostQuota,
+    appClientID string,
+    appSecret string,
+    quota AppQuota,
     scopes []string,
 ) (string, error)
 ```
 
-### HostQuota
+### AppQuota
 
 ```go
-type HostQuota struct {
+type AppQuota struct {
     MaxRooms   int     `json:"max_rooms,omitempty"`
     MaxMsgRate float64 `json:"max_msg_rate,omitempty"`
 }
 ```
 
-Quota values are embedded as custom claims in the JWT. Zero values are omitted.
+Formerly `HostQuota`; the deprecated alias still works. Quota values are embedded as custom claims in the JWT. Zero values are omitted.
 
-### Example: Host-Side Token Minting
+### Example: App-Side Token Minting
 
 ```go
 func mintTokenForUser(w http.ResponseWriter, r *http.Request) {
     // 1. Get the authenticated user from your session
     userID := getLoggedInUserID(r)
 
-    // 2. Mint a relay token
-    token, err := oa.MintRelayToken(
+    // 2. Mint a resource token
+    token, err := oa.MintResourceToken(
         userID,
-        os.Getenv("HOST_CLIENT_ID"),
-        os.Getenv("HOST_CLIENT_SECRET"),
-        oa.HostQuota{MaxRooms: 10, MaxMsgRate: 30.0},
+        os.Getenv("APP_CLIENT_ID"),
+        os.Getenv("APP_CLIENT_SECRET"),
+        oa.AppQuota{MaxRooms: 10, MaxMsgRate: 30.0},
         []string{"relay:connect"},
     )
     if err != nil {
@@ -296,16 +296,16 @@ func mintTokenForUser(w http.ResponseWriter, r *http.Request) {
 
     // 3. Return the token to the client
     json.NewEncoder(w).Encode(map[string]string{
-        "relay_token": token,
+        "resource_token": token,
     })
 }
 ```
 
 ## Multi-Tenant JWT Validation
 
-The resource server validates tokens from multiple hosts using a shared `KeyStore`. See [API_AUTH.md](API_AUTH.md#multi-tenant-jwt-validation-keystore) for the full `KeyStore` interface and validation details.
+The resource server validates tokens from multiple apps using a shared `KeyStore`. See [API_AUTH.md](API_AUTH.md#multi-tenant-jwt-validation-keystore) for the full `KeyStore` interface and validation details.
 
-Key security feature: **algorithm confusion prevention**. `KeyStore.GetExpectedAlg()` ensures a host registered with `HS256` can't send a token with `alg: none` or `alg: RS256`.
+Key security feature: **algorithm confusion prevention**. `KeyStore.GetExpectedAlg()` ensures an app registered with `HS256` can't send a token with `alg: none` or `alg: RS256`.
 
 ## KeyStore Implementations
 
@@ -322,7 +322,7 @@ For store setup details, see [STORES.md](STORES.md#keystore--writablekeystore).
 
 ## Reference Server
 
-The `cmd/oneauth-server/` directory contains a config-driven reference server that bundles `HostRegistrar`, `AdminAuth`, and KeyStore wiring.
+The `cmd/oneauth-server/` directory contains a config-driven reference server that bundles `AppRegistrar` (formerly `HostRegistrar`), `AdminAuth`, and KeyStore wiring.
 
 ### YAML Configuration
 
@@ -363,24 +363,24 @@ On GAE without a config file, the server falls back to `configFromEnv()` which r
 // cmd/oneauth-server wired with:
 keyStore := gormstore.NewKeyStore(db)
 adminAuth := oa.NewAPIKeyAuth(os.Getenv("ADMIN_API_KEY"))
-registrar := &oa.HostRegistrar{KeyStore: keyStore, Auth: adminAuth}
+registrar := &oa.AppRegistrar{KeyStore: keyStore, Auth: adminAuth}
 mux.Handle("/", registrar.Handler())
 ```
 
-### 2. Host Application (e.g., Document Editor)
+### 2. App (e.g., Document Editor)
 
 ```go
 // On startup: register with OneAuth server (or use pre-registered credentials)
-clientID := os.Getenv("HOST_CLIENT_ID")
-clientSecret := os.Getenv("HOST_CLIENT_SECRET")
+clientID := os.Getenv("APP_CLIENT_ID")
+clientSecret := os.Getenv("APP_CLIENT_SECRET")
 
 // After authenticating a user locally:
 func handleConnect(w http.ResponseWriter, r *http.Request) {
     userID := getLoggedInUserID(r)
-    token, _ := oa.MintRelayToken(userID, clientID, clientSecret,
-        oa.HostQuota{MaxRooms: 10}, []string{"relay:connect", "relay:publish"})
+    token, _ := oa.MintResourceToken(userID, clientID, clientSecret,
+        oa.AppQuota{MaxRooms: 10}, []string{"relay:connect", "relay:publish"})
 
-    json.NewEncoder(w).Encode(map[string]string{"relay_token": token})
+    json.NewEncoder(w).Encode(map[string]string{"resource_token": token})
 }
 ```
 
@@ -408,8 +408,8 @@ mux.Handle("/ws", middleware.ValidateToken(func(w http.ResponseWriter, r *http.R
 ## Security Considerations
 
 1. **Admin key protection**: Store the admin API key in a secrets manager (e.g., GCP Secret Manager). Use `APIKeyAuth` in production, never `NoAuth`.
-2. **Secret rotation**: Use `POST /hosts/{client_id}/rotate` to rotate compromised secrets. Old tokens become invalid immediately.
-3. **Token lifetime**: Relay tokens expire after 15 minutes. Hosts should mint fresh tokens for each connection.
+2. **Secret rotation**: Use `POST /apps/{client_id}/rotate` to rotate compromised secrets. Old tokens become invalid immediately.
+3. **Token lifetime**: Resource tokens expire after 15 minutes. Apps should mint fresh tokens for each connection.
 4. **Algorithm confusion**: `GetExpectedAlg()` prevents attacks where a token's `alg` header is manipulated.
 5. **Constant-time comparison**: `APIKeyAuth` uses `crypto/subtle.ConstantTimeCompare` to prevent timing attacks on the admin key.
 
@@ -418,6 +418,6 @@ mux.Handle("/ws", middleware.ValidateToken(func(w http.ResponseWriter, r *http.R
 The `KeyStore` interface already supports asymmetric keys:
 - `GetVerifyKey` can return `*rsa.PublicKey` or `*ecdsa.PublicKey`
 - `GetSigningKey` can return `*rsa.PrivateKey` or `*ecdsa.PrivateKey`
-- Per-host algorithm choice: some hosts use HS256, others use RS256
+- Per-app algorithm choice: some apps use HS256, others use RS256
 
 This is planned but not yet implemented. See [NEXTSTEPS.md](NEXTSTEPS.md).

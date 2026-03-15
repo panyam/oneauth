@@ -29,8 +29,8 @@ func init() {
 	templates = template.Must(template.ParseFS(templateFS, "templates/*.html"))
 }
 
-// hostCredentials holds the credentials obtained from oneauth-server registration.
-type hostCredentials struct {
+// appCredentials holds the credentials obtained from oneauth-server registration.
+type appCredentials struct {
 	ClientID     string `json:"client_id"`
 	ClientSecret string `json:"client_secret"`
 	ClientDomain string `json:"client_domain"`
@@ -46,13 +46,13 @@ func main() {
 
 	appDataDir := filepath.Join(*dataDir, *name)
 
-	// Load or register host credentials
-	creds, err := loadOrRegisterHost(appDataDir, *name, *oaServerURL, *oaAdminKey)
+	// Load or register app credentials
+	creds, err := loadOrRegisterApp(appDataDir, *name, *oaServerURL, *oaAdminKey)
 	if err != nil {
-		log.Printf("[%s] WARNING: Host registration failed: %v (relay token minting will not work)", *name, err)
-		creds = &hostCredentials{} // Allow server to start without registration
+		log.Printf("[%s] WARNING: App registration failed: %v (resource token minting will not work)", *name, err)
+		creds = &appCredentials{} // Allow server to start without registration
 	} else {
-		log.Printf("[%s] Host registered: client_id=%s", *name, creds.ClientID)
+		log.Printf("[%s] App registered: client_id=%s", *name, creds.ClientID)
 	}
 
 	// Set up FS-backed user stores for this app's own users
@@ -148,23 +148,23 @@ func main() {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	})
 
-	// Mint relay token
-	mux.HandleFunc("POST /relay-token", func(w http.ResponseWriter, r *http.Request) {
+	// Mint resource token
+	mux.HandleFunc("POST /resource-token", func(w http.ResponseWriter, r *http.Request) {
 		user := getUserFromCookie(r, sessionSecret)
 		if user == "" {
 			http.Error(w, `{"error":"Not authenticated"}`, http.StatusUnauthorized)
 			return
 		}
 		if creds.ClientID == "" || creds.ClientSecret == "" {
-			http.Error(w, `{"error":"Host not registered with OneAuth"}`, http.StatusServiceUnavailable)
+			http.Error(w, `{"error":"App not registered with OneAuth"}`, http.StatusServiceUnavailable)
 			return
 		}
 
-		token, err := oa.MintRelayToken(
+		token, err := oa.MintResourceToken(
 			user,
 			creds.ClientID,
 			creds.ClientSecret,
-			oa.HostQuota{MaxRooms: 10, MaxMsgRate: 100},
+			oa.AppQuota{MaxRooms: 10, MaxMsgRate: 100},
 			[]string{"collab"},
 		)
 		if err != nil {
@@ -184,24 +184,24 @@ func main() {
 	})
 
 	addr := ":" + *port
-	log.Printf("[%s] Demo host app listening on %s (oneauth=%s)", *name, addr, *oaServerURL)
+	log.Printf("[%s] Demo app listening on %s (oneauth=%s)", *name, addr, *oaServerURL)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
-// loadOrRegisterHost loads saved host credentials or registers with oneauth-server.
-func loadOrRegisterHost(dataDir, appName, oaURL, adminKey string) (*hostCredentials, error) {
-	credsFile := filepath.Join(dataDir, "host_credentials.json")
+// loadOrRegisterApp loads saved app credentials or registers with oneauth-server.
+func loadOrRegisterApp(dataDir, appName, oaURL, adminKey string) (*appCredentials, error) {
+	credsFile := filepath.Join(dataDir, "app_credentials.json")
 
 	// Try loading existing credentials
 	if data, err := os.ReadFile(credsFile); err == nil {
-		var creds hostCredentials
+		var creds appCredentials
 		if err := json.Unmarshal(data, &creds); err == nil && creds.ClientID != "" {
 			return &creds, nil
 		}
 	}
 
 	if adminKey == "" {
-		return nil, fmt.Errorf("ONEAUTH_ADMIN_KEY not set, cannot register host")
+		return nil, fmt.Errorf("ONEAUTH_ADMIN_KEY not set, cannot register app")
 	}
 
 	// Register with oneauth-server
@@ -212,7 +212,7 @@ func loadOrRegisterHost(dataDir, appName, oaURL, adminKey string) (*hostCredenti
 		"max_msg_rate":  200,
 	})
 
-	req, err := http.NewRequest("POST", oaURL+"/hosts/register", bytes.NewReader(reqBody))
+	req, err := http.NewRequest("POST", oaURL+"/apps/register", bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func loadOrRegisterHost(dataDir, appName, oaURL, adminKey string) (*hostCredenti
 		return nil, err
 	}
 
-	creds := &hostCredentials{
+	creds := &appCredentials{
 		ClientID:     result["client_id"].(string),
 		ClientSecret: result["client_secret"].(string),
 		ClientDomain: appName + ".localhost",

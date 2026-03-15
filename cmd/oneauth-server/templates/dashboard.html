@@ -1,5 +1,9 @@
 {{define "content"}}
-<h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+<h1 class="text-2xl font-bold mb-2">Dashboard</h1>
+<p class="text-sm text-gray-500 mb-6">
+  You are logged into the <strong>Auth Server</strong>.
+  This is the central identity provider that manages app registrations and signing keys.
+</p>
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
   <div class="bg-white shadow rounded-lg p-6">
@@ -11,14 +15,23 @@
   </div>
   <div class="bg-white shadow rounded-lg p-6">
     <h2 class="text-lg font-semibold mb-2">API Token</h2>
-    <p class="text-sm text-gray-500 mb-3">Use this endpoint to get access + refresh tokens:</p>
+    <p class="text-sm text-gray-500 mb-2">
+      The Auth Server also supports programmatic access via <code class="bg-gray-100 px-1 rounded">POST /api/token</code>.
+      This is the same OAuth2 password grant used by CLI tools and mobile apps.
+    </p>
     <pre class="text-xs bg-gray-50 p-2 rounded overflow-x-auto">POST /api/token
 {"grant_type":"password","username":"...","password":"..."}</pre>
+    <p class="text-xs text-gray-400 mt-2">Returns access_token + refresh_token as JSON. See test_08 for examples.</p>
   </div>
 </div>
 
-<h2 class="text-xl font-semibold mb-4">Registered Hosts</h2>
-{{if .Hosts}}
+<h2 class="text-xl font-semibold mb-2">Registered Apps</h2>
+<p class="text-sm text-gray-500 mb-4">
+  These are the apps that have registered with this Auth Server.
+  Each gets a unique <code class="bg-gray-100 px-1 rounded">client_id</code> and signing key stored in the shared KeyStore.
+  When an app mints a resource token, Resource Servers look up the signing key by <code class="bg-gray-100 px-1 rounded">client_id</code> to verify it.
+</p>
+{{if .Apps}}
 <div class="bg-white shadow rounded-lg overflow-hidden">
   <table class="w-full text-sm">
     <thead class="bg-gray-50">
@@ -30,7 +43,7 @@
       </tr>
     </thead>
     <tbody class="divide-y">
-      {{range .Hosts}}
+      {{range .Apps}}
       <tr>
         <td class="px-4 py-2 font-mono text-xs">{{.ClientID}}</td>
         <td class="px-4 py-2">{{.ClientDomain}}</td>
@@ -41,7 +54,13 @@
     </tbody>
   </table>
 </div>
+<p class="text-xs text-gray-400 mt-2">
+  Apps registered automatically at startup. In production, registration would go through an admin approval flow.
+  The <code class="bg-gray-100 px-1 rounded">client_secret</code> is shown only once at registration and never stored in plaintext.
+</p>
 {{else}}
-<p class="text-gray-500 text-sm">No hosts registered yet. Use the Host Registration API to register apps.</p>
+<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+  No apps registered yet. Start DrawApp or ChatApp &mdash; they auto-register on first boot via <code class="bg-yellow-100 px-1 rounded">POST /apps/register</code>.
+</div>
 {{end}}
 {{end}}

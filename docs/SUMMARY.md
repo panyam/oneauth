@@ -14,10 +14,10 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 - **Multi-tenant JWT**: KeyStore interface for per-client signing keys, custom claims, algorithm confusion prevention
 - **Policy-Based Validation**: Configurable signup requirements (SignupPolicy)
 - **Username Support**: Optional username uniqueness with username-based login
-- **Host Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), HostRegistrar HTTP handler for Host CRUD, MintRelayToken for relay-scoped JWTs
+- **App Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), AppRegistrar HTTP handler (formerly HostRegistrar) for App CRUD, MintResourceToken (formerly MintRelayToken) for resource-scoped JWTs
 - **Client SDK**: AuthClient with CredentialStore, HTTPClient wrapper with automatic token refresh on 401
 - **Reference Server**: Config-driven server in `cmd/oneauth-server/`, deployable to GAE, Docker, and Kubernetes
-- **Federated Auth Demo**: 6-service Docker Compose demo (oneauth-server, 2 host apps, 2 relays, PostgreSQL) in `demo/`
+- **Federated Auth Demo**: 6-service Docker Compose demo (oneauth-server, 2 app services, 2 resource servers, PostgreSQL) in `demo/`
 
 ## Architecture
 
@@ -39,9 +39,9 @@ oneauth/
 ├── client/               # Client SDK for token management
 │   └── stores/fs/        # File-based credential store
 ├── cmd/oneauth-server/   # Reference server (config-driven, GAE/Docker/K8s)
-├── cmd/demo-hostapp/     # Demo host app (DrawApp/ChatApp)
-├── cmd/demo-relay/       # Demo relay (JWT validation service)
-├── demo/                 # Docker Compose demo (6 services)
+├── cmd/demo-hostapp/     # Demo app (DrawApp/ChatApp, formerly "host app")
+├── cmd/demo-resource-server/  # Demo resource server (JWT validation service)
+├── demo/                 # Docker Compose demo (6 services: auth, 2 apps, 2 resource servers, DB)
 ├── keystoretest/         # Shared KeyStore test suite
 ├── tests/integration/    # Integration tests (GAE + demo stack)
 ├── grpc/                 # gRPC utilities
@@ -143,7 +143,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 | [ARCHITECTURE.md](ARCHITECTURE.md) | High-level overview and design principles |
 | [BROWSER_AUTH.md](BROWSER_AUTH.md) | Browser-based auth (LocalAuth, OAuth, sessions, validation) |
 | [API_AUTH.md](API_AUTH.md) | API auth (JWT, refresh tokens, API keys, KeyStore) |
-| [FEDERATED_AUTH.md](FEDERATED_AUTH.md) | Federated auth (HostRegistrar, MintRelayToken, AdminAuth) |
+| [FEDERATED_AUTH.md](FEDERATED_AUTH.md) | Federated auth (AppRegistrar, MintResourceToken, AdminAuth) |
 | [AUTH_FLOWS.md](AUTH_FLOWS.md) | Detailed decision trees, user journeys, edge cases |
 | [CLIENT_SDK.md](CLIENT_SDK.md) | Client SDK for CLI/programmatic access |
 | [STORES.md](STORES.md) | Store interfaces and implementations |
@@ -151,9 +151,9 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
-- **v0.0.33**: Federated auth demo (6-service Docker Compose), reference server browser UI with templates, demo host apps and relay services, integration tests for browser auth/federated flow/multi-host/token refresh.
+- **v0.0.33**: Federated auth demo (6-service Docker Compose), reference server browser UI with templates, demo apps and resource server services, integration tests for browser auth/federated flow/multi-app/token refresh.
 - **v0.0.32**: APIMiddleware enhancements (TokenQueryParam, GetCustomClaimsFromContext).
-- **v0.0.31**: Host Registration API (AdminAuth, HostRegistrar, MintRelayToken). Config-driven reference server (`cmd/oneauth-server/`).
+- **v0.0.31**: App Registration API (AdminAuth, AppRegistrar — formerly HostRegistrar, MintResourceToken — formerly MintRelayToken). Config-driven reference server (`cmd/oneauth-server/`).
 - **v0.0.30**: WritableKeyStore interface. Persistent KeyStore backends (GORM, FS, GAE). Shared test suite in `keystoretest/`.
 - **v0.0.29**: CustomClaimsFunc, KeyStore interface, InMemoryKeyStore, multi-tenant JWT validation with algorithm confusion prevention.
 - **v0.0.28**: Optimistic locking (Version, UpdatedAt) on Identity/Channel. ExpiresAt on Channel for OAuth token expiry tracking.

@@ -8,7 +8,7 @@ A Go authentication library providing unified local and OAuth-based authenticati
 - **Multi-provider support** — One account accessible via password, Google, GitHub, etc.
 - **API authentication** — JWT access tokens, refresh tokens, API keys
 - **Multi-tenant JWT** — KeyStore interface for per-client signing keys with algorithm confusion prevention
-- **Federated auth** — Host registration, relay-scoped token minting, custom claims
+- **Federated auth** — App registration (formerly host registration), resource-scoped token minting, custom claims
 - **Flexible storage** — File-based, GORM (SQL), and GAE/Datastore implementations
 - **Client SDK** — Token management, auto-refresh, credential persistence for CLI tools
 - **gRPC support** — Auth context utilities and interceptors
@@ -95,17 +95,17 @@ custom := oneauth.GetCustomClaimsFromContext(r.Context())
 
 See [API Authentication](docs/API_AUTH.md) for JWT lifecycle, custom claims, multi-tenant validation, and middleware configuration.
 
-## Federated Auth (Host Registration)
+## Federated Auth (App Registration)
 
-For systems where multiple host applications register and mint scoped JWTs:
+For systems where multiple applications register and mint scoped JWTs:
 
 ```go
-// Resource server validates tokens from any registered host
+// Resource server validates tokens from any registered app
 keyStore := gorm.NewGORMKeyStore(db)
 middleware := &oneauth.APIMiddleware{KeyStore: keyStore}
 
-// Hosts register via admin API and mint tokens for their users
-token, err := oneauth.MintRelayToken(clientID, clientSecret, userID, scopes, customClaims)
+// Apps register via admin API and mint tokens for their users
+token, err := oneauth.MintResourceToken(clientID, clientSecret, userID, scopes, customClaims)
 ```
 
 See [Architecture — Federated Auth](docs/ARCHITECTURE.md#federated-authentication) for the full flow.

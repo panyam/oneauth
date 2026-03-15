@@ -1,5 +1,15 @@
 {{define "content"}}
-<h1 class="text-2xl font-bold mb-6">Welcome to {{.App}}</h1>
+<h1 class="text-2xl font-bold mb-2">Welcome to {{.App}}</h1>
+
+<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-900">
+  <p class="font-semibold mb-1">What is this?</p>
+  <p>
+    This is <strong>{{.App}}</strong>, a demo app that registered itself with the central Auth Server on startup.
+    It has its <strong>own user database</strong> (separate from the Auth Server and other apps).
+    After you log in, it can mint <strong>resource-scoped JWTs</strong> for you &mdash;
+    tokens that any Resource Server sharing the same KeyStore will accept.
+  </p>
+</div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
   <div class="bg-white shadow rounded-lg p-6">
@@ -9,43 +19,64 @@
       <div class="flex justify-between"><dt class="text-gray-500">App</dt><dd>{{.App}}</dd></div>
       <div class="flex justify-between"><dt class="text-gray-500">Client ID</dt><dd class="font-mono text-xs">{{.ClientID}}</dd></div>
     </dl>
+    <p class="text-xs text-gray-400 mt-2">
+      The Client ID was assigned when this app registered with the Auth Server.
+      The corresponding signing key is stored in the shared KeyStore.
+    </p>
   </div>
   <div class="bg-white shadow rounded-lg p-6">
-    <h2 class="text-lg font-semibold mb-3">Relay Token</h2>
-    <button onclick="getRelayToken()"
+    <h2 class="text-lg font-semibold mb-2">Step 1: Get a Resource Token</h2>
+    <p class="text-sm text-gray-500 mb-3">
+      Calls <code class="bg-gray-100 px-1 rounded text-xs">MintResourceToken()</code> &mdash;
+      signs a JWT with this app's secret, embedding your user ID, scopes, and quotas as claims.
+    </p>
+    <button onclick="getResourceToken()"
       class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
-      Get Relay Token
+      Get Resource Token
     </button>
     <div id="token-display" class="mt-3 hidden">
       <label class="block text-xs font-medium text-gray-500 mb-1">JWT Token</label>
-      <textarea id="token-value" readonly rows="4"
+      <textarea id="token-value" readonly rows="3"
         class="w-full px-2 py-1 border rounded text-xs font-mono bg-gray-50"></textarea>
-      <pre id="token-claims" class="mt-2 bg-gray-50 p-2 rounded text-xs hidden"></pre>
+      <details class="mt-2">
+        <summary class="text-xs text-gray-500 cursor-pointer">Decoded claims</summary>
+        <pre id="token-claims" class="mt-1 bg-gray-50 p-2 rounded text-xs"></pre>
+      </details>
     </div>
   </div>
 </div>
 
-<div class="bg-white shadow rounded-lg p-6">
-  <h2 class="text-lg font-semibold mb-3">Test Against Relay</h2>
+<div class="bg-white shadow rounded-lg p-6 mb-6">
+  <h2 class="text-lg font-semibold mb-2">Step 2: Validate Against a Resource Server</h2>
+  <p class="text-sm text-gray-500 mb-3">
+    Send the token to a Resource Server's <code class="bg-gray-100 px-1 rounded text-xs">POST /validate</code> endpoint.
+    The Resource Server looks up the <code class="bg-gray-100 px-1 rounded text-xs">client_id</code> in the shared KeyStore,
+    retrieves the signing key, and verifies the JWT signature.
+    It has <strong>never communicated with this app</strong> &mdash; it trusts the shared KeyStore.
+  </p>
   <div class="flex gap-2 mb-3">
-    <input id="relay-url" type="text" value="http://localhost:4001"
-      class="flex-1 px-3 py-2 border rounded-md text-sm" placeholder="Relay URL">
-    <button onclick="testRelay()"
+    <input id="resource-url" type="text" value="http://localhost:4001"
+      class="flex-1 px-3 py-2 border rounded-md text-sm" placeholder="Resource Server URL">
+    <button onclick="testResourceServer()"
       class="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm">
       Validate
     </button>
   </div>
-  <div id="relay-result" class="hidden">
-    <pre id="relay-result-body" class="bg-gray-50 p-3 rounded text-xs overflow-x-auto"></pre>
+  <p class="text-xs text-gray-400 mb-3">
+    Try both <code>http://localhost:4001</code> (Resource Server A) and
+    <code>http://localhost:4002</code> (Resource Server B) &mdash; the same token works on both.
+  </p>
+  <div id="validate-result" class="hidden">
+    <pre id="validate-result-body" class="bg-gray-50 p-3 rounded text-xs overflow-x-auto"></pre>
   </div>
 </div>
 
 <script>
 let currentToken = '';
 
-async function getRelayToken() {
+async function getResourceToken() {
   try {
-    const resp = await fetch('/relay-token', {method: 'POST'});
+    const resp = await fetch('/resource-token', {method: 'POST'});
     const data = await resp.json();
     if (data.error) {
       alert('Error: ' + data.error);
@@ -59,32 +90,36 @@ async function getRelayToken() {
     const parts = data.token.split('.');
     if (parts.length === 3) {
       const payload = JSON.parse(atob(parts[1]));
-      const claimsEl = document.getElementById('token-claims');
-      claimsEl.textContent = JSON.stringify(payload, null, 2);
-      claimsEl.classList.remove('hidden');
+      document.getElementById('token-claims').textContent = JSON.stringify(payload, null, 2);
     }
   } catch(e) {
     alert('Error: ' + e.message);
   }
 }
 
-async function testRelay() {
+async function testResourceServer() {
   if (!currentToken) {
-    alert('Get a relay token first');
+    alert('Get a resource token first (Step 1)');
     return;
   }
-  const relayURL = document.getElementById('relay-url').value;
+  const resourceURL = document.getElementById('resource-url').value;
   try {
-    const resp = await fetch(relayURL + '/validate', {
+    const resp = await fetch(resourceURL + '/validate', {
       method: 'POST',
       headers: {'Authorization': 'Bearer ' + currentToken},
     });
     const data = await resp.json();
-    document.getElementById('relay-result-body').textContent = JSON.stringify(data, null, 2);
-    document.getElementById('relay-result').classList.remove('hidden');
+    const resultEl = document.getElementById('validate-result-body');
+    resultEl.textContent = JSON.stringify(data, null, 2);
+    resultEl.className = resp.ok
+      ? 'bg-green-50 border border-green-200 p-3 rounded text-xs overflow-x-auto'
+      : 'bg-red-50 border border-red-200 p-3 rounded text-xs overflow-x-auto';
+    document.getElementById('validate-result').classList.remove('hidden');
   } catch(e) {
-    document.getElementById('relay-result-body').textContent = 'Error: ' + e.message;
-    document.getElementById('relay-result').classList.remove('hidden');
+    const resultEl = document.getElementById('validate-result-body');
+    resultEl.textContent = 'Error: ' + e.message;
+    resultEl.className = 'bg-red-50 border border-red-200 p-3 rounded text-xs overflow-x-auto';
+    document.getElementById('validate-result').classList.remove('hidden');
   }
 }
 </script>

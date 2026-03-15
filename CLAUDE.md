@@ -2,7 +2,7 @@
 
 ## What is OneAuth?
 
-Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeyStore), and a Host Registration API for federated relay auth. Three storage backends: filesystem, GORM (SQL), and GAE/Datastore.
+Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeyStore), and an App Registration API (formerly Host Registration API) for federated resource server auth. Three storage backends: filesystem, GORM (SQL), and GAE/Datastore.
 
 ## Repository Structure
 
@@ -10,7 +10,8 @@ Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeySt
 oneauth/
 ├── *.go                  # Core types: User, Identity, Channel, LocalAuth, APIAuth,
 │                         #   APIMiddleware, KeyStore, WritableKeyStore, AdminAuth,
-│                         #   HostRegistrar, MintRelayToken
+│                         #   AppRegistrar (formerly HostRegistrar),
+│                         #   MintResourceToken (formerly MintRelayToken)
 ├── stores/
 │   ├── fs/               # File-based stores + FSKeyStore
 │   ├── gorm/             # GORM SQL stores + GORMKeyStore + SigningKeyModel
@@ -21,7 +22,7 @@ oneauth/
 ├── grpc/                 # gRPC auth interceptors
 ├── oauth2/               # OAuth2 provider implementations
 ├── cmd/oneauth-server/   # Reference server (config-driven, deployable)
-│   ├── main.go           # Wiring: KeyStore + AdminAuth + HostRegistrar
+│   ├── main.go           # Wiring: KeyStore + AdminAuth + AppRegistrar
 │   ├── config.go         # YAML config + ${ENV_VAR:-default} substitution
 │   ├── Dockerfile
 │   └── deploy-examples/  # GAE, Docker Compose, Kubernetes
@@ -71,11 +72,11 @@ Every persistent interface (UserStore, IdentityStore, ChannelStore, WritableKeyS
 ## Federated Auth Architecture
 
 Three projects collaborate:
-1. **oneauth** (this repo) — shared auth library + Host Registration API
-2. **massrelay** — WebSocket relay, validates relay-scoped JWTs using KeyStore
-3. **excaliframe** (document host) — registers as a Host, mints relay tokens for users
+1. **oneauth** (this repo) — shared auth library + App Registration API (formerly Host Registration API)
+2. **massrelay** — WebSocket relay (a resource server), validates resource-scoped JWTs using KeyStore
+3. **excaliframe** (document app) — registers as an App (formerly "Host"), mints resource tokens for users
 
-Flow: Host registers with oneauth-server → gets `client_id` + `client_secret` → Host authenticates users locally → mints relay-scoped JWTs with `MintRelayToken()` → relay validates using shared KeyStore.
+Flow: App registers with oneauth-server → gets `client_id` + `client_secret` → App authenticates users locally → mints resource-scoped JWTs with `MintResourceToken()` (formerly `MintRelayToken()`) → resource server validates using shared KeyStore.
 
 ## Conventions
 

@@ -271,7 +271,7 @@ If `CustomClaimsFunc` is nil, behavior is identical to before (backwards-compati
 
 ## Multi-Tenant JWT Validation (KeyStore)
 
-For architectures where multiple clients (hosts, tenants) each mint their own JWTs, use a `KeyStore` for per-client key lookup instead of a single shared secret.
+For architectures where multiple clients (apps, tenants) each mint their own JWTs, use a `KeyStore` for per-client key lookup instead of a single shared secret.
 
 ### The Problem
 
@@ -297,8 +297,8 @@ For the full `KeyStore` and `WritableKeyStore` interface details and persistent 
 ```go
 // 1. Create a KeyStore and register client keys
 keyStore := oneauth.NewInMemoryKeyStore()
-keyStore.RegisterKey("host-alpha", []byte("alpha-secret-key"), "HS256")
-keyStore.RegisterKey("host-beta",  []byte("beta-secret-key"),  "HS256")
+keyStore.RegisterKey("app-alpha", []byte("alpha-secret-key"), "HS256")
+keyStore.RegisterKey("app-beta",  []byte("beta-secret-key"),  "HS256")
 
 // 2. Configure middleware with KeyStore (replaces JWTSecretKey)
 middleware := &oneauth.APIMiddleware{
@@ -325,7 +325,7 @@ If `KeyStore` is nil, the middleware falls back to single `JWTSecretKey` behavio
 
 ### Minting Tokens for Multi-Tenant Systems
 
-On the host/client side, use `CustomClaimsFunc` to embed the `client_id`:
+On the app/client side, use `CustomClaimsFunc` to embed the `client_id`:
 
 ```go
 hostAuth := &oneauth.APIAuth{
@@ -333,7 +333,7 @@ hostAuth := &oneauth.APIAuth{
     JWTIssuer:    "resource.example.com",
     CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
         return map[string]any{
-            "client_id":     "host-alpha",
+            "client_id":     "app-alpha",
             "client_domain": "alpha.example.com",
             "max_rooms":     10,
             "max_msg_rate":  30.0,
@@ -354,15 +354,15 @@ The `KeyStore.GetExpectedAlg()` method prevents algorithm confusion attacks. For
 The `KeyStore` interface supports asymmetric signing:
 - `GetVerifyKey` can return `*rsa.PublicKey` or `*ecdsa.PublicKey` for RS256/ES256
 - `GetSigningKey` can return `*rsa.PrivateKey` or `*ecdsa.PrivateKey`
-- Per-client algorithm choice: some clients use HS256, others use RS256
+- Per-app algorithm choice: some apps use HS256, others use RS256
 - Both modes coexist on the same middleware
 
-## Host Registration
+## App Registration
 
-For federated systems where external hosts register and receive credentials for minting scoped JWTs, OneAuth provides:
+For federated systems where external apps register and receive credentials for minting scoped JWTs, OneAuth provides:
 
-- **`HostRegistrar`**: An embeddable HTTP handler for host CRUD operations (register, list, get, delete, rotate secret). Stores host credentials in a `WritableKeyStore`.
-- **`MintRelayToken`**: A helper function that hosts call after authenticating their own users, producing scoped JWTs that downstream services can validate via KeyStore.
+- **`AppRegistrar`** (formerly `HostRegistrar`): An embeddable HTTP handler for app CRUD operations (register, list, get, delete, rotate secret). Stores app credentials in a `WritableKeyStore`.
+- **`MintResourceToken`** (formerly `MintRelayToken`): A helper function that apps call after authenticating their own users, producing scoped JWTs that downstream resource servers can validate via KeyStore.
 
 For the full registration flow and architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 

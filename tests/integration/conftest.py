@@ -83,11 +83,11 @@ class OneAuthClient:
             headers={"X-Admin-Key": "wrong-key-value"},
         )
 
-    def register_host(self, **kwargs) -> requests.Response:
-        return self.post("/hosts/register", json=kwargs)
+    def register_app(self, **kwargs) -> requests.Response:
+        return self.post("/apps/register", json=kwargs)
 
-    def delete_host(self, client_id: str) -> requests.Response:
-        return self.delete(f"/hosts/{client_id}")
+    def delete_app(self, client_id: str) -> requests.Response:
+        return self.delete(f"/apps/{client_id}")
 
 
 @pytest.fixture(scope="session")

@@ -69,28 +69,28 @@ services:
     depends_on:
       - oneauth-server
 
-  relay-a:
+  resource-server-a:
     build:
       context: ..
-      dockerfile: cmd/demo-relay/Dockerfile
+      dockerfile: cmd/demo-resource-server/Dockerfile
     ports:
       - "4001:4001"
     environment:
-      RELAY_NAME: relay-a
+      RESOURCE_SERVER_NAME: resource-server-a
       PORT: "4001"
       DATABASE_URL: "host=postgres user=oneauth password=${POSTGRES_PASSWORD:-oneauth-demo-pass} dbname=oneauth port=5432 sslmode=disable"
     depends_on:
       postgres:
         condition: service_healthy
 
-  relay-b:
+  resource-server-b:
     build:
       context: ..
-      dockerfile: cmd/demo-relay/Dockerfile
+      dockerfile: cmd/demo-resource-server/Dockerfile
     ports:
       - "4002:4002"
     environment:
-      RELAY_NAME: relay-b
+      RESOURCE_SERVER_NAME: resource-server-b
       PORT: "4002"
       DATABASE_URL: "host=postgres user=oneauth password=${POSTGRES_PASSWORD:-oneauth-demo-pass} dbname=oneauth port=5432 sslmode=disable"
     depends_on:

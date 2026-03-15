@@ -9,7 +9,7 @@
 <body class="bg-gray-50 min-h-screen">
   <nav class="bg-white shadow-sm border-b">
     <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-      <span class="text-xl font-bold text-emerald-600">{{.Relay}}</span>
+      <span class="text-xl font-bold text-emerald-600">{{.ResourceServer}}</span>
       <div class="space-x-4 text-sm">
         <a href="/" class="text-emerald-600 hover:underline">Status</a>
         <a href="/test" class="text-emerald-600 hover:underline">Test JWT</a>
@@ -24,15 +24,36 @@
 </html>{{end}}
 
 {{define "status"}}
-<h1 class="text-2xl font-bold mb-6">Relay Status</h1>
+<h1 class="text-2xl font-bold mb-2">Resource Server Status</h1>
+
+<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6 text-sm text-emerald-900">
+  <p class="font-semibold mb-1">What is this?</p>
+  <p>
+    This is a <strong>Resource Server</strong> &mdash; a service that protects access to resources
+    (APIs, WebSockets, files, etc.) by validating JWTs.
+    It reads signing keys from a shared PostgreSQL <code class="bg-emerald-100 px-1 rounded">signing_keys</code> table.
+    It has <strong>no direct connection</strong> to any app &mdash;
+    it trusts tokens purely because it can verify their signatures against the KeyStore.
+  </p>
+  <p class="mt-2">
+    In production, this could be an API gateway, a WebSocket server,
+    a microservice, or any endpoint that needs to verify "is this request authorized?"
+  </p>
+</div>
+
 <div class="bg-white shadow rounded-lg p-6 mb-6">
   <dl class="text-sm space-y-1">
-    <div class="flex justify-between"><dt class="text-gray-500">Relay Name</dt><dd class="font-semibold">{{.Relay}}</dd></div>
+    <div class="flex justify-between"><dt class="text-gray-500">Name</dt><dd class="font-semibold">{{.ResourceServer}}</dd></div>
     <div class="flex justify-between"><dt class="text-gray-500">Status</dt><dd class="text-green-600 font-semibold">Running</dd></div>
   </dl>
 </div>
 
-<h2 class="text-lg font-semibold mb-4">Recent Validations</h2>
+<h2 class="text-lg font-semibold mb-2">Recent Validations</h2>
+<p class="text-sm text-gray-500 mb-4">
+  Every token validated by this Resource Server appears here.
+  Valid tokens show the extracted <code class="bg-gray-100 px-1 rounded text-xs">user_id</code> and
+  <code class="bg-gray-100 px-1 rounded text-xs">client_id</code> (which app minted it).
+</p>
 {{if .Entries}}
 <div class="bg-white shadow rounded-lg overflow-hidden">
   <table class="w-full text-sm">
@@ -40,7 +61,7 @@
       <tr>
         <th class="px-4 py-2 text-left">Time</th>
         <th class="px-4 py-2 text-left">User ID</th>
-        <th class="px-4 py-2 text-left">Client ID</th>
+        <th class="px-4 py-2 text-left">Client ID (App)</th>
         <th class="px-4 py-2 text-left">Result</th>
       </tr>
     </thead>
@@ -51,7 +72,7 @@
         <td class="px-4 py-2 font-mono text-xs">{{.UserID}}</td>
         <td class="px-4 py-2 font-mono text-xs">{{.ClientID}}</td>
         <td class="px-4 py-2">
-          {{if .Valid}}<span class="text-green-600">Valid</span>
+          {{if .Valid}}<span class="text-green-600 font-medium">Valid</span>
           {{else}}<span class="text-red-600">Invalid: {{.Error}}</span>{{end}}
         </td>
       </tr>
@@ -60,12 +81,23 @@
   </table>
 </div>
 {{else}}
-<p class="text-gray-500 text-sm">No validations yet.</p>
+<p class="text-gray-500 text-sm bg-gray-100 rounded-lg p-4">
+  No validations yet. Go to a demo app (DrawApp or ChatApp), get a resource token, and click Validate.
+</p>
 {{end}}
 {{end}}
 
 {{define "test"}}
-<h1 class="text-2xl font-bold mb-6">Test JWT Validation</h1>
+<h1 class="text-2xl font-bold mb-2">Test JWT Validation</h1>
+
+<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6 text-sm text-emerald-900">
+  <p>
+    Paste any JWT below. The Resource Server will extract the <code class="bg-emerald-100 px-1 rounded">client_id</code> claim,
+    look up the signing key in the shared KeyStore, and verify the signature.
+    Try tokens from different apps &mdash; or tamper with a token to see it get rejected.
+  </p>
+</div>
+
 <div class="bg-white shadow rounded-lg p-6">
   <div class="mb-4">
     <label class="block text-sm font-medium text-gray-700 mb-1">Paste JWT Token</label>
@@ -92,7 +124,11 @@ async function validateJWT() {
       headers: {'Authorization': 'Bearer ' + jwt},
     });
     const data = await resp.json();
-    document.getElementById('result-body').textContent = JSON.stringify(data, null, 2);
+    const el = document.getElementById('result-body');
+    el.textContent = JSON.stringify(data, null, 2);
+    el.className = resp.ok
+      ? 'bg-green-50 border border-green-200 p-3 rounded text-xs overflow-x-auto'
+      : 'bg-red-50 border border-red-200 p-3 rounded text-xs overflow-x-auto';
     document.getElementById('result').classList.remove('hidden');
   } catch (e) {
     document.getElementById('result-body').textContent = 'Error: ' + e.message;

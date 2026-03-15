@@ -7,13 +7,13 @@ import (
 	oa "github.com/panyam/oneauth"
 )
 
-func TestMintRelayToken_Basic(t *testing.T) {
-	token, err := oa.MintRelayToken("user-123", "host-abc", "my-secret", oa.HostQuota{
+func TestMintResourceToken_Basic(t *testing.T) {
+	token, err := oa.MintResourceToken("user-123", "app-abc", "my-secret", oa.AppQuota{
 		MaxRooms:   10,
 		MaxMsgRate: 30.0,
 	}, []string{"read", "write"})
 	if err != nil {
-		t.Fatalf("MintRelayToken failed: %v", err)
+		t.Fatalf("MintResourceToken failed: %v", err)
 	}
 	if token == "" {
 		t.Fatal("Expected non-empty token")
@@ -31,8 +31,8 @@ func TestMintRelayToken_Basic(t *testing.T) {
 	if claims["sub"] != "user-123" {
 		t.Errorf("Expected sub user-123, got %v", claims["sub"])
 	}
-	if claims["client_id"] != "host-abc" {
-		t.Errorf("Expected client_id host-abc, got %v", claims["client_id"])
+	if claims["client_id"] != "app-abc" {
+		t.Errorf("Expected client_id app-abc, got %v", claims["client_id"])
 	}
 	if claims["type"] != "access" {
 		t.Errorf("Expected type access, got %v", claims["type"])
@@ -45,10 +45,10 @@ func TestMintRelayToken_Basic(t *testing.T) {
 	}
 }
 
-func TestMintRelayToken_NoQuota(t *testing.T) {
-	token, err := oa.MintRelayToken("user-1", "host-1", "secret", oa.HostQuota{}, []string{"read"})
+func TestMintResourceToken_NoQuota(t *testing.T) {
+	token, err := oa.MintResourceToken("user-1", "app-1", "secret", oa.AppQuota{}, []string{"read"})
 	if err != nil {
-		t.Fatalf("MintRelayToken failed: %v", err)
+		t.Fatalf("MintResourceToken failed: %v", err)
 	}
 
 	parsed, _ := jwt.Parse(token, func(t *jwt.Token) (any, error) {
@@ -65,17 +65,17 @@ func TestMintRelayToken_NoQuota(t *testing.T) {
 	}
 }
 
-func TestMintRelayToken_VerifiableByMiddleware(t *testing.T) {
-	secret := "shared-secret-between-host-and-relay"
-	clientID := "host-excaliframe"
+func TestMintResourceToken_VerifiableByMiddleware(t *testing.T) {
+	secret := "shared-secret-between-app-and-resource-server"
+	clientID := "app-excaliframe"
 
-	// Host mints token
-	token, err := oa.MintRelayToken("user-42", clientID, secret, oa.HostQuota{}, []string{"read"})
+	// App mints token
+	token, err := oa.MintResourceToken("user-42", clientID, secret, oa.AppQuota{}, []string{"read"})
 	if err != nil {
-		t.Fatalf("MintRelayToken failed: %v", err)
+		t.Fatalf("MintResourceToken failed: %v", err)
 	}
 
-	// Relay verifies using KeyStore
+	// Resource server verifies using KeyStore
 	ks := oa.NewInMemoryKeyStore()
 	ks.RegisterKey(clientID, []byte(secret), "HS256")
 
@@ -103,8 +103,8 @@ func TestMintRelayToken_VerifiableByMiddleware(t *testing.T) {
 	}
 }
 
-func TestMintRelayToken_WrongSecretRejected(t *testing.T) {
-	token, _ := oa.MintRelayToken("user-1", "host-1", "correct-secret", oa.HostQuota{}, []string{"read"})
+func TestMintResourceToken_WrongSecretRejected(t *testing.T) {
+	token, _ := oa.MintResourceToken("user-1", "app-1", "correct-secret", oa.AppQuota{}, []string{"read"})
 
 	// Verify with wrong secret should fail
 	_, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
