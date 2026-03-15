@@ -14,7 +14,7 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 - **Multi-tenant JWT**: KeyStore interface for per-client signing keys, custom claims, algorithm confusion prevention
 - **Policy-Based Validation**: Configurable signup requirements (SignupPolicy)
 - **Username Support**: Optional username uniqueness with username-based login
-- **App Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), AppRegistrar HTTP handler (formerly HostRegistrar) for App CRUD, MintResourceToken (formerly MintRelayToken) for resource-scoped JWTs
+- **App Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), AppRegistrar HTTP handler for App CRUD, MintResourceToken for resource-scoped JWTs
 - **Client SDK**: AuthClient with CredentialStore, HTTPClient wrapper with automatic token refresh on 401
 - **Reference Server**: Config-driven server in `cmd/oneauth-server/`, deployable to GAE, Docker, and Kubernetes
 - **Federated Auth Demo**: 6-service Docker Compose demo (oneauth-server, 2 app services, 2 resource servers, PostgreSQL) in `demo/`
@@ -39,7 +39,7 @@ oneauth/
 ├── client/               # Client SDK for token management
 │   └── stores/fs/        # File-based credential store
 ├── cmd/oneauth-server/   # Reference server (config-driven, GAE/Docker/K8s)
-├── cmd/demo-hostapp/     # Demo app (DrawApp/ChatApp, formerly "host app")
+├── cmd/demo-hostapp/     # Demo app (DrawApp/ChatApp)
 ├── cmd/demo-resource-server/  # Demo resource server (JWT validation service)
 ├── demo/                 # Docker Compose demo (6 services: auth, 2 apps, 2 resource servers, DB)
 ├── keystoretest/         # Shared KeyStore test suite
@@ -153,7 +153,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 - **v0.0.33**: Federated auth demo (6-service Docker Compose), reference server browser UI with templates, demo apps and resource server services, integration tests for browser auth/federated flow/multi-app/token refresh.
 - **v0.0.32**: APIMiddleware enhancements (TokenQueryParam, GetCustomClaimsFromContext).
-- **v0.0.31**: App Registration API (AdminAuth, AppRegistrar — formerly HostRegistrar, MintResourceToken — formerly MintRelayToken). Config-driven reference server (`cmd/oneauth-server/`).
+- **v0.0.31**: App Registration API (AdminAuth, AppRegistrar, MintResourceToken). Config-driven reference server (`cmd/oneauth-server/`).
 - **v0.0.30**: WritableKeyStore interface. Persistent KeyStore backends (GORM, FS, GAE). Shared test suite in `keystoretest/`.
 - **v0.0.29**: CustomClaimsFunc, KeyStore interface, InMemoryKeyStore, multi-tenant JWT validation with algorithm confusion prevention.
 - **v0.0.28**: Optimistic locking (Version, UpdatedAt) on Identity/Channel. ExpiresAt on Channel for OAuth token expiry tracking.

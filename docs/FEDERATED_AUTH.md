@@ -1,12 +1,12 @@
 # Federated Authentication
 
-OneAuth supports a federated authentication model where multiple Apps (formerly called "Hosts") register with a central auth service, obtain credentials, and mint scoped JWTs that downstream resource servers (e.g., a WebSocket relay like massrelay) validate using a shared KeyStore.
+OneAuth supports a federated authentication model where multiple Apps register with a central auth service, obtain credentials, and mint scoped JWTs that downstream resource servers (e.g., a WebSocket relay like massrelay) validate using a shared KeyStore.
 
 ## Architecture Overview
 
 Three projects collaborate in a federated deployment:
 
-1. **oneauth** (this repo) — shared auth library + App Registration API (formerly Host Registration API)
+1. **oneauth** (this repo) — shared auth library + App Registration API
 2. **Resource server** (e.g., massrelay) — validates resource-scoped JWTs using KeyStore
 3. **App** (e.g., excaliframe) — registers as an App, authenticates users locally, mints resource tokens
 
@@ -67,7 +67,7 @@ The App uses its own authentication system (could be oneauth's `LocalAuth`, OAut
 
 ### Step 3: App Mints a Resource Token
 
-After authenticating a user, the App mints a resource-scoped JWT using `MintResourceToken` (formerly `MintRelayToken`):
+After authenticating a user, the App mints a resource-scoped JWT using `MintResourceToken`:
 
 ```go
 import oa "github.com/panyam/oneauth"
@@ -76,7 +76,7 @@ token, err := oa.MintResourceToken(
     "user-42",              // userID (goes to JWT "sub" claim)
     "app_a1b2c3d4e5f6",    // appClientID (goes to "client_id" claim)
     "64-char-hex-string",   // appSecret (HS256 signing key)
-    oa.AppQuota{            // embedded as custom claims (formerly HostQuota)
+    oa.AppQuota{            // embedded as custom claims
         MaxRooms:   10,
         MaxMsgRate: 30.0,
     },
@@ -137,7 +137,7 @@ Validation flow:
 
 ## App Registration API
 
-The `AppRegistrar` (formerly `HostRegistrar`) provides a complete CRUD API for managing app registrations.
+The `AppRegistrar` provides a complete CRUD API for managing app registrations.
 
 ### Setup
 
@@ -180,7 +180,7 @@ GET /apps
 X-Admin-Key: admin-secret
 ```
 
-Returns JSON with `"apps"` key containing an array of `AppRegistration` (formerly `HostRegistration`) objects (secrets are not included).
+Returns JSON with `"apps"` key containing an array of `AppRegistration` objects (secrets are not included).
 
 #### Get App
 
@@ -251,7 +251,7 @@ auth := oa.NewNoAuth()
 
 ## MintResourceToken
 
-Helper function for Apps to mint resource-scoped JWTs after authenticating their users. Formerly named `MintRelayToken`; the deprecated alias still works.
+Helper function for Apps to mint resource-scoped JWTs after authenticating their users.
 
 ```go
 func MintResourceToken(
@@ -272,7 +272,7 @@ type AppQuota struct {
 }
 ```
 
-Formerly `HostQuota`; the deprecated alias still works. Quota values are embedded as custom claims in the JWT. Zero values are omitted.
+Quota values are embedded as custom claims in the JWT. Zero values are omitted.
 
 ### Example: App-Side Token Minting
 
@@ -322,7 +322,7 @@ For store setup details, see [STORES.md](STORES.md#keystore--writablekeystore).
 
 ## Reference Server
 
-The `cmd/oneauth-server/` directory contains a config-driven reference server that bundles `AppRegistrar` (formerly `HostRegistrar`), `AdminAuth`, and KeyStore wiring.
+The `cmd/oneauth-server/` directory contains a config-driven reference server that bundles `AppRegistrar`, `AdminAuth`, and KeyStore wiring.
 
 ### YAML Configuration
 

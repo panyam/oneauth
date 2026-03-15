@@ -10,7 +10,7 @@ Runnable demos that exercise key OneAuth scenarios end-to-end. Each section desc
 
 ### What It Demonstrates
 
-Multiple independent applications ("Apps", formerly called "Hosts") register with a central auth server, authenticate their own users independently, mint resource-scoped JWTs, and have those tokens validated by resource servers that share no direct connection to the apps.
+Multiple independent applications ("Apps") register with a central auth server, authenticate their own users independently, mint resource-scoped JWTs, and have those tokens validated by resource servers that share no direct connection to the apps.
 
 This answers the core question: **How does a resource server trust a JWT issued by an application it has never seen before?**
 

@@ -8,7 +8,7 @@ A Go authentication library providing unified local and OAuth-based authenticati
 - **Multi-provider support** — One account accessible via password, Google, GitHub, etc.
 - **API authentication** — JWT access tokens, refresh tokens, API keys
 - **Multi-tenant JWT** — KeyStore interface for per-client signing keys with algorithm confusion prevention
-- **Federated auth** — App registration (formerly host registration), resource-scoped token minting, custom claims
+- **Federated auth** — App registration, resource-scoped token minting, custom claims
 - **Flexible storage** — File-based, GORM (SQL), and GAE/Datastore implementations
 - **Client SDK** — Token management, auto-refresh, credential persistence for CLI tools
 - **gRPC support** — Auth context utilities and interceptors

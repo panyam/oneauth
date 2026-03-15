@@ -17,8 +17,8 @@
 ### App Registration API & Reference Server
 
 - **`AdminAuth` interface** with `APIKeyAuth` and `NoAuth` implementations for protecting admin endpoints
-- **`AppRegistrar` HTTP handler** (formerly `HostRegistrar`) providing full App CRUD: register, list, get, delete, and rotate secret
-- **`MintResourceToken` helper** (formerly `MintRelayToken`) for issuing resource-scoped JWTs with app/subject claims
+- **`AppRegistrar` HTTP handler** providing full App CRUD: register, list, get, delete, and rotate secret
+- **`MintResourceToken` helper** for issuing resource-scoped JWTs with app/subject claims
 - **Config-driven reference server** in `cmd/oneauth-server/` with YAML config and environment variable substitution
 - Deployable to **GAE, Docker Compose, and Kubernetes**
 - **Integration tests** (pytest) covering the full app registration lifecycle

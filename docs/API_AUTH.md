@@ -361,8 +361,8 @@ The `KeyStore` interface supports asymmetric signing:
 
 For federated systems where external apps register and receive credentials for minting scoped JWTs, OneAuth provides:
 
-- **`AppRegistrar`** (formerly `HostRegistrar`): An embeddable HTTP handler for app CRUD operations (register, list, get, delete, rotate secret). Stores app credentials in a `WritableKeyStore`.
-- **`MintResourceToken`** (formerly `MintRelayToken`): A helper function that apps call after authenticating their own users, producing scoped JWTs that downstream resource servers can validate via KeyStore.
+- **`AppRegistrar`**: An embeddable HTTP handler for app CRUD operations (register, list, get, delete, rotate secret). Stores app credentials in a `WritableKeyStore`.
+- **`MintResourceToken`**: A helper function that apps call after authenticating their own users, producing scoped JWTs that downstream resource servers can validate via KeyStore.
 
 For the full registration flow and architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 

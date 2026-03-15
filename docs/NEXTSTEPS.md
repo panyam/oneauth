@@ -59,7 +59,7 @@
 
 - [x] **P0** `CustomClaimsFunc` + multi-tenant `KeyStore` interface (#2) ✅
 - [x] **P0** App registration API + service component (#3) ✅
-  > `AdminAuth` interface, `AppRegistrar` HTTP handler (formerly `HostRegistrar`), `MintResourceToken` helper (formerly `MintRelayToken`), reference server
+  > `AdminAuth` interface, `AppRegistrar` HTTP handler, `MintResourceToken` helper, reference server
 - [x] **P1** Persistent `KeyStore` implementations — FS, GORM, GAE (#5) ✅
   > `WritableKeyStore` interface, shared test suite (`keystoretest`), GORM/FS/GAE implementations
 - [x] **P1** `APIMiddleware` enhancements — `TokenQueryParam` for query-param token extraction, `GetCustomClaimsFromContext()` for custom claims in context ✅

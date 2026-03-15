@@ -69,7 +69,7 @@ Each mode has its own detailed documentation:
 
 - **[Browser Auth](BROWSER_AUTH.md)** — Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error handling
 - **[API Auth](API_AUTH.md)** — JWT access tokens, refresh tokens with rotation and theft detection, API keys, scope-based access control, custom claims, multi-tenant JWT validation via KeyStore
-- **[Federated Auth](FEDERATED_AUTH.md)** — App Registration API (AdminAuth, AppRegistrar; formerly HostRegistrar), resource token minting (MintResourceToken; formerly MintRelayToken), multi-service architecture with shared KeyStore
+- **[Federated Auth](FEDERATED_AUTH.md)** — App Registration API (AdminAuth, AppRegistrar), resource token minting (MintResourceToken), multi-service architecture with shared KeyStore
 - **[Auth Flows](AUTH_FLOWS.md)** — Detailed decision trees for login/signup, provider linking matrix, user journeys, edge cases
 
 ## Store Architecture
