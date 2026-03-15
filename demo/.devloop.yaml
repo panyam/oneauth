@@ -48,8 +48,7 @@ rules:
       JWT_SECRET_KEY: "demo-jwt-secret-key-change-me"
       JWT_ISSUER: "oneauth-demo"
     commands:
-      - "go build -buildvcs=false -o ./bin/oneauth-server ./cmd/oneauth-server"
-      - "./bin/oneauth-server"
+      - "go run -buildvcs=false ./cmd/oneauth-server"
 
   # DrawApp (demo app #1)
   - name: "drawapp"
@@ -76,9 +75,8 @@ rules:
       ONEAUTH_URL: "http://localhost:9999"
       ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
     commands:
-      - "go build -buildvcs=false -o ./bin/demo-hostapp ./cmd/demo-hostapp"
       - "sleep 1"
-      - "./bin/demo-hostapp"
+      - "go run -buildvcs=false ./cmd/demo-hostapp"
 
   # ChatApp (demo app #2)
   - name: "chatapp"
@@ -105,9 +103,8 @@ rules:
       ONEAUTH_URL: "http://localhost:9999"
       ONEAUTH_ADMIN_KEY: "demo-admin-key-12345"
     commands:
-      - "go build -buildvcs=false -o ./bin/demo-hostapp ./cmd/demo-hostapp"
       - "sleep 1"
-      - "./bin/demo-hostapp"
+      - "go run -buildvcs=false ./cmd/demo-hostapp"
 
   # Resource Server A
   - name: "resource-a"
@@ -132,8 +129,7 @@ rules:
       PORT: "4001"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
     commands:
-      - "go build -buildvcs=false -o ./bin/demo-resource-server ./cmd/demo-resource-server"
-      - "./bin/demo-resource-server"
+      - "go run -buildvcs=false ./cmd/demo-resource-server"
 
   # Resource Server B
   - name: "resource-b"
@@ -158,5 +154,4 @@ rules:
       PORT: "4002"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
     commands:
-      - "go build -buildvcs=false -o ./bin/demo-resource-server ./cmd/demo-resource-server"
-      - "./bin/demo-resource-server"
+      - "go run -buildvcs=false ./cmd/demo-resource-server"
