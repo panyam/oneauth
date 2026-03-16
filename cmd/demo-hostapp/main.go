@@ -192,7 +192,24 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
+// verifyCredentials checks if the auth server still knows about this client_id.
+func verifyCredentials(creds *appCredentials, oaURL, adminKey string) bool {
+	req, err := http.NewRequest("GET", oaURL+"/apps/"+creds.ClientID, nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("X-Admin-Key", adminKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
 // loadOrRegisterApp loads saved app credentials or registers with oneauth-server.
+// If cached credentials exist but the auth server doesn't recognize them
+// (e.g. database was reset), re-registers automatically.
 func loadOrRegisterApp(dataDir, appName, oaURL, adminKey string) (*appCredentials, error) {
 	credsFile := filepath.Join(dataDir, "app_credentials.json")
 
@@ -200,7 +217,11 @@ func loadOrRegisterApp(dataDir, appName, oaURL, adminKey string) (*appCredential
 	if data, err := os.ReadFile(credsFile); err == nil {
 		var creds appCredentials
 		if err := json.Unmarshal(data, &creds); err == nil && creds.ClientID != "" {
-			return &creds, nil
+			if verifyCredentials(&creds, oaURL, adminKey) {
+				return &creds, nil
+			}
+			log.Printf("Cached credentials for %s are stale (auth server doesn't recognize client_id %s), re-registering", appName, creds.ClientID)
+			os.Remove(credsFile)
 		}
 	}
 
