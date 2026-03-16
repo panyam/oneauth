@@ -18,7 +18,7 @@ rules:
           - "docker-compose.yml"
     commands:
       - "docker compose -f docker-compose.yml up -d --remove-orphans postgres"
-      - "until nc -z localhost 5432 2>/dev/null; do sleep 0.5; done"
+      - "until docker compose -f docker-compose.yml exec -T postgres pg_isready -U oneauth -q 2>/dev/null; do sleep 0.5; done"
 
   # OneAuth Server (central auth + app registration)
   - name: "oneauth-server"
@@ -48,7 +48,7 @@ rules:
       JWT_SECRET_KEY: "demo-jwt-secret-key-change-me"
       JWT_ISSUER: "oneauth-demo"
     commands:
-      - "until nc -z localhost 5432 2>/dev/null; do sleep 0.5; done"
+      - "until docker compose -f ./demo/docker-compose.yml exec -T postgres pg_isready -U oneauth -q 2>/dev/null; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/oneauth-server"
 
   # DrawApp (demo app #1) — no direct PG dependency, waits for auth server
@@ -130,7 +130,7 @@ rules:
       PORT: "4001"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
     commands:
-      - "until nc -z localhost 5432 2>/dev/null; do sleep 0.5; done"
+      - "until docker compose -f ./demo/docker-compose.yml exec -T postgres pg_isready -U oneauth -q 2>/dev/null; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/demo-resource-server"
 
   # Resource Server B — needs PG for shared KeyStore
@@ -156,5 +156,5 @@ rules:
       PORT: "4002"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
     commands:
-      - "until nc -z localhost 5432 2>/dev/null; do sleep 0.5; done"
+      - "until docker compose -f ./demo/docker-compose.yml exec -T postgres pg_isready -U oneauth -q 2>/dev/null; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/demo-resource-server"
