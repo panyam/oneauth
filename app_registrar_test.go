@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/utils"
 )
 
 func setupRegistrar(t *testing.T) (*oa.AppRegistrar, *oa.InMemoryKeyStore) {
@@ -351,5 +352,169 @@ func TestAppRegistrar_AdminAuth_ReadEndpoints(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Errorf("List with auth: expected 200, got %d", rr.Code)
+	}
+}
+
+func TestAppRegistrar_Register_RS256(t *testing.T) {
+	reg, ks := setupRegistrar(t)
+	handler := reg.Handler()
+
+	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
+
+	body, _ := json.Marshal(map[string]any{
+		"client_domain": "asymmetric-app.com",
+		"signing_alg":   "RS256",
+		"public_key":    string(pubPEM),
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("Expected 201, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]any
+	json.NewDecoder(rr.Body).Decode(&resp)
+
+	// Should have client_id but NOT client_secret
+	if resp["client_id"] == nil || resp["client_id"] == "" {
+		t.Fatal("Expected non-empty client_id")
+	}
+	if _, hasSecret := resp["client_secret"]; hasSecret {
+		t.Error("RS256 registration should not return client_secret")
+	}
+	if resp["signing_alg"] != "RS256" {
+		t.Errorf("Expected signing_alg RS256, got %v", resp["signing_alg"])
+	}
+
+	// Verify key stored as PEM bytes
+	clientID := resp["client_id"].(string)
+	key, _ := ks.GetVerifyKey(clientID)
+	if string(key.([]byte)) != string(pubPEM) {
+		t.Error("Stored key should be the public key PEM")
+	}
+	alg, _ := ks.GetExpectedAlg(clientID)
+	if alg != "RS256" {
+		t.Errorf("Expected alg RS256, got %s", alg)
+	}
+}
+
+func TestAppRegistrar_Register_RS256_MissingPublicKey(t *testing.T) {
+	reg, _ := setupRegistrar(t)
+	handler := reg.Handler()
+
+	body, _ := json.Marshal(map[string]any{
+		"client_domain": "no-key.com",
+		"signing_alg":   "RS256",
+		// no public_key
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestAppRegistrar_Register_RS256_InvalidPEM(t *testing.T) {
+	reg, _ := setupRegistrar(t)
+	handler := reg.Handler()
+
+	body, _ := json.Marshal(map[string]any{
+		"client_domain": "bad-pem.com",
+		"signing_alg":   "RS256",
+		"public_key":    "not-a-valid-pem",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestAppRegistrar_RotateKey_RS256(t *testing.T) {
+	reg, ks := setupRegistrar(t)
+	handler := reg.Handler()
+
+	// Register with RS256
+	_, pubPEM1, _ := utils.GenerateRSAKeyPair(2048)
+	body, _ := json.Marshal(map[string]any{
+		"client_domain": "rotate-asym.com",
+		"signing_alg":   "RS256",
+		"public_key":    string(pubPEM1),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	var regResp map[string]any
+	json.NewDecoder(rr.Body).Decode(&regResp)
+	clientID := regResp["client_id"].(string)
+
+	// Rotate with new public key
+	_, pubPEM2, _ := utils.GenerateRSAKeyPair(2048)
+	rotBody, _ := json.Marshal(map[string]any{
+		"public_key": string(pubPEM2),
+	})
+	req = httptest.NewRequest(http.MethodPost, "/apps/"+clientID+"/rotate", bytes.NewReader(rotBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	var rotResp map[string]any
+	json.NewDecoder(rr.Body).Decode(&rotResp)
+
+	// Should NOT have client_secret
+	if _, hasSecret := rotResp["client_secret"]; hasSecret {
+		t.Error("RS256 rotation should not return client_secret")
+	}
+
+	// KeyStore should have the new key
+	key, _ := ks.GetVerifyKey(clientID)
+	if string(key.([]byte)) != string(pubPEM2) {
+		t.Error("KeyStore should have the rotated public key")
+	}
+}
+
+func TestAppRegistrar_RotateKey_RS256_MissingKey(t *testing.T) {
+	reg, _ := setupRegistrar(t)
+	handler := reg.Handler()
+
+	// Register with RS256
+	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
+	body, _ := json.Marshal(map[string]any{
+		"client_domain": "rotate-fail.com",
+		"signing_alg":   "RS256",
+		"public_key":    string(pubPEM),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	var regResp map[string]any
+	json.NewDecoder(rr.Body).Decode(&regResp)
+	clientID := regResp["client_id"].(string)
+
+	// Rotate without public_key — should fail
+	req = httptest.NewRequest(http.MethodPost, "/apps/"+clientID+"/rotate", nil)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400, got %d. Body: %s", rr.Code, rr.Body.String())
 	}
 }

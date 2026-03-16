@@ -86,7 +86,7 @@ uv run pytest tests/integration/test_05_browser_auth.py \
 |---------------------|-------------------|
 | **In-memory app metadata** — `AppRegistrar.apps` map is lost on restart. Signing keys survive (in PostgreSQL) but metadata like domain, quotas, created_at is gone. | Persist app registrations in a database (`AppStore` interface — not yet implemented). |
 | **FS-backed user stores** — each app stores users on disk under `/data/{name}/`. | Use GORM or GAE stores behind a real database. FS stores don't work in clusters. |
-| **HS256 only** — all tokens use symmetric HMAC signing. The resource server needs the same secret as the app. | Asymmetric signing (RS256/ES256, issue #4) lets apps keep private keys secret. Resource server only needs public keys. |
+| **HS256 only** — demo uses symmetric HMAC signing for simplicity. The resource server needs the same secret as the app. | Asymmetric signing (RS256/ES256) is now supported — apps can register with a public key and keep their private key secret. Resource servers only need the public key. See [FEDERATED_AUTH.md](FEDERATED_AUTH.md#asymmetric-signing-rs256es256). |
 | **No JWKS** — resource server reads keys from PostgreSQL directly. | JWKS endpoint (issue #7) lets resource servers auto-discover public keys via HTTP without shared database access. |
 | **Single PostgreSQL** — all services share one database instance. | Separate read replicas, or JWKS-based discovery, or each resource server has its own KeyStore sync. |
 | **Static quotas** — `max_rooms` and `max_msg_rate` are set at registration time and hardcoded in token minting. | Dynamic quotas from a billing/entitlement system. |
@@ -142,7 +142,7 @@ Every step requires browser cookies and HTTP redirects. SPAs doing `fetch()` and
 
 | Demo | Scenario | Depends On |
 |------|----------|------------|
-| Asymmetric resource server auth | App uses RS256 private key, resource server validates with public key only | Issue #4 |
+| Asymmetric resource server auth | App uses RS256 private key, resource server validates with public key only | ✅ Core support done (issue #4), demo extension needed |
 | JWKS discovery | Resource server auto-fetches app public keys via `.well-known/jwks.json` | Issue #7 |
 | Client SDK | CLI tool authenticates, gets tokens, makes authenticated API calls | Client SDK migration (lilbattle) |
 | Multi-factor auth | Login with password + TOTP code from authenticator app | MFA implementation |

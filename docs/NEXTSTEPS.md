@@ -134,8 +134,10 @@
 
 ### Federated Auth (Remaining)
 
-- [ ] **P1** Asymmetric signing support — RS256/ES256 (#4)
-  > Compatible extension: per-app algorithm choice, both HS256 and asymmetric coexist
+- [x] **P1** Asymmetric signing support — RS256/ES256 (#4) ✅
+  > `MintResourceTokenWithKey` with auto-detected algorithm, `APIAuth.JWTSigningKey`/`JWTVerifyKey`,
+  > `APIMiddleware.validateJWT` decodes PEM via `utils.DecodeVerifyKey`, `AppRegistrar` accepts `public_key` PEM for asymmetric registration,
+  > shared keystoretest for asymmetric round-trip, algorithm confusion attack prevention
 
 ### Phase 3: OAuth Integration for API
 
@@ -369,7 +371,7 @@ Compliance (can be parallel)
 
 1. **Phase 3** (P0 blockers) — Unblocks mobile/SPA OAuth clients
 2. **lilbattle migration** (P1) — Validates the completed Client SDK end-to-end
-3. **Asymmetric signing (#4)** (P1) — Completes federated auth
+3. ~~**Asymmetric signing (#4)** (P1)~~ ✅ COMPLETE
 4. **Redis Store** (P1) — Unblocks production deployments
 5. **Token Blacklist + Account Lockout** (P1 security) — Basic security hardening
 6. **GDPR + Audit Logging** (P1 compliance) — If targeting EU/enterprise

@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "Running tests before push..."
+go test ./... || exit 1
+echo "All tests passed."

@@ -28,7 +28,10 @@ apiAuth := &oneauth.APIAuth{
     ValidateCredentials: validateCreds, // From NewCredentialsValidator
     RefreshTokenStore:   refreshTokenStore,
     APIKeyStore:         apiKeyStore,
-    JWTSecretKey:        os.Getenv("JWT_SECRET"),
+    JWTSecretKey:        os.Getenv("JWT_SECRET"),  // HMAC signing (HS256)
+    // JWTSigningKey:    privKey,   // Optional: *rsa.PrivateKey or *ecdsa.PrivateKey (RS256/ES256)
+    // JWTVerifyKey:     pubKey,    // Optional: *rsa.PublicKey or *ecdsa.PublicKey
+    // JWTSigningAlg:    "RS256",   // Set when using asymmetric keys
     JWTIssuer:           "yourapp.com",
     JWTAudience:         "yourapp-api",
     AccessTokenExpiry:   15 * time.Minute,

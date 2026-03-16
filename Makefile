@@ -156,4 +156,7 @@ gaelogs:
 integ:
 	$(MAKE) -C tests/integration all
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ
+setup-hooks:
+	git config core.hooksPath .githooks
+
+.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ setup-hooks

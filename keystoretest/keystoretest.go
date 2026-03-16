@@ -3,10 +3,12 @@
 package keystoretest
 
 import (
+	"crypto/rsa"
 	"sort"
 	"testing"
 
 	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/utils"
 )
 
 // Factory creates a fresh WritableKeyStore for each test.
@@ -23,6 +25,7 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("ListKeys", func(t *testing.T) { TestListKeys(t, factory) })
 	t.Run("ListKeysEmpty", func(t *testing.T) { TestListKeysEmpty(t, factory) })
 	t.Run("Persistence", func(t *testing.T) { TestPersistence(t, factory) })
+	t.Run("AsymmetricKey", func(t *testing.T) { TestRegisterAndGetAsymmetricKey(t, factory) })
 }
 
 func TestRegisterAndGet(t *testing.T, factory Factory) {
@@ -224,5 +227,50 @@ func TestPersistence(t *testing.T, factory Factory) {
 	}
 	if string(key.([]byte)) != "persistent-secret" {
 		t.Error("Key material should persist")
+	}
+}
+
+func TestRegisterAndGetAsymmetricKey(t *testing.T, factory Factory) {
+	ks := factory(t)
+
+	// Generate an RSA key pair and store the public key PEM
+	_, pubPEM, err := utils.GenerateRSAKeyPair(2048)
+	if err != nil {
+		t.Fatalf("GenerateRSAKeyPair failed: %v", err)
+	}
+
+	if err := ks.RegisterKey("app-rsa", pubPEM, "RS256"); err != nil {
+		t.Fatalf("RegisterKey failed: %v", err)
+	}
+
+	// GetVerifyKey should return the same PEM bytes
+	key, err := ks.GetVerifyKey("app-rsa")
+	if err != nil {
+		t.Fatalf("GetVerifyKey failed: %v", err)
+	}
+	keyBytes, ok := key.([]byte)
+	if !ok {
+		t.Fatalf("Expected []byte, got %T", key)
+	}
+	if string(keyBytes) != string(pubPEM) {
+		t.Error("Stored PEM should match original")
+	}
+
+	// GetExpectedAlg should return RS256
+	alg, err := ks.GetExpectedAlg("app-rsa")
+	if err != nil {
+		t.Fatalf("GetExpectedAlg failed: %v", err)
+	}
+	if alg != "RS256" {
+		t.Errorf("Expected alg RS256, got %s", alg)
+	}
+
+	// DecodeVerifyKey should parse PEM into *rsa.PublicKey
+	decoded, err := utils.DecodeVerifyKey(key, alg)
+	if err != nil {
+		t.Fatalf("DecodeVerifyKey failed: %v", err)
+	}
+	if _, ok := decoded.(*rsa.PublicKey); !ok {
+		t.Errorf("Expected *rsa.PublicKey, got %T", decoded)
 	}
 }

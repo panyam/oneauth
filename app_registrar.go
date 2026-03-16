@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/panyam/oneauth/utils"
 )
 
 // AppRegistration holds metadata about a registered App.
@@ -80,6 +82,7 @@ func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ClientDomain string  `json:"client_domain"`
 		SigningAlg   string  `json:"signing_alg"`
+		PublicKey    string  `json:"public_key"` // PEM-encoded public key (required for RS256/ES256)
 		MaxRooms     int     `json:"max_rooms"`
 		MaxMsgRate   float64 `json:"max_msg_rate"`
 	}
@@ -92,22 +95,50 @@ func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
 		req.SigningAlg = "HS256"
 	}
 
-	// Generate client ID and secret
+	// Generate client ID
 	clientID, err := generateClientID()
 	if err != nil {
 		h.jsonError(w, "server_error", "Failed to generate client ID", http.StatusInternalServerError)
 		return
 	}
-	secret, err := generateSecret()
-	if err != nil {
-		h.jsonError(w, "server_error", "Failed to generate secret", http.StatusInternalServerError)
-		return
+
+	resp := map[string]any{
+		"client_id":     clientID,
+		"client_domain": req.ClientDomain,
+		"signing_alg":   req.SigningAlg,
+		"max_rooms":     req.MaxRooms,
+		"max_msg_rate":  req.MaxMsgRate,
 	}
 
-	// Store in KeyStore
-	if err := h.KeyStore.RegisterKey(clientID, []byte(secret), req.SigningAlg); err != nil {
-		h.jsonError(w, "server_error", "Failed to store key", http.StatusInternalServerError)
-		return
+	if utils.IsAsymmetricAlg(req.SigningAlg) {
+		// Asymmetric: require public_key PEM, no secret generated
+		if req.PublicKey == "" {
+			h.jsonError(w, "invalid_request", "public_key is required for "+req.SigningAlg, http.StatusBadRequest)
+			return
+		}
+		// Validate PEM parses to a valid public key of the right type
+		if _, err := utils.DecodeVerifyKey([]byte(req.PublicKey), req.SigningAlg); err != nil {
+			h.jsonError(w, "invalid_request", "Invalid public key: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		// Store PEM bytes
+		if err := h.KeyStore.RegisterKey(clientID, []byte(req.PublicKey), req.SigningAlg); err != nil {
+			h.jsonError(w, "server_error", "Failed to store key", http.StatusInternalServerError)
+			return
+		}
+		// No client_secret in response for asymmetric
+	} else {
+		// Symmetric: generate secret
+		secret, err := generateSecret()
+		if err != nil {
+			h.jsonError(w, "server_error", "Failed to generate secret", http.StatusInternalServerError)
+			return
+		}
+		if err := h.KeyStore.RegisterKey(clientID, []byte(secret), req.SigningAlg); err != nil {
+			h.jsonError(w, "server_error", "Failed to store key", http.StatusInternalServerError)
+			return
+		}
+		resp["client_secret"] = secret
 	}
 
 	// Store registration metadata
@@ -124,18 +155,11 @@ func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
 	h.apps[clientID] = reg
 	h.mu.Unlock()
 
-	// Return client_id and secret (secret is only shown once)
+	resp["created_at"] = reg.CreatedAt
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{
-		"client_id":     clientID,
-		"client_secret": secret,
-		"client_domain": reg.ClientDomain,
-		"signing_alg":   reg.SigningAlg,
-		"max_rooms":     reg.MaxRooms,
-		"max_msg_rate":  reg.MaxMsgRate,
-		"created_at":    reg.CreatedAt,
-	})
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *AppRegistrar) handleListApps(w http.ResponseWriter, r *http.Request) {
@@ -233,22 +257,41 @@ func (h *AppRegistrar) handleRotateSecret(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	newSecret, err := generateSecret()
-	if err != nil {
-		h.jsonError(w, "server_error", "Failed to generate secret", http.StatusInternalServerError)
-		return
-	}
+	resp := map[string]any{"client_id": clientID}
 
-	if err := h.KeyStore.RegisterKey(clientID, []byte(newSecret), reg.SigningAlg); err != nil {
-		h.jsonError(w, "server_error", "Failed to update key", http.StatusInternalServerError)
-		return
+	if utils.IsAsymmetricAlg(reg.SigningAlg) {
+		// Asymmetric: require new public_key in request body
+		var req struct {
+			PublicKey string `json:"public_key"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PublicKey == "" {
+			h.jsonError(w, "invalid_request", "public_key is required for key rotation with "+reg.SigningAlg, http.StatusBadRequest)
+			return
+		}
+		if _, err := utils.DecodeVerifyKey([]byte(req.PublicKey), reg.SigningAlg); err != nil {
+			h.jsonError(w, "invalid_request", "Invalid public key: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := h.KeyStore.RegisterKey(clientID, []byte(req.PublicKey), reg.SigningAlg); err != nil {
+			h.jsonError(w, "server_error", "Failed to update key", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Symmetric: generate new secret
+		newSecret, err := generateSecret()
+		if err != nil {
+			h.jsonError(w, "server_error", "Failed to generate secret", http.StatusInternalServerError)
+			return
+		}
+		if err := h.KeyStore.RegisterKey(clientID, []byte(newSecret), reg.SigningAlg); err != nil {
+			h.jsonError(w, "server_error", "Failed to update key", http.StatusInternalServerError)
+			return
+		}
+		resp["client_secret"] = newSecret
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"client_id":     clientID,
-		"client_secret": newSecret,
-	})
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *AppRegistrar) jsonError(w http.ResponseWriter, code, message string, status int) {

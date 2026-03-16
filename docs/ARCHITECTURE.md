@@ -121,9 +121,11 @@ See **[Client SDK](CLIENT_SDK.md)** for full details.
 - Expiry enforcement with lazy cleanup
 
 ### JWT Security
-- HS256 signing (asymmetric RS256/ES256 planned)
+- HS256, RS256, and ES256 signing (per-app algorithm choice, all coexist in the same KeyStore)
+- Asymmetric signing: apps keep private keys, register only public keys; resource servers verify without knowing signing secrets
 - Audience and issuer validation
 - Algorithm confusion prevention via `GetExpectedAlg`
+- `utils.DecodeVerifyKey` converts stored PEM bytes to `crypto.PublicKey` at read time
 
 ### Refresh Token Security
 - Rotation on use

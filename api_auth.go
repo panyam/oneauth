@@ -2,6 +2,8 @@ package oneauth
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/utils"
 )
 
 // APIAuth handles API token-based authentication
@@ -19,10 +22,14 @@ type APIAuth struct {
 	APIKeyStore       APIKeyStore
 
 	// JWT configuration
-	JWTSecretKey  string // Secret key for signing JWTs
+	JWTSecretKey  string // Secret key for signing JWTs (HMAC)
 	JWTIssuer     string // Issuer claim (e.g., "myapp")
 	JWTAudience   string // Audience claim (e.g., "api")
 	JWTSigningAlg string // Signing algorithm (defaults to HS256)
+
+	// Asymmetric JWT keys (optional — when set, these take precedence over JWTSecretKey)
+	JWTSigningKey any // crypto.PrivateKey (*rsa.PrivateKey or *ecdsa.PrivateKey) for signing
+	JWTVerifyKey  any // crypto.PublicKey (*rsa.PublicKey or *ecdsa.PublicKey) for verification
 
 	// Token configuration
 	AccessTokenExpiry  time.Duration // Defaults to 15 minutes
@@ -356,15 +363,18 @@ func (a *APIAuth) CreateAccessToken(userID string, scopes []string) (string, int
 		}
 	}
 
-	signingMethod := jwt.SigningMethodHS256
-	if a.JWTSigningAlg == "HS384" {
-		signingMethod = jwt.SigningMethodHS384
-	} else if a.JWTSigningAlg == "HS512" {
-		signingMethod = jwt.SigningMethodHS512
+	signingMethod := utils.SigningMethodForAlg(a.JWTSigningAlg)
+
+	// Determine the signing key: asymmetric key takes precedence over JWTSecretKey
+	var signingKey any
+	if a.JWTSigningKey != nil {
+		signingKey = a.JWTSigningKey
+	} else {
+		signingKey = []byte(a.JWTSecretKey)
 	}
 
 	token := jwt.NewWithClaims(signingMethod, claims)
-	tokenString, err := token.SignedString([]byte(a.JWTSecretKey))
+	tokenString, err := token.SignedString(signingKey)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to sign token: %w", err)
 	}
@@ -387,11 +397,7 @@ func (a *APIAuth) VerifyTokenFunc() func(tokenString string) (userID string, tok
 // ValidateAccessToken validates a JWT access token and returns the claims
 func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes []string, err error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-		// Validate signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(a.JWTSecretKey), nil
+		return a.jwtKeyFunc(token)
 	})
 
 	if err != nil {
@@ -442,10 +448,7 @@ func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes
 // plus any custom claims (non-standard keys) as a separate map.
 func (a *APIAuth) ValidateAccessTokenFull(tokenString string) (userID string, scopes []string, customClaims map[string]any, err error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(a.JWTSecretKey), nil
+		return a.jwtKeyFunc(token)
 	})
 
 	if err != nil {
@@ -498,6 +501,33 @@ func (a *APIAuth) ValidateAccessTokenFull(tokenString string) (userID string, sc
 	}
 
 	return userID, scopes, customClaims, nil
+}
+
+// jwtKeyFunc is the shared key-selection function for jwt.Parse in APIAuth.
+// It supports both symmetric (HMAC) and asymmetric (RSA/ECDSA) keys.
+func (a *APIAuth) jwtKeyFunc(token *jwt.Token) (any, error) {
+	// Asymmetric: JWTVerifyKey is set
+	if a.JWTVerifyKey != nil {
+		switch a.JWTVerifyKey.(type) {
+		case *rsa.PublicKey:
+			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v (expected RS256)", token.Header["alg"])
+			}
+		case *ecdsa.PublicKey:
+			if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v (expected ES256)", token.Header["alg"])
+			}
+		default:
+			return nil, fmt.Errorf("unsupported verify key type: %T", a.JWTVerifyKey)
+		}
+		return a.JWTVerifyKey, nil
+	}
+
+	// Symmetric: HMAC with JWTSecretKey
+	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	}
+	return []byte(a.JWTSecretKey), nil
 }
 
 // tokenResponse sends a successful token response
@@ -938,7 +968,11 @@ func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes [
 				return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", expectedAlg, token.Header["alg"])
 			}
 
-			return m.KeyStore.GetVerifyKey(clientID)
+			rawKey, err := m.KeyStore.GetVerifyKey(clientID)
+			if err != nil {
+				return nil, err
+			}
+			return utils.DecodeVerifyKey(rawKey, expectedAlg)
 		}
 
 		// Fallback: single-key validation (backwards-compatible)

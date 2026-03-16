@@ -2,7 +2,7 @@
 
 ## What is OneAuth?
 
-Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeyStore), and an App Registration API for federated resource server auth. Three storage backends: filesystem, GORM (SQL), and GAE/Datastore.
+Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeyStore with HS256/RS256/ES256), and an App Registration API for federated resource server auth. Three storage backends: filesystem, GORM (SQL), and GAE/Datastore.
 
 ## Repository Structure
 
@@ -10,7 +10,8 @@ Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeySt
 oneauth/
 ├── *.go                  # Core types: User, Identity, Channel, LocalAuth, APIAuth,
 │                         #   APIMiddleware, KeyStore, WritableKeyStore, AdminAuth,
-│                         #   AppRegistrar, MintResourceToken
+│                         #   AppRegistrar, MintResourceToken, MintResourceTokenWithKey
+├── utils/                # Crypto helpers (PEM encode/decode, DecodeVerifyKey, key generation)
 ├── stores/
 │   ├── fs/               # File-based stores + FSKeyStore
 │   ├── gorm/             # GORM SQL stores + GORMKeyStore + SigningKeyModel
@@ -75,7 +76,7 @@ Three projects collaborate:
 2. **massrelay** — WebSocket relay (a resource server), validates resource-scoped JWTs using KeyStore
 3. **excaliframe** (document app) — registers as an App, mints resource tokens for users
 
-Flow: App registers with oneauth-server → gets `client_id` + `client_secret` → App authenticates users locally → mints resource-scoped JWTs with `MintResourceToken()` → resource server validates using shared KeyStore.
+Flow: App registers with oneauth-server → gets `client_id` + `client_secret` (HS256) or registers a public key (RS256/ES256) → App authenticates users locally → mints resource-scoped JWTs with `MintResourceToken()` or `MintResourceTokenWithKey()` → resource server validates using shared KeyStore.
 
 ## Conventions
 

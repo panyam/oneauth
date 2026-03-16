@@ -1,6 +1,9 @@
 package oneauth
 
 import (
+	"crypto/ecdsa"
+	"crypto/rsa"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -12,14 +15,23 @@ type AppQuota struct {
 	MaxMsgRate float64 `json:"max_msg_rate,omitempty"`
 }
 
-// MintResourceToken creates a resource-scoped JWT for a user on behalf of a registered App.
-// The token includes the app's client_id and quota as custom claims,
-// and is signed with the app's shared secret.
-//
-// This is called by the App after authenticating a user locally.
-// The resulting token can be presented to any Resource Server that shares
-// the same KeyStore to authorize access.
+// MintResourceToken creates a resource-scoped JWT for a user on behalf of a registered App,
+// signed with the app's shared secret (HS256). This is the backwards-compatible API.
 func MintResourceToken(userID, appClientID, appSecret string, quota AppQuota, scopes []string) (string, error) {
+	return MintResourceTokenWithKey(userID, appClientID, []byte(appSecret), quota, scopes)
+}
+
+// MintResourceTokenWithKey creates a resource-scoped JWT signed with the provided key.
+// The signing algorithm is auto-detected from the key type:
+//   - []byte → HS256
+//   - *rsa.PrivateKey → RS256
+//   - *ecdsa.PrivateKey → ES256
+func MintResourceTokenWithKey(userID, appClientID string, signingKey any, quota AppQuota, scopes []string) (string, error) {
+	method, err := signingMethodFromKey(signingKey)
+	if err != nil {
+		return "", err
+	}
+
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"sub":       userID,
@@ -37,6 +49,20 @@ func MintResourceToken(userID, appClientID, appSecret string, quota AppQuota, sc
 		claims["max_msg_rate"] = quota.MaxMsgRate
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(appSecret))
+	token := jwt.NewWithClaims(method, claims)
+	return token.SignedString(signingKey)
+}
+
+// signingMethodFromKey returns the appropriate jwt.SigningMethod for the given key type.
+func signingMethodFromKey(key any) (jwt.SigningMethod, error) {
+	switch key.(type) {
+	case []byte:
+		return jwt.SigningMethodHS256, nil
+	case *rsa.PrivateKey:
+		return jwt.SigningMethodRS256, nil
+	case *ecdsa.PrivateKey:
+		return jwt.SigningMethodES256, nil
+	default:
+		return nil, fmt.Errorf("unsupported signing key type: %T", key)
+	}
 }

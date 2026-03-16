@@ -11,7 +11,7 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 - **Multi-provider**: Single account accessible via password, Google, GitHub, etc. with channel linking
 - **Flexible Storage**: File-based, GORM (SQL), and GAE/Datastore implementations
 - **Scope-based Access**: Fine-grained permissions for API endpoints
-- **Multi-tenant JWT**: KeyStore interface for per-client signing keys, custom claims, algorithm confusion prevention
+- **Multi-tenant JWT**: KeyStore interface for per-client signing keys, custom claims, algorithm confusion prevention, asymmetric signing (RS256/ES256)
 - **Policy-Based Validation**: Configurable signup requirements (SignupPolicy)
 - **Username Support**: Optional username uniqueness with username-based login
 - **App Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), AppRegistrar HTTP handler for App CRUD, MintResourceToken for resource-scoped JWTs
@@ -151,6 +151,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.34**: Asymmetric JWT signing (RS256/ES256). `MintResourceTokenWithKey`, `APIAuth.JWTSigningKey`/`JWTVerifyKey`, `AppRegistrar` public key registration, `utils/crypto_helpers.go`, keystoretest asymmetric suite, pre-push hook.
 - **v0.0.33**: Federated auth demo with guided UI, devloop live-reload, CORS, credential recovery, per-page template routing. Renamed Host/Relay to App/Resource Server throughout.
 - **v0.0.32**: APIMiddleware enhancements (TokenQueryParam, GetCustomClaimsFromContext).
 - **v0.0.31**: App Registration API (AdminAuth, AppRegistrar, MintResourceToken). Config-driven reference server (`cmd/oneauth-server/`).
