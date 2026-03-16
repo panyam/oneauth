@@ -417,17 +417,11 @@ mux.Handle("/ws", middleware.ValidateToken(func(w http.ResponseWriter, r *http.R
 
 OneAuth supports asymmetric JWT signing alongside HS256. With asymmetric keys, apps keep their private key secret and register only the public key. Resource servers verify tokens using the public key without ever knowing the signing secret.
 
-### Registering an App with RS256
+**Quick example** — register with RS256:
 
 ```bash
-# Generate RSA key pair
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out app-private.pem
-openssl pkey -in app-private.pem -pubout -out app-public.pem
-
-# Register with public key
 curl -X POST https://auth.example.com/apps/register \
   -H "X-Admin-Key: your-admin-key" \
-  -H "Content-Type: application/json" \
   -d '{
     "client_domain": "excaliframe.com",
     "signing_alg": "RS256",
@@ -435,78 +429,11 @@ curl -X POST https://auth.example.com/apps/register \
   }'
 ```
 
-Response omits `client_secret` (there is none for asymmetric):
-```json
-{
-  "client_id": "app_a1b2c3d4e5f6",
-  "client_domain": "excaliframe.com",
-  "signing_alg": "RS256"
-}
-```
-
-### Minting Tokens with Asymmetric Keys
+**Quick example** — mint with asymmetric key:
 
 ```go
-import (
-    oa "github.com/panyam/oneauth"
-    "github.com/panyam/oneauth/utils"
-)
-
-// Load private key
-privPEM, _ := os.ReadFile("app-private.pem")
 privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
-
-// Mint resource token (algorithm auto-detected from key type)
-token, err := oa.MintResourceTokenWithKey(
-    "user-42", "app_a1b2c3d4e5f6",
-    privKey,  // *rsa.PrivateKey → RS256, *ecdsa.PrivateKey → ES256
-    oa.AppQuota{MaxRooms: 10},
-    []string{"relay:connect"},
-)
+token, err := oa.MintResourceTokenWithKey("user-42", "app_abc", privKey, quota, scopes)
 ```
 
-### APIAuth with Asymmetric Keys
-
-```go
-auth := &oneauth.APIAuth{
-    JWTSigningAlg: "RS256",
-    JWTSigningKey: privKey,   // *rsa.PrivateKey for signing
-    JWTVerifyKey:  pubKey,    // *rsa.PublicKey for verification
-    JWTIssuer:     "myapp",
-}
-```
-
-When `JWTSigningKey`/`JWTVerifyKey` are set, they take precedence over `JWTSecretKey`.
-
-### Key Rotation for Asymmetric Keys
-
-```bash
-curl -X POST https://auth.example.com/apps/{client_id}/rotate \
-  -H "X-Admin-Key: your-admin-key" \
-  -H "Content-Type: application/json" \
-  -d '{"public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"}'
-```
-
-### Mixed Algorithms
-
-HS256 and RS256/ES256 apps coexist in the same KeyStore. Each app's algorithm is stored and enforced:
-- `GetExpectedAlg()` prevents algorithm confusion attacks
-- `utils.DecodeVerifyKey()` converts stored PEM bytes to `crypto.PublicKey` at validation time
-- No storage schema changes — all backends store key material as `[]byte` (PEM-encoded for asymmetric)
-
-### Crypto Helpers (`utils/crypto_helpers.go`)
-
-```go
-import "github.com/panyam/oneauth/utils"
-
-// Generate key pairs
-privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
-privPEM, pubPEM, _ := utils.GenerateECDSAKeyPair()
-
-// Parse PEM
-privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
-pubKey, _ := utils.ParsePublicKeyPEM(pubPEM)
-
-// Decode verify key from KeyStore (PEM → crypto.PublicKey for asymmetric, passthrough for HMAC)
-key, _ := utils.DecodeVerifyKey(rawKey, "RS256")
-```
+For the full guide on key generation, algorithm selection, APIAuth configuration, key rotation, `DecodeVerifyKey`, and algorithm confusion prevention, see **[JWT_SIGNING.md](JWT_SIGNING.md)**.

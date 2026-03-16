@@ -144,6 +144,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 | [BROWSER_AUTH.md](BROWSER_AUTH.md) | Browser-based auth (LocalAuth, OAuth, sessions, validation) |
 | [API_AUTH.md](API_AUTH.md) | API auth (JWT, refresh tokens, API keys, KeyStore) |
 | [FEDERATED_AUTH.md](FEDERATED_AUTH.md) | Federated auth (AppRegistrar, MintResourceToken, AdminAuth) |
+| [JWT_SIGNING.md](JWT_SIGNING.md) | JWT signing algorithms (HS256/RS256/ES256), key management, crypto helpers |
 | [AUTH_FLOWS.md](AUTH_FLOWS.md) | Detailed decision trees, user journeys, edge cases |
 | [CLIENT_SDK.md](CLIENT_SDK.md) | Client SDK for CLI/programmatic access |
 | [STORES.md](STORES.md) | Store interfaces and implementations |
