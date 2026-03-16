@@ -28,10 +28,20 @@ import (
 //go:embed templates/*.html
 var templateFS embed.FS
 
-var templates *template.Template
+// pageTemplates maps page name → template set (layout + that page's content block).
+// Each page is parsed separately so their {{define "content"}} blocks don't collide.
+var pageTemplates map[string]*template.Template
 
 func init() {
-	templates = template.Must(template.ParseFS(templateFS, "templates/*.html"))
+	pageTemplates = make(map[string]*template.Template)
+	pages := []string{
+		"index.html", "login.html", "signup.html", "dashboard.html",
+		"forgot_password.html", "reset_password.html",
+	}
+	for _, page := range pages {
+		t := template.Must(template.ParseFS(templateFS, "templates/layout.html", "templates/"+page))
+		pageTemplates[page] = t
+	}
 }
 
 func main() {
@@ -436,9 +446,15 @@ func parseJWTCookie(tokenString, secretKey string) jwt.MapClaims {
 }
 
 func renderTemplate(w http.ResponseWriter, name string, data any) {
+	t, ok := pageTemplates[name]
+	if !ok {
+		log.Printf("Template not found: %s", name)
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, "layout", data); err != nil {
-		log.Printf("Template error: %v", err)
+	if err := t.ExecuteTemplate(w, "layout", data); err != nil {
+		log.Printf("Template error (%s): %v", name, err)
 		http.Error(w, "Template error", http.StatusInternalServerError)
 	}
 }
