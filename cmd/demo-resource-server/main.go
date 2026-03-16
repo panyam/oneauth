@@ -168,7 +168,7 @@ func main() {
 
 	addr := ":" + *port
 	log.Printf("[%s] Resource server listening on %s", *name, addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	log.Fatal(http.ListenAndServe(addr, corsMiddleware(mux)))
 }
 
 // responseRecorder captures the status code for logging.
@@ -180,6 +180,20 @@ type responseRecorder struct {
 func (r *responseRecorder) WriteHeader(code int) {
 	r.statusCode = code
 	r.ResponseWriter.WriteHeader(code)
+}
+
+// corsMiddleware allows cross-origin requests from demo apps.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func envOrDefault(key, defaultValue string) string {
