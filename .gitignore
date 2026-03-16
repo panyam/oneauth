@@ -37,3 +37,4 @@ demo/data/
 
 # GAE
 .gcloudignore
+.playwright-mcp/
