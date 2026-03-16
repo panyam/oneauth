@@ -151,7 +151,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
-- **v0.0.33**: Federated auth demo (6-service Docker Compose), reference server browser UI with templates, demo apps and resource server services, integration tests for browser auth/federated flow/multi-app/token refresh.
+- **v0.0.33**: Federated auth demo with guided UI, devloop live-reload, CORS, credential recovery, per-page template routing. Renamed Host/Relay to App/Resource Server throughout.
 - **v0.0.32**: APIMiddleware enhancements (TokenQueryParam, GetCustomClaimsFromContext).
 - **v0.0.31**: App Registration API (AdminAuth, AppRegistrar, MintResourceToken). Config-driven reference server (`cmd/oneauth-server/`).
 - **v0.0.30**: WritableKeyStore interface. Persistent KeyStore backends (GORM, FS, GAE). Shared test suite in `keystoretest/`.

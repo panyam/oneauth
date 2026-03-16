@@ -30,9 +30,13 @@
 ### Demo Stack (`demo/` + `cmd/demo-hostapp/` + `cmd/demo-resource-server/`)
 - [x] 6-service Docker Compose: PostgreSQL, oneauth-server, 2 apps, 2 resource servers
 - [x] App auto-registration with oneauth-server on startup
+- [x] Startup credential verification — auto re-registers if auth server DB was reset
 - [x] Independent FS-backed user databases per app
-- [x] Interactive resource token minting and validation UI
+- [x] Interactive resource token minting and validation UI with guided walkthrough
 - [x] Cross-app and cross-resource-server JWT validation via shared KeyStore
+- [x] CORS support on resource servers for browser-based validation
+- [x] Devloop config for live-reload development (PG in Docker, services native)
+- [x] Per-page template isolation (fixed template content block collision)
 
 ### Integration Tests (test_05 through test_08)
 - [x] Browser auth flow (signup, login, logout, cookie management)

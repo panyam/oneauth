@@ -44,9 +44,16 @@ PostgreSQL (shared signing_keys table)
 
 ### Running the Demo
 
+**Option A: Live-reload development** (recommended for iterating)
 ```bash
 cd demo
-make up        # builds and starts all 6 services
+make dev       # PG in Docker, all Go services native with auto-rebuild
+```
+
+**Option B: Full Docker Compose**
+```bash
+cd demo
+make up        # builds and starts all 6 services in Docker
 make status    # shows URLs and container status
 ```
 
@@ -95,6 +102,8 @@ uv run pytest tests/integration/test_05_browser_auth.py \
 **Secret shown once**: `POST /apps/register` returns `client_secret` exactly once. It's stored in the KeyStore as bytes but never returned again via any API. Apps must persist it (demo-hostapp saves to `app_credentials.json`).
 
 **Resource server independence**: Once keys are in the shared KeyStore, resource servers validate tokens with zero runtime dependency on the auth server or apps. The resource server only needs database access.
+
+**Credential recovery**: On startup, demo apps verify their cached credentials against the auth server (`GET /apps/{client_id}`). If the auth server doesn't recognize them (e.g., database was reset), the app deletes its stale credentials and re-registers automatically.
 
 ---
 
