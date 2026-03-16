@@ -5,8 +5,6 @@ settings:
   prefix_max_length: 12
   default_debounce_delay: 800ms
   max_parallel_rules: 5
-  http_port: 19999
-  grpc_port: 15555
 
 rules:
   # PostgreSQL via Docker — only restarts if docker-compose changes
