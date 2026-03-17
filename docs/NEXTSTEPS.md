@@ -145,6 +145,18 @@
   > `utils/jwk.go` — JWK/JWKSet types, `PublicKeyToJWK`/`JWKToPublicKey` conversion (no new dependencies).
   > Demo resource server supports `JWKS_URL` env var as alternative to shared database.
 
+### kid in JWTs + Key Rotation
+- [x] **P1** kid (Key ID) in JWT headers + key rotation with grace period (#25) ✅
+  > All minted JWTs include `kid` header (RFC 7638 thumbprint). `KidStore` retains old keys during rotation grace period.
+  > `APIMiddleware` tries kid-based lookup first, falls back to `client_id` claim. Cross-app forgery prevented.
+  > JWKS endpoint uses thumbprint-based kids. `CompositeKeyLookup` chains KeyStorage + KidStore.
+
+### KeyStore Interface Refactor
+- [x] **P0** Decompose KeyStore god interface (#40) ✅
+  > Replaced `KeyStore`/`WritableKeyStore`/`KidResolver` with `KeyLookup` (read) + `KeyStorage` (read+write) + `KeyRecord` struct.
+  > `EncryptedKeyStorage` correctly computes kid from plaintext. `JWKSKeyStore` implements only `KeyLookup`.
+  > Adding new fields to `KeyRecord` doesn't change the interface.
+
 ### Encryption at Rest
 - [x] **P1** `[SECURITY]` HS256 secret encryption at rest (#19) ✅
   > `EncryptedKeyStore` decorator wraps any `WritableKeyStore` with AES-256-GCM encryption.

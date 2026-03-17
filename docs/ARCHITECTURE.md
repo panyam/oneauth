@@ -79,7 +79,7 @@ Each mode has its own detailed documentation:
 │                      Store Interfaces                       │
 │  UserStore | IdentityStore | ChannelStore | TokenStore      │
 │  RefreshTokenStore | APIKeyStore | UsernameStore (opt)      │
-│  KeyStore | WritableKeyStore (multi-tenant JWT)             │
+│  KeyStorage | KeyLookup (multi-tenant JWT + kid lookup)     │
 └──────────────────────────┬──────────────────────────────────┘
                            │
         ┌──────────────────┼──────────────────┐
@@ -126,11 +126,19 @@ See **[Client SDK](CLIENT_SDK.md)** for full details.
 - JWKS endpoint (`/.well-known/jwks.json`) for public key discovery — resource servers can fetch asymmetric keys via HTTP instead of sharing database access
 - `JWKSKeyStore` — read-only KeyStore that fetches from a remote JWKS URL with background refresh, caching, and resilience
 - Audience and issuer validation
-- Algorithm confusion prevention via `GetExpectedAlg`
+- `kid` (Key ID) in all JWT headers — RFC 7638 thumbprint enables JWKS-based key discovery
+- Algorithm confusion prevention via `KeyRecord.Algorithm` check
 - `utils.DecodeVerifyKey` converts stored PEM bytes to `crypto.PublicKey` at read time
 
+### Key ID (kid) in JWTs
+- All minted JWTs include `kid` header (RFC 7638 thumbprint computed from key material)
+- `APIMiddleware` tries kid-based lookup first (`GetKeyByKid`), falls back to `client_id` claim (`GetKey`)
+- `KidStore` retains old keys during rotation with configurable grace period
+- `CompositeKeyLookup` chains multiple `KeyLookup` sources (KeyStorage for current + KidStore for rotated)
+- Cross-app token forgery prevented via `KeyRecord.ClientID` cross-check against `client_id` claim
+
 ### Encryption at Rest
-- `EncryptedKeyStore` — decorator that wraps any `WritableKeyStore` to encrypt HS256 client secrets at rest using AES-256-GCM
+- `EncryptedKeyStorage` — decorator that wraps any `KeyStorage` to encrypt HS256 client secrets at rest using AES-256-GCM
 - Master key: 32-byte hex string (`ONEAUTH_MASTER_KEY` env var), derived via HKDF-SHA256 with a versioned info string
 - Asymmetric keys (RS256/ES256 public keys) pass through unencrypted since they are not sensitive
 - Migration: if GCM decryption fails on read, falls back to treating stored bytes as plaintext (backward compat with pre-encryption data)

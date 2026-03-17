@@ -10,7 +10,7 @@ Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeySt
 oneauth/
 ├── *.go                  # Core types: User, Identity, Channel, LocalAuth, APIAuth,
 │                         #   APIMiddleware, KeyStore, WritableKeyStore, EncryptedKeyStore,
-│                         #   AdminAuth, AppRegistrar, CSRFMiddleware,
+│                         #   AdminAuth, AppRegistrar, CSRFMiddleware, KidStore,
 │                         #   MintResourceToken, MintResourceTokenWithKey
 ├── utils/                # Crypto helpers (PEM encode/decode, DecodeVerifyKey, key generation, JWK conversion)
 ├── stores/
@@ -49,13 +49,26 @@ make gaelogs       # Tail GAE logs
 `keystoretest.RunAll(t, factory)` runs identical tests against any `WritableKeyStore` implementation. Each backend test file creates a factory that returns its store type. This is the pattern to follow for any new interface with multiple backends.
 
 ### Three-Backend Store Pattern
-Every persistent interface (UserStore, IdentityStore, ChannelStore, WritableKeyStore) has three implementations: `stores/fs/`, `stores/gorm/`, `stores/gae/`. New store types must implement all three. GORM models use dialect-agnostic column types — never use `type:blob` (fails on PostgreSQL), let GORM auto-select.
+Every persistent interface (UserStore, IdentityStore, ChannelStore, KeyStorage) has three implementations: `stores/fs/`, `stores/gorm/`, `stores/gae/`. New store types must implement all three. GORM models use dialect-agnostic column types — never use `type:blob` (fails on PostgreSQL), let GORM auto-select.
 
 ### Config-Driven Reference Server
 `cmd/oneauth-server/` uses YAML config with `${ENV_VAR:-default}` substitution. On GAE (no config file), falls back to `configFromEnv()` which reads all config from env vars. The server supports memory, fs, gorm (postgres only — sqlite requires CGO), and gae keystores.
 
-### EncryptedKeyStore (Decorator Pattern)
-`EncryptedKeyStore` wraps any `WritableKeyStore` to encrypt HS256 secrets at rest using AES-256-GCM. Asymmetric keys pass through unencrypted. Configured via `ONEAUTH_MASTER_KEY` env var (64 hex chars = 32 bytes). If no master key is set, encryption is skipped with a log warning. Plaintext fallback on read enables migration from unencrypted to encrypted storage without a data migration step. All services sharing the same KeyStore DB must use the same master key. See [JWT_SIGNING.md](docs/JWT_SIGNING.md#encryption-at-rest-encryptedkeystore) for details.
+### KeyStorage / KeyLookup Interfaces (Decomposed KeyStore)
+The key storage layer uses two focused interfaces instead of a single god interface:
+- `KeyLookup` (read-only): `GetKey(clientID)` + `GetKeyByKid(kid)` → returns `*KeyRecord`
+- `KeyStorage` (read+write): embeds `KeyLookup` + `PutKey`, `DeleteKey`, `ListKeyIDs`
+- `KeyRecord` struct: `{ClientID, Key, Algorithm, Kid}` — all fields in one place
+
+All backends (InMemory, GORM, FS, GAE) implement `KeyStorage`. `JWKSKeyStore` and `KidStore` implement only `KeyLookup`. Adding new fields to `KeyRecord` doesn't change the interface.
+
+Backward-compatible alias methods (`RegisterKey`, `GetVerifyKey`, `GetExpectedAlg`, `ListKeys`) exist on all backends for migration. Prefer the new `KeyStorage` methods in new code.
+
+### EncryptedKeyStorage (Decorator Pattern)
+`EncryptedKeyStorage` wraps any `KeyStorage` to encrypt HS256 secrets at rest using AES-256-GCM. Only 5 methods to implement (transforms `Key` field on read/write). Kid is computed from plaintext before encryption, so kid-based lookups work correctly. Configured via `ONEAUTH_MASTER_KEY` env var (64 hex chars = 32 bytes). Plaintext fallback on read enables migration. See [JWT_SIGNING.md](docs/JWT_SIGNING.md#encryption-at-rest-encryptedkeystore) for details.
+
+### kid (Key ID) in JWTs
+All minted JWTs include a `kid` header (RFC 7638 thumbprint). Every stored key has a `kid` field computed from key material. `APIMiddleware` tries kid-based lookup first (`GetKeyByKid`), then falls back to `client_id` claim (`GetKey`). Legacy tokens without `kid` still work. Key rotation uses `KidStore` to retain old keys with a grace period expiry.
 
 ### AdminAuth Interface
 `AdminAuth.Authenticate(r *http.Request) error` — constant-time API key comparison (`crypto/subtle`). Implementations: `APIKeyAuth` (reads `X-Admin-Key` header), `NoAuth` (dev only). On GAE, the API key is fetched from Secret Manager at startup if `ADMIN_API_KEY` env var is not set.
