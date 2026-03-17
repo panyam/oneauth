@@ -412,6 +412,7 @@ mux.Handle("/ws", middleware.ValidateToken(func(w http.ResponseWriter, r *http.R
 3. **Token lifetime**: Resource tokens expire after 15 minutes. Apps should mint fresh tokens for each connection.
 4. **Algorithm confusion**: `GetExpectedAlg()` prevents attacks where a token's `alg` header is manipulated.
 5. **Constant-time comparison**: `APIKeyAuth` uses `crypto/subtle.ConstantTimeCompare` to prevent timing attacks on the admin key.
+6. **Encryption at rest**: HS256 client secrets can be encrypted at rest using `EncryptedKeyStore` with AES-256-GCM. Set `ONEAUTH_MASTER_KEY` (64 hex chars) on all services sharing the same KeyStore DB. See [JWT_SIGNING.md](JWT_SIGNING.md#encryption-at-rest-encryptedkeystore) for details.
 
 ## Asymmetric Signing (RS256/ES256)
 

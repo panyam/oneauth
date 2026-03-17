@@ -47,6 +47,7 @@ rules:
       USER_STORES_TYPE: "gorm"
       JWT_SECRET_KEY: "demo-jwt-secret-key-change-me"
       JWT_ISSUER: "oneauth-demo"
+      ONEAUTH_MASTER_KEY: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
     commands:
       - "until docker compose -f ./demo/docker-compose.yml exec -T postgres pg_isready -U oneauth -q 2>/dev/null; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/oneauth-server"
@@ -129,6 +130,7 @@ rules:
       RESOURCE_SERVER_NAME: "resource-server-a"
       PORT: "4001"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
+      ONEAUTH_MASTER_KEY: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
     commands:
       - "until docker compose -f ./demo/docker-compose.yml exec -T postgres pg_isready -U oneauth -q 2>/dev/null; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/demo-resource-server"
@@ -155,6 +157,7 @@ rules:
       RESOURCE_SERVER_NAME: "resource-server-b"
       PORT: "4002"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"
+      ONEAUTH_MASTER_KEY: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
     commands:
       - "until docker compose -f ./demo/docker-compose.yml exec -T postgres pg_isready -U oneauth -q 2>/dev/null; do sleep 0.5; done"
       - "go run -buildvcs=false ./cmd/demo-resource-server"

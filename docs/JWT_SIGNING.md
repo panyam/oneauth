@@ -239,6 +239,56 @@ alg, _ := ks.GetExpectedAlg("app_abc")  // → "RS256" or "ES256"
 
 See [FEDERATED_AUTH.md](FEDERATED_AUTH.md#jwks-public-key-discovery) for the full JWKS guide.
 
+## Encryption at Rest (EncryptedKeyStore)
+
+HS256 `client_secret` values are stored in the KeyStore as raw `[]byte`. To protect them at rest (e.g., against database dumps), wrap any `WritableKeyStore` with `EncryptedKeyStore`:
+
+```go
+import oa "github.com/panyam/oneauth"
+
+inner := gormstore.NewKeyStore(db)
+encrypted, err := oa.NewEncryptedKeyStore(inner, os.Getenv("ONEAUTH_MASTER_KEY"))
+```
+
+### Master Key
+
+- 64-character hex string (32 bytes): `openssl rand -hex 32`
+- Set via `ONEAUTH_MASTER_KEY` env var or `keystore.master_key` in YAML config
+- Never stored alongside the data it protects
+- The raw master key is not used directly — HKDF-SHA256 derives an encryption-specific key with info string `"oneauth-keystore-encryption-v1"`
+
+### What Gets Encrypted
+
+| Algorithm | Key Type | Encrypted? |
+|-----------|----------|------------|
+| HS256/HS384/HS512 | Shared `[]byte` secret | Yes (AES-256-GCM) |
+| RS256 | `[]byte` PEM (public key) | No (not sensitive) |
+| ES256 | `[]byte` PEM (public key) | No (not sensitive) |
+
+### Migration
+
+If you enable encryption on an existing deployment, existing plaintext secrets remain readable. The wrapper attempts GCM decryption on read; if it fails, it returns the raw bytes as plaintext. New writes are always encrypted.
+
+### Reference Server Configuration
+
+```yaml
+keystore:
+  type: "gorm"
+  master_key: "${ONEAUTH_MASTER_KEY}"
+  gorm:
+    driver: "postgres"
+    dsn: "${DATABASE_URL}"
+```
+
+Or via environment variable (e.g., GAE):
+```bash
+export ONEAUTH_MASTER_KEY="$(openssl rand -hex 32)"
+```
+
+### Shared KeyStore Requirement
+
+When resource servers share the same KeyStore database as the auth server, they must also have the same `ONEAUTH_MASTER_KEY` to decrypt HS256 secrets. Resource servers using JWKS discovery are unaffected (JWKS only serves asymmetric keys).
+
 ## See Also
 
 - [FEDERATED_AUTH.md](FEDERATED_AUTH.md) — end-to-end federated auth flow with registration, minting, and validation

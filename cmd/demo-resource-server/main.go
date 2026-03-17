@@ -57,7 +57,18 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to connect to database: %v", err)
 		}
-		keyStore = gormstore.NewKeyStore(db)
+		var ks oa.KeyStore = gormstore.NewKeyStore(db)
+		// Wrap with encryption if master key is set (must match oneauth-server's key
+		// so HS256 secrets encrypted by the server can be decrypted here)
+		if masterKey := os.Getenv("ONEAUTH_MASTER_KEY"); masterKey != "" {
+			encrypted, err := oa.NewEncryptedKeyStore(gormstore.NewKeyStore(db), masterKey)
+			if err != nil {
+				log.Fatalf("Failed to create EncryptedKeyStore: %v", err)
+			}
+			ks = encrypted
+			log.Printf("[%s] KeyStore encryption enabled (AES-256-GCM)", *name)
+		}
+		keyStore = ks
 		log.Printf("[%s] Connected to shared KeyStore via PostgreSQL", *name)
 	} else {
 		log.Printf("[%s] WARNING: No JWKS_URL or DATABASE_URL set — using empty in-memory KeyStore (no validation possible)", *name)

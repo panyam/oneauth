@@ -9,8 +9,8 @@ Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeySt
 ```
 oneauth/
 ├── *.go                  # Core types: User, Identity, Channel, LocalAuth, APIAuth,
-│                         #   APIMiddleware, KeyStore, WritableKeyStore, AdminAuth,
-│                         #   AppRegistrar, MintResourceToken, MintResourceTokenWithKey
+│                         #   APIMiddleware, KeyStore, WritableKeyStore, EncryptedKeyStore,
+│                         #   AdminAuth, AppRegistrar, MintResourceToken, MintResourceTokenWithKey
 ├── utils/                # Crypto helpers (PEM encode/decode, DecodeVerifyKey, key generation, JWK conversion)
 ├── stores/
 │   ├── fs/               # File-based stores + FSKeyStore
@@ -52,6 +52,9 @@ Every persistent interface (UserStore, IdentityStore, ChannelStore, WritableKeyS
 
 ### Config-Driven Reference Server
 `cmd/oneauth-server/` uses YAML config with `${ENV_VAR:-default}` substitution. On GAE (no config file), falls back to `configFromEnv()` which reads all config from env vars. The server supports memory, fs, gorm (postgres only — sqlite requires CGO), and gae keystores.
+
+### EncryptedKeyStore (Decorator Pattern)
+`EncryptedKeyStore` wraps any `WritableKeyStore` to encrypt HS256 secrets at rest using AES-256-GCM. Asymmetric keys pass through unencrypted. Configured via `ONEAUTH_MASTER_KEY` env var (64 hex chars = 32 bytes). If no master key is set, encryption is skipped with a log warning. Plaintext fallback on read enables migration from unencrypted to encrypted storage without a data migration step. All services sharing the same KeyStore DB must use the same master key. See [JWT_SIGNING.md](docs/JWT_SIGNING.md#encryption-at-rest-encryptedkeystore) for details.
 
 ### AdminAuth Interface
 `AdminAuth.Authenticate(r *http.Request) error` — constant-time API key comparison (`crypto/subtle`). Implementations: `APIKeyAuth` (reads `X-Admin-Key` header), `NoAuth` (dev only). On GAE, the API key is fetched from Secret Manager at startup if `ADMIN_API_KEY` env var is not set.

@@ -129,6 +129,13 @@ See **[Client SDK](CLIENT_SDK.md)** for full details.
 - Algorithm confusion prevention via `GetExpectedAlg`
 - `utils.DecodeVerifyKey` converts stored PEM bytes to `crypto.PublicKey` at read time
 
+### Encryption at Rest
+- `EncryptedKeyStore` — decorator that wraps any `WritableKeyStore` to encrypt HS256 client secrets at rest using AES-256-GCM
+- Master key: 32-byte hex string (`ONEAUTH_MASTER_KEY` env var), derived via HKDF-SHA256 with a versioned info string
+- Asymmetric keys (RS256/ES256 public keys) pass through unencrypted since they are not sensitive
+- Migration: if GCM decryption fails on read, falls back to treating stored bytes as plaintext (backward compat with pre-encryption data)
+- Optional: no master key configured = no encryption (with log warning)
+
 ### Refresh Token Security
 - Rotation on use
 - Family-based theft detection (reuse → revoke entire family)

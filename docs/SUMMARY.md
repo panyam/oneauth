@@ -11,7 +11,7 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 - **Multi-provider**: Single account accessible via password, Google, GitHub, etc. with channel linking
 - **Flexible Storage**: File-based, GORM (SQL), and GAE/Datastore implementations
 - **Scope-based Access**: Fine-grained permissions for API endpoints
-- **Multi-tenant JWT**: KeyStore interface for per-client signing keys, custom claims, algorithm confusion prevention, asymmetric signing (RS256/ES256)
+- **Multi-tenant JWT**: KeyStore interface for per-client signing keys, custom claims, algorithm confusion prevention, asymmetric signing (RS256/ES256), HS256 secret encryption at rest (AES-256-GCM via EncryptedKeyStore)
 - **Policy-Based Validation**: Configurable signup requirements (SignupPolicy)
 - **Username Support**: Optional username uniqueness with username-based login
 - **App Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), AppRegistrar HTTP handler for App CRUD, MintResourceToken for resource-scoped JWTs
@@ -152,6 +152,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.36**: HS256 secret encryption at rest (#19). `EncryptedKeyStore` decorator with AES-256-GCM, HKDF-SHA256 key derivation, plaintext migration fallback. Configured via `ONEAUTH_MASTER_KEY` env var.
 - **v0.0.35**: JWKS endpoint for federated public key discovery (#7). `JWKSHandler` serves `/.well-known/jwks.json`, `JWKSKeyStore` fetches keys from remote JWKS URL, `utils/jwk.go` JWK conversion utilities. Demo resource server supports `JWKS_URL` as alternative to shared database.
 - **v0.0.34**: Asymmetric JWT signing (RS256/ES256). `MintResourceTokenWithKey`, `APIAuth.JWTSigningKey`/`JWTVerifyKey`, `AppRegistrar` public key registration, `utils/crypto_helpers.go`, keystoretest asymmetric suite, pre-push hook.
 - **v0.0.33**: Federated auth demo with guided UI, devloop live-reload, CORS, credential recovery, per-page template routing. Renamed Host/Relay to App/Resource Server throughout.

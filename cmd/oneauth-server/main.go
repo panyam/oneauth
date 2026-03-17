@@ -53,7 +53,7 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Build KeyStore
+	// Build KeyStore (optionally wrapped with encryption)
 	keyStore, db, err := buildKeyStore(cfg)
 	if err != nil {
 		log.Fatalf("Failed to create KeyStore: %v", err)
@@ -253,17 +253,21 @@ func buildUserStores(cfg *Config, db *gorm.DB) (*userStores, error) {
 }
 
 func buildKeyStore(cfg *Config) (oa.WritableKeyStore, *gorm.DB, error) {
+	var store oa.WritableKeyStore
+	var db *gorm.DB
+
 	switch cfg.KeyStore.Type {
 	case "memory":
 		log.Println("Using in-memory KeyStore (not persistent)")
-		return oa.NewInMemoryKeyStore(), nil, nil
+		store = oa.NewInMemoryKeyStore()
 
 	case "fs":
 		log.Printf("Using filesystem KeyStore at %s", cfg.KeyStore.FS.Path)
-		return fsstore.NewFSKeyStore(cfg.KeyStore.FS.Path), nil, nil
+		store = fsstore.NewFSKeyStore(cfg.KeyStore.FS.Path)
 
 	case "gorm":
-		db, err := openGORM(cfg.KeyStore.GORM)
+		var err error
+		db, err = openGORM(cfg.KeyStore.GORM)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -271,7 +275,7 @@ func buildKeyStore(cfg *Config) (oa.WritableKeyStore, *gorm.DB, error) {
 			return nil, nil, err
 		}
 		log.Printf("Using GORM KeyStore (driver=%s)", cfg.KeyStore.GORM.Driver)
-		return gormstore.NewKeyStore(db), db, nil
+		store = gormstore.NewKeyStore(db)
 
 	case "gae":
 		ctx := context.Background()
@@ -280,12 +284,26 @@ func buildKeyStore(cfg *Config) (oa.WritableKeyStore, *gorm.DB, error) {
 			return nil, nil, err
 		}
 		log.Printf("Using GAE Datastore KeyStore (project=%s, namespace=%s)", cfg.KeyStore.GAE.Project, cfg.KeyStore.GAE.Namespace)
-		return gaestore.NewKeyStore(client, cfg.KeyStore.GAE.Namespace), nil, nil
+		store = gaestore.NewKeyStore(client, cfg.KeyStore.GAE.Namespace)
 
 	default:
 		log.Fatalf("Unknown keystore type: %s", cfg.KeyStore.Type)
 		return nil, nil, nil
 	}
+
+	// Wrap with encryption if a master key is configured
+	if cfg.KeyStore.MasterKey != "" {
+		encrypted, err := oa.NewEncryptedKeyStore(store, cfg.KeyStore.MasterKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create EncryptedKeyStore: %w", err)
+		}
+		log.Println("KeyStore encryption enabled (AES-256-GCM)")
+		store = encrypted
+	} else {
+		log.Println("WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext")
+	}
+
+	return store, db, nil
 }
 
 func openGORM(cfg GORMConfig) (*gorm.DB, error) {

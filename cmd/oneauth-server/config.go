@@ -38,10 +38,11 @@ type ServerConfig struct {
 }
 
 type KeyStoreConfig struct {
-	Type string         `yaml:"type"` // memory, gorm, fs, gae
-	GORM GORMConfig     `yaml:"gorm"`
-	FS   FSConfig       `yaml:"fs"`
-	GAE  GAEConfig      `yaml:"gae"`
+	Type      string     `yaml:"type"` // memory, gorm, fs, gae
+	GORM      GORMConfig `yaml:"gorm"`
+	FS        FSConfig   `yaml:"fs"`
+	GAE       GAEConfig  `yaml:"gae"`
+	MasterKey string     `yaml:"master_key"` // 64-char hex key for AES-256-GCM encryption of HS256 secrets at rest
 }
 
 type GORMConfig struct {
@@ -146,7 +147,8 @@ func configFromEnv() Config {
 			Host: os.Getenv("HOST"),
 		},
 		KeyStore: KeyStoreConfig{
-			Type: os.Getenv("KEYSTORE_TYPE"),
+			Type:      os.Getenv("KEYSTORE_TYPE"),
+			MasterKey: os.Getenv("ONEAUTH_MASTER_KEY"),
 			GORM: GORMConfig{
 				Driver: os.Getenv("GORM_DRIVER"),
 				DSN:    os.Getenv("DATABASE_URL"),

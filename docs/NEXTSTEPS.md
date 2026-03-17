@@ -145,6 +145,13 @@
   > `utils/jwk.go` — JWK/JWKSet types, `PublicKeyToJWK`/`JWKToPublicKey` conversion (no new dependencies).
   > Demo resource server supports `JWKS_URL` env var as alternative to shared database.
 
+### Encryption at Rest
+- [x] **P1** `[SECURITY]` HS256 secret encryption at rest (#19) ✅
+  > `EncryptedKeyStore` decorator wraps any `WritableKeyStore` with AES-256-GCM encryption.
+  > HKDF-SHA256 key derivation from master key with versioned info string.
+  > Asymmetric keys pass through unencrypted. Plaintext fallback for migration.
+  > Configured via `ONEAUTH_MASTER_KEY` env var. Demo stack updated.
+
 ### Phase 3: OAuth Integration for API
 
 - [ ] **P0** `[BLOCKER]` Add API mode to OAuth callbacks (return tokens instead of session)
