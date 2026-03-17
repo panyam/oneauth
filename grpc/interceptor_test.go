@@ -1,5 +1,7 @@
 package grpc
 
+// Tests for gRPC auth interceptors: unary and stream authentication enforcement, public method bypass, and optional auth modes.
+
 import (
 	"context"
 	"testing"
@@ -10,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TestDefaultInterceptorConfig verifies that the default interceptor config requires auth and initializes its fields.
 func TestDefaultInterceptorConfig(t *testing.T) {
 	config := DefaultInterceptorConfig()
 	if !config.RequireAuth {
@@ -23,6 +26,7 @@ func TestDefaultInterceptorConfig(t *testing.T) {
 	}
 }
 
+// TestNewPublicMethodsConfig verifies that NewPublicMethodsConfig marks the specified methods as public while requiring auth for others.
 func TestNewPublicMethodsConfig(t *testing.T) {
 	config := NewPublicMethodsConfig("/pkg.Svc/Method1", "/pkg.Svc/Method2")
 	if !config.RequireAuth {
@@ -39,6 +43,7 @@ func TestNewPublicMethodsConfig(t *testing.T) {
 	}
 }
 
+// TestOptionalAuthConfig verifies that OptionalAuthConfig creates a config with RequireAuth set to false.
 func TestOptionalAuthConfig(t *testing.T) {
 	config := OptionalAuthConfig()
 	if config.RequireAuth {
@@ -46,6 +51,7 @@ func TestOptionalAuthConfig(t *testing.T) {
 	}
 }
 
+// TestUnaryAuthInterceptor_RequireAuth_NoUser verifies that unauthenticated unary requests are rejected with codes.Unauthenticated.
 func TestUnaryAuthInterceptor_RequireAuth_NoUser(t *testing.T) {
 	interceptor := UnaryAuthInterceptor(nil)
 
@@ -70,6 +76,7 @@ func TestUnaryAuthInterceptor_RequireAuth_NoUser(t *testing.T) {
 	}
 }
 
+// TestUnaryAuthInterceptor_RequireAuth_WithUser verifies that authenticated unary requests pass through to the handler.
 func TestUnaryAuthInterceptor_RequireAuth_WithUser(t *testing.T) {
 	interceptor := UnaryAuthInterceptor(nil)
 
@@ -91,6 +98,7 @@ func TestUnaryAuthInterceptor_RequireAuth_WithUser(t *testing.T) {
 	}
 }
 
+// TestUnaryAuthInterceptor_PublicMethod verifies that public methods bypass authentication checks.
 func TestUnaryAuthInterceptor_PublicMethod(t *testing.T) {
 	config := NewPublicMethodsConfig("/pkg.Svc/PublicMethod")
 	interceptor := UnaryAuthInterceptor(config)
@@ -112,6 +120,7 @@ func TestUnaryAuthInterceptor_PublicMethod(t *testing.T) {
 	}
 }
 
+// TestUnaryAuthInterceptor_OptionalAuth verifies that optional auth mode allows unauthenticated requests through.
 func TestUnaryAuthInterceptor_OptionalAuth(t *testing.T) {
 	config := OptionalAuthConfig()
 	interceptor := UnaryAuthInterceptor(config)
@@ -133,6 +142,7 @@ func TestUnaryAuthInterceptor_OptionalAuth(t *testing.T) {
 	}
 }
 
+// TestUnaryAuthInterceptor_SwitchUser verifies that the interceptor accepts switch-user metadata when switch-auth is enabled.
 func TestUnaryAuthInterceptor_SwitchUser(t *testing.T) {
 	config := DefaultInterceptorConfig()
 	config.Config.EnableSwitchAuth = true
@@ -168,6 +178,7 @@ func (m *mockServerStream) SetTrailer(metadata.MD)           {}
 func (m *mockServerStream) SendMsg(interface{}) error        { return nil }
 func (m *mockServerStream) RecvMsg(interface{}) error        { return nil }
 
+// TestStreamAuthInterceptor_RequireAuth_NoUser verifies that unauthenticated streaming requests are rejected with codes.Unauthenticated.
 func TestStreamAuthInterceptor_RequireAuth_NoUser(t *testing.T) {
 	interceptor := StreamAuthInterceptor(nil)
 
@@ -192,6 +203,7 @@ func TestStreamAuthInterceptor_RequireAuth_NoUser(t *testing.T) {
 	}
 }
 
+// TestStreamAuthInterceptor_RequireAuth_WithUser verifies that authenticated streaming requests pass through to the handler.
 func TestStreamAuthInterceptor_RequireAuth_WithUser(t *testing.T) {
 	interceptor := StreamAuthInterceptor(nil)
 
@@ -214,6 +226,7 @@ func TestStreamAuthInterceptor_RequireAuth_WithUser(t *testing.T) {
 	}
 }
 
+// TestStreamAuthInterceptor_PublicMethod verifies that public streaming methods bypass authentication checks.
 func TestStreamAuthInterceptor_PublicMethod(t *testing.T) {
 	config := NewPublicMethodsConfig("/pkg.Svc/PublicStream")
 	interceptor := StreamAuthInterceptor(config)

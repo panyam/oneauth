@@ -39,11 +39,20 @@ func main() {
 	name := flag.String("name", envOrDefault("RESOURCE_SERVER_NAME", "resource-server"), "Resource server name")
 	port := flag.String("port", envOrDefault("PORT", "4001"), "Port to listen on")
 	dsn := flag.String("dsn", os.Getenv("DATABASE_URL"), "PostgreSQL DSN for shared KeyStore")
+	jwksURL := flag.String("jwks-url", os.Getenv("JWKS_URL"), "JWKS URL for public key discovery (alternative to DATABASE_URL)")
 	flag.Parse()
 
-	// Connect to shared PostgreSQL KeyStore
+	// Connect to KeyStore: JWKS URL (preferred) → PostgreSQL → in-memory fallback
 	var keyStore oa.KeyStore
-	if *dsn != "" {
+	if *jwksURL != "" {
+		ks := oa.NewJWKSKeyStore(*jwksURL)
+		if err := ks.Start(); err != nil {
+			log.Fatalf("Failed to start JWKS KeyStore: %v", err)
+		}
+		defer ks.Stop()
+		keyStore = ks
+		log.Printf("[%s] Using JWKS KeyStore from %s", *name, *jwksURL)
+	} else if *dsn != "" {
 		db, err := gorm.Open(postgres.Open(*dsn), &gorm.Config{})
 		if err != nil {
 			log.Fatalf("Failed to connect to database: %v", err)
@@ -51,7 +60,7 @@ func main() {
 		keyStore = gormstore.NewKeyStore(db)
 		log.Printf("[%s] Connected to shared KeyStore via PostgreSQL", *name)
 	} else {
-		log.Printf("[%s] WARNING: No DATABASE_URL set — using empty in-memory KeyStore (no validation possible)", *name)
+		log.Printf("[%s] WARNING: No JWKS_URL or DATABASE_URL set — using empty in-memory KeyStore (no validation possible)", *name)
 		keyStore = oa.NewInMemoryKeyStore()
 	}
 

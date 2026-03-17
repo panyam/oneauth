@@ -193,6 +193,52 @@ utils.IsAsymmetricAlg("ES256")       // → true
 utils.IsAsymmetricAlg("HS256")       // → false
 ```
 
+## JWKS (JSON Web Key Set)
+
+OneAuth supports standard JWKS (RFC 7517) for public key discovery. The auth server exposes asymmetric keys at `/.well-known/jwks.json`, and resource servers can fetch them via `JWKSKeyStore`.
+
+### JWK Conversion (`utils/jwk.go`)
+
+```go
+import "github.com/panyam/oneauth/utils"
+
+// Convert public key → JWK
+jwk, err := utils.PublicKeyToJWK("app_abc", "RS256", rsaPublicKey)
+
+// Convert JWK → public key
+pubKey, alg, err := utils.JWKToPublicKey(jwk)
+```
+
+Supported key types: RSA (`kty: "RSA"`) and ECDSA P-256 (`kty: "EC"`, `crv: "P-256"`).
+
+### Serving JWKS (`JWKSHandler`)
+
+```go
+handler := &oa.JWKSHandler{
+    KeyStore:    keyStore,  // WritableKeyStore (needs ListKeys)
+    CacheMaxAge: 3600,      // Cache-Control max-age (default: 3600)
+}
+mux.HandleFunc("GET /.well-known/jwks.json", handler.ServeHTTP)
+```
+
+Only asymmetric keys (RS256/ES256) are included. HS256 secrets are never exposed.
+
+### Fetching JWKS (`JWKSKeyStore`)
+
+```go
+ks := oa.NewJWKSKeyStore("https://auth.example.com/.well-known/jwks.json",
+    oa.WithRefreshInterval(30 * time.Minute),
+)
+ks.Start()
+defer ks.Stop()
+
+// Use as a read-only KeyStore
+key, _ := ks.GetVerifyKey("app_abc")    // → *rsa.PublicKey or *ecdsa.PublicKey
+alg, _ := ks.GetExpectedAlg("app_abc")  // → "RS256" or "ES256"
+```
+
+See [FEDERATED_AUTH.md](FEDERATED_AUTH.md#jwks-public-key-discovery) for the full JWKS guide.
+
 ## See Also
 
 - [FEDERATED_AUTH.md](FEDERATED_AUTH.md) — end-to-end federated auth flow with registration, minting, and validation

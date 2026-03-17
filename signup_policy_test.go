@@ -1,3 +1,5 @@
+// Tests for signup policy configuration, validation, error codes, and
+// integration with LocalAuth signup including policy presets and custom error handlers.
 package oneauth_test
 
 import (
@@ -18,6 +20,8 @@ import (
 // SignupPolicy Tests
 // =============================================================================
 
+// TestSignupPolicyDefaults verifies that the default signup policy requires email and password
+// but not username or phone, with a minimum password length of 8.
 func TestSignupPolicyDefaults(t *testing.T) {
 	policy := oa.DefaultSignupPolicy()
 
@@ -38,6 +42,8 @@ func TestSignupPolicyDefaults(t *testing.T) {
 	}
 }
 
+// TestSignupPolicyPresets verifies the behavior of built-in policy presets:
+// PolicyUsernameRequired, PolicyEmailOnly, and PolicyFlexible.
 func TestSignupPolicyPresets(t *testing.T) {
 	// Test PolicyUsernameRequired
 	if !oa.PolicyUsernameRequired.RequireUsername {
@@ -67,6 +73,8 @@ func TestSignupPolicyPresets(t *testing.T) {
 	}
 }
 
+// TestSignupPolicyGetUsernamePattern verifies that custom and default username regex patterns
+// are compiled and applied correctly.
 func TestSignupPolicyGetUsernamePattern(t *testing.T) {
 	policy := oa.SignupPolicy{
 		UsernamePattern: `^[a-z]+$`,
@@ -91,6 +99,8 @@ func TestSignupPolicyGetUsernamePattern(t *testing.T) {
 	}
 }
 
+// TestSignupPolicyGetMinPasswordLength verifies that GetMinPasswordLength returns the configured
+// value or defaults to 8 when zero.
 func TestSignupPolicyGetMinPasswordLength(t *testing.T) {
 	policy := oa.SignupPolicy{MinPasswordLength: 12}
 	if policy.GetMinPasswordLength() != 12 {
@@ -108,6 +118,8 @@ func TestSignupPolicyGetMinPasswordLength(t *testing.T) {
 // SignupPolicy Integration Tests
 // =============================================================================
 
+// TestSignupWithPolicyEmailOnly verifies that signup succeeds without a username when the
+// PolicyEmailOnly preset is used.
 func TestSignupWithPolicyEmailOnly(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "oneauth-policy-test-*")
 	if err != nil {
@@ -145,6 +157,8 @@ func TestSignupWithPolicyEmailOnly(t *testing.T) {
 	}
 }
 
+// TestSignupWithPolicyUsernameRequired verifies that signup is rejected with a missing-field error
+// when username is required but not provided.
 func TestSignupWithPolicyUsernameRequired(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "oneauth-policy-test-*")
 	if err != nil {
@@ -191,6 +205,8 @@ func TestSignupWithPolicyUsernameRequired(t *testing.T) {
 	}
 }
 
+// TestSignupPolicyPasswordLength verifies that signup is rejected when the password is shorter
+// than the policy's configured minimum length.
 func TestSignupPolicyPasswordLength(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "oneauth-policy-test-*")
 	if err != nil {
@@ -242,6 +258,8 @@ func TestSignupPolicyPasswordLength(t *testing.T) {
 // AuthError Tests
 // =============================================================================
 
+// TestAuthErrorInterface verifies that AuthError implements the error interface and exposes
+// code, message, and field properties correctly.
 func TestAuthErrorInterface(t *testing.T) {
 	err := oa.NewAuthError(oa.ErrCodeEmailExists, "Email already exists", "email")
 
@@ -259,6 +277,8 @@ func TestAuthErrorInterface(t *testing.T) {
 	}
 }
 
+// TestAuthErrorHandler verifies that a custom OnSignupError handler receives the AuthError
+// and can override the HTTP response.
 func TestAuthErrorHandler(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "oneauth-error-test-*")
 	if err != nil {
@@ -318,6 +338,8 @@ func TestAuthErrorHandler(t *testing.T) {
 	}
 }
 
+// TestDefaultErrorHandlerJSON verifies that when no custom error handler is set, signup validation
+// errors are returned as a JSON response with code, error, and field fields.
 func TestDefaultErrorHandlerJSON(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "oneauth-error-test-*")
 	if err != nil {
@@ -375,6 +397,7 @@ func TestDefaultErrorHandlerJSON(t *testing.T) {
 // Error Codes Tests
 // =============================================================================
 
+// TestErrorCodes verifies that all expected error code constants are defined and non-empty.
 func TestErrorCodes(t *testing.T) {
 	// Just verify the constants are defined
 	codes := []string{

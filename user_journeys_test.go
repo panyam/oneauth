@@ -77,6 +77,8 @@ func policyPtr(p oa.SignupPolicy) *oa.SignupPolicy {
 // Journey 1: Multiple OAuth Providers (Same Email = Same Account)
 // =============================================================================
 
+// TestJourney1_MultipleOAuthSameEmail verifies that logging in with different OAuth providers
+// (Google, GitHub) using the same email address results in a single unified user account.
 func TestJourney1_MultipleOAuthSameEmail(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -144,6 +146,8 @@ func TestJourney1_MultipleOAuthSameEmail(t *testing.T) {
 // Journey 2: OAuth User Adds Username + Password
 // =============================================================================
 
+// TestJourney2_OAuthUserAddsCredentials verifies that an OAuth-only user can later add a username
+// and password, then log in via email, username, or OAuth interchangeably.
 func TestJourney2_OAuthUserAddsCredentials(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -242,6 +246,8 @@ func TestJourney2_OAuthUserAddsCredentials(t *testing.T) {
 // Journey 3: Email Signup, Then Link OAuth
 // =============================================================================
 
+// TestJourney3_EmailSignupThenLinkOAuth verifies that a user who signed up with email/password
+// can later log in via Google OAuth and have both auth methods linked to the same account.
 func TestJourney3_EmailSignupThenLinkOAuth(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -325,6 +331,8 @@ func TestJourney3_EmailSignupThenLinkOAuth(t *testing.T) {
 // Journey 4: Username as Primary Login
 // =============================================================================
 
+// TestJourney4_UsernameAsPrimaryLogin verifies that the credentials validator auto-detects
+// whether input is an email (contains @) or username and authenticates accordingly.
 func TestJourney4_UsernameAsPrimaryLogin(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -401,6 +409,8 @@ func TestJourney4_UsernameAsPrimaryLogin(t *testing.T) {
 // Journey 5: Different Emails = Different Accounts
 // =============================================================================
 
+// TestJourney5_DifferentEmailsDifferentAccounts verifies that OAuth logins with different email
+// addresses create separate user accounts, even if they belong to the same person.
 func TestJourney5_DifferentEmailsDifferentAccounts(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -439,6 +449,8 @@ func TestJourney5_DifferentEmailsDifferentAccounts(t *testing.T) {
 // Journey 6: Password Change
 // =============================================================================
 
+// TestJourney6_PasswordChange verifies that after changing a password, the old password is
+// rejected and the new password is accepted.
 func TestJourney6_PasswordChange(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -499,6 +511,8 @@ func TestJourney6_PasswordChange(t *testing.T) {
 // Journey 7: Username Change
 // =============================================================================
 
+// TestJourney7_UsernameChange verifies that changing a username releases the old name and
+// makes the new one resolve to the same user.
 func TestJourney7_UsernameChange(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -547,6 +561,8 @@ func TestJourney7_UsernameChange(t *testing.T) {
 // Journey 8: OAuth User Resets Password (No Local Channel)
 // =============================================================================
 
+// TestJourney8_OAuthUserPasswordReset verifies that an OAuth-only user (no local channel) can
+// set a password via the reset flow, creating a local channel and enabling password login.
 func TestJourney8_OAuthUserPasswordReset(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -612,6 +628,8 @@ func TestJourney8_OAuthUserPasswordReset(t *testing.T) {
 // Edge Case Tests
 // =============================================================================
 
+// TestEdgeCase_DuplicateEmailSignup verifies that signing up with an already-registered email
+// returns an email-exists error.
 func TestEdgeCase_DuplicateEmailSignup(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -657,6 +675,8 @@ func TestEdgeCase_DuplicateEmailSignup(t *testing.T) {
 	}
 }
 
+// TestEdgeCase_OAuthReturnsExistingEmail verifies that an OAuth login whose email matches an
+// existing local-signup user links to that user rather than creating a new account.
 func TestEdgeCase_OAuthReturnsExistingEmail(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -712,6 +732,8 @@ func TestEdgeCase_OAuthReturnsExistingEmail(t *testing.T) {
 	}
 }
 
+// TestEdgeCase_LinkCredentialsTwiceFails verifies that attempting to link local credentials
+// a second time to an OAuth user is rejected.
 func TestEdgeCase_LinkCredentialsTwiceFails(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -736,6 +758,8 @@ func TestEdgeCase_LinkCredentialsTwiceFails(t *testing.T) {
 	}
 }
 
+// TestEdgeCase_UsernameAlreadyTaken verifies that reserving a username already held by another
+// user fails, including case-insensitive variations.
 func TestEdgeCase_UsernameAlreadyTaken(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()
@@ -759,6 +783,8 @@ func TestEdgeCase_UsernameAlreadyTaken(t *testing.T) {
 	}
 }
 
+// TestEdgeCase_AutoDetectEmailVsUsername verifies that the credentials validator auto-detects
+// email (contains @) vs username (no @) when the field hint is empty, and honors explicit overrides.
 func TestEdgeCase_AutoDetectEmailVsUsername(t *testing.T) {
 	j := setupJourney(t)
 	defer j.Cleanup()

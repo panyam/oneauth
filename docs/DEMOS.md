@@ -143,6 +143,6 @@ Every step requires browser cookies and HTTP redirects. SPAs doing `fetch()` and
 | Demo | Scenario | Depends On |
 |------|----------|------------|
 | Asymmetric resource server auth | App uses RS256 private key, resource server validates with public key only | ✅ Core support done (issue #4), demo extension needed |
-| JWKS discovery | Resource server auto-fetches app public keys via `.well-known/jwks.json` | Issue #7 |
+| JWKS discovery | Resource server auto-fetches app public keys via `.well-known/jwks.json` — use `JWKS_URL` env var on demo-resource-server | ✅ Core support done (issue #7), demo extension needed |
 | Client SDK | CLI tool authenticates, gets tokens, makes authenticated API calls | Client SDK migration (lilbattle) |
 | Multi-factor auth | Login with password + TOTP code from authenticator app | MFA implementation |

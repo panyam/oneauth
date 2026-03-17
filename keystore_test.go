@@ -1,3 +1,4 @@
+// Tests for the in-memory KeyStore implementation using the shared keystoretest suite.
 package oneauth_test
 
 import (
@@ -7,6 +8,7 @@ import (
 	"github.com/panyam/oneauth/keystoretest"
 )
 
+// TestInMemoryKeyStore runs the shared WritableKeyStore test suite against the in-memory implementation.
 func TestInMemoryKeyStore(t *testing.T) {
 	keystoretest.RunAll(t, func(t *testing.T) oa.WritableKeyStore {
 		return oa.NewInMemoryKeyStore()

@@ -1,5 +1,9 @@
 package oneauth_test
 
+// Tests for asymmetric JWT signing: MintResourceTokenWithKey (RS256/ES256), APIAuth
+// asymmetric token creation/validation, and APIMiddleware multi-tenant validation
+// with mixed algorithm support and algorithm confusion attack prevention.
+
 import (
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -16,6 +20,8 @@ import (
 // MintResourceTokenWithKey tests
 // ============================================================================
 
+// TestMintResourceTokenWithKey_RS256 verifies that MintResourceTokenWithKey produces
+// a valid RS256-signed JWT that can be verified with the corresponding public key.
 func TestMintResourceTokenWithKey_RS256(t *testing.T) {
 	privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
 	if err != nil {
@@ -49,6 +55,8 @@ func TestMintResourceTokenWithKey_RS256(t *testing.T) {
 	}
 }
 
+// TestMintResourceTokenWithKey_ES256 verifies that MintResourceTokenWithKey produces
+// a valid ES256-signed JWT that can be verified with the corresponding ECDSA public key.
 func TestMintResourceTokenWithKey_ES256(t *testing.T) {
 	privPEM, pubPEM, err := utils.GenerateECDSAKeyPair()
 	if err != nil {
@@ -76,6 +84,8 @@ func TestMintResourceTokenWithKey_ES256(t *testing.T) {
 	}
 }
 
+// TestMintResourceTokenWithKey_WrongKey verifies that a token signed with one RSA private key
+// is rejected when verified with a different RSA public key.
 func TestMintResourceTokenWithKey_WrongKey(t *testing.T) {
 	privPEM, _, _ := utils.GenerateRSAKeyPair(2048)
 	_, otherPubPEM, _ := utils.GenerateRSAKeyPair(2048)
@@ -93,6 +103,8 @@ func TestMintResourceTokenWithKey_WrongKey(t *testing.T) {
 	}
 }
 
+// TestMintResourceTokenWithKey_BackwardsCompat verifies that the original MintResourceToken
+// (HS256) API still works correctly alongside the new asymmetric key API.
 func TestMintResourceTokenWithKey_BackwardsCompat(t *testing.T) {
 	// MintResourceToken (old API) should still work
 	tokenStr, err := oa.MintResourceToken("user-1", "app-hs", "my-secret", oa.AppQuota{MaxRooms: 3}, []string{"read"})
@@ -118,6 +130,8 @@ func TestMintResourceTokenWithKey_BackwardsCompat(t *testing.T) {
 // APIAuth asymmetric signing tests
 // ============================================================================
 
+// TestAPIAuth_RS256_Signing verifies that APIAuth can create and validate RS256 access tokens
+// with correct user ID and scopes.
 func TestAPIAuth_RS256_Signing(t *testing.T) {
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
@@ -147,6 +161,8 @@ func TestAPIAuth_RS256_Signing(t *testing.T) {
 	}
 }
 
+// TestAPIAuth_ES256_Signing verifies that APIAuth can create and validate ES256 access tokens
+// with correct user ID and scopes.
 func TestAPIAuth_ES256_Signing(t *testing.T) {
 	privPEM, pubPEM, _ := utils.GenerateECDSAKeyPair()
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
@@ -175,6 +191,8 @@ func TestAPIAuth_ES256_Signing(t *testing.T) {
 	}
 }
 
+// TestAPIAuth_RS256_RejectsHMAC verifies that an RS256-signed token is rejected
+// when validated by an HMAC-configured APIAuth instance.
 func TestAPIAuth_RS256_RejectsHMAC(t *testing.T) {
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
@@ -196,6 +214,8 @@ func TestAPIAuth_RS256_RejectsHMAC(t *testing.T) {
 	}
 }
 
+// TestAPIAuth_ValidateAccessTokenFull_RS256 verifies that ValidateAccessTokenFull returns
+// custom claims (e.g., client_id) alongside the user ID for RS256 tokens.
 func TestAPIAuth_ValidateAccessTokenFull_RS256(t *testing.T) {
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
@@ -227,6 +247,8 @@ func TestAPIAuth_ValidateAccessTokenFull_RS256(t *testing.T) {
 // APIMiddleware multi-tenant asymmetric validation tests
 // ============================================================================
 
+// TestAPIMiddleware_RS256_MultiTenant verifies that APIMiddleware validates RS256 tokens
+// from registered apps using the KeyStore for public key lookup.
 func TestAPIMiddleware_RS256_MultiTenant(t *testing.T) {
 	ks := oa.NewInMemoryKeyStore()
 
@@ -260,6 +282,8 @@ func TestAPIMiddleware_RS256_MultiTenant(t *testing.T) {
 	}
 }
 
+// TestAPIMiddleware_ES256_MultiTenant verifies that APIMiddleware validates ES256 tokens
+// from registered apps using the KeyStore for public key lookup.
 func TestAPIMiddleware_ES256_MultiTenant(t *testing.T) {
 	ks := oa.NewInMemoryKeyStore()
 
@@ -284,6 +308,8 @@ func TestAPIMiddleware_ES256_MultiTenant(t *testing.T) {
 	}
 }
 
+// TestAPIMiddleware_MixedAlgorithms verifies that APIMiddleware correctly validates tokens
+// from HS256, RS256, and ES256 apps coexisting in the same KeyStore.
 func TestAPIMiddleware_MixedAlgorithms(t *testing.T) {
 	ks := oa.NewInMemoryKeyStore()
 
@@ -327,6 +353,8 @@ func TestAPIMiddleware_MixedAlgorithms(t *testing.T) {
 	}
 }
 
+// TestAPIMiddleware_AlgorithmConfusion verifies that the middleware rejects algorithm confusion
+// attacks where an attacker uses the RS256 public key as an HS256 HMAC secret to forge tokens.
 func TestAPIMiddleware_AlgorithmConfusion(t *testing.T) {
 	ks := oa.NewInMemoryKeyStore()
 

@@ -1,6 +1,8 @@
 //go:build !wasm
 // +build !wasm
 
+// Tests for the Google App Engine Datastore-based WritableKeyStore implementation.
+
 package gae
 
 import (

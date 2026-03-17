@@ -123,6 +123,8 @@ See **[Client SDK](CLIENT_SDK.md)** for full details.
 ### JWT Security
 - HS256, RS256, and ES256 signing (per-app algorithm choice, all coexist in the same KeyStore)
 - Asymmetric signing: apps keep private keys, register only public keys; resource servers verify without knowing signing secrets
+- JWKS endpoint (`/.well-known/jwks.json`) for public key discovery — resource servers can fetch asymmetric keys via HTTP instead of sharing database access
+- `JWKSKeyStore` — read-only KeyStore that fetches from a remote JWKS URL with background refresh, caching, and resilience
 - Audience and issuer validation
 - Algorithm confusion prevention via `GetExpectedAlg`
 - `utils.DecodeVerifyKey` converts stored PEM bytes to `crypto.PublicKey` at read time

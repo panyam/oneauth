@@ -1,8 +1,8 @@
-.PHONY: dev up down logs rebuild clean
+.PHONY: dev up down logs rebuild clean reset
 
 # Live-reload development (PG in Docker, everything else native)
 dev:
-	devloop --http-port -1 --grpc-port -1
+	devloop
 
 up:
 	docker compose up -d --build
@@ -18,6 +18,11 @@ rebuild:
 
 clean:
 	docker compose down -v
+
+# Reset all demo state: stop containers, remove volumes, delete local data
+reset:
+	docker compose down -v
+	rm -rf ./data
 
 status:
 	@echo "OneAuth Server: http://localhost:9999"

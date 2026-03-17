@@ -1,3 +1,6 @@
+// Tests for OAuth2 provider implementations: redirect flow, callback validation, state management,
+// HTTP client injection, endpoint configuration, and environment variable fallbacks.
+
 package oauth2_test
 
 import (

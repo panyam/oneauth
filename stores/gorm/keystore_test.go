@@ -1,6 +1,8 @@
 //go:build !wasm
 // +build !wasm
 
+// Tests for the GORM SQL-based WritableKeyStore implementation (SQLite and PostgreSQL).
+
 package gorm
 
 import (
@@ -105,6 +107,7 @@ func setupPostgresDB(t *testing.T, dbName string) *gorm.DB {
 	return db
 }
 
+// TestGORMKeyStore runs the shared WritableKeyStore test suite against the GORM-backed implementation.
 func TestGORMKeyStore(t *testing.T) {
 	keystoretest.RunAll(t, func(t *testing.T) oa.WritableKeyStore {
 		return NewKeyStore(setupTestDB(t))

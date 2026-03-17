@@ -1,3 +1,5 @@
+// Tests for custom JWT claims embedding, multi-tenant token validation via KeyStore,
+// algorithm confusion prevention, and single-key fallback behavior.
 package oneauth_test
 
 import (

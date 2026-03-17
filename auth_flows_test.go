@@ -1,3 +1,5 @@
+// Tests for core authentication flows: signup, login, email verification,
+// password reset, and file storage isolation between test instances.
 package oneauth_test
 
 import (

@@ -1,5 +1,8 @@
 package oneauth_test
 
+// Tests for MintResourceToken: HS256 token minting, claim population, quota handling,
+// KeyStore-based verification, and rejection of tokens signed with incorrect secrets.
+
 import (
 	"testing"
 
@@ -7,6 +10,8 @@ import (
 	oa "github.com/panyam/oneauth"
 )
 
+// TestMintResourceToken_Basic verifies that MintResourceToken produces a valid HS256 JWT
+// with the correct sub, client_id, type, and quota claims.
 func TestMintResourceToken_Basic(t *testing.T) {
 	token, err := oa.MintResourceToken("user-123", "app-abc", "my-secret", oa.AppQuota{
 		MaxRooms:   10,
@@ -45,6 +50,7 @@ func TestMintResourceToken_Basic(t *testing.T) {
 	}
 }
 
+// TestMintResourceToken_NoQuota verifies that zero-value quota fields are omitted from JWT claims.
 func TestMintResourceToken_NoQuota(t *testing.T) {
 	token, err := oa.MintResourceToken("user-1", "app-1", "secret", oa.AppQuota{}, []string{"read"})
 	if err != nil {
@@ -65,6 +71,8 @@ func TestMintResourceToken_NoQuota(t *testing.T) {
 	}
 }
 
+// TestMintResourceToken_VerifiableByMiddleware verifies that a minted token can be validated
+// using a KeyStore-based key function, simulating the APIMiddleware verification flow.
 func TestMintResourceToken_VerifiableByMiddleware(t *testing.T) {
 	secret := "shared-secret-between-app-and-resource-server"
 	clientID := "app-excaliframe"
@@ -103,6 +111,8 @@ func TestMintResourceToken_VerifiableByMiddleware(t *testing.T) {
 	}
 }
 
+// TestMintResourceToken_WrongSecretRejected verifies that a token signed with one secret
+// is rejected when verified with a different secret.
 func TestMintResourceToken_WrongSecretRejected(t *testing.T) {
 	token, _ := oa.MintResourceToken("user-1", "app-1", "correct-secret", oa.AppQuota{}, []string{"read"})
 
