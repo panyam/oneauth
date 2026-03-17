@@ -9,7 +9,7 @@
 
 Auth0 is a mature, enterprise-grade identity platform with 100+ features spanning authentication, authorization, user management, security, extensibility, and compliance. OneAuth is a focused Go authentication library with solid fundamentals — local/OAuth auth, multi-tenant JWT, federated resource server auth, and three storage backends — but lacks many features that Auth0 provides as a managed service.
 
-**Key takeaway:** OneAuth covers ~25-30% of Auth0's surface area. The gaps are largest in **security hardening** (MFA, anomaly detection), **standards compliance** (OIDC, PKCE), **UX components** (Universal Login, SDKs), **user management** (search, roles, organizations), and **extensibility** (Actions, webhooks, log streaming).
+**Key takeaway:** OneAuth covers ~30% of Auth0's surface area. The gaps are largest in **security hardening** (MFA, anomaly detection), **standards compliance** (OIDC, PKCE), **UX components** (Universal Login, SDKs), **user management** (search, roles, organizations), and **extensibility** (Actions, webhooks, log streaming).
 
 ---
 
@@ -86,7 +86,8 @@ Auth0 is a mature, enterprise-grade identity platform with 100+ features spannin
 | **Resource Indicators (RFC 8707)** | Supported | Via federated MintResourceToken | Partial |
 | **Multi-tenant Key Management** | Per-tenant keys | WritableKeyStore (per-client keys) | Full |
 | **Key Rotation** | Automatic + manual | POST /apps/{id}/rotate (manual) | Partial |
-| **JWKS Endpoint** | /.well-known/jwks.json | None | **None** |
+| **JWKS Endpoint** | /.well-known/jwks.json | `GET /.well-known/jwks.json` via JWKSHandler — serves RS256/ES256 public keys, filters HS256 secrets, Cache-Control headers | Full |
+| **JWKS Client (key fetching)** | SDKs fetch from JWKS | JWKSKeyStore — fetches from remote JWKS, caches locally, background refresh, cache-miss retry | Full |
 | **OpenID Discovery** | /.well-known/openid-configuration | None | **None** |
 
 ### OneAuth Token Strengths
@@ -94,6 +95,9 @@ Auth0 is a mature, enterprise-grade identity platform with 100+ features spannin
 - Three signing algorithms (HS256, RS256, ES256) with per-client selection
 - InMemoryKeyStore for testing, FSKeyStore, GORMKeyStore, GAEKeyStore
 - Shared KeyStore test suite (keystoretest.RunAll)
+- **JWKSHandler** serves RFC 7517 compliant JWKS endpoint with proper security (HS256 secrets excluded)
+- **JWKSKeyStore** enables resource servers to auto-discover public keys via HTTP instead of shared DB access
+- Full JWK conversion utilities for RSA and ECDSA keys (utils/jwk.go)
 
 ---
 
@@ -280,7 +284,7 @@ Auth0 is a mature, enterprise-grade identity platform with 100+ features spannin
 | **WS-Federation** | Supported | None | **None** |
 | **SCIM 2.0** | Supported | None | **None** |
 | **LDAP** | Via AD Connector | None | **None** |
-| **JWKS (RFC 7517)** | /.well-known/jwks.json | None | **None** |
+| **JWKS (RFC 7517)** | /.well-known/jwks.json | `GET /.well-known/jwks.json` (JWKSHandler + JWKSKeyStore) | Full |
 | **OAuth 2.0 Token Revocation (RFC 7009)** | Supported | Custom endpoint | Partial |
 | **DPoP (RFC 9449)** | Supported (2025) | None | **None** |
 | **FIDO2/WebAuthn** | Supported | None | **None** |
@@ -310,7 +314,7 @@ Auth0 is a mature, enterprise-grade identity platform with 100+ features spannin
 |---|-----|-------------|--------|
 | 1 | **OIDC Compliance** | Industry standard; required for enterprise SSO, federation | Large |
 | 2 | **Authorization Code Flow + PKCE** | Required for SPAs, mobile apps; ROPC is deprecated | Medium |
-| 3 | **JWKS Endpoint** | Required for standard token validation by third parties | Small |
+| 3 | ~~**JWKS Endpoint**~~ | ~~Required for standard token validation by third parties~~ | **Done** |
 | 4 | **OpenID Discovery** | Required for OIDC compliance; enables auto-configuration | Small |
 | 5 | **MFA (TOTP at minimum)** | Table stakes for any production auth system | Medium |
 
@@ -365,20 +369,22 @@ These are areas where OneAuth's architecture is arguably **better** than Auth0:
 
 6. **Algorithm confusion prevention** — Explicit per-client algorithm enforcement. Auth0 handles this internally but doesn't expose it.
 
-7. **Config-driven deployment** — YAML + env var substitution. Auth0 requires dashboard/API configuration.
+7. **JWKS-based key discovery** — Both server-side (JWKSHandler) and client-side (JWKSKeyStore with caching + background refresh). Resource servers can auto-discover keys via HTTP instead of sharing a database.
 
-8. **No per-user pricing** — Auth0's pricing scales with MAU ($35/mo for 500 MAU on B2C). OneAuth is free.
+8. **Config-driven deployment** — YAML + env var substitution. Auth0 requires dashboard/API configuration.
 
-9. **Per-app resource quotas** — JWT claims include max_rooms, max_msg_rate for resource server enforcement. Auth0 has no built-in quota system.
+9. **No per-user pricing** — Auth0's pricing scales with MAU ($35/mo for 500 MAU on B2C). OneAuth is free.
 
-10. **Transparent token rotation** — Client SDK handles refresh automatically. Auth0 SDKs do too, but OneAuth's is simpler to understand/debug.
+10. **Per-app resource quotas** — JWT claims include max_rooms, max_msg_rate for resource server enforcement. Auth0 has no built-in quota system.
+
+11. **Transparent token rotation** — Client SDK handles refresh automatically. Auth0 SDKs do too, but OneAuth's is simpler to understand/debug.
 
 ---
 
 ## Recommended Roadmap
 
 ### Phase 1: Standards Foundation (P0)
-- Add `/.well-known/jwks.json` endpoint
+- ~~Add `/.well-known/jwks.json` endpoint~~ **Done** — JWKSHandler + JWKSKeyStore + JWK utils (issue #7)
 - Add `/.well-known/openid-configuration` discovery
 - Implement Authorization Code flow + PKCE
 - Add ID token generation (OIDC compliance)
@@ -417,10 +423,10 @@ These are areas where OneAuth's architecture is arguably **better** than Auth0:
 | Security Features | ~12 | 3 (bcrypt, token rotation, algorithm enforcement) | 25% |
 | UX Components | ~12 SDKs + Universal Login | 1 (Go client SDK) + basic templates | ~8% |
 | Token Types | 4 (access, ID, refresh, API key) | 3 (access, refresh, API key) | 75% |
-| Standards | 10+ | 3 (JWT, OAuth2 partial, SAML partial) | ~30% |
+| Standards | 10+ | 4 (JWT, JWKS, OAuth2 partial, SAML partial) | ~33% |
 | Extensibility | Actions, Rules, Hooks, Webhooks, Marketplace | Go callbacks, config-driven | ~15% |
 | Storage Backends | Managed (opaque) | 3 (FS, GORM, GAE) | N/A |
-| **Overall Estimated Coverage** | | | **~25-30%** |
+| **Overall Estimated Coverage** | | | **~30%** |
 
 ---
 
