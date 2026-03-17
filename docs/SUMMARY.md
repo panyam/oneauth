@@ -16,6 +16,7 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 - **Username Support**: Optional username uniqueness with username-based login
 - **App Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), AppRegistrar HTTP handler for App CRUD, MintResourceToken for resource-scoped JWTs
 - **Client SDK**: AuthClient with CredentialStore, HTTPClient wrapper with automatic token refresh on 401
+- **CSRF Protection**: Double-submit cookie middleware (`CSRFMiddleware`) for form endpoints, opt-in per-route
 - **Reference Server**: Config-driven server in `cmd/oneauth-server/`, deployable to GAE, Docker, and Kubernetes
 - **Federated Auth Demo**: 6-service Docker Compose demo (oneauth-server, 2 app services, 2 resource servers, PostgreSQL) in `demo/`
 
@@ -152,6 +153,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.37**: CSRF protection (#21). `CSRFMiddleware` with double-submit cookie pattern, constant-time comparison, Bearer exemption. Reference server form endpoints protected. 12 unit tests.
 - **v0.0.36**: HS256 secret encryption at rest (#19). `EncryptedKeyStore` decorator with AES-256-GCM, HKDF-SHA256 key derivation, plaintext migration fallback. Configured via `ONEAUTH_MASTER_KEY` env var.
 - **v0.0.35**: JWKS endpoint for federated public key discovery (#7). `JWKSHandler` serves `/.well-known/jwks.json`, `JWKSKeyStore` fetches keys from remote JWKS URL, `utils/jwk.go` JWK conversion utilities. Demo resource server supports `JWKS_URL` as alternative to shared database.
 - **v0.0.34**: Asymmetric JWT signing (RS256/ES256). `MintResourceTokenWithKey`, `APIAuth.JWTSigningKey`/`JWTVerifyKey`, `AppRegistrar` public key registration, `utils/crypto_helpers.go`, keystoretest asymmetric suite, pre-push hook.

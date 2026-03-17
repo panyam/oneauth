@@ -398,7 +398,7 @@ Compliance (can be parallel)
 
 1. **File-based stores**: Not suitable for >1000 users or clustered deployments
 2. **Rate limiting interface only**: Provides interface, application implements logic
-3. **No CSRF protection**: Application must implement
+3. ~~**No CSRF protection**~~ **Resolved** — `CSRFMiddleware` provides double-submit cookie pattern (see [BROWSER_AUTH.md](BROWSER_AUTH.md#csrf-protection-csrfmiddleware))
 4. **Console email sender only**: Production requires custom EmailSender implementation
 5. **No MFA yet**: TOTP/WebAuthn planned for medium-term
 

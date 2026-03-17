@@ -92,11 +92,11 @@ func main() {
 		ForgotPasswordURL: "/auth/forgot-password",
 		ResetPasswordURL:  "/auth/reset-password",
 		OnLoginError: func(err *oa.AuthError, w http.ResponseWriter, r *http.Request) bool {
-			renderTemplate(w, "login.html", map[string]any{"Title": "Login", "Error": err.Message})
+			renderTemplate(w, "login.html", map[string]any{"Title": "Login", "Error": err.Message, "CSRFField": oa.CSRFTemplateField(r)})
 			return true
 		},
 		OnSignupError: func(err *oa.AuthError, w http.ResponseWriter, r *http.Request) bool {
-			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up", "Error": err.Message})
+			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up", "Error": err.Message, "CSRFField": oa.CSRFTemplateField(r)})
 			return true
 		},
 	}
@@ -108,6 +108,9 @@ func main() {
 		JWTIssuer:           cfg.JWT.Issuer,
 		ValidateCredentials: localAuth.ValidateCredentials,
 	}
+
+	// CSRF middleware for browser form endpoints
+	csrf := &oa.CSRFMiddleware{Secure: cfg.TLS.Enabled}
 
 	// Wire up HTTP server
 	mux := http.NewServeMux()
@@ -130,32 +133,33 @@ func main() {
 		renderTemplate(w, "index.html", map[string]any{"Title": "Home", "User": user, "Services": services})
 	})
 
-	// Auth pages (browser)
-	mux.HandleFunc("GET /auth/login", func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, "login.html", map[string]any{"Title": "Login"})
-	})
-	mux.HandleFunc("POST /auth/login", localAuth.ServeHTTP)
+	// Auth pages (browser) — wrapped with CSRF protection
+	mux.Handle("GET /auth/login", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		renderTemplate(w, "login.html", map[string]any{"Title": "Login", "CSRFField": oa.CSRFTemplateField(r)})
+	})))
+	mux.Handle("POST /auth/login", csrf.Protect(http.HandlerFunc(localAuth.ServeHTTP)))
 
-	mux.HandleFunc("GET /auth/signup", func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up"})
-	})
-	mux.HandleFunc("POST /auth/signup", localAuth.HandleSignup)
+	mux.Handle("GET /auth/signup", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up", "CSRFField": oa.CSRFTemplateField(r)})
+	})))
+	mux.Handle("POST /auth/signup", csrf.Protect(http.HandlerFunc(localAuth.HandleSignup)))
 
-	mux.HandleFunc("GET /auth/forgot-password", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /auth/forgot-password", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sent := r.URL.Query().Get("sent") == "true"
-		renderTemplate(w, "forgot_password.html", map[string]any{"Title": "Forgot Password", "Sent": sent})
-	})
-	mux.HandleFunc("POST /auth/forgot-password", localAuth.HandleForgotPassword)
+		renderTemplate(w, "forgot_password.html", map[string]any{"Title": "Forgot Password", "Sent": sent, "CSRFField": oa.CSRFTemplateField(r)})
+	})))
+	mux.Handle("POST /auth/forgot-password", csrf.Protect(http.HandlerFunc(localAuth.HandleForgotPassword)))
 
-	mux.HandleFunc("GET /auth/reset-password", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /auth/reset-password", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		success := r.URL.Query().Get("success") == "true"
 		token := r.URL.Query().Get("token")
 		errMsg := r.URL.Query().Get("error")
 		renderTemplate(w, "reset_password.html", map[string]any{
 			"Title": "Reset Password", "Token": token, "Success": success, "Error": errMsg,
+			"CSRFField": oa.CSRFTemplateField(r),
 		})
-	})
-	mux.HandleFunc("POST /auth/reset-password", localAuth.HandleResetPassword)
+	})))
+	mux.Handle("POST /auth/reset-password", csrf.Protect(http.HandlerFunc(localAuth.HandleResetPassword)))
 
 	mux.HandleFunc("GET /auth/verify-email", localAuth.HandleVerifyEmail)
 

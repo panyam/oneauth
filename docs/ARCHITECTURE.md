@@ -136,6 +136,12 @@ See **[Client SDK](CLIENT_SDK.md)** for full details.
 - Migration: if GCM decryption fails on read, falls back to treating stored bytes as plaintext (backward compat with pre-encryption data)
 - Optional: no master key configured = no encryption (with log warning)
 
+### CSRF Protection
+- `CSRFMiddleware` — double-submit cookie pattern, opt-in per-endpoint
+- Constant-time token comparison (`crypto/subtle`)
+- Bearer-token requests exempt by default
+- Per-session tokens (not per-request) for back button / multi-tab compatibility
+
 ### Refresh Token Security
 - Rotation on use
 - Family-based theft detection (reuse → revoke entire family)

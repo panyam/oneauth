@@ -10,7 +10,8 @@ Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeySt
 oneauth/
 ├── *.go                  # Core types: User, Identity, Channel, LocalAuth, APIAuth,
 │                         #   APIMiddleware, KeyStore, WritableKeyStore, EncryptedKeyStore,
-│                         #   AdminAuth, AppRegistrar, MintResourceToken, MintResourceTokenWithKey
+│                         #   AdminAuth, AppRegistrar, CSRFMiddleware,
+│                         #   MintResourceToken, MintResourceTokenWithKey
 ├── utils/                # Crypto helpers (PEM encode/decode, DecodeVerifyKey, key generation, JWK conversion)
 ├── stores/
 │   ├── fs/               # File-based stores + FSKeyStore

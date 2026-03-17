@@ -577,10 +577,60 @@ localAuth.PhoneField = "phone"
 | Generic Login Errors | "Invalid credentials" (prevents enumeration) |
 | Constant-Time Comparison | Via bcrypt internals |
 
+### CSRF Protection (CSRFMiddleware)
+
+OneAuth provides a `CSRFMiddleware` using the **double-submit cookie** pattern. It is opt-in — applications wrap their form endpoints to enable protection.
+
+```go
+csrf := &oa.CSRFMiddleware{Secure: true} // set Secure: true for HTTPS
+
+// Wrap form GET handlers (generates CSRF cookie + injects token into context)
+mux.Handle("GET /auth/login", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    renderTemplate(w, "login.html", map[string]any{
+        "CSRFField": oa.CSRFTemplateField(r),
+    })
+})))
+
+// Wrap form POST handlers (validates cookie vs. form field/header)
+mux.Handle("POST /auth/login", csrf.Protect(http.HandlerFunc(localAuth.ServeHTTP)))
+```
+
+In templates, include the hidden field inside `<form>` tags:
+
+```html
+<form method="POST" action="/auth/login">
+    {{.CSRFField}}
+    <!-- other fields -->
+</form>
+```
+
+**How it works:**
+- **Safe methods** (GET, HEAD, OPTIONS): Generates a random token, stores it in a `csrf_token` cookie (not HttpOnly, so JS can read it for AJAX), and injects it into the request context.
+- **Unsafe methods** (POST, PUT, DELETE, PATCH): Validates that the token from the `csrf_token` form field or `X-CSRF-Token` header matches the cookie value using constant-time comparison.
+- **Bearer-token requests**: Automatically exempt (not vulnerable to CSRF).
+- **Per-session tokens**: Token persists for the cookie lifetime (default: 1 hour). No per-request rotation, so back button and multi-tab usage work.
+
+**Configuration options:**
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `CookieName` | `csrf_token` | Cookie name |
+| `FieldName` | `csrf_token` | Form field name |
+| `HeaderName` | `X-CSRF-Token` | Header name for AJAX |
+| `MaxAge` | `3600` (1 hour) | Cookie lifetime in seconds |
+| `Secure` | `false` | Set `true` for HTTPS |
+| `SameSite` | `Strict` | SameSite cookie attribute |
+| `ErrorHandler` | 403 JSON | Custom error handler |
+| `ExemptFunc` | Bearer exempt | Custom exemption logic |
+
+**Template helpers:**
+- `oa.CSRFToken(r)` — extract token string from request context
+- `oa.CSRFTemplateField(r)` — returns `<input type="hidden" name="csrf_token" value="...">` as `template.HTML`
+
 ### Recommended Application-Level Protections
 
 1. **Rate Limiting**: Per-IP and per-account limits on login attempts
-2. **CSRF Tokens**: On all auth forms
+2. ~~**CSRF Tokens**: On all auth forms~~ **Provided** — use `CSRFMiddleware` (see above)
 3. **Session Security**: HttpOnly, Secure, SameSite cookies
 4. **HTTPS**: Required for OAuth callbacks
 5. **Audit Logging**: Log all auth events

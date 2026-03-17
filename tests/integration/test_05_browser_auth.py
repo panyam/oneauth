@@ -1,4 +1,4 @@
-"""Browser auth flow — signup, login, JWT cookie, dashboard access, forgot password."""
+"""Browser auth flow — signup, login, JWT cookie, dashboard access, forgot password, CSRF."""
 
 import pytest
 import requests
@@ -26,6 +26,12 @@ def session(server_url):
     return s
 
 
+def get_csrf_token(session, server_url, path):
+    """GET a form page to receive the CSRF cookie, return the token value."""
+    session.get(f"{server_url}{path}")
+    return session.cookies.get("csrf_token", "")
+
+
 class TestBrowserAuth:
     def test_landing_page_loads(self, server_url, session):
         r = session.get(f"{server_url}/")
@@ -37,14 +43,27 @@ class TestBrowserAuth:
         assert r.status_code == 200
         assert "Sign Up" in r.text
 
+    def test_post_without_csrf_returns_403(self, server_url):
+        """POST login without CSRF token should be rejected."""
+        s = requests.Session()
+        s.headers["Accept"] = "text/html"
+        r = s.post(f"{server_url}/auth/login", data={
+            "username": "test@example.com", "password": "testpass",
+        })
+        assert r.status_code == 403
+
     def test_signup_and_login(self, server_url, session):
         import uuid
         email = f"test-{uuid.uuid4().hex[:8]}@example.com"
         password = "testpass1234"
 
-        # Signup
+        # GET signup page to receive CSRF cookie
+        csrf_token = get_csrf_token(session, server_url, "/auth/signup")
+        assert csrf_token, "CSRF cookie should be set on GET"
+
+        # Signup with CSRF token
         r = session.post(f"{server_url}/auth/signup", data={
-            "email": email, "password": password,
+            "email": email, "password": password, "csrf_token": csrf_token,
         }, allow_redirects=False)
         # Should redirect to dashboard (signup auto-logs in)
         assert r.status_code in (302, 303)
@@ -53,8 +72,11 @@ class TestBrowserAuth:
         # Clear cookies, then login
         session.cookies.clear()
 
+        # GET login page to receive CSRF cookie
+        csrf_token = get_csrf_token(session, server_url, "/auth/login")
+
         r = session.post(f"{server_url}/auth/login", data={
-            "username": email, "password": password,
+            "username": email, "password": password, "csrf_token": csrf_token,
         }, allow_redirects=False)
         assert r.status_code in (302, 303)
         assert "oa_token" in session.cookies
@@ -68,9 +90,10 @@ class TestBrowserAuth:
         import uuid
         email = f"dash-{uuid.uuid4().hex[:8]}@example.com"
 
-        # Signup (gets cookie)
+        # GET signup page for CSRF token, then signup
+        csrf_token = get_csrf_token(session, server_url, "/auth/signup")
         session.post(f"{server_url}/auth/signup", data={
-            "email": email, "password": "testpass1234",
+            "email": email, "password": "testpass1234", "csrf_token": csrf_token,
         })
 
         r = session.get(f"{server_url}/dashboard")
@@ -87,8 +110,12 @@ class TestBrowserAuth:
         assert "Forgot Password" in r.text
 
     def test_invalid_login_shows_error(self, server_url, session):
+        # GET login page for CSRF token
+        csrf_token = get_csrf_token(session, server_url, "/auth/login")
+
         r = session.post(f"{server_url}/auth/login", data={
             "username": "nobody@example.com", "password": "wrongpass",
+            "csrf_token": csrf_token,
         })
         assert r.status_code == 200
         assert "Invalid" in r.text or "error" in r.text.lower()
