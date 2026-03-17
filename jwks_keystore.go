@@ -29,6 +29,7 @@ type JWKSKeyStore struct {
 type cachedKey struct {
 	PublicKey crypto.PublicKey
 	Algorithm string
+	Kid       string // the kid from JWKS (thumbprint)
 }
 
 // JWKSOption configures a JWKSKeyStore.
@@ -129,7 +130,7 @@ func (s *JWKSKeyStore) refresh() error {
 			log.Printf("jwks: skipping key %s: %v", jwk.Kid, err)
 			continue
 		}
-		newKeys[jwk.Kid] = &cachedKey{PublicKey: pub, Algorithm: alg}
+		newKeys[jwk.Kid] = &cachedKey{PublicKey: pub, Algorithm: alg, Kid: jwk.Kid}
 	}
 
 	s.mu.Lock()
@@ -165,6 +166,35 @@ func (s *JWKSKeyStore) GetVerifyKey(clientID string) (any, error) {
 // GetSigningKey always returns an error — JWKS only exposes public keys.
 func (s *JWKSKeyStore) GetSigningKey(clientID string) (any, error) {
 	return nil, fmt.Errorf("jwks keystore is read-only (public keys only)")
+}
+
+// GetKey returns ErrKeyNotFound — JWKSKeyStore only supports kid-based lookup.
+// JWKS doesn't carry clientID→key mappings; use GetKeyByKid instead.
+func (s *JWKSKeyStore) GetKey(clientID string) (*KeyRecord, error) {
+	return nil, ErrKeyNotFound
+}
+
+// GetKeyByKid returns the key record for the given kid.
+// ClientID is empty since JWKS doesn't carry client_id metadata —
+// the middleware skips the cross-app check in this case.
+func (s *JWKSKeyStore) GetKeyByKid(kid string) (*KeyRecord, error) {
+	s.mu.RLock()
+	entry, ok := s.keys[kid]
+	s.mu.RUnlock()
+	if ok {
+		return &KeyRecord{Key: entry.PublicKey, Algorithm: entry.Algorithm, Kid: kid}, nil
+	}
+
+	// Cache miss — try refreshing
+	s.refresh()
+
+	s.mu.RLock()
+	entry, ok = s.keys[kid]
+	s.mu.RUnlock()
+	if ok {
+		return &KeyRecord{Key: entry.PublicKey, Algorithm: entry.Algorithm, Kid: kid}, nil
+	}
+	return nil, ErrKidNotFound
 }
 
 // GetExpectedAlg returns the algorithm for the given client ID.

@@ -27,8 +27,17 @@ type AppRegistration struct {
 // AppRegistrar is an embeddable HTTP handler for App registration CRUD.
 // Mount it on any admin service's mux to let apps register and obtain signing credentials.
 type AppRegistrar struct {
-	KeyStore WritableKeyStore
+	KeyStore KeyStorage
 	Auth     AdminAuth
+
+	// KidStore retains old keys during rotation grace periods so that
+	// in-flight tokens signed with the previous key remain verifiable.
+	// If nil, rotation replaces the key immediately with no grace period.
+	KidStore *KidStore
+
+	// DefaultGracePeriod is the default grace period for key rotation
+	// when not specified in the request. Defaults to 24h.
+	DefaultGracePeriod time.Duration
 
 	mu   sync.RWMutex
 	apps map[string]*AppRegistration
@@ -122,7 +131,7 @@ func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Store PEM bytes
-		if err := h.KeyStore.RegisterKey(clientID, []byte(req.PublicKey), req.SigningAlg); err != nil {
+		if err := h.KeyStore.PutKey(&KeyRecord{ClientID: clientID, Key: []byte(req.PublicKey), Algorithm: req.SigningAlg}); err != nil {
 			h.jsonError(w, "server_error", "Failed to store key", http.StatusInternalServerError)
 			return
 		}
@@ -134,7 +143,7 @@ func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
 			h.jsonError(w, "server_error", "Failed to generate secret", http.StatusInternalServerError)
 			return
 		}
-		if err := h.KeyStore.RegisterKey(clientID, []byte(secret), req.SigningAlg); err != nil {
+		if err := h.KeyStore.PutKey(&KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: req.SigningAlg}); err != nil {
 			h.jsonError(w, "server_error", "Failed to store key", http.StatusInternalServerError)
 			return
 		}
@@ -257,22 +266,52 @@ func (h *AppRegistrar) handleRotateSecret(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Parse optional grace period from request body
+	var reqBody struct {
+		PublicKey    string `json:"public_key"`
+		GracePeriod string `json:"grace_period"` // e.g. "24h", "1h30m"
+	}
+	// We need to read the body for both symmetric and asymmetric
+	json.NewDecoder(r.Body).Decode(&reqBody)
+
+	gracePeriod := h.DefaultGracePeriod
+	if gracePeriod == 0 {
+		gracePeriod = 24 * time.Hour
+	}
+	if reqBody.GracePeriod != "" {
+		if parsed, err := time.ParseDuration(reqBody.GracePeriod); err == nil {
+			gracePeriod = parsed
+		}
+	}
+
+	// Snapshot old key material before overwrite (for grace period retention)
+	var oldKey any
+	var oldAlg string
+	var oldKid string
+	if h.KidStore != nil {
+		if oldRec, err := h.KeyStore.GetKey(clientID); err == nil {
+			oldKey = oldRec.Key
+			oldAlg = oldRec.Algorithm
+			oldKid = oldRec.Kid
+			if oldKid == "" && oldKey != nil {
+				oldKid, _ = utils.ComputeKid(oldKey, oldAlg)
+			}
+		}
+	}
+
 	resp := map[string]any{"client_id": clientID}
 
 	if utils.IsAsymmetricAlg(reg.SigningAlg) {
 		// Asymmetric: require new public_key in request body
-		var req struct {
-			PublicKey string `json:"public_key"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PublicKey == "" {
+		if reqBody.PublicKey == "" {
 			h.jsonError(w, "invalid_request", "public_key is required for key rotation with "+reg.SigningAlg, http.StatusBadRequest)
 			return
 		}
-		if _, err := utils.DecodeVerifyKey([]byte(req.PublicKey), reg.SigningAlg); err != nil {
+		if _, err := utils.DecodeVerifyKey([]byte(reqBody.PublicKey), reg.SigningAlg); err != nil {
 			h.jsonError(w, "invalid_request", "Invalid public key: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		if err := h.KeyStore.RegisterKey(clientID, []byte(req.PublicKey), reg.SigningAlg); err != nil {
+		if err := h.KeyStore.PutKey(&KeyRecord{ClientID: clientID, Key: []byte(reqBody.PublicKey), Algorithm: reg.SigningAlg}); err != nil {
 			h.jsonError(w, "server_error", "Failed to update key", http.StatusInternalServerError)
 			return
 		}
@@ -283,11 +322,23 @@ func (h *AppRegistrar) handleRotateSecret(w http.ResponseWriter, r *http.Request
 			h.jsonError(w, "server_error", "Failed to generate secret", http.StatusInternalServerError)
 			return
 		}
-		if err := h.KeyStore.RegisterKey(clientID, []byte(newSecret), reg.SigningAlg); err != nil {
+		if err := h.KeyStore.PutKey(&KeyRecord{ClientID: clientID, Key: []byte(newSecret), Algorithm: reg.SigningAlg}); err != nil {
 			h.jsonError(w, "server_error", "Failed to update key", http.StatusInternalServerError)
 			return
 		}
 		resp["client_secret"] = newSecret
+	}
+
+	// Retain old key in KidStore for grace period
+	if h.KidStore != nil && oldKey != nil && oldKid != "" {
+		h.KidStore.Add(oldKid, oldKey, oldAlg, clientID, time.Now().Add(gracePeriod))
+		resp["previous_kid"] = oldKid
+		resp["grace_period"] = gracePeriod.String()
+	}
+
+	// Include new kid in response
+	if newRec, err := h.KeyStore.GetKey(clientID); err == nil && newRec.Kid != "" {
+		resp["kid"] = newRec.Kid
 	}
 
 	w.Header().Set("Content-Type", "application/json")

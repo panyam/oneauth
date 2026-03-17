@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/utils"
 )
 
 // AppQuota contains per-app quota limits embedded as custom claims in resource-scoped JWTs.
@@ -50,6 +51,9 @@ func MintResourceTokenWithKey(userID, appClientID string, signingKey any, quota 
 	}
 
 	token := jwt.NewWithClaims(method, claims)
+	if kid, err := utils.ComputeKid(signingKey, method.Alg()); err == nil {
+		token.Header["kid"] = kid
+	}
 	return token.SignedString(signingKey)
 }
 

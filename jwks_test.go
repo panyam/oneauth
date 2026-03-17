@@ -40,8 +40,12 @@ func TestJWKSHandler_MixedKeys(t *testing.T) {
 	if len(jwkSet.Keys) != 1 {
 		t.Fatalf("expected 1 key, got %d", len(jwkSet.Keys))
 	}
-	if jwkSet.Keys[0].Kid != "app_rsa" {
-		t.Errorf("expected kid=app_rsa, got %s", jwkSet.Keys[0].Kid)
+	// kid is now a computed thumbprint, not the clientID
+	if jwkSet.Keys[0].Kid == "" {
+		t.Error("expected non-empty kid")
+	}
+	if jwkSet.Keys[0].Kid == "app_rsa" {
+		t.Error("kid should be a thumbprint, not the clientID")
 	}
 	if jwkSet.Keys[0].Kty != "RSA" {
 		t.Errorf("expected kty=RSA, got %s", jwkSet.Keys[0].Kty)
@@ -71,12 +75,16 @@ func TestJWKSHandler_RSAAndECDSA(t *testing.T) {
 		t.Fatalf("expected 2 keys, got %d", len(jwkSet.Keys))
 	}
 
-	found := map[string]bool{}
+	// Verify we got 2 keys with distinct non-empty thumbprint kids
+	kids := map[string]bool{}
 	for _, k := range jwkSet.Keys {
-		found[k.Kid] = true
+		if k.Kid == "" {
+			t.Error("expected non-empty kid")
+		}
+		kids[k.Kid] = true
 	}
-	if !found["app_rsa"] || !found["app_ec"] {
-		t.Errorf("expected both app_rsa and app_ec, got %v", found)
+	if len(kids) != 2 {
+		t.Errorf("expected 2 distinct kids, got %d", len(kids))
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/utils"
 	"gorm.io/gorm"
 )
 
@@ -15,6 +16,7 @@ type SigningKeyModel struct {
 	ClientID  string    `gorm:"primaryKey;size:128"`
 	Key       []byte    `gorm:"not null"`
 	Algorithm string    `gorm:"size:16;not null"`
+	Kid       string    `gorm:"size:128;index:idx_kid,unique"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime"`
 }
@@ -23,7 +25,7 @@ func (SigningKeyModel) TableName() string {
 	return "signing_keys"
 }
 
-// KeyStore implements oa.WritableKeyStore using GORM.
+// KeyStore implements oa.KeyStorage using GORM.
 type KeyStore struct {
 	db *gorm.DB
 }
@@ -33,17 +35,21 @@ func NewKeyStore(db *gorm.DB) *KeyStore {
 	return &KeyStore{db: db}
 }
 
-func (s *KeyStore) RegisterKey(clientID string, key any, algorithm string) error {
-	keyBytes, ok := key.([]byte)
+func (s *KeyStore) PutKey(rec *oa.KeyRecord) error {
+	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
 		return oa.ErrAlgorithmMismatch
 	}
-	model := &SigningKeyModel{
-		ClientID:  clientID,
-		Key:       keyBytes,
-		Algorithm: algorithm,
+	kid := rec.Kid
+	if kid == "" {
+		kid, _ = utils.ComputeKid(keyBytes, rec.Algorithm)
 	}
-	// Upsert: create or update
+	model := &SigningKeyModel{
+		ClientID:  rec.ClientID,
+		Key:       keyBytes,
+		Algorithm: rec.Algorithm,
+		Kid:       kid,
+	}
 	return s.db.Save(model).Error
 }
 
@@ -58,7 +64,7 @@ func (s *KeyStore) DeleteKey(clientID string) error {
 	return nil
 }
 
-func (s *KeyStore) GetVerifyKey(clientID string) (any, error) {
+func (s *KeyStore) GetKey(clientID string) (*oa.KeyRecord, error) {
 	var model SigningKeyModel
 	if err := s.db.First(&model, "client_id = ?", clientID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -66,25 +72,31 @@ func (s *KeyStore) GetVerifyKey(clientID string) (any, error) {
 		}
 		return nil, err
 	}
-	return model.Key, nil
+	return &oa.KeyRecord{
+		ClientID:  model.ClientID,
+		Key:       model.Key,
+		Algorithm: model.Algorithm,
+		Kid:       model.Kid,
+	}, nil
 }
 
-func (s *KeyStore) GetSigningKey(clientID string) (any, error) {
-	return s.GetVerifyKey(clientID)
-}
-
-func (s *KeyStore) GetExpectedAlg(clientID string) (string, error) {
+func (s *KeyStore) GetKeyByKid(kid string) (*oa.KeyRecord, error) {
 	var model SigningKeyModel
-	if err := s.db.First(&model, "client_id = ?", clientID).Error; err != nil {
+	if err := s.db.First(&model, "kid = ?", kid).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return "", oa.ErrKeyNotFound
+			return nil, oa.ErrKidNotFound
 		}
-		return "", err
+		return nil, err
 	}
-	return model.Algorithm, nil
+	return &oa.KeyRecord{
+		ClientID:  model.ClientID,
+		Key:       model.Key,
+		Algorithm: model.Algorithm,
+		Kid:       model.Kid,
+	}, nil
 }
 
-func (s *KeyStore) ListKeys() ([]string, error) {
+func (s *KeyStore) ListKeyIDs() ([]string, error) {
 	var models []SigningKeyModel
 	if err := s.db.Select("client_id").Find(&models).Error; err != nil {
 		return nil, err
@@ -94,4 +106,42 @@ func (s *KeyStore) ListKeys() ([]string, error) {
 		keys[i] = m.ClientID
 	}
 	return keys, nil
+}
+
+// Backward-compatible aliases
+
+func (s *KeyStore) RegisterKey(clientID string, key any, algorithm string) error {
+	return s.PutKey(&oa.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
+}
+
+func (s *KeyStore) GetVerifyKey(clientID string) (any, error) {
+	rec, err := s.GetKey(clientID)
+	if err != nil {
+		return nil, err
+	}
+	return rec.Key, nil
+}
+
+func (s *KeyStore) GetSigningKey(clientID string) (any, error) {
+	return s.GetVerifyKey(clientID)
+}
+
+func (s *KeyStore) GetExpectedAlg(clientID string) (string, error) {
+	rec, err := s.GetKey(clientID)
+	if err != nil {
+		return "", err
+	}
+	return rec.Algorithm, nil
+}
+
+func (s *KeyStore) ListKeys() ([]string, error) {
+	return s.ListKeyIDs()
+}
+
+func (s *KeyStore) GetCurrentKid(clientID string) (string, error) {
+	rec, err := s.GetKey(clientID)
+	if err != nil {
+		return "", err
+	}
+	return rec.Kid, nil
 }

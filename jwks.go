@@ -12,12 +12,13 @@ import (
 // JWKSHandler serves a JWKS (JSON Web Key Set) endpoint at /.well-known/jwks.json.
 // Only asymmetric keys (RS256/ES256) are included — HS256 secrets are never exposed.
 type JWKSHandler struct {
-	KeyStore    WritableKeyStore // needs ListKeys()
-	CacheMaxAge int              // Cache-Control max-age in seconds (default: 3600)
+	KeyStore    KeyStorage // needs ListKeyIDs() and GetKey()
+	KidStore    *KidStore  // optional: serves previous keys during grace period
+	CacheMaxAge int        // Cache-Control max-age in seconds (default: 3600)
 }
 
 func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	clientIDs, err := h.KeyStore.ListKeys()
+	clientIDs, err := h.KeyStore.ListKeyIDs()
 	if err != nil {
 		http.Error(w, `{"error":"failed to list keys"}`, http.StatusInternalServerError)
 		return
@@ -25,31 +26,54 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var keys []utils.JWK
 	for _, clientID := range clientIDs {
-		alg, err := h.KeyStore.GetExpectedAlg(clientID)
+		rec, err := h.KeyStore.GetKey(clientID)
 		if err != nil {
-			log.Printf("jwks: failed to get algorithm for %s: %v", clientID, err)
+			log.Printf("jwks: failed to get key for %s: %v", clientID, err)
 			continue
 		}
-		if !utils.IsAsymmetricAlg(alg) {
+		if !utils.IsAsymmetricAlg(rec.Algorithm) {
 			continue
 		}
-		rawKey, err := h.KeyStore.GetVerifyKey(clientID)
-		if err != nil {
-			log.Printf("jwks: failed to get verify key for %s: %v", clientID, err)
-			continue
-		}
-		// Convert raw key material to crypto.PublicKey
-		pubKey, err := utils.DecodeVerifyKey(rawKey, alg)
+		pubKey, err := utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 		if err != nil {
 			log.Printf("jwks: failed to decode verify key for %s: %v", clientID, err)
 			continue
 		}
-		jwk, err := utils.PublicKeyToJWK(clientID, alg, pubKey)
+		kid, err := utils.ComputeKid(pubKey, rec.Algorithm)
+		if err != nil {
+			log.Printf("jwks: failed to compute kid for %s: %v", clientID, err)
+			continue
+		}
+		jwk, err := utils.PublicKeyToJWK(kid, rec.Algorithm, pubKey)
 		if err != nil {
 			log.Printf("jwks: failed to convert key for %s: %v", clientID, err)
 			continue
 		}
 		keys = append(keys, jwk)
+	}
+
+	// Include previous asymmetric keys from KidStore (grace period entries)
+	if h.KidStore != nil {
+		kidsSeen := make(map[string]bool, len(keys))
+		for _, k := range keys {
+			kidsSeen[k.Kid] = true
+		}
+		h.KidStore.mu.RLock()
+		for kid, rec := range h.KidStore.records {
+			if rec.isExpired() || kidsSeen[kid] || !utils.IsAsymmetricAlg(rec.Algorithm) {
+				continue
+			}
+			pubKey, err := utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
+			if err != nil {
+				continue
+			}
+			jwk, err := utils.PublicKeyToJWK(kid, rec.Algorithm, pubKey)
+			if err != nil {
+				continue
+			}
+			keys = append(keys, jwk)
+		}
+		h.KidStore.mu.RUnlock()
 	}
 
 	if keys == nil {
