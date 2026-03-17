@@ -5,6 +5,9 @@
     Create an account on the <strong>Auth Server</strong>.
     This account is only for the central server's dashboard &mdash;
     DrawApp and ChatApp have their own separate user databases.
+    This form is protected by <strong>CSRF double-submit cookie</strong> &mdash;
+    a hidden token must match the <code class="bg-gray-100 px-1 rounded text-xs">csrf_token</code> cookie
+    or the POST will be rejected with 403.
   </p>
   <form method="POST" action="/auth/signup" class="bg-white shadow rounded-lg p-6 space-y-4">
     {{.CSRFField}}

@@ -98,14 +98,17 @@ func main() {
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 		},
 		OnLoginError: func(err *oa.AuthError, w http.ResponseWriter, r *http.Request) bool {
-			renderTemplate(w, "login.html", map[string]any{"Title": "Login — " + *name, "App": *name, "Error": err.Message})
+			renderTemplate(w, "login.html", map[string]any{"Title": "Login — " + *name, "App": *name, "Error": err.Message, "CSRFField": oa.CSRFTemplateField(r)})
 			return true
 		},
 		OnSignupError: func(err *oa.AuthError, w http.ResponseWriter, r *http.Request) bool {
-			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up — " + *name, "App": *name, "Error": err.Message})
+			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up — " + *name, "App": *name, "Error": err.Message, "CSRFField": oa.CSRFTemplateField(r)})
 			return true
 		},
 	}
+
+	// CSRF middleware for browser form endpoints
+	csrf := &oa.CSRFMiddleware{}
 
 	mux := http.NewServeMux()
 
@@ -134,17 +137,17 @@ func main() {
 		})
 	})
 
-	// Login
-	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, "login.html", map[string]any{"Title": "Login — " + *name, "App": *name})
-	})
-	mux.HandleFunc("POST /login", localAuth.ServeHTTP)
+	// Login — CSRF-protected
+	mux.Handle("GET /login", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		renderTemplate(w, "login.html", map[string]any{"Title": "Login — " + *name, "App": *name, "CSRFField": oa.CSRFTemplateField(r)})
+	})))
+	mux.Handle("POST /login", csrf.Protect(http.HandlerFunc(localAuth.ServeHTTP)))
 
-	// Signup
-	mux.HandleFunc("GET /signup", func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up — " + *name, "App": *name})
-	})
-	mux.HandleFunc("POST /signup", localAuth.HandleSignup)
+	// Signup — CSRF-protected
+	mux.Handle("GET /signup", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up — " + *name, "App": *name, "CSRFField": oa.CSRFTemplateField(r)})
+	})))
+	mux.Handle("POST /signup", csrf.Protect(http.HandlerFunc(localAuth.HandleSignup)))
 
 	// Logout
 	mux.HandleFunc("GET /logout", func(w http.ResponseWriter, r *http.Request) {

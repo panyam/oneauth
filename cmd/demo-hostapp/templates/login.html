@@ -4,8 +4,12 @@
   <p class="text-sm text-gray-500 mb-6">
     This is <strong>{{.App}}</strong>'s own login page with its own user database.
     Accounts here are separate from the Auth Server and other apps.
+    This form is protected by <strong>CSRF double-submit cookie</strong> &mdash;
+    a hidden token must match the <code class="bg-gray-100 px-1 rounded text-xs">csrf_token</code> cookie
+    or the POST will be rejected with 403.
   </p>
   <form method="POST" action="/login" class="bg-white shadow rounded-lg p-6 space-y-4">
+    {{.CSRFField}}
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
       <input type="email" name="username" required
