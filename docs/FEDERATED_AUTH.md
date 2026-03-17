@@ -437,3 +437,82 @@ token, err := oa.MintResourceTokenWithKey("user-42", "app_abc", privKey, quota, 
 ```
 
 For the full guide on key generation, algorithm selection, APIAuth configuration, key rotation, `DecodeVerifyKey`, and algorithm confusion prevention, see **[JWT_SIGNING.md](JWT_SIGNING.md)**.
+
+## JWKS Public Key Discovery
+
+Resource servers can auto-discover asymmetric public keys via a standard JWKS endpoint instead of sharing database access with the auth server.
+
+### Auth Server: Serving JWKS
+
+The oneauth-server exposes `GET /.well-known/jwks.json` — a public endpoint (no auth required) that returns all registered asymmetric keys (RS256/ES256) in JWK format. HS256 secrets are never included.
+
+```bash
+curl https://auth.example.com/.well-known/jwks.json
+```
+
+Response:
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "app_a1b2c3d4e5f6",
+      "alg": "RS256",
+      "use": "sig",
+      "n": "0vx7agoebG...",
+      "e": "AQAB"
+    },
+    {
+      "kty": "EC",
+      "kid": "app_x9y8z7w6v5u4",
+      "alg": "ES256",
+      "use": "sig",
+      "crv": "P-256",
+      "x": "f83OJ3D2xF...",
+      "y": "x_FEzRu9m3..."
+    }
+  ]
+}
+```
+
+The response includes `Cache-Control: public, max-age=3600` for efficient caching.
+
+### Resource Server: Fetching Keys via JWKS
+
+Instead of connecting to the auth server's database, resource servers can use `JWKSKeyStore`:
+
+```go
+keyStore := oa.NewJWKSKeyStore("https://auth.example.com/.well-known/jwks.json")
+if err := keyStore.Start(); err != nil {
+    log.Fatal(err)
+}
+defer keyStore.Stop()
+
+middleware := &oa.APIMiddleware{
+    KeyStore: keyStore,
+}
+```
+
+`JWKSKeyStore` implements `KeyStore` (read-only) with:
+- **Background refresh**: Keys are re-fetched every hour (configurable via `WithRefreshInterval`)
+- **Cache-miss refresh**: Unknown `client_id` triggers an immediate refresh attempt
+- **Resilience**: If the JWKS endpoint is down, cached keys continue to work
+- **Stampede protection**: `MinRefreshGap` (default 5s) prevents thundering herd on cache misses
+
+### Demo Resource Server with JWKS
+
+The demo resource server supports `JWKS_URL` as an alternative to `DATABASE_URL`:
+
+```bash
+# Before (shared database):
+DATABASE_URL=postgres://... ./demo-resource-server
+
+# After (JWKS — no database needed):
+JWKS_URL=http://localhost:9999/.well-known/jwks.json ./demo-resource-server
+```
+
+### Limitations
+
+- **HS256 apps are not discoverable via JWKS** — symmetric secrets cannot be safely exposed over HTTP. HS256 apps still require shared database access.
+- **JWKS is read-only** — `JWKSKeyStore` does not implement `WritableKeyStore`. It cannot register or delete keys.
+- **Propagation delay** — newly registered asymmetric apps may take up to the refresh interval to appear in resource servers. Cache-miss refresh reduces this for initial lookups.

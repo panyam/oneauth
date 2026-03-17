@@ -139,6 +139,12 @@
   > `APIMiddleware.validateJWT` decodes PEM via `utils.DecodeVerifyKey`, `AppRegistrar` accepts `public_key` PEM for asymmetric registration,
   > shared keystoretest for asymmetric round-trip, algorithm confusion attack prevention
 
+- [x] **P1** JWKS endpoint for federated public key discovery (#7) ✅
+  > `JWKSHandler` serves `/.well-known/jwks.json` with asymmetric public keys (RS256/ES256). HS256 secrets never exposed.
+  > `JWKSKeyStore` fetches keys from remote JWKS URL with background refresh and caching.
+  > `utils/jwk.go` — JWK/JWKSet types, `PublicKeyToJWK`/`JWKToPublicKey` conversion (no new dependencies).
+  > Demo resource server supports `JWKS_URL` env var as alternative to shared database.
+
 ### Phase 3: OAuth Integration for API
 
 - [ ] **P0** `[BLOCKER]` Add API mode to OAuth callbacks (return tokens instead of session)

@@ -196,6 +196,10 @@ func main() {
 	mux.Handle("/apps/", registrar.Handler())
 	mux.Handle("/apps", registrar.Handler())
 
+	// JWKS endpoint (public — no auth required)
+	jwksHandler := &oa.JWKSHandler{KeyStore: keyStore}
+	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
+
 	addr := cfg.Server.Host + ":" + cfg.Server.Port
 	log.Printf("oneauth-server listening on %s (keystore=%s, user_stores=%s, auth=%s)",
 		addr, cfg.KeyStore.Type, cfg.UserStores.Type, cfg.AdminAuth.Type)

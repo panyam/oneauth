@@ -34,6 +34,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9999/_ah/health || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
 
   drawapp:
     build:
@@ -50,7 +55,8 @@ services:
     volumes:
       - drawapp-data:/data
     depends_on:
-      - oneauth-server
+      oneauth-server:
+        condition: service_healthy
 
   chatapp:
     build:
@@ -67,7 +73,8 @@ services:
     volumes:
       - chatapp-data:/data
     depends_on:
-      - oneauth-server
+      oneauth-server:
+        condition: service_healthy
 
   resource-server-a:
     build:
