@@ -1,5 +1,7 @@
 package fs
 
+// Tests for the filesystem-based credential store: CRUD operations, persistence, URL normalization, and file permissions.
+
 import (
 	"os"
 	"path/filepath"
@@ -9,6 +11,7 @@ import (
 	"github.com/panyam/oneauth/client"
 )
 
+// TestFSCredentialStore_GetSetCredential verifies that credentials can be stored and retrieved by server URL.
 func TestFSCredentialStore_GetSetCredential(t *testing.T) {
 	// Use temp directory
 	tmpDir := t.TempDir()
@@ -57,6 +60,7 @@ func TestFSCredentialStore_GetSetCredential(t *testing.T) {
 	}
 }
 
+// TestFSCredentialStore_URLNormalization verifies that credentials are matched by base URL, ignoring path components.
 func TestFSCredentialStore_URLNormalization(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "credentials.json")
@@ -87,6 +91,7 @@ func TestFSCredentialStore_URLNormalization(t *testing.T) {
 	}
 }
 
+// TestFSCredentialStore_RemoveCredential verifies that removing a credential deletes only that entry and leaves others intact.
 func TestFSCredentialStore_RemoveCredential(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "credentials.json")
@@ -122,6 +127,7 @@ func TestFSCredentialStore_RemoveCredential(t *testing.T) {
 	}
 }
 
+// TestFSCredentialStore_ListServers verifies that ListServers returns all server URLs with stored credentials.
 func TestFSCredentialStore_ListServers(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "credentials.json")
@@ -150,6 +156,7 @@ func TestFSCredentialStore_ListServers(t *testing.T) {
 	}
 }
 
+// TestFSCredentialStore_SaveAndReload verifies that credentials survive a save-to-disk and reload from a new store instance.
 func TestFSCredentialStore_SaveAndReload(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "credentials.json")
@@ -200,6 +207,7 @@ func TestFSCredentialStore_SaveAndReload(t *testing.T) {
 	}
 }
 
+// TestFSCredentialStore_FilePermissions verifies that the credentials file is written with 0600 permissions (owner-only read/write).
 func TestFSCredentialStore_FilePermissions(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "credentials.json")
@@ -229,6 +237,7 @@ func TestFSCredentialStore_FilePermissions(t *testing.T) {
 	}
 }
 
+// TestFSCredentialStore_DefaultPath verifies that an empty path argument causes the store to use a platform-appropriate default location.
 func TestFSCredentialStore_DefaultPath(t *testing.T) {
 	// Test with empty path - should use default
 	store, err := NewFSCredentialStore("", "testapp")

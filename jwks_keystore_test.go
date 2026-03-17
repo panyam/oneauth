@@ -1,5 +1,9 @@
 package oneauth
 
+// Tests for JWKSKeyStore: fetching and caching keys from a remote JWKS endpoint,
+// cache-miss-triggered refresh, resilience when the server is down, concurrent access
+// safety, and error handling for unsupported operations.
+
 import (
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -21,6 +25,8 @@ func serveJWKS(t *testing.T, keys []utils.JWK) *httptest.Server {
 	}))
 }
 
+// TestJWKSKeyStore_GetVerifyKey verifies that JWKSKeyStore fetches an RSA public key
+// from a remote JWKS endpoint and returns it for token verification.
 func TestJWKSKeyStore_GetVerifyKey(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	pub, _ := utils.ParsePublicKeyPEM(pubPEM)
@@ -49,6 +55,8 @@ func TestJWKSKeyStore_GetVerifyKey(t *testing.T) {
 	}
 }
 
+// TestJWKSKeyStore_GetExpectedAlg verifies that JWKSKeyStore returns the correct
+// algorithm (ES256) for a key fetched from the remote JWKS endpoint.
 func TestJWKSKeyStore_GetExpectedAlg(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateECDSAKeyPair()
 	pub, _ := utils.ParsePublicKeyPEM(pubPEM)
@@ -71,6 +79,8 @@ func TestJWKSKeyStore_GetExpectedAlg(t *testing.T) {
 	}
 }
 
+// TestJWKSKeyStore_CacheMissTriggersRefresh verifies that a cache miss for an unknown key
+// triggers a refresh from the remote endpoint and returns ErrKeyNotFound if the key still does not exist.
 func TestJWKSKeyStore_CacheMissTriggersRefresh(t *testing.T) {
 	fetchCount := 0
 	var mu sync.Mutex
@@ -105,6 +115,8 @@ func TestJWKSKeyStore_CacheMissTriggersRefresh(t *testing.T) {
 	}
 }
 
+// TestJWKSKeyStore_ServerDown_UsesCachedKeys verifies that JWKSKeyStore continues to serve
+// previously cached keys even after the remote JWKS server goes down.
 func TestJWKSKeyStore_ServerDown_UsesCachedKeys(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	pub, _ := utils.ParsePublicKeyPEM(pubPEM)
@@ -131,6 +143,8 @@ func TestJWKSKeyStore_ServerDown_UsesCachedKeys(t *testing.T) {
 	}
 }
 
+// TestJWKSKeyStore_GetSigningKey_Errors verifies that GetSigningKey always returns an error
+// since JWKSKeyStore is read-only and does not hold private keys.
 func TestJWKSKeyStore_GetSigningKey_Errors(t *testing.T) {
 	ks := NewJWKSKeyStore("http://localhost:0")
 	_, err := ks.GetSigningKey("anything")
@@ -139,6 +153,8 @@ func TestJWKSKeyStore_GetSigningKey_Errors(t *testing.T) {
 	}
 }
 
+// TestJWKSKeyStore_ConcurrentAccess verifies that concurrent GetVerifyKey and GetExpectedAlg
+// calls do not race or panic.
 func TestJWKSKeyStore_ConcurrentAccess(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	pub, _ := utils.ParsePublicKeyPEM(pubPEM)

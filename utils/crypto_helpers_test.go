@@ -1,5 +1,8 @@
 package utils_test
 
+// Tests for crypto helper utilities: key pair generation, PEM encoding/decoding round-trips,
+// DecodeVerifyKey dispatch logic, algorithm classification, and signing method resolution.
+
 import (
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -8,6 +11,7 @@ import (
 	"github.com/panyam/oneauth/utils"
 )
 
+// TestGenerateRSAKeyPair verifies that GenerateRSAKeyPair produces non-empty PEM-encoded key pair.
 func TestGenerateRSAKeyPair(t *testing.T) {
 	privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
 	if err != nil {
@@ -18,6 +22,7 @@ func TestGenerateRSAKeyPair(t *testing.T) {
 	}
 }
 
+// TestGenerateECDSAKeyPair verifies that GenerateECDSAKeyPair produces non-empty PEM-encoded key pair.
 func TestGenerateECDSAKeyPair(t *testing.T) {
 	privPEM, pubPEM, err := utils.GenerateECDSAKeyPair()
 	if err != nil {
@@ -28,6 +33,8 @@ func TestGenerateECDSAKeyPair(t *testing.T) {
 	}
 }
 
+// TestRSA_RoundTrip verifies that an RSA key pair survives PEM encode/decode/re-encode
+// and produces identical PEM output.
 func TestRSA_RoundTrip(t *testing.T) {
 	privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
 	if err != nil {
@@ -60,6 +67,8 @@ func TestRSA_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestECDSA_RoundTrip verifies that an ECDSA key pair survives PEM encode/decode
+// and yields the correct key types.
 func TestECDSA_RoundTrip(t *testing.T) {
 	privPEM, pubPEM, err := utils.GenerateECDSAKeyPair()
 	if err != nil {
@@ -83,6 +92,7 @@ func TestECDSA_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestDecodeVerifyKey_HMAC_Passthrough verifies that DecodeVerifyKey returns HMAC secret bytes unchanged.
 func TestDecodeVerifyKey_HMAC_Passthrough(t *testing.T) {
 	secret := []byte("my-secret")
 	key, err := utils.DecodeVerifyKey(secret, "HS256")
@@ -94,6 +104,7 @@ func TestDecodeVerifyKey_HMAC_Passthrough(t *testing.T) {
 	}
 }
 
+// TestDecodeVerifyKey_RS256_FromPEM verifies that DecodeVerifyKey parses RSA PEM bytes into an *rsa.PublicKey.
 func TestDecodeVerifyKey_RS256_FromPEM(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 
@@ -106,6 +117,7 @@ func TestDecodeVerifyKey_RS256_FromPEM(t *testing.T) {
 	}
 }
 
+// TestDecodeVerifyKey_ES256_FromPEM verifies that DecodeVerifyKey parses ECDSA PEM bytes into an *ecdsa.PublicKey.
 func TestDecodeVerifyKey_ES256_FromPEM(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateECDSAKeyPair()
 
@@ -118,6 +130,8 @@ func TestDecodeVerifyKey_ES256_FromPEM(t *testing.T) {
 	}
 }
 
+// TestDecodeVerifyKey_RS256_AlreadyParsed verifies that DecodeVerifyKey returns an already-parsed
+// *rsa.PublicKey as-is without re-parsing.
 func TestDecodeVerifyKey_RS256_AlreadyParsed(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	pub, _ := utils.ParsePublicKeyPEM(pubPEM)
@@ -131,6 +145,8 @@ func TestDecodeVerifyKey_RS256_AlreadyParsed(t *testing.T) {
 	}
 }
 
+// TestDecodeVerifyKey_ES256_AlreadyParsed verifies that DecodeVerifyKey returns an already-parsed
+// *ecdsa.PublicKey as-is without re-parsing.
 func TestDecodeVerifyKey_ES256_AlreadyParsed(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateECDSAKeyPair()
 	pub, _ := utils.ParsePublicKeyPEM(pubPEM)
@@ -144,6 +160,8 @@ func TestDecodeVerifyKey_ES256_AlreadyParsed(t *testing.T) {
 	}
 }
 
+// TestDecodeVerifyKey_RS256_WrongKeyType verifies that DecodeVerifyKey returns an error
+// when an ECDSA PEM is provided but RS256 algorithm is expected.
 func TestDecodeVerifyKey_RS256_WrongKeyType(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateECDSAKeyPair() // ECDSA, not RSA
 
@@ -153,6 +171,7 @@ func TestDecodeVerifyKey_RS256_WrongKeyType(t *testing.T) {
 	}
 }
 
+// TestDecodeVerifyKey_InvalidPEM verifies that DecodeVerifyKey returns an error for non-PEM input.
 func TestDecodeVerifyKey_InvalidPEM(t *testing.T) {
 	_, err := utils.DecodeVerifyKey([]byte("not-a-pem"), "RS256")
 	if err == nil {
@@ -160,6 +179,8 @@ func TestDecodeVerifyKey_InvalidPEM(t *testing.T) {
 	}
 }
 
+// TestIsAsymmetricAlg verifies that RS256 and ES256 are classified as asymmetric
+// while HS256 is not.
 func TestIsAsymmetricAlg(t *testing.T) {
 	if !utils.IsAsymmetricAlg("RS256") {
 		t.Error("RS256 should be asymmetric")
@@ -172,6 +193,8 @@ func TestIsAsymmetricAlg(t *testing.T) {
 	}
 }
 
+// TestSigningMethodForAlg verifies that SigningMethodForAlg returns the correct JWT signing
+// method for each algorithm string, defaulting to HS256 for empty input.
 func TestSigningMethodForAlg(t *testing.T) {
 	tests := map[string]string{
 		"HS256": "HS256",
@@ -189,6 +212,7 @@ func TestSigningMethodForAlg(t *testing.T) {
 	}
 }
 
+// TestParsePublicKeyPEM_InvalidBlock verifies that ParsePublicKeyPEM returns an error for garbage input.
 func TestParsePublicKeyPEM_InvalidBlock(t *testing.T) {
 	_, err := utils.ParsePublicKeyPEM([]byte("garbage"))
 	if err == nil {
@@ -196,6 +220,7 @@ func TestParsePublicKeyPEM_InvalidBlock(t *testing.T) {
 	}
 }
 
+// TestParsePrivateKeyPEM_InvalidBlock verifies that ParsePrivateKeyPEM returns an error for garbage input.
 func TestParsePrivateKeyPEM_InvalidBlock(t *testing.T) {
 	_, err := utils.ParsePrivateKeyPEM([]byte("garbage"))
 	if err == nil {

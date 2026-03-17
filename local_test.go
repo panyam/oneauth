@@ -1,3 +1,5 @@
+// Tests for LocalAuth functionality: signup, login, token expiry, username type detection,
+// credential validation, password reset (forgot/reset forms and end-to-end flow).
 package oneauth_test
 
 import (

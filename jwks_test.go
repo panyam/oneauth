@@ -1,5 +1,8 @@
 package oneauth
 
+// Tests for JWKSHandler: serving the /.well-known/jwks.json endpoint with correct
+// key filtering (asymmetric only), response format, Cache-Control, and Content-Type headers.
+
 import (
 	"encoding/json"
 	"net/http"
@@ -9,6 +12,8 @@ import (
 	"github.com/panyam/oneauth/utils"
 )
 
+// TestJWKSHandler_MixedKeys verifies that JWKSHandler exposes only asymmetric keys (RS256)
+// and excludes symmetric keys (HS256) from the JWKS response.
 func TestJWKSHandler_MixedKeys(t *testing.T) {
 	ks := NewInMemoryKeyStore()
 
@@ -43,6 +48,8 @@ func TestJWKSHandler_MixedKeys(t *testing.T) {
 	}
 }
 
+// TestJWKSHandler_RSAAndECDSA verifies that JWKSHandler includes both RSA and ECDSA
+// public keys in the JWKS response.
 func TestJWKSHandler_RSAAndECDSA(t *testing.T) {
 	ks := NewInMemoryKeyStore()
 
@@ -73,6 +80,8 @@ func TestJWKSHandler_RSAAndECDSA(t *testing.T) {
 	}
 }
 
+// TestJWKSHandler_EmptyStore verifies that JWKSHandler returns an empty keys array
+// when no keys are registered.
 func TestJWKSHandler_EmptyStore(t *testing.T) {
 	ks := NewInMemoryKeyStore()
 	handler := &JWKSHandler{KeyStore: ks}
@@ -88,6 +97,8 @@ func TestJWKSHandler_EmptyStore(t *testing.T) {
 	}
 }
 
+// TestJWKSHandler_CacheControl verifies that JWKSHandler sets the Cache-Control header
+// based on the configured CacheMaxAge.
 func TestJWKSHandler_CacheControl(t *testing.T) {
 	ks := NewInMemoryKeyStore()
 	handler := &JWKSHandler{KeyStore: ks, CacheMaxAge: 1800}
@@ -101,6 +112,7 @@ func TestJWKSHandler_CacheControl(t *testing.T) {
 	}
 }
 
+// TestJWKSHandler_ContentType verifies that JWKSHandler responds with application/json content type.
 func TestJWKSHandler_ContentType(t *testing.T) {
 	ks := NewInMemoryKeyStore()
 	handler := &JWKSHandler{KeyStore: ks}

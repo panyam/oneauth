@@ -1,5 +1,7 @@
 package client
 
+// Tests for the AuthClient HTTP interactions: login, token refresh, auth transport, and custom configuration options.
+
 import (
 	"encoding/json"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"time"
 )
 
+// TestAuthClient_Login_Success verifies that Login exchanges credentials for tokens and stores them.
 func TestAuthClient_Login_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/auth/cli/token" {
@@ -65,6 +68,7 @@ func TestAuthClient_Login_Success(t *testing.T) {
 	}
 }
 
+// TestAuthClient_Login_InvalidCredentials verifies that Login returns an error when the server rejects credentials.
 func TestAuthClient_Login_InvalidCredentials(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -84,6 +88,7 @@ func TestAuthClient_Login_InvalidCredentials(t *testing.T) {
 	}
 }
 
+// TestAuthClient_RefreshToken_Success verifies that GetToken automatically refreshes an expiring token using the refresh token.
 func TestAuthClient_RefreshToken_Success(t *testing.T) {
 	var callCount int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -149,6 +154,7 @@ func TestAuthClient_RefreshToken_Success(t *testing.T) {
 	}
 }
 
+// TestAuthClient_Transport_AddsAuthHeader verifies that the auth transport injects a Bearer Authorization header on requests.
 func TestAuthClient_Transport_AddsAuthHeader(t *testing.T) {
 	var receivedAuth string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -176,6 +182,7 @@ func TestAuthClient_Transport_AddsAuthHeader(t *testing.T) {
 	}
 }
 
+// TestAuthClient_Transport_NoAuthHeader_WhenNoCredential verifies that no Authorization header is sent when no credential is stored.
 func TestAuthClient_Transport_NoAuthHeader_WhenNoCredential(t *testing.T) {
 	var receivedAuth string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -198,6 +205,7 @@ func TestAuthClient_Transport_NoAuthHeader_WhenNoCredential(t *testing.T) {
 	}
 }
 
+// TestAuthClient_Transport_RetryOn401WithRefresh verifies that the transport retries a 401 response by refreshing the token first.
 func TestAuthClient_Transport_RetryOn401WithRefresh(t *testing.T) {
 	var requestCount int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -256,6 +264,7 @@ func TestAuthClient_Transport_RetryOn401WithRefresh(t *testing.T) {
 	}
 }
 
+// TestAuthClient_Transport_NoRetry_WithoutRefreshToken verifies that 401 responses are not retried when no refresh token is available.
 func TestAuthClient_Transport_NoRetry_WithoutRefreshToken(t *testing.T) {
 	var requestCount int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -289,6 +298,7 @@ func TestAuthClient_Transport_NoRetry_WithoutRefreshToken(t *testing.T) {
 	}
 }
 
+// TestAuthClient_WithCustomHTTPClient verifies that a custom HTTP client's settings (e.g., timeout) are preserved by the auth transport.
 func TestAuthClient_WithCustomHTTPClient(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -324,6 +334,7 @@ func TestAuthClient_WithCustomHTTPClient(t *testing.T) {
 	}
 }
 
+// TestAuthClient_WithCustomTokenEndpoint verifies that the token endpoint path can be overridden via WithTokenEndpoint.
 func TestAuthClient_WithCustomTokenEndpoint(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/custom/token" {

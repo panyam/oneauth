@@ -1,3 +1,6 @@
+// Tests for the API authentication layer: OAuth2 password grant, refresh token rotation,
+// logout, JWT validation middleware, scope enforcement, API key CRUD, optional auth,
+// token expiry, query-parameter token extraction, and custom claims in request context.
 package oneauth_test
 
 import (

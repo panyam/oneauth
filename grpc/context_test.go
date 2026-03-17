@@ -1,5 +1,7 @@
 package grpc
 
+// Tests for gRPC context helpers: user ID extraction, switch-user logic, outgoing metadata injection, and authentication checks.
+
 import (
 	"context"
 	"testing"
@@ -7,6 +9,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// TestDefaultConfig verifies that DefaultConfig returns a Config with expected default metadata keys and switch-auth disabled.
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 	if config.MetadataKeyUserID != DefaultMetadataKeyUserID {
@@ -20,6 +23,7 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
+// TestEnsureDefaults verifies that EnsureDefaults fills in missing metadata keys on a zero-value Config.
 func TestEnsureDefaults(t *testing.T) {
 	config := &Config{}
 	config.EnsureDefaults()
@@ -31,6 +35,7 @@ func TestEnsureDefaults(t *testing.T) {
 	}
 }
 
+// TestUserIDFromContext_NoMetadata verifies that UserIDFromContext returns an empty string when no gRPC metadata is present.
 func TestUserIDFromContext_NoMetadata(t *testing.T) {
 	ctx := context.Background()
 	userID := UserIDFromContext(ctx)
@@ -39,6 +44,7 @@ func TestUserIDFromContext_NoMetadata(t *testing.T) {
 	}
 }
 
+// TestUserIDFromContext_WithUserID verifies that UserIDFromContext extracts the user ID from incoming gRPC metadata.
 func TestUserIDFromContext_WithUserID(t *testing.T) {
 	md := metadata.Pairs(DefaultMetadataKeyUserID, "user123")
 	ctx := metadata.NewIncomingContext(context.Background(), md)
@@ -49,6 +55,7 @@ func TestUserIDFromContext_WithUserID(t *testing.T) {
 	}
 }
 
+// TestUserIDFromContext_SwitchUserDisabled verifies that the switch-user header is ignored when switch-auth is disabled.
 func TestUserIDFromContext_SwitchUserDisabled(t *testing.T) {
 	md := metadata.Pairs(
 		DefaultMetadataKeyUserID, "user123",
@@ -63,6 +70,7 @@ func TestUserIDFromContext_SwitchUserDisabled(t *testing.T) {
 	}
 }
 
+// TestUserIDFromContext_SwitchUserEnabled verifies that the switch-user header overrides the real user ID when switch-auth is enabled.
 func TestUserIDFromContext_SwitchUserEnabled(t *testing.T) {
 	md := metadata.Pairs(
 		DefaultMetadataKeyUserID, "user123",
@@ -77,6 +85,7 @@ func TestUserIDFromContext_SwitchUserEnabled(t *testing.T) {
 	}
 }
 
+// TestUserIDFromContext_SwitchUserEmpty verifies that an empty switch-user header falls back to the actual user ID.
 func TestUserIDFromContext_SwitchUserEmpty(t *testing.T) {
 	md := metadata.Pairs(
 		DefaultMetadataKeyUserID, "user123",
@@ -92,6 +101,7 @@ func TestUserIDFromContext_SwitchUserEmpty(t *testing.T) {
 	}
 }
 
+// TestUserIDToOutgoingContext verifies that UserIDToOutgoingContext attaches the user ID to outgoing gRPC metadata.
 func TestUserIDToOutgoingContext(t *testing.T) {
 	ctx := context.Background()
 	ctx = UserIDToOutgoingContext(ctx, "user789")
@@ -107,6 +117,7 @@ func TestUserIDToOutgoingContext(t *testing.T) {
 	}
 }
 
+// TestUserIDToOutgoingContextWithKey verifies that a custom metadata key can be used for the user ID in outgoing context.
 func TestUserIDToOutgoingContextWithKey(t *testing.T) {
 	ctx := context.Background()
 	ctx = UserIDToOutgoingContextWithKey(ctx, "user789", "custom-user-key")
@@ -122,6 +133,7 @@ func TestUserIDToOutgoingContextWithKey(t *testing.T) {
 	}
 }
 
+// TestSwitchUserToOutgoingContext verifies that SwitchUserToOutgoingContext attaches the switch-user ID to outgoing metadata.
 func TestSwitchUserToOutgoingContext(t *testing.T) {
 	ctx := context.Background()
 	ctx = SwitchUserToOutgoingContext(ctx, "switched123")
@@ -137,6 +149,7 @@ func TestSwitchUserToOutgoingContext(t *testing.T) {
 	}
 }
 
+// TestIsAuthenticated verifies that IsAuthenticated returns true only when a user ID is present in the context.
 func TestIsAuthenticated(t *testing.T) {
 	// No user
 	ctx := context.Background()
@@ -152,6 +165,7 @@ func TestIsAuthenticated(t *testing.T) {
 	}
 }
 
+// TestIsAuthenticatedWithConfig verifies that switch-user metadata counts as authenticated only when switch-auth is enabled.
 func TestIsAuthenticatedWithConfig(t *testing.T) {
 	md := metadata.Pairs(DefaultMetadataKeySwitchUser, "switched123")
 	ctx := metadata.NewIncomingContext(context.Background(), md)
@@ -168,6 +182,7 @@ func TestIsAuthenticatedWithConfig(t *testing.T) {
 	}
 }
 
+// TestCustomMetadataKeys verifies that UserIDFromContextWithConfig reads from custom metadata key names.
 func TestCustomMetadataKeys(t *testing.T) {
 	config := &Config{
 		MetadataKeyUserID:     "x-custom-user",

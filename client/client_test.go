@@ -1,10 +1,13 @@
 package client
 
+// Tests for the AuthClient core logic: credential expiration, token retrieval, login state, and URL normalization.
+
 import (
 	"testing"
 	"time"
 )
 
+// TestServerCredential_IsExpired verifies that IsExpired correctly identifies credentials past their expiration time.
 func TestServerCredential_IsExpired(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -38,6 +41,7 @@ func TestServerCredential_IsExpired(t *testing.T) {
 	}
 }
 
+// TestServerCredential_IsExpiringSoon verifies that IsExpiringSoon detects credentials expiring within a given duration.
 func TestServerCredential_IsExpiringSoon(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -75,6 +79,7 @@ func TestServerCredential_IsExpiringSoon(t *testing.T) {
 	}
 }
 
+// TestServerCredential_HasRefreshToken verifies that HasRefreshToken returns true only when a non-empty refresh token is present.
 func TestServerCredential_HasRefreshToken(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -138,6 +143,7 @@ func (m *mockCredentialStore) Save() error {
 	return nil
 }
 
+// TestAuthClient_GetToken_NoCredential verifies that GetToken returns an empty string when no credential is stored.
 func TestAuthClient_GetToken_NoCredential(t *testing.T) {
 	store := newMockCredentialStore()
 	client := NewAuthClient("http://localhost:8080", store)
@@ -151,6 +157,7 @@ func TestAuthClient_GetToken_NoCredential(t *testing.T) {
 	}
 }
 
+// TestAuthClient_GetToken_ValidCredential verifies that GetToken returns the access token when a valid (non-expired) credential exists.
 func TestAuthClient_GetToken_ValidCredential(t *testing.T) {
 	store := newMockCredentialStore()
 	store.creds["http://localhost:8080"] = &ServerCredential{
@@ -169,6 +176,7 @@ func TestAuthClient_GetToken_ValidCredential(t *testing.T) {
 	}
 }
 
+// TestAuthClient_GetToken_ExpiredCredential verifies that GetToken returns an empty string when the stored credential has expired.
 func TestAuthClient_GetToken_ExpiredCredential(t *testing.T) {
 	store := newMockCredentialStore()
 	store.creds["http://localhost:8080"] = &ServerCredential{
@@ -187,6 +195,7 @@ func TestAuthClient_GetToken_ExpiredCredential(t *testing.T) {
 	}
 }
 
+// TestAuthClient_IsLoggedIn verifies that IsLoggedIn reflects the presence and validity of stored credentials.
 func TestAuthClient_IsLoggedIn(t *testing.T) {
 	store := newMockCredentialStore()
 	client := NewAuthClient("http://localhost:8080", store)
@@ -215,6 +224,7 @@ func TestAuthClient_IsLoggedIn(t *testing.T) {
 	}
 }
 
+// TestAuthClient_Logout verifies that Logout removes the stored credential for the server URL.
 func TestAuthClient_Logout(t *testing.T) {
 	store := newMockCredentialStore()
 	store.creds["http://localhost:8080"] = &ServerCredential{
@@ -233,6 +243,7 @@ func TestAuthClient_Logout(t *testing.T) {
 	}
 }
 
+// TestAuthClient_URLNormalization verifies that credentials are matched by base URL regardless of the path component.
 func TestAuthClient_URLNormalization(t *testing.T) {
 	store := newMockCredentialStore()
 	store.creds["http://localhost:8080"] = &ServerCredential{

@@ -1,5 +1,8 @@
 package oneauth_test
 
+// Tests for the AppRegistrar HTTP API: app registration (HS256/RS256), listing, retrieval,
+// deletion, secret/key rotation, admin auth enforcement, and input validation.
+
 import (
 	"bytes"
 	"encoding/json"
@@ -21,6 +24,8 @@ func setupRegistrar(t *testing.T) (*oa.AppRegistrar, *oa.InMemoryKeyStore) {
 	return reg, ks
 }
 
+// TestAppRegistrar_Register verifies that registering an HS256 app returns a client_id and
+// client_secret, and that the key is correctly stored in the KeyStore.
 func TestAppRegistrar_Register(t *testing.T) {
 	reg, ks := setupRegistrar(t)
 	handler := reg.Handler()
@@ -68,6 +73,7 @@ func TestAppRegistrar_Register(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_Register_DefaultAlg verifies that omitting signing_alg defaults to HS256.
 func TestAppRegistrar_Register_DefaultAlg(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
@@ -94,6 +100,7 @@ func TestAppRegistrar_Register_DefaultAlg(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_ListApps verifies that GET /apps returns all registered apps.
 func TestAppRegistrar_ListApps(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
@@ -130,6 +137,8 @@ func TestAppRegistrar_ListApps(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_GetApp verifies that GET /apps/{id} returns app metadata
+// without exposing the client_secret.
 func TestAppRegistrar_GetApp(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
@@ -170,6 +179,7 @@ func TestAppRegistrar_GetApp(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_GetApp_NotFound verifies that GET /apps/{id} returns 404 for unknown apps.
 func TestAppRegistrar_GetApp_NotFound(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
@@ -183,6 +193,7 @@ func TestAppRegistrar_GetApp_NotFound(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_DeleteApp verifies that deleting an app removes it from the KeyStore.
 func TestAppRegistrar_DeleteApp(t *testing.T) {
 	reg, ks := setupRegistrar(t)
 	handler := reg.Handler()
@@ -213,6 +224,7 @@ func TestAppRegistrar_DeleteApp(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_DeleteApp_NotFound verifies that deleting a nonexistent app returns 404.
 func TestAppRegistrar_DeleteApp_NotFound(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
@@ -226,6 +238,8 @@ func TestAppRegistrar_DeleteApp_NotFound(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_RotateSecret verifies that rotating an HS256 app's secret produces
+// a new secret and updates the KeyStore.
 func TestAppRegistrar_RotateSecret(t *testing.T) {
 	reg, ks := setupRegistrar(t)
 	handler := reg.Handler()
@@ -268,6 +282,7 @@ func TestAppRegistrar_RotateSecret(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_RotateSecret_NotFound verifies that rotating a nonexistent app returns 404.
 func TestAppRegistrar_RotateSecret_NotFound(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
@@ -355,6 +370,8 @@ func TestAppRegistrar_AdminAuth_ReadEndpoints(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_Register_RS256 verifies that registering an RS256 app stores the public key
+// in the KeyStore and does not return a client_secret.
 func TestAppRegistrar_Register_RS256(t *testing.T) {
 	reg, ks := setupRegistrar(t)
 	handler := reg.Handler()
@@ -402,6 +419,8 @@ func TestAppRegistrar_Register_RS256(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_Register_RS256_MissingPublicKey verifies that RS256 registration
+// without a public_key field returns 400.
 func TestAppRegistrar_Register_RS256_MissingPublicKey(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
@@ -422,6 +441,8 @@ func TestAppRegistrar_Register_RS256_MissingPublicKey(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_Register_RS256_InvalidPEM verifies that RS256 registration
+// with an invalid PEM string returns 400.
 func TestAppRegistrar_Register_RS256_InvalidPEM(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()
@@ -442,6 +463,8 @@ func TestAppRegistrar_Register_RS256_InvalidPEM(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_RotateKey_RS256 verifies that rotating an RS256 app's public key
+// updates the KeyStore and does not return a client_secret.
 func TestAppRegistrar_RotateKey_RS256(t *testing.T) {
 	reg, ks := setupRegistrar(t)
 	handler := reg.Handler()
@@ -490,6 +513,8 @@ func TestAppRegistrar_RotateKey_RS256(t *testing.T) {
 	}
 }
 
+// TestAppRegistrar_RotateKey_RS256_MissingKey verifies that rotating an RS256 app
+// without providing a new public_key returns 400.
 func TestAppRegistrar_RotateKey_RS256_MissingKey(t *testing.T) {
 	reg, _ := setupRegistrar(t)
 	handler := reg.Handler()

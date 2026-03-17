@@ -1,3 +1,5 @@
+// Tests for username reservation, OAuth channel linking, local credential
+// linking, and the credentials validator with username support.
 package oneauth_test
 
 import (
@@ -20,6 +22,7 @@ func setupUsernameStore(t *testing.T) (*fs.FSUsernameStore, string) {
 	return fs.NewFSUsernameStore(tmpDir), tmpDir
 }
 
+// TestUsernameStoreReserve verifies that a username can be reserved and looked up case-insensitively.
 func TestUsernameStoreReserve(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
@@ -49,6 +52,8 @@ func TestUsernameStoreReserve(t *testing.T) {
 	}
 }
 
+// TestUsernameStoreDuplicateReservation verifies that a different user cannot reserve an already-taken
+// username, but the same user can update the casing of their own username.
 func TestUsernameStoreDuplicateReservation(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
@@ -72,6 +77,7 @@ func TestUsernameStoreDuplicateReservation(t *testing.T) {
 	}
 }
 
+// TestUsernameStoreCaseInsensitive verifies that username uniqueness is enforced case-insensitively.
 func TestUsernameStoreCaseInsensitive(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
@@ -93,6 +99,7 @@ func TestUsernameStoreCaseInsensitive(t *testing.T) {
 	}
 }
 
+// TestUsernameStoreRelease verifies that releasing a username makes it available for another user.
 func TestUsernameStoreRelease(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
@@ -111,6 +118,7 @@ func TestUsernameStoreRelease(t *testing.T) {
 	}
 }
 
+// TestUsernameStoreChange verifies that changing a username releases the old one and reserves the new one.
 func TestUsernameStoreChange(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
@@ -143,6 +151,7 @@ func TestUsernameStoreChange(t *testing.T) {
 	}
 }
 
+// TestUsernameStoreChangeCaseOnly verifies that a user can change only the casing of their username.
 func TestUsernameStoreChangeCaseOnly(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
@@ -165,6 +174,7 @@ func TestUsernameStoreChangeCaseOnly(t *testing.T) {
 	}
 }
 
+// TestUsernameStoreChangeToTaken verifies that changing to a username already reserved by another user fails.
 func TestUsernameStoreChangeToTaken(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
@@ -179,6 +189,7 @@ func TestUsernameStoreChangeToTaken(t *testing.T) {
 	}
 }
 
+// TestUsernameStoreNotFound verifies that looking up a non-existent username returns an error.
 func TestUsernameStoreNotFound(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
@@ -207,6 +218,8 @@ func setupAuthStores(t *testing.T) (oa.EnsureAuthUserConfig, string) {
 	}, tmpDir
 }
 
+// TestEnsureAuthUserNewUser verifies that EnsureAuthUser creates a new user with profile and channel
+// when no matching identity exists.
 func TestEnsureAuthUserNewUser(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
@@ -247,6 +260,8 @@ func TestEnsureAuthUserNewUser(t *testing.T) {
 	}
 }
 
+// TestEnsureAuthUserExistingUserNewChannel verifies that logging in via a second OAuth provider
+// with the same email links to the existing user and adds the new channel.
 func TestEnsureAuthUserExistingUserNewChannel(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
@@ -289,6 +304,7 @@ func TestEnsureAuthUserExistingUserNewChannel(t *testing.T) {
 	}
 }
 
+// TestEnsureAuthUserMissingEmail verifies that EnsureAuthUser fails when userInfo has no email.
 func TestEnsureAuthUserMissingEmail(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
@@ -309,6 +325,8 @@ func TestEnsureAuthUserMissingEmail(t *testing.T) {
 // LinkLocalCredentials Tests
 // =============================================================================
 
+// TestLinkLocalCredentials verifies that an OAuth-only user can add local credentials (username + password)
+// and subsequently log in with them.
 func TestLinkLocalCredentials(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
@@ -351,6 +369,7 @@ func TestLinkLocalCredentials(t *testing.T) {
 	}
 }
 
+// TestLinkLocalCredentialsAlreadyExists verifies that linking local credentials a second time is rejected.
 func TestLinkLocalCredentialsAlreadyExists(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
@@ -376,6 +395,8 @@ func TestLinkLocalCredentialsAlreadyExists(t *testing.T) {
 	}
 }
 
+// TestLinkLocalCredentialsWrongEmail verifies that linking credentials fails when the provided email
+// does not match the user's registered email identity.
 func TestLinkLocalCredentialsWrongEmail(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
@@ -399,6 +420,8 @@ func TestLinkLocalCredentialsWrongEmail(t *testing.T) {
 // NewCredentialsValidatorWithUsername Tests
 // =============================================================================
 
+// TestCredentialsValidatorWithUsername verifies that the username-aware credentials validator
+// supports login via both username and email.
 func TestCredentialsValidatorWithUsername(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
@@ -439,6 +462,7 @@ func TestCredentialsValidatorWithUsername(t *testing.T) {
 	}
 }
 
+// TestCredentialsValidatorWithUsernameWrongPassword verifies that username login fails with an incorrect password.
 func TestCredentialsValidatorWithUsernameWrongPassword(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
@@ -462,6 +486,8 @@ func TestCredentialsValidatorWithUsernameWrongPassword(t *testing.T) {
 	}
 }
 
+// TestCredentialsValidatorNoUsernameStore verifies that username-based login fails gracefully
+// when no UsernameStore is configured.
 func TestCredentialsValidatorNoUsernameStore(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)

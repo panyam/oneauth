@@ -1,3 +1,5 @@
+// Tests for AdminAuth implementations: NoAuth (dev-mode pass-through) and APIKeyAuth
+// (constant-time API key comparison via X-Admin-Key header).
 package oneauth_test
 
 import (
@@ -7,6 +9,7 @@ import (
 	oa "github.com/panyam/oneauth"
 )
 
+// TestNoAuth_AllowsEverything verifies that the NoAuth implementation permits all requests unconditionally.
 func TestNoAuth_AllowsEverything(t *testing.T) {
 	auth := oa.NewNoAuth()
 	req := httptest.NewRequest("GET", "/admin/hosts", nil)
@@ -15,6 +18,7 @@ func TestNoAuth_AllowsEverything(t *testing.T) {
 	}
 }
 
+// TestAPIKeyAuth_ValidKey verifies that a request with the correct X-Admin-Key header is accepted.
 func TestAPIKeyAuth_ValidKey(t *testing.T) {
 	auth := oa.NewAPIKeyAuth("my-secret-key")
 	req := httptest.NewRequest("GET", "/admin/hosts", nil)
@@ -24,6 +28,7 @@ func TestAPIKeyAuth_ValidKey(t *testing.T) {
 	}
 }
 
+// TestAPIKeyAuth_MissingKey verifies that a request without an X-Admin-Key header returns ErrAdminUnauthorized.
 func TestAPIKeyAuth_MissingKey(t *testing.T) {
 	auth := oa.NewAPIKeyAuth("my-secret-key")
 	req := httptest.NewRequest("GET", "/admin/hosts", nil)
@@ -33,6 +38,7 @@ func TestAPIKeyAuth_MissingKey(t *testing.T) {
 	}
 }
 
+// TestAPIKeyAuth_WrongKey verifies that a request with an incorrect X-Admin-Key header returns ErrAdminForbidden.
 func TestAPIKeyAuth_WrongKey(t *testing.T) {
 	auth := oa.NewAPIKeyAuth("my-secret-key")
 	req := httptest.NewRequest("GET", "/admin/hosts", nil)
@@ -43,6 +49,8 @@ func TestAPIKeyAuth_WrongKey(t *testing.T) {
 	}
 }
 
+// TestAPIKeyAuth_TimingAttack verifies that a nearly-matching key (off by one character) is rejected,
+// confirming constant-time comparison is in use.
 func TestAPIKeyAuth_TimingAttack(t *testing.T) {
 	auth := oa.NewAPIKeyAuth("correct-key-12345")
 	req := httptest.NewRequest("GET", "/admin/hosts", nil)
