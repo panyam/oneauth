@@ -15,7 +15,10 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
+	"github.com/panyam/oneauth/localauth"
 	fsstore "github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
 )
@@ -71,10 +74,10 @@ func main() {
 	}
 
 	// Build LocalAuth for this app's own users
-	localAuth := &oa.LocalAuth{
-		ValidateCredentials: oa.NewCredentialsValidator(identityStore, channelStore, userStore),
-		CreateUser:          oa.NewCreateUserFunc(userStore, identityStore, channelStore),
-		SignupPolicy:        &oa.PolicyEmailOnly,
+	localAuth := &localauth.LocalAuth{
+		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
+		CreateUser:          localauth.NewCreateUserFunc(userStore, identityStore, channelStore),
+		SignupPolicy:        &core.PolicyEmailOnly,
 		HandleUser: func(authtype string, provider string, token *oauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {
 			email, _ := userInfo["email"].(string)
 			// Create session JWT
@@ -97,18 +100,18 @@ func main() {
 			})
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 		},
-		OnLoginError: func(err *oa.AuthError, w http.ResponseWriter, r *http.Request) bool {
-			renderTemplate(w, "login.html", map[string]any{"Title": "Login — " + *name, "App": *name, "Error": err.Message, "CSRFField": oa.CSRFTemplateField(r)})
+		OnLoginError: func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
+			renderTemplate(w, "login.html", map[string]any{"Title": "Login — " + *name, "App": *name, "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
-		OnSignupError: func(err *oa.AuthError, w http.ResponseWriter, r *http.Request) bool {
-			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up — " + *name, "App": *name, "Error": err.Message, "CSRFField": oa.CSRFTemplateField(r)})
+		OnSignupError: func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
+			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up — " + *name, "App": *name, "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
 	}
 
 	// CSRF middleware for browser form endpoints
-	csrf := &oa.CSRFMiddleware{}
+	csrf := &httpauth.CSRFMiddleware{}
 
 	mux := http.NewServeMux()
 
@@ -139,13 +142,13 @@ func main() {
 
 	// Login — CSRF-protected
 	mux.Handle("GET /login", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, "login.html", map[string]any{"Title": "Login — " + *name, "App": *name, "CSRFField": oa.CSRFTemplateField(r)})
+		renderTemplate(w, "login.html", map[string]any{"Title": "Login — " + *name, "App": *name, "CSRFField": httpauth.CSRFTemplateField(r)})
 	})))
 	mux.Handle("POST /login", csrf.Protect(http.HandlerFunc(localAuth.ServeHTTP)))
 
 	// Signup — CSRF-protected
 	mux.Handle("GET /signup", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up — " + *name, "App": *name, "CSRFField": oa.CSRFTemplateField(r)})
+		renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up — " + *name, "App": *name, "CSRFField": httpauth.CSRFTemplateField(r)})
 	})))
 	mux.Handle("POST /signup", csrf.Protect(http.HandlerFunc(localAuth.HandleSignup)))
 
@@ -167,11 +170,11 @@ func main() {
 			return
 		}
 
-		token, err := oa.MintResourceToken(
+		token, err := admin.MintResourceToken(
 			user,
 			creds.ClientID,
 			creds.ClientSecret,
-			oa.AppQuota{MaxRooms: 10, MaxMsgRate: 100},
+			admin.AppQuota{MaxRooms: 10, MaxMsgRate: 100},
 			[]string{"collab"},
 		)
 		if err != nil {

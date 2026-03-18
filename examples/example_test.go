@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/apiauth"
+	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
 
@@ -22,8 +24,8 @@ import (
 // register an app via HTTP, mint a resource token, and validate it on a resource server.
 func ExampleAppRegistrar_hs256FederatedFlow() {
 	// Auth server with AppRegistrar
-	ks := oa.NewInMemoryKeyStore()
-	registrar := &oa.AppRegistrar{KeyStore: ks, Auth: oa.NewNoAuth()}
+	ks := keys.NewInMemoryKeyStore()
+	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
 	authServer := httptest.NewServer(registrar.Handler())
 	defer authServer.Close()
 
@@ -42,14 +44,14 @@ func ExampleAppRegistrar_hs256FederatedFlow() {
 	fmt.Println("registered:", clientID != "" && clientSecret != "")
 
 	// App mints a resource token for user "alice"
-	token, err := oa.MintResourceToken("alice", clientID, clientSecret,
-		oa.AppQuota{MaxRooms: 10}, []string{"read", "write"})
+	token, err := admin.MintResourceToken("alice", clientID, clientSecret,
+		admin.AppQuota{MaxRooms: 10}, []string{"read", "write"})
 	fmt.Println("token_minted:", err == nil && token != "")
 
 	// Resource server validates tokens using the same KeyStore
-	middleware := &oa.APIMiddleware{KeyStore: ks}
+	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	resSrv := httptest.NewServer(middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"user":"%s"}`, oa.GetUserIDFromAPIContext(r.Context()))
+		fmt.Fprintf(w, `{"user":"%s"}`, apiauth.GetUserIDFromAPIContext(r.Context()))
 	})))
 	defer resSrv.Close()
 
@@ -77,9 +79,9 @@ func ExampleAppRegistrar_hs256FederatedFlow() {
 // keys automatically via the /.well-known/jwks.json endpoint.
 func ExampleAppRegistrar_rs256WithJWKS() {
 	// Auth server: AppRegistrar + JWKS endpoint
-	ks := oa.NewInMemoryKeyStore()
-	registrar := &oa.AppRegistrar{KeyStore: ks, Auth: oa.NewNoAuth()}
-	jwksHandler := &oa.JWKSHandler{KeyStore: ks}
+	ks := keys.NewInMemoryKeyStore()
+	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
+	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
 
 	mux := http.NewServeMux()
 	mux.Handle("/apps/", registrar.Handler())
@@ -113,18 +115,18 @@ func ExampleAppRegistrar_rs256WithJWKS() {
 	fmt.Println("jwks_keys:", len(jwkSet.Keys))
 
 	// Resource server discovers keys via JWKS
-	resKeyStore := oa.NewJWKSKeyStore(authServer.URL+"/.well-known/jwks.json", oa.WithMinRefreshGap(0))
+	resKeyStore := keys.NewJWKSKeyStore(authServer.URL+"/.well-known/jwks.json", keys.WithMinRefreshGap(0))
 	resKeyStore.Start()
 	defer resKeyStore.Stop()
 
-	middleware := &oa.APIMiddleware{KeyStore: resKeyStore}
+	middleware := &apiauth.APIMiddleware{KeyStore: resKeyStore}
 	resSrv := httptest.NewServer(middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"user":"%s"}`, oa.GetUserIDFromAPIContext(r.Context()))
+		fmt.Fprintf(w, `{"user":"%s"}`, apiauth.GetUserIDFromAPIContext(r.Context()))
 	})))
 	defer resSrv.Close()
 
 	// App mints token with its private key
-	token, _ := oa.MintResourceTokenWithKey("bob", clientID, privKey, oa.AppQuota{}, []string{"read"})
+	token, _ := admin.MintResourceTokenWithKey("bob", clientID, privKey, admin.AppQuota{}, []string{"read"})
 
 	req, _ := http.NewRequest("GET", resSrv.URL+"/data", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -148,7 +150,7 @@ func ExampleAppRegistrar_rs256WithJWKS() {
 // ExampleAPIMiddleware_kidBasedLookup demonstrates kid (Key ID) headers in JWTs
 // and how the middleware uses kid-based key lookup for multi-app validation.
 func ExampleAPIMiddleware_kidBasedLookup() {
-	ks := oa.NewInMemoryKeyStore()
+	ks := keys.NewInMemoryKeyStore()
 
 	// Register an HS256 app and an RS256 app in the same KeyStore
 	ks.RegisterKey("app-hs256", []byte("my-secret"), "HS256")
@@ -157,8 +159,8 @@ func ExampleAPIMiddleware_kidBasedLookup() {
 	ks.RegisterKey("app-rs256", pubPEM, "RS256")
 
 	// Mint tokens — both get kid headers automatically
-	hsToken, _ := oa.MintResourceToken("alice", "app-hs256", "my-secret", oa.AppQuota{}, []string{"read"})
-	rsToken, _ := oa.MintResourceTokenWithKey("bob", "app-rs256", privKey, oa.AppQuota{}, []string{"read"})
+	hsToken, _ := admin.MintResourceToken("alice", "app-hs256", "my-secret", admin.AppQuota{}, []string{"read"})
+	rsToken, _ := admin.MintResourceTokenWithKey("bob", "app-rs256", privKey, admin.AppQuota{}, []string{"read"})
 
 	// Verify kid headers are present
 	parser := jwt.NewParser()
@@ -168,7 +170,7 @@ func ExampleAPIMiddleware_kidBasedLookup() {
 	fmt.Println("rs256_has_kid:", rsParsed.Header["kid"] != nil && rsParsed.Header["kid"] != "")
 
 	// Validate both via middleware (kid-based lookup)
-	middleware := &oa.APIMiddleware{KeyStore: ks}
+	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -201,11 +203,11 @@ func ExampleAPIMiddleware_kidBasedLookup() {
 // with a grace period: old tokens continue to work during the grace window,
 // then fail after it expires.
 func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
-	ks := oa.NewInMemoryKeyStore()
-	kidStore := oa.NewKidStore()
-	registrar := &oa.AppRegistrar{
+	ks := keys.NewInMemoryKeyStore()
+	kidStore := keys.NewKidStore()
+	registrar := &admin.AppRegistrar{
 		KeyStore:           ks,
-		Auth:               oa.NewNoAuth(),
+		Auth:               admin.NewNoAuth(),
 		KidStore:           kidStore,
 		DefaultGracePeriod: 50 * time.Millisecond,
 	}
@@ -224,7 +226,7 @@ func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 	oldSecret := regResp["client_secret"].(string)
 
 	// Mint token with old secret
-	oldToken, _ := oa.MintResourceToken("alice", clientID, oldSecret, oa.AppQuota{}, []string{"read"})
+	oldToken, _ := admin.MintResourceToken("alice", clientID, oldSecret, admin.AppQuota{}, []string{"read"})
 
 	// Rotate key (uses DefaultGracePeriod of 50ms)
 	req = httptest.NewRequest("POST", "/apps/"+clientID+"/rotate", nil)
@@ -234,11 +236,11 @@ func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 	var rotResp map[string]any
 	json.NewDecoder(rr.Body).Decode(&rotResp)
 	newSecret := rotResp["client_secret"].(string)
-	newToken, _ := oa.MintResourceToken("alice", clientID, newSecret, oa.AppQuota{}, []string{"read"})
+	newToken, _ := admin.MintResourceToken("alice", clientID, newSecret, admin.AppQuota{}, []string{"read"})
 
 	// Build composite: current keys + grace period keys
-	composite := &oa.CompositeKeyLookup{Lookups: []oa.KeyLookup{ks, kidStore}}
-	middleware := &oa.APIMiddleware{KeyStore: composite}
+	composite := &keys.CompositeKeyLookup{Lookups: []keys.KeyLookup{ks, kidStore}}
+	middleware := &apiauth.APIMiddleware{KeyStore: composite}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -271,8 +273,8 @@ func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 // is rejected: a token signed by app A but claiming app B's client_id is denied
 // because the kid owner doesn't match the client_id claim.
 func ExampleAPIMiddleware_crossAppIsolation() {
-	ks := oa.NewInMemoryKeyStore()
-	registrar := &oa.AppRegistrar{KeyStore: ks, Auth: oa.NewNoAuth()}
+	ks := keys.NewInMemoryKeyStore()
+	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
 	regHandler := registrar.Handler()
 
 	// Register two HS256 apps
@@ -290,7 +292,7 @@ func ExampleAPIMiddleware_crossAppIsolation() {
 		secrets[i] = resp["client_secret"].(string)
 	}
 
-	middleware := &oa.APIMiddleware{KeyStore: ks}
+	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -305,11 +307,11 @@ func ExampleAPIMiddleware_crossAppIsolation() {
 
 	// Cross-app forgery: mint with app A's secret but claim app B's client_id.
 	// The kid is derived from app A's secret, so kid owner != client_id claim.
-	crossToken, _ := oa.MintResourceToken("eve", clientIDs[1], secrets[0], oa.AppQuota{}, []string{"read"})
+	crossToken, _ := admin.MintResourceToken("eve", clientIDs[1], secrets[0], admin.AppQuota{}, []string{"read"})
 	fmt.Println("cross_app_token:", checkToken(crossToken))
 
 	// Correct token: app A's secret with app A's client_id
-	correctToken, _ := oa.MintResourceToken("alice", clientIDs[0], secrets[0], oa.AppQuota{}, []string{"read"})
+	correctToken, _ := admin.MintResourceToken("alice", clientIDs[0], secrets[0], admin.AppQuota{}, []string{"read"})
 	fmt.Println("correct_token:", checkToken(correctToken))
 
 	// Output:
@@ -321,7 +323,7 @@ func ExampleAPIMiddleware_crossAppIsolation() {
 // coexist in the same KeyStore, but only asymmetric keys appear in JWKS.
 // RS256 tokens validate via JWKS; HS256 tokens are rejected (secrets never exposed).
 func ExampleJWKSHandler_multiAlgorithm() {
-	ks := oa.NewInMemoryKeyStore()
+	ks := keys.NewInMemoryKeyStore()
 
 	// Register one HS256 app and one RS256 app
 	ks.RegisterKey("app-hmac", []byte("shared-secret"), "HS256")
@@ -333,7 +335,7 @@ func ExampleJWKSHandler_multiAlgorithm() {
 	fmt.Println("total_apps:", len(ids))
 
 	// Serve JWKS (only asymmetric keys appear)
-	jwksHandler := &oa.JWKSHandler{KeyStore: ks}
+	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
 	authServer := httptest.NewServer(http.HandlerFunc(jwksHandler.ServeHTTP))
 	defer authServer.Close()
 
@@ -344,18 +346,18 @@ func ExampleJWKSHandler_multiAlgorithm() {
 	fmt.Println("jwks_keys:", len(jwkSet.Keys))
 
 	// Resource server uses JWKS for key discovery
-	resKeyStore := oa.NewJWKSKeyStore(authServer.URL, oa.WithMinRefreshGap(0))
+	resKeyStore := keys.NewJWKSKeyStore(authServer.URL, keys.WithMinRefreshGap(0))
 	resKeyStore.Start()
 	defer resKeyStore.Stop()
 
-	middleware := &oa.APIMiddleware{KeyStore: resKeyStore}
+	middleware := &apiauth.APIMiddleware{KeyStore: resKeyStore}
 	resSrv := httptest.NewServer(middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})))
 	defer resSrv.Close()
 
 	// RS256 token validates via JWKS
-	rsToken, _ := oa.MintResourceTokenWithKey("alice", "app-rsa", privKey, oa.AppQuota{}, []string{"read"})
+	rsToken, _ := admin.MintResourceTokenWithKey("alice", "app-rsa", privKey, admin.AppQuota{}, []string{"read"})
 	req, _ := http.NewRequest("GET", resSrv.URL, nil)
 	req.Header.Set("Authorization", "Bearer "+rsToken)
 	res, _ := http.DefaultClient.Do(req)
@@ -363,7 +365,7 @@ func ExampleJWKSHandler_multiAlgorithm() {
 	fmt.Println("rs256_via_jwks:", res.StatusCode)
 
 	// HS256 token fails via JWKS (secrets are never exposed)
-	hsToken, _ := oa.MintResourceToken("bob", "app-hmac", "shared-secret", oa.AppQuota{}, []string{"read"})
+	hsToken, _ := admin.MintResourceToken("bob", "app-hmac", "shared-secret", admin.AppQuota{}, []string{"read"})
 	req, _ = http.NewRequest("GET", resSrv.URL, nil)
 	req.Header.Set("Authorization", "Bearer "+hsToken)
 	res, _ = http.DefaultClient.Do(req)

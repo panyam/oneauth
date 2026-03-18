@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"cloud.google.com/go/datastore"
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
 
@@ -21,7 +21,7 @@ type SigningKeyEntity struct {
 	Kid       string         `datastore:"kid"`
 }
 
-// GAEKeyStore implements oa.KeyStorage using Google Cloud Datastore.
+// GAEKeyStore implements keys.KeyStorage using Google Cloud Datastore.
 type GAEKeyStore struct {
 	client    *datastore.Client
 	namespace string
@@ -52,10 +52,10 @@ func (s *GAEKeyStore) namespacedKey(name string) *datastore.Key {
 	return key
 }
 
-func (s *GAEKeyStore) PutKey(rec *oa.KeyRecord) error {
+func (s *GAEKeyStore) PutKey(rec *keys.KeyRecord) error {
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
-		return oa.ErrAlgorithmMismatch
+		return keys.ErrAlgorithmMismatch
 	}
 
 	kid := rec.Kid
@@ -78,7 +78,7 @@ func (s *GAEKeyStore) DeleteKey(clientID string) error {
 	var entity SigningKeyEntity
 	if err := s.client.Get(s.ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
-			return oa.ErrKeyNotFound
+			return keys.ErrKeyNotFound
 		}
 		return err
 	}
@@ -90,19 +90,19 @@ func (s *GAEKeyStore) getEntity(clientID string) (*SigningKeyEntity, error) {
 	var entity SigningKeyEntity
 	if err := s.client.Get(s.ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
-			return nil, oa.ErrKeyNotFound
+			return nil, keys.ErrKeyNotFound
 		}
 		return nil, err
 	}
 	return &entity, nil
 }
 
-func (s *GAEKeyStore) GetKey(clientID string) (*oa.KeyRecord, error) {
+func (s *GAEKeyStore) GetKey(clientID string) (*keys.KeyRecord, error) {
 	entity, err := s.getEntity(clientID)
 	if err != nil {
 		return nil, err
 	}
-	return &oa.KeyRecord{
+	return &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       entity.KeyBytes,
 		Algorithm: entity.Algorithm,
@@ -110,21 +110,21 @@ func (s *GAEKeyStore) GetKey(clientID string) (*oa.KeyRecord, error) {
 	}, nil
 }
 
-func (s *GAEKeyStore) GetKeyByKid(kid string) (*oa.KeyRecord, error) {
+func (s *GAEKeyStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
 	q := datastore.NewQuery(KindSigningKey).FilterField("kid", "=", kid).Limit(1)
 	if s.namespace != "" {
 		q = q.Namespace(s.namespace)
 	}
 	var entities []SigningKeyEntity
-	keys, err := s.client.GetAll(s.ctx, q, &entities)
+	dsKeys, err := s.client.GetAll(s.ctx, q, &entities)
 	if err != nil {
 		return nil, err
 	}
 	if len(entities) == 0 {
-		return nil, oa.ErrKidNotFound
+		return nil, keys.ErrKidNotFound
 	}
-	return &oa.KeyRecord{
-		ClientID:  keys[0].Name,
+	return &keys.KeyRecord{
+		ClientID:  dsKeys[0].Name,
 		Key:       entities[0].KeyBytes,
 		Algorithm: entities[0].Algorithm,
 		Kid:       entities[0].Kid,
@@ -136,12 +136,12 @@ func (s *GAEKeyStore) ListKeyIDs() ([]string, error) {
 	if s.namespace != "" {
 		q = q.Namespace(s.namespace)
 	}
-	keys, err := s.client.GetAll(s.ctx, q, nil)
+	dsKeys, err := s.client.GetAll(s.ctx, q, nil)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]string, len(keys))
-	for i, k := range keys {
+	result := make([]string, len(dsKeys))
+	for i, k := range dsKeys {
 		result[i] = k.Name
 	}
 	return result, nil
@@ -150,7 +150,7 @@ func (s *GAEKeyStore) ListKeyIDs() ([]string, error) {
 // Backward-compatible aliases
 
 func (s *GAEKeyStore) RegisterKey(clientID string, key any, algorithm string) error {
-	return s.PutKey(&oa.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
+	return s.PutKey(&keys.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
 }
 
 func (s *GAEKeyStore) GetVerifyKey(clientID string) (any, error) {

@@ -72,15 +72,33 @@ Each mode has its own detailed documentation:
 - **[Federated Auth](FEDERATED_AUTH.md)** — App Registration API (AdminAuth, AppRegistrar), resource token minting (MintResourceToken), multi-service architecture with shared KeyStore
 - **[Auth Flows](AUTH_FLOWS.md)** — Detailed decision trees for login/signup, provider linking matrix, user journeys, edge cases
 
+## Package Organization
+
+```
+              core/          ← Foundation types, interfaces, zero internal deps
+            / | \  \
+           /  |  \  \
+        keys/ |  localauth/  ← Key mgmt, local auth
+        / \   |
+       /   \  |
+    admin/ apiauth/          ← Admin API, JWT auth
+              |
+           httpauth/         ← HTTP middleware, CSRF, session mux
+```
+
+Each subpackage has a `SUMMARY.md` for quick orientation.
+
 ## Store Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Store Interfaces                       │
-│  UserStore | IdentityStore | ChannelStore | TokenStore      │
-│  RefreshTokenStore | APIKeyStore | UsernameStore (opt)      │
-│  KeyStorage | KeyLookup (multi-tenant JWT + kid lookup)     │
-└──────────────────────────┬──────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  core/ — Store Interfaces                                    │
+│  UserStore | IdentityStore | ChannelStore | TokenStore       │
+│  RefreshTokenStore | APIKeyStore | UsernameStore (opt)       │
+├──────────────────────────────────────────────────────────────┤
+│  keys/ — Key Interfaces                                      │
+│  KeyStorage | KeyLookup (multi-tenant JWT + kid lookup)      │
+└──────────────────────────┬───────────────────────────────────┘
                            │
         ┌──────────────────┼──────────────────┐
         │                  │                  │

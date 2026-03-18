@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/core"
 )
 
 // FSTokenStore stores verification and reset tokens as JSON files
@@ -23,13 +23,13 @@ func (s *FSTokenStore) getTokenPath(token string) string {
 	return filepath.Join(s.StoragePath, "tokens", token+".json")
 }
 
-func (s *FSTokenStore) CreateToken(userID, email string, tokenType oa.TokenType, expiryDuration time.Duration) (*oa.AuthToken, error) {
-	token, err := oa.GenerateSecureToken()
+func (s *FSTokenStore) CreateToken(userID, email string, tokenType core.TokenType, expiryDuration time.Duration) (*core.AuthToken, error) {
+	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
 
-	authToken := &oa.AuthToken{
+	authToken := &core.AuthToken{
 		Token:     token,
 		Type:      tokenType,
 		UserID:    userID,
@@ -55,7 +55,7 @@ func (s *FSTokenStore) CreateToken(userID, email string, tokenType oa.TokenType,
 	return authToken, nil
 }
 
-func (s *FSTokenStore) GetToken(token string) (*oa.AuthToken, error) {
+func (s *FSTokenStore) GetToken(token string) (*core.AuthToken, error) {
 	path := s.getTokenPath(token)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -65,7 +65,7 @@ func (s *FSTokenStore) GetToken(token string) (*oa.AuthToken, error) {
 		return nil, err
 	}
 
-	var authToken oa.AuthToken
+	var authToken core.AuthToken
 	if err := json.Unmarshal(data, &authToken); err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (s *FSTokenStore) DeleteToken(token string) error {
 	return err
 }
 
-func (s *FSTokenStore) DeleteUserTokens(userID string, tokenType oa.TokenType) error {
+func (s *FSTokenStore) DeleteUserTokens(userID string, tokenType core.TokenType) error {
 	tokensDir := filepath.Join(s.StoragePath, "tokens")
 	entries, err := os.ReadDir(tokensDir)
 	if err != nil {
@@ -109,7 +109,7 @@ func (s *FSTokenStore) DeleteUserTokens(userID string, tokenType oa.TokenType) e
 			continue
 		}
 
-		var authToken oa.AuthToken
+		var authToken core.AuthToken
 		if err := json.Unmarshal(data, &authToken); err != nil {
 			continue
 		}

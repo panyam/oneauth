@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/core"
 )
 
 // FSAPIKeyStore stores API keys as JSON files
@@ -39,17 +39,17 @@ func (s *FSAPIKeyStore) getKeyPath(keyID string) string {
 
 // CreateAPIKey creates a new API key and returns the full key (only shown once)
 // The key format is: keyID + "_" + secret
-func (s *FSAPIKeyStore) CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (fullKey string, apiKey *oa.APIKey, err error) {
+func (s *FSAPIKeyStore) CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (fullKey string, apiKey *core.APIKey, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// Generate key ID and secret
-	keyID, err := oa.GenerateAPIKeyID()
+	keyID, err := core.GenerateAPIKeyID()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to generate key ID: %w", err)
 	}
 
-	secret, err := oa.GenerateAPIKeySecret()
+	secret, err := core.GenerateAPIKeySecret()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to generate key secret: %w", err)
 	}
@@ -61,7 +61,7 @@ func (s *FSAPIKeyStore) CreateAPIKey(userID, name string, scopes []string, expir
 	}
 
 	now := time.Now()
-	apiKey = &oa.APIKey{
+	apiKey = &core.APIKey{
 		KeyID:      keyID,
 		KeyHash:    string(keyHash),
 		UserID:     userID,
@@ -83,7 +83,7 @@ func (s *FSAPIKeyStore) CreateAPIKey(userID, name string, scopes []string, expir
 }
 
 // saveKey saves an API key to disk
-func (s *FSAPIKeyStore) saveKey(key *oa.APIKey) error {
+func (s *FSAPIKeyStore) saveKey(key *core.APIKey) error {
 	path := s.getKeyPath(key.KeyID)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
@@ -98,7 +98,7 @@ func (s *FSAPIKeyStore) saveKey(key *oa.APIKey) error {
 }
 
 // GetAPIKeyByID retrieves an API key by its public ID
-func (s *FSAPIKeyStore) GetAPIKeyByID(keyID string) (*oa.APIKey, error) {
+func (s *FSAPIKeyStore) GetAPIKeyByID(keyID string) (*core.APIKey, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -106,17 +106,17 @@ func (s *FSAPIKeyStore) GetAPIKeyByID(keyID string) (*oa.APIKey, error) {
 }
 
 // getKeyUnsafe retrieves a key without locking (caller must hold lock)
-func (s *FSAPIKeyStore) getKeyUnsafe(keyID string) (*oa.APIKey, error) {
+func (s *FSAPIKeyStore) getKeyUnsafe(keyID string) (*core.APIKey, error) {
 	path := s.getKeyPath(keyID)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, oa.ErrAPIKeyNotFound
+			return nil, core.ErrAPIKeyNotFound
 		}
 		return nil, err
 	}
 
-	var apiKey oa.APIKey
+	var apiKey core.APIKey
 	if err := json.Unmarshal(data, &apiKey); err != nil {
 		return nil, err
 	}
@@ -126,14 +126,14 @@ func (s *FSAPIKeyStore) getKeyUnsafe(keyID string) (*oa.APIKey, error) {
 
 // ValidateAPIKey validates a full API key and returns the key metadata if valid
 // The fullKey format is: keyID + "_" + secret
-func (s *FSAPIKeyStore) ValidateAPIKey(fullKey string) (*oa.APIKey, error) {
+func (s *FSAPIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	// Parse the full key
 	parts := strings.SplitN(fullKey, "_", 3) // oa_keyid_secret -> ["oa", "keyid", "secret"]
 	if len(parts) != 3 || parts[0] != "oa" {
-		return nil, oa.ErrAPIKeyNotFound
+		return nil, core.ErrAPIKeyNotFound
 	}
 
 	keyID := parts[0] + "_" + parts[1] // Reconstruct keyID: "oa_keyid"
@@ -147,17 +147,17 @@ func (s *FSAPIKeyStore) ValidateAPIKey(fullKey string) (*oa.APIKey, error) {
 
 	// Check if revoked
 	if apiKey.Revoked {
-		return nil, oa.ErrTokenRevoked
+		return nil, core.ErrTokenRevoked
 	}
 
 	// Check if expired
 	if apiKey.IsExpired() {
-		return nil, oa.ErrTokenExpired
+		return nil, core.ErrTokenExpired
 	}
 
 	// Verify the secret
 	if err := bcrypt.CompareHashAndPassword([]byte(apiKey.KeyHash), []byte(secret)); err != nil {
-		return nil, oa.ErrAPIKeyNotFound
+		return nil, core.ErrAPIKeyNotFound
 	}
 
 	return apiKey, nil
@@ -184,11 +184,11 @@ func (s *FSAPIKeyStore) RevokeAPIKey(keyID string) error {
 }
 
 // ListUserAPIKeys returns all API keys for a user (without secrets)
-func (s *FSAPIKeyStore) ListUserAPIKeys(userID string) ([]*oa.APIKey, error) {
+func (s *FSAPIKeyStore) ListUserAPIKeys(userID string) ([]*core.APIKey, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var keys []*oa.APIKey
+	var keys []*core.APIKey
 	keysDir := s.getKeyDir()
 
 	entries, err := os.ReadDir(keysDir)
@@ -210,7 +210,7 @@ func (s *FSAPIKeyStore) ListUserAPIKeys(userID string) ([]*oa.APIKey, error) {
 			continue
 		}
 
-		var apiKey oa.APIKey
+		var apiKey core.APIKey
 		if err := json.Unmarshal(data, &apiKey); err != nil {
 			continue
 		}

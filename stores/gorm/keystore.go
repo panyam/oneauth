@@ -6,7 +6,7 @@ package gorm
 import (
 	"time"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 	"gorm.io/gorm"
 )
@@ -25,7 +25,7 @@ func (SigningKeyModel) TableName() string {
 	return "signing_keys"
 }
 
-// KeyStore implements oa.KeyStorage using GORM.
+// KeyStore implements keys.KeyStorage using GORM.
 type KeyStore struct {
 	db *gorm.DB
 }
@@ -35,10 +35,10 @@ func NewKeyStore(db *gorm.DB) *KeyStore {
 	return &KeyStore{db: db}
 }
 
-func (s *KeyStore) PutKey(rec *oa.KeyRecord) error {
+func (s *KeyStore) PutKey(rec *keys.KeyRecord) error {
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
-		return oa.ErrAlgorithmMismatch
+		return keys.ErrAlgorithmMismatch
 	}
 	kid := rec.Kid
 	if kid == "" {
@@ -59,20 +59,20 @@ func (s *KeyStore) DeleteKey(clientID string) error {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return oa.ErrKeyNotFound
+		return keys.ErrKeyNotFound
 	}
 	return nil
 }
 
-func (s *KeyStore) GetKey(clientID string) (*oa.KeyRecord, error) {
+func (s *KeyStore) GetKey(clientID string) (*keys.KeyRecord, error) {
 	var model SigningKeyModel
 	if err := s.db.First(&model, "client_id = ?", clientID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, oa.ErrKeyNotFound
+			return nil, keys.ErrKeyNotFound
 		}
 		return nil, err
 	}
-	return &oa.KeyRecord{
+	return &keys.KeyRecord{
 		ClientID:  model.ClientID,
 		Key:       model.Key,
 		Algorithm: model.Algorithm,
@@ -80,15 +80,15 @@ func (s *KeyStore) GetKey(clientID string) (*oa.KeyRecord, error) {
 	}, nil
 }
 
-func (s *KeyStore) GetKeyByKid(kid string) (*oa.KeyRecord, error) {
+func (s *KeyStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
 	var model SigningKeyModel
 	if err := s.db.First(&model, "kid = ?", kid).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, oa.ErrKidNotFound
+			return nil, keys.ErrKidNotFound
 		}
 		return nil, err
 	}
-	return &oa.KeyRecord{
+	return &keys.KeyRecord{
 		ClientID:  model.ClientID,
 		Key:       model.Key,
 		Algorithm: model.Algorithm,
@@ -111,7 +111,7 @@ func (s *KeyStore) ListKeyIDs() ([]string, error) {
 // Backward-compatible aliases
 
 func (s *KeyStore) RegisterKey(clientID string, key any, algorithm string) error {
-	return s.PutKey(&oa.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
+	return s.PutKey(&keys.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
 }
 
 func (s *KeyStore) GetVerifyKey(clientID string) (any, error) {

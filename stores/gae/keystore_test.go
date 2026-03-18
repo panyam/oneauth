@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"cloud.google.com/go/datastore"
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/keystoretest"
 	"google.golang.org/api/option" //nolint:staticcheck // WithCredentialsFile is simpler for test use
 )
@@ -70,7 +70,7 @@ func TestGAEKeyStore(t *testing.T) {
 		}
 	})
 
-	keystoretest.RunAll(t, func(t *testing.T) oa.KeyStorage {
+	keystoretest.RunAll(t, func(t *testing.T) keys.KeyStorage {
 		// Clean before each sub-test
 		q := datastore.NewQuery(KindSigningKey).KeysOnly().Namespace(namespace)
 		keys, _ := client.GetAll(ctx, q, nil)

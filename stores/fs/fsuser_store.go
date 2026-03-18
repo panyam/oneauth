@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/core"
 )
 
 // FSUser implements the oneauth.User interface
@@ -35,7 +35,7 @@ func (s *FSUserStore) getUserPath(userId string) string {
 	return filepath.Join(s.StoragePath, "users", userId+".json")
 }
 
-func (s *FSUserStore) CreateUser(userId string, isActive bool, profile map[string]any) (oa.User, error) {
+func (s *FSUserStore) CreateUser(userId string, isActive bool, profile map[string]any) (core.User, error) {
 	user := &FSUser{
 		UserId:      userId,
 		IsActive:    isActive,
@@ -46,7 +46,7 @@ func (s *FSUserStore) CreateUser(userId string, isActive bool, profile map[strin
 	return user, s.SaveUser(user)
 }
 
-func (s *FSUserStore) GetUserById(userId string) (oa.User, error) {
+func (s *FSUserStore) GetUserById(userId string) (core.User, error) {
 	path := s.getUserPath(userId)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -63,7 +63,7 @@ func (s *FSUserStore) GetUserById(userId string) (oa.User, error) {
 	return &user, nil
 }
 
-func (s *FSUserStore) SaveUser(user oa.User) error {
+func (s *FSUserStore) SaveUser(user core.User) error {
 	fsUser, ok := user.(*FSUser)
 	if !ok {
 		// Convert if it's a different implementation

@@ -8,10 +8,15 @@ Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeySt
 
 ```
 oneauth/
-├── *.go                  # Core types: User, Identity, Channel, LocalAuth, APIAuth,
-│                         #   APIMiddleware, KeyStore, WritableKeyStore, EncryptedKeyStore,
-│                         #   AdminAuth, AppRegistrar, CSRFMiddleware, KidStore,
-│                         #   MintResourceToken, MintResourceTokenWithKey
+├── doc.go                # Package overview (routes to subpackages)
+├── core/                 # Foundation types: User, Identity, Channel, store interfaces,
+│                         #   tokens, credentials, scopes, email, context helpers
+├── keys/                 # Key storage: KeyRecord, KeyLookup, KeyStorage, InMemoryKeyStore,
+│                         #   EncryptedKeyStorage, KidStore, JWKSHandler, JWKSKeyStore
+├── admin/                # Admin auth: AdminAuth, AppRegistrar, MintResourceToken
+├── apiauth/              # API auth: APIAuth, APIMiddleware, context helpers
+├── localauth/            # Local auth: LocalAuth, signup, helpers (NewCreateUserFunc, etc.)
+├── httpauth/             # HTTP middleware: Middleware, CSRFMiddleware, OneAuth session mux
 ├── utils/                # Crypto helpers (PEM encode/decode, DecodeVerifyKey, key generation, JWK conversion)
 ├── stores/
 │   ├── fs/               # File-based stores + FSKeyStore
@@ -31,6 +36,22 @@ oneauth/
 └── Makefile
 ```
 
+### Dependency DAG (strictly acyclic)
+
+```
+              core
+            / | \  \
+           /  |  \  \
+        keys  |  localauth
+        / \   |
+       /   \  |
+    admin  apiauth
+              |
+           httpauth
+```
+
+Each subpackage has a `SUMMARY.md` describing its contents.
+
 ## Build & Test Commands
 
 ```bash
@@ -43,35 +64,51 @@ make deploygae     # Deploy to GAE (project: oneauthsvc)
 make gaelogs       # Tail GAE logs
 ```
 
+## Import Map (Post-Reorganization)
+
+| What | Import |
+|---|---|
+| User, Identity, Channel, store interfaces, tokens, credentials, scopes | `"github.com/panyam/oneauth/core"` |
+| KeyStorage, KeyRecord, InMemoryKeyStore, EncryptedKeyStorage, JWKSHandler | `"github.com/panyam/oneauth/keys"` |
+| AdminAuth, AppRegistrar, MintResourceToken, AppQuota | `"github.com/panyam/oneauth/admin"` |
+| APIAuth, APIMiddleware, GetUserIDFromAPIContext | `"github.com/panyam/oneauth/apiauth"` |
+| LocalAuth, NewCreateUserFunc, NewCredentialsValidator | `"github.com/panyam/oneauth/localauth"` |
+| Middleware, CSRFMiddleware, CSRFTemplateField, OneAuth | `"github.com/panyam/oneauth/httpauth"` |
+
 ## Key Patterns
 
 ### Shared Test Suites (Factory Pattern)
-`keystoretest.RunAll(t, factory)` runs identical tests against any `WritableKeyStore` implementation. Each backend test file creates a factory that returns its store type. This is the pattern to follow for any new interface with multiple backends.
+`keystoretest.RunAll(t, factory)` runs identical tests against any `KeyStorage` implementation. Each backend test file creates a factory that returns its store type. This is the pattern to follow for any new interface with multiple backends.
 
 ### Three-Backend Store Pattern
 Every persistent interface (UserStore, IdentityStore, ChannelStore, KeyStorage) has three implementations: `stores/fs/`, `stores/gorm/`, `stores/gae/`. New store types must implement all three. GORM models use dialect-agnostic column types — never use `type:blob` (fails on PostgreSQL), let GORM auto-select.
 
+Store backends import `core/` for entity types and `keys/` for key types.
+
 ### Config-Driven Reference Server
 `cmd/oneauth-server/` uses YAML config with `${ENV_VAR:-default}` substitution. On GAE (no config file), falls back to `configFromEnv()` which reads all config from env vars. The server supports memory, fs, gorm (postgres only — sqlite requires CGO), and gae keystores.
 
-### KeyStorage / KeyLookup Interfaces (Decomposed KeyStore)
+### KeyStorage / KeyLookup Interfaces (in keys/)
 The key storage layer uses two focused interfaces instead of a single god interface:
 - `KeyLookup` (read-only): `GetKey(clientID)` + `GetKeyByKid(kid)` → returns `*KeyRecord`
 - `KeyStorage` (read+write): embeds `KeyLookup` + `PutKey`, `DeleteKey`, `ListKeyIDs`
 - `KeyRecord` struct: `{ClientID, Key, Algorithm, Kid}` — all fields in one place
 
-All backends (InMemory, GORM, FS, GAE) implement `KeyStorage`. `JWKSKeyStore` and `KidStore` implement only `KeyLookup`. Adding new fields to `KeyRecord` doesn't change the interface.
+All backends (InMemory, GORM, FS, GAE) implement `KeyStorage`. `JWKSKeyStore` and `KidStore` implement only `KeyLookup`.
 
 Backward-compatible alias methods (`RegisterKey`, `GetVerifyKey`, `GetExpectedAlg`, `ListKeys`) exist on all backends for migration. Prefer the new `KeyStorage` methods in new code.
 
-### EncryptedKeyStorage (Decorator Pattern)
-`EncryptedKeyStorage` wraps any `KeyStorage` to encrypt HS256 secrets at rest using AES-256-GCM. Only 5 methods to implement (transforms `Key` field on read/write). Kid is computed from plaintext before encryption, so kid-based lookups work correctly. Configured via `ONEAUTH_MASTER_KEY` env var (64 hex chars = 32 bytes). Plaintext fallback on read enables migration. See [JWT_SIGNING.md](docs/JWT_SIGNING.md#encryption-at-rest-encryptedkeystore) for details.
+### EncryptedKeyStorage (Decorator Pattern, in keys/)
+`EncryptedKeyStorage` wraps any `KeyStorage` to encrypt HS256 secrets at rest using AES-256-GCM. Kid is computed from plaintext before encryption. Configured via `ONEAUTH_MASTER_KEY` env var (64 hex chars = 32 bytes). Plaintext fallback on read enables migration. See [JWT_SIGNING.md](docs/JWT_SIGNING.md#encryption-at-rest-encryptedkeystore) for details.
 
 ### kid (Key ID) in JWTs
-All minted JWTs include a `kid` header (RFC 7638 thumbprint). Every stored key has a `kid` field computed from key material. `APIMiddleware` tries kid-based lookup first (`GetKeyByKid`), then falls back to `client_id` claim (`GetKey`). Legacy tokens without `kid` still work. Key rotation uses `KidStore` to retain old keys with a grace period expiry.
+All minted JWTs include a `kid` header (RFC 7638 thumbprint). `APIMiddleware` tries kid-based lookup first (`GetKeyByKid`), then falls back to `client_id` claim (`GetKey`). Legacy tokens without `kid` still work. Key rotation uses `KidStore` to retain old keys with a grace period expiry.
 
-### AdminAuth Interface
+### AdminAuth Interface (in admin/)
 `AdminAuth.Authenticate(r *http.Request) error` — constant-time API key comparison (`crypto/subtle`). Implementations: `APIKeyAuth` (reads `X-Admin-Key` header), `NoAuth` (dev only). On GAE, the API key is fetched from Secret Manager at startup if `ADMIN_API_KEY` env var is not set.
+
+### BasicUser (in core/)
+`BasicUser` has exported fields `ID` and `ProfileData` (not the original unexported `id`/`profile`). This was changed during the subpackage reorganization for cross-package access.
 
 ### Integration Tests
 `tests/integration/` — self-contained pytest files, one per scenario. Uses `conftest.py` with `OneAuthClient` fixture. Run with `make integ` or `make -C tests/integration test-health`. Uses uv+venv for dependency management.
@@ -93,15 +130,18 @@ Three projects collaborate:
 2. **massrelay** — WebSocket relay (a resource server), validates resource-scoped JWTs using KeyStore
 3. **excaliframe** (document app) — registers as an App, mints resource tokens for users
 
-Flow: App registers with oneauth-server → gets `client_id` + `client_secret` (HS256) or registers a public key (RS256/ES256) → App authenticates users locally → mints resource-scoped JWTs with `MintResourceToken()` or `MintResourceTokenWithKey()` → resource server validates using shared KeyStore or JWKS discovery (`/.well-known/jwks.json`).
+Flow: App registers with oneauth-server → gets `client_id` + `client_secret` (HS256) or registers a public key (RS256/ES256) → App authenticates users locally → mints resource-scoped JWTs with `admin.MintResourceToken()` or `admin.MintResourceTokenWithKey()` → resource server validates using shared KeyStore or JWKS discovery (`/.well-known/jwks.json`).
 
 ## Memories
 
 Design lessons and feedback from past sessions are in `memories/`. See `memories/MEMORY.md` for the index. These are checked into the repo so they're available to all collaborators.
 
+**Important:** Always save memories to the `memories/` folder in this repo (not `~/.claude/`). This keeps them version-controlled and available to all collaborators. Update `memories/MEMORY.md` index when adding new entries.
+
 ## Conventions
 
 - Update SUMMARY.md, NEXTSTEPS.md, ROADMAP.md with each PR
+- Each subpackage has a SUMMARY.md for LLM discoverability
 - GitHub issues track all planned work with priority levels (P0/P1/P2)
 - Use `GH_TOKEN="$GH_PERSONAL_TOKEN"` for gh CLI (Enterprise Managed User)
 - PostgreSQL test container: `arm64v8/postgres:18.1` on port 5433

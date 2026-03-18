@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/keystoretest"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -109,7 +109,7 @@ func setupPostgresDB(t *testing.T, dbName string) *gorm.DB {
 
 // TestGORMKeyStore runs the shared WritableKeyStore test suite against the GORM-backed implementation.
 func TestGORMKeyStore(t *testing.T) {
-	keystoretest.RunAll(t, func(t *testing.T) oa.KeyStorage {
+	keystoretest.RunAll(t, func(t *testing.T) keys.KeyStorage {
 		return NewKeyStore(setupTestDB(t))
 	})
 }
