@@ -11,16 +11,19 @@ import (
 )
 
 // JWK represents a JSON Web Key (RFC 7517).
+// Only public key components are included — the struct intentionally omits
+// private key fields (d, p, q, dp, dq, qi) so they cannot leak via JWKS.
 type JWK struct {
-	Kty string `json:"kty"`           // "RSA" or "EC"
-	Kid string `json:"kid"`           // client_id
-	Alg string `json:"alg"`           // "RS256" or "ES256"
-	Use string `json:"use"`           // "sig"
-	N   string `json:"n,omitempty"`   // RSA modulus (base64url, no padding)
-	E   string `json:"e,omitempty"`   // RSA exponent (base64url, no padding)
-	Crv string `json:"crv,omitempty"` // EC curve ("P-256")
-	X   string `json:"x,omitempty"`   // EC x-coordinate (base64url, no padding)
-	Y   string `json:"y,omitempty"`   // EC y-coordinate (base64url, no padding)
+	Kty    string   `json:"kty"`           // "RSA" or "EC"
+	Kid    string   `json:"kid"`           // key identifier (RFC 7638 thumbprint)
+	Alg    string   `json:"alg"`           // "RS256" or "ES256"
+	Use    string   `json:"use"`           // "sig"
+	KeyOps []string `json:"key_ops"`       // ["verify"] — explicit usage restriction
+	N      string   `json:"n,omitempty"`   // RSA modulus (base64url, no padding)
+	E      string   `json:"e,omitempty"`   // RSA exponent (base64url, no padding)
+	Crv    string   `json:"crv,omitempty"` // EC curve ("P-256")
+	X      string   `json:"x,omitempty"`   // EC x-coordinate (base64url, no padding)
+	Y      string   `json:"y,omitempty"`   // EC y-coordinate (base64url, no padding)
 }
 
 // JWKSet represents a JSON Web Key Set (RFC 7517 Section 5).
@@ -43,12 +46,13 @@ func PublicKeyToJWK(kid, alg string, pub crypto.PublicKey) (JWK, error) {
 // RSAPublicKeyToJWK converts an RSA public key to a JWK.
 func RSAPublicKeyToJWK(kid, alg string, pub *rsa.PublicKey) JWK {
 	return JWK{
-		Kty: "RSA",
-		Kid: kid,
-		Alg: alg,
-		Use: "sig",
-		N:   base64.RawURLEncoding.EncodeToString(pub.N.Bytes()),
-		E:   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(pub.E)).Bytes()),
+		Kty:    "RSA",
+		Kid:    kid,
+		Alg:    alg,
+		Use:    "sig",
+		KeyOps: []string{"verify"},
+		N:      base64.RawURLEncoding.EncodeToString(pub.N.Bytes()),
+		E:      base64.RawURLEncoding.EncodeToString(big.NewInt(int64(pub.E)).Bytes()),
 	}
 }
 
@@ -64,13 +68,14 @@ func ECDSAPublicKeyToJWK(kid, alg string, pub *ecdsa.PublicKey) JWK {
 	copy(yPadded[byteLen-len(yBytes):], yBytes)
 
 	return JWK{
-		Kty: "EC",
-		Kid: kid,
-		Alg: alg,
-		Use: "sig",
-		Crv: pub.Curve.Params().Name,
-		X:   base64.RawURLEncoding.EncodeToString(xPadded),
-		Y:   base64.RawURLEncoding.EncodeToString(yPadded),
+		Kty:    "EC",
+		Kid:    kid,
+		Alg:    alg,
+		Use:    "sig",
+		KeyOps: []string{"verify"},
+		Crv:    pub.Curve.Params().Name,
+		X:      base64.RawURLEncoding.EncodeToString(xPadded),
+		Y:      base64.RawURLEncoding.EncodeToString(yPadded),
 	}
 }
 

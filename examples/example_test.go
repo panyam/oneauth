@@ -319,6 +319,69 @@ func ExampleAPIMiddleware_crossAppIsolation() {
 	// correct_token: 200
 }
 
+// ExampleJWKSHandler_securityProperties demonstrates the JWKS security guarantees:
+// - Only public key components are served (no private fields)
+// - HS256 symmetric secrets are excluded
+// - Every JWK includes key_ops: ["verify"] restricting usage
+// - The JWK struct structurally cannot carry private key fields (d, p, q, etc.)
+func ExampleJWKSHandler_securityProperties() {
+	ks := keys.NewInMemoryKeyStore()
+
+	// Register one HS256 (symmetric) and one RS256 (asymmetric) app
+	ks.RegisterKey("app-secret", []byte("my-hs256-secret"), "HS256")
+	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
+	ks.RegisterKey("app-public", pubPEM, "RS256")
+
+	// Serve JWKS
+	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
+	srv := httptest.NewServer(http.HandlerFunc(jwksHandler.ServeHTTP))
+	defer srv.Close()
+
+	resp, _ := http.Get(srv.URL)
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	// Parse as raw JSON to inspect every field
+	var raw map[string]any
+	json.Unmarshal(body, &raw)
+	jwksKeys := raw["keys"].([]any)
+
+	// Only asymmetric key appears (HS256 secret excluded)
+	fmt.Println("jwks_key_count:", len(jwksKeys))
+
+	// Inspect the RSA key entry
+	rsaKey := jwksKeys[0].(map[string]any)
+	fmt.Println("kty:", rsaKey["kty"])
+	fmt.Println("alg:", rsaKey["alg"])
+	fmt.Println("use:", rsaKey["use"])
+	fmt.Println("has_kid:", rsaKey["kid"] != nil && rsaKey["kid"] != "")
+	fmt.Println("has_n:", rsaKey["n"] != nil)
+	fmt.Println("has_e:", rsaKey["e"] != nil)
+
+	// key_ops restricts to verification only
+	keyOps := rsaKey["key_ops"].([]any)
+	fmt.Println("key_ops:", keyOps[0])
+
+	// Private key fields are structurally absent
+	for _, field := range []string{"d", "p", "q", "dp", "dq", "qi"} {
+		if rsaKey[field] != nil {
+			fmt.Printf("LEAK: %s found\n", field)
+		}
+	}
+	fmt.Println("private_fields_absent: true")
+
+	// Output:
+	// jwks_key_count: 1
+	// kty: RSA
+	// alg: RS256
+	// use: sig
+	// has_kid: true
+	// has_n: true
+	// has_e: true
+	// key_ops: verify
+	// private_fields_absent: true
+}
+
 // ExampleJWKSHandler_multiAlgorithm demonstrates that HS256 and RS256 apps
 // coexist in the same KeyStore, but only asymmetric keys appear in JWKS.
 // RS256 tokens validate via JWKS; HS256 tokens are rejected (secrets never exposed).

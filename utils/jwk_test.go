@@ -9,6 +9,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"testing"
 )
 
@@ -162,5 +163,124 @@ func TestJWKToPublicKey_UnsupportedKty(t *testing.T) {
 	_, _, err := JWKToPublicKey(jwk)
 	if err == nil {
 		t.Error("expected error for unsupported kty")
+	}
+}
+
+// =============================================================================
+// JWKS Security Safety Proofs (#26)
+//
+// These tests document and verify the structural guarantees that prevent
+// private key leakage and ensure spec-compliant JWKS output.
+// =============================================================================
+
+// TestJWK_RSA_NoPrivateKeyFields proves that marshalling an RSA JWK to JSON
+// cannot contain RSA private key components (d, p, q, dp, dq, qi).
+// This is guaranteed by the JWK struct definition which has no such fields.
+func TestJWK_RSA_NoPrivateKeyFields(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	jwk := RSAPublicKeyToJWK("test-rsa", "RS256", &priv.PublicKey)
+	data, err := json.Marshal(jwk)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Parse back as raw map to check ALL fields
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+
+	// RSA private key fields that must NEVER appear
+	forbidden := []string{"d", "p", "q", "dp", "dq", "qi"}
+	for _, field := range forbidden {
+		if _, exists := raw[field]; exists {
+			t.Errorf("SECURITY: RSA private key field %q found in JWK JSON output", field)
+		}
+	}
+
+	// Verify expected public fields are present
+	for _, field := range []string{"kty", "kid", "alg", "use", "key_ops", "n", "e"} {
+		if _, exists := raw[field]; !exists {
+			t.Errorf("expected field %q missing from JWK JSON output", field)
+		}
+	}
+}
+
+// TestJWK_ECDSA_NoPrivateKeyFields proves that marshalling an ECDSA JWK to JSON
+// cannot contain the EC private key component (d).
+func TestJWK_ECDSA_NoPrivateKeyFields(t *testing.T) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	jwk := ECDSAPublicKeyToJWK("test-ec", "ES256", &priv.PublicKey)
+	data, err := json.Marshal(jwk)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+
+	// EC private key field that must NEVER appear
+	if _, exists := raw["d"]; exists {
+		t.Error("SECURITY: EC private key field \"d\" found in JWK JSON output")
+	}
+
+	// Verify expected public fields
+	for _, field := range []string{"kty", "kid", "alg", "use", "key_ops", "crv", "x", "y"} {
+		if _, exists := raw[field]; !exists {
+			t.Errorf("expected field %q missing from JWK JSON output", field)
+		}
+	}
+}
+
+// TestJWK_PrivateKeyTypeRejected proves that passing a private key (not public)
+// to PublicKeyToJWK is rejected — the type switch only matches *rsa.PublicKey
+// and *ecdsa.PublicKey, not their private key counterparts.
+func TestJWK_PrivateKeyTypeRejected(t *testing.T) {
+	rsaPriv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	_, err := PublicKeyToJWK("rsa-priv", "RS256", rsaPriv) // *rsa.PrivateKey, not *rsa.PublicKey
+	if err == nil {
+		t.Error("SECURITY: PublicKeyToJWK should reject *rsa.PrivateKey")
+	}
+
+	ecPriv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	_, err = PublicKeyToJWK("ec-priv", "ES256", ecPriv) // *ecdsa.PrivateKey, not *ecdsa.PublicKey
+	if err == nil {
+		t.Error("SECURITY: PublicKeyToJWK should reject *ecdsa.PrivateKey")
+	}
+}
+
+// TestJWK_SymmetricKeyRejected proves that symmetric (HS256) keys cannot be
+// converted to JWK — they are shared secrets and must never appear in JWKS.
+func TestJWK_SymmetricKeyRejected(t *testing.T) {
+	_, err := PublicKeyToJWK("hmac", "HS256", []byte("my-secret"))
+	if err == nil {
+		t.Error("SECURITY: PublicKeyToJWK should reject symmetric []byte keys")
+	}
+}
+
+// TestJWK_KeyOpsVerifyOnly verifies that all JWK entries include
+// key_ops: ["verify"] per RFC 7517 Section 4.3, restricting usage to
+// signature verification only.
+func TestJWK_KeyOpsVerifyOnly(t *testing.T) {
+	rsaPriv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	rsaJWK := RSAPublicKeyToJWK("rsa", "RS256", &rsaPriv.PublicKey)
+	if len(rsaJWK.KeyOps) != 1 || rsaJWK.KeyOps[0] != "verify" {
+		t.Errorf("RSA JWK key_ops = %v, want [\"verify\"]", rsaJWK.KeyOps)
+	}
+
+	ecPriv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ecJWK := ECDSAPublicKeyToJWK("ec", "ES256", &ecPriv.PublicKey)
+	if len(ecJWK.KeyOps) != 1 || ecJWK.KeyOps[0] != "verify" {
+		t.Errorf("EC JWK key_ops = %v, want [\"verify\"]", ecJWK.KeyOps)
 	}
 }
