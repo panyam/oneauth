@@ -19,6 +19,24 @@
 
 ---
 
+## Completed (Subpackage Reorganization)
+
+### Root .go Files → Subpackages
+- [x] Created `core/` — foundation types, interfaces (User, Identity, Channel, stores, tokens, credentials, scopes, email, context)
+- [x] Created `keys/` — key storage (KeyRecord, KeyLookup, KeyStorage, InMemoryKeyStore, EncryptedKeyStorage, KidStore, JWKSHandler, JWKSKeyStore)
+- [x] Created `admin/` — admin auth (AdminAuth, AppRegistrar, MintResourceToken)
+- [x] Created `apiauth/` — API auth (APIAuth, APIMiddleware, context helpers)
+- [x] Created `localauth/` — local auth (LocalAuth, signup, helpers)
+- [x] Created `httpauth/` — HTTP middleware (Middleware, CSRFMiddleware, OneAuth mux)
+- [x] Updated all store backends (fs, gorm, gae) to import from core/ and keys/
+- [x] Updated cmd/, examples/, keystoretest/ consumers
+- [x] All tests passing, all packages build clean
+- [x] SUMMARY.md in each subpackage for LLM discoverability
+- [x] Used `git mv` to preserve file history where possible
+- [x] BasicUser fields exported (ID, ProfileData) for cross-package access
+
+---
+
 ## Completed (Federated Auth Demo)
 
 ### Reference Server Browser UI

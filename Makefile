@@ -156,7 +156,31 @@ gaelogs:
 integ:
 	$(MAKE) -C tests/integration all
 
+# =============================================================================
+# Documentation
+# =============================================================================
+docs:
+	@echo "Starting local pkgsite at http://localhost:6060 ..."
+	@echo "(Install with: go install golang.org/x/pkgsite/cmd/pkgsite@latest)"
+	pkgsite -http=localhost:6060
+
+# =============================================================================
+# Setup
+# =============================================================================
+
+# Install required Go tools (linting, static analysis, docs)
+setup-tools:
+	@echo "Installing Go tools..."
+	go install golang.org/x/pkgsite/cmd/pkgsite@latest
+	go install honnef.co/go/tools/cmd/staticcheck@latest
+	go install golang.org/x/vuln/cmd/govulncheck@latest
+	go install golang.org/x/tools/cmd/goimports@latest
+	@echo ""
+	@echo "Done. Ensure $$(go env GOPATH)/bin is in your PATH."
+
 setup-hooks:
 	git config core.hooksPath .githooks
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ setup-hooks
+setup: setup-tools setup-hooks
+
+.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup

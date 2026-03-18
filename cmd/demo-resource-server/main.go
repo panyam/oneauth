@@ -11,7 +11,8 @@ import (
 	"sync"
 	"time"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/apiauth"
+	"github.com/panyam/oneauth/keys"
 	gormstore "github.com/panyam/oneauth/stores/gorm"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -43,9 +44,9 @@ func main() {
 	flag.Parse()
 
 	// Connect to KeyStore: JWKS URL (preferred) → PostgreSQL → in-memory fallback
-	var keyStore oa.KeyLookup
+	var keyStore keys.KeyLookup
 	if *jwksURL != "" {
-		ks := oa.NewJWKSKeyStore(*jwksURL)
+		ks := keys.NewJWKSKeyStore(*jwksURL)
 		if err := ks.Start(); err != nil {
 			log.Fatalf("Failed to start JWKS KeyStore: %v", err)
 		}
@@ -57,11 +58,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to connect to database: %v", err)
 		}
-		var ks oa.KeyLookup = gormstore.NewKeyStore(db)
+		var ks keys.KeyLookup = gormstore.NewKeyStore(db)
 		// Wrap with encryption if master key is set (must match oneauth-server's key
 		// so HS256 secrets encrypted by the server can be decrypted here)
 		if masterKey := os.Getenv("ONEAUTH_MASTER_KEY"); masterKey != "" {
-			encrypted, err := oa.NewEncryptedKeyStorage(gormstore.NewKeyStore(db), masterKey)
+			encrypted, err := keys.NewEncryptedKeyStorage(gormstore.NewKeyStore(db), masterKey)
 			if err != nil {
 				log.Fatalf("Failed to create EncryptedKeyStore: %v", err)
 			}
@@ -72,7 +73,7 @@ func main() {
 		log.Printf("[%s] Connected to shared KeyStore via PostgreSQL", *name)
 	} else {
 		log.Printf("[%s] WARNING: No JWKS_URL or DATABASE_URL set — using empty in-memory KeyStore (no validation possible)", *name)
-		keyStore = oa.NewInMemoryKeyStore()
+		keyStore = keys.NewInMemoryKeyStore()
 	}
 
 	// Validation log (ring buffer of recent validations)
@@ -101,7 +102,7 @@ func main() {
 	}
 
 	// APIMiddleware for JWT validation
-	middleware := &oa.APIMiddleware{
+	middleware := &apiauth.APIMiddleware{
 		KeyStore:        keyStore,
 		TokenQueryParam: "token",
 	}
@@ -142,8 +143,8 @@ func main() {
 
 	// Validate endpoint
 	validateHandler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := oa.GetUserIDFromAPIContext(r.Context())
-		customClaims := oa.GetCustomClaimsFromContext(r.Context())
+		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		customClaims := apiauth.GetCustomClaimsFromContext(r.Context())
 		clientID, _ := customClaims["client_id"].(string)
 
 		addEntry(validationEntry{

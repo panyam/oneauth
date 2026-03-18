@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/core"
 )
 
 // UserEntity is the Datastore entity for users
@@ -33,8 +33,8 @@ type IdentityEntity struct {
 	Version   int            `datastore:"version"`
 }
 
-func (e *IdentityEntity) ToIdentity() *oa.Identity {
-	return &oa.Identity{
+func (e *IdentityEntity) ToIdentity() *core.Identity {
+	return &core.Identity{
 		Type:      e.Type,
 		Value:     e.Value,
 		UserID:    e.UserID,
@@ -45,7 +45,7 @@ func (e *IdentityEntity) ToIdentity() *oa.Identity {
 	}
 }
 
-func IdentityToEntity(i *oa.Identity, key *datastore.Key) *IdentityEntity {
+func IdentityToEntity(i *core.Identity, key *datastore.Key) *IdentityEntity {
 	return &IdentityEntity{
 		Key:       key,
 		Type:      i.Type,
@@ -75,15 +75,15 @@ type ChannelEntity struct {
 // AuthTokenEntity is the Datastore entity for verification/reset tokens
 type AuthTokenEntity struct {
 	Key       *datastore.Key `datastore:"__key__"`
-	Type      oa.TokenType   `datastore:"type"`
+	Type      core.TokenType   `datastore:"type"`
 	UserID    string         `datastore:"user_id"`
 	Email     string         `datastore:"email"`
 	CreatedAt time.Time      `datastore:"created_at"`
 	ExpiresAt time.Time      `datastore:"expires_at"`
 }
 
-func (e *AuthTokenEntity) ToAuthToken() *oa.AuthToken {
-	return &oa.AuthToken{
+func (e *AuthTokenEntity) ToAuthToken() *core.AuthToken {
+	return &core.AuthToken{
 		Token:     e.Key.Name,
 		Type:      e.Type,
 		UserID:    e.UserID,
@@ -93,7 +93,7 @@ func (e *AuthTokenEntity) ToAuthToken() *oa.AuthToken {
 	}
 }
 
-func AuthTokenToEntity(t *oa.AuthToken, key *datastore.Key) *AuthTokenEntity {
+func AuthTokenToEntity(t *core.AuthToken, key *datastore.Key) *AuthTokenEntity {
 	return &AuthTokenEntity{
 		Key:       key,
 		Type:      t.Type,

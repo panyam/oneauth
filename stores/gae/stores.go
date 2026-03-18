@@ -17,7 +17,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/api/iterator"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/core"
 )
 
 // Kind constants for Datastore entities
@@ -35,7 +35,7 @@ const (
 // UserStore
 // ============================================================================
 
-// GAEUser implements the oa.User interface
+// GAEUser implements the core.User interface
 type GAEUser struct {
 	UserID      string         `json:"user_id"`
 	Active      bool           `json:"is_active"`
@@ -47,7 +47,7 @@ type GAEUser struct {
 func (u *GAEUser) Id() string              { return u.UserID }
 func (u *GAEUser) Profile() map[string]any { return u.UserProfile }
 
-// UserStore implements oa.UserStore using Google Cloud Datastore
+// UserStore implements core.UserStore using Google Cloud Datastore
 type UserStore struct {
 	client    *datastore.Client
 	namespace string
@@ -78,7 +78,7 @@ func (s *UserStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (oa.User, error) {
+func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (core.User, error) {
 	key := s.namespacedKey(KindUser, userId)
 
 	var profileBytes []byte
@@ -108,7 +108,7 @@ func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]
 	}, nil
 }
 
-func (s *UserStore) GetUserById(userId string) (oa.User, error) {
+func (s *UserStore) GetUserById(userId string) (core.User, error) {
 	key := s.namespacedKey(KindUser, userId)
 	log.Println("UserStore Key: ", key, KindUser, userId)
 	var entity UserEntity
@@ -133,7 +133,7 @@ func (s *UserStore) GetUserById(userId string) (oa.User, error) {
 	}, nil
 }
 
-func (s *UserStore) SaveUser(user oa.User) error {
+func (s *UserStore) SaveUser(user core.User) error {
 	key := s.namespacedKey(KindUser, user.Id())
 
 	var profileBytes []byte
@@ -172,7 +172,7 @@ func (s *UserStore) SaveUser(user oa.User) error {
 // IdentityStore
 // ============================================================================
 
-// IdentityStore implements oa.IdentityStore using Google Cloud Datastore
+// IdentityStore implements core.IdentityStore using Google Cloud Datastore
 type IdentityStore struct {
 	client    *datastore.Client
 	namespace string
@@ -206,7 +206,7 @@ func (s *IdentityStore) identityKeyName(idType, value string) string {
 	return idType + ":" + value
 }
 
-func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*oa.Identity, bool, error) {
+func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*core.Identity, bool, error) {
 	key := s.namespacedKey(KindIdentity, s.identityKeyName(identityType, identityValue))
 	var entity IdentityEntity
 	err := s.client.Get(s.ctx, key, &entity)
@@ -238,7 +238,7 @@ func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIf
 	return entity.ToIdentity(), false, nil
 }
 
-func (s *IdentityStore) SaveIdentity(identity *oa.Identity) error {
+func (s *IdentityStore) SaveIdentity(identity *core.Identity) error {
 	key := s.namespacedKey(KindIdentity, s.identityKeyName(identity.Type, identity.Value))
 	entity := IdentityToEntity(identity, key)
 	_, err := s.client.Put(s.ctx, key, entity)
@@ -279,14 +279,14 @@ func (s *IdentityStore) MarkIdentityVerified(identityType, identityValue string)
 	return err
 }
 
-func (s *IdentityStore) GetUserIdentities(userId string) ([]*oa.Identity, error) {
+func (s *IdentityStore) GetUserIdentities(userId string) ([]*core.Identity, error) {
 	query := datastore.NewQuery(KindIdentity).
 		FilterField("user_id", "=", userId)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
-	var identities []*oa.Identity
+	var identities []*core.Identity
 	it := s.client.Run(s.ctx, query)
 	for {
 		var entity IdentityEntity
@@ -306,7 +306,7 @@ func (s *IdentityStore) GetUserIdentities(userId string) ([]*oa.Identity, error)
 // ChannelStore
 // ============================================================================
 
-// ChannelStore implements oa.ChannelStore using Google Cloud Datastore
+// ChannelStore implements core.ChannelStore using Google Cloud Datastore
 type ChannelStore struct {
 	client    *datastore.Client
 	namespace string
@@ -340,7 +340,7 @@ func (s *ChannelStore) channelKeyName(provider, identityKey string) string {
 	return provider + ":" + identityKey
 }
 
-func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*oa.Channel, bool, error) {
+func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*core.Channel, bool, error) {
 	key := s.namespacedKey(KindChannel, s.channelKeyName(provider, identityKey))
 	var entity ChannelEntity
 	err := s.client.Get(s.ctx, key, &entity)
@@ -361,7 +361,7 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 			if _, err := s.client.Put(s.ctx, key, &entity); err != nil {
 				return nil, false, err
 			}
-			return &oa.Channel{
+			return &core.Channel{
 				Provider:    provider,
 				IdentityKey: identityKey,
 				Credentials: make(map[string]any),
@@ -385,7 +385,7 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 		json.Unmarshal(entity.Profile, &profile)
 	}
 
-	return &oa.Channel{
+	return &core.Channel{
 		Provider:    entity.Provider,
 		IdentityKey: entity.IdentityKey,
 		Credentials: credentials,
@@ -397,7 +397,7 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 	}, false, nil
 }
 
-func (s *ChannelStore) SaveChannel(channel *oa.Channel) error {
+func (s *ChannelStore) SaveChannel(channel *core.Channel) error {
 	key := s.namespacedKey(KindChannel, s.channelKeyName(channel.Provider, channel.IdentityKey))
 
 	var credBytes, profileBytes []byte
@@ -436,14 +436,14 @@ func (s *ChannelStore) SaveChannel(channel *oa.Channel) error {
 	return err
 }
 
-func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*oa.Channel, error) {
+func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*core.Channel, error) {
 	query := datastore.NewQuery(KindChannel).
 		FilterField("identity_key", "=", identityKey)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
-	var channels []*oa.Channel
+	var channels []*core.Channel
 	it := s.client.Run(s.ctx, query)
 	for {
 		var entity ChannelEntity
@@ -463,7 +463,7 @@ func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*oa.Channel,
 			json.Unmarshal(entity.Profile, &profile)
 		}
 
-		channels = append(channels, &oa.Channel{
+		channels = append(channels, &core.Channel{
 			Provider:    entity.Provider,
 			IdentityKey: entity.IdentityKey,
 			Credentials: credentials,
@@ -481,7 +481,7 @@ func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*oa.Channel,
 // TokenStore (AuthToken)
 // ============================================================================
 
-// TokenStore implements oa.TokenStore using Google Cloud Datastore
+// TokenStore implements core.TokenStore using Google Cloud Datastore
 type TokenStore struct {
 	client    *datastore.Client
 	namespace string
@@ -511,8 +511,8 @@ func (s *TokenStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *TokenStore) CreateToken(userID, email string, tokenType oa.TokenType, expiryDuration time.Duration) (*oa.AuthToken, error) {
-	token, err := oa.GenerateSecureToken()
+func (s *TokenStore) CreateToken(userID, email string, tokenType core.TokenType, expiryDuration time.Duration) (*core.AuthToken, error) {
+	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
@@ -532,7 +532,7 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType oa.TokenType, e
 		return nil, err
 	}
 
-	return &oa.AuthToken{
+	return &core.AuthToken{
 		Token:     token,
 		Type:      tokenType,
 		UserID:    userID,
@@ -542,7 +542,7 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType oa.TokenType, e
 	}, nil
 }
 
-func (s *TokenStore) GetToken(token string) (*oa.AuthToken, error) {
+func (s *TokenStore) GetToken(token string) (*core.AuthToken, error) {
 	key := s.namespacedKey(KindAuthToken, token)
 	var entity AuthTokenEntity
 	if err := s.client.Get(s.ctx, key, &entity); err != nil {
@@ -566,7 +566,7 @@ func (s *TokenStore) DeleteToken(token string) error {
 	return s.client.Delete(s.ctx, key)
 }
 
-func (s *TokenStore) DeleteUserTokens(userID string, tokenType oa.TokenType) error {
+func (s *TokenStore) DeleteUserTokens(userID string, tokenType core.TokenType) error {
 	query := datastore.NewQuery(KindAuthToken).
 		FilterField("user_id", "=", userID).
 		FilterField("type", "=", string(tokenType)).
@@ -591,7 +591,7 @@ func (s *TokenStore) DeleteUserTokens(userID string, tokenType oa.TokenType) err
 // RefreshTokenStore
 // ============================================================================
 
-// RefreshTokenStore implements oa.RefreshTokenStore using Google Cloud Datastore
+// RefreshTokenStore implements core.RefreshTokenStore using Google Cloud Datastore
 type RefreshTokenStore struct {
 	client    *datastore.Client
 	namespace string
@@ -626,13 +626,13 @@ func (s *RefreshTokenStore) hashToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*oa.RefreshToken, error) {
-	token, err := oa.GenerateSecureToken()
+func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
 
-	family, err := oa.GenerateSecureToken()
+	family, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
@@ -658,7 +658,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceIn
 		Generation: 1,
 		Scopes:     scopeBytes,
 		CreatedAt:  now,
-		ExpiresAt:  now.Add(oa.TokenExpiryRefreshToken),
+		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt: now,
 		Revoked:    false,
 	}
@@ -667,7 +667,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceIn
 		return nil, err
 	}
 
-	return &oa.RefreshToken{
+	return &core.RefreshToken{
 		Token:      token,
 		TokenHash:  tokenHash,
 		UserID:     userID,
@@ -677,13 +677,13 @@ func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceIn
 		Generation: 1,
 		Scopes:     scopes,
 		CreatedAt:  now,
-		ExpiresAt:  now.Add(oa.TokenExpiryRefreshToken),
+		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt: now,
 		Revoked:    false,
 	}, nil
 }
 
-func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *oa.RefreshToken {
+func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.RefreshToken {
 	var deviceInfo map[string]any
 	var scopes []string
 	if entity.DeviceInfo != nil {
@@ -693,7 +693,7 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *oa.Refres
 		json.Unmarshal(entity.Scopes, &scopes)
 	}
 
-	rt := &oa.RefreshToken{
+	rt := &core.RefreshToken{
 		TokenHash:  entity.Key.Name,
 		UserID:     entity.UserID,
 		ClientID:   entity.ClientID,
@@ -712,14 +712,14 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *oa.Refres
 	return rt
 }
 
-func (s *RefreshTokenStore) GetRefreshToken(token string) (*oa.RefreshToken, error) {
+func (s *RefreshTokenStore) GetRefreshToken(token string) (*core.RefreshToken, error) {
 	tokenHash := s.hashToken(token)
 	key := s.namespacedKey(KindRefreshToken, tokenHash)
 
 	var entity RefreshTokenEntity
 	if err := s.client.Get(s.ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
-			return nil, oa.ErrTokenNotFound
+			return nil, core.ErrTokenNotFound
 		}
 		return nil, err
 	}
@@ -729,17 +729,17 @@ func (s *RefreshTokenStore) GetRefreshToken(token string) (*oa.RefreshToken, err
 	return rt, nil
 }
 
-func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToken, error) {
+func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshToken, error) {
 	oldHash := s.hashToken(oldToken)
 	key := s.namespacedKey(KindRefreshToken, oldHash)
 
-	var newRefreshToken *oa.RefreshToken
+	var newRefreshToken *core.RefreshToken
 
 	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
 		var entity RefreshTokenEntity
 		if err := tx.Get(key, &entity); err != nil {
 			if err == datastore.ErrNoSuchEntity {
-				return oa.ErrTokenNotFound
+				return core.ErrTokenNotFound
 			}
 			return err
 		}
@@ -749,12 +749,12 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToke
 		// Check if already revoked - potential token reuse attack
 		if oldRT.Revoked {
 			// Revoke entire family (done outside transaction)
-			return oa.ErrTokenReused
+			return core.ErrTokenReused
 		}
 
 		// Check if expired
 		if time.Now().After(oldRT.ExpiresAt) {
-			return oa.ErrTokenExpired
+			return core.ErrTokenExpired
 		}
 
 		// Revoke old token
@@ -766,7 +766,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToke
 		}
 
 		// Create new token
-		newTokenStr, err := oa.GenerateSecureToken()
+		newTokenStr, err := core.GenerateSecureToken()
 		if err != nil {
 			return fmt.Errorf("failed to generate token: %w", err)
 		}
@@ -791,7 +791,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToke
 			Generation: oldRT.Generation + 1,
 			Scopes:     scopeBytes,
 			CreatedAt:  now,
-			ExpiresAt:  now.Add(oa.TokenExpiryRefreshToken),
+			ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 			LastUsedAt: now,
 			Revoked:    false,
 		}
@@ -800,7 +800,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToke
 			return err
 		}
 
-		newRefreshToken = &oa.RefreshToken{
+		newRefreshToken = &core.RefreshToken{
 			Token:      newTokenStr,
 			TokenHash:  newHash,
 			UserID:     oldRT.UserID,
@@ -810,7 +810,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToke
 			Generation: oldRT.Generation + 1,
 			Scopes:     oldRT.Scopes,
 			CreatedAt:  now,
-			ExpiresAt:  now.Add(oa.TokenExpiryRefreshToken),
+			ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 			LastUsedAt: now,
 			Revoked:    false,
 		}
@@ -818,7 +818,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToke
 		return nil
 	})
 
-	if err == oa.ErrTokenReused {
+	if err == core.ErrTokenReused {
 		// Revoke entire family outside the transaction
 		var entity RefreshTokenEntity
 		if getErr := s.client.Get(s.ctx, key, &entity); getErr == nil {
@@ -919,7 +919,7 @@ func (s *RefreshTokenStore) RevokeTokenFamily(family string) error {
 	return nil
 }
 
-func (s *RefreshTokenStore) GetUserTokens(userID string) ([]*oa.RefreshToken, error) {
+func (s *RefreshTokenStore) GetUserTokens(userID string) ([]*core.RefreshToken, error) {
 	query := datastore.NewQuery(KindRefreshToken).
 		FilterField("user_id", "=", userID).
 		FilterField("revoked", "=", false)
@@ -927,7 +927,7 @@ func (s *RefreshTokenStore) GetUserTokens(userID string) ([]*oa.RefreshToken, er
 		query = query.Namespace(s.namespace)
 	}
 
-	var tokens []*oa.RefreshToken
+	var tokens []*core.RefreshToken
 	it := s.client.Run(s.ctx, query)
 	for {
 		var entity RefreshTokenEntity
@@ -995,7 +995,7 @@ func (s *RefreshTokenStore) CleanupExpiredTokens() error {
 // APIKeyStore
 // ============================================================================
 
-// APIKeyStore implements oa.APIKeyStore using Google Cloud Datastore
+// APIKeyStore implements core.APIKeyStore using Google Cloud Datastore
 type APIKeyStore struct {
 	client    *datastore.Client
 	namespace string
@@ -1025,13 +1025,13 @@ func (s *APIKeyStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (string, *oa.APIKey, error) {
-	keyID, err := oa.GenerateAPIKeyID()
+func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (string, *core.APIKey, error) {
+	keyID, err := core.GenerateAPIKeyID()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to generate key ID: %w", err)
 	}
 
-	secret, err := oa.GenerateAPIKeySecret()
+	secret, err := core.GenerateAPIKeySecret()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to generate key secret: %w", err)
 	}
@@ -1069,7 +1069,7 @@ func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expires
 	}
 
 	fullKey := keyID + "_" + secret
-	return fullKey, &oa.APIKey{
+	return fullKey, &core.APIKey{
 		KeyID:      keyID,
 		KeyHash:    string(keyHash),
 		UserID:     userID,
@@ -1082,13 +1082,13 @@ func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expires
 	}, nil
 }
 
-func (s *APIKeyStore) entityToAPIKey(entity *APIKeyEntity) *oa.APIKey {
+func (s *APIKeyStore) entityToAPIKey(entity *APIKeyEntity) *core.APIKey {
 	var scopes []string
 	if entity.Scopes != nil {
 		json.Unmarshal(entity.Scopes, &scopes)
 	}
 
-	apiKey := &oa.APIKey{
+	apiKey := &core.APIKey{
 		KeyID:      entity.Key.Name,
 		KeyHash:    entity.KeyHash,
 		UserID:     entity.UserID,
@@ -1107,13 +1107,13 @@ func (s *APIKeyStore) entityToAPIKey(entity *APIKeyEntity) *oa.APIKey {
 	return apiKey
 }
 
-func (s *APIKeyStore) GetAPIKeyByID(keyID string) (*oa.APIKey, error) {
+func (s *APIKeyStore) GetAPIKeyByID(keyID string) (*core.APIKey, error) {
 	key := s.namespacedKey(KindAPIKey, keyID)
 
 	var entity APIKeyEntity
 	if err := s.client.Get(s.ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
-			return nil, oa.ErrAPIKeyNotFound
+			return nil, core.ErrAPIKeyNotFound
 		}
 		return nil, err
 	}
@@ -1121,11 +1121,11 @@ func (s *APIKeyStore) GetAPIKeyByID(keyID string) (*oa.APIKey, error) {
 	return s.entityToAPIKey(&entity), nil
 }
 
-func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*oa.APIKey, error) {
+func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
 	// Parse the full key: oa_keyid_secret -> ["oa", "keyid", "secret"]
 	parts := strings.SplitN(fullKey, "_", 3)
 	if len(parts) != 3 || parts[0] != "oa" {
-		return nil, oa.ErrAPIKeyNotFound
+		return nil, core.ErrAPIKeyNotFound
 	}
 
 	keyID := parts[0] + "_" + parts[1]
@@ -1137,15 +1137,15 @@ func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*oa.APIKey, error) {
 	}
 
 	if apiKey.Revoked {
-		return nil, oa.ErrTokenRevoked
+		return nil, core.ErrTokenRevoked
 	}
 
 	if apiKey.IsExpired() {
-		return nil, oa.ErrTokenExpired
+		return nil, core.ErrTokenExpired
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(apiKey.KeyHash), []byte(secret)); err != nil {
-		return nil, oa.ErrAPIKeyNotFound
+		return nil, core.ErrAPIKeyNotFound
 	}
 
 	return apiKey, nil
@@ -1158,7 +1158,7 @@ func (s *APIKeyStore) RevokeAPIKey(keyID string) error {
 		var entity APIKeyEntity
 		if err := tx.Get(key, &entity); err != nil {
 			if err == datastore.ErrNoSuchEntity {
-				return oa.ErrAPIKeyNotFound
+				return core.ErrAPIKeyNotFound
 			}
 			return err
 		}
@@ -1175,14 +1175,14 @@ func (s *APIKeyStore) RevokeAPIKey(keyID string) error {
 	return err
 }
 
-func (s *APIKeyStore) ListUserAPIKeys(userID string) ([]*oa.APIKey, error) {
+func (s *APIKeyStore) ListUserAPIKeys(userID string) ([]*core.APIKey, error) {
 	query := datastore.NewQuery(KindAPIKey).
 		FilterField("user_id", "=", userID)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
-	var keys []*oa.APIKey
+	var keys []*core.APIKey
 	it := s.client.Run(s.ctx, query)
 	for {
 		var entity APIKeyEntity
@@ -1221,7 +1221,7 @@ func (s *APIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
 // UsernameStore
 // ============================================================================
 
-// UsernameStore implements oa.UsernameStore using Google Cloud Datastore
+// UsernameStore implements core.UsernameStore using Google Cloud Datastore
 type UsernameStore struct {
 	client    *datastore.Client
 	namespace string

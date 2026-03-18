@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/core"
 )
 
 // FSRefreshTokenStore stores refresh tokens as JSON files
@@ -36,22 +36,22 @@ func (s *FSRefreshTokenStore) getTokenPath(token string) string {
 }
 
 // CreateRefreshToken creates a new refresh token for a user
-func (s *FSRefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*oa.RefreshToken, error) {
+func (s *FSRefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	token, err := oa.GenerateSecureToken()
+	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
 
-	family, err := oa.GenerateSecureToken()
+	family, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
 
 	now := time.Now()
-	refreshToken := &oa.RefreshToken{
+	refreshToken := &core.RefreshToken{
 		Token:      token,
 		TokenHash:  s.hashToken(token),
 		UserID:     userID,
@@ -61,7 +61,7 @@ func (s *FSRefreshTokenStore) CreateRefreshToken(userID, clientID string, device
 		Generation: 1,
 		Scopes:     scopes,
 		CreatedAt:  now,
-		ExpiresAt:  now.Add(oa.TokenExpiryRefreshToken),
+		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt: now,
 		Revoked:    false,
 	}
@@ -80,7 +80,7 @@ func (s *FSRefreshTokenStore) hashToken(token string) string {
 }
 
 // saveToken saves a refresh token to disk
-func (s *FSRefreshTokenStore) saveToken(token *oa.RefreshToken) error {
+func (s *FSRefreshTokenStore) saveToken(token *core.RefreshToken) error {
 	path := s.getTokenPath(token.Token)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
@@ -95,7 +95,7 @@ func (s *FSRefreshTokenStore) saveToken(token *oa.RefreshToken) error {
 }
 
 // GetRefreshToken retrieves a refresh token by its value
-func (s *FSRefreshTokenStore) GetRefreshToken(token string) (*oa.RefreshToken, error) {
+func (s *FSRefreshTokenStore) GetRefreshToken(token string) (*core.RefreshToken, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -103,17 +103,17 @@ func (s *FSRefreshTokenStore) GetRefreshToken(token string) (*oa.RefreshToken, e
 }
 
 // getTokenUnsafe retrieves a token without locking (caller must hold lock)
-func (s *FSRefreshTokenStore) getTokenUnsafe(token string) (*oa.RefreshToken, error) {
+func (s *FSRefreshTokenStore) getTokenUnsafe(token string) (*core.RefreshToken, error) {
 	path := s.getTokenPath(token)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, oa.ErrTokenNotFound
+			return nil, core.ErrTokenNotFound
 		}
 		return nil, err
 	}
 
-	var refreshToken oa.RefreshToken
+	var refreshToken core.RefreshToken
 	if err := json.Unmarshal(data, &refreshToken); err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (s *FSRefreshTokenStore) getTokenUnsafe(token string) (*oa.RefreshToken, er
 
 // RotateRefreshToken invalidates old token and creates new one in same family
 // Returns ErrTokenReused if the old token was already revoked (theft detection)
-func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToken, error) {
+func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshToken, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -135,12 +135,12 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshTo
 
 	// Check if already revoked (token reuse attack detection)
 	if old.Revoked {
-		return nil, oa.ErrTokenReused
+		return nil, core.ErrTokenReused
 	}
 
 	// Check if expired
 	if old.IsExpired() {
-		return nil, oa.ErrTokenExpired
+		return nil, core.ErrTokenExpired
 	}
 
 	// Mark old token as revoked
@@ -152,12 +152,12 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshTo
 	}
 
 	// Create new token in same family
-	newToken, err := oa.GenerateSecureToken()
+	newToken, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken := &oa.RefreshToken{
+	refreshToken := &core.RefreshToken{
 		Token:      newToken,
 		TokenHash:  s.hashToken(newToken),
 		UserID:     old.UserID,
@@ -167,7 +167,7 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshTo
 		Generation: old.Generation + 1,
 		Scopes:     old.Scopes,
 		CreatedAt:  now,
-		ExpiresAt:  now.Add(oa.TokenExpiryRefreshToken),
+		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt: now,
 		Revoked:    false,
 	}
@@ -186,7 +186,7 @@ func (s *FSRefreshTokenStore) RevokeRefreshToken(token string) error {
 
 	refreshToken, err := s.getTokenUnsafe(token)
 	if err != nil {
-		if err == oa.ErrTokenNotFound {
+		if err == core.ErrTokenNotFound {
 			return nil // Already gone
 		}
 		return err
@@ -207,7 +207,7 @@ func (s *FSRefreshTokenStore) RevokeUserTokens(userID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.forEachToken(func(token *oa.RefreshToken, path string) error {
+	return s.forEachToken(func(token *core.RefreshToken, path string) error {
 		if token.UserID == userID && !token.Revoked {
 			now := time.Now()
 			token.Revoked = true
@@ -227,7 +227,7 @@ func (s *FSRefreshTokenStore) RevokeTokenFamily(family string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.forEachToken(func(token *oa.RefreshToken, path string) error {
+	return s.forEachToken(func(token *core.RefreshToken, path string) error {
 		if token.Family == family && !token.Revoked {
 			now := time.Now()
 			token.Revoked = true
@@ -243,12 +243,12 @@ func (s *FSRefreshTokenStore) RevokeTokenFamily(family string) error {
 }
 
 // GetUserTokens lists all active (non-revoked, non-expired) refresh tokens for a user
-func (s *FSRefreshTokenStore) GetUserTokens(userID string) ([]*oa.RefreshToken, error) {
+func (s *FSRefreshTokenStore) GetUserTokens(userID string) ([]*core.RefreshToken, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var tokens []*oa.RefreshToken
-	err := s.forEachToken(func(token *oa.RefreshToken, path string) error {
+	var tokens []*core.RefreshToken
+	err := s.forEachToken(func(token *core.RefreshToken, path string) error {
 		if token.UserID == userID && token.IsValid() {
 			// Don't include the actual token value for security
 			tokenCopy := *token
@@ -286,7 +286,7 @@ func (s *FSRefreshTokenStore) CleanupExpiredTokens() error {
 			continue
 		}
 
-		var token oa.RefreshToken
+		var token core.RefreshToken
 		if err := json.Unmarshal(data, &token); err != nil {
 			continue
 		}
@@ -301,7 +301,7 @@ func (s *FSRefreshTokenStore) CleanupExpiredTokens() error {
 }
 
 // forEachToken iterates over all tokens in the store
-func (s *FSRefreshTokenStore) forEachToken(fn func(token *oa.RefreshToken, path string) error) error {
+func (s *FSRefreshTokenStore) forEachToken(fn func(token *core.RefreshToken, path string) error) error {
 	tokensDir := s.getTokenDir()
 	entries, err := os.ReadDir(tokensDir)
 	if err != nil {
@@ -322,7 +322,7 @@ func (s *FSRefreshTokenStore) forEachToken(fn func(token *oa.RefreshToken, path 
 			continue
 		}
 
-		var token oa.RefreshToken
+		var token core.RefreshToken
 		if err := json.Unmarshal(data, &token); err != nil {
 			continue
 		}

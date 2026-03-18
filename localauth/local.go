@@ -1,0 +1,635 @@
+package localauth
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/panyam/oneauth/core"
+)
+
+type VerifyEmailFunc func(token string) error
+type UpdatePasswordFunc func(email, newPassword string) error
+
+// Allows local username/password based authentication
+type LocalAuth struct {
+	// Validates credentials during login
+	ValidateCredentials core.CredentialsValidator
+
+	// Validates credentials during signup (deprecated: use SignupPolicy instead)
+	ValidateSignup core.SignupValidator
+
+	// Creates a new user (for signup)
+	CreateUser core.CreateUserFunc
+
+	// Optional email sender for verification emails
+	EmailSender core.SendEmail
+
+	// Optional token store for email verification and password reset
+	TokenStore core.TokenStore
+
+	// Base URL for generating verification/reset links
+	BaseURL string
+
+	// Whether email verification is required before login
+	RequireEmailVerification bool
+
+	// Provider name (defaults to "local")
+	Provider string
+
+	// Form field names
+	UsernameField string
+	PasswordField string
+	EmailField    string
+	PhoneField    string
+
+	// Handler called after successful authentication
+	HandleUser core.HandleUserFunc
+
+	// Callback to verify email by token
+	VerifyEmail VerifyEmailFunc
+
+	// Callback to update password
+	UpdatePassword UpdatePasswordFunc
+
+	// SignupPolicy defines what is required for signup (overrides ValidateSignup if set)
+	SignupPolicy *core.SignupPolicy
+
+	// OnSignupError is called when signup fails. If nil, returns JSON error.
+	OnSignupError core.AuthErrorHandler
+
+	// OnLoginError is called when login fails. If nil, returns JSON error.
+	OnLoginError core.AuthErrorHandler
+
+	// SignupURL is used for redirects on error (if OnSignupError uses redirects)
+	SignupURL string
+
+	// LoginURL is used for redirects on error (if OnLoginError uses redirects)
+	LoginURL string
+
+	// Optional UsernameStore for enforcing username uniqueness
+	UsernameStore core.UsernameStore
+
+	// ForgotPasswordURL: if set, GET /forgot-password redirects here and
+	// POST /forgot-password redirects here with ?sent=true on success.
+	// If empty, GET renders a basic HTML form and POST returns JSON.
+	ForgotPasswordURL string
+
+	// ResetPasswordURL: if set, GET /reset-password redirects here (with ?token=...)
+	// and POST redirects here with ?success=true on success or ?error=... on failure.
+	// If empty, GET renders a basic HTML form and POST returns JSON.
+	ResetPasswordURL string
+}
+
+// ServeHTTP handles login requests
+func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if a.ValidateCredentials == nil {
+		http.Error(w, `{"error": "Login not configured"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Parse form data
+	username, password, err := a.parseLoginForm(r)
+	if err != nil {
+		authErr := core.NewAuthError(core.ErrCodeMissingField, err.Error(), "username")
+		a.handleLoginError(authErr, w, r)
+		return
+	}
+
+	// Detect username type (email, phone, or username) if not specified
+	usernameType := core.DetectUsernameType(username)
+
+	// Validate credentials
+	user, err := a.ValidateCredentials(username, password, usernameType)
+	if err != nil || user == nil {
+		if err != nil {
+			log.Println("error validating user: ", err)
+		}
+		authErr := core.NewAuthError(core.ErrCodeInvalidCreds, "Invalid credentials", "password")
+		a.handleLoginError(authErr, w, r)
+		return
+	}
+
+	// Create user info for HandleUser callback
+	// Note: token is nil for local auth (no OAuth tokens)
+	// Start with user's profile and add/override with username
+	userInfo := user.Profile()
+	if userInfo == nil {
+		userInfo = make(map[string]any)
+	}
+
+	// Add username to userInfo
+	userInfo["username"] = username
+
+	// Ensure email or phone is in userInfo based on login type
+	if usernameType == "email" && userInfo["email"] == nil {
+		userInfo["email"] = username
+	} else if usernameType == "phone" && userInfo["phone"] == nil {
+		userInfo["phone"] = username
+	}
+
+	// Call the authentication success handler
+	a.HandleUser("local", a.getProvider(), nil, userInfo, w, r)
+}
+
+func (a *LocalAuth) parseLoginForm(r *http.Request) (username, password string, err error) {
+	contentType := r.Header.Get("Content-Type")
+	usernameField := a.getUsernameField()
+	passwordField := a.getPasswordField()
+
+	if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+		if err = r.ParseForm(); err != nil {
+			return "", "", fmt.Errorf("error parsing form")
+		}
+		username = r.FormValue(usernameField)
+		password = r.FormValue(passwordField)
+	} else {
+		var data map[string]any
+		if err = json.NewDecoder(r.Body).Decode(&data); err != nil || data == nil {
+			return "", "", fmt.Errorf("invalid post body")
+		}
+		if u, ok := data[usernameField].(string); ok {
+			username = u
+		}
+		if p, ok := data[passwordField].(string); ok {
+			password = p
+		}
+	}
+
+	if username == "" || password == "" {
+		return "", "", fmt.Errorf("username and password required")
+	}
+
+	return username, password, nil
+}
+
+func (a *LocalAuth) getProvider() string {
+	if a.Provider != "" {
+		return a.Provider
+	}
+	return "local"
+}
+
+func (a *LocalAuth) getUsernameField() string {
+	if a.UsernameField != "" {
+		return a.UsernameField
+	}
+	return "username" // default field name for username
+}
+
+func (a *LocalAuth) getPasswordField() string {
+	if a.PasswordField != "" {
+		return a.PasswordField
+	}
+	return "password"
+}
+
+func (a *LocalAuth) getEmailField() string {
+	if a.EmailField != "" {
+		return a.EmailField
+	}
+	return "email"
+}
+
+func (a *LocalAuth) getPhoneField() string {
+	if a.PhoneField != "" {
+		return a.PhoneField
+	}
+	return "phone"
+}
+
+// HandleVerifyEmail handles email verification via token
+func (a *LocalAuth) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) {
+	if a.VerifyEmail == nil {
+		http.Error(w, `{"error": "Email verification not configured"}`, http.StatusInternalServerError)
+		return
+	}
+
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, `{"error": "Token required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Call the verification callback
+	if err := a.VerifyEmail(token); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	// Redirect to success page or return JSON
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": "Email verified successfully",
+	})
+}
+
+// HandleForgotPasswordForm shows the forgot password form (GET)
+func (a *LocalAuth) HandleForgotPasswordForm(w http.ResponseWriter, r *http.Request) {
+	// Redirect mode: let the app handle rendering
+	if a.ForgotPasswordURL != "" {
+		http.Redirect(w, r, a.ForgotPasswordURL, http.StatusFound)
+		return
+	}
+
+	// Default: render a basic HTML form
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html>
+<head><title>Forgot Password</title></head>
+<body>
+<h1>Forgot Password</h1>
+<form method="POST" action="/auth/forgot-password">
+	<label>Email: <input type="email" name="email" required></label>
+	<button type="submit">Send Reset Link</button>
+</form>
+</body>
+</html>`)
+}
+
+// HandleForgotPassword handles forgot password requests (POST)
+func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
+	if a.TokenStore == nil || a.EmailSender == nil {
+		http.Error(w, `{"error": "Password reset not configured"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Parse form (supports both url-encoded and multipart)
+	if err := r.ParseMultipartForm(32 << 10); err != nil {
+		// ParseMultipartForm fails for non-multipart; fall back to ParseForm
+		if err2 := r.ParseForm(); err2 != nil {
+			http.Error(w, `{"error": "Invalid form data"}`, http.StatusBadRequest)
+			return
+		}
+	}
+
+	email := r.FormValue("email")
+	if email == "" {
+		http.Error(w, `{"error": "Email required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Generate reset token
+	// Note: We need UserID for CreateToken, but we don't want to reveal if email exists
+	// For security, always return success even if email doesn't exist
+	token, err := a.TokenStore.CreateToken("", email, core.TokenTypePasswordReset, core.TokenExpiryPasswordReset)
+	if err != nil {
+		log.Printf("Error creating reset token: %v", err)
+		// Still return success to avoid revealing if email exists
+	} else {
+		// Send reset email
+		resetLink := fmt.Sprintf("%s/auth/reset-password?token=%s", a.BaseURL, token.Token)
+		if err := a.EmailSender.SendPasswordResetEmail(email, resetLink); err != nil {
+			log.Printf("Error sending reset email: %v", err)
+		}
+	}
+
+	// Redirect mode: redirect back to the forgot password page with success flag
+	if a.ForgotPasswordURL != "" {
+		http.Redirect(w, r, a.ForgotPasswordURL+"?sent=true", http.StatusSeeOther)
+		return
+	}
+
+	// JSON mode (default): return JSON response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": "If that email exists, a reset link has been sent",
+	})
+}
+
+// HandleResetPasswordForm shows the reset password form (GET)
+func (a *LocalAuth) HandleResetPasswordForm(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+
+	// Redirect mode: let the app handle rendering
+	if a.ResetPasswordURL != "" {
+		target := a.ResetPasswordURL
+		if token != "" {
+			target += "?token=" + token
+		}
+		http.Redirect(w, r, target, http.StatusFound)
+		return
+	}
+
+	if token == "" {
+		http.Error(w, "Token required", http.StatusBadRequest)
+		return
+	}
+
+	// Verify token exists and is valid
+	if a.TokenStore != nil {
+		if _, err := a.TokenStore.GetToken(token); err != nil {
+			http.Error(w, "Invalid or expired token", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Default: render a basic HTML form
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html>
+<head><title>Reset Password</title></head>
+<body>
+<h1>Reset Password</h1>
+<form method="POST" action="/auth/reset-password">
+	<input type="hidden" name="token" value="%s">
+	<label>New Password: <input type="password" name="password" required minlength="8"></label>
+	<button type="submit">Reset Password</button>
+</form>
+</body>
+</html>`, token)
+}
+
+// HandleResetPassword handles password reset submissions (POST)
+func (a *LocalAuth) HandleResetPassword(w http.ResponseWriter, r *http.Request) {
+	if a.TokenStore == nil || a.UpdatePassword == nil {
+		http.Error(w, `{"error": "Password reset not configured"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Parse form (supports both url-encoded and multipart)
+	if err := r.ParseMultipartForm(32 << 10); err != nil {
+		if err2 := r.ParseForm(); err2 != nil {
+			http.Error(w, `{"error": "Invalid form data"}`, http.StatusBadRequest)
+			return
+		}
+	}
+
+	token := r.FormValue("token")
+	password := r.FormValue("password")
+
+	if token == "" || password == "" {
+		a.resetPasswordError(w, r, token, "Token and password required")
+		return
+	}
+
+	// Validate token
+	authToken, err := a.TokenStore.GetToken(token)
+	if err != nil {
+		a.resetPasswordError(w, r, token, "Invalid or expired reset link")
+		return
+	}
+
+	if authToken.Type != core.TokenTypePasswordReset {
+		a.resetPasswordError(w, r, token, "Invalid token type")
+		return
+	}
+
+	// Password validation
+	if len(password) < 8 {
+		a.resetPasswordError(w, r, token, "Password must be at least 8 characters")
+		return
+	}
+
+	// Update the password via callback
+	if err := a.UpdatePassword(authToken.Email, password); err != nil {
+		a.resetPasswordError(w, r, token, err.Error())
+		return
+	}
+
+	// Delete the token (one-time use)
+	if err := a.TokenStore.DeleteToken(token); err != nil {
+		log.Printf("Warning: failed to delete token: %v", err)
+	}
+
+	// Redirect mode
+	if a.ResetPasswordURL != "" {
+		http.Redirect(w, r, a.ResetPasswordURL+"?success=true", http.StatusSeeOther)
+		return
+	}
+
+	// JSON mode (default)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": "Password reset successfully",
+		"email":   authToken.Email,
+	})
+}
+
+// resetPasswordError returns an error for reset password requests.
+// In redirect mode, redirects back to the reset page with error in query param.
+// In JSON mode, returns a JSON error response.
+func (a *LocalAuth) resetPasswordError(w http.ResponseWriter, r *http.Request, token, message string) {
+	if a.ResetPasswordURL != "" {
+		target := a.ResetPasswordURL + "?error=" + message
+		if token != "" {
+			target += "&token=" + token
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
+		return
+	}
+	http.Error(w, fmt.Sprintf(`{"error": "%s"}`, message), http.StatusBadRequest)
+}
+
+// handleLoginError handles login errors using the configured handler or default JSON
+func (a *LocalAuth) handleLoginError(err *core.AuthError, w http.ResponseWriter, r *http.Request) {
+	if a.OnLoginError != nil && a.OnLoginError(err, w, r) {
+		return
+	}
+	// Default: return JSON error
+	w.Header().Set("Content-Type", "application/json")
+	// Use 400 for validation errors, 401 for invalid credentials
+	statusCode := http.StatusUnauthorized
+	if err.Code == core.ErrCodeMissingField || err.Code == core.ErrCodeInvalidEmail || err.Code == core.ErrCodeInvalidUsername {
+		statusCode = http.StatusBadRequest
+	}
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(map[string]any{
+		"error":   err.Message,
+		"code":    err.Code,
+		"field":   err.Field,
+	})
+}
+
+// handleSignupError handles signup errors using the configured handler or default JSON
+func (a *LocalAuth) handleSignupError(err *core.AuthError, w http.ResponseWriter, r *http.Request) {
+	if a.OnSignupError != nil && a.OnSignupError(err, w, r) {
+		return
+	}
+	// Default: return JSON error
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(map[string]any{
+		"error":   err.Message,
+		"code":    err.Code,
+		"field":   err.Field,
+	})
+}
+
+// =============================================================================
+// Credential Linking (Phase 4)
+// =============================================================================
+
+// LinkCredentialsConfig holds configuration for HandleLinkCredentials
+type LinkCredentialsConfig struct {
+	UserStore     core.UserStore
+	IdentityStore core.IdentityStore
+	ChannelStore  core.ChannelStore
+	UsernameStore core.UsernameStore // Optional
+}
+
+// GetLoggedInUserFunc returns the currently logged-in user ID from the request.
+// Apps must implement this based on their session/JWT handling.
+type GetLoggedInUserFunc func(r *http.Request) (userID string, err error)
+
+// HandleLinkCredentials returns an HTTP handler that adds local (password) auth
+// to an existing OAuth-only user.
+//
+// # Who Calls This
+//
+// Mount this handler at a protected route (requires login) like POST /auth/link-credentials:
+//
+//	localAuth := &oneauth.LocalAuth{...}
+//	linkConfig := oneauth.LinkCredentialsConfig{
+//	    UserStore:     stores.UserStore,
+//	    IdentityStore: stores.IdentityStore,
+//	    ChannelStore:  stores.ChannelStore,
+//	    UsernameStore: stores.UsernameStore, // optional
+//	}
+//	getUser := func(r *http.Request) (string, error) {
+//	    return getLoggedInUserIDFromSession(r), nil
+//	}
+//	mux.Handle("POST /auth/link-credentials", localAuth.HandleLinkCredentials(linkConfig, getUser))
+//
+// # Flow
+//
+//  1. OAuth-only user visits profile page, sees "Add password" form
+//  2. User submits form with password (and optionally username)
+//  3. Handler validates input, creates local channel, reserves username
+//  4. User can now login with email/password OR their OAuth provider
+//
+// # Form Fields
+//
+//   - password (required): The new password
+//   - username (optional): Username for login (if UsernameStore configured)
+//
+// # Responses
+//
+//   - 200 OK: {"success": true, "message": "..."}
+//   - 400 Bad Request: {"error": "...", "code": "...", "field": "..."}
+//   - 401 Unauthorized: User not logged in
+//   - 409 Conflict: Local credentials already exist
+func (a *LocalAuth) HandleLinkCredentials(config LinkCredentialsConfig, getUser GetLoggedInUserFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Get logged-in user
+		userID, err := getUser(r)
+		if err != nil || userID == "" {
+			http.Error(w, `{"error": "Not authenticated"}`, http.StatusUnauthorized)
+			return
+		}
+
+		// Get user to find their email
+		user, err := config.UserStore.GetUserById(userID)
+		if err != nil {
+			http.Error(w, `{"error": "User not found"}`, http.StatusUnauthorized)
+			return
+		}
+
+		profile := user.Profile()
+		email, _ := profile["email"].(string)
+		if email == "" {
+			http.Error(w, `{"error": "User has no email identity"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Parse form
+		var username, password string
+		contentType := r.Header.Get("Content-Type")
+		if strings.HasPrefix(contentType, "application/json") {
+			var data map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+				http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
+				return
+			}
+			username, _ = data["username"].(string)
+			password, _ = data["password"].(string)
+		} else {
+			r.ParseForm()
+			username = r.FormValue("username")
+			password = r.FormValue("password")
+		}
+
+		// Validate password
+		policy := a.getSignupPolicy()
+		minLen := policy.GetMinPasswordLength()
+		if len(password) < minLen {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]any{
+				"error": fmt.Sprintf("Password must be at least %d characters", minLen),
+				"code":  core.ErrCodeWeakPassword,
+				"field": "password",
+			})
+			return
+		}
+
+		// Validate username format if provided
+		if username != "" {
+			pattern := policy.GetUsernamePattern()
+			if !pattern.MatchString(username) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]any{
+					"error": "Invalid username format",
+					"code":  core.ErrCodeInvalidUsername,
+					"field": "username",
+				})
+				return
+			}
+
+			// Check username availability if UsernameStore configured
+			if config.UsernameStore != nil {
+				existingUserID, err := config.UsernameStore.GetUserByUsername(username)
+				if err == nil && existingUserID != userID {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusBadRequest)
+					json.NewEncoder(w).Encode(map[string]any{
+						"error": "Username is already taken",
+						"code":  core.ErrCodeUsernameTaken,
+						"field": "username",
+					})
+					return
+				}
+			}
+		}
+
+		// Link credentials using the helper
+		linkConfig := EnsureAuthUserConfig{
+			UserStore:     config.UserStore,
+			IdentityStore: config.IdentityStore,
+			ChannelStore:  config.ChannelStore,
+			UsernameStore: config.UsernameStore,
+		}
+		if err := LinkLocalCredentials(linkConfig, userID, username, password, email); err != nil {
+			errMsg := err.Error()
+			code := "link_failed"
+			if strings.Contains(errMsg, "already exist") {
+				w.WriteHeader(http.StatusConflict)
+				code = "already_linked"
+			} else {
+				w.WriteHeader(http.StatusBadRequest)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"error": errMsg,
+				"code":  code,
+			})
+			return
+		}
+
+		// Success
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "Password added successfully. You can now login with email and password.",
+		})
+	}
+}

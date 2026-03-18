@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/core"
 )
 
 // FSIdentityStore stores identities as JSON files
@@ -20,20 +20,20 @@ func NewFSIdentityStore(storagePath string) *FSIdentityStore {
 }
 
 func (s *FSIdentityStore) getIdentityPath(identityType, identityValue string) string {
-	key := oa.IdentityKey(identityType, identityValue)
+	key := core.IdentityKey(identityType, identityValue)
 	// Use safe filename
 	safeKey := filepath.Base(key) // prevents path traversal
 	return filepath.Join(s.StoragePath, "identities", safeKey+".json")
 }
 
-func (s *FSIdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*oa.Identity, bool, error) {
+func (s *FSIdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*core.Identity, bool, error) {
 	path := s.getIdentityPath(identityType, identityValue)
 	data, err := os.ReadFile(path)
 
 	if err != nil {
 		if os.IsNotExist(err) && createIfMissing {
 			now := time.Now()
-			identity := &oa.Identity{
+			identity := &core.Identity{
 				Type:      identityType,
 				Value:     identityValue,
 				UserID:    "", // Not assigned yet
@@ -53,14 +53,14 @@ func (s *FSIdentityStore) GetIdentity(identityType, identityValue string, create
 		return nil, false, err
 	}
 
-	var identity oa.Identity
+	var identity core.Identity
 	if err := json.Unmarshal(data, &identity); err != nil {
 		return nil, false, err
 	}
 	return &identity, false, nil
 }
 
-func (s *FSIdentityStore) SaveIdentity(identity *oa.Identity) error {
+func (s *FSIdentityStore) SaveIdentity(identity *core.Identity) error {
 	path := s.getIdentityPath(identity.Type, identity.Value)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
@@ -98,17 +98,17 @@ func (s *FSIdentityStore) MarkIdentityVerified(identityType, identityValue strin
 	return s.SaveIdentity(identity)
 }
 
-func (s *FSIdentityStore) GetUserIdentities(userId string) ([]*oa.Identity, error) {
+func (s *FSIdentityStore) GetUserIdentities(userId string) ([]*core.Identity, error) {
 	identitiesDir := filepath.Join(s.StoragePath, "identities")
 	entries, err := os.ReadDir(identitiesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []*oa.Identity{}, nil
+			return []*core.Identity{}, nil
 		}
 		return nil, err
 	}
 
-	var identities []*oa.Identity
+	var identities []*core.Identity
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -119,7 +119,7 @@ func (s *FSIdentityStore) GetUserIdentities(userId string) ([]*oa.Identity, erro
 			continue
 		}
 
-		var identity oa.Identity
+		var identity core.Identity
 		if err := json.Unmarshal(data, &identity); err != nil {
 			continue
 		}

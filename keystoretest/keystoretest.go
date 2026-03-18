@@ -7,12 +7,12 @@ import (
 	"sort"
 	"testing"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
 
 // Factory creates a fresh KeyStorage for each test.
-type Factory func(t *testing.T) oa.KeyStorage
+type Factory func(t *testing.T) keys.KeyStorage
 
 // RunAll runs the complete KeyStore test suite against the provided factory.
 func RunAll(t *testing.T, factory Factory) {
@@ -35,7 +35,7 @@ func TestRegisterAndGet(t *testing.T, factory Factory) {
 	ks := factory(t)
 
 	secret := []byte("host-secret-123")
-	if err := ks.PutKey(&oa.KeyRecord{ClientID: "host-abc", Key: secret, Algorithm: "HS256"}); err != nil {
+	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: secret, Algorithm: "HS256"}); err != nil {
 		t.Fatalf("PutKey failed: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestNotFound(t *testing.T, factory Factory) {
 	ks := factory(t)
 
 	_, err := ks.GetKey("nonexistent")
-	if err != oa.ErrKeyNotFound {
+	if err != keys.ErrKeyNotFound {
 		t.Errorf("Expected ErrKeyNotFound, got %v", err)
 	}
 }
@@ -86,10 +86,10 @@ func TestMultipleHosts(t *testing.T, factory Factory) {
 	secret1 := []byte("secret-for-host-1")
 	secret2 := []byte("secret-for-host-2")
 
-	if err := ks.PutKey(&oa.KeyRecord{ClientID: "host-1", Key: secret1, Algorithm: "HS256"}); err != nil {
+	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-1", Key: secret1, Algorithm: "HS256"}); err != nil {
 		t.Fatalf("PutKey host-1 failed: %v", err)
 	}
-	if err := ks.PutKey(&oa.KeyRecord{ClientID: "host-2", Key: secret2, Algorithm: "HS256"}); err != nil {
+	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-2", Key: secret2, Algorithm: "HS256"}); err != nil {
 		t.Fatalf("PutKey host-2 failed: %v", err)
 	}
 
@@ -116,7 +116,7 @@ func TestMultipleHosts(t *testing.T, factory Factory) {
 func TestDeleteKey(t *testing.T, factory Factory) {
 	ks := factory(t)
 
-	if err := ks.PutKey(&oa.KeyRecord{ClientID: "host-abc", Key: []byte("secret"), Algorithm: "HS256"}); err != nil {
+	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: []byte("secret"), Algorithm: "HS256"}); err != nil {
 		t.Fatalf("PutKey failed: %v", err)
 	}
 
@@ -128,7 +128,7 @@ func TestDeleteKey(t *testing.T, factory Factory) {
 		t.Fatalf("DeleteKey failed: %v", err)
 	}
 
-	if _, err := ks.GetKey("host-abc"); err != oa.ErrKeyNotFound {
+	if _, err := ks.GetKey("host-abc"); err != keys.ErrKeyNotFound {
 		t.Errorf("Expected ErrKeyNotFound after delete, got %v", err)
 	}
 }
@@ -137,7 +137,7 @@ func TestDeleteNonexistent(t *testing.T, factory Factory) {
 	ks := factory(t)
 
 	err := ks.DeleteKey("nonexistent")
-	if err != oa.ErrKeyNotFound {
+	if err != keys.ErrKeyNotFound {
 		t.Errorf("Expected ErrKeyNotFound, got %v", err)
 	}
 }
@@ -145,11 +145,11 @@ func TestDeleteNonexistent(t *testing.T, factory Factory) {
 func TestOverwriteKey(t *testing.T, factory Factory) {
 	ks := factory(t)
 
-	if err := ks.PutKey(&oa.KeyRecord{ClientID: "host-abc", Key: []byte("old-secret"), Algorithm: "HS256"}); err != nil {
+	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: []byte("old-secret"), Algorithm: "HS256"}); err != nil {
 		t.Fatalf("PutKey failed: %v", err)
 	}
 
-	if err := ks.PutKey(&oa.KeyRecord{ClientID: "host-abc", Key: []byte("new-secret"), Algorithm: "HS512"}); err != nil {
+	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: []byte("new-secret"), Algorithm: "HS512"}); err != nil {
 		t.Fatalf("PutKey overwrite failed: %v", err)
 	}
 
@@ -166,9 +166,9 @@ func TestOverwriteKey(t *testing.T, factory Factory) {
 func TestListKeys(t *testing.T, factory Factory) {
 	ks := factory(t)
 
-	ks.PutKey(&oa.KeyRecord{ClientID: "host-alpha", Key: []byte("secret-a"), Algorithm: "HS256"})
-	ks.PutKey(&oa.KeyRecord{ClientID: "host-beta", Key: []byte("secret-b"), Algorithm: "HS256"})
-	ks.PutKey(&oa.KeyRecord{ClientID: "host-gamma", Key: []byte("secret-g"), Algorithm: "HS512"})
+	ks.PutKey(&keys.KeyRecord{ClientID: "host-alpha", Key: []byte("secret-a"), Algorithm: "HS256"})
+	ks.PutKey(&keys.KeyRecord{ClientID: "host-beta", Key: []byte("secret-b"), Algorithm: "HS256"})
+	ks.PutKey(&keys.KeyRecord{ClientID: "host-gamma", Key: []byte("secret-g"), Algorithm: "HS512"})
 
 	keys, err := ks.ListKeyIDs()
 	if err != nil {
@@ -206,7 +206,7 @@ func TestPersistence(t *testing.T, factory Factory) {
 	// stores sharing the same underlying storage.
 	ks := factory(t)
 
-	ks.PutKey(&oa.KeyRecord{ClientID: "host-abc", Key: []byte("persistent-secret"), Algorithm: "HS256"})
+	ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: []byte("persistent-secret"), Algorithm: "HS256"})
 
 	// Re-read from the same store — all backends must support this
 	rec, err := ks.GetKey("host-abc")
@@ -222,7 +222,7 @@ func TestKidResolverBasic(t *testing.T, factory Factory) {
 	ks := factory(t)
 
 	secret := []byte("kid-test-secret")
-	if err := ks.PutKey(&oa.KeyRecord{ClientID: "app-kid", Key: secret, Algorithm: "HS256"}); err != nil {
+	if err := ks.PutKey(&keys.KeyRecord{ClientID: "app-kid", Key: secret, Algorithm: "HS256"}); err != nil {
 		t.Fatalf("PutKey failed: %v", err)
 	}
 
@@ -253,7 +253,7 @@ func TestKidResolverBasic(t *testing.T, factory Factory) {
 
 	// Unknown kid should fail
 	_, err = ks.GetKeyByKid("nonexistent-kid")
-	if err != oa.ErrKidNotFound {
+	if err != keys.ErrKidNotFound {
 		t.Errorf("expected ErrKidNotFound, got %v", err)
 	}
 }
@@ -266,7 +266,7 @@ func TestKidResolverAsymmetric(t *testing.T, factory Factory) {
 		t.Fatal(err)
 	}
 
-	if err := ks.PutKey(&oa.KeyRecord{ClientID: "app-rsa-kid", Key: pubPEM, Algorithm: "RS256"}); err != nil {
+	if err := ks.PutKey(&keys.KeyRecord{ClientID: "app-rsa-kid", Key: pubPEM, Algorithm: "RS256"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -303,7 +303,7 @@ func TestGetCurrentKid(t *testing.T, factory Factory) {
 	ks := factory(t)
 
 	secret := []byte("kid-getter-secret")
-	ks.PutKey(&oa.KeyRecord{ClientID: "app-kg", Key: secret, Algorithm: "HS256"})
+	ks.PutKey(&keys.KeyRecord{ClientID: "app-kg", Key: secret, Algorithm: "HS256"})
 
 	rec, err := ks.GetKey("app-kg")
 	if err != nil {
@@ -321,7 +321,7 @@ func TestGetCurrentKid(t *testing.T, factory Factory) {
 
 	// Nonexistent client
 	_, err = ks.GetKey("nonexistent")
-	if err != oa.ErrKeyNotFound {
+	if err != keys.ErrKeyNotFound {
 		t.Errorf("expected ErrKeyNotFound, got %v", err)
 	}
 }
@@ -335,7 +335,7 @@ func TestRegisterAndGetAsymmetricKey(t *testing.T, factory Factory) {
 		t.Fatalf("GenerateRSAKeyPair failed: %v", err)
 	}
 
-	if err := ks.PutKey(&oa.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}); err != nil {
+	if err := ks.PutKey(&keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}); err != nil {
 		t.Fatalf("PutKey failed: %v", err)
 	}
 

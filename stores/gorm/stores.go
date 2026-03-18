@@ -13,7 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/core"
 )
 
 // AutoMigrate runs database migrations for all oneauth tables
@@ -34,7 +34,7 @@ func AutoMigrate(db *gorm.DB) error {
 // UserStore
 // =============================================================================
 
-// GORMUser implements the oa.User interface
+// GORMUser implements the core.User interface
 type GORMUser struct {
 	model *UserModel
 }
@@ -42,7 +42,7 @@ type GORMUser struct {
 func (u *GORMUser) Id() string              { return u.model.ID }
 func (u *GORMUser) Profile() map[string]any { return u.model.Profile }
 
-// UserStore implements oa.UserStore using GORM
+// UserStore implements core.UserStore using GORM
 type UserStore struct {
 	db *gorm.DB
 }
@@ -51,7 +51,7 @@ func NewUserStore(db *gorm.DB) *UserStore {
 	return &UserStore{db: db}
 }
 
-func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (oa.User, error) {
+func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (core.User, error) {
 	model := &UserModel{
 		ID:       userId,
 		IsActive: isActive,
@@ -63,7 +63,7 @@ func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]
 	return &GORMUser{model: model}, nil
 }
 
-func (s *UserStore) GetUserById(userId string) (oa.User, error) {
+func (s *UserStore) GetUserById(userId string) (core.User, error) {
 	var model UserModel
 	if err := s.db.First(&model, "id = ?", userId).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -74,7 +74,7 @@ func (s *UserStore) GetUserById(userId string) (oa.User, error) {
 	return &GORMUser{model: &model}, nil
 }
 
-func (s *UserStore) SaveUser(user oa.User) error {
+func (s *UserStore) SaveUser(user core.User) error {
 	model := &UserModel{
 		ID:      user.Id(),
 		Profile: user.Profile(),
@@ -86,7 +86,7 @@ func (s *UserStore) SaveUser(user oa.User) error {
 // IdentityStore
 // =============================================================================
 
-// IdentityStore implements oa.IdentityStore using GORM
+// IdentityStore implements core.IdentityStore using GORM
 type IdentityStore struct {
 	db *gorm.DB
 }
@@ -95,7 +95,7 @@ func NewIdentityStore(db *gorm.DB) *IdentityStore {
 	return &IdentityStore{db: db}
 }
 
-func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*oa.Identity, bool, error) {
+func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*core.Identity, bool, error) {
 	var model IdentityModel
 	err := s.db.First(&model, "type = ? AND value = ?", identityType, identityValue).Error
 
@@ -121,7 +121,7 @@ func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIf
 	return model.ToIdentity(), false, nil
 }
 
-func (s *IdentityStore) SaveIdentity(identity *oa.Identity) error {
+func (s *IdentityStore) SaveIdentity(identity *core.Identity) error {
 	model := IdentityToModel(identity)
 	return s.db.Save(model).Error
 }
@@ -138,13 +138,13 @@ func (s *IdentityStore) MarkIdentityVerified(identityType, identityValue string)
 		Update("verified", true).Error
 }
 
-func (s *IdentityStore) GetUserIdentities(userId string) ([]*oa.Identity, error) {
+func (s *IdentityStore) GetUserIdentities(userId string) ([]*core.Identity, error) {
 	var models []IdentityModel
 	if err := s.db.Where("user_id = ?", userId).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
-	identities := make([]*oa.Identity, len(models))
+	identities := make([]*core.Identity, len(models))
 	for i, m := range models {
 		identities[i] = m.ToIdentity()
 	}
@@ -155,7 +155,7 @@ func (s *IdentityStore) GetUserIdentities(userId string) ([]*oa.Identity, error)
 // ChannelStore
 // =============================================================================
 
-// ChannelStore implements oa.ChannelStore using GORM
+// ChannelStore implements core.ChannelStore using GORM
 type ChannelStore struct {
 	db *gorm.DB
 }
@@ -164,7 +164,7 @@ func NewChannelStore(db *gorm.DB) *ChannelStore {
 	return &ChannelStore{db: db}
 }
 
-func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*oa.Channel, bool, error) {
+func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*core.Channel, bool, error) {
 	var model ChannelModel
 	err := s.db.First(&model, "provider = ? AND identity_key = ?", provider, identityKey).Error
 
@@ -190,18 +190,18 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 	return model.ToChannel(), false, nil
 }
 
-func (s *ChannelStore) SaveChannel(channel *oa.Channel) error {
+func (s *ChannelStore) SaveChannel(channel *core.Channel) error {
 	model := ChannelToModel(channel)
 	return s.db.Save(model).Error
 }
 
-func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*oa.Channel, error) {
+func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*core.Channel, error) {
 	var models []ChannelModel
 	if err := s.db.Where("identity_key = ?", identityKey).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
-	channels := make([]*oa.Channel, len(models))
+	channels := make([]*core.Channel, len(models))
 	for i, m := range models {
 		channels[i] = m.ToChannel()
 	}
@@ -212,7 +212,7 @@ func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*oa.Channel,
 // TokenStore (for email verification and password reset)
 // =============================================================================
 
-// TokenStore implements oa.TokenStore using GORM
+// TokenStore implements core.TokenStore using GORM
 type TokenStore struct {
 	db *gorm.DB
 }
@@ -221,8 +221,8 @@ func NewTokenStore(db *gorm.DB) *TokenStore {
 	return &TokenStore{db: db}
 }
 
-func (s *TokenStore) CreateToken(userID, email string, tokenType oa.TokenType, expiryDuration time.Duration) (*oa.AuthToken, error) {
-	token, err := oa.GenerateSecureToken()
+func (s *TokenStore) CreateToken(userID, email string, tokenType core.TokenType, expiryDuration time.Duration) (*core.AuthToken, error) {
+	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +242,7 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType oa.TokenType, e
 	return model.ToAuthToken(), nil
 }
 
-func (s *TokenStore) GetToken(token string) (*oa.AuthToken, error) {
+func (s *TokenStore) GetToken(token string) (*core.AuthToken, error) {
 	var model AuthTokenModel
 	if err := s.db.First(&model, "token = ?", token).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -264,7 +264,7 @@ func (s *TokenStore) DeleteToken(token string) error {
 	return s.db.Delete(&AuthTokenModel{}, "token = ?", token).Error
 }
 
-func (s *TokenStore) DeleteUserTokens(userID string, tokenType oa.TokenType) error {
+func (s *TokenStore) DeleteUserTokens(userID string, tokenType core.TokenType) error {
 	return s.db.Delete(&AuthTokenModel{}, "user_id = ? AND type = ?", userID, tokenType).Error
 }
 
@@ -272,7 +272,7 @@ func (s *TokenStore) DeleteUserTokens(userID string, tokenType oa.TokenType) err
 // RefreshTokenStore
 // =============================================================================
 
-// RefreshTokenStore implements oa.RefreshTokenStore using GORM
+// RefreshTokenStore implements core.RefreshTokenStore using GORM
 type RefreshTokenStore struct {
 	db *gorm.DB
 }
@@ -286,13 +286,13 @@ func (s *RefreshTokenStore) hashToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*oa.RefreshToken, error) {
-	token, err := oa.GenerateSecureToken()
+func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
 
-	family, err := oa.GenerateSecureToken()
+	family, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceIn
 		Family:     family[:16],
 		Generation: 1,
 		Scopes:     scopes,
-		ExpiresAt:  now.Add(oa.TokenExpiryRefreshToken),
+		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt: now,
 		Revoked:    false,
 	}
@@ -321,12 +321,12 @@ func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceIn
 	return rt, nil
 }
 
-func (s *RefreshTokenStore) GetRefreshToken(token string) (*oa.RefreshToken, error) {
+func (s *RefreshTokenStore) GetRefreshToken(token string) (*core.RefreshToken, error) {
 	tokenHash := s.hashToken(token)
 	var model RefreshTokenModel
 	if err := s.db.First(&model, "token_hash = ?", tokenHash).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, oa.ErrTokenNotFound
+			return nil, core.ErrTokenNotFound
 		}
 		return nil, err
 	}
@@ -336,27 +336,27 @@ func (s *RefreshTokenStore) GetRefreshToken(token string) (*oa.RefreshToken, err
 	return rt, nil
 }
 
-func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToken, error) {
+func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshToken, error) {
 	oldHash := s.hashToken(oldToken)
 
-	var newRefreshToken *oa.RefreshToken
+	var newRefreshToken *core.RefreshToken
 	var newTokenValue string
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var oldModel RefreshTokenModel
 		if err := tx.First(&oldModel, "token_hash = ?", oldHash).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return oa.ErrTokenNotFound
+				return core.ErrTokenNotFound
 			}
 			return err
 		}
 
 		if oldModel.Revoked {
-			return oa.ErrTokenReused
+			return core.ErrTokenReused
 		}
 
 		if time.Now().After(oldModel.ExpiresAt) {
-			return oa.ErrTokenExpired
+			return core.ErrTokenExpired
 		}
 
 		// Revoke old token
@@ -369,7 +369,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToke
 		}
 
 		// Create new token
-		newToken, err := oa.GenerateSecureToken()
+		newToken, err := core.GenerateSecureToken()
 		if err != nil {
 			return err
 		}
@@ -383,7 +383,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*oa.RefreshToke
 			Family:     oldModel.Family,
 			Generation: oldModel.Generation + 1,
 			Scopes:     oldModel.Scopes,
-			ExpiresAt:  now.Add(oa.TokenExpiryRefreshToken),
+			ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 			LastUsedAt: now,
 			Revoked:    false,
 		}
@@ -426,14 +426,14 @@ func (s *RefreshTokenStore) RevokeTokenFamily(family string) error {
 		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
 }
 
-func (s *RefreshTokenStore) GetUserTokens(userID string) ([]*oa.RefreshToken, error) {
+func (s *RefreshTokenStore) GetUserTokens(userID string) ([]*core.RefreshToken, error) {
 	var models []RefreshTokenModel
 	if err := s.db.Where("user_id = ? AND revoked = ? AND expires_at > ?", userID, false, time.Now()).
 		Find(&models).Error; err != nil {
 		return nil, err
 	}
 
-	tokens := make([]*oa.RefreshToken, len(models))
+	tokens := make([]*core.RefreshToken, len(models))
 	for i, m := range models {
 		tokens[i] = m.ToRefreshToken()
 		tokens[i].Token = "" // Don't expose token value
@@ -452,7 +452,7 @@ func (s *RefreshTokenStore) CleanupExpiredTokens() error {
 // APIKeyStore
 // =============================================================================
 
-// APIKeyStore implements oa.APIKeyStore using GORM
+// APIKeyStore implements core.APIKeyStore using GORM
 type APIKeyStore struct {
 	db *gorm.DB
 }
@@ -461,13 +461,13 @@ func NewAPIKeyStore(db *gorm.DB) *APIKeyStore {
 	return &APIKeyStore{db: db}
 }
 
-func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (string, *oa.APIKey, error) {
-	keyID, err := oa.GenerateAPIKeyID()
+func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (string, *core.APIKey, error) {
+	keyID, err := core.GenerateAPIKeyID()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to generate key ID: %w", err)
 	}
 
-	secret, err := oa.GenerateAPIKeySecret()
+	secret, err := core.GenerateAPIKeySecret()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to generate key secret: %w", err)
 	}
@@ -497,18 +497,18 @@ func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expires
 	return fullKey, model.ToAPIKey(), nil
 }
 
-func (s *APIKeyStore) GetAPIKeyByID(keyID string) (*oa.APIKey, error) {
+func (s *APIKeyStore) GetAPIKeyByID(keyID string) (*core.APIKey, error) {
 	var model APIKeyModel
 	if err := s.db.First(&model, "key_id = ?", keyID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, oa.ErrAPIKeyNotFound
+			return nil, core.ErrAPIKeyNotFound
 		}
 		return nil, err
 	}
 	return model.ToAPIKey(), nil
 }
 
-func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*oa.APIKey, error) {
+func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
 	// Parse the full key: oa_keyid_secret
 	parts := make([]string, 3)
 	n := 0
@@ -521,7 +521,7 @@ func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*oa.APIKey, error) {
 	}
 
 	if parts[0] != "oa" || parts[1] == "" || parts[2] == "" {
-		return nil, oa.ErrAPIKeyNotFound
+		return nil, core.ErrAPIKeyNotFound
 	}
 
 	keyID := "oa_" + parts[1]
@@ -530,22 +530,22 @@ func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*oa.APIKey, error) {
 	var model APIKeyModel
 	if err := s.db.First(&model, "key_id = ?", keyID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, oa.ErrAPIKeyNotFound
+			return nil, core.ErrAPIKeyNotFound
 		}
 		return nil, err
 	}
 
 	if model.Revoked {
-		return nil, oa.ErrTokenRevoked
+		return nil, core.ErrTokenRevoked
 	}
 
 	apiKey := model.ToAPIKey()
 	if apiKey.IsExpired() {
-		return nil, oa.ErrTokenExpired
+		return nil, core.ErrTokenExpired
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(model.KeyHash), []byte(secret)); err != nil {
-		return nil, oa.ErrAPIKeyNotFound
+		return nil, core.ErrAPIKeyNotFound
 	}
 
 	return apiKey, nil
@@ -558,13 +558,13 @@ func (s *APIKeyStore) RevokeAPIKey(keyID string) error {
 		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
 }
 
-func (s *APIKeyStore) ListUserAPIKeys(userID string) ([]*oa.APIKey, error) {
+func (s *APIKeyStore) ListUserAPIKeys(userID string) ([]*core.APIKey, error) {
 	var models []APIKeyModel
 	if err := s.db.Where("user_id = ?", userID).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
-	keys := make([]*oa.APIKey, len(models))
+	keys := make([]*core.APIKey, len(models))
 	for i, m := range models {
 		keys[i] = m.ToAPIKey()
 		keys[i].KeyHash = "" // Don't expose hash
@@ -582,7 +582,7 @@ func (s *APIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
 // UsernameStore
 // =============================================================================
 
-// UsernameStore implements oa.UsernameStore using GORM with optimistic concurrency.
+// UsernameStore implements core.UsernameStore using GORM with optimistic concurrency.
 //
 // # Purpose
 //

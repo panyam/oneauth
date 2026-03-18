@@ -16,7 +16,12 @@ import (
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/golang-jwt/jwt/v5"
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/apiauth"
+	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
+	"github.com/panyam/oneauth/keys"
+	"github.com/panyam/oneauth/localauth"
 	"golang.org/x/oauth2"
 	fsstore "github.com/panyam/oneauth/stores/fs"
 	gaestore "github.com/panyam/oneauth/stores/gae"
@@ -72,37 +77,37 @@ func main() {
 	}
 
 	// Build AppRegistrar
-	registrar := &oa.AppRegistrar{
+	registrar := &admin.AppRegistrar{
 		KeyStore: keyStore,
 		Auth:     adminAuth,
 	}
 
 	// Build LocalAuth
-	localAuth := &oa.LocalAuth{
-		ValidateCredentials: oa.NewCredentialsValidator(stores.identityStore, stores.channelStore, stores.userStore),
-		CreateUser:          oa.NewCreateUserFunc(stores.userStore, stores.identityStore, stores.channelStore),
-		EmailSender:         &oa.ConsoleEmailSender{},
+	localAuth := &localauth.LocalAuth{
+		ValidateCredentials: localauth.NewCredentialsValidator(stores.identityStore, stores.channelStore, stores.userStore),
+		CreateUser:          localauth.NewCreateUserFunc(stores.userStore, stores.identityStore, stores.channelStore),
+		EmailSender:         &core.ConsoleEmailSender{},
 		TokenStore:          stores.tokenStore,
 		BaseURL:             fmt.Sprintf("http://localhost:%s", cfg.Server.Port),
-		SignupPolicy:        &oa.PolicyEmailOnly,
+		SignupPolicy:        &core.PolicyEmailOnly,
 		HandleUser:          makeHandleUser(cfg),
-		VerifyEmail:         oa.NewVerifyEmailFunc(stores.identityStore, stores.tokenStore),
-		UpdatePassword:      oa.NewUpdatePasswordFunc(stores.identityStore, stores.channelStore),
+		VerifyEmail:         localauth.NewVerifyEmailFunc(stores.identityStore, stores.tokenStore),
+		UpdatePassword:      localauth.NewUpdatePasswordFunc(stores.identityStore, stores.channelStore),
 		// Redirect-mode for forgot/reset password
 		ForgotPasswordURL: "/auth/forgot-password",
 		ResetPasswordURL:  "/auth/reset-password",
-		OnLoginError: func(err *oa.AuthError, w http.ResponseWriter, r *http.Request) bool {
-			renderTemplate(w, "login.html", map[string]any{"Title": "Login", "Error": err.Message, "CSRFField": oa.CSRFTemplateField(r)})
+		OnLoginError: func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
+			renderTemplate(w, "login.html", map[string]any{"Title": "Login", "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
-		OnSignupError: func(err *oa.AuthError, w http.ResponseWriter, r *http.Request) bool {
-			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up", "Error": err.Message, "CSRFField": oa.CSRFTemplateField(r)})
+		OnSignupError: func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
+			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up", "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
 	}
 
 	// Build APIAuth (for API token endpoint)
-	apiAuth := &oa.APIAuth{
+	apiAuth := &apiauth.APIAuth{
 		RefreshTokenStore:   stores.refreshTokenStore,
 		JWTSecretKey:        cfg.JWT.SecretKey,
 		JWTIssuer:           cfg.JWT.Issuer,
@@ -110,7 +115,7 @@ func main() {
 	}
 
 	// CSRF middleware for browser form endpoints
-	csrf := &oa.CSRFMiddleware{Secure: cfg.TLS.Enabled}
+	csrf := &httpauth.CSRFMiddleware{Secure: cfg.TLS.Enabled}
 
 	// Wire up HTTP server
 	mux := http.NewServeMux()
@@ -135,18 +140,18 @@ func main() {
 
 	// Auth pages (browser) — wrapped with CSRF protection
 	mux.Handle("GET /auth/login", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, "login.html", map[string]any{"Title": "Login", "CSRFField": oa.CSRFTemplateField(r)})
+		renderTemplate(w, "login.html", map[string]any{"Title": "Login", "CSRFField": httpauth.CSRFTemplateField(r)})
 	})))
 	mux.Handle("POST /auth/login", csrf.Protect(http.HandlerFunc(localAuth.ServeHTTP)))
 
 	mux.Handle("GET /auth/signup", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up", "CSRFField": oa.CSRFTemplateField(r)})
+		renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up", "CSRFField": httpauth.CSRFTemplateField(r)})
 	})))
 	mux.Handle("POST /auth/signup", csrf.Protect(http.HandlerFunc(localAuth.HandleSignup)))
 
 	mux.Handle("GET /auth/forgot-password", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sent := r.URL.Query().Get("sent") == "true"
-		renderTemplate(w, "forgot_password.html", map[string]any{"Title": "Forgot Password", "Sent": sent, "CSRFField": oa.CSRFTemplateField(r)})
+		renderTemplate(w, "forgot_password.html", map[string]any{"Title": "Forgot Password", "Sent": sent, "CSRFField": httpauth.CSRFTemplateField(r)})
 	})))
 	mux.Handle("POST /auth/forgot-password", csrf.Protect(http.HandlerFunc(localAuth.HandleForgotPassword)))
 
@@ -156,7 +161,7 @@ func main() {
 		errMsg := r.URL.Query().Get("error")
 		renderTemplate(w, "reset_password.html", map[string]any{
 			"Title": "Reset Password", "Token": token, "Success": success, "Error": errMsg,
-			"CSRFField": oa.CSRFTemplateField(r),
+			"CSRFField": httpauth.CSRFTemplateField(r),
 		})
 	})))
 	mux.Handle("POST /auth/reset-password", csrf.Protect(http.HandlerFunc(localAuth.HandleResetPassword)))
@@ -179,8 +184,8 @@ func main() {
 		email := getUserEmailFromCookie(r, cfg.JWT.SecretKey)
 
 		// Get registered apps from registrar
-		var apps []*oa.AppRegistration
-		registrar.RLockApps(func(a map[string]*oa.AppRegistration) {
+		var apps []*admin.AppRegistration
+		registrar.RLockApps(func(a map[string]*admin.AppRegistration) {
 			for _, reg := range a {
 				apps = append(apps, reg)
 			}
@@ -201,7 +206,7 @@ func main() {
 	mux.Handle("/apps", registrar.Handler())
 
 	// JWKS endpoint (public — no auth required)
-	jwksHandler := &oa.JWKSHandler{KeyStore: keyStore}
+	jwksHandler := &keys.JWKSHandler{KeyStore: keyStore}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
 
 	addr := cfg.Server.Host + ":" + cfg.Server.Port
@@ -217,11 +222,11 @@ func main() {
 
 // userStores holds all the store instances needed for auth.
 type userStores struct {
-	userStore         oa.UserStore
-	identityStore     oa.IdentityStore
-	channelStore      oa.ChannelStore
-	tokenStore        oa.TokenStore
-	refreshTokenStore oa.RefreshTokenStore
+	userStore         core.UserStore
+	identityStore     core.IdentityStore
+	channelStore      core.ChannelStore
+	tokenStore        core.TokenStore
+	refreshTokenStore core.RefreshTokenStore
 }
 
 func buildUserStores(cfg *Config, db *gorm.DB) (*userStores, error) {
@@ -256,14 +261,14 @@ func buildUserStores(cfg *Config, db *gorm.DB) (*userStores, error) {
 	}
 }
 
-func buildKeyStore(cfg *Config) (oa.KeyStorage, *gorm.DB, error) {
-	var store oa.KeyStorage
+func buildKeyStore(cfg *Config) (keys.KeyStorage, *gorm.DB, error) {
+	var store keys.KeyStorage
 	var db *gorm.DB
 
 	switch cfg.KeyStore.Type {
 	case "memory":
 		log.Println("Using in-memory KeyStore (not persistent)")
-		store = oa.NewInMemoryKeyStore()
+		store = keys.NewInMemoryKeyStore()
 
 	case "fs":
 		log.Printf("Using filesystem KeyStore at %s", cfg.KeyStore.FS.Path)
@@ -297,7 +302,7 @@ func buildKeyStore(cfg *Config) (oa.KeyStorage, *gorm.DB, error) {
 
 	// Wrap with encryption if a master key is configured
 	if cfg.KeyStore.MasterKey != "" {
-		encrypted, err := oa.NewEncryptedKeyStorage(store, cfg.KeyStore.MasterKey)
+		encrypted, err := keys.NewEncryptedKeyStorage(store, cfg.KeyStore.MasterKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create EncryptedKeyStore: %w", err)
 		}
@@ -320,11 +325,11 @@ func openGORM(cfg GORMConfig) (*gorm.DB, error) {
 	}
 }
 
-func buildAdminAuth(cfg *Config) (oa.AdminAuth, error) {
+func buildAdminAuth(cfg *Config) (admin.AdminAuth, error) {
 	switch cfg.AdminAuth.Type {
 	case "none":
 		log.Println("WARNING: Admin auth disabled (type=none). Do not use in production!")
-		return oa.NewNoAuth(), nil
+		return admin.NewNoAuth(), nil
 
 	case "api-key":
 		key := cfg.AdminAuth.APIKey.Key
@@ -337,7 +342,7 @@ func buildAdminAuth(cfg *Config) (oa.AdminAuth, error) {
 			}
 			log.Println("Admin API key loaded from Secret Manager")
 		}
-		return oa.NewAPIKeyAuth(key), nil
+		return admin.NewAPIKeyAuth(key), nil
 
 	default:
 		log.Fatalf("Unknown admin_auth type: %s", cfg.AdminAuth.Type)
@@ -346,7 +351,7 @@ func buildAdminAuth(cfg *Config) (oa.AdminAuth, error) {
 }
 
 // makeHandleUser returns a HandleUserFunc that sets a JWT cookie for browser sessions.
-func makeHandleUser(cfg *Config) oa.HandleUserFunc {
+func makeHandleUser(cfg *Config) core.HandleUserFunc {
 	return func(authtype string, provider string, token *oauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {
 		email, _ := userInfo["email"].(string)
 		username, _ := userInfo["username"].(string)

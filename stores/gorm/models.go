@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"time"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/core"
 )
 
 // JSONMap is a helper type for storing JSON maps in GORM
@@ -84,8 +84,8 @@ func (IdentityModel) TableName() string {
 	return "identities"
 }
 
-func (m *IdentityModel) ToIdentity() *oa.Identity {
-	return &oa.Identity{
+func (m *IdentityModel) ToIdentity() *core.Identity {
+	return &core.Identity{
 		Type:      m.Type,
 		Value:     m.Value,
 		UserID:    m.UserID,
@@ -96,7 +96,7 @@ func (m *IdentityModel) ToIdentity() *oa.Identity {
 	}
 }
 
-func IdentityToModel(i *oa.Identity) *IdentityModel {
+func IdentityToModel(i *core.Identity) *IdentityModel {
 	return &IdentityModel{
 		Type:      i.Type,
 		Value:     i.Value,
@@ -124,8 +124,8 @@ func (ChannelModel) TableName() string {
 	return "channels"
 }
 
-func (m *ChannelModel) ToChannel() *oa.Channel {
-	return &oa.Channel{
+func (m *ChannelModel) ToChannel() *core.Channel {
+	return &core.Channel{
 		Provider:    m.Provider,
 		IdentityKey: m.IdentityKey,
 		Credentials: m.Credentials,
@@ -137,7 +137,7 @@ func (m *ChannelModel) ToChannel() *oa.Channel {
 	}
 }
 
-func ChannelToModel(c *oa.Channel) *ChannelModel {
+func ChannelToModel(c *core.Channel) *ChannelModel {
 	return &ChannelModel{
 		Provider:    c.Provider,
 		IdentityKey: c.IdentityKey,
@@ -153,7 +153,7 @@ func ChannelToModel(c *oa.Channel) *ChannelModel {
 // AuthTokenModel is the GORM model for verification/reset tokens
 type AuthTokenModel struct {
 	Token     string       `gorm:"primaryKey;size:128"`
-	Type      oa.TokenType `gorm:"size:32;index"`
+	Type      core.TokenType `gorm:"size:32;index"`
 	UserID    string       `gorm:"size:64;index"`
 	Email     string       `gorm:"size:255"`
 	CreatedAt time.Time    `gorm:"autoCreateTime"`
@@ -164,8 +164,8 @@ func (AuthTokenModel) TableName() string {
 	return "auth_tokens"
 }
 
-func (m *AuthTokenModel) ToAuthToken() *oa.AuthToken {
-	return &oa.AuthToken{
+func (m *AuthTokenModel) ToAuthToken() *core.AuthToken {
+	return &core.AuthToken{
 		Token:     m.Token,
 		Type:      m.Type,
 		UserID:    m.UserID,
@@ -175,7 +175,7 @@ func (m *AuthTokenModel) ToAuthToken() *oa.AuthToken {
 	}
 }
 
-func AuthTokenToModel(t *oa.AuthToken) *AuthTokenModel {
+func AuthTokenToModel(t *core.AuthToken) *AuthTokenModel {
 	return &AuthTokenModel{
 		Token:     t.Token,
 		Type:      t.Type,
@@ -207,8 +207,8 @@ func (RefreshTokenModel) TableName() string {
 	return "refresh_tokens"
 }
 
-func (m *RefreshTokenModel) ToRefreshToken() *oa.RefreshToken {
-	return &oa.RefreshToken{
+func (m *RefreshTokenModel) ToRefreshToken() *core.RefreshToken {
+	return &core.RefreshToken{
 		Token:      m.Token,
 		TokenHash:  m.TokenHash,
 		UserID:     m.UserID,
@@ -225,7 +225,7 @@ func (m *RefreshTokenModel) ToRefreshToken() *oa.RefreshToken {
 	}
 }
 
-func RefreshTokenToModel(t *oa.RefreshToken) *RefreshTokenModel {
+func RefreshTokenToModel(t *core.RefreshToken) *RefreshTokenModel {
 	return &RefreshTokenModel{
 		Token:      t.Token,
 		TokenHash:  t.TokenHash,
@@ -261,8 +261,8 @@ func (APIKeyModel) TableName() string {
 	return "api_keys"
 }
 
-func (m *APIKeyModel) ToAPIKey() *oa.APIKey {
-	return &oa.APIKey{
+func (m *APIKeyModel) ToAPIKey() *core.APIKey {
+	return &core.APIKey{
 		KeyID:      m.KeyID,
 		KeyHash:    m.KeyHash,
 		UserID:     m.UserID,
@@ -276,7 +276,7 @@ func (m *APIKeyModel) ToAPIKey() *oa.APIKey {
 	}
 }
 
-func APIKeyToModel(k *oa.APIKey) *APIKeyModel {
+func APIKeyToModel(k *core.APIKey) *APIKeyModel {
 	return &APIKeyModel{
 		KeyID:      k.KeyID,
 		KeyHash:    k.KeyHash,

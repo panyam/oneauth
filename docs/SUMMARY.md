@@ -32,9 +32,16 @@ Three-layer data model separating concerns:
 
 ```
 oneauth/
-├── *.go                  # Core types and handlers
+├── core/                 # Foundation types: User, Identity, Channel, store interfaces,
+│                         #   tokens, credentials, scopes, email, context helpers
+├── keys/                 # Key storage: KeyRecord, KeyLookup, KeyStorage, InMemoryKeyStore,
+│                         #   EncryptedKeyStorage, KidStore, JWKSHandler, JWKSKeyStore
+├── admin/                # Admin auth: AdminAuth, AppRegistrar, MintResourceToken
+├── apiauth/              # API auth: APIAuth, APIMiddleware, context helpers
+├── localauth/            # Local auth: LocalAuth, signup, helpers (NewCreateUserFunc, etc.)
+├── httpauth/             # HTTP middleware: Middleware, CSRFMiddleware, OneAuth session mux
 ├── stores/
-│   ├── fs/               # File-based stores (server)
+│   ├── fs/               # File-based stores (dev)
 │   ├── gorm/             # GORM SQL stores
 │   └── gae/              # Google Datastore stores
 ├── client/               # Client SDK for token management
@@ -50,31 +57,34 @@ oneauth/
 └── saml/                 # SAML support
 ```
 
+Each subpackage has a `SUMMARY.md` for quick orientation.
+
 ## Quick Start
 
 ```go
 import (
-    "github.com/panyam/oneauth"
+    "github.com/panyam/oneauth/core"
+    "github.com/panyam/oneauth/localauth"
+    "github.com/panyam/oneauth/apiauth"
     "github.com/panyam/oneauth/stores/fs"
 )
 
 // Browser auth
-localAuth := &oneauth.LocalAuth{...}
-mux.Handle("/auth/login", localAuth)
+auth := &localauth.LocalAuth{...}
+mux.Handle("/auth/login", auth)
 
 // API auth
-apiAuth := &oneauth.APIAuth{...}
-mux.Handle("/api/login", http.HandlerFunc(apiAuth.HandleLogin))
+api := &apiauth.APIAuth{...}
+mux.Handle("/api/login", api)
 
 // Protect endpoints with APIMiddleware
-middleware := &oneauth.APIMiddleware{
-    TokenQueryParam: "token",  // optional: accept token as query param
-    // ...
+middleware := &apiauth.APIMiddleware{
+    TokenQueryParam: "token",
 }
 mux.Handle("/api/protected", middleware.ValidateToken(handler))
 
 // Extract custom claims in handlers
-claims := oneauth.GetCustomClaimsFromContext(r.Context())
+claims := apiauth.GetCustomClaimsFromContext(r.Context())
 ```
 
 ### Client SDK

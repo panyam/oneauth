@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
 
@@ -19,7 +19,7 @@ type fsKeyEntry struct {
 	Kid       string `json:"kid,omitempty"`
 }
 
-// FSKeyStore implements oa.KeyStorage using filesystem storage.
+// FSKeyStore implements keys.KeyStorage using filesystem storage.
 type FSKeyStore struct {
 	StoragePath string
 	mu          sync.RWMutex
@@ -43,7 +43,7 @@ func (s *FSKeyStore) loadEntry(clientID string) (*fsKeyEntry, error) {
 	data, err := os.ReadFile(s.getKeyPath(clientID))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, oa.ErrKeyNotFound
+			return nil, keys.ErrKeyNotFound
 		}
 		return nil, err
 	}
@@ -54,10 +54,10 @@ func (s *FSKeyStore) loadEntry(clientID string) (*fsKeyEntry, error) {
 	return &entry, nil
 }
 
-func (s *FSKeyStore) PutKey(rec *oa.KeyRecord) error {
+func (s *FSKeyStore) PutKey(rec *keys.KeyRecord) error {
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
-		return oa.ErrAlgorithmMismatch
+		return keys.ErrAlgorithmMismatch
 	}
 
 	s.mu.Lock()
@@ -90,12 +90,12 @@ func (s *FSKeyStore) DeleteKey(clientID string) error {
 
 	path := s.getKeyPath(clientID)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return oa.ErrKeyNotFound
+		return keys.ErrKeyNotFound
 	}
 	return os.Remove(path)
 }
 
-func (s *FSKeyStore) GetKey(clientID string) (*oa.KeyRecord, error) {
+func (s *FSKeyStore) GetKey(clientID string) (*keys.KeyRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -103,7 +103,7 @@ func (s *FSKeyStore) GetKey(clientID string) (*oa.KeyRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &oa.KeyRecord{
+	return &keys.KeyRecord{
 		ClientID:  entry.ClientID,
 		Key:       entry.Key,
 		Algorithm: entry.Algorithm,
@@ -111,14 +111,14 @@ func (s *FSKeyStore) GetKey(clientID string) (*oa.KeyRecord, error) {
 	}, nil
 }
 
-func (s *FSKeyStore) GetKeyByKid(kid string) (*oa.KeyRecord, error) {
+func (s *FSKeyStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	dir := s.getKeyDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, oa.ErrKidNotFound
+		return nil, keys.ErrKidNotFound
 	}
 
 	for _, e := range entries {
@@ -134,7 +134,7 @@ func (s *FSKeyStore) GetKeyByKid(kid string) (*oa.KeyRecord, error) {
 			continue
 		}
 		if entry.Kid == kid {
-			return &oa.KeyRecord{
+			return &keys.KeyRecord{
 				ClientID:  entry.ClientID,
 				Key:       entry.Key,
 				Algorithm: entry.Algorithm,
@@ -142,7 +142,7 @@ func (s *FSKeyStore) GetKeyByKid(kid string) (*oa.KeyRecord, error) {
 			}, nil
 		}
 	}
-	return nil, oa.ErrKidNotFound
+	return nil, keys.ErrKidNotFound
 }
 
 func (s *FSKeyStore) ListKeyIDs() ([]string, error) {
@@ -179,7 +179,7 @@ func (s *FSKeyStore) ListKeyIDs() ([]string, error) {
 // Backward-compatible aliases
 
 func (s *FSKeyStore) RegisterKey(clientID string, key any, algorithm string) error {
-	return s.PutKey(&oa.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
+	return s.PutKey(&keys.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
 }
 
 func (s *FSKeyStore) GetVerifyKey(clientID string) (any, error) {
