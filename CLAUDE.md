@@ -95,6 +95,10 @@ Three projects collaborate:
 
 Flow: App registers with oneauth-server → gets `client_id` + `client_secret` (HS256) or registers a public key (RS256/ES256) → App authenticates users locally → mints resource-scoped JWTs with `MintResourceToken()` or `MintResourceTokenWithKey()` → resource server validates using shared KeyStore or JWKS discovery (`/.well-known/jwks.json`).
 
+## Memories
+
+Design lessons and feedback from past sessions are in `memories/`. See `memories/MEMORY.md` for the index. These are checked into the repo so they're available to all collaborators.
+
 ## Conventions
 
 - Update SUMMARY.md, NEXTSTEPS.md, ROADMAP.md with each PR
