@@ -43,7 +43,7 @@ func main() {
 	flag.Parse()
 
 	// Connect to KeyStore: JWKS URL (preferred) → PostgreSQL → in-memory fallback
-	var keyStore oa.KeyStore
+	var keyStore oa.KeyLookup
 	if *jwksURL != "" {
 		ks := oa.NewJWKSKeyStore(*jwksURL)
 		if err := ks.Start(); err != nil {
@@ -57,11 +57,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to connect to database: %v", err)
 		}
-		var ks oa.KeyStore = gormstore.NewKeyStore(db)
+		var ks oa.KeyLookup = gormstore.NewKeyStore(db)
 		// Wrap with encryption if master key is set (must match oneauth-server's key
 		// so HS256 secrets encrypted by the server can be decrypted here)
 		if masterKey := os.Getenv("ONEAUTH_MASTER_KEY"); masterKey != "" {
-			encrypted, err := oa.NewEncryptedKeyStore(gormstore.NewKeyStore(db), masterKey)
+			encrypted, err := oa.NewEncryptedKeyStorage(gormstore.NewKeyStore(db), masterKey)
 			if err != nil {
 				log.Fatalf("Failed to create EncryptedKeyStore: %v", err)
 			}

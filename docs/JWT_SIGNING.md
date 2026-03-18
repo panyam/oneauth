@@ -159,8 +159,8 @@ At validation time, `utils.DecodeVerifyKey(rawKey, alg)` converts stored bytes t
 
 ```go
 // In APIMiddleware.validateJWT (automatic):
-rawKey, _ := m.KeyStore.GetVerifyKey(clientID)
-verifyKey, _ := utils.DecodeVerifyKey(rawKey, expectedAlg)
+rec, _ := m.KeyStore.GetKey(clientID)  // returns *KeyRecord
+verifyKey, _ := utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 // HS256 → returns []byte as-is
 // RS256 → parses PEM → *rsa.PublicKey
 // ES256 → parses PEM → *ecdsa.PublicKey
@@ -170,7 +170,7 @@ verifyKey, _ := utils.DecodeVerifyKey(rawKey, expectedAlg)
 
 OneAuth prevents algorithm confusion attacks at multiple levels:
 
-1. **KeyStore.GetExpectedAlg()**: Every client has a registered algorithm. The middleware rejects tokens whose `alg` header doesn't match.
+1. **KeyRecord.Algorithm**: Every client has a registered algorithm (stored in `KeyRecord`). The middleware rejects tokens whose `alg` header doesn't match.
 
 2. **APIAuth.jwtKeyFunc()**: Validates that the token's signing method matches the configured key type (RSA method for RSA key, ECDSA method for ECDSA key, HMAC method for symmetric key).
 
@@ -180,6 +180,39 @@ This means an attacker cannot:
 - Send `alg: none` to skip verification
 - Send `alg: HS256` with a public key as the HMAC secret
 - Send `alg: RS256` for an app registered with HS256
+
+## Key ID (kid)
+
+All minted JWTs now include a `kid` (Key ID) header, computed as an RFC 7638 JWK Thumbprint of the signing key. This enables resource servers to look up the correct verification key without parsing unverified claims first.
+
+### How It Works
+
+1. **At mint time**: `MintResourceToken` and `MintResourceTokenWithKey` compute the JWK Thumbprint (SHA-256, base64url-encoded) of the signing key and set it as the JWT `kid` header.
+2. **At validation time**: The middleware reads the `kid` header and calls `KeyLookup.GetKeyByKid(kid)` to find the matching key record.
+3. **Thumbprint computation**: Uses `utils.JWKThumbprint(key)` which implements RFC 7638 — canonical JSON serialization of the JWK's required members, then SHA-256 hash.
+
+### KidStore
+
+`KidStore` maintains a mapping from `kid` (thumbprint) to `clientID`. This supports key rotation grace periods where both old and new keys are valid simultaneously:
+
+```go
+type KidStore interface {
+    GetClientIDByKid(kid string) (string, error)
+    SetKidMapping(kid, clientID string) error
+    DeleteKidMapping(kid string) error
+}
+```
+
+### CompositeKeyLookup
+
+`CompositeKeyLookup` combines multiple `KeyLookup` sources (e.g., a local `KeyStorage` and a `JWKSKeyStore`) into a single lookup that tries each source in order. This is useful for resource servers that need to validate tokens from both local and federated issuers:
+
+```go
+lookup := oa.NewCompositeKeyLookup(localKeyStore, jwksKeyStore)
+middleware := &oa.APIMiddleware{
+    KeyStore: lookup,
+}
+```
 
 ## SigningMethodForAlg / IsAsymmetricAlg
 
@@ -215,7 +248,7 @@ Supported key types: RSA (`kty: "RSA"`) and ECDSA P-256 (`kty: "EC"`, `crv: "P-2
 
 ```go
 handler := &oa.JWKSHandler{
-    KeyStore:    keyStore,  // WritableKeyStore (needs ListKeys)
+    KeyStore:    keyStore,  // KeyStorage (needs ListKeyIDs)
     CacheMaxAge: 3600,      // Cache-Control max-age (default: 3600)
 }
 mux.HandleFunc("GET /.well-known/jwks.json", handler.ServeHTTP)
@@ -232,22 +265,22 @@ ks := oa.NewJWKSKeyStore("https://auth.example.com/.well-known/jwks.json",
 ks.Start()
 defer ks.Stop()
 
-// Use as a read-only KeyStore
-key, _ := ks.GetVerifyKey("app_abc")    // → *rsa.PublicKey or *ecdsa.PublicKey
-alg, _ := ks.GetExpectedAlg("app_abc")  // → "RS256" or "ES256"
+// Use as a read-only KeyLookup
+rec, _ := ks.GetKey("app_abc")       // → *KeyRecord with Key and Algorithm
+rec, _ = ks.GetKeyByKid(kid)          // → lookup by kid header from JWT
 ```
 
 See [FEDERATED_AUTH.md](FEDERATED_AUTH.md#jwks-public-key-discovery) for the full JWKS guide.
 
-## Encryption at Rest (EncryptedKeyStore)
+## Encryption at Rest (EncryptedKeyStorage)
 
-HS256 `client_secret` values are stored in the KeyStore as raw `[]byte`. To protect them at rest (e.g., against database dumps), wrap any `WritableKeyStore` with `EncryptedKeyStore`:
+HS256 `client_secret` values are stored in the KeyStore as raw `[]byte`. To protect them at rest (e.g., against database dumps), wrap any `KeyStorage` with `EncryptedKeyStorage`:
 
 ```go
 import oa "github.com/panyam/oneauth"
 
 inner := gormstore.NewKeyStore(db)
-encrypted, err := oa.NewEncryptedKeyStore(inner, os.Getenv("ONEAUTH_MASTER_KEY"))
+encrypted, err := oa.NewEncryptedKeyStorage(inner, os.Getenv("ONEAUTH_MASTER_KEY"))
 ```
 
 ### Master Key
@@ -293,4 +326,4 @@ When resource servers share the same KeyStore database as the auth server, they 
 
 - [FEDERATED_AUTH.md](FEDERATED_AUTH.md) — end-to-end federated auth flow with registration, minting, and validation
 - [API_AUTH.md](API_AUTH.md) — APIAuth and APIMiddleware configuration
-- [STORES.md](STORES.md) — KeyStore and WritableKeyStore interface details
+- [STORES.md](STORES.md) — KeyLookup and KeyStorage interface details

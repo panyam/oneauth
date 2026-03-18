@@ -70,7 +70,7 @@ func TestGAEKeyStore(t *testing.T) {
 		}
 	})
 
-	keystoretest.RunAll(t, func(t *testing.T) oa.WritableKeyStore {
+	keystoretest.RunAll(t, func(t *testing.T) oa.KeyStorage {
 		// Clean before each sub-test
 		q := datastore.NewQuery(KindSigningKey).KeysOnly().Namespace(namespace)
 		keys, _ := client.GetAll(ctx, q, nil)

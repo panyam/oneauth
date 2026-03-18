@@ -162,31 +162,39 @@ func (s *CachedUserStore) GetUserById(userId string) (User, error) {
 }
 ```
 
-## KeyStore & WritableKeyStore
+## KeyLookup & KeyStorage
 
-For multi-tenant JWT validation, OneAuth provides key management interfaces.
+For multi-tenant JWT validation, OneAuth provides key management interfaces built around the `KeyRecord` type.
 
-### KeyStore (Read-Only)
+### KeyRecord
 
 ```go
-type KeyStore interface {
-    GetVerifyKey(clientID string) (any, error)    // verification key for this client
-    GetSigningKey(clientID string) (any, error)    // signing key for this client
-    GetExpectedAlg(clientID string) (string, error) // expected algorithm
+type KeyRecord struct {
+    ClientID  string // app/tenant identifier
+    Key       any    // []byte (HS256), *rsa.PublicKey (RS256), *ecdsa.PublicKey (ES256), or PEM bytes
+    Algorithm string // "HS256", "RS256", "ES256"
 }
 ```
 
-### WritableKeyStore
-
-Extends `KeyStore` with write operations for host registration and key management:
+### KeyLookup (Read-Only)
 
 ```go
-type WritableKeyStore interface {
-    KeyStore
-    RegisterKey(clientID string, key any, alg string) error
+type KeyLookup interface {
+    GetKey(clientID string) (*KeyRecord, error)      // lookup by client ID
+    GetKeyByKid(kid string) (*KeyRecord, error)      // lookup by key ID (RFC 7638 thumbprint)
+}
+```
+
+### KeyStorage (Read + Write)
+
+Extends `KeyLookup` with write operations for host registration and key management:
+
+```go
+type KeyStorage interface {
+    KeyLookup
+    PutKey(rec *KeyRecord) error
     DeleteKey(clientID string) error
-    ListKeys() ([]string, error)
-    // ... additional write operations
+    ListKeyIDs() ([]string, error)
 }
 ```
 
@@ -196,8 +204,8 @@ For development and testing:
 
 ```go
 keyStore := oneauth.NewInMemoryKeyStore()
-keyStore.RegisterKey("host-alpha", []byte("alpha-secret-key"), "HS256")
-keyStore.RegisterKey("host-beta",  []byte("beta-secret-key"),  "HS256")
+keyStore.PutKey(&oneauth.KeyRecord{ClientID: "host-alpha", Key: []byte("alpha-secret-key"), Algorithm: "HS256"})
+keyStore.PutKey(&oneauth.KeyRecord{ClientID: "host-beta",  Key: []byte("beta-secret-key"),  Algorithm: "HS256"})
 ```
 
 ### Persistent KeyStore Implementations
@@ -234,7 +242,7 @@ keyStore := gae.NewKeyStore(datastoreClient, namespace)
 
 ### keystoretest Shared Test Suite
 
-The `keystoretest` package provides a reusable test suite that any `WritableKeyStore` implementation can run to verify correctness:
+The `keystoretest` package provides a reusable test suite that any `KeyStorage` implementation can run to verify correctness:
 
 ```go
 import "github.com/panyam/oneauth/keystoretest"
@@ -245,6 +253,6 @@ func TestMyKeyStore(t *testing.T) {
 }
 ```
 
-All three built-in KeyStore implementations (FS, GORM, GAE) use this shared test suite. When implementing a custom KeyStore, run these tests to verify compatibility.
+All three built-in KeyStore implementations (FS, GORM, GAE) use this shared test suite. When implementing a custom KeyStorage, run these tests to verify compatibility.
 
-For how KeyStore is used in multi-tenant JWT validation, see [API_AUTH.md](API_AUTH.md#multi-tenant-jwt-validation-keystore).
+For how KeyLookup/KeyStorage is used in multi-tenant JWT validation, see [API_AUTH.md](API_AUTH.md#multi-tenant-jwt-validation-keystore).

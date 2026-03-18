@@ -19,12 +19,12 @@ const testMasterKey = "0123456789abcdef0123456789abcdef0123456789abcdef012345678
 // newTestEncryptedKeyStore creates an EncryptedKeyStore wrapping a fresh
 // InMemoryKeyStore for isolated test use. Returns both so tests can inspect
 // the inner store's raw bytes.
-func newTestEncryptedKeyStore(t *testing.T) (*oa.EncryptedKeyStore, *oa.InMemoryKeyStore) {
+func newTestEncryptedKeyStore(t *testing.T) (*oa.EncryptedKeyStorage, *oa.InMemoryKeyStore) {
 	t.Helper()
 	inner := oa.NewInMemoryKeyStore()
-	enc, err := oa.NewEncryptedKeyStore(inner, testMasterKey)
+	enc, err := oa.NewEncryptedKeyStorage(inner, testMasterKey)
 	if err != nil {
-		t.Fatalf("NewEncryptedKeyStore failed: %v", err)
+		t.Fatalf("NewEncryptedKeyStorage failed: %v", err)
 	}
 	return enc, inner
 }
@@ -139,18 +139,18 @@ func TestWrongMasterKeyFails(t *testing.T) {
 	secret := []byte("sensitive-secret")
 
 	// Encrypt with key A
-	encA, err := oa.NewEncryptedKeyStore(inner, testMasterKey)
+	encA, err := oa.NewEncryptedKeyStorage(inner, testMasterKey)
 	if err != nil {
-		t.Fatalf("NewEncryptedKeyStore (A) failed: %v", err)
+		t.Fatalf("NewEncryptedKeyStorage (A) failed: %v", err)
 	}
 	if err := encA.RegisterKey("app-1", secret, "HS256"); err != nil {
 		t.Fatalf("RegisterKey failed: %v", err)
 	}
 
 	// Try to read with key B — GCM auth will fail, fallback returns raw ciphertext
-	encB, err := oa.NewEncryptedKeyStore(inner, randomMasterKey(t))
+	encB, err := oa.NewEncryptedKeyStorage(inner, randomMasterKey(t))
 	if err != nil {
-		t.Fatalf("NewEncryptedKeyStore (B) failed: %v", err)
+		t.Fatalf("NewEncryptedKeyStorage (B) failed: %v", err)
 	}
 	got, err := encB.GetVerifyKey("app-1")
 	if err != nil {
@@ -203,7 +203,7 @@ func TestInvalidMasterKey(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := oa.NewEncryptedKeyStore(inner, tc.key)
+			_, err := oa.NewEncryptedKeyStorage(inner, tc.key)
 			if err == nil {
 				t.Errorf("expected error for master key %q, got nil", tc.name)
 			}
@@ -216,7 +216,7 @@ func TestInvalidMasterKey(t *testing.T) {
 // verifying it correctly implements the full interface contract including
 // register, get, delete, list, overwrite, and asymmetric key handling.
 func TestEncryptedKeyStoreContractCompliance(t *testing.T) {
-	keystoretest.RunAll(t, func(t *testing.T) oa.WritableKeyStore {
+	keystoretest.RunAll(t, func(t *testing.T) oa.KeyStorage {
 		enc, _ := newTestEncryptedKeyStore(t)
 		return enc
 	})

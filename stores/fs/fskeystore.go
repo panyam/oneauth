@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	oa "github.com/panyam/oneauth"
+	"github.com/panyam/oneauth/utils"
 )
 
 // fsKeyEntry is the on-disk JSON representation of a signing key.
@@ -15,9 +16,10 @@ type fsKeyEntry struct {
 	ClientID  string `json:"client_id"`
 	Key       []byte `json:"key"`
 	Algorithm string `json:"algorithm"`
+	Kid       string `json:"kid,omitempty"`
 }
 
-// FSKeyStore implements oa.WritableKeyStore using filesystem storage.
+// FSKeyStore implements oa.KeyStorage using filesystem storage.
 type FSKeyStore struct {
 	StoragePath string
 	mu          sync.RWMutex
@@ -52,8 +54,8 @@ func (s *FSKeyStore) loadEntry(clientID string) (*fsKeyEntry, error) {
 	return &entry, nil
 }
 
-func (s *FSKeyStore) RegisterKey(clientID string, key any, algorithm string) error {
-	keyBytes, ok := key.([]byte)
+func (s *FSKeyStore) PutKey(rec *oa.KeyRecord) error {
+	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
 		return oa.ErrAlgorithmMismatch
 	}
@@ -65,16 +67,21 @@ func (s *FSKeyStore) RegisterKey(clientID string, key any, algorithm string) err
 		return err
 	}
 
+	kid := rec.Kid
+	if kid == "" {
+		kid, _ = utils.ComputeKid(keyBytes, rec.Algorithm)
+	}
 	entry := &fsKeyEntry{
-		ClientID:  clientID,
+		ClientID:  rec.ClientID,
 		Key:       keyBytes,
-		Algorithm: algorithm,
+		Algorithm: rec.Algorithm,
+		Kid:       kid,
 	}
 	data, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {
 		return err
 	}
-	return writeAtomicFile(s.getKeyPath(clientID), data)
+	return writeAtomicFile(s.getKeyPath(rec.ClientID), data)
 }
 
 func (s *FSKeyStore) DeleteKey(clientID string) error {
@@ -88,7 +95,7 @@ func (s *FSKeyStore) DeleteKey(clientID string) error {
 	return os.Remove(path)
 }
 
-func (s *FSKeyStore) GetVerifyKey(clientID string) (any, error) {
+func (s *FSKeyStore) GetKey(clientID string) (*oa.KeyRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -96,25 +103,49 @@ func (s *FSKeyStore) GetVerifyKey(clientID string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return entry.Key, nil
+	return &oa.KeyRecord{
+		ClientID:  entry.ClientID,
+		Key:       entry.Key,
+		Algorithm: entry.Algorithm,
+		Kid:       entry.Kid,
+	}, nil
 }
 
-func (s *FSKeyStore) GetSigningKey(clientID string) (any, error) {
-	return s.GetVerifyKey(clientID)
-}
-
-func (s *FSKeyStore) GetExpectedAlg(clientID string) (string, error) {
+func (s *FSKeyStore) GetKeyByKid(kid string) (*oa.KeyRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	entry, err := s.loadEntry(clientID)
+	dir := s.getKeyDir()
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return "", err
+		return nil, oa.ErrKidNotFound
 	}
-	return entry.Algorithm, nil
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		var entry fsKeyEntry
+		if err := json.Unmarshal(data, &entry); err != nil {
+			continue
+		}
+		if entry.Kid == kid {
+			return &oa.KeyRecord{
+				ClientID:  entry.ClientID,
+				Key:       entry.Key,
+				Algorithm: entry.Algorithm,
+				Kid:       entry.Kid,
+			}, nil
+		}
+	}
+	return nil, oa.ErrKidNotFound
 }
 
-func (s *FSKeyStore) ListKeys() ([]string, error) {
+func (s *FSKeyStore) ListKeyIDs() ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -132,7 +163,6 @@ func (s *FSKeyStore) ListKeys() ([]string, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		// Read the file to get the real client_id (not the sanitized filename)
 		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
 			continue
@@ -144,4 +174,42 @@ func (s *FSKeyStore) ListKeys() ([]string, error) {
 		keys = append(keys, entry.ClientID)
 	}
 	return keys, nil
+}
+
+// Backward-compatible aliases
+
+func (s *FSKeyStore) RegisterKey(clientID string, key any, algorithm string) error {
+	return s.PutKey(&oa.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
+}
+
+func (s *FSKeyStore) GetVerifyKey(clientID string) (any, error) {
+	rec, err := s.GetKey(clientID)
+	if err != nil {
+		return nil, err
+	}
+	return rec.Key, nil
+}
+
+func (s *FSKeyStore) GetSigningKey(clientID string) (any, error) {
+	return s.GetVerifyKey(clientID)
+}
+
+func (s *FSKeyStore) GetExpectedAlg(clientID string) (string, error) {
+	rec, err := s.GetKey(clientID)
+	if err != nil {
+		return "", err
+	}
+	return rec.Algorithm, nil
+}
+
+func (s *FSKeyStore) ListKeys() ([]string, error) {
+	return s.ListKeyIDs()
+}
+
+func (s *FSKeyStore) GetCurrentKid(clientID string) (string, error) {
+	rec, err := s.GetKey(clientID)
+	if err != nil {
+		return "", err
+	}
+	return rec.Kid, nil
 }

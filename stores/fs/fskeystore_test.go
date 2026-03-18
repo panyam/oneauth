@@ -11,7 +11,7 @@ import (
 
 // TestFSKeyStore runs the shared WritableKeyStore test suite against the filesystem-backed implementation.
 func TestFSKeyStore(t *testing.T) {
-	keystoretest.RunAll(t, func(t *testing.T) oa.WritableKeyStore {
+	keystoretest.RunAll(t, func(t *testing.T) oa.KeyStorage {
 		dir := t.TempDir()
 		return NewFSKeyStore(dir)
 	})

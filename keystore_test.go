@@ -10,7 +10,7 @@ import (
 
 // TestInMemoryKeyStore runs the shared WritableKeyStore test suite against the in-memory implementation.
 func TestInMemoryKeyStore(t *testing.T) {
-	keystoretest.RunAll(t, func(t *testing.T) oa.WritableKeyStore {
+	keystoretest.RunAll(t, func(t *testing.T) oa.KeyStorage {
 		return oa.NewInMemoryKeyStore()
 	})
 }

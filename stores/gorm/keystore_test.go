@@ -109,7 +109,7 @@ func setupPostgresDB(t *testing.T, dbName string) *gorm.DB {
 
 // TestGORMKeyStore runs the shared WritableKeyStore test suite against the GORM-backed implementation.
 func TestGORMKeyStore(t *testing.T) {
-	keystoretest.RunAll(t, func(t *testing.T) oa.WritableKeyStore {
+	keystoretest.RunAll(t, func(t *testing.T) oa.KeyStorage {
 		return NewKeyStore(setupTestDB(t))
 	})
 }

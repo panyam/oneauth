@@ -256,8 +256,8 @@ func buildUserStores(cfg *Config, db *gorm.DB) (*userStores, error) {
 	}
 }
 
-func buildKeyStore(cfg *Config) (oa.WritableKeyStore, *gorm.DB, error) {
-	var store oa.WritableKeyStore
+func buildKeyStore(cfg *Config) (oa.KeyStorage, *gorm.DB, error) {
+	var store oa.KeyStorage
 	var db *gorm.DB
 
 	switch cfg.KeyStore.Type {
@@ -297,7 +297,7 @@ func buildKeyStore(cfg *Config) (oa.WritableKeyStore, *gorm.DB, error) {
 
 	// Wrap with encryption if a master key is configured
 	if cfg.KeyStore.MasterKey != "" {
-		encrypted, err := oa.NewEncryptedKeyStore(store, cfg.KeyStore.MasterKey)
+		encrypted, err := oa.NewEncryptedKeyStorage(store, cfg.KeyStore.MasterKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create EncryptedKeyStore: %w", err)
 		}

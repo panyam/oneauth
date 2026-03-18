@@ -283,25 +283,31 @@ With a single `JWTSecretKey`, all token issuers share one secret. This means:
 - A compromised secret affects all clients
 - You can't have different clients use different signing algorithms
 
-### The Solution: KeyStore Interface
+### The Solution: KeyLookup / KeyStorage Interfaces
 
 ```go
-type KeyStore interface {
-    GetVerifyKey(clientID string) (any, error)    // verification key for this client
-    GetSigningKey(clientID string) (any, error)    // signing key for this client
-    GetExpectedAlg(clientID string) (string, error) // expected algorithm
+type KeyLookup interface {
+    GetKey(clientID string) (*KeyRecord, error)      // lookup by client ID
+    GetKeyByKid(kid string) (*KeyRecord, error)      // lookup by key ID (RFC 7638 thumbprint)
+}
+
+type KeyStorage interface {
+    KeyLookup
+    PutKey(rec *KeyRecord) error
+    DeleteKey(clientID string) error
+    ListKeyIDs() ([]string, error)
 }
 ```
 
-For the full `KeyStore` and `WritableKeyStore` interface details and persistent implementations, see [STORES.md](STORES.md#keystore--writablekeystore).
+For the full `KeyLookup` and `KeyStorage` interface details and persistent implementations, see [STORES.md](STORES.md#keylookup--keystorage).
 
 ### Setting Up Multi-Tenant Validation
 
 ```go
 // 1. Create a KeyStore and register client keys
 keyStore := oneauth.NewInMemoryKeyStore()
-keyStore.RegisterKey("app-alpha", []byte("alpha-secret-key"), "HS256")
-keyStore.RegisterKey("app-beta",  []byte("beta-secret-key"),  "HS256")
+keyStore.PutKey(&oneauth.KeyRecord{ClientID: "app-alpha", Key: []byte("alpha-secret-key"), Algorithm: "HS256"})
+keyStore.PutKey(&oneauth.KeyRecord{ClientID: "app-beta",  Key: []byte("beta-secret-key"),  Algorithm: "HS256"})
 
 // 2. Configure middleware with KeyStore (replaces JWTSecretKey)
 middleware := &oneauth.APIMiddleware{
@@ -320,8 +326,8 @@ When a JWT arrives, the middleware:
 
 1. Parses the token without verifying the signature
 2. Extracts the `client_id` claim from the unverified payload
-3. Calls `KeyStore.GetExpectedAlg(clientID)` — if the JWT's `alg` header doesn't match, the token is rejected (prevents algorithm confusion attacks)
-4. Calls `KeyStore.GetVerifyKey(clientID)` — returns the key material for this client
+3. Calls `KeyStore.GetKey(clientID)` — returns a `*KeyRecord` containing the key and expected algorithm; if the JWT's `alg` header doesn't match `rec.Algorithm`, the token is rejected (prevents algorithm confusion attacks)
+4. Uses `rec.Key` — the key material for this client
 5. Verifies the JWT signature with the client-specific key
 
 If `KeyStore` is nil, the middleware falls back to single `JWTSecretKey` behavior (backwards-compatible).
@@ -350,13 +356,13 @@ token, _, err := hostAuth.CreateAccessToken("user-123", []string{"read", "write"
 
 ### Algorithm Confusion Prevention
 
-The `KeyStore.GetExpectedAlg()` method prevents algorithm confusion attacks. For example, if a client is registered with `HS256` but sends a token with `alg: none` or `alg: RS256`, the token is rejected before signature verification.
+The `KeyRecord.Algorithm` field prevents algorithm confusion attacks. When a token arrives, the middleware calls `GetKey(clientID)` and compares the JWT's `alg` header against `rec.Algorithm`. If a client is registered with `HS256` but sends a token with `alg: none` or `alg: RS256`, the token is rejected before signature verification.
 
 ### Future: Asymmetric Keys
 
 The `KeyStore` interface supports asymmetric signing:
-- `GetVerifyKey` can return `*rsa.PublicKey` or `*ecdsa.PublicKey` for RS256/ES256
-- `GetSigningKey` can return `*rsa.PrivateKey` or `*ecdsa.PrivateKey`
+- `GetKey` returns a `*KeyRecord` whose `Key` field can be `*rsa.PublicKey` or `*ecdsa.PublicKey` for RS256/ES256
+- For signing, `Key` can be `*rsa.PrivateKey` or `*ecdsa.PrivateKey`
 - Per-app algorithm choice: some apps use HS256, others use RS256
 - Both modes coexist on the same middleware
 
@@ -364,7 +370,7 @@ The `KeyStore` interface supports asymmetric signing:
 
 For federated systems where external apps register and receive credentials for minting scoped JWTs, OneAuth provides:
 
-- **`AppRegistrar`**: An embeddable HTTP handler for app CRUD operations (register, list, get, delete, rotate secret). Stores app credentials in a `WritableKeyStore`.
+- **`AppRegistrar`**: An embeddable HTTP handler for app CRUD operations (register, list, get, delete, rotate secret). Stores app credentials in a `KeyStorage`.
 - **`MintResourceToken`**: A helper function that apps call after authenticating their own users, producing scoped JWTs that downstream resource servers can validate via KeyStore.
 
 For the full registration flow and architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).

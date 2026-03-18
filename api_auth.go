@@ -374,6 +374,9 @@ func (a *APIAuth) CreateAccessToken(userID string, scopes []string) (string, int
 	}
 
 	token := jwt.NewWithClaims(signingMethod, claims)
+	if kid, kidErr := utils.ComputeKid(signingKey, signingMethod.Alg()); kidErr == nil {
+		token.Header["kid"] = kid
+	}
 	tokenString, err := token.SignedString(signingKey)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to sign token: %w", err)
@@ -772,10 +775,10 @@ type APIMiddleware struct {
 	JWTAudience   string
 	JWTSigningAlg string
 
-	// KeyStore for multi-tenant JWT validation. When set, the middleware extracts
-	// client_id from unverified JWT claims and looks up the signing key per-client.
+	// KeyStore for multi-tenant JWT validation. When set, the middleware uses
+	// GetKeyByKid (for tokens with kid header) or GetKey (for client_id claim).
 	// When nil, falls back to JWTSecretKey (single-tenant, backwards-compatible).
-	KeyStore KeyStore
+	KeyStore KeyLookup
 
 	// API key validation (optional)
 	APIKeyStore APIKeyStore
@@ -947,9 +950,31 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes 
 // validateJWT validates a JWT access token
 func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-		// If KeyStore is configured, use multi-tenant key lookup
 		if m.KeyStore != nil {
-			// Extract client_id from unverified claims to look up the key
+			// Try kid-based lookup first (if kid header present)
+			if kid, ok := token.Header["kid"].(string); ok && kid != "" {
+				rec, err := m.KeyStore.GetKeyByKid(kid)
+				if err == nil {
+					if token.Header["alg"] != rec.Algorithm {
+						return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
+					}
+					// Cross-check: kid's owning client must match the client_id claim
+					// to prevent cross-app token forgery (app A signing with client_id=B).
+					// Skipped when ClientID is empty (e.g., JWKSKeyStore which doesn't
+					// carry client_id metadata).
+					if rec.ClientID != "" {
+						if claims, ok := token.Claims.(jwt.MapClaims); ok {
+							if claimClientID, _ := claims["client_id"].(string); claimClientID != "" && claimClientID != rec.ClientID {
+								return nil, fmt.Errorf("kid owner %q does not match client_id claim %q", rec.ClientID, claimClientID)
+							}
+						}
+					}
+					return utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
+				}
+				// kid not found — fall through to client_id lookup
+			}
+
+			// Fallback: client_id claim lookup (legacy tokens without kid)
 			claims, ok := token.Claims.(jwt.MapClaims)
 			if !ok {
 				return nil, fmt.Errorf("invalid claims")
@@ -959,20 +984,14 @@ func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes [
 				return nil, fmt.Errorf("missing client_id claim")
 			}
 
-			// Validate algorithm matches what we expect for this client
-			expectedAlg, err := m.KeyStore.GetExpectedAlg(clientID)
+			rec, err := m.KeyStore.GetKey(clientID)
 			if err != nil {
 				return nil, fmt.Errorf("unknown client: %w", err)
 			}
-			if token.Header["alg"] != expectedAlg {
-				return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", expectedAlg, token.Header["alg"])
+			if token.Header["alg"] != rec.Algorithm {
+				return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
 			}
-
-			rawKey, err := m.KeyStore.GetVerifyKey(clientID)
-			if err != nil {
-				return nil, err
-			}
-			return utils.DecodeVerifyKey(rawKey, expectedAlg)
+			return utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 		}
 
 		// Fallback: single-key validation (backwards-compatible)

@@ -3,126 +3,212 @@ package oneauth
 import (
 	"fmt"
 	"sync"
+
+	"github.com/panyam/oneauth/utils"
 )
 
 // Common errors for key operations
 var (
-	ErrKeyNotFound      = fmt.Errorf("signing key not found")
+	ErrKeyNotFound       = fmt.Errorf("signing key not found")
 	ErrAlgorithmMismatch = fmt.Errorf("algorithm mismatch")
+	ErrKidNotFound       = fmt.Errorf("key not found for kid")
 )
 
-// KeyStore provides multi-tenant signing key lookup for JWT verification and minting.
-// For HS256 keys, GetVerifyKey and GetSigningKey return []byte (shared secret).
-// For RS256/ES256 (future), GetVerifyKey returns crypto.PublicKey and GetSigningKey returns crypto.PrivateKey.
-type KeyStore interface {
-	// GetVerifyKey returns the key material for verifying a JWT from the given client.
-	GetVerifyKey(clientID string) (any, error)
-
-	// GetSigningKey returns the key material for signing a JWT on behalf of the given client.
-	GetSigningKey(clientID string) (any, error)
-
-	// GetExpectedAlg returns the expected signing algorithm for the given client.
-	// Used to prevent algorithm confusion attacks.
-	GetExpectedAlg(clientID string) (string, error)
+// KeyRecord holds all fields for a stored signing key.
+// All key operations work with this type rather than separate accessor methods.
+type KeyRecord struct {
+	ClientID  string // owning client/app
+	Key       any    // []byte for HMAC, PEM bytes for asymmetric
+	Algorithm string // "HS256", "RS256", "ES256", etc.
+	Kid       string // key identifier, computed from key material
 }
 
-// WritableKeyStore extends KeyStore with write operations for key registration and management.
-// All persistent KeyStore implementations (GORM, FS, GAE) implement this interface.
-// InMemoryKeyStore also implements it for testing.
-type WritableKeyStore interface {
-	KeyStore
+// KeyLookup provides read-only key lookup by clientID or kid.
+// Implemented by all keystores, including read-only ones like JWKSKeyStore.
+type KeyLookup interface {
+	// GetKey returns the key record for the given clientID.
+	// Returns ErrKeyNotFound if the client has no registered key.
+	GetKey(clientID string) (*KeyRecord, error)
 
-	// RegisterKey adds or overwrites a signing key for the given client_id.
-	RegisterKey(clientID string, key any, algorithm string) error
+	// GetKeyByKid returns the key record matching the given kid.
+	// Returns ErrKidNotFound if no key matches or the key has expired.
+	GetKeyByKid(kid string) (*KeyRecord, error)
+}
 
-	// DeleteKey removes the signing key for the given client_id.
+// KeyStorage extends KeyLookup with write operations.
+// Implemented by persistent backends (InMemory, GORM, FS, GAE).
+type KeyStorage interface {
+	KeyLookup
+
+	// PutKey stores a key record. If Kid is empty, it is auto-computed
+	// from the key material and algorithm. Overwrites any existing key
+	// for the same ClientID.
+	PutKey(record *KeyRecord) error
+
+	// DeleteKey removes the key for the given clientID.
 	DeleteKey(clientID string) error
 
-	// ListKeys returns all registered client IDs.
-	ListKeys() ([]string, error)
+	// ListKeyIDs returns all registered client IDs.
+	ListKeyIDs() ([]string, error)
 }
 
-// keyEntry stores key material and metadata for a single client.
+// keyEntry is the internal storage representation for InMemoryKeyStore.
 type keyEntry struct {
-	Key       any    // []byte for HMAC, crypto.PublicKey for asymmetric (future)
-	Algorithm string // "HS256", "HS384", "HS512", "RS256", "ES256"
+	Key       any
+	Algorithm string
+	Kid       string
 }
 
-// InMemoryKeyStore is a thread-safe in-memory KeyStore implementation.
+// InMemoryKeyStore is a thread-safe in-memory KeyStorage implementation.
 // Suitable for testing and simple single-process deployments.
 type InMemoryKeyStore struct {
-	mu   sync.RWMutex
-	keys map[string]*keyEntry
+	mu       sync.RWMutex
+	keys     map[string]*keyEntry
+	kidIndex map[string]string // kid -> clientID
 }
 
 // NewInMemoryKeyStore creates a new empty InMemoryKeyStore.
 func NewInMemoryKeyStore() *InMemoryKeyStore {
 	return &InMemoryKeyStore{
-		keys: make(map[string]*keyEntry),
+		keys:     make(map[string]*keyEntry),
+		kidIndex: make(map[string]string),
 	}
 }
 
-// RegisterKey adds or overwrites a signing key for the given client_id.
-func (s *InMemoryKeyStore) RegisterKey(clientID string, key any, algorithm string) error {
+func computeKid(key any, alg string) string {
+	kid, _ := utils.ComputeKid(key, alg)
+	return kid
+}
+
+// PutKey stores a key record. Computes Kid from key material if not set.
+func (s *InMemoryKeyStore) PutKey(rec *KeyRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.keys[clientID] = &keyEntry{Key: key, Algorithm: algorithm}
+
+	kid := rec.Kid
+	if kid == "" {
+		kid = computeKid(rec.Key, rec.Algorithm)
+	}
+
+	// Remove old kid from index
+	if old, ok := s.keys[rec.ClientID]; ok && old.Kid != "" {
+		delete(s.kidIndex, old.Kid)
+	}
+
+	s.keys[rec.ClientID] = &keyEntry{Key: rec.Key, Algorithm: rec.Algorithm, Kid: kid}
+	if kid != "" {
+		s.kidIndex[kid] = rec.ClientID
+	}
 	return nil
 }
 
-// DeleteKey removes the signing key for the given client_id.
+// DeleteKey removes the key for the given clientID.
 func (s *InMemoryKeyStore) DeleteKey(clientID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.keys[clientID]; !ok {
+	entry, ok := s.keys[clientID]
+	if !ok {
 		return ErrKeyNotFound
+	}
+	if entry.Kid != "" {
+		delete(s.kidIndex, entry.Kid)
 	}
 	delete(s.keys, clientID)
 	return nil
 }
 
-// GetVerifyKey returns the verification key for the given client_id.
-// For HMAC algorithms, this is the same shared secret used for signing.
-func (s *InMemoryKeyStore) GetVerifyKey(clientID string) (any, error) {
+// GetKey returns the key record for the given clientID.
+func (s *InMemoryKeyStore) GetKey(clientID string) (*KeyRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	entry, ok := s.keys[clientID]
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
-	return entry.Key, nil
+	return &KeyRecord{
+		ClientID:  clientID,
+		Key:       entry.Key,
+		Algorithm: entry.Algorithm,
+		Kid:       entry.Kid,
+	}, nil
 }
 
-// GetSigningKey returns the signing key for the given client_id.
-// For HMAC algorithms, this is the same shared secret used for verification.
-func (s *InMemoryKeyStore) GetSigningKey(clientID string) (any, error) {
+// GetKeyByKid returns the key record matching the given kid.
+func (s *InMemoryKeyStore) GetKeyByKid(kid string) (*KeyRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	entry, ok := s.keys[clientID]
+
+	clientID, ok := s.kidIndex[kid]
 	if !ok {
-		return nil, ErrKeyNotFound
+		return nil, ErrKidNotFound
 	}
-	return entry.Key, nil
-}
 
-// GetExpectedAlg returns the expected signing algorithm for the given client_id.
-func (s *InMemoryKeyStore) GetExpectedAlg(clientID string) (string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	entry, ok := s.keys[clientID]
-	if !ok {
-		return "", ErrKeyNotFound
+	if !ok || entry.Kid != kid {
+		return nil, ErrKidNotFound
 	}
-	return entry.Algorithm, nil
+
+	return &KeyRecord{
+		ClientID:  clientID,
+		Key:       entry.Key,
+		Algorithm: entry.Algorithm,
+		Kid:       entry.Kid,
+	}, nil
 }
 
-// ListKeys returns all registered client IDs.
-func (s *InMemoryKeyStore) ListKeys() ([]string, error) {
+// ListKeyIDs returns all registered client IDs.
+func (s *InMemoryKeyStore) ListKeyIDs() ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	keys := make([]string, 0, len(s.keys))
+	ids := make([]string, 0, len(s.keys))
 	for k := range s.keys {
-		keys = append(keys, k)
+		ids = append(ids, k)
 	}
-	return keys, nil
+	return ids, nil
+}
+
+// ============================================================================
+// Backward-compatible aliases (used by existing callers during migration)
+// ============================================================================
+
+// RegisterKey is a convenience method matching the old WritableKeyStore interface.
+func (s *InMemoryKeyStore) RegisterKey(clientID string, key any, algorithm string) error {
+	return s.PutKey(&KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
+}
+
+// GetVerifyKey is a convenience method matching the old KeyStore interface.
+func (s *InMemoryKeyStore) GetVerifyKey(clientID string) (any, error) {
+	rec, err := s.GetKey(clientID)
+	if err != nil {
+		return nil, err
+	}
+	return rec.Key, nil
+}
+
+// GetSigningKey is a convenience method matching the old KeyStore interface.
+func (s *InMemoryKeyStore) GetSigningKey(clientID string) (any, error) {
+	return s.GetVerifyKey(clientID)
+}
+
+// GetExpectedAlg is a convenience method matching the old KeyStore interface.
+func (s *InMemoryKeyStore) GetExpectedAlg(clientID string) (string, error) {
+	rec, err := s.GetKey(clientID)
+	if err != nil {
+		return "", err
+	}
+	return rec.Algorithm, nil
+}
+
+// ListKeys is a convenience alias for ListKeyIDs.
+func (s *InMemoryKeyStore) ListKeys() ([]string, error) {
+	return s.ListKeyIDs()
+}
+
+// GetCurrentKid returns the kid for the given clientID.
+func (s *InMemoryKeyStore) GetCurrentKid(clientID string) (string, error) {
+	rec, err := s.GetKey(clientID)
+	if err != nil {
+		return "", err
+	}
+	return rec.Kid, nil
 }
