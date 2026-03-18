@@ -39,8 +39,12 @@
       <textarea id="token-value" readonly rows="3"
         class="w-full px-2 py-1 border rounded text-xs font-mono bg-gray-50"></textarea>
       <details class="mt-2">
-        <summary class="text-xs text-gray-500 cursor-pointer">Decoded claims</summary>
+        <summary class="text-xs text-gray-500 cursor-pointer">Decoded header &amp; claims</summary>
         <pre id="token-claims" class="mt-1 bg-gray-50 p-2 rounded text-xs"></pre>
+        <p class="mt-1 text-xs text-gray-400">
+          Note the <code class="bg-gray-100 px-1 rounded">kid</code> in the header &mdash; this is a
+          thumbprint of the signing key. The Resource Server uses it to look up which key to verify with.
+        </p>
       </details>
     </div>
   </div>
@@ -50,8 +54,8 @@
   <h2 class="text-lg font-semibold mb-2">Step 2: Validate Against a Resource Server</h2>
   <p class="text-sm text-gray-500 mb-3">
     Send the token to a Resource Server's <code class="bg-gray-100 px-1 rounded text-xs">POST /validate</code> endpoint.
-    The Resource Server looks up the <code class="bg-gray-100 px-1 rounded text-xs">client_id</code> in the shared KeyStore,
-    retrieves the signing key, and verifies the JWT signature.
+    The Resource Server reads the <code class="bg-gray-100 px-1 rounded text-xs">kid</code> from the JWT header,
+    looks up the matching signing key, and verifies the signature.
     It has <strong>never communicated with this app</strong> &mdash; it trusts the shared KeyStore.
   </p>
   <div class="flex gap-2 mb-3">
@@ -86,11 +90,14 @@ async function getResourceToken() {
     document.getElementById('token-value').value = data.token;
     document.getElementById('token-display').classList.remove('hidden');
 
-    // Decode JWT payload (no verification, just display)
+    // Decode JWT header + payload (no verification, just display)
     const parts = data.token.split('.');
     if (parts.length === 3) {
+      const header = JSON.parse(atob(parts[0]));
       const payload = JSON.parse(atob(parts[1]));
-      document.getElementById('token-claims').textContent = JSON.stringify(payload, null, 2);
+      document.getElementById('token-claims').textContent =
+        '// Header\n' + JSON.stringify(header, null, 2) +
+        '\n\n// Payload\n' + JSON.stringify(payload, null, 2);
     }
   } catch(e) {
     alert('Error: ' + e.message);

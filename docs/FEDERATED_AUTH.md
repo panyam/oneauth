@@ -59,7 +59,7 @@ Response (201 Created):
 }
 ```
 
-The `client_secret` is stored in the `WritableKeyStore` and shared with the resource server.
+The `client_secret` is stored in the `KeyStorage` and shared with the resource server.
 
 ### Step 2: App Authenticates Users Locally
 
@@ -129,10 +129,10 @@ mux.Handle("/ws", middleware.ValidateToken(wsHandler))
 
 Validation flow:
 1. Parse token without verifying signature
-2. Extract `client_id` from unverified payload
-3. Call `KeyStore.GetExpectedAlg(clientID)` — reject if algorithm doesn't match
-4. Call `KeyStore.GetVerifyKey(clientID)` — get the signing key
-5. Verify JWT signature with client-specific key
+2. Extract `kid` from JWT header (or fall back to `client_id` from unverified payload)
+3. Call `KeyStore.GetKeyByKid(kid)` or `KeyStore.GetKey(clientID)` — returns `*KeyRecord`
+4. Reject if JWT's `alg` header doesn't match `rec.Algorithm`
+5. Verify JWT signature with `rec.Key`
 6. Store userID, scopes, and custom claims in request context
 
 ## App Registration API
@@ -145,7 +145,7 @@ The `AppRegistrar` provides a complete CRUD API for managing app registrations.
 import oa "github.com/panyam/oneauth"
 
 registrar := &oa.AppRegistrar{
-    KeyStore: keyStore,                          // WritableKeyStore
+    KeyStore: keyStore,                          // KeyStorage
     Auth:     oa.NewAPIKeyAuth("admin-secret"),  // or oa.NewNoAuth() for dev
 }
 
@@ -305,11 +305,11 @@ func mintTokenForUser(w http.ResponseWriter, r *http.Request) {
 
 The resource server validates tokens from multiple apps using a shared `KeyStore`. See [API_AUTH.md](API_AUTH.md#multi-tenant-jwt-validation-keystore) for the full `KeyStore` interface and validation details.
 
-Key security feature: **algorithm confusion prevention**. `KeyStore.GetExpectedAlg()` ensures an app registered with `HS256` can't send a token with `alg: none` or `alg: RS256`.
+Key security feature: **algorithm confusion prevention**. The `KeyRecord.Algorithm` field ensures an app registered with `HS256` can't send a token with `alg: none` or `alg: RS256`.
 
 ## KeyStore Implementations
 
-All persistent implementations satisfy both `KeyStore` and `WritableKeyStore`. A shared test suite in `keystoretest/` ensures consistent behavior.
+All persistent implementations satisfy `KeyStorage` (which embeds `KeyLookup`). Each stores `KeyRecord` values containing the client ID, key material, and algorithm. A shared test suite in `keystoretest/` ensures consistent behavior.
 
 | Implementation | Location | Use Case |
 |----------------|----------|----------|
@@ -317,6 +317,8 @@ All persistent implementations satisfy both `KeyStore` and `WritableKeyStore`. A
 | `FSKeyStore` | `stores/fs/` | Single-node deployments |
 | `GORMKeyStore` | `stores/gorm/` | Production (PostgreSQL, MySQL) |
 | `GAEKeyStore` | `stores/gae/` | Google Cloud / serverless |
+
+All minted JWTs include a `kid` header (RFC 7638 thumbprint), enabling `GetKeyByKid()` lookups without parsing unverified claims.
 
 For store setup details, see [STORES.md](STORES.md#keystore--writablekeystore).
 
@@ -410,9 +412,9 @@ mux.Handle("/ws", middleware.ValidateToken(func(w http.ResponseWriter, r *http.R
 1. **Admin key protection**: Store the admin API key in a secrets manager (e.g., GCP Secret Manager). Use `APIKeyAuth` in production, never `NoAuth`.
 2. **Secret rotation**: Use `POST /apps/{client_id}/rotate` to rotate compromised secrets. Old tokens become invalid immediately.
 3. **Token lifetime**: Resource tokens expire after 15 minutes. Apps should mint fresh tokens for each connection.
-4. **Algorithm confusion**: `GetExpectedAlg()` prevents attacks where a token's `alg` header is manipulated.
+4. **Algorithm confusion**: `KeyRecord.Algorithm` prevents attacks where a token's `alg` header is manipulated.
 5. **Constant-time comparison**: `APIKeyAuth` uses `crypto/subtle.ConstantTimeCompare` to prevent timing attacks on the admin key.
-6. **Encryption at rest**: HS256 client secrets can be encrypted at rest using `EncryptedKeyStore` with AES-256-GCM. Set `ONEAUTH_MASTER_KEY` (64 hex chars) on all services sharing the same KeyStore DB. See [JWT_SIGNING.md](JWT_SIGNING.md#encryption-at-rest-encryptedkeystore) for details.
+6. **Encryption at rest**: HS256 client secrets can be encrypted at rest using `EncryptedKeyStorage` with AES-256-GCM. Set `ONEAUTH_MASTER_KEY` (64 hex chars) on all services sharing the same KeyStore DB. See [JWT_SIGNING.md](JWT_SIGNING.md#encryption-at-rest-encryptedkeystorage) for details.
 
 ## Asymmetric Signing (RS256/ES256)
 
@@ -494,7 +496,7 @@ middleware := &oa.APIMiddleware{
 }
 ```
 
-`JWKSKeyStore` implements `KeyStore` (read-only) with:
+`JWKSKeyStore` implements `KeyLookup` (read-only) with:
 - **Background refresh**: Keys are re-fetched every hour (configurable via `WithRefreshInterval`)
 - **Cache-miss refresh**: Unknown `client_id` triggers an immediate refresh attempt
 - **Resilience**: If the JWKS endpoint is down, cached keys continue to work
@@ -515,5 +517,5 @@ JWKS_URL=http://localhost:9999/.well-known/jwks.json ./demo-resource-server
 ### Limitations
 
 - **HS256 apps are not discoverable via JWKS** — symmetric secrets cannot be safely exposed over HTTP. HS256 apps still require shared database access.
-- **JWKS is read-only** — `JWKSKeyStore` does not implement `WritableKeyStore`. It cannot register or delete keys.
+- **JWKS is read-only** — `JWKSKeyStore` implements `KeyLookup` only, not `KeyStorage`. It cannot register or delete keys.
 - **Propagation delay** — newly registered asymmetric apps may take up to the refresh interval to appear in resource servers. Cache-miss refresh reduces this for initial lookups.

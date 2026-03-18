@@ -33,7 +33,7 @@
     (APIs, WebSockets, files, etc.) by validating JWTs.
     It reads signing keys from a shared PostgreSQL <code class="bg-emerald-100 px-1 rounded">signing_keys</code> table.
     It has <strong>no direct connection</strong> to any app &mdash;
-    it trusts tokens purely because it can verify their signatures against the KeyStore.
+    it trusts tokens purely because it can verify their signatures using the <code class="bg-emerald-100 px-1 rounded">kid</code> header to find the right key.
   </p>
   <p class="mt-2">
     In production, this could be an API gateway, a WebSocket server,
@@ -92,8 +92,9 @@
 
 <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6 text-sm text-emerald-900">
   <p>
-    Paste any JWT below. The Resource Server will extract the <code class="bg-emerald-100 px-1 rounded">client_id</code> claim,
-    look up the signing key in the shared KeyStore, and verify the signature.
+    Paste any JWT below. The Resource Server will read the <code class="bg-emerald-100 px-1 rounded">kid</code> header
+    to find the signing key, then verify the signature. If no <code>kid</code> is present,
+    it falls back to the <code class="bg-emerald-100 px-1 rounded">client_id</code> claim.
     Try tokens from different apps &mdash; or tamper with a token to see it get rejected.
   </p>
 </div>

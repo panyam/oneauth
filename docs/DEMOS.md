@@ -35,10 +35,10 @@ PostgreSQL (shared signing_keys table)
 |----------|---------------|
 | App auto-registration on startup | App calls `POST /apps/register`, gets `client_id` + `client_secret`, persists to disk |
 | Independent user databases | DrawApp and ChatApp each have their own FS-backed user store — users don't overlap |
-| Resource token minting | Authenticated app user clicks "Get Resource Token" → `MintResourceToken()` signs JWT with `client_secret` |
-| Token validation by resource server | JWT POSTed to resource server's `/validate` → server looks up `client_id` in shared KeyStore, verifies HMAC |
+| Resource token minting | Authenticated app user clicks "Get Resource Token" → `MintResourceToken()` signs JWT with `client_secret`, includes `kid` header (RFC 7638 thumbprint) |
+| Token validation by resource server | JWT POSTed to resource server's `/validate` → server reads `kid` from header, looks up signing key, verifies HMAC. Falls back to `client_id` claim for legacy tokens |
 | Cross-resource-server validation | Token from DrawApp validates on both Resource-Server-A and Resource-Server-B (they share the same KeyStore) |
-| Cross-app isolation | Token signed with DrawApp's secret but claiming ChatApp's `client_id` is rejected (signature mismatch) |
+| Cross-app isolation | Token signed with DrawApp's secret but claiming ChatApp's `client_id` is rejected (`kid` owner doesn't match `client_id` claim) |
 | Token introspection | Resource server returns `user_id`, `client_id`, `scopes`, `max_rooms`, `max_msg_rate` from JWT custom claims |
 | WebSocket-style auth | `GET /ws?token=...` validates token via query param (simulates WebSocket upgrade) |
 
