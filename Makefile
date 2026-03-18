@@ -156,7 +156,15 @@ gaelogs:
 integ:
 	$(MAKE) -C tests/integration all
 
+# =============================================================================
+# Documentation
+# =============================================================================
+docs:
+	@echo "Starting local pkgsite at http://localhost:6060 ..."
+	@echo "(Install with: go install golang.org/x/pkgsite/cmd/pkgsite@latest)"
+	pkgsite -http=localhost:6060
+
 setup-hooks:
 	git config core.hooksPath .githooks
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ setup-hooks
+.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-hooks
