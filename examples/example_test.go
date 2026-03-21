@@ -6,6 +6,8 @@ package examples_test
 
 import (
 	"bytes"
+	"crypto/rsa"
+	cryptorand "crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -440,4 +442,83 @@ func ExampleJWKSHandler_multiAlgorithm() {
 	// jwks_keys: 1
 	// rs256_via_jwks: 200
 	// hs256_via_jwks: 401
+}
+
+// ExampleAPIMiddleware_algorithmConfusionPrevention demonstrates the classic
+// JWT algorithm confusion attack (CVE-2015-9235) and how OneAuth prevents it.
+//
+// The attack: An RS256 app registers a public key. The attacker knows this
+// public key (it's public, served via JWKS). The attacker crafts a JWT with
+// alg:HS256 and signs it using the RSA public key bytes as the HMAC secret.
+// A naive server would read alg:HS256 from the header, grab the stored key
+// bytes, and verify the HMAC — which passes because the attacker used those
+// same bytes to sign.
+//
+// OneAuth's defense: The middleware checks that the token's alg header matches
+// the KeyRecord.Algorithm stored for that client. Since the store says "RS256"
+// but the token says "HS256", the mismatch is caught before any signature
+// verification happens.
+//
+//	Normal flow (safe):
+//	  App signs JWT with RSA private key → alg: RS256
+//	  Middleware: token alg "RS256" == stored alg "RS256" → verify RSA sig ✓
+//
+//	Attack flow (blocked):
+//	  Attacker signs JWT with RSA public key as HMAC → alg: HS256
+//	  Middleware: token alg "HS256" != stored alg "RS256" → REJECT ✗
+func ExampleAPIMiddleware_algorithmConfusionPrevention() {
+	// Setup: RS256 app with public key in KeyStore
+	privKey, _ := rsa.GenerateKey(cryptorand.Reader, 2048)
+	pubPEM, _ := utils.EncodePublicKeyPEM(&privKey.PublicKey)
+
+	ks := keys.NewInMemoryKeyStore()
+	ks.RegisterKey("app-rsa", pubPEM, "RS256")
+
+	middleware := &apiauth.APIMiddleware{KeyStore: ks}
+	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	checkToken := func(label, token string) {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/resource", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		handler.ServeHTTP(rr, req)
+		fmt.Printf("%s: %d\n", label, rr.Code)
+	}
+
+	// 1. Legitimate RS256 token — signed with the private key
+	legit := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"sub": "alice", "client_id": "app-rsa", "type": "access",
+		"scopes": []string{"read"}, "exp": time.Now().Add(time.Hour).Unix(),
+		"iat": time.Now().Unix(),
+	})
+	if kid, err := utils.ComputeKid(&privKey.PublicKey, "RS256"); err == nil {
+		legit.Header["kid"] = kid
+	}
+	legitToken, _ := legit.SignedString(privKey)
+	checkToken("legitimate_rs256", legitToken)
+
+	// 2. Algorithm confusion attack — signed with public key bytes as HMAC secret
+	attack := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": "attacker", "client_id": "app-rsa", "type": "access",
+		"scopes": []string{"admin"}, "exp": time.Now().Add(time.Hour).Unix(),
+		"iat": time.Now().Unix(),
+	})
+	attackToken, _ := attack.SignedString(pubPEM) // using public key as HMAC secret!
+	checkToken("alg_confusion_attack", attackToken)
+
+	// 3. alg:none attack — no signature at all
+	none := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{
+		"sub": "attacker", "client_id": "app-rsa", "type": "access",
+		"scopes": []string{"admin"}, "exp": time.Now().Add(time.Hour).Unix(),
+		"iat": time.Now().Unix(),
+	})
+	noneToken, _ := none.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	checkToken("alg_none_attack", noneToken)
+
+	// Output:
+	// legitimate_rs256: 200
+	// alg_confusion_attack: 401
+	// alg_none_attack: 401
 }
