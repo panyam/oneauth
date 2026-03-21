@@ -19,7 +19,16 @@
 
 ---
 
-## Completed (Subpackage Reorganization)
+## Completed (Security Hardening + Reorganization)
+
+### JWKS Security (#26) + JWT Security Tests (#16)
+- [x] `key_ops: ["verify"]` on all JWK entries (RFC 7517 §4.3)
+- [x] 5 safety-proof tests proving JWK struct cannot leak private key fields
+- [x] 13 security tests in `apiauth/security_test.go`: algorithm confusion (CVE-2015-9235, alg:none), claim validation (expired, wrong type/issuer/sub), edge cases
+- [x] `ExampleAPIMiddleware_algorithmConfusionPrevention` — runnable attack scenario documentation
+- [x] `ExampleJWKSHandler_securityProperties` — runnable JWKS safety proof
+- [x] Closed #4 (asymmetric signing), #7 (JWKS), #16 (JWT security tests), #21 (CSRF), #26 (JWKS security)
+- [x] Deprioritized #22 (FS permissions) to P2 — FS stores are dev/test only
 
 ### Root .go Files → Subpackages
 - [x] Created `core/` — foundation types, interfaces (User, Identity, Channel, stores, tokens, credentials, scopes, email, context)
