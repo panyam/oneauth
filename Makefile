@@ -183,4 +183,58 @@ setup-hooks:
 
 setup: setup-tools setup-hooks
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup
+# =============================================================================
+# Multi-module management
+# =============================================================================
+SUBMODULES := stores/gorm stores/gae saml grpc oauth2 cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
+
+BUILD_DIR := build
+LIBS := stores/gorm stores/gae saml grpc oauth2
+CMDS := cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
+SUBMODULES := $(LIBS) $(CMDS)
+
+# Build all modules. Command binaries go to build/
+ball:
+	@mkdir -p $(BUILD_DIR)
+	go build -buildvcs=false ./...
+	@for mod in $(LIBS); do \
+		(cd $$mod && go build -buildvcs=false ./...) || exit 1; \
+	done
+	@for mod in $(CMDS); do \
+		(cd $$mod && go build -buildvcs=false -o ../../$(BUILD_DIR)/ ./...) || exit 1; \
+	done
+
+# Test all modules (root + sub-modules)
+tall:
+	go test -buildvcs=false -count=1 -short ./...
+	@for mod in $(SUBMODULES); do \
+		(cd $$mod && go test -buildvcs=false -count=1 -short ./... 2>&1) || exit 1; \
+	done
+
+# Tidy all modules
+tidy:
+	go mod tidy
+	@for mod in $(SUBMODULES); do (cd $$mod && go mod tidy) || exit 1; done
+
+# Dep count for core module
+deps:
+	@echo "Direct: $$(grep -c '^\t' go.mod) | Transitive: $$(go list -m all 2>/dev/null | wc -l | tr -d ' ')"
+
+# Remove replace directives (before publishing)
+norep:
+	@for mod in $(SUBMODULES); do \
+		[ -f "$$mod/go.mod" ] && sed -i '' '/^replace github.com\/panyam\/oneauth/d' "$$mod/go.mod"; \
+	done
+	@echo "Replace directives removed. Restore with: make rep"
+
+# Restore replace directives (after publishing)
+rep:
+	@for mod in stores/gorm stores/gae cmd/oneauth-server cmd/demo-resource-server; do \
+		echo "replace github.com/panyam/oneauth => ../.." >> "$$mod/go.mod"; \
+	done
+	@echo "replace github.com/panyam/oneauth/stores/gorm => ../../stores/gorm" >> cmd/oneauth-server/go.mod
+	@echo "replace github.com/panyam/oneauth/stores/gae => ../../stores/gae" >> cmd/oneauth-server/go.mod
+	@echo "replace github.com/panyam/oneauth/stores/gorm => ../../stores/gorm" >> cmd/demo-resource-server/go.mod
+	@echo "Replace directives restored. Run 'make tidy' to verify."
+
+.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep

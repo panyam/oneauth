@@ -1,0 +1,13 @@
+go 1.24.0
+
+use (
+	.
+	./stores/gorm
+	./stores/gae
+	./saml
+	./grpc
+	./oauth2
+	./cmd/oneauth-server
+	./cmd/demo-hostapp
+	./cmd/demo-resource-server
+)
