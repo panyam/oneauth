@@ -19,6 +19,17 @@
 
 ---
 
+## Completed (FS Path Traversal Fix — #17)
+
+### Storage Backend Security
+- [x] `safeName()` sanitizer in `stores/fs/utils.go` — rejects `..`, null bytes, absolute paths; replaces `/`, `\`, `:`
+- [x] Applied to 6 vulnerable stores (user, key, channel, token, apikey, username)
+- [x] Directory permissions: `0755` → `0700`; file permissions: umask → `0600`
+- [x] 50+ security tests in `stores/fs/security_test.go`
+- [x] Already-safe stores documented (identity: `filepath.Base`, refresh token: SHA256 hash)
+
+---
+
 ## Completed (Sub-Module Split — #43)
 
 ### Heavy Backends → Separate go.mod
