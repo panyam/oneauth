@@ -13,7 +13,7 @@ import (
 type HandleUserFunc func(authtype string, provider string, token *oauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request)
 
 func generateStateOauthCookie(w http.ResponseWriter) string {
-	var expiration = time.Now().Add(30 * 24 * time.Hour)
+	var expiration = time.Now().Add(10 * time.Minute)
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		log.Println("Error generating rand: ", err)

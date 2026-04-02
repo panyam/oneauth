@@ -265,26 +265,30 @@ func TestSecurity_NilKey_MintResourceToken(t *testing.T) {
 	assert.Error(t, err, "nil signing key must return error")
 }
 
-// TestSecurity_SigningMethodForAlg_UnknownAlgorithm documents that
-// SigningMethodForAlg falls back to HS256 for unknown algorithms.
-// This is a known behavior, not a vulnerability, because the KeyStore's
-// Algorithm field prevents algorithm confusion at validation time.
+// TestSecurity_SigningMethodForAlg_UnknownAlgorithm verifies that
+// SigningMethodForAlg returns an error for unrecognized algorithms instead
+// of silently defaulting to HS256 (which could mask misconfiguration).
+// Empty string still defaults to HS256 for backward compatibility.
 func TestSecurity_SigningMethodForAlg_UnknownAlgorithm(t *testing.T) {
 	// Empty string defaults to HS256
-	method := utils.SigningMethodForAlg("")
+	method, err := utils.SigningMethodForAlg("")
+	assert.NoError(t, err)
 	assert.Equal(t, jwt.SigningMethodHS256, method,
 		"empty alg should default to HS256 (used when JWTSigningAlg not configured)")
 
-	// Unknown string also defaults to HS256
-	method = utils.SigningMethodForAlg("garbage")
-	assert.Equal(t, jwt.SigningMethodHS256, method,
-		"unknown alg defaults to HS256 — safe because KeyStore.Algorithm prevents confusion at validation")
+	// Unknown string returns error (not silent HS256 fallback)
+	_, err = utils.SigningMethodForAlg("garbage")
+	assert.Error(t, err, "unknown alg should return error, not silent default")
+
+	_, err = utils.SigningMethodForAlg("RS257")
+	assert.Error(t, err, "typo 'RS257' should return error, not silent default")
 
 	// Known algorithms map correctly
-	assert.Equal(t, jwt.SigningMethodRS256, utils.SigningMethodForAlg("RS256"))
-	assert.Equal(t, jwt.SigningMethodES256, utils.SigningMethodForAlg("ES256"))
-	assert.Equal(t, jwt.SigningMethodHS384, utils.SigningMethodForAlg("HS384"))
-	assert.Equal(t, jwt.SigningMethodHS512, utils.SigningMethodForAlg("HS512"))
+	for _, alg := range []string{"RS256", "ES256", "HS256", "HS384", "HS512"} {
+		m, err := utils.SigningMethodForAlg(alg)
+		assert.NoError(t, err, "SigningMethodForAlg(%q) should not error", alg)
+		assert.Equal(t, alg, m.Alg())
+	}
 }
 
 // TestSecurity_NoKidHeader_FallsBackToClientID proves that tokens without

@@ -365,7 +365,10 @@ func (a *APIAuth) CreateAccessToken(userID string, scopes []string) (string, int
 		}
 	}
 
-	signingMethod := utils.SigningMethodForAlg(a.JWTSigningAlg)
+	signingMethod, err := utils.SigningMethodForAlg(a.JWTSigningAlg)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid signing algorithm: %w", err)
+	}
 
 	// Determine the signing key: asymmetric key takes precedence over JWTSecretKey
 	var signingKey any

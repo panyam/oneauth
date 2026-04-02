@@ -205,7 +205,11 @@ func TestSigningMethodForAlg(t *testing.T) {
 		"":      "HS256", // default
 	}
 	for input, expected := range tests {
-		m := utils.SigningMethodForAlg(input)
+		m, err := utils.SigningMethodForAlg(input)
+		if err != nil {
+			t.Errorf("SigningMethodForAlg(%q) returned error: %v", input, err)
+			continue
+		}
 		if m.Alg() != expected {
 			t.Errorf("SigningMethodForAlg(%q) = %s, want %s", input, m.Alg(), expected)
 		}
