@@ -10,6 +10,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// dummyBcryptHash is used for timing oracle prevention (CWE-208).
+// When a user is not found, we still run bcrypt against this dummy hash
+// so the response time matches that of a real user lookup.
+// This is a valid bcrypt hash of "dummy" — the actual value doesn't matter,
+// only that bcrypt.CompareHashAndPassword runs in constant time.
+var dummyBcryptHash, _ = bcrypt.GenerateFromPassword([]byte("oneauth-timing-dummy"), bcrypt.DefaultCost)
+
 // NewCreateUserFunc creates a CreateUserFunc from stores
 func NewCreateUserFunc(userStore core.UserStore, identityStore core.IdentityStore, channelStore core.ChannelStore) core.CreateUserFunc {
 	return func(creds *core.Credentials) (core.User, error) {
@@ -104,12 +111,18 @@ func NewCredentialsValidator(identityStore core.IdentityStore, channelStore core
 		// Get local channel for this identity
 		channel, _, err := channelStore.GetChannel("local", identityKey, false)
 		if err != nil {
-			return nil, fmt.Errorf("user not found")
+			// Timing oracle fix (CWE-208): run bcrypt against a dummy hash
+			// so response time is constant regardless of whether the user exists.
+			// Without this, non-existent users return instantly (~1ms) while
+			// existing users take ~50ms (bcrypt), allowing username enumeration.
+			bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
+			return nil, fmt.Errorf("invalid credentials")
 		}
 
 		// Verify password
 		passwordHash, ok := channel.Credentials["password_hash"].(string)
 		if !ok {
+			bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
 			return nil, fmt.Errorf("invalid credentials")
 		}
 

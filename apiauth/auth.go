@@ -50,12 +50,7 @@ type APIAuth struct {
 	CustomClaimsFunc func(userID string, scopes []string) (map[string]any, error)
 
 	// Rate limiting (optional)
-	RateLimiter RateLimiter
-}
-
-// RateLimiter interface for rate limiting login attempts
-type RateLimiter interface {
-	Allow(key string) bool
+	RateLimiter core.RateLimiter
 }
 
 // ServeHTTP handles the /api/login endpoint

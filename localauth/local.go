@@ -81,6 +81,32 @@ type LocalAuth struct {
 	// and POST redirects here with ?success=true on success or ?error=... on failure.
 	// If empty, GET renders a basic HTML form and POST returns JSON.
 	ResetPasswordURL string
+
+	// RateLimiter limits login attempts per key (IP:username). Optional.
+	// When set, rate-limited requests receive 429 Too Many Requests.
+	RateLimiter core.RateLimiter
+
+	// Lockout locks accounts after consecutive failed login attempts. Optional.
+	// When set, locked accounts receive 429 Too Many Requests until the lockout expires.
+	Lockout *core.AccountLockout
+}
+
+// getClientIP extracts the client IP from the request for rate limiting.
+func getClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+	ip := r.RemoteAddr
+	if idx := strings.LastIndex(ip, ":"); idx != -1 {
+		ip = ip[:idx]
+	}
+	return ip
 }
 
 // ServeHTTP handles login requests
@@ -98,6 +124,23 @@ func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Rate limiting check (before credential validation to prevent timing bypass)
+	if a.RateLimiter != nil {
+		key := getClientIP(r) + ":" + username
+		if !a.RateLimiter.Allow(key) {
+			w.Header().Set("Retry-After", "60")
+			http.Error(w, `{"error":"too many login attempts","code":"rate_limited"}`, http.StatusTooManyRequests)
+			return
+		}
+	}
+
+	// Account lockout check
+	if a.Lockout != nil && a.Lockout.IsLocked(username) {
+		w.Header().Set("Retry-After", "60")
+		http.Error(w, `{"error":"account temporarily locked","code":"account_locked"}`, http.StatusTooManyRequests)
+		return
+	}
+
 	// Detect username type (email, phone, or username) if not specified
 	usernameType := core.DetectUsernameType(username)
 
@@ -107,9 +150,18 @@ func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println("error validating user: ", err)
 		}
+		// Record failure for account lockout
+		if a.Lockout != nil {
+			a.Lockout.RecordFailure(username)
+		}
 		authErr := core.NewAuthError(core.ErrCodeInvalidCreds, "Invalid credentials", "password")
 		a.handleLoginError(authErr, w, r)
 		return
+	}
+
+	// Successful login — reset lockout counter
+	if a.Lockout != nil {
+		a.Lockout.RecordSuccess(username)
 	}
 
 	// Create user info for HandleUser callback
