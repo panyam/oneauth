@@ -239,6 +239,49 @@ class TestTokenSecurity:
 
 
 # =============================================================================
+# Token Blacklist (jti-based revocation)
+# =============================================================================
+
+class TestTokenBlacklist:
+    """Verify that access tokens can be immediately revoked via the blacklist.
+
+    See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.7
+    See: https://cwe.mitre.org/data/definitions/613.html
+    """
+
+    def test_revoked_token_rejected(self, server_url, test_user):
+        """After calling POST /api/revoke, the access token should be rejected
+        by protected endpoints. This is the core "sign out" flow.
+
+        See: https://cwe.mitre.org/data/definitions/613.html
+        """
+        # Login
+        r = requests.post(f"{server_url}/api/token", json={
+            "grant_type": "password",
+            "username": test_user["email"],
+            "password": test_user["password"],
+        })
+        assert r.status_code == 200
+        token = r.json()["access_token"]
+
+        # Token works before revocation
+        r = requests.get(f"{server_url}/api/me",
+            headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 200, "token should work before revocation"
+
+        # Revoke the token
+        r = requests.post(f"{server_url}/api/revoke",
+            headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 204, f"revoke should return 204, got {r.status_code}"
+
+        # Token should now be rejected
+        r = requests.get(f"{server_url}/api/me",
+            headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 401, \
+            f"revoked token should return 401, got {r.status_code}"
+
+
+# =============================================================================
 # App Lifecycle Security
 # =============================================================================
 

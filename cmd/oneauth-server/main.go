@@ -106,12 +106,16 @@ func main() {
 		},
 	}
 
+	// Token blacklist for immediate access token revocation
+	blacklist := core.NewInMemoryBlacklist()
+
 	// Build APIAuth (for API token endpoint)
 	apiAuth := &apiauth.APIAuth{
 		RefreshTokenStore:   stores.refreshTokenStore,
 		JWTSecretKey:        cfg.JWT.SecretKey,
 		JWTIssuer:           cfg.JWT.Issuer,
 		ValidateCredentials: localAuth.ValidateCredentials,
+		Blacklist:           blacklist,
 	}
 
 	// CSRF middleware for browser form endpoints
@@ -205,6 +209,7 @@ func main() {
 	apiMiddleware := &apiauth.APIMiddleware{
 		JWTSecretKey: cfg.JWT.SecretKey,
 		JWTIssuer:    cfg.JWT.Issuer,
+		Blacklist:    blacklist,
 	}
 	mux.Handle("GET /api/me", apiMiddleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID := apiauth.GetUserIDFromAPIContext(r.Context())
@@ -217,6 +222,30 @@ func main() {
 	})))
 	mux.Handle("GET /api/sessions", apiMiddleware.ValidateToken(http.HandlerFunc(apiAuth.HandleListSessions)))
 	mux.Handle("POST /api/logout-all", apiMiddleware.ValidateToken(http.HandlerFunc(apiAuth.HandleLogoutAll)))
+
+	// Token revocation endpoint — revokes the caller's access token via blacklist
+	mux.Handle("POST /api/revoke", apiMiddleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract jti from the validated token (already in context after middleware)
+		auth := r.Header.Get("Authorization")
+		if len(auth) > 7 {
+			tokenStr := auth[7:] // strip "Bearer "
+			parser := jwt.NewParser()
+			parsed, _, _ := parser.ParseUnverified(tokenStr, jwt.MapClaims{})
+			if parsed != nil {
+				if claims, ok := parsed.Claims.(jwt.MapClaims); ok {
+					if jti, ok := claims["jti"].(string); ok && jti != "" {
+						exp, _ := claims.GetExpirationTime()
+						if exp != nil {
+							blacklist.Revoke(jti, exp.Time)
+						} else {
+							blacklist.Revoke(jti, time.Now().Add(core.TokenExpiryAccessToken))
+						}
+					}
+				}
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})))
 
 	// App registration API (wrapped with body size limit)
 	mux.Handle("/apps/", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
