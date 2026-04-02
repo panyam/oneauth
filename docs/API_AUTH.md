@@ -14,7 +14,8 @@ OneAuth uses a hybrid token architecture:
 
 ```go
 import (
-    "github.com/panyam/oneauth"
+    "github.com/panyam/oneauth/apiauth"
+    "github.com/panyam/oneauth/core"
     "github.com/panyam/oneauth/stores/fs"
 )
 
@@ -24,7 +25,7 @@ refreshTokenStore := fs.NewFSRefreshTokenStore(storagePath)
 apiKeyStore := fs.NewFSAPIKeyStore(storagePath)
 
 // Configure API authentication
-apiAuth := &oneauth.APIAuth{
+apiAuth := &apiauth.APIAuth{
     ValidateCredentials: validateCreds, // From NewCredentialsValidator
     RefreshTokenStore:   refreshTokenStore,
     APIKeyStore:         apiKeyStore,
@@ -108,7 +109,7 @@ Revokes all refresh tokens for the authenticated user.
 Protect API endpoints with the `APIMiddleware`:
 
 ```go
-middleware := &oneauth.APIMiddleware{
+middleware := &apiauth.APIMiddleware{
     JWTSecretKey:    apiAuth.JWTSecretKey,
     JWTIssuer:       apiAuth.JWTIssuer,
     JWTAudience:     apiAuth.JWTAudience,
@@ -144,12 +145,12 @@ mux.Handle("/api/public", middleware.Optional(handler))
 
 ```go
 func protectedHandler(w http.ResponseWriter, r *http.Request) {
-    userID := oneauth.GetUserIDFromAPIContext(r.Context())
-    scopes := oneauth.GetScopesFromAPIContext(r.Context())
-    authType := oneauth.GetAuthTypeFromAPIContext(r.Context()) // "jwt" or "api_key"
+    userID := apiauth.GetUserIDFromAPIContext(r.Context())
+    scopes := apiauth.GetScopesFromAPIContext(r.Context())
+    authType := apiauth.GetAuthTypeFromAPIContext(r.Context()) // "jwt" or "api_key"
 
     // Extract custom (non-standard) claims injected via CustomClaimsFunc
-    custom := oneauth.GetCustomClaimsFromContext(r.Context())
+    custom := apiauth.GetCustomClaimsFromContext(r.Context())
     if custom != nil {
         tenantID := custom["tenant_id"].(string)
     }
@@ -208,7 +209,7 @@ The middleware automatically detects API keys (by prefix) vs JWTs.
 
 ## Scopes
 
-OneAuth provides built-in scopes:
+OneAuth provides built-in scopes (in `core`):
 
 ```go
 const (
@@ -222,7 +223,7 @@ const (
 Use `ValidateScopes` to check if requested scopes are allowed:
 
 ```go
-granted := oneauth.ValidateScopes(requested, allowed)
+granted := core.ValidateScopes(requested, allowed)
 ```
 
 ## Token Rotation and Theft Detection
@@ -235,7 +236,7 @@ newToken, err := refreshTokenStore.RotateRefreshToken(token, expiry)
 
 // Second use of same token: ErrTokenReused
 newToken, err := refreshTokenStore.RotateRefreshToken(token, expiry)
-// err == oneauth.ErrTokenReused
+// err == core.ErrTokenReused
 // Entire family revoked automatically
 ```
 
@@ -244,7 +245,7 @@ newToken, err := refreshTokenStore.RotateRefreshToken(token, expiry)
 Inject application-specific claims into JWTs using `CustomClaimsFunc`. This is useful for embedding metadata like tenant IDs, quotas, or client identifiers:
 
 ```go
-apiAuth := &oneauth.APIAuth{
+apiAuth := &apiauth.APIAuth{
     JWTSecretKey: os.Getenv("JWT_SECRET"),
     JWTIssuer:    "yourapp.com",
     CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
@@ -305,12 +306,12 @@ For the full `KeyLookup` and `KeyStorage` interface details and persistent imple
 
 ```go
 // 1. Create a KeyStore and register client keys
-keyStore := oneauth.NewInMemoryKeyStore()
-keyStore.PutKey(&oneauth.KeyRecord{ClientID: "app-alpha", Key: []byte("alpha-secret-key"), Algorithm: "HS256"})
-keyStore.PutKey(&oneauth.KeyRecord{ClientID: "app-beta",  Key: []byte("beta-secret-key"),  Algorithm: "HS256"})
+keyStore := keys.NewInMemoryKeyStore()
+keyStore.PutKey(&keys.KeyRecord{ClientID: "app-alpha", Key: []byte("alpha-secret-key"), Algorithm: "HS256"})
+keyStore.PutKey(&keys.KeyRecord{ClientID: "app-beta",  Key: []byte("beta-secret-key"),  Algorithm: "HS256"})
 
 // 2. Configure middleware with KeyStore (replaces JWTSecretKey)
-middleware := &oneauth.APIMiddleware{
+middleware := &apiauth.APIMiddleware{
     KeyStore:    keyStore,
     JWTIssuer:   "resource.example.com", // optional: still validates issuer
     APIKeyStore: apiKeyStore,            // optional: API keys still work
@@ -337,7 +338,7 @@ If `KeyStore` is nil, the middleware falls back to single `JWTSecretKey` behavio
 On the app/client side, use `CustomClaimsFunc` to embed the `client_id`:
 
 ```go
-hostAuth := &oneauth.APIAuth{
+hostAuth := &apiauth.APIAuth{
     JWTSecretKey: hostSharedSecret,
     JWTIssuer:    "resource.example.com",
     CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
@@ -375,6 +376,24 @@ For federated systems where external apps register and receive credentials for m
 
 For the full registration flow and architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Recent Changes
+
+### RateLimiter interface moved to core
+
+The `RateLimiter` interface previously in `apiauth` has moved to `core` so it can be shared with `localauth`. The interface is unchanged — update imports from `apiauth.RateLimiter` to `core.RateLimiter`. `core.InMemoryRateLimiter` is available for both API and browser auth.
+
+### Audience validation in ValidateAccessToken
+
+`ValidateAccessToken` now checks the `aud` (audience) claim when `JWTAudience` is configured on `APIAuth` or `APIMiddleware`. Previously the audience was set when minting but not validated on verification. Tokens minted without an `aud` claim are still accepted when `JWTAudience` is empty.
+
+### SigningMethodForAlg returns error
+
+`SigningMethodForAlg` now returns `(jwt.SigningMethod, error)` instead of just `jwt.SigningMethod`. Unknown or unsupported algorithm strings return an error rather than silently falling back. Callers must handle the error.
+
+### TokenPair moved to core
+
+`TokenPair` has moved from `apiauth` to `core`. Update imports: `apiauth.TokenPair` becomes `core.TokenPair`.
+
 ## Security Considerations
 
 1. **JWT Secret**: Use a strong, random secret (32+ bytes). Store in environment variables.
@@ -382,3 +401,4 @@ For the full registration flow and architecture, see [ARCHITECTURE.md](ARCHITECT
 3. **Token Expiry**: Keep access tokens short-lived (15 min). Use refresh tokens for longer sessions.
 4. **API Key Storage**: Store API keys securely. They cannot be recovered if lost.
 5. **Scope Validation**: Always validate scopes in your handlers for defense-in-depth.
+6. **Audience Validation**: Set `JWTAudience` to prevent tokens minted for other services from being accepted.

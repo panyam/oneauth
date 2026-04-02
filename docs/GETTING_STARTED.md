@@ -14,7 +14,8 @@ OneAuth requires stores for users, identities, channels, and tokens. The library
 
 ```go
 import (
-    "github.com/panyam/oneauth"
+    "github.com/panyam/oneauth/core"
+    "github.com/panyam/oneauth/localauth"
     "github.com/panyam/oneauth/stores/fs"
 )
 
@@ -35,17 +36,17 @@ For production store options (GORM, GAE), see [STORES.md](STORES.md).
 
 ```go
 // Create authentication callbacks using helper functions
-createUser := oneauth.NewCreateUserFunc(userStore, identityStore, channelStore)
-validateCreds := oneauth.NewCredentialsValidator(identityStore, channelStore, userStore)
-verifyEmail := oneauth.NewVerifyEmailFunc(identityStore, tokenStore)
-updatePassword := oneauth.NewUpdatePasswordFunc(identityStore, channelStore)
+createUser := localauth.NewCreateUserFunc(userStore, identityStore, channelStore)
+validateCreds := localauth.NewCredentialsValidator(identityStore, channelStore, userStore)
+verifyEmail := localauth.NewVerifyEmailFunc(identityStore, tokenStore)
+updatePassword := localauth.NewUpdatePasswordFunc(identityStore, channelStore)
 
 // Configure local authentication
-localAuth := &oneauth.LocalAuth{
+localAuth := &localauth.LocalAuth{
     CreateUser:          createUser,
     ValidateCredentials: validateCreds,
     ValidateSignup:      nil, // Uses default validator
-    EmailSender:         &oneauth.ConsoleEmailSender{},
+    EmailSender:         &core.ConsoleEmailSender{},
     TokenStore:          tokenStore,
     BaseURL:             "https://yourapp.com",
     RequireEmailVerification: false,
@@ -94,8 +95,8 @@ OneAuth provides helper functions to create callbacks from stores:
 ### NewCreateUserFunc
 
 ```go
-createUser := oneauth.NewCreateUserFunc(userStore, identityStore, channelStore)
-user, err := createUser(&oneauth.Credentials{
+createUser := localauth.NewCreateUserFunc(userStore, identityStore, channelStore)
+user, err := createUser(&core.Credentials{
     Username: "johndoe",
     Email:    &email,
     Password: "password123",
@@ -105,21 +106,21 @@ user, err := createUser(&oneauth.Credentials{
 ### NewCredentialsValidator
 
 ```go
-validateCreds := oneauth.NewCredentialsValidator(identityStore, channelStore, userStore)
+validateCreds := localauth.NewCredentialsValidator(identityStore, channelStore, userStore)
 user, err := validateCreds("john@example.com", "password123", "email")
 ```
 
 ### NewVerifyEmailFunc
 
 ```go
-verifyEmail := oneauth.NewVerifyEmailFunc(identityStore, tokenStore)
+verifyEmail := localauth.NewVerifyEmailFunc(identityStore, tokenStore)
 err := verifyEmail(tokenString)
 ```
 
 ### NewUpdatePasswordFunc
 
 ```go
-updatePassword := oneauth.NewUpdatePasswordFunc(identityStore, channelStore)
+updatePassword := localauth.NewUpdatePasswordFunc(identityStore, channelStore)
 err := updatePassword("john@example.com", "newpassword456")
 ```
 

@@ -18,7 +18,9 @@ OneAuth handles credential validation; your application controls session creatio
 
 ```go
 import (
-    oa "github.com/panyam/oneauth"
+    "github.com/panyam/oneauth/core"
+    "github.com/panyam/oneauth/localauth"
+    "github.com/panyam/oneauth/httpauth"
     oa2 "github.com/panyam/oneauth/oauth2"
     "github.com/panyam/oneauth/stores/fs"
 )
@@ -31,8 +33,8 @@ tokenStore := fs.NewFSTokenStore(storagePath)
 usernameStore := fs.NewFSUsernameStore(storagePath)
 
 // Create OneAuth router
-oneauth := oa.New("myapp")
-oneauth.HandleUser = oa.NewEnsureAuthUserFunc(oa.EnsureAuthUserConfig{
+oneAuth := httpauth.New("myapp")
+oneAuth.HandleUser = localauth.NewEnsureAuthUserFunc(localauth.EnsureAuthUserConfig{
     UserStore:     userStore,
     IdentityStore: identityStore,
     ChannelStore:  channelStore,
@@ -40,24 +42,24 @@ oneauth.HandleUser = oa.NewEnsureAuthUserFunc(oa.EnsureAuthUserConfig{
 })
 
 // Add local auth (email/password)
-localAuth := oa.NewLocalAuth(oa.LocalAuthConfig{
+la := localauth.NewLocalAuth(localauth.LocalAuthConfig{
     Session:       session,
     UserStore:     userStore,
     IdentityStore: identityStore,
     ChannelStore:  channelStore,
     TokenStore:    tokenStore,
     UsernameStore: usernameStore,
-    SignupPolicy: &oa.SignupPolicy{
+    SignupPolicy: &core.SignupPolicy{
         RequireEmail:    true,
         RequirePassword: true,
         MinPasswordLength: 8,
     },
 })
-oneauth.AddAuth("/local", localAuth)
+oneAuth.AddAuth("/local", la)
 
 // Add OAuth providers
-oneauth.AddAuth("/google", oa2.NewGoogleOAuth2(clientID, clientSecret, callbackURL, oneauth.SaveUserAndRedirect).Handler())
-oneauth.AddAuth("/github", oa2.NewGithubOAuth2(clientID, clientSecret, callbackURL, oneauth.SaveUserAndRedirect).Handler())
+oneAuth.AddAuth("/google", oa2.NewGoogleOAuth2(clientID, clientSecret, callbackURL, oneAuth.SaveUserAndRedirect).Handler())
+oneAuth.AddAuth("/github", oa2.NewGithubOAuth2(clientID, clientSecret, callbackURL, oneAuth.SaveUserAndRedirect).Handler())
 ```
 
 ## Request Flows
@@ -176,18 +178,18 @@ Check Identity exists for email?
 ### Adding OAuth Providers
 
 ```go
-oneauth.AddAuth("/google", oauth2.NewGoogleOAuth2(
+oneAuth.AddAuth("/google", oauth2.NewGoogleOAuth2(
     clientID,
     clientSecret,
     callbackURL,
-    oneauth.SaveUserAndRedirect,
+    oneAuth.SaveUserAndRedirect,
 ).Handler())
 
-oneauth.AddAuth("/github", oauth2.NewGithubOAuth2(
+oneAuth.AddAuth("/github", oauth2.NewGithubOAuth2(
     clientID,
     clientSecret,
     callbackURL,
-    oneauth.SaveUserAndRedirect,
+    oneAuth.SaveUserAndRedirect,
 ).Handler())
 ```
 
@@ -231,21 +233,21 @@ The user profile tracks linked providers: `profile["channels"] = ["local", "goog
 Use `NewEnsureAuthUserFunc` for OAuth callbacks that automatically link channels:
 
 ```go
-config := oneauth.EnsureAuthUserConfig{
+config := localauth.EnsureAuthUserConfig{
     UserStore:     userStore,
     IdentityStore: identityStore,
     ChannelStore:  channelStore,
     UsernameStore: usernameStore, // Optional
 }
 
-ensureUser := oneauth.NewEnsureAuthUserFunc(config)
-oneauth.UserStore = &myAuthUserStore{ensureUser: ensureUser}
+ensureUser := localauth.NewEnsureAuthUserFunc(config)
+oneAuth.UserStore = &myAuthUserStore{ensureUser: ensureUser}
 ```
 
 ### Adding Password to OAuth User
 
 ```go
-linkConfig := oneauth.LinkCredentialsConfig{
+linkConfig := localauth.LinkCredentialsConfig{
     UserStore:     userStore,
     IdentityStore: identityStore,
     ChannelStore:  channelStore,
@@ -285,7 +287,7 @@ func googleCallback(w http.ResponseWriter, r *http.Request) {
 
     linkingUserID := oneAuth.GetLinkingUserID(r)
     if linkingUserID != "" {
-        linkConfig := oneauth.LinkOAuthConfig{
+        linkConfig := localauth.LinkOAuthConfig{
             UserStore:     userStore,
             IdentityStore: identityStore,
             ChannelStore:  channelStore,
@@ -302,7 +304,7 @@ func googleCallback(w http.ResponseWriter, r *http.Request) {
 ### Programmatic Channel Linking
 
 ```go
-err := oneauth.LinkLocalCredentials(config, userID, "newusername", "password123", userEmail)
+err := localauth.LinkLocalCredentials(config, userID, "newusername", "password123", userEmail)
 ```
 
 ### Channel Linking Security
@@ -314,11 +316,11 @@ err := oneauth.LinkLocalCredentials(config, userID, "newusername", "password123"
 ### Username-Based Login
 
 ```go
-validateCreds := oneauth.NewCredentialsValidatorWithUsername(
+validateCreds := localauth.NewCredentialsValidatorWithUsername(
     identityStore, channelStore, userStore, usernameStore,
 )
 
-localAuth := &oneauth.LocalAuth{
+la := &localauth.LocalAuth{
     ValidateCredentials: validateCreds,
 }
 ```
@@ -435,7 +437,7 @@ func (s *SMTPEmailSender) SendPasswordResetEmail(to, link string) error { /* sim
 ### Console Email Sender (Development)
 
 ```go
-localAuth.EmailSender = &oneauth.ConsoleEmailSender{}
+la.EmailSender = &localauth.ConsoleEmailSender{}
 ```
 
 Logs emails to stdout instead of sending them.
@@ -445,7 +447,7 @@ Logs emails to stdout instead of sending them.
 ### SignupPolicy (Recommended)
 
 ```go
-localAuth.SignupPolicy = &oneauth.SignupPolicy{
+la.SignupPolicy = &core.SignupPolicy{
     RequireUsername:       true,
     RequireEmail:          true,
     RequirePassword:       true,
@@ -467,7 +469,7 @@ localAuth.SignupPolicy = &oneauth.SignupPolicy{
 ### Custom Validator (Legacy)
 
 ```go
-localAuth.ValidateSignup = func(creds *oneauth.Credentials) error {
+la.ValidateSignup = func(creds *core.Credentials) error {
     if len(creds.Password) < 12 {
         return fmt.Errorf("password must be at least 12 characters")
     }
@@ -502,14 +504,14 @@ type AuthError struct {
 ### Custom Error Handlers
 
 ```go
-localAuth.OnSignupError = func(err *oneauth.AuthError, w http.ResponseWriter, r *http.Request) bool {
+la.OnSignupError = func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
     session.SetFlash(r, "error", err.Message)
     session.SetFlash(r, "error_field", err.Field)
     http.Redirect(w, r, "/signup", http.StatusSeeOther)
     return true // handled
 }
 
-localAuth.OnLoginError = func(err *oneauth.AuthError, w http.ResponseWriter, r *http.Request) bool {
+la.OnLoginError = func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
     session.SetFlash(r, "login_error", err.Message)
     http.Redirect(w, r, "/login", http.StatusSeeOther)
     return true
@@ -561,11 +563,39 @@ mux.Handle("/auth/reset-password", http.HandlerFunc(func(w http.ResponseWriter, 
 ### Form Field Configuration
 
 ```go
-localAuth.UsernameField = "email"
-localAuth.PasswordField = "password"
-localAuth.EmailField = "email"
-localAuth.PhoneField = "phone"
+la.UsernameField = "email"
+la.PasswordField = "password"
+la.EmailField = "email"
+la.PhoneField = "phone"
 ```
+
+## Rate Limiting and Account Lockout
+
+### Rate Limiting
+
+`LocalAuth` supports an optional `RateLimiter` field that throttles login attempts per key (typically per IP or per email). The interface is defined in `core`:
+
+```go
+la.RateLimiter = core.NewInMemoryRateLimiter(10, time.Minute) // 10 attempts per minute
+```
+
+`core.RateLimiter` is a shared interface used by both `localauth` and `apiauth`.
+
+### Account Lockout
+
+`LocalAuth` supports an optional `Lockout` field (`core.AccountLockout`) that temporarily locks accounts after repeated failed login attempts. Lockouts are auto-expiring — no manual unlock is needed.
+
+```go
+la.Lockout = &core.AccountLockout{
+    MaxAttempts:    5,
+    LockoutWindow:  10 * time.Minute,
+    LockoutDuration: 30 * time.Minute,
+}
+```
+
+### Timing Oracle Fix (CWE-208)
+
+The credential validator now uses constant-time comparison for password validation failures, preventing timing-based user enumeration attacks. When a user is not found, a dummy bcrypt comparison is performed so the response time is indistinguishable from a real password check.
 
 ## Security Considerations
 
@@ -575,24 +605,24 @@ localAuth.PhoneField = "phone"
 | Single-Use Tokens | Deleted from TokenStore after use |
 | Token Expiration | Time-limited verification/reset tokens |
 | Generic Login Errors | "Invalid credentials" (prevents enumeration) |
-| Constant-Time Comparison | Via bcrypt internals |
+| Constant-Time Comparison | Via bcrypt internals + dummy hash on missing user (CWE-208 fix) |
 
 ### CSRF Protection (CSRFMiddleware)
 
 OneAuth provides a `CSRFMiddleware` using the **double-submit cookie** pattern. It is opt-in — applications wrap their form endpoints to enable protection.
 
 ```go
-csrf := &oa.CSRFMiddleware{Secure: true} // set Secure: true for HTTPS
+csrf := &httpauth.CSRFMiddleware{Secure: true} // set Secure: true for HTTPS
 
 // Wrap form GET handlers (generates CSRF cookie + injects token into context)
 mux.Handle("GET /auth/login", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
     renderTemplate(w, "login.html", map[string]any{
-        "CSRFField": oa.CSRFTemplateField(r),
+        "CSRFField": httpauth.CSRFTemplateField(r),
     })
 })))
 
 // Wrap form POST handlers (validates cookie vs. form field/header)
-mux.Handle("POST /auth/login", csrf.Protect(http.HandlerFunc(localAuth.ServeHTTP)))
+mux.Handle("POST /auth/login", csrf.Protect(http.HandlerFunc(la.ServeHTTP)))
 ```
 
 In templates, include the hidden field inside `<form>` tags:
@@ -624,12 +654,12 @@ In templates, include the hidden field inside `<form>` tags:
 | `ExemptFunc` | Bearer exempt | Custom exemption logic |
 
 **Template helpers:**
-- `oa.CSRFToken(r)` — extract token string from request context
-- `oa.CSRFTemplateField(r)` — returns `<input type="hidden" name="csrf_token" value="...">` as `template.HTML`
+- `httpauth.CSRFToken(r)` — extract token string from request context
+- `httpauth.CSRFTemplateField(r)` — returns `<input type="hidden" name="csrf_token" value="...">` as `template.HTML`
 
 ### Recommended Application-Level Protections
 
-1. **Rate Limiting**: Per-IP and per-account limits on login attempts
+1. ~~**Rate Limiting**: Per-IP and per-account limits on login attempts~~ **Provided** — use `LocalAuth.RateLimiter` and `LocalAuth.Lockout` (see above)
 2. ~~**CSRF Tokens**: On all auth forms~~ **Provided** — use `CSRFMiddleware` (see above)
 3. **Session Security**: HttpOnly, Secure, SameSite cookies
 4. **HTTPS**: Required for OAuth callbacks

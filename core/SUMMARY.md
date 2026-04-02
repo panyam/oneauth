@@ -11,5 +11,9 @@ Foundation types and interfaces for the OneAuth authentication framework. Every 
 - **email.go** — `SendEmail` interface, `ConsoleEmailSender`
 - **context.go** — `GetUserIDFromContext()`, `SetUserIDInContext()`, `DefaultUserParamName`
 
+## Recent Additions
+- **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket, used by `localauth` and formerly by `apiauth` before being moved here)
+- **lockout.go** — `AccountLockout` struct for tracking failed login attempts and temporary account lockouts
+
 ## Dependencies
 Standard library + `golang.org/x/oauth2` (for `HandleUserFunc`'s `*oauth2.Token` parameter).

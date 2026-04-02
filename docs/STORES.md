@@ -2,6 +2,8 @@
 
 OneAuth uses interface-based storage with three built-in implementations: file-based (FS), GORM (SQL databases), and Google App Engine Datastore (GAE).
 
+> **Sub-module note:** `stores/gorm` and `stores/gae` are separate Go modules (each has its own `go.mod`) to keep heavy dependencies (GORM/drivers, GCP SDK) out of the core module. Store backends import `github.com/panyam/oneauth/core` for entity types and `github.com/panyam/oneauth/keys` for key types — not the root `oneauth` package.
+
 ## Store Interfaces
 
 ### UserStore
@@ -82,6 +84,8 @@ Token types: `TokenTypeEmailVerification`, `TokenTypePasswordReset`
 
 Suitable for development, small applications (< 1000 users), and prototypes.
 
+**Security:** FS stores use a `safeName()` sanitizer on all key/file names to prevent path traversal attacks. Directories are created with permissions `0700` and files with `0600`.
+
 ```go
 import "github.com/panyam/oneauth/stores/fs"
 
@@ -124,7 +128,7 @@ type PostgresUserStore struct {
     db *sql.DB
 }
 
-func (s *PostgresUserStore) CreateUser(userId string, isActive bool, profile map[string]any) (oneauth.User, error) {
+func (s *PostgresUserStore) CreateUser(userId string, isActive bool, profile map[string]any) (core.User, error) {
     profileJSON, _ := json.Marshal(profile)
     _, err := s.db.Exec(
         "INSERT INTO users (id, is_active, profile, created_at) VALUES ($1, $2, $3, NOW())",
@@ -203,9 +207,9 @@ type KeyStorage interface {
 For development and testing:
 
 ```go
-keyStore := oneauth.NewInMemoryKeyStore()
-keyStore.PutKey(&oneauth.KeyRecord{ClientID: "host-alpha", Key: []byte("alpha-secret-key"), Algorithm: "HS256"})
-keyStore.PutKey(&oneauth.KeyRecord{ClientID: "host-beta",  Key: []byte("beta-secret-key"),  Algorithm: "HS256"})
+keyStore := keys.NewInMemoryKeyStore()
+keyStore.PutKey(&keys.KeyRecord{ClientID: "host-alpha", Key: []byte("alpha-secret-key"), Algorithm: "HS256"})
+keyStore.PutKey(&keys.KeyRecord{ClientID: "host-beta",  Key: []byte("beta-secret-key"),  Algorithm: "HS256"})
 ```
 
 ### Persistent KeyStore Implementations

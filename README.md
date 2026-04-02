@@ -2,6 +2,8 @@
 
 A Go authentication library providing unified local and OAuth-based authentication with support for multiple authentication methods per user account.
 
+The library is organized into focused subpackages (`core/`, `keys/`, `admin/`, `apiauth/`, `localauth/`, `httpauth/`). The core module is lightweight (~6 dependencies: jwt, scs, x/crypto, x/oauth2). Heavy backends (GORM, GAE/Datastore, SAML, gRPC) live in separate sub-modules so consumers only pull what they need.
+
 ## Features
 
 - **Unified authentication** — Password and OAuth through a single interface
@@ -21,7 +23,8 @@ go get github.com/panyam/oneauth
 
 ```go
 import (
-    "github.com/panyam/oneauth"
+    "github.com/panyam/oneauth/core"
+    "github.com/panyam/oneauth/localauth"
     "github.com/panyam/oneauth/stores/fs"
 )
 
@@ -33,14 +36,14 @@ channelStore := fs.NewFSChannelStore(storagePath)
 tokenStore := fs.NewFSTokenStore(storagePath)
 
 // Create authentication callbacks
-createUser := oneauth.NewCreateUserFunc(userStore, identityStore, channelStore)
-validateCreds := oneauth.NewCredentialsValidator(identityStore, channelStore, userStore)
+createUser := localauth.NewCreateUserFunc(userStore, identityStore, channelStore)
+validateCreds := localauth.NewCredentialsValidator(identityStore, channelStore, userStore)
 
 // Configure local authentication
-localAuth := &oneauth.LocalAuth{
+localAuth := &localauth.LocalAuth{
     CreateUser:          createUser,
     ValidateCredentials: validateCreds,
-    EmailSender:         &oneauth.ConsoleEmailSender{},
+    EmailSender:         &core.ConsoleEmailSender{},
     TokenStore:          tokenStore,
     BaseURL:             "https://yourapp.com",
     HandleUser:          yourSessionHandler,
@@ -79,7 +82,9 @@ See [Architecture](docs/ARCHITECTURE.md) for design decisions, data model diagra
 Protect API endpoints with JWT middleware:
 
 ```go
-middleware := &oneauth.APIMiddleware{
+import "github.com/panyam/oneauth/apiauth"
+
+middleware := &apiauth.APIMiddleware{
     KeyStore:        keyStore,        // multi-tenant (per-client keys)
     TokenQueryParam: "token",         // ?token= fallback for WebSocket clients
 }
@@ -89,8 +94,8 @@ mux.Handle("/api/write", middleware.RequireScopes("write")(handler))
 mux.Handle("/api/public", middleware.Optional(handler))
 
 // Access claims in handlers
-userID := oneauth.GetUserIDFromAPIContext(r.Context())
-custom := oneauth.GetCustomClaimsFromContext(r.Context())
+userID := apiauth.GetUserIDFromAPIContext(r.Context())
+custom := apiauth.GetCustomClaimsFromContext(r.Context())
 ```
 
 See [API Authentication](docs/API_AUTH.md) for JWT lifecycle, custom claims, multi-tenant validation, and middleware configuration.
@@ -100,12 +105,18 @@ See [API Authentication](docs/API_AUTH.md) for JWT lifecycle, custom claims, mul
 For systems where multiple applications register and mint scoped JWTs:
 
 ```go
+import (
+    "github.com/panyam/oneauth/admin"
+    "github.com/panyam/oneauth/apiauth"
+    gormstore "github.com/panyam/oneauth/stores/gorm"
+)
+
 // Resource server validates tokens from any registered app
-keyStore := gorm.NewGORMKeyStore(db)
-middleware := &oneauth.APIMiddleware{KeyStore: keyStore}
+keyStore := gormstore.NewGORMKeyStore(db)
+middleware := &apiauth.APIMiddleware{KeyStore: keyStore}
 
 // Apps register via admin API and mint tokens for their users
-token, err := oneauth.MintResourceToken(clientID, clientSecret, userID, scopes, customClaims)
+token, err := admin.MintResourceToken(clientID, clientSecret, userID, scopes, customClaims)
 ```
 
 See [Architecture — Federated Auth](docs/ARCHITECTURE.md#federated-authentication) for the full flow.
@@ -118,7 +129,7 @@ See [Architecture — Federated Auth](docs/ARCHITECTURE.md#federated-authenticat
 | GORM (SQL) | `stores/gorm` | PostgreSQL, MySQL, SQLite |
 | GAE/Datastore | `stores/gae` | Google Cloud deployments |
 
-All stores implement the same interfaces: `UserStore`, `IdentityStore`, `ChannelStore`, `TokenStore`, `RefreshTokenStore`, `APIKeyStore`, `KeyStore`.
+All stores implement the same interfaces defined in `core/` (`UserStore`, `IdentityStore`, `ChannelStore`, `TokenStore`, `RefreshTokenStore`, `APIKeyStore`) and `keys/` (`KeyStorage`).
 
 See [Stores](docs/STORES.md) for interface definitions and usage examples.
 
