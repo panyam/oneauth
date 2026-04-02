@@ -5,10 +5,10 @@ import requests
 
 
 @pytest.fixture(scope="module")
-def server_url():
+def server_url(base_url):
     """OneAuth server URL — override with DEMO_SERVER_URL env var."""
     import os
-    return os.environ.get("DEMO_SERVER_URL", "http://localhost:9999")
+    return base_url
 
 
 @pytest.fixture(scope="module")

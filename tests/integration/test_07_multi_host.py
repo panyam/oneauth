@@ -11,29 +11,21 @@ import pytest
 import requests
 
 
-@pytest.fixture(scope="module")
-def demo_urls():
-    return {
-        "server": os.environ.get("DEMO_SERVER_URL", "http://localhost:9999"),
-        "resource_a": os.environ.get("DEMO_RESOURCE_A_URL", "http://localhost:4001"),
-        "resource_b": os.environ.get("DEMO_RESOURCE_B_URL", "http://localhost:4002"),
-    }
-
-
-@pytest.fixture(scope="module")
-def admin_key():
-    return os.environ.get("DEMO_ADMIN_KEY", "demo-admin-key-12345")
+# demo_urls and admin_key fixtures come from conftest.py
 
 
 @pytest.fixture(scope="module")
 def skip_if_not_running(demo_urls):
-    for url in demo_urls.values():
+    for name, url in demo_urls.items():
+        if not url or "localhost:0" in url:
+            pytest.skip(f"{name} not configured (resource servers not started)")
+        health = f"{url}/_ah/health" if name == "server" else f"{url}/health"
         try:
-            r = requests.get(f"{url}/health", timeout=3)
+            r = requests.get(health, timeout=3)
             if r.status_code != 200:
-                pytest.skip(f"Service not responding at {url}")
+                pytest.skip(f"{name} not responding at {url}")
         except requests.ConnectionError:
-            pytest.skip(f"Service not running at {url}")
+            pytest.skip(f"{name} not running at {url}")
 
 
 def _mint(client_id, secret_hex_or_str, user_id):

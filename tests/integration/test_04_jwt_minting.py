@@ -42,11 +42,11 @@ def _decode_claims(token: str) -> dict:
 
 @pytest.fixture
 def host_with_secret(client):
-    r = client.register_host(client_domain="jwt-test.example.com", signing_alg="HS256")
+    r = client.register_app(client_domain="jwt-test.example.com", signing_alg="HS256")
     assert r.status_code == 201
     data = r.json()
     yield data
-    client.delete_host(data["client_id"])
+    client.delete_app(data["client_id"])
 
 
 class TestJWTMinting:
@@ -90,7 +90,7 @@ class TestJWTMinting:
         old_token = _mint_jwt(cid, old_secret, "user-42", ["relay:connect"])
 
         # Rotate
-        r = client.post(f"/hosts/{cid}/rotate")
+        r = client.post(f"/apps/{cid}/rotate")
         new_secret = r.json()["client_secret"]
 
         # Mint with new secret

@@ -148,6 +148,65 @@ class ManagedServer:
             self.tmpdir = None
 
 
+class ManagedResourceServer:
+    """Builds, starts, and stops a demo-resource-server for testing.
+    Uses JWKS URL to discover keys from the auth server."""
+
+    def __init__(self, name, port, jwks_url):
+        self.name = name
+        self.port = port
+        self.jwks_url = jwks_url
+        self.process = None
+
+    @property
+    def base_url(self):
+        return f"http://localhost:{self.port}"
+
+    def start(self, root):
+        server_dir = os.path.join(root, "cmd", "demo-resource-server")
+        binary = os.path.join(root, "build", f"resource-server-{self.name}")
+
+        print(f"  Building demo-resource-server ({self.name})...")
+        result = subprocess.run(
+            ["go", "build", "-buildvcs=false", "-o", binary, "."],
+            cwd=server_dir,
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"  WARNING: Failed to build resource server: {result.stderr[:200]}")
+            return False
+
+        env = {
+            **os.environ,
+            "PORT": self.port,
+            "SERVER_NAME": self.name,
+            "JWKS_URL": self.jwks_url,
+        }
+
+        self.process = subprocess.Popen(
+            [binary, f"-port={self.port}", f"-name={self.name}", f"-jwks-url={self.jwks_url}"],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        if not _wait_for_server(self.base_url, timeout=10):
+            self.stop()
+            return False
+
+        print(f"  Resource server '{self.name}' running at {self.base_url}")
+        return True
+
+    def stop(self):
+        if self.process:
+            self.process.send_signal(signal.SIGTERM)
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+            self.process = None
+
+
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -169,17 +228,50 @@ def managed_server(request):
 
 
 @pytest.fixture(scope="session")
+def resource_servers(request, managed_server):
+    """Start two resource servers that discover keys via JWKS from the auth server."""
+    if not managed_server:
+        return None
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    jwks_url = f"{managed_server.base_url}/.well-known/jwks.json"
+
+    servers = {}
+    for name, port in [("resource-a", "14001"), ("resource-b", "14002")]:
+        rs = ManagedResourceServer(name, port, jwks_url)
+        if rs.start(root):
+            servers[name] = rs
+            request.addfinalizer(rs.stop)
+
+    return servers if servers else None
+
+
+@pytest.fixture(scope="session")
 def base_url(gae_project, managed_server):
     if managed_server:
         return managed_server.base_url
     url = os.environ.get("BASE_URL", "")
     if url:
         return url
-    # Fall back to DEMO_SERVER_URL for backward compat
     url = os.environ.get("DEMO_SERVER_URL", "")
     if url:
         return url
     return f"https://{gae_project}.uw.r.appspot.com"
+
+
+@pytest.fixture(scope="session")
+def demo_urls(managed_server, resource_servers):
+    """URLs for auth server + resource servers, used by federated flow tests."""
+    if managed_server and resource_servers:
+        return {
+            "server": managed_server.base_url,
+            "resource_a": resource_servers.get("resource-a", ManagedResourceServer("a", "0", "")).base_url,
+            "resource_b": resource_servers.get("resource-b", ManagedResourceServer("b", "0", "")).base_url,
+        }
+    return {
+        "server": os.environ.get("DEMO_SERVER_URL", os.environ.get("BASE_URL", "http://localhost:9999")),
+        "resource_a": os.environ.get("DEMO_RESOURCE_A_URL", "http://localhost:4001"),
+        "resource_b": os.environ.get("DEMO_RESOURCE_B_URL", "http://localhost:4002"),
+    }
 
 
 @pytest.fixture(scope="session")

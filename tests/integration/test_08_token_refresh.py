@@ -8,8 +8,8 @@ import requests
 
 
 @pytest.fixture(scope="module")
-def server_url():
-    return os.environ.get("DEMO_SERVER_URL", "http://localhost:9999")
+def server_url(base_url):
+    return base_url
 
 
 @pytest.fixture(scope="module")
@@ -24,13 +24,16 @@ def skip_if_not_running(server_url):
 
 @pytest.fixture
 def test_user(server_url, skip_if_not_running):
-    """Create a test user via signup and return credentials."""
+    """Create a test user via signup with CSRF token and return credentials."""
     email = f"refresh-{uuid.uuid4().hex[:8]}@example.com"
     password = "testpass1234"
 
-    # Signup via form (creates the user)
-    r = requests.post(f"{server_url}/auth/signup", data={
-        "email": email, "password": password,
+    session = requests.Session()
+    session.get(f"{server_url}/auth/signup")
+    csrf_token = session.cookies.get("csrf_token", "")
+
+    r = session.post(f"{server_url}/auth/signup", data={
+        "email": email, "password": password, "csrf_token": csrf_token,
     }, allow_redirects=False)
     assert r.status_code in (200, 302, 303), f"Signup failed: {r.text}"
 
