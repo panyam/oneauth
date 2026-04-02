@@ -19,6 +19,23 @@
 
 ---
 
+## Completed (Sub-Module Split — #43)
+
+### Heavy Backends → Separate go.mod
+- [x] Core module trimmed to 6 direct deps (jwt, scs, fernet, x/crypto, x/oauth2, testify)
+- [x] `stores/gorm/go.mod` — evicts gorm.io/gorm + CGo sqlite
+- [x] `stores/gae/go.mod` — evicts cloud.google.com/go/datastore + GCP SDK
+- [x] `saml/go.mod` — evicts crewjam/saml
+- [x] `grpc/go.mod` — evicts google.golang.org/grpc
+- [x] `oauth2/go.mod` — evicts x/oauth2/google provider deps
+- [x] `cmd/*/go.mod` — all binaries are sub-modules
+- [x] `go.work` for local multi-module dev
+- [x] Makefile: `ball`, `tall`, `tidy`, `deps`, `norep`, `rep`
+- [x] Binaries output to `build/` (gitignored)
+- [x] Migration guide: `docs/MIGRATION.md`
+
+---
+
 ## Completed (Security Hardening + Reorganization)
 
 ### JWKS Security (#26) + JWT Security Tests (#16)

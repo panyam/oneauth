@@ -52,14 +52,45 @@ oneauth/
 
 Each subpackage has a `SUMMARY.md` describing its contents.
 
+### Multi-Module Structure
+
+The repo is a Go workspace with multiple modules. The core module is lightweight (~6 deps). Heavy backends are separate sub-modules:
+
+| Module | Heavy Deps |
+|--------|-----------|
+| `github.com/panyam/oneauth` (core) | None — jwt, scs, x/crypto, x/oauth2 only |
+| `stores/gorm` | gorm.io/gorm, postgres/sqlite drivers |
+| `stores/gae` | cloud.google.com/go/datastore + GCP SDK |
+| `saml` | crewjam/saml |
+| `grpc` | google.golang.org/grpc |
+| `oauth2` | golang.org/x/oauth2/google |
+| `cmd/*` | Various (integration points) |
+
+`go.work` at root enables local multi-module dev. Sub-modules have `replace` directives for `go mod tidy` compatibility. See [docs/MIGRATION.md](docs/MIGRATION.md) for consumer migration guide.
+
+**Publish workflow:** `make norep` → tag all modules → push → `make rep` → `make tidy`
+
 ## Build & Test Commands
 
 ```bash
-make test          # Go unit tests (all packages)
+# Multi-module (all modules at once)
+make ball          # Build all modules (binaries → build/)
+make tall          # Test all modules
+make tidy          # go mod tidy all modules
+make deps          # Show core module dep count
+
+# Single-module (root only)
+make test          # Go unit tests (root module packages)
 make testpg        # GORM tests against PostgreSQL (auto-starts Docker)
 make testds        # GAE tests against Datastore emulator (auto-starts Docker)
 make testrealDS    # GAE tests against real Datastore (needs credentials)
 make integ         # Integration tests against live GAE (pytest, uv+venv)
+
+# Publishing
+make norep         # Remove replace directives (before tagging releases)
+make rep           # Restore replace directives (after publishing)
+
+# Infrastructure
 make deploygae     # Deploy to GAE (project: oneauthsvc)
 make gaelogs       # Tail GAE logs
 ```
