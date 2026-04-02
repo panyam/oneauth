@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      # Build all modules
+      - name: Build (core)
+        run: go build ./...
+
+      - name: Build (sub-modules)
+        run: |
+          for mod in stores/gorm stores/gae saml grpc oauth2; do
+            echo "Building $mod..."
+            (cd $mod && go build ./...)
+          done
+
+      # Test all modules with race detector
+      - name: Test (core)
+        run: go test -race -count=1 -short ./...
+
+      - name: Test (sub-modules)
+        run: |
+          for mod in stores/gorm stores/gae grpc oauth2; do
+            echo "Testing $mod..."
+            (cd $mod && go test -race -count=1 -short ./...)
+          done
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Install tools
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: govulncheck
+        run: govulncheck ./...
+
+      - name: staticcheck
+        run: staticcheck ./...
