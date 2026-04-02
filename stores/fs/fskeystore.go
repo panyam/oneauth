@@ -2,6 +2,7 @@ package fs
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,13 +35,20 @@ func (s *FSKeyStore) getKeyDir() string {
 	return filepath.Join(s.StoragePath, "signing_keys")
 }
 
-func (s *FSKeyStore) getKeyPath(clientID string) string {
-	safeID := strings.ReplaceAll(clientID, "/", "_")
-	return filepath.Join(s.getKeyDir(), safeID+".json")
+func (s *FSKeyStore) getKeyPath(clientID string) (string, error) {
+	safeID, err := safeName(clientID)
+	if err != nil {
+		return "", fmt.Errorf("invalid clientID: %w", err)
+	}
+	return filepath.Join(s.getKeyDir(), safeID+".json"), nil
 }
 
 func (s *FSKeyStore) loadEntry(clientID string) (*fsKeyEntry, error) {
-	data, err := os.ReadFile(s.getKeyPath(clientID))
+	path, err := s.getKeyPath(clientID)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, keys.ErrKeyNotFound
@@ -60,10 +68,15 @@ func (s *FSKeyStore) PutKey(rec *keys.KeyRecord) error {
 		return keys.ErrAlgorithmMismatch
 	}
 
+	path, err := s.getKeyPath(rec.ClientID)
+	if err != nil {
+		return err
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := os.MkdirAll(s.getKeyDir(), 0755); err != nil {
+	if err := os.MkdirAll(s.getKeyDir(), 0700); err != nil {
 		return err
 	}
 
@@ -81,14 +94,17 @@ func (s *FSKeyStore) PutKey(rec *keys.KeyRecord) error {
 	if err != nil {
 		return err
 	}
-	return writeAtomicFile(s.getKeyPath(rec.ClientID), data)
+	return writeAtomicFile(path, data)
 }
 
 func (s *FSKeyStore) DeleteKey(clientID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	path := s.getKeyPath(clientID)
+	path, err := s.getKeyPath(clientID)
+	if err != nil {
+		return err
+	}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return keys.ErrKeyNotFound
 	}

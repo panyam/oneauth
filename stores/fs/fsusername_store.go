@@ -68,13 +68,20 @@ func (s *FSUsernameStore) normalizeUsername(username string) string {
 }
 
 // getUsernamePath returns the file path for a username
-func (s *FSUsernameStore) getUsernamePath(normalizedUsername string) string {
-	return filepath.Join(s.StoragePath, "usernames", normalizedUsername+".json")
+func (s *FSUsernameStore) getUsernamePath(normalizedUsername string) (string, error) {
+	safeName, err := safeName(normalizedUsername)
+	if err != nil {
+		return "", fmt.Errorf("invalid username: %w", err)
+	}
+	return filepath.Join(s.StoragePath, "usernames", safeName+".json"), nil
 }
 
 // readUsername reads a username record from disk
 func (s *FSUsernameStore) readUsername(normalizedUsername string) (*FSUsername, error) {
-	path := s.getUsernamePath(normalizedUsername)
+	path, err := s.getUsernamePath(normalizedUsername)
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -92,8 +99,11 @@ func (s *FSUsernameStore) readUsername(normalizedUsername string) (*FSUsername, 
 
 // writeUsername writes a username record to disk atomically
 func (s *FSUsernameStore) writeUsername(username *FSUsername) error {
-	path := s.getUsernamePath(username.NormalizedUsername)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	path, err := s.getUsernamePath(username.NormalizedUsername)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 
@@ -178,9 +188,12 @@ func (s *FSUsernameStore) GetUserByUsername(username string) (string, error) {
 //   - Admin removes a username (e.g., for policy violations)
 func (s *FSUsernameStore) ReleaseUsername(username string) error {
 	normalized := s.normalizeUsername(username)
-	path := s.getUsernamePath(normalized)
+	path, err := s.getUsernamePath(normalized)
+	if err != nil {
+		return err
+	}
 
-	err := os.Remove(path)
+	err = os.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -247,7 +260,10 @@ func (s *FSUsernameStore) ChangeUsername(oldUsername, newUsername, userID string
 	}
 
 	// Delete old username file
-	oldPath := s.getUsernamePath(oldNormalized)
+	oldPath, err := s.getUsernamePath(oldNormalized)
+	if err != nil {
+		return err
+	}
 	if err := os.Remove(oldPath); err != nil && !os.IsNotExist(err) {
 		return err
 	}

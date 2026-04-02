@@ -82,7 +82,7 @@ func (s *FSRefreshTokenStore) hashToken(token string) string {
 // saveToken saves a refresh token to disk
 func (s *FSRefreshTokenStore) saveToken(token *core.RefreshToken) error {
 	path := s.getTokenPath(token.Token)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 

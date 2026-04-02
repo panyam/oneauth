@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/panyam/oneauth/core"
@@ -20,16 +19,24 @@ func NewFSChannelStore(storagePath string) *FSChannelStore {
 	return &FSChannelStore{StoragePath: storagePath}
 }
 
-func (s *FSChannelStore) getChannelPath(provider, identityKey string) string {
-	// Create safe filename from provider and identity key
-	safeKey := strings.ReplaceAll(identityKey, ":", "_")
-	safeKey = strings.ReplaceAll(safeKey, "/", "_")
-	filename := fmt.Sprintf("%s_%s.json", provider, safeKey)
-	return filepath.Join(s.StoragePath, "channels", filename)
+func (s *FSChannelStore) getChannelPath(provider, identityKey string) (string, error) {
+	safeProvider, err := safeName(provider)
+	if err != nil {
+		return "", fmt.Errorf("invalid provider: %w", err)
+	}
+	safeKey, err := safeName(identityKey)
+	if err != nil {
+		return "", fmt.Errorf("invalid identityKey: %w", err)
+	}
+	filename := fmt.Sprintf("%s_%s.json", safeProvider, safeKey)
+	return filepath.Join(s.StoragePath, "channels", filename), nil
 }
 
 func (s *FSChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*core.Channel, bool, error) {
-	path := s.getChannelPath(provider, identityKey)
+	path, err := s.getChannelPath(provider, identityKey)
+	if err != nil {
+		return nil, false, err
+	}
 	data, err := os.ReadFile(path)
 
 	if err != nil {
@@ -63,8 +70,11 @@ func (s *FSChannelStore) GetChannel(provider string, identityKey string, createI
 }
 
 func (s *FSChannelStore) SaveChannel(channel *core.Channel) error {
-	path := s.getChannelPath(channel.Provider, channel.IdentityKey)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	path, err := s.getChannelPath(channel.Provider, channel.IdentityKey)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 

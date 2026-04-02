@@ -31,10 +31,12 @@ func (s *FSAPIKeyStore) getKeyDir() string {
 }
 
 // getKeyPath returns the file path for an API key by its ID
-func (s *FSAPIKeyStore) getKeyPath(keyID string) string {
-	// Sanitize keyID for filename
-	safeID := strings.ReplaceAll(keyID, "/", "_")
-	return filepath.Join(s.getKeyDir(), safeID+".json")
+func (s *FSAPIKeyStore) getKeyPath(keyID string) (string, error) {
+	safeID, err := safeName(keyID)
+	if err != nil {
+		return "", fmt.Errorf("invalid keyID: %w", err)
+	}
+	return filepath.Join(s.getKeyDir(), safeID+".json"), nil
 }
 
 // CreateAPIKey creates a new API key and returns the full key (only shown once)
@@ -84,8 +86,11 @@ func (s *FSAPIKeyStore) CreateAPIKey(userID, name string, scopes []string, expir
 
 // saveKey saves an API key to disk
 func (s *FSAPIKeyStore) saveKey(key *core.APIKey) error {
-	path := s.getKeyPath(key.KeyID)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	path, err := s.getKeyPath(key.KeyID)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 
@@ -107,7 +112,10 @@ func (s *FSAPIKeyStore) GetAPIKeyByID(keyID string) (*core.APIKey, error) {
 
 // getKeyUnsafe retrieves a key without locking (caller must hold lock)
 func (s *FSAPIKeyStore) getKeyUnsafe(keyID string) (*core.APIKey, error) {
-	path := s.getKeyPath(keyID)
+	path, err := s.getKeyPath(keyID)
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

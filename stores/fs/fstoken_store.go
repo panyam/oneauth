@@ -19,8 +19,12 @@ func NewFSTokenStore(storagePath string) *FSTokenStore {
 	return &FSTokenStore{StoragePath: storagePath}
 }
 
-func (s *FSTokenStore) getTokenPath(token string) string {
-	return filepath.Join(s.StoragePath, "tokens", token+".json")
+func (s *FSTokenStore) getTokenPath(token string) (string, error) {
+	safeToken, err := safeName(token)
+	if err != nil {
+		return "", fmt.Errorf("invalid token: %w", err)
+	}
+	return filepath.Join(s.StoragePath, "tokens", safeToken+".json"), nil
 }
 
 func (s *FSTokenStore) CreateToken(userID, email string, tokenType core.TokenType, expiryDuration time.Duration) (*core.AuthToken, error) {
@@ -38,8 +42,11 @@ func (s *FSTokenStore) CreateToken(userID, email string, tokenType core.TokenTyp
 		ExpiresAt: time.Now().Add(expiryDuration),
 	}
 
-	path := s.getTokenPath(token)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	path, err := s.getTokenPath(token)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return nil, err
 	}
 
@@ -56,7 +63,10 @@ func (s *FSTokenStore) CreateToken(userID, email string, tokenType core.TokenTyp
 }
 
 func (s *FSTokenStore) GetToken(token string) (*core.AuthToken, error) {
-	path := s.getTokenPath(token)
+	path, err := s.getTokenPath(token)
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -81,8 +91,11 @@ func (s *FSTokenStore) GetToken(token string) (*core.AuthToken, error) {
 }
 
 func (s *FSTokenStore) DeleteToken(token string) error {
-	path := s.getTokenPath(token)
-	err := os.Remove(path)
+	path, err := s.getTokenPath(token)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(path)
 	if os.IsNotExist(err) {
 		return nil // Already deleted
 	}

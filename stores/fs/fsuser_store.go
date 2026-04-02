@@ -31,8 +31,12 @@ func NewFSUserStore(storagePath string) *FSUserStore {
 	return &FSUserStore{StoragePath: storagePath}
 }
 
-func (s *FSUserStore) getUserPath(userId string) string {
-	return filepath.Join(s.StoragePath, "users", userId+".json")
+func (s *FSUserStore) getUserPath(userId string) (string, error) {
+	safeID, err := safeName(userId)
+	if err != nil {
+		return "", fmt.Errorf("invalid userId: %w", err)
+	}
+	return filepath.Join(s.StoragePath, "users", safeID+".json"), nil
 }
 
 func (s *FSUserStore) CreateUser(userId string, isActive bool, profile map[string]any) (core.User, error) {
@@ -47,7 +51,10 @@ func (s *FSUserStore) CreateUser(userId string, isActive bool, profile map[strin
 }
 
 func (s *FSUserStore) GetUserById(userId string) (core.User, error) {
-	path := s.getUserPath(userId)
+	path, err := s.getUserPath(userId)
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -82,8 +89,11 @@ func (s *FSUserStore) SaveUser(user core.User) error {
 		fsUser.UpdatedAt = time.Now()
 	}
 
-	path := s.getUserPath(fsUser.UserId)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	path, err := s.getUserPath(fsUser.UserId)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 

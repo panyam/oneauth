@@ -62,7 +62,7 @@ func (s *FSIdentityStore) GetIdentity(identityType, identityValue string, create
 
 func (s *FSIdentityStore) SaveIdentity(identity *core.Identity) error {
 	path := s.getIdentityPath(identity.Type, identity.Value)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 
