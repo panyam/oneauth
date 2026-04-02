@@ -260,4 +260,24 @@ pushtag:
 	done
 	@echo "All tags pushed."
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag
+# =============================================================================
+# Static analysis & security scanning
+# =============================================================================
+
+# Run govulncheck on all modules
+vulncheck:
+	govulncheck ./...
+	@for mod in $(LIBS); do \
+		echo "Checking $$mod..."; \
+		(cd $$mod && govulncheck ./...) || exit 1; \
+	done
+
+# Run gosec (security patterns) — suppress false positives
+seccheck:
+	gosec -quiet -severity=medium ./...
+
+# Run staticcheck (code quality + deprecated API usage)
+lint:
+	staticcheck ./...
+
+.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint

@@ -1,6 +1,6 @@
 module github.com/panyam/oneauth/oauth2
 
-go 1.24.0
+go 1.26.1
 
 require golang.org/x/oauth2 v0.34.0
 

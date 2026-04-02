@@ -1,6 +1,8 @@
 package keys
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -86,7 +88,26 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		maxAge = 3600
 	}
 
+	// Marshal once for ETag computation and response
+	body, err := json.Marshal(jwkSet)
+	if err != nil {
+		http.Error(w, `{"error":"failed to marshal JWKS"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// ETag based on SHA-256 of the response body — changes when key set changes
+	hash := sha256.Sum256(body)
+	etag := `"` + hex.EncodeToString(hash[:16]) + `"`
+
+	// Support conditional requests (If-None-Match)
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
-	json.NewEncoder(w).Encode(jwkSet)
+	w.Header().Set("ETag", etag)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Write(body)
 }
