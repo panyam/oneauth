@@ -430,6 +430,14 @@ func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes
 		}
 	}
 
+	// Verify audience if configured (RFC 7519 §4.1.3)
+	if a.JWTAudience != "" {
+		aud, _ := claims["aud"].(string)
+		if aud != a.JWTAudience {
+			return "", nil, fmt.Errorf("invalid audience: expected %q, got %q", a.JWTAudience, aud)
+		}
+	}
+
 	// Extract user ID
 	userID, ok = claims["sub"].(string)
 	if !ok || userID == "" {
@@ -478,6 +486,14 @@ func (a *APIAuth) ValidateAccessTokenFull(tokenString string) (userID string, sc
 	if a.JWTIssuer != "" {
 		if iss, ok := claims["iss"].(string); !ok || iss != a.JWTIssuer {
 			return "", nil, nil, fmt.Errorf("invalid issuer")
+		}
+	}
+
+	// Verify audience if configured (RFC 7519 §4.1.3)
+	if a.JWTAudience != "" {
+		aud, _ := claims["aud"].(string)
+		if aud != a.JWTAudience {
+			return "", nil, nil, fmt.Errorf("invalid audience: expected %q, got %q", a.JWTAudience, aud)
 		}
 	}
 
