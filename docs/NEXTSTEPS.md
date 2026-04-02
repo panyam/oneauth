@@ -19,6 +19,34 @@
 
 ---
 
+## Completed (Security Hardening Batch — #28, #24, #14, #15, #29, #31, #33, #34, #35)
+
+### Crypto & Validation
+- [x] Min RSA key size 2048 bits, NIST SP 800-57 (#29)
+- [x] `EncodePrivateKeyPEM` returns error instead of panic (#29)
+- [x] `SigningMethodForAlg` returns error on unknown algorithms (#29)
+- [x] Audience validation in `ValidateAccessToken`/`ValidateAccessTokenFull` — RFC 7519 §4.1.3 (#33)
+- [x] OAuth state cookie TTL 30d → 10m (#29)
+
+### Rate Limiting & Lockout
+- [x] `core.RateLimiter` interface + `InMemoryRateLimiter` (token bucket) (#31)
+- [x] `core.AccountLockout` — locks after N failures, auto-expires (#31)
+- [x] `LocalAuth.RateLimiter` + `LocalAuth.Lockout` fields (#31)
+- [x] Timing oracle fix — dummy bcrypt on user-not-found (CWE-208) (#31)
+
+### Middleware & Headers
+- [x] `httpauth.SecurityHeaders` middleware — HSTS, CSP, X-Frame-Options, nosniff, Referrer-Policy (#28)
+- [x] `httpauth.LimitBody` middleware — 413 on oversized requests (#34)
+- [x] JWKS ETag + If-None-Match → 304 support (#24)
+
+### Static Analysis & CI
+- [x] `jwt/v5` upgraded v5.2.1 → v5.2.2, Go 1.24 → 1.26.1 (#14)
+- [x] `govulncheck` passes clean — 0 vulnerabilities (#14)
+- [x] `make vulncheck`, `make seccheck`, `make lint` targets (#14, #15)
+- [x] GitHub Actions CI: test + security jobs on every push/PR (#35)
+
+---
+
 ## Completed (FS Path Traversal Fix — #17)
 
 ### Storage Backend Security

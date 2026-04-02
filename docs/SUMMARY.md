@@ -163,6 +163,10 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.44**: Rate limiting, account lockout, timing oracle fix (#31). Login rate limiting via `core.RateLimiter` (token bucket), account lockout via `core.AccountLockout`, CWE-208 timing oracle fix in credential validator.
+- **v0.0.43**: Security headers (#28), JWKS ETag (#24), Go 1.26.1 (#14), static analysis (#15), CI pipeline (#35). `SecurityHeaders` middleware, JWKS `ETag`+`304`, `govulncheck` clean, GitHub Actions CI.
+- **v0.0.42**: Crypto hardening (#29), body limits (#34), audience fix (#33). Min RSA 2048, no-panic `EncodePrivateKeyPEM`, `SigningMethodForAlg` errors on unknown, `LimitBody` middleware, audience validation in `ValidateAccessToken`.
+- **v0.0.41**: Reference links on all security tests. RFC/CVE/CWE/OWASP links in test docstrings.
 - **v0.0.40**: Sub-module split (#43), FS path traversal fix (#17). Core module trimmed to 6 deps. Heavy backends are separate Go modules. `safeName()` sanitizer on all FS stores, permissions tightened to 0700/0600. Migration guide: docs/MIGRATION.md.
 - **v0.0.39**: Subpackage reorganization + security hardening. Root .go files split into `core/`, `keys/`, `admin/`, `apiauth/`, `localauth/`, `httpauth/`. JWKS `key_ops: ["verify"]` for RFC compliance (#26). JWT security test suite with 13 tests covering algorithm confusion (CVE-2015-9235), claim validation, and edge cases (#16). Closed #4, #7, #16, #21, #26.
 - **v0.0.38**: kid in JWTs + KeyStore refactor (#25, #40). All minted JWTs include `kid` header (RFC 7638 thumbprint). Decomposed god KeyStore interface into focused `KeyLookup` (read) and `KeyStorage` (read+write) with `KeyRecord` struct. `EncryptedKeyStorage` correctly computes kid from plaintext. `KidStore` for key rotation grace periods. `CompositeKeyLookup` chains multiple sources. Cross-app forgery prevention via kid owner cross-check. JWKS uses thumbprint kids. All backends updated.
