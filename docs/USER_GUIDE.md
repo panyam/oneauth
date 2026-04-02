@@ -226,11 +226,13 @@ Each application using OneAuth maintains its own user database.
 
 ### Account lockout
 
-If an application locks accounts after failed login attempts:
+Applications may lock your account after too many failed login attempts (typically 5). If this happens:
 
-- Wait for the lockout period to expire (varies by application)
+- Wait for the lockout period to expire (typically 15 minutes)
 - Use the "Forgot password" feature to reset and regain access
 - Contact application support if you believe your account was compromised
+
+You may also see "Too many requests" if you're attempting logins too rapidly. Wait a minute and try again.
 
 ## Multiple Accounts
 
