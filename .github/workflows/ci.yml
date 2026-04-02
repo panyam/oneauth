@@ -10,9 +10,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Pin actions by SHA to prevent supply chain attacks (CVE-2025-30066)
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # needed for gitleaks to scan commit history
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.26'
 
@@ -41,9 +44,9 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.26'
 
@@ -57,3 +60,54 @@ jobs:
 
       - name: staticcheck
         run: staticcheck ./...
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Dynamic security scan — runs ZAP against a live server
+  # Only on push to main (not PRs) to avoid long CI times
+  zap:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.26'
+
+      - name: Build server
+        run: go build -o build/oneauth-server ./cmd/oneauth-server/
+
+      - name: Start server
+        run: |
+          PORT=19876 \
+          ADMIN_AUTH_TYPE=api-key \
+          ADMIN_API_KEY=ci-test-key \
+          KEYSTORE_TYPE=memory \
+          USER_STORES_TYPE=fs \
+          USER_STORES_PATH=/tmp/oneauth-zap \
+          JWT_SECRET_KEY=ci-jwt-secret-for-zap-testing \
+          JWT_ISSUER=oneauth-ci \
+          ./build/oneauth-server &
+          # Wait for server to be ready
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:19876/_ah/health && break
+            sleep 1
+          done
+
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@af08e42c2b62be6e5609d5c7e1b667c5ef52e57d # v0.14.0
+        with:
+          target: http://localhost:19876
+          rules_file_name: .zap-rules.tsv
+          fail_action: false # don't fail CI on findings (yet), just report
+          cmd_options: '-a -j' # AJAX spider + JSON report

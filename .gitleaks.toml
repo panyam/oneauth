@@ -1,0 +1,26 @@
+# Gitleaks configuration for oneauth
+# See: https://github.com/gitleaks/gitleaks
+
+title = "oneauth secret scanning"
+
+[allowlist]
+  # Test files use fake secrets intentionally
+  paths = [
+    '''.*_test\.go$''',
+    '''tests/integration/.*''',
+    '''examples/.*''',
+    '''demo/.*''',
+  ]
+
+  # Known test/default values that aren't real secrets
+  regexTarget = "line"
+  regexes = [
+    '''test-secret''',
+    '''test-admin-key''',
+    '''test-jwt-secret''',
+    '''MyTestJWTSecretKey''',
+    '''my-secret''',
+    '''shared-secret''',
+    '''super-secret-key''',
+    '''oneauth-timing-dummy''',
+  ]

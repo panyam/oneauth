@@ -19,6 +19,18 @@
 
 ---
 
+## Completed (Secret Scanning + ZAP — #36, #37)
+
+### CI Security Scanning
+- [x] Gitleaks secret scanning in CI — detects accidentally committed secrets (#36)
+- [x] `.gitleaks.toml` config with allowlisted test files and known test values
+- [x] `make secrets` for local scanning
+- [x] ZAP baseline scan against live server on push to main (#37)
+- [x] `.zap-rules.tsv` for suppressing known false positives
+- [x] All GitHub Actions pinned by SHA (CVE-2025-30066 mitigation)
+
+---
+
 ## Completed (JWT Blacklist — #23)
 
 ### Token Revocation

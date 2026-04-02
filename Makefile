@@ -284,4 +284,8 @@ seccheck:
 lint:
 	staticcheck ./...
 
-.PHONY: test test-hard updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint
+# Scan for accidentally committed secrets
+secrets:
+	gitleaks detect --source . --config .gitleaks.toml -v
+
+.PHONY: test test-hard updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint secrets
