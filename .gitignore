@@ -36,3 +36,4 @@ demo/data/
 # GAE
 .gcloudignore
 .playwright-mcp/
+cmd/oneauth-server/oneauth-server

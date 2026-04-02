@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-0.0.32
+0.0.45
 
 ## Provides
 - local-authentication: Email/password authentication

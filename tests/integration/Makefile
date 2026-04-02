@@ -4,6 +4,8 @@
 # Usage:
 #   make all                          # Run all tests against GAE
 #   make all BASE_URL=http://localhost:8080 ADMIN_KEY=mykey  # Against local server
+#   make autotest                     # Auto-start server, run all tests, stop server
+#   make test-security                # Run security tests only (with auto-start)
 #   make test-health                  # Run a single test
 #   make install                      # Install dependencies
 
@@ -26,8 +28,13 @@ $(VENV): requirements.txt
 
 install: $(VENV)
 
+# Run against an already-running server (GAE or local)
 all: $(VENV)
 	$(PYTEST) .
+
+# Auto-start a server, run all tests, stop server
+autotest: $(VENV)
+	$(PYTEST) --start-server .
 
 test-health: $(VENV)
 	$(PYTEST) test_01_health.py
@@ -41,7 +48,10 @@ test-lifecycle: $(VENV)
 test-jwt: $(VENV)
 	$(PYTEST) test_04_jwt_minting.py
 
+test-security: $(VENV)
+	$(PYTEST) --start-server test_09_security.py
+
 clean:
 	rm -rf $(VENV) __pycache__ .pytest_cache
 
-.PHONY: install all test-health test-auth test-lifecycle test-jwt clean
+.PHONY: install all autotest test-health test-auth test-lifecycle test-jwt test-security clean

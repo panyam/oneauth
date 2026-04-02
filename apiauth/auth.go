@@ -176,9 +176,13 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Check if revoked or expired
+	// Check if revoked — this indicates token reuse (theft detection).
+	// Revoke the entire token family to invalidate all related sessions.
 	if refreshToken.Revoked {
-		a.errorResponse(w, "invalid_grant", "Token has been revoked", http.StatusUnauthorized)
+		if revokeErr := a.RefreshTokenStore.RevokeTokenFamily(refreshToken.Family); revokeErr != nil {
+			log.Printf("Error revoking token family on reuse: %v", revokeErr)
+		}
+		a.errorResponse(w, "invalid_grant", "Token reuse detected, all sessions revoked", http.StatusUnauthorized)
 		return
 	}
 	if refreshToken.IsExpired() {

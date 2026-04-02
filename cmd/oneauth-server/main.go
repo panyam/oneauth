@@ -201,9 +201,26 @@ func main() {
 	mux.HandleFunc("POST /api/token", apiAuth.ServeHTTP)
 	mux.HandleFunc("POST /api/logout", apiAuth.HandleLogout)
 
-	// App registration API
-	mux.Handle("/apps/", registrar.Handler())
-	mux.Handle("/apps", registrar.Handler())
+	// JWT-protected API endpoints
+	apiMiddleware := &apiauth.APIMiddleware{
+		JWTSecretKey: cfg.JWT.SecretKey,
+		JWTIssuer:    cfg.JWT.Issuer,
+	}
+	mux.Handle("GET /api/me", apiMiddleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		scopes := apiauth.GetScopesFromAPIContext(r.Context())
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"user_id": userID,
+			"scopes":  scopes,
+		})
+	})))
+	mux.Handle("GET /api/sessions", apiMiddleware.ValidateToken(http.HandlerFunc(apiAuth.HandleListSessions)))
+	mux.Handle("POST /api/logout-all", apiMiddleware.ValidateToken(http.HandlerFunc(apiAuth.HandleLogoutAll)))
+
+	// App registration API (wrapped with body size limit)
+	mux.Handle("/apps/", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
+	mux.Handle("/apps", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
 
 	// JWKS endpoint (public — no auth required)
 	jwksHandler := &keys.JWKSHandler{KeyStore: keyStore}

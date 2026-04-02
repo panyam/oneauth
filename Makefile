@@ -2,6 +2,10 @@
 test:
 	go test -v ./...
 
+# Run ALL tests: unit tests (all modules) + integration tests (auto-starts server)
+test-hard: tall
+	$(MAKE) -C tests/integration autotest
+
 alltests: test
 	make downdb updb testpg downdb
 
@@ -280,4 +284,4 @@ seccheck:
 lint:
 	staticcheck ./...
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint
+.PHONY: test test-hard updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint
