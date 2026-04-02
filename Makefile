@@ -237,4 +237,27 @@ rep:
 	@echo "replace github.com/panyam/oneauth/stores/gorm => ../../stores/gorm" >> cmd/demo-resource-server/go.mod
 	@echo "Replace directives restored. Run 'make tidy' to verify."
 
-.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep
+# Tag a release across all modules. Usage: make tag V=v0.0.40
+# Sub-modules are tagged with path prefix per Go convention (e.g. stores/gorm/v0.0.40)
+SUB_MODS_TO_TAG := stores/gorm stores/gae saml grpc oauth2 cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
+tag:
+	@if [ -z "$(V)" ]; then echo "Usage: make tag V=v0.0.40"; exit 1; fi
+	@echo "Tagging $(V) across all modules..."
+	git tag $(V)
+	@for mod in $(SUB_MODS_TO_TAG); do \
+		echo "  $$mod/$(V)"; \
+		git tag $$mod/$(V); \
+	done
+	@echo ""
+	@echo "Tags created locally. Push with: git push origin $(V) $$(echo '$(SUB_MODS_TO_TAG)' | tr ' ' '\n' | sed 's|$$|/$(V)|' | tr '\n' ' ')"
+
+# Push all tags for a version. Usage: make pushtag V=v0.0.40
+pushtag:
+	@if [ -z "$(V)" ]; then echo "Usage: make pushtag V=v0.0.40"; exit 1; fi
+	git push origin $(V)
+	@for mod in $(SUB_MODS_TO_TAG); do \
+		git push origin $$mod/$(V); \
+	done
+	@echo "All tags pushed."
+
+.PHONY: test updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag

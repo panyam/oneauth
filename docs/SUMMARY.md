@@ -163,7 +163,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
-- **v0.1.0** (pending): Sub-module split (#43), FS path traversal fix (#17). Core module trimmed to 6 deps. Heavy backends are separate Go modules. `safeName()` sanitizer on all FS stores, permissions tightened to 0700/0600. Migration guide: docs/MIGRATION.md.
+- **v0.0.40**: Sub-module split (#43), FS path traversal fix (#17). Core module trimmed to 6 deps. Heavy backends are separate Go modules. `safeName()` sanitizer on all FS stores, permissions tightened to 0700/0600. Migration guide: docs/MIGRATION.md.
 - **v0.0.39**: Subpackage reorganization + security hardening. Root .go files split into `core/`, `keys/`, `admin/`, `apiauth/`, `localauth/`, `httpauth/`. JWKS `key_ops: ["verify"]` for RFC compliance (#26). JWT security test suite with 13 tests covering algorithm confusion (CVE-2015-9235), claim validation, and edge cases (#16). Closed #4, #7, #16, #21, #26.
 - **v0.0.38**: kid in JWTs + KeyStore refactor (#25, #40). All minted JWTs include `kid` header (RFC 7638 thumbprint). Decomposed god KeyStore interface into focused `KeyLookup` (read) and `KeyStorage` (read+write) with `KeyRecord` struct. `EncryptedKeyStorage` correctly computes kid from plaintext. `KidStore` for key rotation grace periods. `CompositeKeyLookup` chains multiple sources. Cross-app forgery prevention via kid owner cross-check. JWKS uses thumbprint kids. All backends updated.
 - **v0.0.37**: CSRF protection (#21). `CSRFMiddleware` with double-submit cookie pattern, constant-time comparison, Bearer exemption. Reference server form endpoints protected. 12 unit tests.

@@ -1,4 +1,4 @@
-# Migration Guide: Sub-Module Split (v0.0.x → v0.1.0)
+# Migration Guide: Sub-Module Split (v0.0.x → v0.0.40)
 
 ## What Changed
 
@@ -25,8 +25,8 @@ require github.com/panyam/oneauth v0.0.38
 **After (add sub-modules you use):**
 ```
 require (
-    github.com/panyam/oneauth            v0.1.0
-    github.com/panyam/oneauth/stores/gorm v0.1.0  // only if you use GORM stores
+    github.com/panyam/oneauth            v0.0.40
+    github.com/panyam/oneauth/stores/gorm v0.0.40  // only if you use GORM stores
 )
 ```
 
@@ -55,7 +55,7 @@ go mod tidy
 
 ### "I just want JWT validation for my API"
 ```
-require github.com/panyam/oneauth v0.1.0
+require github.com/panyam/oneauth v0.0.40
 
 import (
     "github.com/panyam/oneauth/apiauth"
@@ -67,19 +67,19 @@ import (
 ### "I want JWT + GORM persistence"
 ```
 require (
-    github.com/panyam/oneauth            v0.1.0
-    github.com/panyam/oneauth/stores/gorm v0.1.0
+    github.com/panyam/oneauth            v0.0.40
+    github.com/panyam/oneauth/stores/gorm v0.0.40
 )
 ```
 
 ### "I want the full server (everything)"
 ```
 require (
-    github.com/panyam/oneauth            v0.1.0
-    github.com/panyam/oneauth/stores/gorm v0.1.0
-    github.com/panyam/oneauth/stores/gae  v0.1.0
-    github.com/panyam/oneauth/saml        v0.1.0
-    github.com/panyam/oneauth/grpc        v0.1.0
-    github.com/panyam/oneauth/oauth2      v0.1.0
+    github.com/panyam/oneauth            v0.0.40
+    github.com/panyam/oneauth/stores/gorm v0.0.40
+    github.com/panyam/oneauth/stores/gae  v0.0.40
+    github.com/panyam/oneauth/saml        v0.0.40
+    github.com/panyam/oneauth/grpc        v0.0.40
+    github.com/panyam/oneauth/oauth2      v0.0.40
 )
 ```
