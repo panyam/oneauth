@@ -163,6 +163,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.50**: Load testing (#38). `hey`-based load tests for health, login, JWT validation, admin endpoints. `make test-hard` now includes unit + integration + load + secrets.
 - **v0.0.49**: Secret scanning + ZAP dynamic testing (#36, #37). Gitleaks in CI, ZAP baseline scan on push, all Actions pinned by SHA. `make secrets` for local use.
 - **v0.0.48**: JWT token blacklist (#23). `core.TokenBlacklist` interface, `InMemoryBlacklist`, `jti` claim in all access tokens, blacklist check in APIAuth + APIMiddleware. 10 tests.
 - **v0.0.47**: PKCE for OAuth2 (#27). Proof Key for Code Exchange (RFC 7636) enabled by default. `DisablePKCE` opt-out. HttpOnly cookie for verifier. 8 tests.

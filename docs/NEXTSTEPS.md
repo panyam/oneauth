@@ -19,6 +19,19 @@
 
 ---
 
+## Completed (Load Testing — #38)
+
+### Performance Verification
+- [x] Load tests in `tests/integration/test_10_load.py` using `hey` (#38)
+- [x] Health endpoint: 1000 req @ 50 concurrent → zero errors
+- [x] Login flood: 50 concurrent wrong-password attempts → no 500s
+- [x] JWT validation throughput: 500 req @ 50 concurrent → all 200s
+- [x] Admin endpoint concurrent reads → no 500s
+- [x] `make test-load` for standalone load testing
+- [x] `make test-hard` now includes: unit + integration + load + secret scan
+
+---
+
 ## Completed (Secret Scanning + ZAP — #36, #37)
 
 ### CI Security Scanning

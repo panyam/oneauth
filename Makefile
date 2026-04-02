@@ -2,8 +2,8 @@
 test:
 	go test -v ./...
 
-# Run ALL tests: unit tests (all modules) + integration tests (auto-starts server)
-test-hard: tall
+# Run ALL tests: unit + integration + load + secrets scan (auto-starts server)
+test-hard: tall secrets
 	$(MAKE) -C tests/integration autotest
 
 alltests: test

@@ -51,7 +51,10 @@ test-jwt: $(VENV)
 test-security: $(VENV)
 	$(PYTEST) --start-server test_09_security.py
 
+test-load: $(VENV)
+	$(PYTEST) --start-server test_10_load.py
+
 clean:
 	rm -rf $(VENV) __pycache__ .pytest_cache
 
-.PHONY: install all autotest test-health test-auth test-lifecycle test-jwt test-security clean
+.PHONY: install all autotest test-health test-auth test-lifecycle test-jwt test-security test-load clean
