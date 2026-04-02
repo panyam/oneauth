@@ -19,6 +19,19 @@
 
 ---
 
+## Completed (JWT Blacklist — #23)
+
+### Token Revocation
+- [x] `core.TokenBlacklist` interface + `InMemoryBlacklist` implementation (#23)
+- [x] `jti` (JWT ID) claim in all access tokens (RFC 7519 §4.1.7)
+- [x] `APIAuth.Blacklist` — checks blacklist in `ValidateAccessToken` and `ValidateAccessTokenFull`
+- [x] `APIMiddleware.Blacklist` — checks blacklist in middleware validation
+- [x] Auto-expiring entries (no unbounded growth)
+- [x] Backward compatible: nil blacklist = stateless validation (no change)
+- [x] 10 tests covering revocation, expiry, middleware, multi-tenant, and false-positive prevention
+
+---
+
 ## Completed (Security Hardening Batch — #28, #24, #14, #15, #29, #31, #33, #34, #35)
 
 ### Crypto & Validation

@@ -51,6 +51,12 @@ type APIAuth struct {
 
 	// Rate limiting (optional)
 	RateLimiter core.RateLimiter
+
+	// Blacklist enables immediate access token revocation. When set,
+	// ValidateAccessToken checks the blacklist after signature verification.
+	// Tokens include a jti (JWT ID) claim for blacklist lookup.
+	// If nil, tokens are validated by signature + expiry only (stateless).
+	Blacklist core.TokenBlacklist
 }
 
 // ServeHTTP handles the /api/login endpoint
@@ -320,7 +326,7 @@ func (a *APIAuth) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 // standardClaims is the set of JWT claim keys that cannot be overridden by CustomClaimsFunc.
 var standardClaims = map[string]bool{
 	"sub": true, "iss": true, "aud": true, "exp": true,
-	"iat": true, "type": true, "scopes": true,
+	"iat": true, "type": true, "scopes": true, "jti": true,
 }
 
 // CreateAccessToken creates a signed JWT access token. If CustomClaimsFunc is set,
@@ -334,10 +340,17 @@ func (a *APIAuth) CreateAccessToken(userID string, scopes []string) (string, int
 	now := time.Now()
 	expiresAt := now.Add(expiry)
 
+	// Generate jti (JWT ID) for token blacklisting (RFC 7519 §4.1.7)
+	jti, err := core.GenerateSecureToken()
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to generate jti: %w", err)
+	}
+
 	claims := jwt.MapClaims{
 		"sub":    userID,
 		"type":   "access",
 		"scopes": scopes,
+		"jti":    jti,
 		"iat":    now.Unix(),
 		"exp":    expiresAt.Unix(),
 	}
@@ -456,6 +469,15 @@ func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes
 		}
 	}
 
+	// Check blacklist if configured (RFC 7519 §4.1.7 jti-based revocation)
+	if a.Blacklist != nil {
+		if jti, ok := claims["jti"].(string); ok && jti != "" {
+			if a.Blacklist.IsRevoked(jti) {
+				return "", nil, fmt.Errorf("token has been revoked")
+			}
+		}
+	}
+
 	return userID, scopes, nil
 }
 
@@ -520,6 +542,15 @@ func (a *APIAuth) ValidateAccessTokenFull(tokenString string) (userID string, sc
 	for k, v := range claims {
 		if !standardClaims[k] {
 			customClaims[k] = v
+		}
+	}
+
+	// Check blacklist if configured
+	if a.Blacklist != nil {
+		if jti, ok := claims["jti"].(string); ok && jti != "" {
+			if a.Blacklist.IsRevoked(jti) {
+				return "", nil, nil, fmt.Errorf("token has been revoked")
+			}
 		}
 	}
 
@@ -813,6 +844,11 @@ type APIMiddleware struct {
 
 	// Error handling
 	OnAuthError func(w http.ResponseWriter, r *http.Request, err error)
+
+	// Blacklist enables immediate access token revocation. When set,
+	// validateJWT checks the blacklist after signature verification.
+	// If nil, no revocation check (stateless validation only).
+	Blacklist core.TokenBlacklist
 }
 
 // GetUserIDFromAPIContext retrieves the user ID from the API middleware context
@@ -1074,6 +1110,15 @@ func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes [
 	for k, v := range claims {
 		if !standardClaims[k] {
 			customClaims[k] = v
+		}
+	}
+
+	// Check blacklist if configured
+	if m.Blacklist != nil {
+		if jti, ok := claims["jti"].(string); ok && jti != "" {
+			if m.Blacklist.IsRevoked(jti) {
+				return "", nil, "", nil, fmt.Errorf("token has been revoked")
+			}
 		}
 	}
 

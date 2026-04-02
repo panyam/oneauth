@@ -382,6 +382,29 @@ For the full registration flow and architecture, see [ARCHITECTURE.md](ARCHITECT
 
 The `RateLimiter` interface previously in `apiauth` has moved to `core` so it can be shared with `localauth`. The interface is unchanged — update imports from `apiauth.RateLimiter` to `core.RateLimiter`. `core.InMemoryRateLimiter` is available for both API and browser auth.
 
+### Token Blacklist (jti-based revocation)
+
+Access tokens now include a `jti` (JWT ID) claim (RFC 7519 §4.1.7). When `APIAuth.Blacklist` or `APIMiddleware.Blacklist` is set, revoked token IDs are checked during validation.
+
+```go
+bl := core.NewInMemoryBlacklist()
+auth := &apiauth.APIAuth{
+    JWTSecretKey: secret,
+    Blacklist:    bl,  // enables immediate token revocation
+}
+middleware := &apiauth.APIMiddleware{
+    JWTSecretKey: secret,
+    Blacklist:    bl,  // same blacklist shared with middleware
+}
+
+// Revoke a token by its jti claim
+bl.Revoke(jti, tokenExpiry)
+```
+
+Backward compatible: when `Blacklist` is nil (default), tokens are validated by signature + expiry only.
+
+For distributed deployments, implement `core.TokenBlacklist` backed by Redis (`SET jti:<id> 1 EX <ttl>`).
+
 ### Audience validation in ValidateAccessToken
 
 `ValidateAccessToken` now checks the `aud` (audience) claim when `JWTAudience` is configured on `APIAuth` or `APIMiddleware`. Previously the audience was set when minting but not validated on verification. Tokens minted without an `aud` claim are still accepted when `JWTAudience` is empty.

@@ -12,7 +12,8 @@ Foundation types and interfaces for the OneAuth authentication framework. Every 
 - **context.go** — `GetUserIDFromContext()`, `SetUserIDInContext()`, `DefaultUserParamName`
 
 ## Recent Additions
-- **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket, used by `localauth` and formerly by `apiauth` before being moved here)
+- **blacklist.go** — `TokenBlacklist` interface and `InMemoryBlacklist` for jti-based JWT revocation
+- **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket)
 - **lockout.go** — `AccountLockout` struct for tracking failed login attempts and temporary account lockouts
 
 ## Dependencies
