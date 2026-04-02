@@ -143,15 +143,12 @@ class TestAuthBypass:
         This catches servers that don't handle signature verification errors gracefully.
         """
         token = token_pair["access_token"]
-        # Flip the last byte of the signature
-        parts = token.rsplit(".", 1)
-        sig = parts[1]
-        # Flip a character in the signature
-        flipped = sig[:-1] + ("A" if sig[-1] != "A" else "B")
-        tampered = parts[0] + "." + flipped
+        # Replace the entire signature with garbage (guaranteed invalid)
+        header_payload = ".".join(token.split(".")[:2])
+        tampered = header_payload + ".AAAA_completely_invalid_signature_BBBB"
 
         r = requests.get(
-            f"{server_url}/api/sessions",
+            f"{server_url}/api/me",
             headers={"Authorization": f"Bearer {tampered}"},
         )
         assert r.status_code == 401, f"Tampered token got {r.status_code}, expected 401"

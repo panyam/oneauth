@@ -2,8 +2,8 @@
 test:
 	go test -v ./...
 
-# Run ALL tests: unit + integration + load + secrets scan (auto-starts server)
-test-hard: tall secrets
+# Run ALL tests: build all → unit tests → secrets scan → integration + load (auto-starts servers)
+test-hard: ball tall secrets
 	$(MAKE) -C tests/integration autotest
 
 alltests: test

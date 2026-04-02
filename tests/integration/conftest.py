@@ -163,18 +163,20 @@ class ManagedResourceServer:
         return f"http://localhost:{self.port}"
 
     def start(self, root):
-        server_dir = os.path.join(root, "cmd", "demo-resource-server")
-        binary = os.path.join(root, "build", f"resource-server-{self.name}")
-
-        print(f"  Building demo-resource-server ({self.name})...")
-        result = subprocess.run(
-            ["go", "build", "-buildvcs=false", "-o", binary, "."],
-            cwd=server_dir,
-            capture_output=True, text=True,
-        )
-        if result.returncode != 0:
-            print(f"  WARNING: Failed to build resource server: {result.stderr[:200]}")
-            return False
+        # Use pre-built binary from build/ (built by make ball)
+        binary = os.path.join(root, "build", "demo-resource-server")
+        if not os.path.exists(binary):
+            # Try building if not pre-built
+            server_dir = os.path.join(root, "cmd", "demo-resource-server")
+            print(f"  Building demo-resource-server ({self.name})...")
+            result = subprocess.run(
+                ["go", "build", "-buildvcs=false", "-o", binary, "."],
+                cwd=server_dir,
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                print(f"  WARNING: Failed to build resource server: {result.stderr[:200]}")
+                return False
 
         env = {
             **os.environ,
@@ -234,6 +236,18 @@ def resource_servers(request, managed_server):
         return None
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     jwks_url = f"{managed_server.base_url}/.well-known/jwks.json"
+
+    # Ensure JWKS endpoint is available before starting resource servers
+    # (they do an initial JWKS fetch on startup and crash if it fails)
+    if not _wait_for_server(managed_server.base_url, timeout=5):
+        return None
+
+    # Register at least one app so JWKS has keys to serve
+    # (resource servers need at least one key to validate tokens)
+    import requests as req
+    req.post(f"{managed_server.base_url}/apps/register",
+        json={"client_domain": "integ-test-bootstrap.example.com", "signing_alg": "HS256"},
+        headers={"X-Admin-Key": managed_server.admin_key, "Content-Type": "application/json"})
 
     servers = {}
     for name, port in [("resource-a", "14001"), ("resource-b", "14002")]:
