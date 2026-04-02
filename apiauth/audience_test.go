@@ -6,13 +6,16 @@ package apiauth_test
 // ValidateAccessToken methods, allowing cross-service token acceptance.
 //
 // References:
-//   - RFC 7519 §4.1.3: "The 'aud' claim identifies the recipients that the JWT
-//     is intended for. [...] If the principal processing the claim does not identify
-//     itself with a value in the 'aud' claim when this claim is present, then the
-//     JWT MUST be rejected."
-//   - OWASP JWT Cheat Sheet: "Always validate the audience claim to prevent tokens
-//     intended for one service from being accepted by another."
-//   - CWE-284: Improper Access Control — accepting tokens meant for other services.
+//   - RFC 7519 §4.1.3 (https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3):
+//     "The 'aud' claim identifies the recipients that the JWT is intended for.
+//     [...] If the principal processing the claim does not identify itself with
+//     a value in the 'aud' claim when this claim is present, then the JWT MUST
+//     be rejected."
+//   - OWASP JWT Cheat Sheet (https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html#token-audience):
+//     "Always validate the audience claim to prevent tokens intended for one
+//     service from being accepted by another."
+//   - CWE-284 (https://cwe.mitre.org/data/definitions/284.html):
+//     Improper Access Control — accepting tokens meant for other services.
 //
 // Scenario: Two microservices share the same signing key but have different
 // JWTAudience values. A token minted for service-b should be rejected by
@@ -60,6 +63,9 @@ func baseClaims(aud string) jwt.MapClaims {
 // is rejected when APIAuth.JWTAudience is "service-a". This is the core
 // cross-service attack scenario.
 //
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+// See: https://cwe.mitre.org/data/definitions/284.html
+//
 // BEFORE FIX: passes (token accepted despite wrong audience)
 // AFTER FIX: fails with "invalid audience"
 func TestAudience_WrongAud_Rejected(t *testing.T) {
@@ -78,7 +84,10 @@ func TestAudience_WrongAud_Rejected(t *testing.T) {
 	}
 }
 
-// TestAudience_WrongAud_Rejected_Full verifies the same for ValidateAccessTokenFull.
+// TestAudience_WrongAud_Rejected_Full verifies the same cross-service attack
+// for ValidateAccessTokenFull.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
 func TestAudience_WrongAud_Rejected_Full(t *testing.T) {
 	secret := "shared-secret"
 	auth := &apiauth.APIAuth{
@@ -96,7 +105,9 @@ func TestAudience_WrongAud_Rejected_Full(t *testing.T) {
 
 // TestAudience_MissingAud_Rejected verifies that a token WITHOUT an aud claim
 // is rejected when JWTAudience is configured. A missing audience should not
-// bypass the check.
+// bypass the check — omitting the claim entirely is a common attack variant.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
 func TestAudience_MissingAud_Rejected(t *testing.T) {
 	secret := "shared-secret"
 	auth := &apiauth.APIAuth{

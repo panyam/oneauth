@@ -171,6 +171,11 @@ func TestJWKToPublicKey_UnsupportedKty(t *testing.T) {
 //
 // These tests document and verify the structural guarantees that prevent
 // private key leakage and ensure spec-compliant JWKS output.
+//
+// References:
+//   - RFC 7517 (https://datatracker.ietf.org/doc/html/rfc7517): JSON Web Key
+//   - RFC 7517 §4.3 (https://datatracker.ietf.org/doc/html/rfc7517#section-4.3): key_ops
+//   - RFC 7518 §6.3 (https://datatracker.ietf.org/doc/html/rfc7518#section-6.3): RSA key params
 // =============================================================================
 
 // TestJWK_RSA_NoPrivateKeyFields proves that marshalling an RSA JWK to JSON

@@ -177,3 +177,4 @@ Design lessons and feedback from past sessions are in `memories/`. See `memories
 - Use `GH_TOKEN="$GH_PERSONAL_TOKEN"` for gh CLI (Enterprise Managed User)
 - PostgreSQL test container: `arm64v8/postgres:18.1` on port 5433
 - Datastore test credentials: `~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json`
+- **Security tests must include `// See:` links** to the relevant RFC, CVE, CWE, or OWASP reference in each test function's doc comment. This makes it easy to trace why a test exists and what attack it prevents. Example: `// See: https://nvd.nist.gov/vuln/detail/CVE-2015-9235`

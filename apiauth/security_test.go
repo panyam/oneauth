@@ -2,6 +2,13 @@ package apiauth_test
 
 // Security test suite for JWT attack vectors: algorithm confusion, claim manipulation,
 // and edge cases in token validation. Documents defense-in-depth guarantees. (#16)
+//
+// References:
+//   - CVE-2015-9235 (https://nvd.nist.gov/vuln/detail/CVE-2015-9235):
+//     JWT algorithm confusion — signing with public key as HMAC secret
+//   - RFC 7519 (https://datatracker.ietf.org/doc/html/rfc7519): JWT specification
+//   - OWASP JWT Cheat Sheet (https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html):
+//     JWT security best practices
 
 import (
 	"crypto/ecdsa"
@@ -44,6 +51,8 @@ func validateViaMiddleware(t *testing.T, ks keys.KeyLookup, token string) int {
 // TestSecurity_AlgNone_Rejected proves that tokens with alg:none are rejected.
 // This is the most basic JWT attack — sending an unsigned token.
 // jwt/v5 rejects this by default, but we prove the guarantee explicitly.
+//
+// See: https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
 func TestSecurity_AlgNone_Rejected(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	ks.RegisterKey("app1", []byte("secret"), "HS256")
@@ -67,6 +76,8 @@ func TestSecurity_AlgNone_Rejected(t *testing.T) {
 // TestSecurity_AlgConfusion_HS256WithRSAPubKey proves the classic CVE-2015-9235 attack
 // is blocked: attacker signs with RSA public key bytes as HMAC secret.
 // Our middleware checks rec.Algorithm against token header alg before verification.
+//
+// See: https://nvd.nist.gov/vuln/detail/CVE-2015-9235
 func TestSecurity_AlgConfusion_HS256WithRSAPubKey(t *testing.T) {
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
@@ -149,6 +160,8 @@ func TestSecurity_ExpiredToken_Rejected(t *testing.T) {
 
 // TestSecurity_RefreshTokenType_RejectedAsAccess proves that a JWT with
 // type: "refresh" is rejected by the access token validator.
+//
+// See: https://cwe.mitre.org/data/definitions/269.html (Improper Privilege Management)
 func TestSecurity_RefreshTokenType_RejectedAsAccess(t *testing.T) {
 	secret := "test-secret"
 	auth := &apiauth.APIAuth{JWTSecretKey: secret}
@@ -169,6 +182,8 @@ func TestSecurity_RefreshTokenType_RejectedAsAccess(t *testing.T) {
 }
 
 // TestSecurity_MissingSub_Rejected proves tokens without a subject claim are rejected.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.2
 func TestSecurity_MissingSub_Rejected(t *testing.T) {
 	secret := "test-secret"
 	auth := &apiauth.APIAuth{JWTSecretKey: secret}
@@ -189,6 +204,8 @@ func TestSecurity_MissingSub_Rejected(t *testing.T) {
 
 // TestSecurity_WrongIssuer_Rejected proves tokens with wrong issuer are rejected
 // when issuer validation is configured.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.1
 func TestSecurity_WrongIssuer_Rejected(t *testing.T) {
 	secret := "test-secret"
 	auth := &apiauth.APIAuth{

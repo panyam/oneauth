@@ -4,6 +4,11 @@ package fs
 // Tests path traversal attack vectors, null byte injection, file permissions,
 // and documents which stores are already safe vs which needed fixes.
 //
+// References:
+//   - CWE-22 (https://cwe.mitre.org/data/definitions/22.html): Path Traversal
+//   - CWE-732 (https://cwe.mitre.org/data/definitions/732.html): Incorrect Permission Assignment
+//   - OWASP Path Traversal (https://owasp.org/www-community/attacks/Path_Traversal)
+//
 // Run with: go test -v -run TestSecurity ./stores/fs/
 
 import (
