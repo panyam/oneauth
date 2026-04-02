@@ -503,10 +503,12 @@ Compliance (can be parallel)
 ## Known Limitations
 
 1. **File-based stores**: Not suitable for >1000 users or clustered deployments
-2. **Rate limiting interface only**: Provides interface, application implements logic
-3. ~~**No CSRF protection**~~ **Resolved** — `CSRFMiddleware` provides double-submit cookie pattern (see [BROWSER_AUTH.md](BROWSER_AUTH.md#csrf-protection-csrfmiddleware))
+2. ~~**Rate limiting interface only**~~ **Resolved** — `InMemoryRateLimiter` + `AccountLockout` built in; per-process (use Redis-backed impl for distributed)
+3. ~~**No CSRF protection**~~ **Resolved** — `CSRFMiddleware` provides double-submit cookie pattern
 4. **Console email sender only**: Production requires custom EmailSender implementation
 5. **No MFA yet**: TOTP/WebAuthn planned for medium-term
+6. **AppRegistrar state is in-memory** (#20, P2): App registrations lost on server restart. Workaround: re-register on startup. See massrelay#16 for threshold conditions.
+7. **Token blacklist is per-process** (#23): `InMemoryBlacklist` doesn't share state across nodes. Use Redis-backed `TokenBlacklist` for distributed deployments.
 
 ## Contributing
 
