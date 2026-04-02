@@ -2,6 +2,7 @@ package oauth2
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -21,6 +22,15 @@ type BaseOAuth2 struct {
 	// HTTPClient is used for making HTTP requests during OAuth flows.
 	// If nil, http.DefaultClient is used. This can be set for testing.
 	HTTPClient *http.Client
+
+	// DisablePKCE disables Proof Key for Code Exchange (RFC 7636).
+	// PKCE is enabled by default (zero value = enabled) because OAuth 2.1
+	// requires it for all clients. Set to true only for providers that
+	// don't support PKCE — a warning will be logged on startup.
+	DisablePKCE bool
+
+	// SecureCookies sets the Secure flag on PKCE and state cookies (HTTPS only).
+	SecureCookies bool
 }
 
 // SetHTTPClient sets the HTTP client used for OAuth requests.
@@ -84,7 +94,14 @@ func NewBaseOAuth2(clientId string, clientSecret string, callbackUrl string, han
 }
 
 func (b *BaseOAuth2) setupHandlers() {
-	b.mux.HandleFunc("/", OauthRedirector(&b.oauthConfig))
+	if b.DisablePKCE {
+		log.Printf("WARNING: PKCE disabled for OAuth2 provider (client_id=%s). "+
+			"This is insecure for public clients (SPAs, mobile apps). "+
+			"See: https://datatracker.ietf.org/doc/html/rfc7636", b.ClientId)
+		b.mux.HandleFunc("/", OauthRedirectorNoPKCE(&b.oauthConfig))
+	} else {
+		b.mux.HandleFunc("/", OauthRedirectorWithPKCE(&b.oauthConfig, b.SecureCookies))
+	}
 
 	// An "easier" way to login by X if we already have the access tokens
 	// If the access tokens have expired then the user would have to re login

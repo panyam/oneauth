@@ -252,6 +252,7 @@ func TestGoogleOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=test_code&state=wrong_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "correct_state"})
+req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		googleAuth.Handler().ServeHTTP(rr, req)
@@ -280,6 +281,7 @@ func TestGoogleOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=valid_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
+req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		googleAuth.Handler().ServeHTTP(rr, req)
@@ -302,6 +304,7 @@ func TestGoogleOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=bad_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
+req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		googleAuth.Handler().ServeHTTP(rr, req)
@@ -321,6 +324,7 @@ func TestGoogleOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=valid_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
+req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		googleAuth.Handler().ServeHTTP(rr, req)
@@ -386,6 +390,7 @@ func TestGithubOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=test_code&state=wrong_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "correct_state"})
+req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		githubAuth.Handler().ServeHTTP(rr, req)
@@ -415,6 +420,7 @@ func TestGithubOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=valid_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
+req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		githubAuth.Handler().ServeHTTP(rr, req)
@@ -437,6 +443,7 @@ func TestGithubOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=bad_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
+req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		githubAuth.Handler().ServeHTTP(rr, req)
@@ -456,6 +463,7 @@ func TestGithubOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=valid_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
+req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		githubAuth.Handler().ServeHTTP(rr, req)
@@ -519,9 +527,9 @@ func TestOAuthStateGeneration(t *testing.T) {
 		cookies := rr.Result().Cookies()
 		for _, c := range cookies {
 			if c.Name == "oauthstate" {
-				// Cookie should expire in about 30 days
-				expectedExpiry := time.Now().Add(30 * 24 * time.Hour)
-				if c.Expires.Before(expectedExpiry.Add(-1*time.Hour)) || c.Expires.After(expectedExpiry.Add(1*time.Hour)) {
+				// Cookie should expire in about 10 minutes
+				expectedExpiry := time.Now().Add(10 * time.Minute)
+				if c.Expires.Before(expectedExpiry.Add(-1*time.Minute)) || c.Expires.After(expectedExpiry.Add(1*time.Minute)) {
 					t.Errorf("Cookie expiry not within expected range: %v", c.Expires)
 				}
 				break

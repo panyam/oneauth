@@ -68,8 +68,20 @@ func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Get auth token
 	var userInfo map[string]any
 	code := r.FormValue("code")
-	// token, err := getAuthTokens(oauthConfig, code)
-	token, err := g.oauthConfig.Exchange(g.ExchangeContext(), code)
+
+	// PKCE: read code_verifier from cookie and include in token exchange
+	var exchangeOpts []oauth2.AuthCodeOption
+	if !g.DisablePKCE {
+		verifier := GetPKCEVerifier(r)
+		if verifier == "" {
+			http.Error(w, "PKCE verifier missing — authorization flow may have expired", http.StatusBadRequest)
+			return
+		}
+		exchangeOpts = append(exchangeOpts, oauth2.SetAuthURLParam("code_verifier", verifier))
+		ClearPKCECookie(w)
+	}
+
+	token, err := g.oauthConfig.Exchange(g.ExchangeContext(), code, exchangeOpts...)
 	if err != nil {
 		slog.Info("Invalid code exchange", "err", err)
 	} else {
