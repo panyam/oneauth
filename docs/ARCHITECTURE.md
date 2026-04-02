@@ -162,6 +162,13 @@ See **[Client SDK](CLIENT_SDK.md)** for full details.
 - Migration: if GCM decryption fails on read, falls back to treating stored bytes as plaintext (backward compat with pre-encryption data)
 - Optional: no master key configured = no encryption (with log warning)
 
+### PKCE (Proof Key for Code Exchange)
+- All OAuth2 flows use PKCE (RFC 7636) by default — prevents authorization code interception
+- `code_challenge` (S256) sent with authorization URL, `code_verifier` sent on token exchange
+- Verifier stored in HttpOnly cookie during the OAuth round-trip
+- `DisablePKCE` opt-out for providers that don't support PKCE (logs warning)
+- Required by OAuth 2.1 for all clients (not just public)
+
 ### CSRF Protection
 - `CSRFMiddleware` — double-submit cookie pattern, opt-in per-endpoint
 - Constant-time token comparison (`crypto/subtle`)

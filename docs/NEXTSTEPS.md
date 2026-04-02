@@ -261,12 +261,10 @@
   >
   > **Requires**: API mode OAuth callbacks
 
-- [ ] **P1** `[SECURITY]` PKCE support for public clients
-  > **Scenario**: Mobile app generates `code_verifier`, sends `code_challenge` with OAuth request. Server validates on token exchange, preventing authorization code interception attacks.
-  >
-  > **Urgency**: Security requirement for public OAuth clients (mobile, SPA). Required by OAuth 2.1 spec.
-  >
-  > **Requires**: API mode OAuth callbacks
+- [x] **P1** `[SECURITY]` PKCE support for public clients (#27) ✅
+  > PKCE (RFC 7636) enabled by default for all OAuth2 flows. `DisablePKCE` opt-out with warning.
+  > Code verifier stored in HttpOnly cookie, code challenge sent as S256.
+  > 8 tests covering full flow.
 
 ### Phase 4: Client SDK (Remaining)
 

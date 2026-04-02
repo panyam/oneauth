@@ -193,6 +193,30 @@ oneAuth.AddAuth("/github", oauth2.NewGithubOAuth2(
 ).Handler())
 ```
 
+### PKCE (Proof Key for Code Exchange)
+
+All OAuth2 flows use PKCE (RFC 7636) by default to prevent authorization code interception attacks. This is especially important for public clients (SPAs, mobile apps) where the client secret cannot be securely stored.
+
+```
+Authorization redirect:
+  → code_challenge=SHA256(verifier) & code_challenge_method=S256
+  → verifier stored in HttpOnly cookie (pkce_verifier)
+
+Callback:
+  ← reads verifier from cookie
+  ← sends code_verifier in token exchange
+  ← provider verifies SHA256(verifier) == challenge
+```
+
+PKCE is enabled by default. To disable for a provider that doesn't support it:
+
+```go
+google := oauth2.NewGoogleOAuth2(clientID, clientSecret, callbackURL, handleUser)
+google.DisablePKCE = true  // logs a warning — not recommended
+```
+
+See: [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636)
+
 ## Channel Linking (Multiple Auth Methods)
 
 A user can sign up with email/password and later link their Google account, or vice versa. Multiple channels share the same user via email Identity.

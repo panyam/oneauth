@@ -163,6 +163,9 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.47**: PKCE for OAuth2 (#27). Proof Key for Code Exchange (RFC 7636) enabled by default. `DisablePKCE` opt-out. HttpOnly cookie for verifier. 8 tests.
+- **v0.0.46**: Integration security tests (#18). 11 full-stack tests, --start-server auto-build, refresh token family revocation bug fix, JWT-protected /api/me endpoint, LimitBody on /apps/.
+- **v0.0.45**: Documentation update. All 15 docs synced with subpackage reorg + security hardening.
 - **v0.0.44**: Rate limiting, account lockout, timing oracle fix (#31). Login rate limiting via `core.RateLimiter` (token bucket), account lockout via `core.AccountLockout`, CWE-208 timing oracle fix in credential validator.
 - **v0.0.43**: Security headers (#28), JWKS ETag (#24), Go 1.26.1 (#14), static analysis (#15), CI pipeline (#35). `SecurityHeaders` middleware, JWKS `ETag`+`304`, `govulncheck` clean, GitHub Actions CI.
 - **v0.0.42**: Crypto hardening (#29), body limits (#34), audience fix (#33). Min RSA 2048, no-panic `EncodePrivateKeyPEM`, `SigningMethodForAlg` errors on unknown, `LimitBody` middleware, audience validation in `ValidateAccessToken`.
