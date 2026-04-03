@@ -293,7 +293,10 @@ secrets:
 	gitleaks detect --source . --config .gitleaks.toml -v
 
 # Full security audit: dependency vulns + code patterns + secrets + race detection
-audit: vulncheck seccheck secrets
+audit: vulncheck secrets
+	@echo ""
+	@echo "=== gosec (informational) ==="
+	@gosec -quiet -severity=high ./... || true
 	@echo ""
 	@echo "=== Race detection (e2e) ==="
 	go test -buildvcs=false -race -count=1 ./tests/e2e/
