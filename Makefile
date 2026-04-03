@@ -158,10 +158,11 @@ gaelogs:
 	gcloud app logs tail -s default --project=$(GAE_PROJECT)
 
 # =============================================================================
-# Integration tests
+# Integration / E2E tests
 # =============================================================================
-integ:
-	$(MAKE) -C tests/integration all
+# Old Python integration tests removed — use make e2e instead.
+# For GAE deployment testing: TEST_BASE_URL=https://... make e2e
+integ: e2e
 
 # =============================================================================
 # Documentation
