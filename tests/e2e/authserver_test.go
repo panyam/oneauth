@@ -38,10 +38,7 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	refreshTokenStore := fsstore.NewFSRefreshTokenStore(tmpDir)
 
 	// AppRegistrar
-	e.registrar = &admin.AppRegistrar{
-		KeyStore: e.KeyStore,
-		Auth:     admin.NewAPIKeyAuth(e.AdminKey),
-	}
+	e.registrar = admin.NewAppRegistrar(e.KeyStore, admin.NewAPIKeyAuth(e.AdminKey))
 
 	// LocalAuth (JSON-mode HandleUser for tests — no templates needed)
 	e.localAuth = &localauth.LocalAuth{

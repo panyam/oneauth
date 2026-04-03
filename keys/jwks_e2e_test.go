@@ -27,7 +27,7 @@ import (
 // 3. Validate the token via APIMiddleware backed by the same KeyStore
 func TestFederated_EndToEnd_HS256(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	regHandler := registrar.Handler()
 
 	// --- Step 1: Register app via HTTP ---
@@ -90,7 +90,7 @@ func TestFederated_EndToEnd_HS256(t *testing.T) {
 // the wrong secret is rejected by the middleware.
 func TestFederated_EndToEnd_HS256_WrongSecret(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	regHandler := registrar.Handler()
 
 	body, _ := json.Marshal(map[string]any{"client_domain": "wrong-secret.com"})
@@ -125,7 +125,7 @@ func TestFederated_EndToEnd_HS256_WrongSecret(t *testing.T) {
 // by app A is rejected when presented with app B's client_id (different secret).
 func TestFederated_EndToEnd_HS256_CrossAppRejection(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	regHandler := registrar.Handler()
 
 	// Register two apps
@@ -165,7 +165,7 @@ func TestFederated_EndToEnd_HS256_CrossAppRejection(t *testing.T) {
 // an app's secret, old tokens fail and new tokens succeed.
 func TestFederated_EndToEnd_HS256_SecretRotation(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	regHandler := registrar.Handler()
 
 	// Register
@@ -219,7 +219,7 @@ func TestFederated_EndToEnd_HS256_SecretRotation(t *testing.T) {
 // through the AppRegistrar HTTP API (not just direct KeyStore registration).
 func TestFederated_EndToEnd_RS256_ViaRegistrar(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	regHandler := registrar.Handler()
 
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)

@@ -77,10 +77,7 @@ func main() {
 	}
 
 	// Build AppRegistrar
-	registrar := &admin.AppRegistrar{
-		KeyStore: keyStore,
-		Auth:     adminAuth,
-	}
+	registrar := admin.NewAppRegistrar(keyStore, adminAuth)
 
 	// Build LocalAuth
 	localAuth := &localauth.LocalAuth{

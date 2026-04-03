@@ -17,10 +17,7 @@ import (
 func setupRegistrar(t *testing.T) (*admin.AppRegistrar, *keys.InMemoryKeyStore) {
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
-	reg := &admin.AppRegistrar{
-		KeyStore: ks,
-		Auth:     admin.NewNoAuth(),
-	}
+	reg := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	return reg, ks
 }
 
@@ -299,10 +296,7 @@ func TestAppRegistrar_RotateSecret_NotFound(t *testing.T) {
 // TestAppRegistrar_AdminAuth_APIKey tests that admin auth is enforced
 func TestAppRegistrar_AdminAuth_APIKey(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	reg := &admin.AppRegistrar{
-		KeyStore: ks,
-		Auth:     admin.NewAPIKeyAuth("super-secret-admin-key"),
-	}
+	reg := admin.NewAppRegistrar(ks, admin.NewAPIKeyAuth("super-secret-admin-key"))
 	handler := reg.Handler()
 
 	body, _ := json.Marshal(map[string]any{"client_domain": "test.com"})

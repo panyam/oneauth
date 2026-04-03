@@ -406,11 +406,11 @@ func TestValidateJWT_CrossAppRejectedViaKid(t *testing.T) {
 func TestAppRegistrar_RotateWithGrace(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	kidStore := keys.NewKidStore()
-	registrar := &admin.AppRegistrar{
-		KeyStore: ks,
-		Auth:     admin.NewNoAuth(),
-		KidStore: kidStore,
-	}
+	registrar := func() *admin.AppRegistrar {
+		r := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+		r.KidStore = kidStore
+		return r
+	}()
 	regHandler := registrar.Handler()
 
 	// Register app
@@ -477,12 +477,9 @@ func TestAppRegistrar_RotateWithGrace(t *testing.T) {
 func TestAppRegistrar_RotateExpiredGrace(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	kidStore := keys.NewKidStore()
-	registrar := &admin.AppRegistrar{
-		KeyStore:           ks,
-		Auth:               admin.NewNoAuth(),
-		KidStore:           kidStore,
-		DefaultGracePeriod: 1 * time.Millisecond, // tiny grace for testing
-	}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.KidStore = kidStore
+	registrar.DefaultGracePeriod = 1 * time.Millisecond // tiny grace for testing
 	regHandler := registrar.Handler()
 
 	// Register

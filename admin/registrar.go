@@ -27,6 +27,7 @@ type AppRegistration struct {
 
 // AppRegistrar is an embeddable HTTP handler for App registration CRUD.
 // Mount it on any admin service's mux to let apps register and obtain signing credentials.
+// Create with NewAppRegistrar().
 type AppRegistrar struct {
 	KeyStore keys.KeyStorage
 	Auth     AdminAuth
@@ -44,18 +45,20 @@ type AppRegistrar struct {
 	apps map[string]*AppRegistration
 }
 
-func (h *AppRegistrar) init() {
-	if h.apps == nil {
-		h.apps = make(map[string]*AppRegistration)
+// NewAppRegistrar creates an AppRegistrar with initialized internal state.
+func NewAppRegistrar(keyStore keys.KeyStorage, auth AdminAuth) *AppRegistrar {
+	return &AppRegistrar{
+		KeyStore: keyStore,
+		Auth:     auth,
+		apps:     make(map[string]*AppRegistration),
 	}
 }
 
 // RLockApps calls fn with a read-locked view of all registered apps.
 func (h *AppRegistrar) RLockApps(fn func(map[string]*AppRegistration)) {
 	h.mu.RLock()
-	h.init()
+	defer h.mu.RUnlock()
 	fn(h.apps)
-	h.mu.RUnlock()
 }
 
 // Handler returns an http.Handler for app registration endpoints.
@@ -161,7 +164,6 @@ func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:    time.Now(),
 	}
 	h.mu.Lock()
-	h.init()
 	h.apps[clientID] = reg
 	h.mu.Unlock()
 
@@ -179,7 +181,7 @@ func (h *AppRegistrar) handleListApps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.mu.RLock()
-	h.init()
+	
 	apps := make([]*AppRegistration, 0, len(h.apps))
 	for _, reg := range h.apps {
 		apps = append(apps, reg)
@@ -219,7 +221,6 @@ func (h *AppRegistrar) handleAppByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *AppRegistrar) handleGetApp(w http.ResponseWriter, _ *http.Request, clientID string) {
 	h.mu.RLock()
-	h.init()
 	reg, ok := h.apps[clientID]
 	h.mu.RUnlock()
 
@@ -234,7 +235,6 @@ func (h *AppRegistrar) handleGetApp(w http.ResponseWriter, _ *http.Request, clie
 
 func (h *AppRegistrar) handleDeleteApp(w http.ResponseWriter, _ *http.Request, clientID string) {
 	h.mu.Lock()
-	h.init()
 	_, ok := h.apps[clientID]
 	if !ok {
 		h.mu.Unlock()
@@ -258,7 +258,6 @@ func (h *AppRegistrar) handleRotateSecret(w http.ResponseWriter, r *http.Request
 	}
 
 	h.mu.RLock()
-	h.init()
 	reg, ok := h.apps[clientID]
 	h.mu.RUnlock()
 

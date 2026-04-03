@@ -27,7 +27,7 @@ import (
 func ExampleAppRegistrar_hs256FederatedFlow() {
 	// Auth server with AppRegistrar
 	ks := keys.NewInMemoryKeyStore()
-	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	authServer := httptest.NewServer(registrar.Handler())
 	defer authServer.Close()
 
@@ -82,7 +82,7 @@ func ExampleAppRegistrar_hs256FederatedFlow() {
 func ExampleAppRegistrar_rs256WithJWKS() {
 	// Auth server: AppRegistrar + JWKS endpoint
 	ks := keys.NewInMemoryKeyStore()
-	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
 
 	mux := http.NewServeMux()
@@ -207,12 +207,9 @@ func ExampleAPIMiddleware_kidBasedLookup() {
 func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 	ks := keys.NewInMemoryKeyStore()
 	kidStore := keys.NewKidStore()
-	registrar := &admin.AppRegistrar{
-		KeyStore:           ks,
-		Auth:               admin.NewNoAuth(),
-		KidStore:           kidStore,
-		DefaultGracePeriod: 50 * time.Millisecond,
-	}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.KidStore = kidStore
+	registrar.DefaultGracePeriod = 50 * time.Millisecond
 	regHandler := registrar.Handler()
 
 	// Register an app
@@ -276,7 +273,7 @@ func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 // because the kid owner doesn't match the client_id claim.
 func ExampleAPIMiddleware_crossAppIsolation() {
 	ks := keys.NewInMemoryKeyStore()
-	registrar := &admin.AppRegistrar{KeyStore: ks, Auth: admin.NewNoAuth()}
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	regHandler := registrar.Handler()
 
 	// Register two HS256 apps
