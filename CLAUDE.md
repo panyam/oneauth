@@ -79,12 +79,19 @@ make tall          # Test all modules
 make tidy          # go mod tidy all modules
 make deps          # Show core module dep count
 
-# Single-module (root only)
+# Testing
 make test          # Go unit tests (root module packages)
+make e2e           # Go e2e tests (in-process auth + resource servers, race detector)
+make test-hard     # Full suite: unit + e2e + secret scan
 make testpg        # GORM tests against PostgreSQL (auto-starts Docker)
 make testds        # GAE tests against Datastore emulator (auto-starts Docker)
 make testrealDS    # GAE tests against real Datastore (needs credentials)
-make integ         # Integration tests against live GAE (pytest, uv+venv)
+
+# Security scanning
+make vulncheck     # govulncheck on all modules
+make seccheck      # gosec security patterns
+make lint          # staticcheck code quality
+make secrets       # gitleaks secret scanning
 
 # Publishing
 make norep         # Remove replace directives (before tagging releases)
@@ -94,6 +101,12 @@ make rep           # Restore replace directives (after publishing)
 make deploygae     # Deploy to GAE (project: oneauthsvc)
 make gaelogs       # Tail GAE logs
 ```
+
+### E2E Tests (`tests/e2e/`)
+
+In-process e2e tests using `httptest.NewServer`. Auth server + 2 resource servers start in ~2s, race detector works across all servers. Remote mode: `TEST_BASE_URL=https://... make e2e` for deployed server testing.
+
+**Always use `NewAppRegistrar()`** constructor (not struct literal) — the map must be initialized to avoid data races under concurrent requests.
 
 ## Import Map (Post-Reorganization)
 

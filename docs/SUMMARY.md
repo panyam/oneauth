@@ -163,6 +163,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.53**: AppRegistrar data race fix (found by e2e race detector). `NewAppRegistrar()` constructor. Python integration tests removed.
 - **v0.0.52**: Go e2e tests (#44). 28 in-process tests replacing Python integration suite. Auth + 2 resource servers via httptest.NewServer. All federated tests work (0 skipped). Race-clean. `make e2e`, `make test-hard`.
 - **v0.0.50**: Load testing (#38). `hey`-based load tests for health, login, JWT validation, admin endpoints. `make test-hard` now includes unit + integration + load + secrets.
 - **v0.0.49**: Secret scanning + ZAP dynamic testing (#36, #37). Gitleaks in CI, ZAP baseline scan on push, all Actions pinned by SHA. `make secrets` for local use.
