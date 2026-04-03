@@ -19,6 +19,19 @@
 
 ---
 
+## Completed (Go E2E Tests — #44)
+
+### In-Process E2E Test Suite
+- [x] `tests/e2e/` — 28 Go e2e tests using httptest.NewServer (no subprocess, no Python)
+- [x] Auth server + 2 resource servers start in-process (~2s total)
+- [x] All 4 previously-skipped federated flow tests now work (no JWKS timing race)
+- [x] Race detector works across all servers (same process)
+- [x] Remote mode: `TEST_BASE_URL=https://...` for GAE verification
+- [x] `make e2e` target, wired into `make test-hard`
+- [x] Covers: health, auth enforcement, app lifecycle, token refresh, security, federated flow, blacklist
+
+---
+
 ## Completed (Load Testing — #38)
 
 ### Performance Verification

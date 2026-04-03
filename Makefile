@@ -2,9 +2,12 @@
 test:
 	go test -v ./...
 
-# Run ALL tests: build all → unit tests → secrets scan → integration + load (auto-starts servers)
-test-hard: ball tall secrets
-	$(MAKE) -C tests/integration autotest
+# Run ALL tests: unit tests → e2e (in-process) → secrets scan
+test-hard: tall e2e secrets
+
+# Go in-process e2e tests (auth + resource servers via httptest.NewServer)
+e2e:
+	go test -buildvcs=false -race -count=1 -v ./tests/e2e/
 
 alltests: test
 	make downdb updb testpg downdb
@@ -288,4 +291,4 @@ lint:
 secrets:
 	gitleaks detect --source . --config .gitleaks.toml -v
 
-.PHONY: test test-hard updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint secrets
+.PHONY: test test-hard e2e updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint secrets
