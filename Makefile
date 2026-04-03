@@ -292,4 +292,13 @@ lint:
 secrets:
 	gitleaks detect --source . --config .gitleaks.toml -v
 
-.PHONY: test test-hard e2e updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint secrets
+# Full security audit: dependency vulns + code patterns + secrets + race detection
+audit: vulncheck seccheck secrets
+	@echo ""
+	@echo "=== Race detection (e2e) ==="
+	go test -buildvcs=false -race -count=1 ./tests/e2e/
+	@echo ""
+	@echo "=== Audit complete ==="
+	@echo "Automated checks passed. For manual threat model review, see docs/TESTING.md."
+
+.PHONY: test test-hard e2e audit updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint secrets

@@ -88,6 +88,7 @@ make testds        # GAE tests against Datastore emulator (auto-starts Docker)
 make testrealDS    # GAE tests against real Datastore (needs credentials)
 
 # Security scanning
+make audit         # Full security audit: vulncheck + gosec + secrets + race detection
 make vulncheck     # govulncheck on all modules
 make seccheck      # gosec security patterns
 make lint          # staticcheck code quality
