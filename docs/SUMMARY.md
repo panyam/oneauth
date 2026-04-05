@@ -164,6 +164,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.59**: AS Metadata Discovery client (#51). `DiscoverAS()` in `client/discovery.go` (RFC 8414 + OIDC Discovery). Fallback chain, path-based issuers. 8 unit tests + Keycloak interop.
 - **v0.0.58**: Token Introspection (#47). `IntrospectionHandler` in `apiauth/` (RFC 7662). Resource servers validate tokens via `POST /oauth/introspect`. Blacklist-aware. 9 unit + 3 e2e tests.
 - **v0.0.57**: `client_credentials` grant (#53). Machine-to-machine auth via `APIAuth.ClientKeyStore`. Server + client side. `client_secret_post` and `client_secret_basic`. 8 unit + 2 e2e tests.
 - **v0.0.56**: Keycloak interop test suite (#49). 10 tests proving `APIMiddleware` + `JWKSKeyStore` validate Keycloak-issued tokens. Pre-baked realm JSON, `make upkcl/testkcl/downkcl`, manual-trigger CI. Separate Go module.

@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/panyam/oneauth/apiauth"
+	"github.com/panyam/oneauth/client"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,37 @@ func TestKeycloak_OIDCDiscovery(t *testing.T) {
 	assert.Contains(t, cfg.Issuer, realmName, "issuer should contain realm name")
 	assert.NotEmpty(t, cfg.TokenEndpoint, "token_endpoint is required")
 	assert.NotEmpty(t, cfg.JWKSURI, "jwks_uri is required")
+}
+
+// TestKeycloak_DiscoverAS_Integration verifies that the client.DiscoverAS
+// function correctly discovers Keycloak's OIDC endpoints. This validates
+// our discovery client against a real-world IdP, not just test servers.
+//
+// See: https://www.rfc-editor.org/rfc/rfc8414
+// See: https://github.com/panyam/oneauth/issues/51
+func TestKeycloak_DiscoverAS_Integration(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	meta, err := client.DiscoverAS(realmURL())
+	require.NoError(t, err, "DiscoverAS should successfully discover Keycloak")
+
+	assert.Contains(t, meta.Issuer, realmName, "issuer should contain realm name")
+	assert.NotEmpty(t, meta.TokenEndpoint, "token_endpoint should be discovered")
+	assert.NotEmpty(t, meta.AuthorizationEndpoint, "authorization_endpoint should be discovered")
+	assert.NotEmpty(t, meta.JWKSURI, "jwks_uri should be discovered")
+	assert.NotEmpty(t, meta.IntrospectionEndpoint, "introspection_endpoint should be discovered")
+	assert.Contains(t, meta.GrantTypesSupported, "client_credentials",
+		"Keycloak should support client_credentials grant")
+	assert.Contains(t, meta.ResponseTypesSupported, "code",
+		"Keycloak should support authorization code response type")
+	assert.Contains(t, meta.CodeChallengeMethodsSupported, "S256",
+		"Keycloak should support PKCE S256")
+
+	t.Logf("Discovered Keycloak endpoints:")
+	t.Logf("  token_endpoint: %s", meta.TokenEndpoint)
+	t.Logf("  jwks_uri: %s", meta.JWKSURI)
+	t.Logf("  introspection: %s", meta.IntrospectionEndpoint)
+	t.Logf("  grant_types: %v", meta.GrantTypesSupported)
 }
 
 // =============================================================================
