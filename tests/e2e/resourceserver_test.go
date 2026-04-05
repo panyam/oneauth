@@ -55,6 +55,18 @@ func buildOneResourceServer(t *testing.T, name string, authServer *httptest.Serv
 
 	mux := http.NewServeMux()
 
+	// Protected Resource Metadata (RFC 9728) — allows clients to discover
+	// this resource server's capabilities. Auth server URL is injected at
+	// runtime since httptest.Server URLs are dynamic.
+	prmMeta := &apiauth.ProtectedResourceMetadata{
+		Resource:              "https://" + name + ".example.com",
+		AuthorizationServers:  []string{authServer.URL},
+		ScopesSupported:       []string{"read", "write", "collab"},
+		TokenFormatsSupported: []string{"jwt"},
+		SigningAlgsSupported:  []string{"HS256", "RS256", "ES256"},
+	}
+	mux.Handle("GET /.well-known/oauth-protected-resource", apiauth.NewProtectedResourceHandler(prmMeta))
+
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"status": "ok", "resource_server": name})

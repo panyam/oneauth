@@ -519,3 +519,23 @@ JWKS_URL=http://localhost:9999/.well-known/jwks.json ./demo-resource-server
 - **HS256 apps are not discoverable via JWKS** — symmetric secrets cannot be safely exposed over HTTP. HS256 apps still require shared database access.
 - **JWKS is read-only** — `JWKSKeyStore` implements `KeyLookup` only, not `KeyStorage`. It cannot register or delete keys.
 - **Propagation delay** — newly registered asymmetric apps may take up to the refresh interval to appear in resource servers. Cache-miss refresh reduces this for initial lookups.
+
+## Protected Resource Metadata (RFC 9728)
+
+Resource servers can advertise their capabilities at `GET /.well-known/oauth-protected-resource`, enabling clients to auto-discover which authorization servers are trusted, what scopes are supported, and what token formats are accepted — without hardcoding.
+
+```go
+meta := &apiauth.ProtectedResourceMetadata{
+    Resource:              "https://relay.example.com",
+    AuthorizationServers:  []string{"https://auth.example.com"},
+    ScopesSupported:       []string{"relay:connect", "relay:publish"},
+    TokenFormatsSupported: []string{"jwt"},
+    SigningAlgsSupported:  []string{"RS256", "ES256", "HS256"},
+}
+mux.Handle("GET /.well-known/oauth-protected-resource",
+    apiauth.NewProtectedResourceHandler(meta))
+```
+
+This completes the standards-based discovery chain: clients discover the resource server's requirements via PRM, then discover the authorization server's endpoints via OIDC Discovery or AS Metadata (RFC 8414), then obtain tokens and present them to the resource server.
+
+See [API_AUTH.md](API_AUTH.md#protected-resource-metadata-rfc-9728) for the full API reference.
