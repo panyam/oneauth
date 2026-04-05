@@ -21,10 +21,19 @@ package keycloak_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
+	"time"
+
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/client"
@@ -348,6 +357,167 @@ func TestKeycloak_ValidateToken_AudienceArray(t *testing.T) {
 
 	// The important thing: our middleware should accept the token regardless
 	// of aud format (validated separately in token validation tests)
+}
+
+// =============================================================================
+// Authorization Code + PKCE Tests (Headless Browser Login)
+// =============================================================================
+
+// TestKeycloak_AuthorizationCodePKCE_FullFlow verifies the full authorization
+// code + PKCE flow against Keycloak. This is the same flow that
+// client.LoginWithBrowser performs, but with the browser step simulated by
+// programmatically submitting Keycloak's login form.
+//
+// Flow: DiscoverAS → build auth URL with PKCE → GET login page →
+//       POST credentials → follow redirect to loopback → exchange code
+//
+// See: https://www.rfc-editor.org/rfc/rfc8252 (OAuth for Native Apps)
+// See: https://www.rfc-editor.org/rfc/rfc7636 (PKCE)
+// See: https://github.com/panyam/oneauth/issues/54
+func TestKeycloak_AuthorizationCodePKCE_FullFlow(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	// Step 1: Discover Keycloak endpoints
+	meta, err := client.DiscoverAS(realmURL())
+	require.NoError(t, err)
+	require.NotEmpty(t, meta.AuthorizationEndpoint)
+	require.NotEmpty(t, meta.TokenEndpoint)
+
+	// Step 2: Generate PKCE (inline — avoids importing oauth2 sub-module)
+	verifierBytes := make([]byte, 32)
+	_, err = rand.Read(verifierBytes)
+	require.NoError(t, err)
+	verifier := base64.RawURLEncoding.EncodeToString(verifierBytes)
+	challengeHash := sha256.Sum256([]byte(verifier))
+	challenge := base64.RawURLEncoding.EncodeToString(challengeHash[:])
+
+	// Step 3: Start loopback server for callback
+	codeCh := make(chan string, 1)
+	stateCh := make(chan string, 1)
+	callbackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		codeCh <- r.URL.Query().Get("code")
+		stateCh <- r.URL.Query().Get("state")
+		w.Write([]byte("OK"))
+	}))
+	defer callbackSrv.Close()
+
+	state := "test-state-12345"
+	redirectURI := callbackSrv.URL + "/callback"
+
+	// Step 4: Build authorization URL
+	authURL := fmt.Sprintf("%s?response_type=code&client_id=%s&redirect_uri=%s&code_challenge=%s&code_challenge_method=S256&state=%s&scope=openid",
+		meta.AuthorizationEndpoint,
+		confidentialClientID,
+		url.QueryEscape(redirectURI),
+		challenge,
+		state,
+	)
+
+	// Step 5: Simulate browser — GET the login page, submit the form
+	// Keycloak returns an HTML form with an action URL. We POST credentials to it.
+	jar, _ := cookiejar.New(nil)
+	httpClient := &http.Client{Jar: jar}
+
+	// GET the auth URL — Keycloak shows the login page
+	loginResp, err := httpClient.Get(authURL)
+	require.NoError(t, err)
+	defer loginResp.Body.Close()
+
+	// Parse the login form to find the action URL
+	loginBody, _ := io.ReadAll(loginResp.Body)
+	actionURL := extractFormAction(t, string(loginBody), loginResp.Request.URL)
+
+	// POST the login form with test credentials
+	// Use a client that does NOT follow redirects — we need to capture the redirect
+	noRedirectClient := &http.Client{
+		Jar: jar,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse // don't follow redirects
+		},
+	}
+
+	formResp, err := noRedirectClient.PostForm(actionURL, url.Values{
+		"username": {testUsername},
+		"password": {testPassword},
+	})
+	require.NoError(t, err)
+	defer formResp.Body.Close()
+
+	// Keycloak should redirect to our callback with a code
+	// It might take multiple redirects — follow them manually until we hit localhost
+	location := formResp.Header.Get("Location")
+	for location != "" && !strings.Contains(location, "localhost") && !strings.Contains(location, "127.0.0.1") {
+		nextResp, err := noRedirectClient.Get(location)
+		if err != nil {
+			break
+		}
+		location = nextResp.Header.Get("Location")
+		nextResp.Body.Close()
+	}
+
+	// If Keycloak redirected to our callback, the code should be there
+	if location != "" && (strings.Contains(location, "localhost") || strings.Contains(location, "127.0.0.1")) {
+		// Follow the final redirect to our callback server
+		httpClient.Get(location)
+	}
+
+	// Step 6: Get the code from our callback
+	select {
+	case code := <-codeCh:
+		require.NotEmpty(t, code, "should receive authorization code")
+		callbackState := <-stateCh
+		assert.Equal(t, state, callbackState, "state should match")
+
+		// Step 7: Exchange code for tokens
+		tokenData := url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {code},
+			"code_verifier": {verifier},
+			"redirect_uri":  {redirectURI},
+			"client_id":     {confidentialClientID},
+			"client_secret": {confidentialClientSecret},
+		}
+		tokenResp, err := http.PostForm(meta.TokenEndpoint, tokenData)
+		require.NoError(t, err)
+		defer tokenResp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, tokenResp.StatusCode, "token exchange should succeed")
+
+		var tokenResult map[string]any
+		json.NewDecoder(tokenResp.Body).Decode(&tokenResult)
+		assert.NotEmpty(t, tokenResult["access_token"], "should receive access token")
+		assert.NotEmpty(t, tokenResult["refresh_token"], "should receive refresh token")
+		t.Logf("Authorization code + PKCE flow completed successfully against Keycloak")
+
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timed out waiting for authorization code callback")
+	}
+}
+
+// extractFormAction parses HTML to find the form action URL.
+// Keycloak's login page has a form with action pointing to the authentication URL.
+func extractFormAction(t *testing.T, html string, baseURL *url.URL) string {
+	t.Helper()
+	// Simple extraction — find action="..." in the first form
+	idx := strings.Index(html, "action=\"")
+	if idx == -1 {
+		t.Fatal("No form action found in login page")
+	}
+	start := idx + len("action=\"")
+	end := strings.Index(html[start:], "\"")
+	if end == -1 {
+		t.Fatal("Malformed form action")
+	}
+	action := html[start : start+end]
+	// Unescape HTML entities
+	action = strings.ReplaceAll(action, "&amp;", "&")
+
+	// Resolve relative URLs
+	if !strings.HasPrefix(action, "http") {
+		actionURL, _ := url.Parse(action)
+		return baseURL.ResolveReference(actionURL).String()
+	}
+	return action
 }
 
 // =============================================================================
