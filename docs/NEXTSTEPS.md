@@ -298,19 +298,27 @@
   > Asymmetric keys pass through unencrypted. Plaintext fallback for migration.
   > Configured via `ONEAUTH_MASTER_KEY` env var. Demo stack updated.
 
+### Bug Fixes
+
+- [ ] **P0** Fix JWT `aud` claim validation for JSON arrays — RFC 7519 §4.1.3 (#52)
+  > `claims["aud"].(string)` silently fails when `aud` is a JSON array (Keycloak, Auth0, Azure AD all send arrays). Blocks Keycloak interop (#49). ~10 line fix.
+
 ### Phase 3: OAuth Integration for API
 
-- [ ] **P0** `[BLOCKER]` Add API mode to OAuth callbacks (return tokens instead of session)
-  > **Scenario**: A React SPA calls `/auth/google/callback?mode=api` and receives `{access_token, refresh_token}` JSON instead of a cookie redirect, enabling client-side token storage.
-  >
-  > **Urgency**: Blocks all SPA and mobile OAuth implementations. Without this, non-browser clients cannot use OAuth.
+- [ ] **P1** `[ADOPTION]` Headless OAuth authorization code + PKCE for CLI clients (#54)
+  > Loopback redirect (RFC 8252) flow for CLI/agents. Supersedes the two items below. Uses existing PKCE primitives.
 
-- [ ] **P0** `[BLOCKER]` Support token response for mobile OAuth flows
-  > **Scenario**: iOS app opens Google OAuth in Safari, receives deep link `myapp://auth?code=xyz`, exchanges code for tokens via API without needing cookies.
-  >
-  > **Urgency**: Blocks mobile app releases. Native apps cannot use cookie-based auth.
-  >
-  > **Requires**: API mode OAuth callbacks
+- [ ] ~~**P0** `[BLOCKER]` Add API mode to OAuth callbacks~~ → Superseded by #54
+  > ~~**Scenario**: A React SPA calls `/auth/google/callback?mode=api`...~~
+
+- [ ] ~~**P0** `[BLOCKER]` Support token response for mobile OAuth flows~~ → Superseded by #54
+  > ~~**Requires**: API mode OAuth callbacks~~
+
+- [ ] **P1** `[ADOPTION]` `client_credentials` grant support — RFC 6749 §4.4 (#53)
+  > Machine-to-machine auth. Server-side grant type handler + client-side `ClientCredentialsToken()`. Existing KeyStore/AppRegistrar already stores client credentials — no new registry needed.
+
+- [ ] **P1** `[ADOPTION]` OAuth AS Metadata Discovery client — RFC 8414 (#51)
+  > Client-side discovery of AS endpoints (token, JWKS, introspection). Fallback chain: RFC 8414 → OIDC Discovery. Location: `client/discovery.go`.
 
 - [x] **P1** `[SECURITY]` PKCE support for public clients (#27) ✅
   > PKCE (RFC 7636) enabled by default for all OAuth2 flows. `DisablePKCE` opt-out with warning.
@@ -372,6 +380,9 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
 
 - [ ] **P2** `[ADOPTION]` DCR conformance wrapper — RFC 7591/7592 (#48)
   > Standards-compliant `POST /register` endpoint alongside existing `AppRegistrar`. Maps DCR wire format (JWK, `client_uri`) to internal model. Does NOT replace AppRegistrar.
+
+- [ ] **P2** `[ADOPTION]` Token Introspection client for resource servers — RFC 7662 (#55)
+  > Client-side counterpart to #47. `IntrospectionValidator` as alternative validation strategy in `APIMiddleware`. Requires #47 + #53.
 
 - [ ] **P2** `[ADOPTION]` OIDC Discovery metadata — RFC 8414 (#50)
   > `GET /.well-known/openid-configuration` on the reference server. Metadata-only — does NOT make us a full OIDC server. Only if reference server sees standalone adoption.
@@ -518,9 +529,13 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
 ## Dependency Graph (Critical Path)
 
 ```
-Phase 3: OAuth API Mode
-    └── Mobile OAuth flows
-    └── PKCE support
+Bug Fixes (do first)
+    #52 Fix aud array validation (P0) ◄── blocks Keycloak interop
+
+Phase 3: OAuth for Non-Browser Clients
+    #54 Headless OAuth + PKCE (CLI) ◄── supersedes old Phase 3 items
+    #53 client_credentials grant
+    #51 AS Metadata Discovery ◄── #54 benefits from this
 
 Phase 4: Client SDK ✅ COMPLETE
     CredentialStore ──► AuthTransport ──► NewHTTPClient
@@ -530,14 +545,16 @@ Phase 4: Client SDK ✅ COMPLETE
 
 Standards & Interop (parallel track — see ROADMAP.md)
     #46 PRM (RFC 9728) ◄── smallest, do first
-    #47 Token Introspection (RFC 7662)
+    #47 Token Introspection server (RFC 7662)
               │
     ┌─────────┼──────────┐
     ▼                     ▼
     #48 DCR (7591)    #49 Keycloak Tests ◄── validates all of the above
-                          │
-                          ▼
-                      #50 OIDC Discovery (optional)
+         │                │
+         │          ┌─────┘
+         ▼          ▼
+    #55 Introspection client (requires #47 + #53)
+    #50 OIDC Discovery (optional)
 
 Infrastructure (parallel track)
     Redis Store ──► Token Blacklist ──► MFA
@@ -552,18 +569,21 @@ Compliance (can be parallel)
 
 ## Recommended Execution Order
 
-1. **Phase 3** (P0 blockers) — Unblocks mobile/SPA OAuth clients
-2. **PRM #46** (P1) — Smallest standards item, immediate interop value
-3. **Keycloak tests #49** (P1) — Proves interop story, can start in parallel with PRM
-4. **lilbattle migration** (P1) — Validates the completed Client SDK end-to-end
-5. **Token Introspection #47** (P1) — Keycloak tests validate it
-6. **Redis Store** (P1) — Unblocks production deployments
-7. **Token Blacklist + Account Lockout** (P1 security) — Basic security hardening
-8. **DCR wrapper #48** (P2) — Standards-compliant registration
-9. **GDPR + Audit Logging** (P1 compliance) — If targeting EU/enterprise
-10. **MFA** (P1 security) — Enterprise requirement
-11. **OIDC Discovery #50** (P2) — Only if reference server sees standalone adoption
-12. **Everything else** (P2) — As needed
+1. **#52 Fix aud array** (P0 bug) — ~10 lines, blocks Keycloak interop
+2. **#46 PRM** (P1) — Smallest standards item, immediate interop value
+3. **#49 Keycloak tests** (P1) — Proves interop story, can start in parallel with PRM
+4. **#53 client_credentials** (P1) — Foundational grant type, enables #55
+5. **#54 Headless OAuth + PKCE** (P1) — CLI/agent auth, supersedes old Phase 3
+6. **#47 Token Introspection server** (P1) — Keycloak tests validate it
+7. **#51 AS Discovery client** (P1) — Enhances #54, enables auto-config
+8. **lilbattle migration** (P1) — Validates Client SDK end-to-end
+9. **Redis Store** (P1) — Unblocks production deployments
+10. **#48 DCR wrapper** (P2) — Standards-compliant registration
+11. **#55 Introspection client** (P2) — Requires #47 + #53
+12. **GDPR + Audit Logging** (P1 compliance) — If targeting EU/enterprise
+13. **MFA** (P1 security) — Enterprise requirement
+14. **#50 OIDC Discovery** (P2) — Only if reference server sees standalone adoption
+15. **Everything else** (P2) — As needed
 
 ---
 

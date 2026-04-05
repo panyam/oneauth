@@ -161,9 +161,42 @@ Add `GET /.well-known/openid-configuration` to the reference server so standard 
 
 ---
 
+## OAuth Client Capabilities (#51–#55)
+
+These issues complete the OAuth client story — making OneAuth useful not just for building auth servers, but for building OAuth-aware clients and resource servers that interoperate with any AS.
+
+### Prerequisites
+
+#### Fix `aud` array validation — #52 (P0, Bug)
+
+`claims["aud"].(string)` silently fails on JSON arrays. Keycloak, Auth0, Azure AD all send `aud` as arrays. ~10 line fix, blocks Keycloak interop (#49).
+
+### Client-Side OAuth
+
+#### `client_credentials` grant — #53 (P1)
+
+Machine-to-machine auth. The existing `KeyStore`/`AppRegistrar` already stores client credentials — no new registry needed. The token endpoint just needs a new grant type handler. Enables #55.
+
+#### Headless OAuth + PKCE for CLI — #54 (P1)
+
+Loopback redirect (RFC 8252) flow for CLI/agents. Supersedes the old "Phase 3: OAuth API Mode" items in NEXTSTEPS. Uses existing PKCE primitives from `oauth2/pkce.go`.
+
+#### AS Metadata Discovery client — #51 (P1)
+
+Client-side discovery of AS endpoints via `/.well-known/oauth-authorization-server` (RFC 8414) with OIDC Discovery fallback. Complements #50 (server-side). Enhances #54 (auto-discover authorization_endpoint).
+
+#### Token Introspection client — #55 (P2)
+
+Client-side counterpart to #47. `IntrospectionValidator` as alternative validation strategy in `APIMiddleware`. Requires #47 + #53.
+
+---
+
 ## Execution Order
 
 ```
+Bug Fixes
+    #52 Fix aud array (P0) ◄── blocks everything
+
                     ┌─────────────────────────┐
                     │ Phase 1: Resource Server │
                     │ Standards                │
@@ -179,18 +212,27 @@ Add `GET /.well-known/openid-configuration` to the reference server so standard 
 │ #48 (RFC 7591/7592)     │         │ #49                     │◄── Can start in parallel
 └─────────────────────────┘         └─────────────┬───────────┘
                                                   │
-                                    ┌─────────────▼───────────┐
-                                    │ Phase 4: OIDC Discovery │
-                                    │ #50 (optional)          │
-                                    └─────────────────────────┘
+              ┌───────────────────────────────────┘
+              ▼
+OAuth Client Capabilities (parallel track)
+    #53 client_credentials ◄── foundational grant
+    #54 Headless OAuth + PKCE ◄── supersedes old Phase 3
+    #51 AS Discovery client ◄── enhances #54
+    #55 Introspection client ◄── requires #47 + #53
+    #50 OIDC Discovery server (optional)
 ```
 
 **Recommended order:**
-1. **PRM (#46)** — smallest scope, immediate value, no dependencies
-2. **Keycloak tests (#49)** — can start in parallel with PRM; proves interop story
-3. **Token Introspection (#47)** — higher effort but already planned; Keycloak tests can validate it
-4. **DCR wrapper (#48)** — medium effort; Keycloak tests can validate conformance
-5. **OIDC Discovery (#50)** — only if reference server sees standalone adoption
+1. **#52 Fix aud array** (P0 bug) — ~10 lines, unblocks Keycloak interop
+2. **#46 PRM** — smallest standards scope, immediate value
+3. **#49 Keycloak tests** — can start in parallel with PRM; proves interop
+4. **#53 client_credentials** — foundational grant type, enables #55
+5. **#54 Headless OAuth + PKCE** — CLI/agent auth, supersedes old Phase 3
+6. **#47 Token Introspection server** — Keycloak tests validate it
+7. **#51 AS Discovery client** — enhances #54, enables auto-config
+8. **#48 DCR wrapper** — standards-compliant registration
+9. **#55 Introspection client** — requires #47 + #53
+10. **#50 OIDC Discovery server** — only if reference server sees standalone adoption
 
 ---
 
@@ -205,7 +247,7 @@ Add `GET /.well-known/openid-configuration` to the reference server so standard 
 - E2e test suite (`make e2e`)
 
 ### What this track complements
-- **NEXTSTEPS Phase 3** (OAuth API mode) — PRM tells clients where to get tokens
+- **NEXTSTEPS Phase 3** (OAuth for non-browser clients) — #54 supersedes vague Phase 3 items, #53 adds machine-to-machine
 - **NEXTSTEPS Redis Store** — introspection endpoint needs fast token lookup
 - **NEXTSTEPS Token Blacklist** — introspection must check blacklist
 - **Issue #20** (persist AppRegistrar state) — DCR wrapper benefits from persistent registrations
