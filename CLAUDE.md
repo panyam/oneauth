@@ -120,9 +120,10 @@ In-process e2e tests using `httptest.NewServer`. Auth server + 2 resource server
 | User, Identity, Channel, store interfaces, tokens, credentials, scopes | `"github.com/panyam/oneauth/core"` |
 | KeyStorage, KeyRecord, InMemoryKeyStore, EncryptedKeyStorage, JWKSHandler | `"github.com/panyam/oneauth/keys"` |
 | AdminAuth, AppRegistrar, MintResourceToken, AppQuota | `"github.com/panyam/oneauth/admin"` |
-| APIAuth, APIMiddleware, GetUserIDFromAPIContext | `"github.com/panyam/oneauth/apiauth"` |
+| APIAuth, APIMiddleware, IntrospectionHandler, ProtectedResourceMetadata, ASServerMetadata | `"github.com/panyam/oneauth/apiauth"` |
 | LocalAuth, NewCreateUserFunc, NewCredentialsValidator | `"github.com/panyam/oneauth/localauth"` |
 | Middleware, CSRFMiddleware, CSRFTemplateField, OneAuth | `"github.com/panyam/oneauth/httpauth"` |
+| AuthClient, DiscoverAS, LoginWithBrowser, ClientCredentialsToken | `"github.com/panyam/oneauth/client"` |
 
 ## Key Patterns
 
@@ -159,8 +160,37 @@ All minted JWTs include a `kid` header (RFC 7638 thumbprint). `APIMiddleware` tr
 ### BasicUser (in core/)
 `BasicUser` has exported fields `ID` and `ProfileData` (not the original unexported `id`/`profile`). This was changed during the subpackage reorganization for cross-package access.
 
-### Integration Tests
-`tests/integration/` — self-contained pytest files, one per scenario. Uses `conftest.py` with `OneAuthClient` fixture. Run with `make integ` or `make -C tests/integration test-health`. Uses uv+venv for dependency management.
+### Keycloak Interop Tests (`tests/keycloak/`)
+
+Separate Go module (`tests/keycloak/go.mod`) proving APIMiddleware + JWKSKeyStore validate Keycloak-issued tokens. Runs with `make testkcl` (auto-starts Docker). Tests skip gracefully when Keycloak is not running — `make test` and `make e2e` are unaffected.
+
+**Gotcha:** `tests/keycloak/` is a separate Go module. Must `cd` into it or use `GOWORK=off` when running directly. The Makefile handles this.
+
+### Standards Endpoints (on the auth server)
+
+| Endpoint | Handler | RFC |
+|----------|---------|-----|
+| `POST /api/token` (client_credentials) | `APIAuth.handleClientCredentialsGrant` | RFC 6749 §4.4 |
+| `POST /oauth/introspect` | `IntrospectionHandler` | RFC 7662 |
+| `GET /.well-known/openid-configuration` | `NewASMetadataHandler` | RFC 8414 |
+| `GET /.well-known/jwks.json` | `JWKSHandler` | RFC 7517 |
+| `GET /.well-known/oauth-protected-resource` | `NewProtectedResourceHandler` (resource servers) | RFC 9728 |
+
+### Client SDK Discovery + Browser Login
+
+```go
+// Auto-discover endpoints
+meta, _ := client.DiscoverAS("https://auth.example.com")
+
+// Browser-based login for CLI tools (loopback redirect + PKCE)
+cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+    ClientID: "my-cli",
+    Scopes:   []string{"openid", "read"},
+})
+
+// Machine-to-machine
+cred, _ := authClient.ClientCredentialsToken("svc-id", "secret", []string{"read"})
+```
 
 ## GAE Deployment Notes
 
@@ -196,3 +226,9 @@ Design lessons and feedback from past sessions are in `memories/`. See `memories
 - PostgreSQL test container: `arm64v8/postgres:18.1` on port 5433
 - Datastore test credentials: `~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json`
 - **Security tests must include `// See:` links** to the relevant RFC, CVE, CWE, or OWASP reference in each test function's doc comment. This makes it easy to trace why a test exists and what attack it prevents. Example: `// See: https://nvd.nist.gov/vuln/detail/CVE-2015-9235`
+- Keycloak interop tests: `quay.io/keycloak/keycloak:26.0` on port 8180, realm config at `tests/keycloak/realm.json`
+- **`type: "access"` claim is OneAuth-specific** — external IdP tokens (Keycloak, Auth0) don't have it. The check accepts tokens without the claim; only rejects tokens with `type` set to something other than `"access"` (e.g., refresh tokens).
+- **`aud` claim may be string or array** (RFC 7519 §4.1.3) — `matchesAudience()` helper handles both. Keycloak/Auth0/Azure AD send arrays.
+- **Separate Go modules** (`tests/keycloak/`, `stores/gorm/`, `stores/gae/`, etc.) need `GOWORK=off` or `cd` into the module dir when running outside `go.work`.
+- **`make lint`** uses `GOFLAGS=-buildvcs=false` to work in worktrees.
+- **PKCE functions in `client/`** are inlined (not imported from `oauth2/` sub-module) to avoid cross-module dependency. The `oauth2/` sub-module has heavy deps (`golang.org/x/oauth2`).

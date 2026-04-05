@@ -204,6 +204,8 @@ OneAuth differentiates from alternatives by being:
 - **Multiple store options** (file, SQL, NoSQL)
 - **Callback-based** (app controls sessions)
 - **Federated-ready** (multi-tenant KeyStore, app registration, resource token minting)
+- **Standards-compliant** (RFC 7662 introspection, RFC 8414 AS discovery, RFC 9728 PRM, RFC 8252 native app auth, RFC 7636 PKCE)
+- **Keycloak-tested** (interop test suite validates against real IdP)
 
 Closest alternatives:
 - `go-pkgz/auth` — Similar middleware focus, less flexible model
