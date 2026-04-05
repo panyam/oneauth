@@ -147,6 +147,27 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	jwksHandler := &keys.JWKSHandler{KeyStore: e.KeyStore}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
 
+	// AS Metadata / OIDC Discovery (RFC 8414) — populated after server starts
+	// (needs the server URL for endpoint URLs). See below.
+
 	e.AuthServer = httptest.NewServer(mux)
 	t.Cleanup(e.AuthServer.Close)
+
+	// Now that we know the server URL, register the OIDC discovery endpoint.
+	// Uses a dynamic handler since the URL is only known after httptest.NewServer.
+	baseURL := e.AuthServer.URL
+	asMetaHandler := apiauth.NewASMetadataHandler(&apiauth.ASServerMetadata{
+		Issuer:                baseURL,
+		TokenEndpoint:         baseURL + "/api/token",
+		JWKSURI:               baseURL + "/.well-known/jwks.json",
+		IntrospectionEndpoint: baseURL + "/oauth/introspect",
+		RegistrationEndpoint:  baseURL + "/apps/register",
+		ScopesSupported:       []string{"read", "write", "admin"},
+		GrantTypesSupported:   []string{"password", "refresh_token", "client_credentials"},
+		ResponseTypesSupported: []string{"token"},
+		TokenEndpointAuthMethods: []string{"client_secret_post", "client_secret_basic"},
+		SubjectTypesSupported: []string{"public"},
+	})
+	// Register on the existing mux (before server start the mux is already wired)
+	mux.Handle("GET /.well-known/openid-configuration", asMetaHandler)
 }

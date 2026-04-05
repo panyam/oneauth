@@ -384,8 +384,8 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
 - [ ] **P2** `[ADOPTION]` Token Introspection client for resource servers — RFC 7662 (#55)
   > Client-side counterpart to #47. `IntrospectionValidator` as alternative validation strategy in `APIMiddleware`. Requires #47 + #53.
 
-- [ ] **P2** `[ADOPTION]` OIDC Discovery metadata — RFC 8414 (#50)
-  > `GET /.well-known/openid-configuration` on the reference server. Metadata-only — does NOT make us a full OIDC server. Only if reference server sees standalone adoption.
+- [x] **P2** `[ADOPTION]` OIDC Discovery metadata — RFC 8414 (#50) ✅
+  > `ASServerMetadata` + `NewASMetadataHandler` in `apiauth/`. Serves `/.well-known/openid-configuration`. Metadata-only. 6 unit + 3 e2e tests (incl. `DiscoverAS` round-trip). Wired into reference server.
 
 ---
 

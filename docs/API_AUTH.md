@@ -546,6 +546,34 @@ Responses include `Cache-Control: no-store` and `Pragma: no-cache` per RFC 7662.
 
 See [RFC 7662](https://www.rfc-editor.org/rfc/rfc7662) for the full specification.
 
+## OIDC Discovery / AS Metadata (RFC 8414)
+
+The auth server can advertise its endpoints at `GET /.well-known/openid-configuration` so OIDC-aware clients auto-discover them. This is metadata-only — it does NOT make OneAuth a full OIDC provider.
+
+```go
+import "github.com/panyam/oneauth/apiauth"
+
+handler := apiauth.NewASMetadataHandler(&apiauth.ASServerMetadata{
+    Issuer:                "https://auth.example.com",
+    TokenEndpoint:         "https://auth.example.com/api/token",
+    JWKSURI:               "https://auth.example.com/.well-known/jwks.json",
+    IntrospectionEndpoint: "https://auth.example.com/oauth/introspect",
+    GrantTypesSupported:   []string{"password", "refresh_token", "client_credentials"},
+    ResponseTypesSupported: []string{"token"},
+    TokenEndpointAuthMethods: []string{"client_secret_post", "client_secret_basic"},
+})
+mux.Handle("GET /.well-known/openid-configuration", handler)
+```
+
+Clients discover endpoints via `client.DiscoverAS()` (#51):
+
+```go
+meta, _ := client.DiscoverAS("https://auth.example.com")
+// meta.TokenEndpoint, meta.JWKSURI, meta.IntrospectionEndpoint, etc.
+```
+
+See [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414) for the full specification.
+
 ## Security Considerations
 
 1. **JWT Secret**: Use a strong, random secret (32+ bytes). Store in environment variables.

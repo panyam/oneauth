@@ -103,29 +103,9 @@ tests/keycloak/
 
 ### Phase 4: OIDC Discovery Metadata (Long-term, Optional)
 
-#### OIDC Discovery — RFC 8414 (#50)
+#### OIDC Discovery — RFC 8414 (#50) ✅ COMPLETE
 
-**Priority: P2 | Urgency: [ADOPTION]**
-
-Add `GET /.well-known/openid-configuration` to the reference server so standard OIDC clients can discover endpoints.
-
-**Scope decision:** This is metadata-only — we advertise what we support, we do NOT implement a full OIDC authorization server. The reference server already has token, JWKS, and (planned) introspection endpoints.
-
-```json
-{
-  "issuer": "https://auth.example.com",
-  "token_endpoint": "https://auth.example.com/api/token",
-  "jwks_uri": "https://auth.example.com/.well-known/jwks.json",
-  "introspection_endpoint": "https://auth.example.com/oauth/introspect",
-  "registration_endpoint": "https://auth.example.com/register",
-  "scopes_supported": ["read", "write", "admin"],
-  "response_types_supported": ["token"],
-  "token_endpoint_auth_methods_supported": ["client_secret_post", "private_key_jwt"],
-  "grant_types_supported": ["password", "refresh_token", "client_credentials"]
-}
-```
-
-**Why optional:** This pushes toward being an auth server, which is explicitly not our goal. Only do this if the reference server sees real adoption as a standalone deployment.
+`ASServerMetadata` + `NewASMetadataHandler` in `apiauth/as_metadata.go`. Serves `GET /.well-known/openid-configuration` with token, JWKS, introspection, registration endpoints. Metadata-only — does NOT make us a full OIDC server. 6 unit + 3 e2e tests (incl. `DiscoverAS` round-trip) + Keycloak field compatibility test. Wired into reference server and e2e auth server.
 
 ---
 
@@ -200,7 +180,7 @@ OAuth Client Capabilities (parallel track)
 7. ~~**#51 AS Discovery client**~~ ✅ DONE
 8. **#48 DCR wrapper** — standards-compliant registration
 9. **#55 Introspection client** — requires #47 + #53
-10. **#50 OIDC Discovery server** — only if reference server sees standalone adoption
+10. ~~**#50 OIDC Discovery server**~~ ✅ DONE
 
 ---
 
