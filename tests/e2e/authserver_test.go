@@ -136,6 +136,13 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	mux.Handle("/apps/", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(e.registrar.Handler()))
 	mux.Handle("/apps", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(e.registrar.Handler()))
 
+	// Token Introspection (RFC 7662)
+	introspectionHandler := &apiauth.IntrospectionHandler{
+		Auth:           e.apiAuth,
+		ClientKeyStore: e.KeyStore,
+	}
+	mux.Handle("POST /oauth/introspect", introspectionHandler)
+
 	// JWKS
 	jwksHandler := &keys.JWKSHandler{KeyStore: e.KeyStore}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)

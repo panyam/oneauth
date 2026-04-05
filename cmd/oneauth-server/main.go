@@ -248,6 +248,13 @@ func main() {
 	mux.Handle("/apps/", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
 	mux.Handle("/apps", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
 
+	// Token Introspection (RFC 7662) — authenticated via KeyStore
+	introspectionHandler := &apiauth.IntrospectionHandler{
+		Auth:           apiAuth,
+		ClientKeyStore: keyStore,
+	}
+	mux.Handle("POST /oauth/introspect", introspectionHandler)
+
 	// JWKS endpoint (public — no auth required)
 	jwksHandler := &keys.JWKSHandler{KeyStore: keyStore}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
