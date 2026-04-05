@@ -1,27 +1,32 @@
 package apiauth_test
 
-// Tests for audience (aud) claim validation in APIAuth.ValidateAccessToken
-// and ValidateAccessTokenFull. These document the fix for #33: before the fix,
-// audience was only checked in APIMiddleware.validateJWT but NOT in the
-// ValidateAccessToken methods, allowing cross-service token acceptance.
+// Tests for audience (aud) claim validation in APIAuth.ValidateAccessToken,
+// ValidateAccessTokenFull, and APIMiddleware.validateJWT.
+//
+// History:
+//   - #33: audience was only checked in APIMiddleware.validateJWT but NOT in
+//     ValidateAccessToken methods — fixed to check at all validation sites.
+//   - #52: all 3 sites used claims["aud"].(string) which silently fails when
+//     aud is a JSON array. RFC 7519 §4.1.3 allows aud as either a single
+//     string OR an array of strings. Keycloak, Auth0, Azure AD send arrays.
+//     Fixed to handle both formats.
 //
 // References:
 //   - RFC 7519 §4.1.3 (https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3):
-//     "The 'aud' claim identifies the recipients that the JWT is intended for.
-//     [...] If the principal processing the claim does not identify itself with
-//     a value in the 'aud' claim when this claim is present, then the JWT MUST
-//     be rejected."
+//     "The 'aud' (audience) value is a case-sensitive string containing a
+//     StringOrURI value. In the special case when the JWT has one audience,
+//     the 'aud' value MAY be a single case-sensitive string containing a
+//     StringOrURI value. In the general case, the 'aud' value is an array
+//     of case-sensitive strings, each containing a StringOrURI value."
 //   - OWASP JWT Cheat Sheet (https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html#token-audience):
 //     "Always validate the audience claim to prevent tokens intended for one
 //     service from being accepted by another."
 //   - CWE-284 (https://cwe.mitre.org/data/definitions/284.html):
 //     Improper Access Control — accepting tokens meant for other services.
-//
-// Scenario: Two microservices share the same signing key but have different
-// JWTAudience values. A token minted for service-b should be rejected by
-// service-a when validated via ValidateAccessToken.
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -185,4 +190,206 @@ func TestAudience_CorrectAud_Full(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
 	assert.Equal(t, "acme", customClaims["tenant"])
+}
+
+// =============================================================================
+// Array audience tests (#52) — RFC 7519 §4.1.3 allows aud as string OR array.
+// These tests FAIL before the fix because claims["aud"].(string) returns ""
+// when aud is a JSON array, causing validation to silently reject valid tokens
+// or accept invalid ones.
+// =============================================================================
+
+// arrayAudClaims returns valid access token claims with aud set as an array
+// of strings, as sent by Keycloak, Auth0, Azure AD, and other OIDC providers.
+func arrayAudClaims(audiences []string) jwt.MapClaims {
+	return jwt.MapClaims{
+		"sub":    "user1",
+		"type":   "access",
+		"scopes": []string{"read"},
+		"exp":    time.Now().Add(time.Hour).Unix(),
+		"iat":    time.Now().Unix(),
+		"aud":    audiences,
+	}
+}
+
+// TestAudience_ArrayAud_Matching_Accepted verifies that a token with
+// aud: ["service-a", "service-b"] is accepted when JWTAudience is "service-a".
+// This is the standard case for tokens from Keycloak and other IdPs that
+// include multiple audiences (e.g., the client_id and an API resource).
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+// See: https://github.com/panyam/oneauth/issues/52
+func TestAudience_ArrayAud_Matching_Accepted(t *testing.T) {
+	secret := "shared-secret"
+	auth := &apiauth.APIAuth{
+		JWTSecretKey: secret,
+		JWTAudience:  "service-a",
+	}
+
+	token := mintToken(t, secret, arrayAudClaims([]string{"service-a", "service-b"}))
+
+	userID, scopes, err := auth.ValidateAccessToken(token)
+	assert.NoError(t, err, "ValidateAccessToken should accept token with matching audience in array")
+	assert.Equal(t, "user1", userID)
+	assert.Contains(t, scopes, "read")
+}
+
+// TestAudience_ArrayAud_NotMatching_Rejected verifies that a token with
+// aud: ["service-b", "service-c"] is rejected when JWTAudience is "service-a".
+// The expected audience is not in the array, so validation must fail.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+// See: https://github.com/panyam/oneauth/issues/52
+func TestAudience_ArrayAud_NotMatching_Rejected(t *testing.T) {
+	secret := "shared-secret"
+	auth := &apiauth.APIAuth{
+		JWTSecretKey: secret,
+		JWTAudience:  "service-a",
+	}
+
+	token := mintToken(t, secret, arrayAudClaims([]string{"service-b", "service-c"}))
+
+	_, _, err := auth.ValidateAccessToken(token)
+	if assert.Error(t, err, "ValidateAccessToken should reject token when expected audience not in array") {
+		assert.Contains(t, err.Error(), "audience")
+	}
+}
+
+// TestAudience_ArrayAud_Full_Accepted verifies that ValidateAccessTokenFull
+// correctly handles aud as an array when the expected audience is present.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+// See: https://github.com/panyam/oneauth/issues/52
+func TestAudience_ArrayAud_Full_Accepted(t *testing.T) {
+	secret := "shared-secret"
+	auth := &apiauth.APIAuth{
+		JWTSecretKey: secret,
+		JWTAudience:  "service-a",
+	}
+
+	claims := arrayAudClaims([]string{"service-a", "other"})
+	claims["tenant"] = "acme"
+	token := mintToken(t, secret, claims)
+
+	userID, _, customClaims, err := auth.ValidateAccessTokenFull(token)
+	assert.NoError(t, err, "ValidateAccessTokenFull should accept token with matching audience in array")
+	assert.Equal(t, "user1", userID)
+	assert.Equal(t, "acme", customClaims["tenant"])
+}
+
+// TestAudience_ArrayAud_Full_Rejected verifies that ValidateAccessTokenFull
+// rejects tokens where the expected audience is not in the array.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+// See: https://github.com/panyam/oneauth/issues/52
+func TestAudience_ArrayAud_Full_Rejected(t *testing.T) {
+	secret := "shared-secret"
+	auth := &apiauth.APIAuth{
+		JWTSecretKey: secret,
+		JWTAudience:  "service-a",
+	}
+
+	token := mintToken(t, secret, arrayAudClaims([]string{"service-b"}))
+
+	_, _, _, err := auth.ValidateAccessTokenFull(token)
+	if assert.Error(t, err, "ValidateAccessTokenFull should reject token when expected audience not in array") {
+		assert.Contains(t, err.Error(), "audience")
+	}
+}
+
+// TestAudience_ArrayAud_Middleware_Accepted verifies that APIMiddleware
+// correctly validates tokens with aud as an array via HTTP request.
+// This tests the full middleware path including context injection.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+// See: https://github.com/panyam/oneauth/issues/52
+func TestAudience_ArrayAud_Middleware_Accepted(t *testing.T) {
+	secret := "shared-secret"
+	middleware := &apiauth.APIMiddleware{
+		JWTSecretKey: secret,
+		JWTAudience:  "service-a",
+	}
+
+	token := mintToken(t, secret, arrayAudClaims([]string{"service-a", "service-b"}))
+
+	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		assert.Equal(t, "user1", userID)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Middleware should accept token with matching audience in array")
+}
+
+// TestAudience_ArrayAud_Middleware_Rejected verifies that APIMiddleware
+// rejects tokens via HTTP when the expected audience is not in the array.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+// See: https://github.com/panyam/oneauth/issues/52
+func TestAudience_ArrayAud_Middleware_Rejected(t *testing.T) {
+	secret := "shared-secret"
+	middleware := &apiauth.APIMiddleware{
+		JWTSecretKey: secret,
+		JWTAudience:  "service-a",
+	}
+
+	token := mintToken(t, secret, arrayAudClaims([]string{"service-b", "service-c"}))
+
+	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called for rejected token")
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Middleware should reject token when expected audience not in array")
+}
+
+// TestAudience_EmptyArray_Rejected verifies that a token with an empty
+// aud array is rejected when JWTAudience is configured. An empty array
+// means "no intended audience" which should not match any expected audience.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+// See: https://github.com/panyam/oneauth/issues/52
+func TestAudience_EmptyArray_Rejected(t *testing.T) {
+	secret := "shared-secret"
+	auth := &apiauth.APIAuth{
+		JWTSecretKey: secret,
+		JWTAudience:  "service-a",
+	}
+
+	token := mintToken(t, secret, arrayAudClaims([]string{}))
+
+	_, _, err := auth.ValidateAccessToken(token)
+	if assert.Error(t, err, "ValidateAccessToken should reject token with empty audience array") {
+		assert.Contains(t, err.Error(), "audience")
+	}
+}
+
+// TestAudience_SingleElementArray_Accepted verifies that a token with
+// aud: ["service-a"] (single-element array) is accepted. Some IdPs always
+// send an array even when there's only one audience.
+//
+// See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+// See: https://github.com/panyam/oneauth/issues/52
+func TestAudience_SingleElementArray_Accepted(t *testing.T) {
+	secret := "shared-secret"
+	auth := &apiauth.APIAuth{
+		JWTSecretKey: secret,
+		JWTAudience:  "service-a",
+	}
+
+	token := mintToken(t, secret, arrayAudClaims([]string{"service-a"}))
+
+	userID, _, err := auth.ValidateAccessToken(token)
+	assert.NoError(t, err, "ValidateAccessToken should accept single-element array with matching audience")
+	assert.Equal(t, "user1", userID)
 }

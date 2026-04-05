@@ -409,6 +409,8 @@ For distributed deployments, implement `core.TokenBlacklist` backed by Redis (`S
 
 `ValidateAccessToken` now checks the `aud` (audience) claim when `JWTAudience` is configured on `APIAuth` or `APIMiddleware`. Previously the audience was set when minting but not validated on verification. Tokens minted without an `aud` claim are still accepted when `JWTAudience` is empty.
 
+**Array audience support (#52):** Per RFC 7519 §4.1.3, the `aud` claim may be a single string or an array of strings. All validation sites (`ValidateAccessToken`, `ValidateAccessTokenFull`, `APIMiddleware.validateJWT`) handle both formats. This ensures interoperability with Keycloak, Auth0, Azure AD, and other IdPs that send `aud` as an array (e.g., `["api://default", "https://example.com"]`).
+
 ### SigningMethodForAlg returns error
 
 `SigningMethodForAlg` now returns `(jwt.SigningMethod, error)` instead of just `jwt.SigningMethod`. Unknown or unsupported algorithm strings return an error rather than silently falling back. Callers must handle the error.
@@ -424,4 +426,4 @@ For distributed deployments, implement `core.TokenBlacklist` backed by Redis (`S
 3. **Token Expiry**: Keep access tokens short-lived (15 min). Use refresh tokens for longer sessions.
 4. **API Key Storage**: Store API keys securely. They cannot be recovered if lost.
 5. **Scope Validation**: Always validate scopes in your handlers for defense-in-depth.
-6. **Audience Validation**: Set `JWTAudience` to prevent tokens minted for other services from being accepted.
+6. **Audience Validation**: Set `JWTAudience` to prevent tokens minted for other services from being accepted. Both string and array `aud` claims are supported (RFC 7519 §4.1.3).
