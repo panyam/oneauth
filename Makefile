@@ -196,9 +196,10 @@ testkcl:
 		until curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; do sleep 2; done; \
 		echo "Keycloak ready."; \
 	fi
+	cd tests/keycloak && \
 	KEYCLOAK_URL=http://localhost:$(KC_PORT) \
 	GOWORK=off \
-	go test -v -race -count=1 ./tests/keycloak/...
+	go test -v -race -count=1 ./...
 
 # =============================================================================
 # GAE deployment
