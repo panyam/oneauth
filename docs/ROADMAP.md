@@ -20,22 +20,9 @@ These are low-effort, high-value additions that make OneAuth resource servers se
 
 `ProtectedResourceMetadata` struct + `NewProtectedResourceHandler()` in `apiauth/`. Serves JSON at `GET /.well-known/oauth-protected-resource` with `Cache-Control` headers. 7 unit tests + 3 e2e tests. Wired into demo resource server and e2e test environment.
 
-#### Token Introspection — RFC 7662 (#47)
+#### Token Introspection — RFC 7662 (#47) ✅ COMPLETE
 
-**Priority: P1 | Urgency: [ADOPTION] [SCALE]**
-
-Add `POST /oauth/introspect` for resource servers that can't do local JWT validation (no shared KeyStore, no JWKS access).
-
-```json
-POST /oauth/introspect
-token=eyJ...
-
-→ {"active": true, "scope": "relay:connect", "sub": "user-42", "client_id": "app_abc", "exp": 1699999999}
-```
-
-**Why:** Required for microservice architectures where not every service can share JWT secrets or fetch JWKS. Already on the NEXTSTEPS roadmap as P1. Complements PRM (PRM tells clients *where* to introspect).
-
-**Fits into:** `admin/` or new `introspect/` subpackage on the auth server side.
+`IntrospectionHandler` in `apiauth/introspection.go`. Resource servers POST tokens to `POST /oauth/introspect` (authenticated via client_credentials). Returns RFC 7662 response with `active`, `sub`, `scope`, `exp`, `iss`, `jti`. Checks `TokenBlacklist`. Cache-Control: no-store. 9 unit + 3 e2e tests. Wired into reference server and e2e auth server.
 
 ### Phase 2: Client Registration Standards (Medium-term)
 
@@ -209,7 +196,7 @@ OAuth Client Capabilities (parallel track)
 3. ~~**#49 Keycloak tests**~~ ✅ DONE
 4. ~~**#53 client_credentials**~~ ✅ DONE
 5. **#54 Headless OAuth + PKCE** — CLI/agent auth, supersedes old Phase 3
-6. **#47 Token Introspection server** — Keycloak tests validate it
+6. ~~**#47 Token Introspection server**~~ ✅ DONE
 7. **#51 AS Discovery client** — enhances #54, enables auto-config
 8. **#48 DCR wrapper** — standards-compliant registration
 9. **#55 Introspection client** — requires #47 + #53

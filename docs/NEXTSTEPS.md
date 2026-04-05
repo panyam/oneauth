@@ -372,8 +372,8 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
 - [x] **P1** `[ADOPTION]` Protected Resource Metadata — RFC 9728 (#46) ✅
   > `ProtectedResourceMetadata` struct + `NewProtectedResourceHandler` in `apiauth/`. 7 unit tests + 3 e2e tests. Wired into demo resource server and e2e test environment.
 
-- [ ] **P1** `[ADOPTION]` Token Introspection — RFC 7662 (#47)
-  > `POST /oauth/introspect` — resource servers validate tokens without shared KeyStore or JWKS. Integrates with existing `TokenBlacklist` (#23). Complements PRM (#46).
+- [x] **P1** `[ADOPTION]` Token Introspection — RFC 7662 (#47) ✅
+  > `IntrospectionHandler` in `apiauth/`. Resource servers POST tokens to auth server for validation. Checks blacklist, returns RFC 7662 response. Authenticated via client_credentials (#53). 9 unit + 3 e2e tests.
 
 - [x] **P1** `[ADOPTION]` `[DX]` Keycloak interop test suite (#49) ✅
   > 10 interop tests proving `APIMiddleware` + `JWKSKeyStore` validate Keycloak-issued tokens. Pre-baked realm JSON, `make upkcl/testkcl/downkcl`, manual-trigger CI. Separate Go module.
@@ -441,8 +441,8 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
   >
   > **Urgency**: Security best practice but can be done client-side initially.
 
-- [ ] **P1** `[ADOPTION]` Token introspection endpoint — RFC 7662 (#47)
-  > **Moved to Standards & Interop section above.** See #47 and [ROADMAP.md](ROADMAP.md) for full design.
+- [x] **P1** `[ADOPTION]` Token introspection endpoint — RFC 7662 (#47) ✅
+  > Completed. See Standards & Interop section above.
 
 ### Infrastructure
 

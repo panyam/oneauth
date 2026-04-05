@@ -497,6 +497,55 @@ The handler sets `Cache-Control: public, max-age=3600` by default (configurable 
 
 See [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) for the full specification.
 
+## Token Introspection (RFC 7662)
+
+Resource servers can validate tokens by querying the auth server instead of doing local JWT validation via JWKS. This enables blacklist checking, supports opaque tokens, and simplifies resource server implementations.
+
+```go
+import "github.com/panyam/oneauth/apiauth"
+
+handler := &apiauth.IntrospectionHandler{
+    Auth:           apiAuth,       // APIAuth with JWTSecretKey configured
+    ClientKeyStore: keyStore,      // Authenticates calling resource servers
+}
+mux.Handle("POST /oauth/introspect", handler)
+```
+
+Resource servers call the endpoint with HTTP Basic auth (using their client_credentials):
+
+```http
+POST /oauth/introspect
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic <base64(client_id:client_secret)>
+
+token=eyJhbGciOiJIUzI1NiIs...
+```
+
+Active token response:
+```json
+{
+    "active": true,
+    "sub": "user-42",
+    "scope": "read write",
+    "iss": "yourapp.com",
+    "exp": 1699999999,
+    "iat": 1699999000,
+    "jti": "unique-token-id",
+    "token_type": "access_token"
+}
+```
+
+Inactive token response (expired, revoked, invalid, tampered — never reveals why):
+```json
+{
+    "active": false
+}
+```
+
+Responses include `Cache-Control: no-store` and `Pragma: no-cache` per RFC 7662.
+
+See [RFC 7662](https://www.rfc-editor.org/rfc/rfc7662) for the full specification.
+
 ## Security Considerations
 
 1. **JWT Secret**: Use a strong, random secret (32+ bytes). Store in environment variables.
