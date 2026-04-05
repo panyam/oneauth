@@ -419,6 +419,39 @@ For distributed deployments, implement `core.TokenBlacklist` backed by Redis (`S
 
 `TokenPair` has moved from `apiauth` to `core`. Update imports: `apiauth.TokenPair` becomes `core.TokenPair`.
 
+## Protected Resource Metadata (RFC 9728)
+
+Resource servers can advertise their capabilities at `GET /.well-known/oauth-protected-resource` so OAuth clients can auto-discover which auth servers to use, what scopes to request, and what token formats are supported.
+
+```go
+import "github.com/panyam/oneauth/apiauth"
+
+meta := &apiauth.ProtectedResourceMetadata{
+    Resource:              "https://api.example.com",
+    AuthorizationServers:  []string{"https://auth.example.com"},
+    ScopesSupported:       []string{"read", "write"},
+    TokenFormatsSupported: []string{"jwt"},
+    SigningAlgsSupported:  []string{"RS256", "ES256"},
+}
+mux.Handle("GET /.well-known/oauth-protected-resource",
+    apiauth.NewProtectedResourceHandler(meta))
+```
+
+Response:
+```json
+{
+  "resource": "https://api.example.com",
+  "authorization_servers": ["https://auth.example.com"],
+  "scopes_supported": ["read", "write"],
+  "token_formats_supported": ["jwt"],
+  "resource_signing_alg_values_supported": ["RS256", "ES256"]
+}
+```
+
+The handler sets `Cache-Control: public, max-age=3600` by default (configurable via `CacheMaxAge`). Only responds to GET (405 for other methods). Optional fields are omitted when empty.
+
+See [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) for the full specification.
+
 ## Security Considerations
 
 1. **JWT Secret**: Use a strong, random secret (32+ bytes). Store in environment variables.

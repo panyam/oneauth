@@ -369,8 +369,8 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
 
 ### Standards & Interop (new — see [ROADMAP.md](ROADMAP.md) for full details)
 
-- [ ] **P1** `[ADOPTION]` Protected Resource Metadata — RFC 9728 (#46)
-  > `GET /.well-known/oauth-protected-resource` — resource servers advertise which auth servers they trust, supported scopes, token formats, and signing algorithms. Smallest scope item, do first.
+- [x] **P1** `[ADOPTION]` Protected Resource Metadata — RFC 9728 (#46) ✅
+  > `ProtectedResourceMetadata` struct + `NewProtectedResourceHandler` in `apiauth/`. 7 unit tests + 3 e2e tests. Wired into demo resource server and e2e test environment.
 
 - [ ] **P1** `[ADOPTION]` Token Introspection — RFC 7662 (#47)
   > `POST /oauth/introspect` — resource servers validate tokens without shared KeyStore or JWKS. Integrates with existing `TokenBlacklist` (#23). Complements PRM (#46).

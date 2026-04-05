@@ -15,6 +15,7 @@ OneAuth is a Go authentication library providing unified local and OAuth-based a
 - **Policy-Based Validation**: Configurable signup requirements (SignupPolicy)
 - **Username Support**: Optional username uniqueness with username-based login
 - **App Registration API**: AdminAuth interface (APIKeyAuth, NoAuth), AppRegistrar HTTP handler for App CRUD, MintResourceToken for resource-scoped JWTs
+- **Protected Resource Metadata**: RFC 9728 — resource servers advertise capabilities at `/.well-known/oauth-protected-resource` for client auto-discovery
 - **Client SDK**: AuthClient with CredentialStore, HTTPClient wrapper with automatic token refresh on 401
 - **CSRF Protection**: Double-submit cookie middleware (`CSRFMiddleware`) for form endpoints, opt-in per-route
 - **Reference Server**: Config-driven server in `cmd/oneauth-server/`, deployable to GAE, Docker, and Kubernetes
@@ -163,6 +164,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.55**: Protected Resource Metadata (#46). `ProtectedResourceMetadata` + `NewProtectedResourceHandler` in `apiauth/` (RFC 9728). Resource servers advertise capabilities at `/.well-known/oauth-protected-resource`. 7 unit + 3 e2e tests.
 - **v0.0.54**: Fix JWT `aud` array validation (#52). `matchesAudience()` handles both string and array `aud` claims per RFC 7519 §4.1.3. Interop with Keycloak/Auth0/Azure AD. 8 new tests.
 - **v0.0.53**: AppRegistrar data race fix (found by e2e race detector). `NewAppRegistrar()` constructor. Python integration tests removed.
 - **v0.0.52**: Go e2e tests (#44). 28 in-process tests replacing Python integration suite. Auth + 2 resource servers via httptest.NewServer. All federated tests work (0 skipped). Race-clean. `make e2e`, `make test-hard`.

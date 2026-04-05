@@ -143,6 +143,7 @@ See **[Client SDK](CLIENT_SDK.md)** for full details.
 - Asymmetric signing: apps keep private keys, register only public keys; resource servers verify without knowing signing secrets
 - JWKS endpoint (`/.well-known/jwks.json`) for public key discovery — resource servers can fetch asymmetric keys via HTTP instead of sharing database access
 - `JWKSKeyStore` — read-only KeyStore that fetches from a remote JWKS URL with background refresh, caching, and resilience
+- Protected Resource Metadata (`/.well-known/oauth-protected-resource`, RFC 9728) — resource servers advertise their capabilities for client auto-discovery
 - Audience and issuer validation (string and array `aud` per RFC 7519 §4.1.3)
 - `kid` (Key ID) in all JWT headers — RFC 7638 thumbprint enables JWKS-based key discovery
 - Algorithm confusion prevention via `KeyRecord.Algorithm` check

@@ -16,26 +16,9 @@ This track moves OneAuth from custom-protocol federated auth toward **standards-
 
 These are low-effort, high-value additions that make OneAuth resource servers self-describing and interoperable.
 
-#### Protected Resource Metadata — RFC 9728 (#46)
+#### Protected Resource Metadata — RFC 9728 (#46) ✅ COMPLETE
 
-**Priority: P1 | Urgency: [ADOPTION]**
-
-Add `GET /.well-known/oauth-protected-resource` to let clients auto-discover what a OneAuth-protected resource server expects.
-
-```json
-{
-  "resource": "https://relay.example.com",
-  "authorization_servers": ["https://auth.example.com"],
-  "scopes_supported": ["relay:connect", "relay:publish"],
-  "token_formats_supported": ["jwt"],
-  "resource_signing_alg_values_supported": ["RS256", "ES256", "HS256"],
-  "resource_documentation": "https://docs.example.com/api"
-}
-```
-
-**Why:** Today, clients must be hardcoded with knowledge of which auth server issues tokens for which resource server. PRM makes this discoverable. Tiny implementation (~1 handler + config struct), big standards-compliance value.
-
-**Fits into:** `apiauth/` or `httpauth/` as a handler that reads from `APIMiddleware` config.
+`ProtectedResourceMetadata` struct + `NewProtectedResourceHandler()` in `apiauth/`. Serves JSON at `GET /.well-known/oauth-protected-resource` with `Cache-Control` headers. 7 unit tests + 3 e2e tests. Wired into demo resource server and e2e test environment.
 
 #### Token Introspection — RFC 7662 (#47)
 
@@ -224,7 +207,7 @@ OAuth Client Capabilities (parallel track)
 
 **Recommended order:**
 1. ~~**#52 Fix aud array** (P0 bug)~~ ✅ DONE
-2. **#46 PRM** — smallest standards scope, immediate value
+2. ~~**#46 PRM**~~ ✅ DONE
 3. **#49 Keycloak tests** — can start in parallel with PRM; proves interop
 4. **#53 client_credentials** — foundational grant type, enables #55
 5. **#54 Headless OAuth + PKCE** — CLI/agent auth, supersedes old Phase 3

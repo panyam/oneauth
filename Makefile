@@ -1,5 +1,5 @@
 
-test:
+test: lint
 	go test -v ./...
 
 # Run ALL tests: unit tests → e2e (in-process) → secrets scan
