@@ -286,7 +286,7 @@ seccheck:
 
 # Run staticcheck (code quality + deprecated API usage)
 lint:
-	staticcheck ./...
+	GOFLAGS=-buildvcs=false staticcheck ./...
 
 # Scan for accidentally committed secrets
 secrets:

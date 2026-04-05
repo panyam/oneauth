@@ -68,11 +68,6 @@ func (j *TestJourney) Cleanup() {
 	os.RemoveAll(j.TmpDir)
 }
 
-// Helper to get a pointer to a SignupPolicy
-func policyPtr(p core.SignupPolicy) *core.SignupPolicy {
-	return &p
-}
-
 // =============================================================================
 // Journey 1: Multiple OAuth Providers (Same Email = Same Account)
 // =============================================================================

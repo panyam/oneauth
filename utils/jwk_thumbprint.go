@@ -68,12 +68,13 @@ func ecdsaThumbprint(pub *ecdsa.PublicKey) (string, error) {
 	}
 	crv := pub.Curve.Params().Name
 	byteLen := (pub.Curve.Params().BitSize + 7) / 8
-	xBytes := pub.X.Bytes()
-	yBytes := pub.Y.Bytes()
-	xPadded := make([]byte, byteLen)
-	yPadded := make([]byte, byteLen)
-	copy(xPadded[byteLen-len(xBytes):], xBytes)
-	copy(yPadded[byteLen-len(yBytes):], yBytes)
+	// Use pub.Bytes() (Go 1.25+) instead of deprecated X/Y fields
+	uncompressed, err := pub.Bytes()
+	if err != nil {
+		return "", fmt.Errorf("failed to encode ECDSA public key: %w", err)
+	}
+	xPadded := uncompressed[1 : 1+byteLen]
+	yPadded := uncompressed[1+byteLen:]
 	x := base64.RawURLEncoding.EncodeToString(xPadded)
 	y := base64.RawURLEncoding.EncodeToString(yPadded)
 	// RFC 7638: members in lexicographic order
