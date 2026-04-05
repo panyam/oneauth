@@ -26,37 +26,9 @@ These are low-effort, high-value additions that make OneAuth resource servers se
 
 ### Phase 2: Client Registration Standards (Medium-term)
 
-#### DCR Conformance Wrapper — RFC 7591 / RFC 7592 (#48)
+#### DCR Conformance Wrapper — RFC 7591 (#48) ✅ COMPLETE
 
-**Priority: P2 | Urgency: [ADOPTION]**
-
-Add a standards-compliant Dynamic Client Registration endpoint **alongside** the existing `AppRegistrar`, not replacing it.
-
-**Approach: Conformance wrapper, not rewrite.**
-
-| Phase | What | Effort |
-|-------|------|--------|
-| 2a | `POST /register` accepts DCR request format, maps to internal AppRegistrar | Small |
-| 2b | DCR response format (RFC 7591 §3.2.1) with `registration_access_token` | Medium |
-| 2c | RFC 7592 client management (`PUT /register/{id}`, `DELETE /register/{id}`) | Medium |
-| 2d | Deprecate custom `/apps/*` endpoints | Small |
-
-**Why not rip-and-replace AppRegistrar?**
-- `AppQuota` (MaxRooms, MaxMsgRate) is domain-specific — DCR supports custom fields but existing consumers depend on current format
-- `KidStore` + grace period rotation is genuinely useful and not standardized
-- AppRegistrar is ~370 lines, not a maintenance burden
-- Existing consumers (excaliframe, demo apps) would break
-
-**What changes:**
-- DCR uses `jwks` (JWK format) instead of raw PEM `public_key` — we already have `utils/jwk.go` for conversion
-- DCR uses `client_uri` instead of `client_domain`
-- `initial_access_token` replaces `X-Admin-Key` (or support both)
-- AppQuota fields become DCR custom metadata
-
-**What stays:**
-- `KeyStore`, `KidStore`, grace period rotation — all internal, unaffected
-- `AdminAuth` interface — still needed for admin-only operations (list all, bulk ops)
-- `MintResourceToken` / `MintResourceTokenWithKey` — app-side, unrelated to registration wire format
+`DCRHandler` in `admin/dcr.go`, served at `POST /apps/dcr` via `AppRegistrar.Handler()`. Maps JWK→PEM, `client_uri`→`client_domain`, `token_endpoint_auth_method`→`signing_alg`. Returns RFC 7591 response format. Supports both `X-Admin-Key` and Bearer auth. 6 unit + 2 e2e tests. Custom `/apps/*` endpoints continue working unchanged.
 
 ### Phase 3: Keycloak Interop Test Suite (#49) ✅ COMPLETE
 
@@ -133,9 +105,9 @@ Server: `handleClientCredentialsGrant` in `APIAuth` with `ClientKeyStore` field.
 
 `DiscoverAS()` in `client/discovery.go`. Fallback chain: RFC 8414 → OIDC Discovery. Path-based issuer support. 8 unit tests + Keycloak interop test.
 
-#### Token Introspection client — #55 (P2)
+#### Token Introspection client — #55 (P2) ✅ COMPLETE
 
-Client-side counterpart to #47. `IntrospectionValidator` as alternative validation strategy in `APIMiddleware`. Requires #47 + #53.
+`IntrospectionValidator` in `apiauth/introspection_client.go`. Integrates into `APIMiddleware.Introspection` as fallback when local JWT validation fails. Response caching with configurable TTL. 7 unit + 1 e2e + 2 Keycloak interop tests.
 
 ---
 
@@ -178,8 +150,8 @@ OAuth Client Capabilities (parallel track)
 5. ~~**#54 Headless OAuth + PKCE**~~ ✅ DONE
 6. ~~**#47 Token Introspection server**~~ ✅ DONE
 7. ~~**#51 AS Discovery client**~~ ✅ DONE
-8. **#48 DCR wrapper** — standards-compliant registration
-9. **#55 Introspection client** — requires #47 + #53
+8. ~~**#48 DCR wrapper**~~ ✅ DONE
+9. ~~**#55 Introspection client**~~ ✅ DONE
 10. ~~**#50 OIDC Discovery server**~~ ✅ DONE
 
 ---
