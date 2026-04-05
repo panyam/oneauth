@@ -91,6 +91,14 @@ cred, err := authClient.Login("user@example.com", "password", "read write")
 
 Sends a `grant_type=password` request to the token endpoint. Stores the credential and persists to disk.
 
+#### Client Credentials (Machine-to-Machine)
+
+```go
+cred, err := authClient.ClientCredentialsToken("billing-svc", "secret", []string{"billing:read"})
+```
+
+Sends a `grant_type=client_credentials` request. No refresh token — machine clients re-authenticate when the token expires. Stores the credential for subsequent API calls via `HTTPClient()`.
+
 #### Logout
 
 ```go
