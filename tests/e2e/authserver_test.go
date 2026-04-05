@@ -63,6 +63,7 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		JWTIssuer:           testJWTIssuer,
 		ValidateCredentials: e.localAuth.ValidateCredentials,
 		Blacklist:           e.Blacklist,
+		ClientKeyStore:      e.KeyStore, // Enables client_credentials grant
 	}
 
 	// CSRF

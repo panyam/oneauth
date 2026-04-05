@@ -72,6 +72,12 @@ type APIAuth struct {
 	// If nil, no custom claims are added (backwards-compatible).
 	CustomClaimsFunc func(userID string, scopes []string) (map[string]any, error)
 
+	// ClientKeyStore provides client credential lookup for the client_credentials
+	// grant type (RFC 6749 §4.4). When set, the token endpoint accepts
+	// grant_type=client_credentials and authenticates clients via KeyStore.
+	// When nil, client_credentials requests return unsupported_grant_type.
+	ClientKeyStore keys.KeyLookup
+
 	// Rate limiting (optional)
 	RateLimiter core.RateLimiter
 
@@ -102,6 +108,8 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.handlePasswordGrant(w, r, &req)
 	case "refresh_token":
 		a.handleRefreshTokenGrant(w, r, &req)
+	case "client_credentials":
+		a.handleClientCredentialsGrant(w, r, &req)
 	default:
 		a.errorResponse(w, "unsupported_grant_type", "Grant type not supported", http.StatusBadRequest)
 	}
@@ -245,6 +253,87 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 
 	// Return new token pair
 	a.tokenResponse(w, accessToken, expiresIn, newRefreshToken.Token, refreshToken.Scopes)
+}
+
+// handleClientCredentialsGrant handles the client_credentials grant type (RFC 6749 §4.4).
+// Machine-to-machine authentication: the client authenticates with client_id + client_secret
+// and receives an access token with sub=client_id. No user context, no refresh token.
+//
+// Client authentication methods:
+//   - client_secret_post: client_id + client_secret in the JSON request body
+//   - client_secret_basic: HTTP Basic auth with client_id:client_secret
+func (a *APIAuth) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
+	if a.ClientKeyStore == nil {
+		a.errorResponse(w, "unsupported_grant_type", "client_credentials not configured", http.StatusBadRequest)
+		return
+	}
+
+	// Extract client credentials: try Basic auth first, then request body
+	clientID := req.ClientID
+	clientSecret := req.ClientSecret
+	if basicUser, basicPass, ok := r.BasicAuth(); ok {
+		clientID = basicUser
+		clientSecret = basicPass
+	}
+
+	if clientID == "" {
+		a.errorResponse(w, "invalid_request", "client_id is required", http.StatusBadRequest)
+		return
+	}
+	if clientSecret == "" {
+		a.errorResponse(w, "invalid_request", "client_secret is required", http.StatusBadRequest)
+		return
+	}
+
+	// Look up client in KeyStore
+	rec, err := a.ClientKeyStore.GetKey(clientID)
+	if err != nil || rec == nil {
+		a.errorResponse(w, "invalid_client", "Unknown client", http.StatusUnauthorized)
+		return
+	}
+
+	// Verify client secret (constant-time comparison for HS256)
+	storedKey, ok := rec.Key.([]byte)
+	if !ok {
+		a.errorResponse(w, "invalid_client", "Client does not support secret authentication", http.StatusUnauthorized)
+		return
+	}
+	if !constantTimeEqual(string(storedKey), clientSecret) {
+		a.errorResponse(w, "invalid_client", "Invalid client credentials", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse requested scopes
+	var scopes []string
+	if req.Scope != "" {
+		scopes = strings.Split(req.Scope, " ")
+	}
+
+	// Create access token with sub=client_id (no user context)
+	accessToken, expiresIn, err := a.CreateAccessToken(clientID, scopes)
+	if err != nil {
+		log.Printf("Error creating client_credentials token: %v", err)
+		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
+		return
+	}
+
+	// Return access token only — no refresh token for client_credentials
+	a.tokenResponse(w, accessToken, expiresIn, "", scopes)
+}
+
+// constantTimeEqual performs a constant-time string comparison to prevent
+// timing attacks on client secret validation.
+func constantTimeEqual(a, b string) bool {
+	if len(a) != len(b) {
+		// Still do a comparison to keep timing constant-ish
+		// (length leak is acceptable for secret comparison)
+		return false
+	}
+	result := byte(0)
+	for i := 0; i < len(a); i++ {
+		result |= a[i] ^ b[i]
+	}
+	return result == 0
 }
 
 // HandleLogout handles POST /api/logout - revokes a refresh token

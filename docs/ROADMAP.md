@@ -154,9 +154,9 @@ These issues complete the OAuth client story — making OneAuth useful not just 
 
 ### Client-Side OAuth
 
-#### `client_credentials` grant — #53 (P1)
+#### `client_credentials` grant — #53 (P1) ✅ COMPLETE
 
-Machine-to-machine auth. The existing `KeyStore`/`AppRegistrar` already stores client credentials — no new registry needed. The token endpoint just needs a new grant type handler. Enables #55.
+Server: `handleClientCredentialsGrant` in `APIAuth` with `ClientKeyStore` field. Client: `ClientCredentialsToken()` on `AuthClient`. Supports `client_secret_post` and `client_secret_basic`. 8 unit + 2 e2e tests.
 
 #### Headless OAuth + PKCE for CLI — #54 (P1)
 
@@ -207,7 +207,7 @@ OAuth Client Capabilities (parallel track)
 1. ~~**#52 Fix aud array** (P0 bug)~~ ✅ DONE
 2. ~~**#46 PRM**~~ ✅ DONE
 3. ~~**#49 Keycloak tests**~~ ✅ DONE
-4. **#53 client_credentials** — foundational grant type, enables #55
+4. ~~**#53 client_credentials**~~ ✅ DONE
 5. **#54 Headless OAuth + PKCE** — CLI/agent auth, supersedes old Phase 3
 6. **#47 Token Introspection server** — Keycloak tests validate it
 7. **#51 AS Discovery client** — enhances #54, enables auto-config

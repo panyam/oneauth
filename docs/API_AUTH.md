@@ -84,6 +84,51 @@ Content-Type: application/json
 
 Returns a new token pair. The old refresh token is invalidated (rotation).
 
+### Client Credentials Grant (RFC 6749 §4.4)
+
+Machine-to-machine authentication. The client authenticates with `client_id` + `client_secret` and receives an access token with `sub=client_id`. No user context, no refresh token.
+
+**Requires** `ClientKeyStore` to be configured on `APIAuth`:
+
+```go
+apiAuth := &apiauth.APIAuth{
+    JWTSecretKey:   os.Getenv("JWT_SECRET"),
+    ClientKeyStore: keyStore,  // KeyLookup for client credential lookup
+    // ... other config
+}
+```
+
+**Via client_secret_post** (credentials in request body):
+
+```http
+POST /api/token
+Content-Type: application/json
+
+{"grant_type":"client_credentials","client_id":"billing-svc","client_secret":"xxx","scope":"billing:read"}
+```
+
+**Via client_secret_basic** (HTTP Basic auth):
+
+```http
+POST /api/token
+Authorization: Basic YmlsbGluZy1zdmM6eHh4
+Content-Type: application/json
+
+{"grant_type":"client_credentials","scope":"billing:read"}
+```
+
+Response:
+```json
+{
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "token_type": "Bearer",
+    "expires_in": 900,
+    "scope": "billing:read"
+}
+```
+
+Note: no `refresh_token` — machine clients re-authenticate when the token expires.
+
 ### Logout
 
 ```http

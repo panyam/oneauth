@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -32,6 +33,7 @@ type OAuth2TokenRequest struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 	Scope        string `json:"scope,omitempty"`
 	ClientID     string `json:"client_id,omitempty"`
+	ClientSecret string `json:"client_secret,omitempty"`
 }
 
 // OAuth2TokenResponse is the response from token endpoint
@@ -175,6 +177,38 @@ func (c *AuthClient) Login(username, password, scope string) (*ServerCredential,
 	}
 
 	cred.UserEmail = username
+
+	if err := c.store.SetCredential(c.serverURL, cred); err != nil {
+		return nil, fmt.Errorf("failed to store credential: %w", err)
+	}
+
+	if err := c.store.Save(); err != nil {
+		return nil, fmt.Errorf("failed to save credentials: %w", err)
+	}
+
+	return cred, nil
+}
+
+// ClientCredentialsToken authenticates using the client_credentials grant (RFC 6749 §4.4).
+// This is for machine-to-machine authentication — no user context, no refresh token.
+// The access token is stored in the credential store for subsequent API calls.
+func (c *AuthClient) ClientCredentialsToken(clientID, clientSecret string, scopes []string) (*ServerCredential, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	req := OAuth2TokenRequest{
+		GrantType:    "client_credentials",
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	}
+	if len(scopes) > 0 {
+		req.Scope = strings.Join(scopes, " ")
+	}
+
+	cred, err := c.requestToken(req)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := c.store.SetCredential(c.serverURL, cred); err != nil {
 		return nil, fmt.Errorf("failed to store credential: %w", err)

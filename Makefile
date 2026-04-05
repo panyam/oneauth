@@ -2,8 +2,8 @@
 test: lint
 	go test -v ./...
 
-# Run ALL tests: unit tests → e2e (in-process) → secrets scan
-test-hard: tall e2e secrets
+# Run ALL tests: unit tests → e2e (in-process) → secrets scan -> Keycloak
+test-hard: tall e2e secrets testkcl
 
 # Go in-process e2e tests (auth + resource servers via httptest.NewServer)
 e2e:

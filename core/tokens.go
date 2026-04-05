@@ -137,12 +137,13 @@ type TokenPair struct {
 
 // TokenRequest represents a request to the token endpoint
 type TokenRequest struct {
-	GrantType    string `json:"grant_type"`              // "password", "refresh_token"
+	GrantType    string `json:"grant_type"`              // "password", "refresh_token", "client_credentials"
 	Username     string `json:"username,omitempty"`      // For password grant
 	Password     string `json:"password,omitempty"`      // For password grant
 	RefreshToken string `json:"refresh_token,omitempty"` // For refresh_token grant
 	Scope        string `json:"scope,omitempty"`         // Requested scopes
-	ClientID     string `json:"client_id,omitempty"`     // Optional client identifier
+	ClientID     string `json:"client_id,omitempty"`     // Client identifier (for client_credentials, optional for others)
+	ClientSecret string `json:"client_secret,omitempty"` // Client secret (for client_credentials via client_secret_post)
 }
 
 // TokenError represents an OAuth 2.0 compliant error response
