@@ -3,6 +3,7 @@ package localauth
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"strings"
@@ -383,7 +384,9 @@ func (a *LocalAuth) HandleResetPasswordForm(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Default: render a basic HTML form
+	// Use html/template for safe token embedding (prevents XSS / G705)
 	w.Header().Set("Content-Type", "text/html")
+	safeToken := template.HTMLEscapeString(token)
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html>
 <head><title>Reset Password</title></head>
@@ -395,7 +398,7 @@ func (a *LocalAuth) HandleResetPasswordForm(w http.ResponseWriter, r *http.Reque
 	<button type="submit">Reset Password</button>
 </form>
 </body>
-</html>`, token)
+</html>`, safeToken)
 }
 
 // HandleResetPassword handles password reset submissions (POST)

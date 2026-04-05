@@ -125,9 +125,9 @@ These issues complete the OAuth client story — making OneAuth useful not just 
 
 Server: `handleClientCredentialsGrant` in `APIAuth` with `ClientKeyStore` field. Client: `ClientCredentialsToken()` on `AuthClient`. Supports `client_secret_post` and `client_secret_basic`. 8 unit + 2 e2e tests.
 
-#### Headless OAuth + PKCE for CLI — #54 (P1)
+#### Headless OAuth + PKCE for CLI — #54 (P1) ✅ COMPLETE
 
-Loopback redirect (RFC 8252) flow for CLI/agents. Supersedes the old "Phase 3: OAuth API Mode" items in NEXTSTEPS. Uses existing PKCE primitives from `oauth2/pkce.go`.
+`LoginWithBrowser()` on `AuthClient`. Loopback redirect server, PKCE, state validation, auto-discovery via DiscoverAS (#51). 6 unit tests + Keycloak interop test. Supersedes old Phase 3.
 
 #### AS Metadata Discovery client — #51 (P1) ✅ COMPLETE
 
@@ -175,7 +175,7 @@ OAuth Client Capabilities (parallel track)
 2. ~~**#46 PRM**~~ ✅ DONE
 3. ~~**#49 Keycloak tests**~~ ✅ DONE
 4. ~~**#53 client_credentials**~~ ✅ DONE
-5. **#54 Headless OAuth + PKCE** — CLI/agent auth, supersedes old Phase 3
+5. ~~**#54 Headless OAuth + PKCE**~~ ✅ DONE
 6. ~~**#47 Token Introspection server**~~ ✅ DONE
 7. ~~**#51 AS Discovery client**~~ ✅ DONE
 8. **#48 DCR wrapper** — standards-compliant registration

@@ -110,6 +110,19 @@ Fetches OAuth AS metadata from well-known endpoints. Tries RFC 8414 (`/.well-kno
 
 Use `WithHTTPClientForDiscovery(client)` to customize the HTTP client (TLS, timeouts).
 
+#### Browser Login (OAuth Authorization Code + PKCE)
+
+```go
+cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+    ClientID: "my-cli-app",
+    Scopes:   []string{"openid", "read", "write"},
+})
+```
+
+Opens the user's default browser to the authorization server's login page. After the user authenticates (password, SSO, MFA — whatever the AS supports), the browser redirects to a temporary loopback server that catches the authorization code. The code is exchanged for tokens via PKCE.
+
+This is the same pattern used by `gh auth login`, `gcloud auth login`, and `kubectl` with OIDC. Endpoints are auto-discovered via `DiscoverAS()`, or can be set explicitly via `AuthorizationEndpoint` and `TokenEndpoint` in the config.
+
 #### Logout
 
 ```go

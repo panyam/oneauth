@@ -34,6 +34,9 @@ type OAuth2TokenRequest struct {
 	Scope        string `json:"scope,omitempty"`
 	ClientID     string `json:"client_id,omitempty"`
 	ClientSecret string `json:"client_secret,omitempty"`
+	Code         string `json:"code,omitempty"`          // For authorization_code grant
+	CodeVerifier string `json:"code_verifier,omitempty"` // PKCE verifier for authorization_code grant
+	RedirectURI  string `json:"redirect_uri,omitempty"`  // Redirect URI for authorization_code grant
 }
 
 // OAuth2TokenResponse is the response from token endpoint

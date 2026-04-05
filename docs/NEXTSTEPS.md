@@ -305,8 +305,8 @@
 
 ### Phase 3: OAuth Integration for API
 
-- [ ] **P1** `[ADOPTION]` Headless OAuth authorization code + PKCE for CLI clients (#54)
-  > Loopback redirect (RFC 8252) flow for CLI/agents. Supersedes the two items below. Uses existing PKCE primitives.
+- [x] **P1** `[ADOPTION]` Headless OAuth authorization code + PKCE for CLI clients (#54) ✅
+  > `LoginWithBrowser()` on `AuthClient` with loopback redirect (RFC 8252), PKCE, state validation, auto-discovery. 6 unit tests + Keycloak interop test (full auth code flow against real IdP).
 
 - [ ] ~~**P0** `[BLOCKER]` Add API mode to OAuth callbacks~~ → Superseded by #54
   > ~~**Scenario**: A React SPA calls `/auth/google/callback?mode=api`...~~
