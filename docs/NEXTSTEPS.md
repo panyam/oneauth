@@ -359,6 +359,23 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
   >
   > **Urgency**: Required for SOC2, HIPAA compliance. Can defer if not targeting regulated industries yet.
 
+### Standards & Interop (new — see [ROADMAP.md](ROADMAP.md) for full details)
+
+- [ ] **P1** `[ADOPTION]` Protected Resource Metadata — RFC 9728 (#46)
+  > `GET /.well-known/oauth-protected-resource` — resource servers advertise which auth servers they trust, supported scopes, token formats, and signing algorithms. Smallest scope item, do first.
+
+- [ ] **P1** `[ADOPTION]` Token Introspection — RFC 7662 (#47)
+  > `POST /oauth/introspect` — resource servers validate tokens without shared KeyStore or JWKS. Integrates with existing `TokenBlacklist` (#23). Complements PRM (#46).
+
+- [ ] **P1** `[ADOPTION]` `[DX]` Keycloak interop test suite (#49)
+  > Prove `APIMiddleware` + `JWKSKeyStore` work with Keycloak-issued tokens. Pre-baked realm JSON, `make testkcl` target, separate CI job. Validates all other standards work.
+
+- [ ] **P2** `[ADOPTION]` DCR conformance wrapper — RFC 7591/7592 (#48)
+  > Standards-compliant `POST /register` endpoint alongside existing `AppRegistrar`. Maps DCR wire format (JWK, `client_uri`) to internal model. Does NOT replace AppRegistrar.
+
+- [ ] **P2** `[ADOPTION]` OIDC Discovery metadata — RFC 8414 (#50)
+  > `GET /.well-known/openid-configuration` on the reference server. Metadata-only — does NOT make us a full OIDC server. Only if reference server sees standalone adoption.
+
 ---
 
 ## Medium-term
@@ -413,10 +430,8 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
   >
   > **Urgency**: Security best practice but can be done client-side initially.
 
-- [ ] **P1** `[ADOPTION]` Token introspection endpoint (RFC 7662)
-  > **Scenario**: Resource server receives token, needs to validate: `POST /oauth/introspect {token: "..."}` returns `{active: true, scope: "read write", exp: 1699999999}`.
-  >
-  > **Urgency**: Required for microservice architectures where services can't share JWT secrets. Blocks distributed deployments.
+- [ ] **P1** `[ADOPTION]` Token introspection endpoint — RFC 7662 (#47)
+  > **Moved to Standards & Interop section above.** See #47 and [ROADMAP.md](ROADMAP.md) for full design.
 
 ### Infrastructure
 
@@ -513,6 +528,17 @@ Phase 4: Client SDK ✅ COMPLETE
                               ▼
                        Token Refresh ──► lilbattle migration (remaining)
 
+Standards & Interop (parallel track — see ROADMAP.md)
+    #46 PRM (RFC 9728) ◄── smallest, do first
+    #47 Token Introspection (RFC 7662)
+              │
+    ┌─────────┼──────────┐
+    ▼                     ▼
+    #48 DCR (7591)    #49 Keycloak Tests ◄── validates all of the above
+                          │
+                          ▼
+                      #50 OIDC Discovery (optional)
+
 Infrastructure (parallel track)
     Redis Store ──► Token Blacklist ──► MFA
                 │
@@ -527,14 +553,17 @@ Compliance (can be parallel)
 ## Recommended Execution Order
 
 1. **Phase 3** (P0 blockers) — Unblocks mobile/SPA OAuth clients
-2. **lilbattle migration** (P1) — Validates the completed Client SDK end-to-end
-3. ~~**Asymmetric signing (#4)** (P1)~~ ✅ COMPLETE
-4. **Redis Store** (P1) — Unblocks production deployments
-5. **Token Blacklist + Account Lockout** (P1 security) — Basic security hardening
-6. **GDPR + Audit Logging** (P1 compliance) — If targeting EU/enterprise
-7. **MFA** (P1 security) — Enterprise requirement
-8. **Examples** (P1 adoption) — Accelerates adoption
-9. **Everything else** (P2) — As needed
+2. **PRM #46** (P1) — Smallest standards item, immediate interop value
+3. **Keycloak tests #49** (P1) — Proves interop story, can start in parallel with PRM
+4. **lilbattle migration** (P1) — Validates the completed Client SDK end-to-end
+5. **Token Introspection #47** (P1) — Keycloak tests validate it
+6. **Redis Store** (P1) — Unblocks production deployments
+7. **Token Blacklist + Account Lockout** (P1 security) — Basic security hardening
+8. **DCR wrapper #48** (P2) — Standards-compliant registration
+9. **GDPR + Audit Logging** (P1 compliance) — If targeting EU/enterprise
+10. **MFA** (P1 security) — Enterprise requirement
+11. **OIDC Discovery #50** (P2) — Only if reference server sees standalone adoption
+12. **Everything else** (P2) — As needed
 
 ---
 

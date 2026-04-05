@@ -1,0 +1,217 @@
+# OneAuth Roadmap
+
+## Vision
+
+OneAuth is an **embeddable Go authentication library** — not an identity server. It handles local auth, API auth (JWT/refresh/API keys), and federated resource auth (app registration, scoped token minting, multi-tenant validation via KeyStore/JWKS).
+
+**What we are not building:** A full OIDC Identity Provider (that's Keycloak's job). Instead, we **interoperate** with real IdPs and focus on making resource servers and apps easy to secure in Go.
+
+---
+
+## Standards & Interop Track
+
+This track moves OneAuth from custom-protocol federated auth toward **standards-compliant interoperability** with the broader OAuth2/OIDC ecosystem. The guiding principle: **prove interop with real-world tools (Keycloak) instead of reimplementing them.**
+
+### Phase 1: Resource Server Standards (Short-term)
+
+These are low-effort, high-value additions that make OneAuth resource servers self-describing and interoperable.
+
+#### Protected Resource Metadata — RFC 9728 (#46)
+
+**Priority: P1 | Urgency: [ADOPTION]**
+
+Add `GET /.well-known/oauth-protected-resource` to let clients auto-discover what a OneAuth-protected resource server expects.
+
+```json
+{
+  "resource": "https://relay.example.com",
+  "authorization_servers": ["https://auth.example.com"],
+  "scopes_supported": ["relay:connect", "relay:publish"],
+  "token_formats_supported": ["jwt"],
+  "resource_signing_alg_values_supported": ["RS256", "ES256", "HS256"],
+  "resource_documentation": "https://docs.example.com/api"
+}
+```
+
+**Why:** Today, clients must be hardcoded with knowledge of which auth server issues tokens for which resource server. PRM makes this discoverable. Tiny implementation (~1 handler + config struct), big standards-compliance value.
+
+**Fits into:** `apiauth/` or `httpauth/` as a handler that reads from `APIMiddleware` config.
+
+#### Token Introspection — RFC 7662 (#47)
+
+**Priority: P1 | Urgency: [ADOPTION] [SCALE]**
+
+Add `POST /oauth/introspect` for resource servers that can't do local JWT validation (no shared KeyStore, no JWKS access).
+
+```json
+POST /oauth/introspect
+token=eyJ...
+
+→ {"active": true, "scope": "relay:connect", "sub": "user-42", "client_id": "app_abc", "exp": 1699999999}
+```
+
+**Why:** Required for microservice architectures where not every service can share JWT secrets or fetch JWKS. Already on the NEXTSTEPS roadmap as P1. Complements PRM (PRM tells clients *where* to introspect).
+
+**Fits into:** `admin/` or new `introspect/` subpackage on the auth server side.
+
+### Phase 2: Client Registration Standards (Medium-term)
+
+#### DCR Conformance Wrapper — RFC 7591 / RFC 7592 (#48)
+
+**Priority: P2 | Urgency: [ADOPTION]**
+
+Add a standards-compliant Dynamic Client Registration endpoint **alongside** the existing `AppRegistrar`, not replacing it.
+
+**Approach: Conformance wrapper, not rewrite.**
+
+| Phase | What | Effort |
+|-------|------|--------|
+| 2a | `POST /register` accepts DCR request format, maps to internal AppRegistrar | Small |
+| 2b | DCR response format (RFC 7591 §3.2.1) with `registration_access_token` | Medium |
+| 2c | RFC 7592 client management (`PUT /register/{id}`, `DELETE /register/{id}`) | Medium |
+| 2d | Deprecate custom `/apps/*` endpoints | Small |
+
+**Why not rip-and-replace AppRegistrar?**
+- `AppQuota` (MaxRooms, MaxMsgRate) is domain-specific — DCR supports custom fields but existing consumers depend on current format
+- `KidStore` + grace period rotation is genuinely useful and not standardized
+- AppRegistrar is ~370 lines, not a maintenance burden
+- Existing consumers (excaliframe, demo apps) would break
+
+**What changes:**
+- DCR uses `jwks` (JWK format) instead of raw PEM `public_key` — we already have `utils/jwk.go` for conversion
+- DCR uses `client_uri` instead of `client_domain`
+- `initial_access_token` replaces `X-Admin-Key` (or support both)
+- AppQuota fields become DCR custom metadata
+
+**What stays:**
+- `KeyStore`, `KidStore`, grace period rotation — all internal, unaffected
+- `AdminAuth` interface — still needed for admin-only operations (list all, bulk ops)
+- `MintResourceToken` / `MintResourceTokenWithKey` — app-side, unrelated to registration wire format
+
+### Phase 3: Keycloak Interop Test Suite (#49)
+
+**Priority: P1 | Urgency: [ADOPTION] [DX]**
+
+Add a Keycloak-backed integration test suite that proves OneAuth middleware validates tokens from a real-world OIDC provider.
+
+**Architecture:**
+```
+tests/keycloak/
+├── realm.json          # Pre-baked Keycloak realm config (imported on startup)
+├── keycloak_test.go    # Go tests using testcontainers or Docker
+└── README.md
+```
+
+**Realm config (checked in as JSON):**
+- Realm with RS256 signing
+- Confidential client (for client_credentials flow)
+- Public client (for PKCE testing)
+- Test user with known credentials
+
+**Test categories:**
+
+1. **Interop tests** (OneAuth as resource server validating Keycloak tokens):
+   - `JWKSKeyStore` fetches Keycloak's JWKS via `/.well-known/openid-configuration`
+   - `APIMiddleware` validates Keycloak-issued JWT
+   - Scopes, audience, expiry, kid lookup all work
+   - Algorithm confusion: Keycloak RS256 token rejected when validated as HS256
+
+2. **Standards conformance tests:**
+   - Keycloak JWKS response parses through `JWKToPublicKey`
+   - Keycloak `kid` values resolve via `GetKeyByKid`
+   - Token introspection (when built) matches Keycloak's response format
+
+3. **What we skip:**
+   - Keycloak's login flows through LocalAuth (different layers)
+   - Keycloak admin API testing (their problem)
+
+**Infrastructure:**
+- `make testkcl` — starts Keycloak container, runs interop tests
+- Keycloak image: `quay.io/keycloak/keycloak` with `start-dev` + realm import (~10-15s startup)
+- Separate from `make e2e` (which stays fast at ~2s)
+- Optional in CI (like `testpg` / `testds`)
+
+**Adoption story:** "OneAuth middleware validates Keycloak-issued tokens correctly" — one-line pitch.
+
+### Phase 4: OIDC Discovery Metadata (Long-term, Optional)
+
+#### OIDC Discovery — RFC 8414 (#50)
+
+**Priority: P2 | Urgency: [ADOPTION]**
+
+Add `GET /.well-known/openid-configuration` to the reference server so standard OIDC clients can discover endpoints.
+
+**Scope decision:** This is metadata-only — we advertise what we support, we do NOT implement a full OIDC authorization server. The reference server already has token, JWKS, and (planned) introspection endpoints.
+
+```json
+{
+  "issuer": "https://auth.example.com",
+  "token_endpoint": "https://auth.example.com/api/token",
+  "jwks_uri": "https://auth.example.com/.well-known/jwks.json",
+  "introspection_endpoint": "https://auth.example.com/oauth/introspect",
+  "registration_endpoint": "https://auth.example.com/register",
+  "scopes_supported": ["read", "write", "admin"],
+  "response_types_supported": ["token"],
+  "token_endpoint_auth_methods_supported": ["client_secret_post", "private_key_jwt"],
+  "grant_types_supported": ["password", "refresh_token", "client_credentials"]
+}
+```
+
+**Why optional:** This pushes toward being an auth server, which is explicitly not our goal. Only do this if the reference server sees real adoption as a standalone deployment.
+
+---
+
+## Execution Order
+
+```
+                    ┌─────────────────────────┐
+                    │ Phase 1: Resource Server │
+                    │ Standards                │
+                    ├─────────────────────────┤
+                    │ #46 PRM (RFC 9728)      │◄── Smallest, do first
+                    │ #47 Introspection (7662)│◄── Already on roadmap
+                    └───────────┬─────────────┘
+                                │
+              ┌─────────────────┼─────────────────┐
+              ▼                                   ▼
+┌─────────────────────────┐         ┌─────────────────────────┐
+│ Phase 2: DCR Wrapper    │         │ Phase 3: Keycloak Tests │
+│ #48 (RFC 7591/7592)     │         │ #49                     │◄── Can start in parallel
+└─────────────────────────┘         └─────────────┬───────────┘
+                                                  │
+                                    ┌─────────────▼───────────┐
+                                    │ Phase 4: OIDC Discovery │
+                                    │ #50 (optional)          │
+                                    └─────────────────────────┘
+```
+
+**Recommended order:**
+1. **PRM (#46)** — smallest scope, immediate value, no dependencies
+2. **Keycloak tests (#49)** — can start in parallel with PRM; proves interop story
+3. **Token Introspection (#47)** — higher effort but already planned; Keycloak tests can validate it
+4. **DCR wrapper (#48)** — medium effort; Keycloak tests can validate conformance
+5. **OIDC Discovery (#50)** — only if reference server sees standalone adoption
+
+---
+
+## Relationship to Existing Work
+
+### What this track does NOT change
+- Core library architecture (embeddable, not a service)
+- `KeyStore` / `KeyLookup` / `KeyStorage` interfaces
+- `MintResourceToken` / `MintResourceTokenWithKey`
+- `AdminAuth` interface
+- Three-backend store pattern (FS, GORM, GAE)
+- E2e test suite (`make e2e`)
+
+### What this track complements
+- **NEXTSTEPS Phase 3** (OAuth API mode) — PRM tells clients where to get tokens
+- **NEXTSTEPS Redis Store** — introspection endpoint needs fast token lookup
+- **NEXTSTEPS Token Blacklist** — introspection must check blacklist
+- **Issue #20** (persist AppRegistrar state) — DCR wrapper benefits from persistent registrations
+
+### Positioning vs Keycloak
+OneAuth and Keycloak are **complementary, not competing:**
+- Keycloak **is** the authorization server / IdP
+- OneAuth **helps you build** Go services that validate tokens from Keycloak (or any OIDC provider)
+- The Keycloak test suite (#49) makes this relationship explicit and tested
