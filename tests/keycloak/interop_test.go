@@ -521,6 +521,67 @@ func extractFormAction(t *testing.T, html string, baseURL *url.URL) string {
 }
 
 // =============================================================================
+// Introspection Client Tests (RFC 7662 consumer against Keycloak)
+// =============================================================================
+
+// TestKeycloak_IntrospectionClient verifies that our IntrospectionValidator
+// can validate a Keycloak-issued token by calling Keycloak's introspection
+// endpoint. This proves the client-side introspection code (#55) works
+// against a real-world IdP, not just our own mock server.
+//
+// See: https://www.rfc-editor.org/rfc/rfc7662
+// See: https://github.com/panyam/oneauth/issues/55
+func TestKeycloak_IntrospectionClient(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+	cfg := discoverOIDC(t)
+
+	// Get a token from Keycloak
+	tok := getClientCredentialsToken(t, cfg.TokenEndpoint,
+		confidentialClientID, confidentialClientSecret)
+	require.NotEmpty(t, tok.AccessToken)
+
+	// Introspect it using our IntrospectionValidator
+	validator := &apiauth.IntrospectionValidator{
+		IntrospectionURL: cfg.IntrospectionEndpoint,
+		ClientID:         confidentialClientID,
+		ClientSecret:     confidentialClientSecret,
+	}
+
+	result, err := validator.Validate(tok.AccessToken)
+	require.NoError(t, err, "IntrospectionValidator should successfully call Keycloak introspection")
+	assert.True(t, result.Active, "valid Keycloak token should be active")
+	assert.NotEmpty(t, result.Sub, "sub should be present")
+
+	t.Logf("Keycloak introspection response: active=%v, sub=%s, scope=%s",
+		result.Active, result.Sub, result.Scope)
+
+	// Also test ValidateForMiddleware
+	userID, _, authType, _, err := validator.ValidateForMiddleware(tok.AccessToken)
+	require.NoError(t, err)
+	assert.NotEmpty(t, userID)
+	assert.Equal(t, "introspection", authType)
+}
+
+// TestKeycloak_IntrospectionClient_InvalidToken verifies that introspecting
+// an invalid token against Keycloak returns active=false (not an error).
+//
+// See: https://www.rfc-editor.org/rfc/rfc7662#section-2.2
+func TestKeycloak_IntrospectionClient_InvalidToken(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+	cfg := discoverOIDC(t)
+
+	validator := &apiauth.IntrospectionValidator{
+		IntrospectionURL: cfg.IntrospectionEndpoint,
+		ClientID:         confidentialClientID,
+		ClientSecret:     confidentialClientSecret,
+	}
+
+	result, err := validator.Validate("not-a-valid-token")
+	require.NoError(t, err, "invalid token should not return transport error")
+	assert.False(t, result.Active, "invalid token should be inactive")
+}
+
+// =============================================================================
 // Security Tests
 // =============================================================================
 

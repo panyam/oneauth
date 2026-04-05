@@ -62,9 +62,23 @@ func (h *AppRegistrar) RLockApps(fn func(map[string]*AppRegistration)) {
 }
 
 // Handler returns an http.Handler for app registration endpoints.
+// Includes both custom OneAuth API and RFC 7591 DCR endpoint:
+//
+//	POST /apps/register  — OneAuth custom registration
+//	POST /apps/dcr       — RFC 7591 Dynamic Client Registration
+//	GET  /apps           — List all apps
+//	GET  /apps/{id}      — Get app metadata
+//	DELETE /apps/{id}    — Delete app
+//	POST /apps/{id}/rotate — Rotate secret/key
 func (h *AppRegistrar) Handler() http.Handler {
+	dcr := &DCRHandler{
+		KeyStore:  h.KeyStore,
+		Auth:      h.Auth,
+		Registrar: h,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/apps/register", h.withAuth(h.handleRegister))
+	mux.Handle("/apps/dcr", http.HandlerFunc(dcr.ServeHTTP))
 	mux.HandleFunc("/apps/", h.withAuth(h.handleAppByID))
 	mux.HandleFunc("/apps", h.withAuth(h.handleListApps))
 	return mux

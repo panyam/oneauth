@@ -378,11 +378,11 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
 - [x] **P1** `[ADOPTION]` `[DX]` Keycloak interop test suite (#49) ✅
   > 10 interop tests proving `APIMiddleware` + `JWKSKeyStore` validate Keycloak-issued tokens. Pre-baked realm JSON, `make upkcl/testkcl/downkcl`, manual-trigger CI. Separate Go module.
 
-- [ ] **P2** `[ADOPTION]` DCR conformance wrapper — RFC 7591/7592 (#48)
-  > Standards-compliant `POST /register` endpoint alongside existing `AppRegistrar`. Maps DCR wire format (JWK, `client_uri`) to internal model. Does NOT replace AppRegistrar.
+- [x] **P2** `[ADOPTION]` DCR conformance wrapper — RFC 7591 (#48) ✅
+  > `DCRHandler` in `admin/dcr.go`, served at `POST /apps/dcr` via `AppRegistrar.Handler()`. Maps JWK→PEM, client_uri→client_domain. 6 unit + 2 e2e tests.
 
-- [ ] **P2** `[ADOPTION]` Token Introspection client for resource servers — RFC 7662 (#55)
-  > Client-side counterpart to #47. `IntrospectionValidator` as alternative validation strategy in `APIMiddleware`. Requires #47 + #53.
+- [x] **P2** `[ADOPTION]` Token Introspection client for resource servers — RFC 7662 (#55) ✅
+  > `IntrospectionValidator` in `apiauth/introspection_client.go`. Integrates into `APIMiddleware` as fallback validation. Response caching. 7 unit + 1 e2e + 2 Keycloak interop tests.
 
 - [x] **P2** `[ADOPTION]` OIDC Discovery metadata — RFC 8414 (#50) ✅
   > `ASServerMetadata` + `NewASMetadataHandler` in `apiauth/`. Serves `/.well-known/openid-configuration`. Metadata-only. 6 unit + 3 e2e tests (incl. `DiscoverAS` round-trip). Wired into reference server.

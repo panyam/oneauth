@@ -965,6 +965,14 @@ type APIMiddleware struct {
 	// validateJWT checks the blacklist after signature verification.
 	// If nil, no revocation check (stateless validation only).
 	Blacklist core.TokenBlacklist
+
+	// Introspection enables token validation via a remote introspection
+	// endpoint (RFC 7662) as an alternative to local JWT/JWKS validation.
+	// When set, tokens that fail local validation are sent to the
+	// introspection endpoint. When local validation is not configured
+	// (no JWTSecretKey, no KeyStore), introspection is the only validation path.
+	// If nil, only local validation is used.
+	Introspection *IntrospectionValidator
 }
 
 // GetUserIDFromAPIContext retrieves the user ID from the API middleware context
@@ -1115,8 +1123,19 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes 
 		return userID, scopes, authType, nil, err
 	}
 
-	// Otherwise try JWT
-	return m.validateJWT(token)
+	// Try local JWT validation first
+	userID, scopes, authType, customClaims, jwtErr := m.validateJWT(token)
+	if jwtErr == nil {
+		return userID, scopes, authType, customClaims, nil
+	}
+
+	// If local validation failed and introspection is configured, try that
+	if m.Introspection != nil {
+		return m.Introspection.ValidateForMiddleware(token)
+	}
+
+	// No introspection fallback — return the original JWT error
+	return "", nil, "", nil, jwtErr
 }
 
 // validateJWT validates a JWT access token
