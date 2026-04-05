@@ -4,6 +4,7 @@ JWT-based API authentication: token issuance (login/refresh/client_credentials),
 
 ## Contents
 - **auth.go** — `APIAuth` (login/logout/refresh/client_credentials handlers, `CreateAccessToken`, `ValidateAccessToken`), `APIMiddleware` (`ValidateToken`, `RequireScopes`, `Optional`), context helpers (`GetUserIDFromAPIContext`, etc.)
+- **as_metadata.go** — `ASServerMetadata` struct + `NewASMetadataHandler` for RFC 8414 / OIDC Discovery
 - **introspection.go** — `IntrospectionHandler` for RFC 7662 token introspection
 - **protected_resource.go** — `ProtectedResourceMetadata` struct + `NewProtectedResourceHandler` for RFC 9728 discovery
 

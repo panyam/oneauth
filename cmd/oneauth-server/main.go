@@ -259,6 +259,25 @@ func main() {
 	jwksHandler := &keys.JWKSHandler{KeyStore: keyStore}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
 
+	// AS Metadata / OIDC Discovery (RFC 8414)
+	baseURL := fmt.Sprintf("http://%s:%s", cfg.Server.Host, cfg.Server.Port)
+	if cfg.TLS.Enabled {
+		baseURL = fmt.Sprintf("https://%s:%s", cfg.Server.Host, cfg.Server.Port)
+	}
+	asMetaHandler := apiauth.NewASMetadataHandler(&apiauth.ASServerMetadata{
+		Issuer:                        baseURL,
+		TokenEndpoint:                 baseURL + "/api/token",
+		JWKSURI:                       baseURL + "/.well-known/jwks.json",
+		IntrospectionEndpoint:         baseURL + "/oauth/introspect",
+		RegistrationEndpoint:          baseURL + "/apps/register",
+		GrantTypesSupported:           []string{"password", "refresh_token", "client_credentials"},
+		ResponseTypesSupported:        []string{"token"},
+		TokenEndpointAuthMethods:      []string{"client_secret_post", "client_secret_basic"},
+		CodeChallengeMethodsSupported: []string{"S256"},
+		SubjectTypesSupported:         []string{"public"},
+	})
+	mux.Handle("GET /.well-known/openid-configuration", asMetaHandler)
+
 	addr := cfg.Server.Host + ":" + cfg.Server.Port
 	log.Printf("oneauth-server listening on %s (keystore=%s, user_stores=%s, auth=%s)",
 		addr, cfg.KeyStore.Type, cfg.UserStores.Type, cfg.AdminAuth.Type)

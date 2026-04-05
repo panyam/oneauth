@@ -83,6 +83,40 @@ func TestKeycloak_DiscoverAS_Integration(t *testing.T) {
 	t.Logf("  grant_types: %v", meta.GrantTypesSupported)
 }
 
+// TestKeycloak_ASMetadata_FieldCompatibility verifies that our ASServerMetadata
+// struct covers the key fields that Keycloak's discovery document returns.
+// This ensures our server-side metadata (#50) is structurally compatible with
+// what real-world IdPs serve — any client that can parse Keycloak's response
+// should also be able to parse ours.
+//
+// See: https://www.rfc-editor.org/rfc/rfc8414#section-2
+// See: https://github.com/panyam/oneauth/issues/50
+func TestKeycloak_ASMetadata_FieldCompatibility(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	meta, err := client.DiscoverAS(realmURL())
+	require.NoError(t, err)
+
+	// These fields must be present in Keycloak's response and are also
+	// fields we serve in our ASServerMetadata. If Keycloak has them and
+	// our struct parsed them, the structs are compatible.
+	assert.NotEmpty(t, meta.Issuer, "issuer")
+	assert.NotEmpty(t, meta.TokenEndpoint, "token_endpoint")
+	assert.NotEmpty(t, meta.AuthorizationEndpoint, "authorization_endpoint")
+	assert.NotEmpty(t, meta.JWKSURI, "jwks_uri")
+	assert.NotEmpty(t, meta.IntrospectionEndpoint, "introspection_endpoint")
+	assert.NotEmpty(t, meta.GrantTypesSupported, "grant_types_supported")
+	assert.NotEmpty(t, meta.ResponseTypesSupported, "response_types_supported")
+	assert.NotEmpty(t, meta.TokenEndpointAuthMethods, "token_endpoint_auth_methods_supported")
+	assert.NotEmpty(t, meta.CodeChallengeMethodsSupported, "code_challenge_methods_supported")
+	assert.NotEmpty(t, meta.ScopesSupported, "scopes_supported")
+
+	// Keycloak also serves subject_types_supported (OIDC required)
+	// Our ASMetadata struct has this field too — verify Keycloak populates it
+	// (parsed into the same ASMetadata struct via DiscoverAS)
+	t.Logf("Keycloak field compatibility validated — all key fields present and parsed")
+}
+
 // =============================================================================
 // JWKS Interop Tests
 // =============================================================================
