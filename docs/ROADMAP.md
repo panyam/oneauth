@@ -71,11 +71,9 @@ Add a standards-compliant Dynamic Client Registration endpoint **alongside** the
 - `AdminAuth` interface — still needed for admin-only operations (list all, bulk ops)
 - `MintResourceToken` / `MintResourceTokenWithKey` — app-side, unrelated to registration wire format
 
-### Phase 3: Keycloak Interop Test Suite (#49)
+### Phase 3: Keycloak Interop Test Suite (#49) ✅ COMPLETE
 
-**Priority: P1 | Urgency: [ADOPTION] [DX]**
-
-Add a Keycloak-backed integration test suite that proves OneAuth middleware validates tokens from a real-world OIDC provider.
+10 interop tests in `tests/keycloak/` proving `APIMiddleware` + `JWKSKeyStore` validate Keycloak-issued tokens. Pre-baked realm JSON, `make upkcl/testkcl/downkcl`, manual-trigger CI workflow. Separate Go module (`tests/keycloak/go.mod`).
 
 **Architecture:**
 ```
@@ -208,7 +206,7 @@ OAuth Client Capabilities (parallel track)
 **Recommended order:**
 1. ~~**#52 Fix aud array** (P0 bug)~~ ✅ DONE
 2. ~~**#46 PRM**~~ ✅ DONE
-3. **#49 Keycloak tests** — can start in parallel with PRM; proves interop
+3. ~~**#49 Keycloak tests**~~ ✅ DONE
 4. **#53 client_credentials** — foundational grant type, enables #55
 5. **#54 Headless OAuth + PKCE** — CLI/agent auth, supersedes old Phase 3
 6. **#47 Token Introspection server** — Keycloak tests validate it

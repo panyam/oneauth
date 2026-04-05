@@ -147,6 +147,60 @@ testrealDS:
 	go test -v ./stores/gae/...
 
 # =============================================================================
+# Keycloak interop test configuration
+# =============================================================================
+KC_CONTAINER_NAME := oneauth-test-keycloak
+KC_PORT := 8180
+KC_IMAGE := quay.io/keycloak/keycloak:26.0
+
+# Start a Keycloak instance using Docker for interop testing
+upkcl:
+	@echo "Starting Keycloak container..."
+	@docker run --rm -d \
+		--name $(KC_CONTAINER_NAME) \
+		-p $(KC_PORT):8080 \
+		-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
+		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+		-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+		$(KC_IMAGE) start-dev --import-realm
+	@echo "Waiting for Keycloak to be ready (~15s)..."
+	@until curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; do sleep 2; done
+	@echo ""
+	@echo "Keycloak is running!"
+	@echo "  Admin console: http://localhost:$(KC_PORT)/admin (admin/admin)"
+	@echo "  Realm:         http://localhost:$(KC_PORT)/realms/oneauth-test"
+	@echo "To run interop tests: make testkcl"
+	@echo "To stop: make downkcl"
+
+# Stop the Keycloak container
+downkcl:
+	@echo "Stopping Keycloak container..."
+	@docker stop $(KC_CONTAINER_NAME) 2>/dev/null || echo "Container not running"
+
+# Tail the logs of the running Keycloak container
+kcllogs:
+	@docker logs -f $(KC_CONTAINER_NAME)
+
+# Run Keycloak interop tests (starts container if not running)
+testkcl:
+	@if ! docker ps --format '{{.Names}}' | grep -q '^$(KC_CONTAINER_NAME)$$'; then \
+		echo "Starting Keycloak container..."; \
+		docker run --rm -d \
+			--name $(KC_CONTAINER_NAME) \
+			-p $(KC_PORT):8080 \
+			-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
+			-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+			-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+			$(KC_IMAGE) start-dev --import-realm; \
+		echo "Waiting for Keycloak to be ready (~15s)..."; \
+		until curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; do sleep 2; done; \
+		echo "Keycloak ready."; \
+	fi
+	KEYCLOAK_URL=http://localhost:$(KC_PORT) \
+	GOWORK=off \
+	go test -v -race -count=1 ./tests/keycloak/...
+
+# =============================================================================
 # GAE deployment
 # =============================================================================
 GAE_PROJECT ?= oneauthsvc
@@ -304,4 +358,4 @@ audit: vulncheck secrets
 	@echo "=== Audit complete ==="
 	@echo "Automated checks passed. For manual threat model review, see docs/TESTING.md."
 
-.PHONY: test test-hard e2e audit updb downdb dblogs testpg upds downds dslogs testds testrealDS deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint secrets
+.PHONY: test test-hard e2e audit updb downdb dblogs testpg upds downds dslogs testds testrealDS upkcl downkcl kcllogs testkcl deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint secrets

@@ -375,8 +375,8 @@ Currently each store implementation redeclares model types (FSUser, GORMUser, GA
 - [ ] **P1** `[ADOPTION]` Token Introspection — RFC 7662 (#47)
   > `POST /oauth/introspect` — resource servers validate tokens without shared KeyStore or JWKS. Integrates with existing `TokenBlacklist` (#23). Complements PRM (#46).
 
-- [ ] **P1** `[ADOPTION]` `[DX]` Keycloak interop test suite (#49)
-  > Prove `APIMiddleware` + `JWKSKeyStore` work with Keycloak-issued tokens. Pre-baked realm JSON, `make testkcl` target, separate CI job. Validates all other standards work.
+- [x] **P1** `[ADOPTION]` `[DX]` Keycloak interop test suite (#49) ✅
+  > 10 interop tests proving `APIMiddleware` + `JWKSKeyStore` validate Keycloak-issued tokens. Pre-baked realm JSON, `make upkcl/testkcl/downkcl`, manual-trigger CI. Separate Go module.
 
 - [ ] **P2** `[ADOPTION]` DCR conformance wrapper — RFC 7591/7592 (#48)
   > Standards-compliant `POST /register` endpoint alongside existing `AppRegistrar`. Maps DCR wire format (JWK, `client_uri`) to internal model. Does NOT replace AppRegistrar.

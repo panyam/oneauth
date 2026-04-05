@@ -164,6 +164,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.56**: Keycloak interop test suite (#49). 10 tests proving `APIMiddleware` + `JWKSKeyStore` validate Keycloak-issued tokens. Pre-baked realm JSON, `make upkcl/testkcl/downkcl`, manual-trigger CI. Separate Go module.
 - **v0.0.55**: Protected Resource Metadata (#46). `ProtectedResourceMetadata` + `NewProtectedResourceHandler` in `apiauth/` (RFC 9728). Resource servers advertise capabilities at `/.well-known/oauth-protected-resource`. 7 unit + 3 e2e tests.
 - **v0.0.54**: Fix JWT `aud` array validation (#52). `matchesAudience()` handles both string and array `aud` claims per RFC 7519 §4.1.3. Interop with Keycloak/Auth0/Azure AD. 8 new tests.
 - **v0.0.53**: AppRegistrar data race fix (found by e2e race detector). `NewAppRegistrar()` constructor. Python integration tests removed.

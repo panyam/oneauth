@@ -1,0 +1,57 @@
+name: Keycloak Interop Tests
+
+# Manual trigger only — Keycloak tests are expensive (~30s startup + test time).
+# Run via: Actions → Keycloak Interop Tests → Run workflow
+on:
+  workflow_dispatch:
+
+jobs:
+  keycloak-interop:
+    runs-on: ubuntu-latest
+    services:
+      keycloak:
+        image: quay.io/keycloak/keycloak:26.0
+        env:
+          KC_BOOTSTRAP_ADMIN_USERNAME: admin
+          KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+        ports:
+          - 8180:8080
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/health/ready || exit 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.26'
+
+      # Import the test realm into Keycloak via Admin REST API
+      - name: Import realm
+        run: |
+          # Wait for Keycloak to be fully ready
+          until curl -sf http://localhost:8180/health/ready > /dev/null 2>&1; do sleep 2; done
+
+          # Get admin token
+          ADMIN_TOKEN=$(curl -s -X POST http://localhost:8180/realms/master/protocol/openid-connect/token \
+            -d "username=admin&password=admin&grant_type=password&client_id=admin-cli" \
+            | jq -r '.access_token')
+
+          # Import realm
+          curl -sf -X POST http://localhost:8180/admin/realms \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d @tests/keycloak/realm.json
+
+          # Wait for realm to be available
+          until curl -sf http://localhost:8180/realms/oneauth-test > /dev/null 2>&1; do sleep 1; done
+          echo "Realm imported successfully"
+
+      - name: Run Keycloak interop tests
+        env:
+          KEYCLOAK_URL: http://localhost:8180
+          GOWORK: "off"
+        run: go test -v -race -count=1 ./tests/keycloak/...

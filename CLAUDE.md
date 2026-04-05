@@ -86,6 +86,10 @@ make test-hard     # Full suite: unit + e2e + secret scan
 make testpg        # GORM tests against PostgreSQL (auto-starts Docker)
 make testds        # GAE tests against Datastore emulator (auto-starts Docker)
 make testrealDS    # GAE tests against real Datastore (needs credentials)
+make testkcl       # Keycloak interop tests (auto-starts Docker, ~15s startup)
+make upkcl         # Start Keycloak container only
+make downkcl       # Stop Keycloak container
+make kcllogs       # Tail Keycloak container logs
 
 # Security scanning
 make audit         # Full security audit: vulncheck + gosec + secrets + race detection

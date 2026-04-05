@@ -456,8 +456,10 @@ func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes
 		return "", nil, fmt.Errorf("invalid claims")
 	}
 
-	// Verify token type
-	if tokenType, ok := claims["type"].(string); !ok || tokenType != "access" {
+	// Verify token type: reject if explicitly set to something other than "access"
+	// (prevents OneAuth refresh tokens from being used as access tokens).
+	// External IdP tokens (Keycloak, Auth0) don't include this claim — accepted.
+	if tokenType, ok := claims["type"].(string); ok && tokenType != "access" {
 		return "", nil, fmt.Errorf("invalid token type")
 	}
 
@@ -524,8 +526,10 @@ func (a *APIAuth) ValidateAccessTokenFull(tokenString string) (userID string, sc
 		return "", nil, nil, fmt.Errorf("invalid claims")
 	}
 
-	// Verify token type
-	if tokenType, ok := claims["type"].(string); !ok || tokenType != "access" {
+	// Verify token type: reject if explicitly set to something other than "access"
+	// (prevents OneAuth refresh tokens from being used as access tokens).
+	// External IdP tokens (Keycloak, Auth0) don't include this claim — accepted.
+	if tokenType, ok := claims["type"].(string); ok && tokenType != "access" {
 		return "", nil, nil, fmt.Errorf("invalid token type")
 	}
 
@@ -1093,8 +1097,10 @@ func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes [
 		return "", nil, "", nil, fmt.Errorf("invalid claims")
 	}
 
-	// Verify token type
-	if tokenType, ok := claims["type"].(string); !ok || tokenType != "access" {
+	// Verify token type: reject if explicitly set to something other than "access"
+	// (prevents OneAuth refresh tokens from being used as access tokens).
+	// External IdP tokens (Keycloak, Auth0) don't include this claim — accepted.
+	if tokenType, ok := claims["type"].(string); ok && tokenType != "access" {
 		return "", nil, "", nil, fmt.Errorf("invalid token type")
 	}
 
