@@ -317,8 +317,8 @@
 - [x] **P1** `[ADOPTION]` `client_credentials` grant support — RFC 6749 §4.4 (#53) ✅
   > Server: `handleClientCredentialsGrant` in `APIAuth` with `ClientKeyStore` field. Client: `ClientCredentialsToken()` on `AuthClient`. Supports `client_secret_post` and `client_secret_basic`. 8 unit + 2 e2e tests.
 
-- [ ] **P1** `[ADOPTION]` OAuth AS Metadata Discovery client — RFC 8414 (#51)
-  > Client-side discovery of AS endpoints (token, JWKS, introspection). Fallback chain: RFC 8414 → OIDC Discovery. Location: `client/discovery.go`.
+- [x] **P1** `[ADOPTION]` OAuth AS Metadata Discovery client — RFC 8414 (#51) ✅
+  > `DiscoverAS()` in `client/discovery.go`. Fallback chain: RFC 8414 → OIDC Discovery. Path-based issuer support. 8 unit tests + Keycloak interop test.
 
 - [x] **P1** `[SECURITY]` PKCE support for public clients (#27) ✅
   > PKCE (RFC 7636) enabled by default for all OAuth2 flows. `DisablePKCE` opt-out with warning.

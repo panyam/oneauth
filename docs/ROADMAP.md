@@ -149,9 +149,9 @@ Server: `handleClientCredentialsGrant` in `APIAuth` with `ClientKeyStore` field.
 
 Loopback redirect (RFC 8252) flow for CLI/agents. Supersedes the old "Phase 3: OAuth API Mode" items in NEXTSTEPS. Uses existing PKCE primitives from `oauth2/pkce.go`.
 
-#### AS Metadata Discovery client — #51 (P1)
+#### AS Metadata Discovery client — #51 (P1) ✅ COMPLETE
 
-Client-side discovery of AS endpoints via `/.well-known/oauth-authorization-server` (RFC 8414) with OIDC Discovery fallback. Complements #50 (server-side). Enhances #54 (auto-discover authorization_endpoint).
+`DiscoverAS()` in `client/discovery.go`. Fallback chain: RFC 8414 → OIDC Discovery. Path-based issuer support. 8 unit tests + Keycloak interop test.
 
 #### Token Introspection client — #55 (P2)
 
@@ -197,7 +197,7 @@ OAuth Client Capabilities (parallel track)
 4. ~~**#53 client_credentials**~~ ✅ DONE
 5. **#54 Headless OAuth + PKCE** — CLI/agent auth, supersedes old Phase 3
 6. ~~**#47 Token Introspection server**~~ ✅ DONE
-7. **#51 AS Discovery client** — enhances #54, enables auto-config
+7. ~~**#51 AS Discovery client**~~ ✅ DONE
 8. **#48 DCR wrapper** — standards-compliant registration
 9. **#55 Introspection client** — requires #47 + #53
 10. **#50 OIDC Discovery server** — only if reference server sees standalone adoption

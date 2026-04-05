@@ -99,6 +99,17 @@ cred, err := authClient.ClientCredentialsToken("billing-svc", "secret", []string
 
 Sends a `grant_type=client_credentials` request. No refresh token — machine clients re-authenticate when the token expires. Stores the credential for subsequent API calls via `HTTPClient()`.
 
+#### AS Metadata Discovery (RFC 8414 / OIDC Discovery)
+
+```go
+meta, err := client.DiscoverAS("https://auth.example.com")
+// meta.TokenEndpoint, meta.JWKSURI, meta.IntrospectionEndpoint, etc.
+```
+
+Fetches OAuth AS metadata from well-known endpoints. Tries RFC 8414 (`/.well-known/oauth-authorization-server`) first, falls back to OIDC Discovery (`/.well-known/openid-configuration`). Supports path-based issuers (e.g., Keycloak realms).
+
+Use `WithHTTPClientForDiscovery(client)` to customize the HTTP client (TLS, timeouts).
+
 #### Logout
 
 ```go
