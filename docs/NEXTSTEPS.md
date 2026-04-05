@@ -300,8 +300,8 @@
 
 ### Bug Fixes
 
-- [ ] **P0** Fix JWT `aud` claim validation for JSON arrays — RFC 7519 §4.1.3 (#52)
-  > `claims["aud"].(string)` silently fails when `aud` is a JSON array (Keycloak, Auth0, Azure AD all send arrays). Blocks Keycloak interop (#49). ~10 line fix.
+- [x] **P0** Fix JWT `aud` claim validation for JSON arrays — RFC 7519 §4.1.3 (#52) ✅
+  > `matchesAudience()` helper handles both string and `[]interface{}` aud formats. 8 new tests (array accepted/rejected across ValidateAccessToken, ValidateAccessTokenFull, and APIMiddleware). Unblocks Keycloak interop (#49).
 
 ### Phase 3: OAuth Integration for API
 

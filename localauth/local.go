@@ -654,12 +654,7 @@ func (a *LocalAuth) HandleLinkCredentials(config LinkCredentialsConfig, getUser 
 		}
 
 		// Link credentials using the helper
-		linkConfig := EnsureAuthUserConfig{
-			UserStore:     config.UserStore,
-			IdentityStore: config.IdentityStore,
-			ChannelStore:  config.ChannelStore,
-			UsernameStore: config.UsernameStore,
-		}
+		linkConfig := EnsureAuthUserConfig(config)
 		if err := LinkLocalCredentials(linkConfig, userID, username, password, email); err != nil {
 			errMsg := err.Error()
 			code := "link_failed"

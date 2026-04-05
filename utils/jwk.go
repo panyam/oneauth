@@ -57,15 +57,13 @@ func RSAPublicKeyToJWK(kid, alg string, pub *rsa.PublicKey) JWK {
 }
 
 // ECDSAPublicKeyToJWK converts an ECDSA public key to a JWK.
+// Uses pub.Bytes() (Go 1.25+) instead of deprecated X/Y fields.
 func ECDSAPublicKeyToJWK(kid, alg string, pub *ecdsa.PublicKey) JWK {
 	byteLen := (pub.Curve.Params().BitSize + 7) / 8
-	xBytes := pub.X.Bytes()
-	yBytes := pub.Y.Bytes()
-	// Pad to fixed length (leading zeros may have been stripped)
-	xPadded := make([]byte, byteLen)
-	yPadded := make([]byte, byteLen)
-	copy(xPadded[byteLen-len(xBytes):], xBytes)
-	copy(yPadded[byteLen-len(yBytes):], yBytes)
+	// pub.Bytes() returns uncompressed point: 0x04 || X || Y
+	uncompressed, _ := pub.Bytes()
+	xPadded := uncompressed[1 : 1+byteLen]
+	yPadded := uncompressed[1+byteLen:]
 
 	return JWK{
 		Kty:    "EC",
@@ -128,12 +126,18 @@ func ecJWKToPublicKey(jwk JWK) (crypto.PublicKey, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to decode EC y-coordinate: %w", err)
 	}
-	x := new(big.Int).SetBytes(xBytes)
-	y := new(big.Int).SetBytes(yBytes)
-	pub := &ecdsa.PublicKey{
-		Curve: curve,
-		X:     x,
-		Y:     y,
+	// Build uncompressed point: 0x04 || X || Y
+	byteLen := (curve.Params().BitSize + 7) / 8
+	if len(xBytes) > byteLen || len(yBytes) > byteLen {
+		return nil, "", fmt.Errorf("EC coordinate too large for curve %s", jwk.Crv)
+	}
+	uncompressed := make([]byte, 1+2*byteLen)
+	uncompressed[0] = 0x04
+	copy(uncompressed[1+byteLen-len(xBytes):1+byteLen], xBytes)
+	copy(uncompressed[1+2*byteLen-len(yBytes):], yBytes)
+	pub, err := ecdsa.ParseUncompressedPublicKey(curve, uncompressed)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid EC public key: %w", err)
 	}
 	return pub, jwk.Alg, nil
 }

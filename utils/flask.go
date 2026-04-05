@@ -110,13 +110,11 @@ func (f *FlaskAuth) DecodeSessionUserId(userid string) (out []interface{}) {
 	key := fernet.MustDecodeKeys(f.NormalizedSecretKey())
 	data := fernet.VerifyAndDecrypt([]byte(userid), 0, key)
 	parts := strings.Split(string(data), "|")
-	if parts != nil {
-		for _, part := range parts {
-			if part[0] == '~' {
-				out = append(out, excelDecode(part[1:], alphabet, alphabetReverse))
-			} else {
-				out = append(out, part)
-			}
+	for _, part := range parts {
+		if part[0] == '~' {
+			out = append(out, excelDecode(part[1:], alphabet, alphabetReverse))
+		} else {
+			out = append(out, part)
 		}
 	}
 	return

@@ -118,8 +118,10 @@ func TestECDSARoundTrip(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *ecdsa.PublicKey, got %T", pub)
 	}
-	if orig.X.Cmp(ecPub.X) != 0 || orig.Y.Cmp(ecPub.Y) != 0 {
-		t.Error("ECDSA coordinates mismatch after round-trip")
+	origBytes, _ := orig.Bytes()
+	ecPubBytes, _ := ecPub.Bytes()
+	if string(origBytes) != string(ecPubBytes) {
+		t.Error("ECDSA public key mismatch after round-trip")
 	}
 }
 

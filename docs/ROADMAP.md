@@ -167,9 +167,9 @@ These issues complete the OAuth client story — making OneAuth useful not just 
 
 ### Prerequisites
 
-#### Fix `aud` array validation — #52 (P0, Bug)
+#### Fix `aud` array validation — #52 (P0, Bug) ✅ COMPLETE
 
-`claims["aud"].(string)` silently fails on JSON arrays. Keycloak, Auth0, Azure AD all send `aud` as arrays. ~10 line fix, blocks Keycloak interop (#49).
+`matchesAudience()` helper handles both string and `[]interface{}` aud formats at all 3 validation sites. 8 new tests covering array accepted/rejected for ValidateAccessToken, ValidateAccessTokenFull, and APIMiddleware.
 
 ### Client-Side OAuth
 
@@ -223,7 +223,7 @@ OAuth Client Capabilities (parallel track)
 ```
 
 **Recommended order:**
-1. **#52 Fix aud array** (P0 bug) — ~10 lines, unblocks Keycloak interop
+1. ~~**#52 Fix aud array** (P0 bug)~~ ✅ DONE
 2. **#46 PRM** — smallest standards scope, immediate value
 3. **#49 Keycloak tests** — can start in parallel with PRM; proves interop
 4. **#53 client_credentials** — foundational grant type, enables #55

@@ -17,6 +17,29 @@ import (
 	"github.com/panyam/oneauth/utils"
 )
 
+// matchesAudience checks whether expectedAud appears in the JWT "aud" claim.
+// Per RFC 7519 §4.1.3, "aud" may be a single string or an array of strings.
+// Returns true if expectedAud matches the string value or is found in the array.
+func matchesAudience(claims jwt.MapClaims, expectedAud string) bool {
+	switch v := claims["aud"].(type) {
+	case string:
+		return v == expectedAud
+	case []interface{}:
+		for _, a := range v {
+			if s, ok := a.(string); ok && s == expectedAud {
+				return true
+			}
+		}
+	case []string:
+		for _, s := range v {
+			if s == expectedAud {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // APIAuth handles API token-based authentication
 type APIAuth struct {
 	// Stores
@@ -446,10 +469,10 @@ func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes
 	}
 
 	// Verify audience if configured (RFC 7519 §4.1.3)
+	// Handles both string and array aud claims (#52)
 	if a.JWTAudience != "" {
-		aud, _ := claims["aud"].(string)
-		if aud != a.JWTAudience {
-			return "", nil, fmt.Errorf("invalid audience: expected %q, got %q", a.JWTAudience, aud)
+		if !matchesAudience(claims, a.JWTAudience) {
+			return "", nil, fmt.Errorf("invalid audience: expected %q", a.JWTAudience)
 		}
 	}
 
@@ -514,10 +537,10 @@ func (a *APIAuth) ValidateAccessTokenFull(tokenString string) (userID string, sc
 	}
 
 	// Verify audience if configured (RFC 7519 §4.1.3)
+	// Handles both string and array aud claims (#52)
 	if a.JWTAudience != "" {
-		aud, _ := claims["aud"].(string)
-		if aud != a.JWTAudience {
-			return "", nil, nil, fmt.Errorf("invalid audience: expected %q, got %q", a.JWTAudience, aud)
+		if !matchesAudience(claims, a.JWTAudience) {
+			return "", nil, nil, fmt.Errorf("invalid audience: expected %q", a.JWTAudience)
 		}
 	}
 
@@ -1082,9 +1105,10 @@ func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes [
 		}
 	}
 
-	// Verify audience if configured
+	// Verify audience if configured (RFC 7519 §4.1.3)
+	// Handles both string and array aud claims (#52)
 	if m.JWTAudience != "" {
-		if aud, ok := claims["aud"].(string); !ok || aud != m.JWTAudience {
+		if !matchesAudience(claims, m.JWTAudience) {
 			return "", nil, "", nil, fmt.Errorf("invalid audience")
 		}
 	}
