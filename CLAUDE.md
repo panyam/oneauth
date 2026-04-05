@@ -175,6 +175,10 @@ Separate Go module (`tests/keycloak/go.mod`) proving APIMiddleware + JWKSKeyStor
 | `GET /.well-known/openid-configuration` | `NewASMetadataHandler` | RFC 8414 |
 | `GET /.well-known/jwks.json` | `JWKSHandler` | RFC 7517 |
 | `GET /.well-known/oauth-protected-resource` | `NewProtectedResourceHandler` (resource servers) | RFC 9728 |
+| `POST /apps/dcr` | `DCRHandler` (via `AppRegistrar.Handler()`) | RFC 7591 |
+
+**Client-side validators** (resource servers use these instead of local JWT validation):
+- `IntrospectionValidator` — calls remote `/oauth/introspect`, integrates into `APIMiddleware.Introspection` as fallback. Optional `CacheTTL`.
 
 ### Client SDK Discovery + Browser Login
 

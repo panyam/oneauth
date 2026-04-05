@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-0.0.61
+0.0.62
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
@@ -23,6 +23,8 @@
 - as-discovery-client: Client-side AS metadata discovery with fallback chain
 - protected-resource-metadata: RFC 9728 resource server capability advertisement
 - browser-login: OAuth authorization code + PKCE for CLI/headless clients (RFC 8252)
+- dynamic-client-registration: RFC 7591 DCR endpoint alongside AppRegistrar
+- introspection-client: Remote token validation via RFC 7662 with caching
 - token-blacklist: JWT revocation via jti-based blacklist
 - encryption-at-rest: AES-256-GCM encryption of HS256 secrets via EncryptedKeyStorage
 - security-headers: HSTS, CSP, X-Frame-Options middleware
@@ -42,7 +44,7 @@ newstack/oneauth/main
 ### Go Module
 ```go
 // go.mod
-require github.com/panyam/oneauth v0.0.61
+require github.com/panyam/oneauth v0.0.62
 
 // Local development
 replace github.com/panyam/oneauth => ~/newstack/oneauth/main
