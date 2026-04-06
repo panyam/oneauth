@@ -594,7 +594,7 @@ Compliance (can be parallel)
 3. ~~**No CSRF protection**~~ **Resolved** — `CSRFMiddleware` provides double-submit cookie pattern
 4. **Console email sender only**: Production requires custom EmailSender implementation
 5. **No MFA yet**: TOTP/WebAuthn planned for medium-term
-6. **AppRegistrar state is in-memory** (#20, P2): App registrations lost on server restart. Workaround: re-register on startup. See massrelay#16 for threshold conditions.
+6. **AppRegistrar state is in-memory** (#20, **P1**): App registrations (incl. DCR) lost on server restart. `AppRegistrationStore` interface with FS/GORM backends needed. See issue #20 for full design.
 7. **Token blacklist is per-process** (#23): `InMemoryBlacklist` doesn't share state across nodes. Use Redis-backed `TokenBlacklist` for distributed deployments.
 
 ## Contributing
