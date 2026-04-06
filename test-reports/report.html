@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>OneAuth Test Report</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; }
+h1 { border-bottom: 2px solid #333; padding-bottom: 10px; }
+.meta { color: #666; font-size: 14px; margin-bottom: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+th, td { border: 1px solid #ddd; padding: 10px 14px; text-align: left; }
+th { background: #f5f5f5; font-weight: 600; }
+.pass { color: #22863a; font-weight: 600; }
+.fail { color: #cb2431; font-weight: 600; }
+.summary-pass { background: #dcffe4; padding: 12px 20px; border-radius: 6px; font-size: 18px; }
+.summary-fail { background: #ffdce0; padding: 12px 20px; border-radius: 6px; font-size: 18px; }
+pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; max-height: 400px; overflow-y: auto; }
+</style></head><body>
+<h1>OneAuth Test Report</h1>
+<div class='meta'>Branch: <strong>feat/68-testutil-package</strong> | Commit: <code>35c5cbd</code> | Date: 2026-04-06 13:53:15</div>
+<table><tr><th>Stage</th><th>Result</th></tr>
+<tr><td>lint</td><td class='pass'>PASS</td></tr>
+<tr><td>unit</td><td class='pass'>PASS</td></tr>
+<tr><td>submod-stores/gorm</td><td class='fail'>FAIL</td></tr>
+<tr><td>submod-stores/gae</td><td class='fail'>FAIL</td></tr>
+<tr><td>submod-grpc</td><td class='pass'>PASS</td></tr>
+<tr><td>submod-oauth2</td><td class='pass'>PASS</td></tr>
+<tr><td>e2e</td><td class='pass'>PASS</td></tr>
+<tr><td>postgres</td><td class='pass'>PASS</td></tr>
+<tr><td>datastore</td><td class='fail'>FAIL</td></tr>
+<tr><td>keycloak</td><td class='pass'>PASS</td></tr>
+<tr><td>secrets</td><td class='pass'>PASS</td></tr>
+<tr><td>vulncheck</td><td class='pass'>PASS</td></tr>
+<tr><td>zap</td><td class='fail'>FAIL</td></tr>
+</table>
+<div class='summary-fail'>9 passed, 4 failed</div>
+<h2>Full Log</h2><pre>
+=== OneAuth Comprehensive Test Suite ===
+Started: Mon Apr  6 13:50:12 PDT 2026
+
+Starting PostgreSQL...
+004b68004d71a4d3f735003181e39b385c8708dda185b9e727fb6a5dc70b97c8
+Starting Keycloak...
+bdc4cd41e30c8d5a0c0e25a888b07faa54f5300c51fe126b4f857b09e16c0f24
+--- [1/9] Lint (staticcheck) ---
+  PASS: lint
+
+--- [2/9] Unit tests (core + sub-modules, race detector) ---
+?   	github.com/panyam/oneauth	[no test files]
+ok  	github.com/panyam/oneauth/admin	1.974s
+ok  	github.com/panyam/oneauth/apiauth	31.677s
+ok  	github.com/panyam/oneauth/client	3.966s
+ok  	github.com/panyam/oneauth/client/stores/fs	2.001s
+?   	github.com/panyam/oneauth/core	[no test files]
+ok  	github.com/panyam/oneauth/examples	3.007s
+ok  	github.com/panyam/oneauth/httpauth	2.620s
+ok  	github.com/panyam/oneauth/keys	5.409s
+?   	github.com/panyam/oneauth/keystoretest	[no test files]
+ok  	github.com/panyam/oneauth/localauth	74.532s
+ok  	github.com/panyam/oneauth/stores/fs	4.205s
+ok  	github.com/panyam/oneauth/tests/e2e	24.215s
+ok  	github.com/panyam/oneauth/testutil	6.991s
+ok  	github.com/panyam/oneauth/utils	8.493s
+  PASS: unit
+ok  	github.com/panyam/oneauth/grpc	0.401s
+ok  	github.com/panyam/oneauth/oauth2	0.358s
+
+--- [3/9] E2E tests (in-process, race detector) ---
+ok  	github.com/panyam/oneauth/tests/e2e	19.550s
+  PASS: e2e
+
+--- [4/9] PostgreSQL / GORM tests ---
+ok  	github.com/panyam/oneauth/stores/gorm	1.177s
+  PASS: postgres
+
+--- [5/9] Datastore tests (real, skipped if no credentials) ---
+  SKIP: datastore (no credentials at ~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json)
+
+--- [6/9] Keycloak interop tests ---
+  Waiting for Keycloak...
+ok  	github.com/panyam/oneauth/tests/keycloak	2.238s
+  PASS: keycloak
+
+--- [7/9] Secret scanning ---
+
+    ○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+[90m1:52PM[0m [32mINF[0m [1mUnknown SCM platform. Use --platform to include links in findings.[0m [36mhost=[0mpanyam-github
+[90m1:52PM[0m [32mINF[0m [1m147 commits scanned.[0m
+[90m1:52PM[0m [32mINF[0m [1mscanned ~2020294 bytes (2.02 MB) in 624ms[0m
+[90m1:52PM[0m [32mINF[0m [1mno leaks found[0m
+  PASS: secrets
+
+--- [8/9] Vulnerability check ---
+No vulnerabilities found.
+  PASS: vulncheck
+
+--- [9/9] ZAP baseline scan ---
+2026/04/06 13:52:05 Using in-memory KeyStore (not persistent)
+2026/04/06 13:52:05 WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext
+2026/04/06 13:52:05 Using filesystem user stores at /tmp/oneauth-zap-test-all
+2026/04/06 13:52:05 oneauth-server listening on 0.0.0.0:19876 (keystore=memory, user_stores=fs, auth=api-key)
+Unable to find image 'ghcr.io/zaproxy/zaproxy:stable' locally
+stable: Pulling from zaproxy/zaproxy
+7fe30193948c: Pulling fs layer
+e465d4219d66: Pulling fs layer
+10bff4d78e4a: Pulling fs layer
+4f4fb700ef54: Pulling fs layer
+068a090ce0c0: Pulling fs layer
+8d7c7d8d948c: Pulling fs layer
+ddeb8e8bb81f: Pulling fs layer
+04c9bfddfe0a: Pulling fs layer
+eb04ef52de3a: Pulling fs layer
+5c5ce62775ba: Pulling fs layer
+9cd477812358: Pulling fs layer
+80414daa6971: Pulling fs layer
+4a755f9e407e: Pulling fs layer
+94428a06f602: Pulling fs layer
+0518d3bee6c6: Pulling fs layer
+605dcdf58e46: Pulling fs layer
+4e108a765cac: Pulling fs layer
+7b417353d040: Pulling fs layer
+f65449d4570b: Pulling fs layer
+85a5f9a01a9f: Pulling fs layer
+4f4fb700ef54: Already exists
+e465d4219d66: Download complete
+068a090ce0c0: Download complete
+5c5ce62775ba: Download complete
+80414daa6971: Download complete
+f65449d4570b: Download complete
+10bff4d78e4a: Download complete
+94428a06f602: Download complete
+4e108a765cac: Download complete
+0518d3bee6c6: Download complete
+7b417353d040: Download complete
+8d7c7d8d948c: Download complete
+605dcdf58e46: Download complete
+7fe30193948c: Download complete
+85a5f9a01a9f: Download complete
+04c9bfddfe0a: Download complete
+4a755f9e407e: Download complete
+eb04ef52de3a: Download complete
+eb04ef52de3a: Pull complete
+ddeb8e8bb81f: Download complete
+9cd477812358: Download complete
+9cd477812358: Pull complete
+8d7c7d8d948c: Pull complete
+7fe30193948c: Pull complete
+4a755f9e407e: Pull complete
+4f4fb700ef54: Pull complete
+e465d4219d66: Pull complete
+10bff4d78e4a: Pull complete
+ddeb8e8bb81f: Pull complete
+04c9bfddfe0a: Pull complete
+068a090ce0c0: Pull complete
+5c5ce62775ba: Pull complete
+80414daa6971: Pull complete
+f65449d4570b: Pull complete
+94428a06f602: Pull complete
+4e108a765cac: Pull complete
+0518d3bee6c6: Pull complete
+7b417353d040: Pull complete
+605dcdf58e46: Pull complete
+85a5f9a01a9f: Pull complete
+Digest: sha256:c4da4c234258d444d9988fce9d034b00323724818daa4c91ca46f09aa04b46db
+Status: Downloaded newer image for ghcr.io/zaproxy/zaproxy:stable
+Usage: zap-baseline.py -t &lt;target&gt; [options]
+    -t target         target URL including the protocol, e.g. https://www.example.com
+Options:
+    -h                print this help message
+    -c config_file    config file to use to INFO, IGNORE or FAIL warnings
+    -u config_url     URL of config file to use to INFO, IGNORE or FAIL warnings
+    -g gen_file       generate default config file (all rules set to WARN)
+    -m mins           the number of minutes to spider for (default 1)
+    -r report_html    file to write the full ZAP HTML report
+    -w report_md      file to write the full ZAP Wiki (Markdown) report
+    -x report_xml     file to write the full ZAP XML report
+    -J report_json    file to write the full ZAP JSON document
+    -a                include the alpha passive scan rules as well
+    -d                show debug messages
+    -P                specify listen port
+    -D secs           delay in seconds to wait for passive scanning 
+    -i                default rules not in the config file to INFO
+    -I                do not return failure on warning
+    -j                use the Ajax spider in addition to the traditional one
+    -l level          minimum level to show: PASS, IGNORE, INFO, WARN or FAIL, use with -s to hide example URLs
+    -n context_file   context file which will be loaded prior to spidering the target
+    -p progress_file  progress file which specifies issues that are being addressed
+    -s                short output format - dont show PASSes or example URLs
+    -T mins           max time in minutes to wait for ZAP to start and the passive scan to run
+    -U user           username to use for authenticated scans - must be defined in the given context file
+    -z zap_options    ZAP command line options e.g. -z "-config aaa=bbb -config ccc=ddd"
+    --hook            path to python file that define your custom hooks
+    --auto            use the automation framework if supported for the given parameters (this is now the default)
+    --autooff         do not use the automation framework even if supported for the given parameters
+    --plan-only       generate an automation framework plan but do not run it
+
+For more details see https://www.zaproxy.org/docs/docker/baseline-scan/
+2026-04-06 20:53:14,138 A file based option has been specified but the directory '/zap/wrk' is not mounted 
+  WARN: zap (findings, see log)
+
+=== Summary: 7 passed, 0 failed ===
+Finished: Mon Apr  6 13:53:14 PDT 2026
+oneauth-test-pg
+oneauth-test-keycloak
+</pre>
+</body></html>
