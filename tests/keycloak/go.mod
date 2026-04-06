@@ -10,6 +10,7 @@ require (
 )
 
 require (
+	github.com/alexedwards/scs/v2 v2.8.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect

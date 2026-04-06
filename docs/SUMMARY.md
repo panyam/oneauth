@@ -164,6 +164,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.64**: Reusable `testutil` package (#68). `TestAuthServer` (in-process RS256 auth server with JWKS, AS metadata, DCR), shared OAuth helpers (`GetClientCredentialsToken`, `DiscoverOIDC`, etc.). Token endpoint now accepts form-encoded (RFC 6749) + JSON. Keycloak tests dogfooded. 15 tests.
 - **v0.0.63**: PKCE metadata verification (#65) + resource parameter RFC 8707 (#66). LoginWithBrowser verifies S256 support in AS metadata before starting auth flow. Resource parameter included in auth URL + token exchange.
 - **v0.0.62**: DCR conformance wrapper (#48) + Introspection client (#55). `DCRHandler` at `POST /apps/dcr` (RFC 7591). `IntrospectionValidator` with caching + `APIMiddleware` integration. 13 unit + 3 e2e + 2 Keycloak tests.
 - **v0.0.61**: Headless OAuth + PKCE for CLI (#54). `LoginWithBrowser()` on `AuthClient` — loopback redirect, PKCE, state, auto-discovery. 6 unit tests + Keycloak interop. Also fixes gosec XSS in password reset form.

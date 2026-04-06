@@ -88,18 +88,39 @@ type APIAuth struct {
 	Blacklist core.TokenBlacklist
 }
 
-// ServeHTTP handles the /api/login endpoint
+// ServeHTTP handles the /api/token endpoint. It accepts both
+// application/x-www-form-urlencoded (RFC 6749 standard) and
+// application/json request bodies.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4.2
 func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		a.errorResponse(w, "invalid_request", "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Parse request body
+	// Parse request body — support both form-encoded (RFC 6749) and JSON
 	var req core.TokenRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		a.errorResponse(w, "invalid_request", "Invalid request body", http.StatusBadRequest)
-		return
+	ct := r.Header.Get("Content-Type")
+	if strings.HasPrefix(ct, "application/x-www-form-urlencoded") {
+		if err := r.ParseForm(); err != nil {
+			a.errorResponse(w, "invalid_request", "Invalid form body", http.StatusBadRequest)
+			return
+		}
+		req = core.TokenRequest{
+			GrantType:    r.FormValue("grant_type"),
+			Username:     r.FormValue("username"),
+			Password:     r.FormValue("password"),
+			RefreshToken: r.FormValue("refresh_token"),
+			Scope:        r.FormValue("scope"),
+			ClientID:     r.FormValue("client_id"),
+			ClientSecret: r.FormValue("client_secret"),
+		}
+	} else {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			a.errorResponse(w, "invalid_request", "Invalid request body", http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Handle based on grant type

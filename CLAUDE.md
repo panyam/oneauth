@@ -22,6 +22,7 @@ oneauth/
 │   ├── fs/               # File-based stores + FSKeyStore
 │   ├── gorm/             # GORM SQL stores + GORMKeyStore + SigningKeyModel
 │   └── gae/              # Google Datastore stores + GAEKeyStore
+├── testutil/             # Reusable test infrastructure: TestAuthServer, OAuth helpers
 ├── keystoretest/         # Shared WritableKeyStore test suite (factory pattern)
 ├── client/               # Client SDK (CredentialStore, AuthClient, HTTPClient)
 │   └── stores/fs/        # FS-based credential store
@@ -75,14 +76,15 @@ The repo is a Go workspace with multiple modules. The core module is lightweight
 ```bash
 # Multi-module (all modules at once)
 make ball          # Build all modules (binaries → build/)
-make tall          # Test all modules
+make tallmods      # Test all modules
 make tidy          # go mod tidy all modules
 make deps          # Show core module dep count
 
 # Testing
 make test          # Go unit tests (root module packages)
 make e2e           # Go e2e tests (in-process auth + resource servers, race detector)
-make test-hard     # Full suite: unit + e2e + secret scan
+make test-hard     # Full suite: unit + e2e + secret scan + keycloak
+make test-all      # Everything: test-hard + PG + Datastore + ZAP + vulncheck + HTML report
 make testpg        # GORM tests against PostgreSQL (auto-starts Docker)
 make testds        # GAE tests against Datastore emulator (auto-starts Docker)
 make testrealDS    # GAE tests against real Datastore (needs credentials)
@@ -124,6 +126,7 @@ In-process e2e tests using `httptest.NewServer`. Auth server + 2 resource server
 | LocalAuth, NewCreateUserFunc, NewCredentialsValidator | `"github.com/panyam/oneauth/localauth"` |
 | Middleware, CSRFMiddleware, CSRFTemplateField, OneAuth | `"github.com/panyam/oneauth/httpauth"` |
 | AuthClient, DiscoverAS, LoginWithBrowser, ClientCredentialsToken | `"github.com/panyam/oneauth/client"` |
+| TestAuthServer, NewTestAuthServer, GetClientCredentialsToken, DiscoverOIDC | `"github.com/panyam/oneauth/testutil"` |
 
 ## Key Patterns
 
@@ -170,7 +173,7 @@ Separate Go module (`tests/keycloak/go.mod`) proving APIMiddleware + JWKSKeyStor
 
 | Endpoint | Handler | RFC |
 |----------|---------|-----|
-| `POST /api/token` (client_credentials) | `APIAuth.handleClientCredentialsGrant` | RFC 6749 §4.4 |
+| `POST /api/token` (client_credentials) | `APIAuth.ServeHTTP` (accepts form-encoded + JSON) | RFC 6749 §4.4 |
 | `POST /oauth/introspect` | `IntrospectionHandler` | RFC 7662 |
 | `GET /.well-known/openid-configuration` | `NewASMetadataHandler` | RFC 8414 |
 | `GET /.well-known/jwks.json` | `JWKSHandler` | RFC 7517 |
@@ -236,3 +239,4 @@ Design lessons and feedback from past sessions are in `memories/`. See `memories
 - **Separate Go modules** (`tests/keycloak/`, `stores/gorm/`, `stores/gae/`, etc.) need `GOWORK=off` or `cd` into the module dir when running outside `go.work`.
 - **`make lint`** uses `GOFLAGS=-buildvcs=false` to work in worktrees.
 - **PKCE functions in `client/`** are inlined (not imported from `oauth2/` sub-module) to avoid cross-module dependency. The `oauth2/` sub-module has heavy deps (`golang.org/x/oauth2`).
+- **Token endpoint accepts both form-encoded and JSON** — `APIAuth.ServeHTTP` routes on `Content-Type`: `application/x-www-form-urlencoded` (RFC 6749 standard) or JSON (legacy/convenience). Standard OAuth clients (Keycloak, Auth0, testutil helpers) send form-encoded.
