@@ -164,6 +164,7 @@ oneauth.HandleLinkOAuthCallback(config, linkingUserID, "google", userInfo, w, r)
 
 ## Current Version
 
+- **v0.0.63**: PKCE metadata verification (#65) + resource parameter RFC 8707 (#66). LoginWithBrowser verifies S256 support in AS metadata before starting auth flow. Resource parameter included in auth URL + token exchange.
 - **v0.0.62**: DCR conformance wrapper (#48) + Introspection client (#55). `DCRHandler` at `POST /apps/dcr` (RFC 7591). `IntrospectionValidator` with caching + `APIMiddleware` integration. 13 unit + 3 e2e + 2 Keycloak tests.
 - **v0.0.61**: Headless OAuth + PKCE for CLI (#54). `LoginWithBrowser()` on `AuthClient` — loopback redirect, PKCE, state, auto-discovery. 6 unit tests + Keycloak interop. Also fixes gosec XSS in password reset form.
 - **v0.0.60**: OIDC Discovery endpoint (#50). `ASServerMetadata` + `NewASMetadataHandler` in `apiauth/` (RFC 8414). Auth server serves `/.well-known/openid-configuration`. 6 unit + 3 e2e + Keycloak compat test. Completes discovery loop with #51.

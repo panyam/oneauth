@@ -51,6 +51,14 @@ type BrowserLoginConfig struct {
 	// HTTPClient is used for the token exchange request.
 	// If nil, uses http.DefaultClient.
 	HTTPClient *http.Client
+
+	// Resource is the RFC 8707 resource indicator — the canonical URI of the
+	// target resource server (e.g., "https://api.example.com"). When set, it's
+	// included in both the authorization request and token exchange to bind the
+	// token to a specific audience. MCP spec requires this parameter.
+	//
+	// See: https://www.rfc-editor.org/rfc/rfc8707
+	Resource string
 }
 
 // callbackResult holds the result received on the loopback redirect.
@@ -154,6 +162,14 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		if tokenEndpoint == "" {
 			tokenEndpoint = meta.TokenEndpoint
 		}
+
+		// Verify PKCE S256 support (#65). Per OAuth 2.1 and MCP spec, clients
+		// MUST check code_challenge_methods_supported before proceeding.
+		// Only enforced when we used discovery — if endpoints are explicit,
+		// the caller is responsible for knowing their AS supports PKCE.
+		if !containsString(meta.CodeChallengeMethodsSupported, "S256") {
+			return nil, fmt.Errorf("authorization server does not support PKCE S256 (code_challenge_methods_supported missing or lacks S256)")
+		}
 	}
 	if authEndpoint == "" {
 		return nil, fmt.Errorf("authorization_endpoint not found")
@@ -162,7 +178,7 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		return nil, fmt.Errorf("token_endpoint not found")
 	}
 
-	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, cfg.Scopes)
+	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, cfg.Scopes, cfg.Resource)
 
 	// Open browser
 	openFn := cfg.OpenBrowser
@@ -203,7 +219,7 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		httpClient = http.DefaultClient
 	}
 
-	cred, err := c.exchangeCode(httpClient, tokenEndpoint, result.Code, verifier, redirectURI, cfg.ClientID)
+	cred, err := c.exchangeCode(httpClient, tokenEndpoint, result.Code, verifier, redirectURI, cfg.ClientID, cfg.Resource)
 	if err != nil {
 		return nil, fmt.Errorf("token exchange failed: %w", err)
 	}
@@ -222,13 +238,17 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 }
 
 // exchangeCode exchanges an authorization code for tokens via the token endpoint.
-func (c *AuthClient) exchangeCode(httpClient *http.Client, tokenEndpoint, code, verifier, redirectURI, clientID string) (*ServerCredential, error) {
+// If resource is non-empty, it's included per RFC 8707.
+func (c *AuthClient) exchangeCode(httpClient *http.Client, tokenEndpoint, code, verifier, redirectURI, clientID, resource string) (*ServerCredential, error) {
 	data := url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
 		"code_verifier": {verifier},
 		"redirect_uri":  {redirectURI},
 		"client_id":     {clientID},
+	}
+	if resource != "" {
+		data.Set("resource", resource)
 	}
 
 	resp, err := httpClient.PostForm(tokenEndpoint, data)
@@ -255,8 +275,9 @@ func (c *AuthClient) exchangeCode(httpClient *http.Client, tokenEndpoint, code, 
 	}, nil
 }
 
-// buildAuthorizationURL constructs the full authorization URL with PKCE and state.
-func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state string, scopes []string) string {
+// buildAuthorizationURL constructs the full authorization URL with PKCE, state,
+// and optional resource indicator (RFC 8707).
+func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state string, scopes []string, resource string) string {
 	u, _ := url.Parse(endpoint)
 	q := u.Query()
 	q.Set("response_type", "code")
@@ -267,6 +288,9 @@ func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state str
 	q.Set("state", state)
 	if len(scopes) > 0 {
 		q.Set("scope", strings.Join(scopes, " "))
+	}
+	if resource != "" {
+		q.Set("resource", resource)
 	}
 	u.RawQuery = q.Encode()
 	return u.String()
@@ -302,6 +326,16 @@ func generateCodeVerifier() (string, error) {
 func computeCodeChallenge(verifier string) string {
 	hash := sha256.Sum256([]byte(verifier))
 	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+
+// containsString checks if a string slice contains a value.
+func containsString(slice []string, val string) bool {
+	for _, s := range slice {
+		if s == val {
+			return true
+		}
+	}
+	return false
 }
 
 // openBrowserDefault opens a URL in the user's default browser.

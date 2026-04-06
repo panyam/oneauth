@@ -166,7 +166,8 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		GrantTypesSupported:   []string{"password", "refresh_token", "client_credentials"},
 		ResponseTypesSupported: []string{"token"},
 		TokenEndpointAuthMethods: []string{"client_secret_post", "client_secret_basic"},
-		SubjectTypesSupported: []string{"public"},
+		SubjectTypesSupported:         []string{"public"},
+		CodeChallengeMethodsSupported: []string{"S256"},
 	})
 	// Register on the existing mux (before server start the mux is already wired)
 	mux.Handle("GET /.well-known/openid-configuration", asMetaHandler)
