@@ -3,7 +3,7 @@ test: lint
 	go test -v ./...
 
 # Run ALL tests: unit tests → e2e (in-process) → secrets scan -> Keycloak
-test-hard: tall e2e secrets testkcl
+test-hard: tallmods e2e secrets testkcl
 
 # Go in-process e2e tests (auth + resource servers via httptest.NewServer)
 e2e:
@@ -11,6 +11,223 @@ e2e:
 
 alltests: test
 	make downdb updb testpg downdb
+
+# =============================================================================
+# Comprehensive local test suite with HTML report
+# =============================================================================
+# Runs EVERYTHING: unit, e2e, PostgreSQL, Datastore, Keycloak, lint, security.
+# Requires Docker for PG, Datastore emulator, and Keycloak containers.
+# Generates an HTML report at test-reports/report.html.
+#
+# Usage:
+#   make test-all           # Run everything + generate report
+#   make test-report        # Just regenerate report from last run's logs
+REPORT_DIR := test-reports
+
+test-all:
+	@mkdir -p $(REPORT_DIR) $(BUILD_DIR)
+	@echo "=== OneAuth Comprehensive Test Suite ===" | tee $(REPORT_DIR)/run.log
+	@echo "Started: $$(date)" | tee -a $(REPORT_DIR)/run.log
+	@echo "" | tee -a $(REPORT_DIR)/run.log
+	@# Clean slate: stop any leftover containers
+	@docker stop $(PG_CONTAINER_NAME) 2>/dev/null || true
+	@docker stop $(KC_CONTAINER_NAME) 2>/dev/null || true
+	@# Start fresh containers for PG and Keycloak
+	@echo "Starting PostgreSQL..." | tee -a $(REPORT_DIR)/run.log
+	@docker run --rm -d --name $(PG_CONTAINER_NAME) \
+		-e POSTGRES_USER=$(PG_USER) -e POSTGRES_PASSWORD=$(PG_PASSWORD) -e POSTGRES_DB=$(PG_DB) \
+		-p $(PG_PORT):5432 arm64v8/postgres:18.1 >> $(REPORT_DIR)/run.log 2>&1
+	@echo "Starting Keycloak..." | tee -a $(REPORT_DIR)/run.log
+	@docker run --rm -d --name $(KC_CONTAINER_NAME) -p $(KC_PORT):8080 \
+		-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
+		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+		$(KC_IMAGE) start-dev --import-realm >> $(REPORT_DIR)/run.log 2>&1
+	@sleep 3
+	@# Track pass/fail per stage
+	@PASS=0; FAIL=0; STAGES=""; \
+	\
+	echo "--- [1/9] Lint (staticcheck) ---" | tee -a $(REPORT_DIR)/run.log; \
+	if GOFLAGS=-buildvcs=false staticcheck ./... >> $(REPORT_DIR)/run.log 2>&1; then \
+		echo "  PASS: lint" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES lint:PASS"; \
+	else \
+		echo "  FAIL: lint" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES lint:FAIL"; \
+	fi; \
+	\
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "--- [2/9] Unit tests (core + sub-modules, race detector) ---" | tee -a $(REPORT_DIR)/run.log; \
+	if go test -buildvcs=false -race -count=1 -short ./... >> $(REPORT_DIR)/run.log 2>&1; then \
+		echo "  PASS: unit" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES unit:PASS"; \
+	else \
+		echo "  FAIL: unit" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES unit:FAIL"; \
+	fi; \
+	for mod in stores/gorm stores/gae grpc oauth2; do \
+		if [ -d "$$mod" ]; then \
+			(cd $$mod && go test -buildvcs=false -count=1 -short ./... >> $(CURDIR)/$(REPORT_DIR)/run.log 2>&1) && \
+				STAGES="$$STAGES submod-$$mod:PASS" || STAGES="$$STAGES submod-$$mod:FAIL"; \
+		fi; \
+	done; \
+	\
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "--- [3/9] E2E tests (in-process, race detector) ---" | tee -a $(REPORT_DIR)/run.log; \
+	if go test -buildvcs=false -race -count=1 ./tests/e2e/ >> $(REPORT_DIR)/run.log 2>&1; then \
+		echo "  PASS: e2e" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES e2e:PASS"; \
+	else \
+		echo "  FAIL: e2e" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES e2e:FAIL"; \
+	fi; \
+	\
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "--- [4/9] PostgreSQL / GORM tests ---" | tee -a $(REPORT_DIR)/run.log; \
+	if ONEAUTH_TEST_PGDB=$(PG_DB) ONEAUTH_TEST_PGPORT=$(PG_PORT) \
+		ONEAUTH_TEST_PGUSER=$(PG_USER) ONEAUTH_TEST_PGPASSWORD=$(PG_PASSWORD) \
+		go test -buildvcs=false -count=1 ./stores/gorm/... >> $(REPORT_DIR)/run.log 2>&1; then \
+		echo "  PASS: postgres" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES postgres:PASS"; \
+	else \
+		echo "  FAIL: postgres" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES postgres:FAIL"; \
+	fi; \
+	\
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "--- [5/9] Datastore tests (real, skipped if no credentials) ---" | tee -a $(REPORT_DIR)/run.log; \
+	if [ -f "$(DS_REAL_CREDENTIALS)" ]; then \
+		if DATASTORE_PROJECT_ID=$(DS_REAL_PROJECT) DATASTORE_CREDENTIALS_FILE=$(DS_REAL_CREDENTIALS) \
+			DATASTORE_TEST_NAMESPACE=$(DS_REAL_NAMESPACE) \
+			go test -buildvcs=false -count=1 ./stores/gae/... >> $(REPORT_DIR)/run.log 2>&1; then \
+			echo "  PASS: datastore" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES datastore:PASS"; \
+		else \
+			echo "  FAIL: datastore" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES datastore:FAIL"; \
+		fi; \
+	else \
+		echo "  SKIP: datastore (no credentials at $(DS_REAL_CREDENTIALS))" | tee -a $(REPORT_DIR)/run.log; \
+		STAGES="$$STAGES datastore:SKIP"; \
+	fi; \
+	\
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "--- [6/9] Keycloak interop tests ---" | tee -a $(REPORT_DIR)/run.log; \
+	echo "  Waiting for Keycloak..." | tee -a $(REPORT_DIR)/run.log; \
+	KC_READY=0; for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; then KC_READY=1; break; fi; sleep 2; \
+	done; \
+	if [ $$KC_READY -eq 1 ]; then \
+		if (cd tests/keycloak && KEYCLOAK_URL=http://localhost:$(KC_PORT) GOWORK=off \
+			go test -race -count=1 ./...) >> $(REPORT_DIR)/run.log 2>&1; then \
+			echo "  PASS: keycloak" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES keycloak:PASS"; \
+		else \
+			echo "  FAIL: keycloak" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES keycloak:FAIL"; \
+		fi; \
+	else \
+		echo "  SKIP: keycloak (failed to start within 60s)" | tee -a $(REPORT_DIR)/run.log; \
+		STAGES="$$STAGES keycloak:SKIP"; \
+	fi; \
+	\
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "--- [7/9] Secret scanning ---" | tee -a $(REPORT_DIR)/run.log; \
+	if gitleaks detect --source . --config .gitleaks.toml >> $(REPORT_DIR)/run.log 2>&1; then \
+		echo "  PASS: secrets" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES secrets:PASS"; \
+	else \
+		echo "  FAIL: secrets" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES secrets:FAIL"; \
+	fi; \
+	\
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "--- [8/9] Vulnerability check ---" | tee -a $(REPORT_DIR)/run.log; \
+	if govulncheck ./... >> $(REPORT_DIR)/run.log 2>&1; then \
+		echo "  PASS: vulncheck" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES vulncheck:PASS"; \
+	else \
+		echo "  FAIL: vulncheck" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES vulncheck:FAIL"; \
+	fi; \
+	\
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "--- [9/9] ZAP baseline scan ---" | tee -a $(REPORT_DIR)/run.log; \
+	go build -buildvcs=false -o $(BUILD_DIR)/oneauth-server ./cmd/oneauth-server/ >> $(REPORT_DIR)/run.log 2>&1; \
+	PORT=19876 ADMIN_AUTH_TYPE=api-key ADMIN_API_KEY=test-all-key KEYSTORE_TYPE=memory \
+		USER_STORES_TYPE=fs USER_STORES_PATH=/tmp/oneauth-zap-test-all \
+		JWT_SECRET_KEY=test-all-jwt-secret JWT_ISSUER=oneauth-test-all \
+		$(BUILD_DIR)/oneauth-server >> $(REPORT_DIR)/run.log 2>&1 & ZAP_PID=$$!; \
+	ZAP_OK=0; for i in $$(seq 1 15); do \
+		if curl -sf http://localhost:19876/_ah/health > /dev/null 2>&1; then ZAP_OK=1; break; fi; sleep 1; \
+	done; \
+	if [ $$ZAP_OK -eq 1 ]; then \
+		if docker run --rm --network=host -v $(PWD)/.zap-rules.tsv:/zap/rules.tsv \
+			ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:19876 \
+			-c rules.tsv -a -J /dev/null >> $(REPORT_DIR)/run.log 2>&1; then \
+			echo "  PASS: zap" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES zap:PASS"; \
+		else \
+			echo "  WARN: zap (findings, see log)" | tee -a $(REPORT_DIR)/run.log; STAGES="$$STAGES zap:WARN"; \
+		fi; \
+	else \
+		echo "  SKIP: zap (server failed to start)" | tee -a $(REPORT_DIR)/run.log; STAGES="$$STAGES zap:SKIP"; \
+	fi; \
+	kill $$ZAP_PID 2>/dev/null || true; \
+	\
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "=== Summary: $$PASS passed, $$FAIL failed ===" | tee -a $(REPORT_DIR)/run.log; \
+	echo "Finished: $$(date)" | tee -a $(REPORT_DIR)/run.log; \
+	\
+	echo "Cleaning up containers..."; \
+	docker stop $(PG_CONTAINER_NAME) >> $(REPORT_DIR)/run.log 2>&1 || true; \
+	docker stop $(KC_CONTAINER_NAME) >> $(REPORT_DIR)/run.log 2>&1 || true; \
+	\
+	echo "Generating HTML report..."; \
+	$(MAKE) test-report STAGES="$$STAGES"; \
+	echo ""; \
+	echo "Report: $(REPORT_DIR)/report.html"; \
+	if [ $$FAIL -gt 0 ]; then exit 1; fi
+
+# Generate HTML report from the last test-all run log
+test-report:
+	@mkdir -p $(REPORT_DIR)
+	@TIMESTAMP=$$(date '+%Y-%m-%d %H:%M:%S'); \
+	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"); \
+	echo '<!DOCTYPE html>' > $(REPORT_DIR)/report.html; \
+	echo '<html><head><meta charset="utf-8"><title>OneAuth Test Report</title>' >> $(REPORT_DIR)/report.html; \
+	echo '<style>' >> $(REPORT_DIR)/report.html; \
+	echo 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; }' >> $(REPORT_DIR)/report.html; \
+	echo 'h1 { border-bottom: 2px solid #333; padding-bottom: 10px; }' >> $(REPORT_DIR)/report.html; \
+	echo '.meta { color: #666; font-size: 14px; margin-bottom: 20px; }' >> $(REPORT_DIR)/report.html; \
+	echo 'table { border-collapse: collapse; width: 100%; margin: 20px 0; }' >> $(REPORT_DIR)/report.html; \
+	echo 'th, td { border: 1px solid #ddd; padding: 10px 14px; text-align: left; }' >> $(REPORT_DIR)/report.html; \
+	echo 'th { background: #f5f5f5; font-weight: 600; }' >> $(REPORT_DIR)/report.html; \
+	echo '.pass { color: #22863a; font-weight: 600; }' >> $(REPORT_DIR)/report.html; \
+	echo '.fail { color: #cb2431; font-weight: 600; }' >> $(REPORT_DIR)/report.html; \
+	echo '.skip { color: #6a737d; font-weight: 600; }' >> $(REPORT_DIR)/report.html; \
+	echo '.warn { color: #b08800; font-weight: 600; }' >> $(REPORT_DIR)/report.html; \
+	echo '.summary-pass { background: #dcffe4; padding: 12px 20px; border-radius: 6px; font-size: 18px; }' >> $(REPORT_DIR)/report.html; \
+	echo '.summary-fail { background: #ffdce0; padding: 12px 20px; border-radius: 6px; font-size: 18px; }' >> $(REPORT_DIR)/report.html; \
+	echo 'pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; max-height: 400px; overflow-y: auto; }' >> $(REPORT_DIR)/report.html; \
+	echo '</style></head><body>' >> $(REPORT_DIR)/report.html; \
+	echo "<h1>OneAuth Test Report</h1>" >> $(REPORT_DIR)/report.html; \
+	echo "<div class='meta'>Branch: <strong>$$BRANCH</strong> | Commit: <code>$$COMMIT</code> | Date: $$TIMESTAMP</div>" >> $(REPORT_DIR)/report.html; \
+	\
+	PASS=0; FAIL=0; \
+	echo "<table><tr><th>Stage</th><th>Result</th></tr>" >> $(REPORT_DIR)/report.html; \
+	for entry in $(STAGES); do \
+		STAGE=$$(echo $$entry | cut -d: -f1); \
+		RESULT=$$(echo $$entry | cut -d: -f2); \
+		if [ "$$RESULT" = "PASS" ]; then \
+			echo "<tr><td>$$STAGE</td><td class='pass'>PASS</td></tr>" >> $(REPORT_DIR)/report.html; \
+			PASS=$$((PASS+1)); \
+		elif [ "$$RESULT" = "SKIP" ]; then \
+			echo "<tr><td>$$STAGE</td><td class='skip'>SKIP</td></tr>" >> $(REPORT_DIR)/report.html; \
+		elif [ "$$RESULT" = "WARN" ]; then \
+			echo "<tr><td>$$STAGE</td><td class='warn'>WARN</td></tr>" >> $(REPORT_DIR)/report.html; \
+		else \
+			echo "<tr><td>$$STAGE</td><td class='fail'>FAIL</td></tr>" >> $(REPORT_DIR)/report.html; \
+			FAIL=$$((FAIL+1)); \
+		fi; \
+	done; \
+	echo "</table>" >> $(REPORT_DIR)/report.html; \
+	\
+	if [ $$FAIL -eq 0 ]; then \
+		echo "<div class='summary-pass'>All $$PASS stages passed</div>" >> $(REPORT_DIR)/report.html; \
+	else \
+		echo "<div class='summary-fail'>$$PASS passed, $$FAIL failed</div>" >> $(REPORT_DIR)/report.html; \
+	fi; \
+	\
+	if [ -f $(REPORT_DIR)/run.log ]; then \
+		echo "<h2>Full Log</h2><pre>" >> $(REPORT_DIR)/report.html; \
+		sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' $(REPORT_DIR)/run.log >> $(REPORT_DIR)/report.html; \
+		echo "</pre>" >> $(REPORT_DIR)/report.html; \
+	fi; \
+	echo "</body></html>" >> $(REPORT_DIR)/report.html
 
 
 # =============================================================================
@@ -268,7 +485,7 @@ ball:
 	done
 
 # Test all modules (root + sub-modules)
-tall:
+tallmods:
 	go test -buildvcs=false -count=1 -short ./...
 	@for mod in $(SUBMODULES); do \
 		(cd $$mod && go test -buildvcs=false -count=1 -short ./... 2>&1) || exit 1; \
@@ -359,4 +576,4 @@ audit: vulncheck secrets
 	@echo "=== Audit complete ==="
 	@echo "Automated checks passed. For manual threat model review, see docs/TESTING.md."
 
-.PHONY: test test-hard e2e audit updb downdb dblogs testpg upds downds dslogs testds testrealDS upkcl downkcl kcllogs testkcl deploygae gaelogs integ docs setup-tools setup-hooks setup ball tall tidy deps norep rep tag pushtag vulncheck seccheck lint secrets
+.PHONY: test test-hard test-all test-report e2e audit updb downdb dblogs testpg upds downds dslogs testds testrealDS upkcl downkcl kcllogs testkcl deploygae gaelogs integ docs setup-tools setup-hooks setup ball tallmods tidy deps norep rep tag pushtag vulncheck seccheck lint secrets

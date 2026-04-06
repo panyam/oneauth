@@ -30,6 +30,9 @@ __pycache__/
 # Build output
 build/
 
+# Test report logs (HTML report can be checked in explicitly)
+test-reports/run.log
+
 # Demo data (devloop local runs)
 demo/data/
 

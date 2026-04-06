@@ -76,14 +76,15 @@ The repo is a Go workspace with multiple modules. The core module is lightweight
 ```bash
 # Multi-module (all modules at once)
 make ball          # Build all modules (binaries → build/)
-make tall          # Test all modules
+make tallmods      # Test all modules
 make tidy          # go mod tidy all modules
 make deps          # Show core module dep count
 
 # Testing
 make test          # Go unit tests (root module packages)
 make e2e           # Go e2e tests (in-process auth + resource servers, race detector)
-make test-hard     # Full suite: unit + e2e + secret scan
+make test-hard     # Full suite: unit + e2e + secret scan + keycloak
+make test-all      # Everything: test-hard + PG + Datastore + ZAP + vulncheck + HTML report
 make testpg        # GORM tests against PostgreSQL (auto-starts Docker)
 make testds        # GAE tests against Datastore emulator (auto-starts Docker)
 make testrealDS    # GAE tests against real Datastore (needs credentials)
