@@ -103,10 +103,11 @@ func mockAuthServer(t *testing.T) *httptest.Server {
 		srv := r.Host // will be localhost:PORT
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"issuer":                 "http://" + srv,
-			"authorization_endpoint": "http://" + srv + "/authorize",
-			"token_endpoint":         "http://" + srv + "/token",
-			"jwks_uri":               "http://" + srv + "/.well-known/jwks.json",
+			"issuer":                                "http://" + srv,
+			"authorization_endpoint":                "http://" + srv + "/authorize",
+			"token_endpoint":                        "http://" + srv + "/token",
+			"jwks_uri":                              "http://" + srv + "/.well-known/jwks.json",
+			"code_challenge_methods_supported":       []string{"S256"},
 		})
 	})
 
@@ -212,9 +213,10 @@ func TestLoginWithBrowser_StateMismatch(t *testing.T) {
 	})
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
-			"issuer":                 "http://" + r.Host,
-			"authorization_endpoint": "http://" + r.Host + "/authorize",
-			"token_endpoint":         "http://" + r.Host + "/token",
+			"issuer":                                "http://" + r.Host,
+			"authorization_endpoint":                "http://" + r.Host + "/authorize",
+			"token_endpoint":                        "http://" + r.Host + "/token",
+			"code_challenge_methods_supported":       []string{"S256"},
 		})
 	})
 	srv := httptest.NewServer(mux)
@@ -258,9 +260,10 @@ func TestLoginWithBrowser_AuthorizationError(t *testing.T) {
 	})
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
-			"issuer":                 "http://" + r.Host,
-			"authorization_endpoint": "http://" + r.Host + "/authorize",
-			"token_endpoint":         "http://" + r.Host + "/token",
+			"issuer":                                "http://" + r.Host,
+			"authorization_endpoint":                "http://" + r.Host + "/authorize",
+			"token_endpoint":                        "http://" + r.Host + "/token",
+			"code_challenge_methods_supported":       []string{"S256"},
 		})
 	})
 	srv := httptest.NewServer(mux)
@@ -302,4 +305,166 @@ func TestLoginWithBrowser_ExplicitEndpoints(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "mock-access-token", cred.AccessToken)
+}
+
+// =============================================================================
+// #65 — PKCE verification in AS metadata
+// =============================================================================
+
+// TestLoginWithBrowser_PKCENotSupported verifies that LoginWithBrowser rejects
+// authorization servers that don't advertise PKCE S256 support in their
+// discovery metadata. Per OAuth 2.1 and MCP spec, clients MUST check
+// code_challenge_methods_supported before proceeding.
+//
+// See: https://github.com/panyam/oneauth/issues/65
+func TestLoginWithBrowser_PKCENotSupported(t *testing.T) {
+	// AS metadata without code_challenge_methods_supported
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                 "http://" + r.Host,
+			"authorization_endpoint": "http://" + r.Host + "/authorize",
+			"token_endpoint":         "http://" + r.Host + "/token",
+			// No code_challenge_methods_supported!
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(srv.URL, store)
+
+	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID: "test-cli",
+		Timeout:  2 * time.Second,
+		OpenBrowser: func(url string) error {
+			t.Error("browser should not be opened when PKCE is not supported")
+			return nil
+		},
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "PKCE S256")
+}
+
+// TestLoginWithBrowser_PKCEWrongMethod verifies that LoginWithBrowser rejects
+// an AS that only supports plain PKCE (not S256).
+//
+// See: https://github.com/panyam/oneauth/issues/65
+func TestLoginWithBrowser_PKCEWrongMethod(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                           "http://" + r.Host,
+			"authorization_endpoint":           "http://" + r.Host + "/authorize",
+			"token_endpoint":                   "http://" + r.Host + "/token",
+			"code_challenge_methods_supported": []string{"plain"}, // no S256!
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(srv.URL, store)
+
+	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID: "test-cli",
+		Timeout:  2 * time.Second,
+		OpenBrowser: func(url string) error {
+			t.Error("browser should not be opened when S256 is not supported")
+			return nil
+		},
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "PKCE S256")
+}
+
+// TestLoginWithBrowser_PKCESkippedWithExplicitEndpoints verifies that the PKCE
+// metadata check is NOT applied when endpoints are explicitly provided (no
+// discovery). The caller is responsible for knowing their AS supports PKCE.
+//
+// See: https://github.com/panyam/oneauth/issues/65
+func TestLoginWithBrowser_PKCESkippedWithExplicitEndpoints(t *testing.T) {
+	authSrv := mockAuthServer(t)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	// Explicit endpoints — no discovery, no PKCE check
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:              "test-cli",
+		AuthorizationEndpoint: authSrv.URL + "/authorize",
+		TokenEndpoint:         authSrv.URL + "/token",
+		Timeout:               5 * time.Second,
+		OpenBrowser: func(authURL string) error {
+			go simulateBrowser(authURL)
+			return nil
+		},
+	})
+
+	require.NoError(t, err, "explicit endpoints should bypass PKCE metadata check")
+	assert.Equal(t, "mock-access-token", cred.AccessToken)
+}
+
+// =============================================================================
+// #66 — Resource parameter (RFC 8707)
+// =============================================================================
+
+// TestLoginWithBrowser_ResourceParameter verifies that the resource parameter
+// (RFC 8707) is included in both the authorization URL and token exchange
+// when configured. This binds the token to a specific resource server.
+//
+// See: https://www.rfc-editor.org/rfc/rfc8707
+// See: https://github.com/panyam/oneauth/issues/66
+func TestLoginWithBrowser_ResourceParameter(t *testing.T) {
+	authSrv := mockAuthServer(t)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	var capturedAuthURL string
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID: "test-cli",
+		Resource: "https://api.example.com",
+		Timeout:  5 * time.Second,
+		OpenBrowser: func(authURL string) error {
+			capturedAuthURL = authURL
+			go simulateBrowser(authURL)
+			return nil
+		},
+	})
+
+	require.NoError(t, err)
+	assert.NotNil(t, cred)
+
+	// Verify resource is in the auth URL
+	u, _ := url.Parse(capturedAuthURL)
+	assert.Equal(t, "https://api.example.com", u.Query().Get("resource"),
+		"authorization URL should include resource parameter")
+}
+
+// TestLoginWithBrowser_NoResourceParameter verifies that when Resource is not
+// set, the resource parameter is omitted from the authorization URL.
+//
+// See: https://www.rfc-editor.org/rfc/rfc8707
+func TestLoginWithBrowser_NoResourceParameter(t *testing.T) {
+	authSrv := mockAuthServer(t)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	var capturedAuthURL string
+	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID: "test-cli",
+		// No Resource set
+		Timeout: 5 * time.Second,
+		OpenBrowser: func(authURL string) error {
+			capturedAuthURL = authURL
+			go simulateBrowser(authURL)
+			return nil
+		},
+	})
+
+	require.NoError(t, err)
+	u, _ := url.Parse(capturedAuthURL)
+	assert.Empty(t, u.Query().Get("resource"),
+		"resource should not be in URL when not configured")
 }
