@@ -19,6 +19,19 @@
 
 ---
 
+## Completed (testutil Package — #68)
+
+### Reusable Test Infrastructure
+- [x] `testutil/` package — exported `TestAuthServer` for in-process auth server with RSA 2048 keys, JWKS, AS metadata
+- [x] `MintToken` / `MintTokenWithClaims` — direct RS256 JWT creation (no HTTP round-trip)
+- [x] Shared OAuth helpers: `GetClientCredentialsToken`, `GetPasswordToken`, `DiscoverOIDC`, `FetchJWKS`, `ParseJWTClaims`, `ParseJWTHeader`
+- [x] Functional options: `WithAdminKey`, `WithIssuer`, `WithAudience`, `WithScopes`
+- [x] 15 verification tests with RFC doc comments
+- [x] Dogfooded: keycloak interop tests migrated to use `testutil` helpers
+- [x] Bonus: `APIAuth.ServeHTTP` now accepts both `application/x-www-form-urlencoded` (RFC 6749 standard) and JSON request bodies
+
+---
+
 ## Completed (Go E2E Tests — #44)
 
 ### In-Process E2E Test Suite

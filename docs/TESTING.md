@@ -47,8 +47,33 @@ func TestSignup(t *testing.T) {
 }
 ```
 
+### Reusable Test Infrastructure (`testutil/`)
+
+For integration tests that need an in-process auth server, use the `testutil` package instead of wiring one up manually:
+
+```go
+import "github.com/panyam/oneauth/testutil"
+
+func TestMyFeature(t *testing.T) {
+    // Starts an RS256 auth server with JWKS, token endpoint, AS metadata
+    srv := testutil.NewTestAuthServer(t, testutil.WithAudience("my-api"))
+
+    // Mint tokens directly (no HTTP round-trip)
+    token, _ := srv.MintToken("user-42", []string{"read", "write"})
+
+    // Or use standard OAuth helpers (work against any OAuth server)
+    clientID, secret := registerApp(t, srv)
+    tok := testutil.GetClientCredentialsToken(t, srv.TokenEndpoint(), clientID, secret)
+}
+```
+
+See `testutil/SUMMARY.md` for the full API. Downstream projects (mcpkit, relay) can import this package directly.
+
 ### Test File Reference
 
+- `testutil/server_test.go` — TestAuthServer, OAuth helpers, JWKS, OIDC discovery
+- `tests/e2e/` — In-process e2e tests (auth server + 2 resource servers)
+- `tests/keycloak/` — Keycloak interop tests (uses testutil helpers)
 - `local_test.go`, `auth_flows_test.go` — complete browser auth patterns
 - `api_auth_test.go` — API authentication with JWT, refresh tokens, and API keys
 - `custom_claims_test.go` — custom claims injection and multi-tenant JWT validation

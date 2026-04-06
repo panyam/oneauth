@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-0.0.62
+0.0.64
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
@@ -29,6 +29,7 @@
 - encryption-at-rest: AES-256-GCM encryption of HS256 secrets via EncryptedKeyStorage
 - security-headers: HSTS, CSP, X-Frame-Options middleware
 - client-sdk: AuthClient with credential store, auto-refresh, browser login
+- test-infrastructure: Reusable testutil package with TestAuthServer (RSA, JWKS, AS metadata) and shared OAuth helpers
 
 ## Module
 github.com/panyam/oneauth
@@ -60,6 +61,7 @@ import (
     "github.com/panyam/oneauth/localauth"
     "github.com/panyam/oneauth/httpauth"
     "github.com/panyam/oneauth/admin"
+    "github.com/panyam/oneauth/testutil" // test infrastructure
 )
 ```
 
