@@ -80,11 +80,23 @@ make tallmods      # Test all modules
 make tidy          # go mod tidy all modules
 make deps          # Show core module dep count
 
-# Testing
+# Testing — individual stages (each runnable standalone)
 make test          # Go unit tests (root module packages)
-make e2e           # Go e2e tests (in-process auth + resource servers, race detector)
+make lint          # staticcheck code quality
+make unit          # Unit tests + sub-modules (race detector)
+make e2e           # E2E tests (in-process auth + resource servers, race detector)
+make postgres      # PostgreSQL/GORM tests (needs Docker PG running)
+make datastore     # Datastore tests (needs GCP credentials)
+make keycloak      # Keycloak interop tests (waits for Docker KC)
+make secrets       # gitleaks secret scanning
+make vulncheck     # govulncheck vulnerability check
+make zap           # ZAP baseline security scan
+
+# Testing — composite targets
 make test-hard     # Full suite: unit + e2e + secret scan + keycloak
-make test-all      # Everything: test-hard + PG + Datastore + ZAP + vulncheck + HTML report
+make testall       # Everything: all 9 stages above + HTML report
+
+# Testing — legacy / infra helpers
 make testpg        # GORM tests against PostgreSQL (auto-starts Docker)
 make testds        # GAE tests against Datastore emulator (auto-starts Docker)
 make testrealDS    # GAE tests against real Datastore (needs credentials)
@@ -95,10 +107,7 @@ make kcllogs       # Tail Keycloak container logs
 
 # Security scanning
 make audit         # Full security audit: vulncheck + gosec + secrets + race detection
-make vulncheck     # govulncheck on all modules
 make seccheck      # gosec security patterns
-make lint          # staticcheck code quality
-make secrets       # gitleaks secret scanning
 
 # Publishing
 make norep         # Remove replace directives (before tagging releases)
