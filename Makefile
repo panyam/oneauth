@@ -35,27 +35,33 @@ REPORT_DIR := test-reports
 
 # Static analysis via staticcheck
 lint:
-	GOFLAGS=-buildvcs=false staticcheck ./...
+	@echo "[lint] Running staticcheck..."
+	@GOFLAGS=-buildvcs=false staticcheck ./...
 
 # Unit tests: core module + sub-modules, race detector enabled
 unit:
-	go test -buildvcs=false -race -count=1 -short ./...
+	@echo "[unit] Testing core module (race detector)..."
+	@go test -buildvcs=false -race -count=1 -short ./...
 	@for mod in stores/gorm stores/gae grpc oauth2; do \
 		if [ -d "$$mod" ]; then \
-			echo "Testing sub-module: $$mod"; \
+			echo "[unit] Testing sub-module: $$mod"; \
 			(cd $$mod && go test -buildvcs=false -count=1 -short ./...) || exit 1; \
 		fi; \
 	done
+	@echo "[unit] Done."
 
 # PostgreSQL / GORM tests (assumes PG container is running on PG_PORT)
 postgres:
-	ONEAUTH_TEST_PGDB=$(PG_DB) ONEAUTH_TEST_PGPORT=$(PG_PORT) \
+	@echo "[postgres] Running GORM tests against PostgreSQL on port $(PG_PORT)..."
+	@ONEAUTH_TEST_PGDB=$(PG_DB) ONEAUTH_TEST_PGPORT=$(PG_PORT) \
 		ONEAUTH_TEST_PGUSER=$(PG_USER) ONEAUTH_TEST_PGPASSWORD=$(PG_PASSWORD) \
 		go test -buildvcs=false -count=1 ./stores/gorm/...
 
 # Datastore tests against real GCP Datastore (skips if no credentials)
 datastore:
+	@echo "[datastore] Checking credentials..."
 	@if [ -f "$(DS_REAL_CREDENTIALS)" ]; then \
+		echo "[datastore] Running against real Datastore..."; \
 		DATASTORE_PROJECT_ID=$(DS_REAL_PROJECT) DATASTORE_CREDENTIALS_FILE=$(DS_REAL_CREDENTIALS) \
 			DATASTORE_TEST_NAMESPACE=$(DS_REAL_NAMESPACE) \
 			go test -buildvcs=false -count=1 ./stores/gae/...; \
@@ -65,32 +71,39 @@ datastore:
 
 # E2E tests: in-process auth + resource servers, race detector
 e2e:
-	go test -buildvcs=false -race -count=1 ./tests/e2e/
+	@echo "[e2e] Running in-process e2e tests (race detector)..."
+	@go test -buildvcs=false -race -count=1 ./tests/e2e/
 
 # Keycloak interop tests (waits up to 60s for KC to be ready)
 keycloak:
+	@echo "[keycloak] Waiting for Keycloak on port $(KC_PORT)..."
 	@KC_READY=0; for i in $$(seq 1 30); do \
 		if curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; then KC_READY=1; break; fi; sleep 2; \
 	done; \
 	if [ $$KC_READY -eq 1 ]; then \
+		echo "[keycloak] Running interop tests..."; \
 		cd tests/keycloak && KEYCLOAK_URL=http://localhost:$(KC_PORT) GOWORK=off \
 			go test -race -count=1 ./...; \
 	else \
-		echo "SKIP: Keycloak not ready at localhost:$(KC_PORT) (run 'make upkcl' first)"; \
+		echo "[keycloak] SKIP: not ready at localhost:$(KC_PORT) (run 'make upkcl' first)"; \
 	fi
 
 # Secret scanning via gitleaks
 secrets:
-	gitleaks detect --source . --config .gitleaks.toml
+	@echo "[secrets] Scanning for leaked secrets..."
+	@gitleaks detect --source . --config .gitleaks.toml
 
 # Vulnerability check via govulncheck
 vulncheck:
-	govulncheck ./...
+	@echo "[vulncheck] Checking for known vulnerabilities..."
+	@govulncheck ./...
 
 # ZAP baseline security scan (starts temp server, runs ZAP Docker)
 zap:
 	@mkdir -p $(BUILD_DIR)
-	go build -buildvcs=false -o $(BUILD_DIR)/oneauth-server ./cmd/oneauth-server/
+	@echo "[zap] Building server..."
+	@go build -buildvcs=false -o $(BUILD_DIR)/oneauth-server ./cmd/oneauth-server/
+	@echo "[zap] Starting server on :19876..."
 	@PORT=19876 ADMIN_AUTH_TYPE=api-key ADMIN_API_KEY=test-all-key KEYSTORE_TYPE=memory \
 		USER_STORES_TYPE=fs USER_STORES_PATH=/tmp/oneauth-zap-test-all \
 		JWT_SECRET_KEY=test-all-jwt-secret JWT_ISSUER=oneauth-test-all \
