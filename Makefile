@@ -5,10 +5,6 @@ test: lint
 # Run ALL tests: unit tests → e2e (in-process) → secrets scan -> Keycloak
 test-hard: tallmods e2e secrets testkcl
 
-# Go in-process e2e tests (auth + resource servers via httptest.NewServer)
-e2e:
-	go test -buildvcs=false -race -count=1 -v ./tests/e2e/
-
 alltests: test
 	make downdb updb testpg downdb
 
@@ -20,15 +16,133 @@ alltests: test
 # Generates an HTML report at test-reports/report.html.
 #
 # Usage:
-#   make test-all           # Run everything + generate report
-#   make test-report        # Just regenerate report from last run's logs
+#   make testall        # Run everything + generate report
+#   make lint           # Lint (staticcheck)
+#   make unit           # Unit tests (race detector + sub-modules)
+#   make e2e            # E2E tests (in-process servers)
+#   make postgres       # PostgreSQL/GORM tests (needs Docker PG)
+#   make datastore      # Datastore tests (needs GCP credentials)
+#   make keycloak       # Keycloak interop tests (needs Docker KC)
+#   make secrets        # Secret scanning (gitleaks)
+#   make vulncheck      # Vulnerability check (govulncheck)
+#   make zap            # ZAP baseline security scan
+#   make test-report    # Regenerate HTML report from last run's logs
 REPORT_DIR := test-reports
 
-test-all:
+# --- Individual stage targets ------------------------------------------------
+# Each stage can be run independently via: make <name>
+# These are the building blocks that testall orchestrates.
+
+# Static analysis via staticcheck
+lint:
+	@echo "[lint] Running staticcheck..."
+	@GOFLAGS=-buildvcs=false staticcheck ./...
+
+# Unit tests: core module + sub-modules, race detector enabled
+unit:
+	@echo "[unit] Testing core module (race detector)..."
+	@go test -buildvcs=false -race -count=1 -short ./...
+	@for mod in stores/gorm stores/gae grpc oauth2; do \
+		if [ -d "$$mod" ]; then \
+			echo "[unit] Testing sub-module: $$mod"; \
+			(cd $$mod && go test -buildvcs=false -count=1 -short ./...) || exit 1; \
+		fi; \
+	done
+	@echo "[unit] Done."
+
+# PostgreSQL / GORM tests (assumes PG container is running on PG_PORT)
+postgres:
+	@echo "[postgres] Running GORM tests against PostgreSQL on port $(PG_PORT)..."
+	@ONEAUTH_TEST_PGDB=$(PG_DB) ONEAUTH_TEST_PGPORT=$(PG_PORT) \
+		ONEAUTH_TEST_PGUSER=$(PG_USER) ONEAUTH_TEST_PGPASSWORD=$(PG_PASSWORD) \
+		go test -buildvcs=false -count=1 ./stores/gorm/...
+
+# Datastore tests against real GCP Datastore (skips if no credentials)
+datastore:
+	@echo "[datastore] Checking credentials..."
+	@if [ -f "$(DS_REAL_CREDENTIALS)" ]; then \
+		echo "[datastore] Running against real Datastore..."; \
+		DATASTORE_PROJECT_ID=$(DS_REAL_PROJECT) DATASTORE_CREDENTIALS_FILE=$(DS_REAL_CREDENTIALS) \
+			DATASTORE_TEST_NAMESPACE=$(DS_REAL_NAMESPACE) \
+			go test -buildvcs=false -count=1 ./stores/gae/...; \
+	else \
+		echo "SKIP: no credentials at $(DS_REAL_CREDENTIALS)"; \
+	fi
+
+# E2E tests: in-process auth + resource servers, race detector
+e2e:
+	@echo "[e2e] Running in-process e2e tests (race detector)..."
+	@go test -buildvcs=false -race -count=1 ./tests/e2e/
+
+# Keycloak interop tests (waits up to 60s for KC to be ready)
+keycloak:
+	@echo "[keycloak] Waiting for Keycloak on port $(KC_PORT)..."
+	@KC_READY=0; for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; then KC_READY=1; break; fi; sleep 2; \
+	done; \
+	if [ $$KC_READY -eq 1 ]; then \
+		echo "[keycloak] Running interop tests..."; \
+		cd tests/keycloak && KEYCLOAK_URL=http://localhost:$(KC_PORT) GOWORK=off \
+			go test -race -count=1 ./...; \
+	else \
+		echo "[keycloak] SKIP: not ready at localhost:$(KC_PORT) (run 'make upkcl' first)"; \
+	fi
+
+# Secret scanning via gitleaks
+secrets:
+	@echo "[secrets] Scanning for leaked secrets..."
+	@gitleaks detect --source . --config .gitleaks.toml
+
+# Vulnerability check via govulncheck
+vulncheck:
+	@echo "[vulncheck] Checking for known vulnerabilities..."
+	@govulncheck ./...
+
+# ZAP baseline security scan (starts temp server, runs ZAP Docker)
+zap:
+	@mkdir -p $(BUILD_DIR)
+	@echo "[zap] Building server..."
+	@go build -buildvcs=false -o $(BUILD_DIR)/oneauth-server ./cmd/oneauth-server/
+	@echo "[zap] Starting server on :19876..."
+	@PORT=19876 ADMIN_AUTH_TYPE=api-key ADMIN_API_KEY=test-all-key KEYSTORE_TYPE=memory \
+		USER_STORES_TYPE=fs USER_STORES_PATH=/tmp/oneauth-zap-test-all \
+		JWT_SECRET_KEY=test-all-jwt-secret JWT_ISSUER=oneauth-test-all \
+		$(BUILD_DIR)/oneauth-server & ZAP_PID=$$!; \
+	ZAP_OK=0; for i in $$(seq 1 15); do \
+		if curl -sf http://localhost:19876/_ah/health > /dev/null 2>&1; then ZAP_OK=1; break; fi; sleep 1; \
+	done; \
+	if [ $$ZAP_OK -eq 1 ]; then \
+		docker run --rm --network=host -v $(PWD)/.zap-rules.tsv:/zap/rules.tsv \
+			ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:19876 \
+			-c rules.tsv -a -J /dev/null; \
+		ZAP_EXIT=$$?; \
+	else \
+		echo "SKIP: server failed to start"; ZAP_EXIT=0; \
+	fi; \
+	kill $$ZAP_PID 2>/dev/null || true; \
+	exit $$ZAP_EXIT
+
+# --- Orchestrator: testall ---------------------------------------------------
+# Runs all 9 stages, tracks pass/fail, generates HTML report.
+# Stages are called via their make targets above.
+
+# Helper: run a stage target and record result. Usage in shell:
+#   run_stage <stage-name> <make-target> <log-file>
+# Sets STAGES and PASS/FAIL variables (must be called inside a single shell block).
+define RUN_STAGE
+	echo "" | tee -a $(REPORT_DIR)/run.log; \
+	echo "--- $(1) ---" | tee -a $(REPORT_DIR)/run.log; \
+	if $(MAKE) --no-print-directory $(2) >> $(REPORT_DIR)/run.log 2>&1; then \
+		echo "  PASS: $(3)" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES $(3):PASS"; \
+	else \
+		echo "  FAIL: $(3)" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES $(3):FAIL"; \
+	fi
+endef
+
+testall:
 	@mkdir -p $(REPORT_DIR) $(BUILD_DIR)
 	@echo "=== OneAuth Comprehensive Test Suite ===" | tee $(REPORT_DIR)/run.log
 	@echo "Started: $$(date)" | tee -a $(REPORT_DIR)/run.log
-	@echo "" | tee -a $(REPORT_DIR)/run.log
 	@# Clean slate: stop any leftover containers
 	@docker stop $(PG_CONTAINER_NAME) 2>/dev/null || true
 	@docker stop $(KC_CONTAINER_NAME) 2>/dev/null || true
@@ -43,119 +157,16 @@ test-all:
 		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
 		$(KC_IMAGE) start-dev --import-realm >> $(REPORT_DIR)/run.log 2>&1
 	@sleep 3
-	@# Track pass/fail per stage
 	@PASS=0; FAIL=0; STAGES=""; \
-	\
-	echo "--- [1/9] Lint (staticcheck) ---" | tee -a $(REPORT_DIR)/run.log; \
-	if GOFLAGS=-buildvcs=false staticcheck ./... >> $(REPORT_DIR)/run.log 2>&1; then \
-		echo "  PASS: lint" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES lint:PASS"; \
-	else \
-		echo "  FAIL: lint" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES lint:FAIL"; \
-	fi; \
-	\
-	echo "" | tee -a $(REPORT_DIR)/run.log; \
-	echo "--- [2/9] Unit tests (core + sub-modules, race detector) ---" | tee -a $(REPORT_DIR)/run.log; \
-	if go test -buildvcs=false -race -count=1 -short ./... >> $(REPORT_DIR)/run.log 2>&1; then \
-		echo "  PASS: unit" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES unit:PASS"; \
-	else \
-		echo "  FAIL: unit" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES unit:FAIL"; \
-	fi; \
-	for mod in stores/gorm stores/gae grpc oauth2; do \
-		if [ -d "$$mod" ]; then \
-			(cd $$mod && go test -buildvcs=false -count=1 -short ./... >> $(CURDIR)/$(REPORT_DIR)/run.log 2>&1) && \
-				STAGES="$$STAGES submod-$$mod:PASS" || STAGES="$$STAGES submod-$$mod:FAIL"; \
-		fi; \
-	done; \
-	\
-	echo "" | tee -a $(REPORT_DIR)/run.log; \
-	echo "--- [3/9] E2E tests (in-process, race detector) ---" | tee -a $(REPORT_DIR)/run.log; \
-	if go test -buildvcs=false -race -count=1 ./tests/e2e/ >> $(REPORT_DIR)/run.log 2>&1; then \
-		echo "  PASS: e2e" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES e2e:PASS"; \
-	else \
-		echo "  FAIL: e2e" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES e2e:FAIL"; \
-	fi; \
-	\
-	echo "" | tee -a $(REPORT_DIR)/run.log; \
-	echo "--- [4/9] PostgreSQL / GORM tests ---" | tee -a $(REPORT_DIR)/run.log; \
-	if ONEAUTH_TEST_PGDB=$(PG_DB) ONEAUTH_TEST_PGPORT=$(PG_PORT) \
-		ONEAUTH_TEST_PGUSER=$(PG_USER) ONEAUTH_TEST_PGPASSWORD=$(PG_PASSWORD) \
-		go test -buildvcs=false -count=1 ./stores/gorm/... >> $(REPORT_DIR)/run.log 2>&1; then \
-		echo "  PASS: postgres" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES postgres:PASS"; \
-	else \
-		echo "  FAIL: postgres" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES postgres:FAIL"; \
-	fi; \
-	\
-	echo "" | tee -a $(REPORT_DIR)/run.log; \
-	echo "--- [5/9] Datastore tests (real, skipped if no credentials) ---" | tee -a $(REPORT_DIR)/run.log; \
-	if [ -f "$(DS_REAL_CREDENTIALS)" ]; then \
-		if DATASTORE_PROJECT_ID=$(DS_REAL_PROJECT) DATASTORE_CREDENTIALS_FILE=$(DS_REAL_CREDENTIALS) \
-			DATASTORE_TEST_NAMESPACE=$(DS_REAL_NAMESPACE) \
-			go test -buildvcs=false -count=1 ./stores/gae/... >> $(REPORT_DIR)/run.log 2>&1; then \
-			echo "  PASS: datastore" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES datastore:PASS"; \
-		else \
-			echo "  FAIL: datastore" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES datastore:FAIL"; \
-		fi; \
-	else \
-		echo "  SKIP: datastore (no credentials at $(DS_REAL_CREDENTIALS))" | tee -a $(REPORT_DIR)/run.log; \
-		STAGES="$$STAGES datastore:SKIP"; \
-	fi; \
-	\
-	echo "" | tee -a $(REPORT_DIR)/run.log; \
-	echo "--- [6/9] Keycloak interop tests ---" | tee -a $(REPORT_DIR)/run.log; \
-	echo "  Waiting for Keycloak..." | tee -a $(REPORT_DIR)/run.log; \
-	KC_READY=0; for i in $$(seq 1 30); do \
-		if curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; then KC_READY=1; break; fi; sleep 2; \
-	done; \
-	if [ $$KC_READY -eq 1 ]; then \
-		if (cd tests/keycloak && KEYCLOAK_URL=http://localhost:$(KC_PORT) GOWORK=off \
-			go test -race -count=1 ./...) >> $(REPORT_DIR)/run.log 2>&1; then \
-			echo "  PASS: keycloak" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES keycloak:PASS"; \
-		else \
-			echo "  FAIL: keycloak" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES keycloak:FAIL"; \
-		fi; \
-	else \
-		echo "  SKIP: keycloak (failed to start within 60s)" | tee -a $(REPORT_DIR)/run.log; \
-		STAGES="$$STAGES keycloak:SKIP"; \
-	fi; \
-	\
-	echo "" | tee -a $(REPORT_DIR)/run.log; \
-	echo "--- [7/9] Secret scanning ---" | tee -a $(REPORT_DIR)/run.log; \
-	if gitleaks detect --source . --config .gitleaks.toml >> $(REPORT_DIR)/run.log 2>&1; then \
-		echo "  PASS: secrets" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES secrets:PASS"; \
-	else \
-		echo "  FAIL: secrets" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES secrets:FAIL"; \
-	fi; \
-	\
-	echo "" | tee -a $(REPORT_DIR)/run.log; \
-	echo "--- [8/9] Vulnerability check ---" | tee -a $(REPORT_DIR)/run.log; \
-	if govulncheck ./... >> $(REPORT_DIR)/run.log 2>&1; then \
-		echo "  PASS: vulncheck" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES vulncheck:PASS"; \
-	else \
-		echo "  FAIL: vulncheck" | tee -a $(REPORT_DIR)/run.log; FAIL=$$((FAIL+1)); STAGES="$$STAGES vulncheck:FAIL"; \
-	fi; \
-	\
-	echo "" | tee -a $(REPORT_DIR)/run.log; \
-	echo "--- [9/9] ZAP baseline scan ---" | tee -a $(REPORT_DIR)/run.log; \
-	go build -buildvcs=false -o $(BUILD_DIR)/oneauth-server ./cmd/oneauth-server/ >> $(REPORT_DIR)/run.log 2>&1; \
-	PORT=19876 ADMIN_AUTH_TYPE=api-key ADMIN_API_KEY=test-all-key KEYSTORE_TYPE=memory \
-		USER_STORES_TYPE=fs USER_STORES_PATH=/tmp/oneauth-zap-test-all \
-		JWT_SECRET_KEY=test-all-jwt-secret JWT_ISSUER=oneauth-test-all \
-		$(BUILD_DIR)/oneauth-server >> $(REPORT_DIR)/run.log 2>&1 & ZAP_PID=$$!; \
-	ZAP_OK=0; for i in $$(seq 1 15); do \
-		if curl -sf http://localhost:19876/_ah/health > /dev/null 2>&1; then ZAP_OK=1; break; fi; sleep 1; \
-	done; \
-	if [ $$ZAP_OK -eq 1 ]; then \
-		if docker run --rm --network=host -v $(PWD)/.zap-rules.tsv:/zap/rules.tsv \
-			ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:19876 \
-			-c rules.tsv -a -J /dev/null >> $(REPORT_DIR)/run.log 2>&1; then \
-			echo "  PASS: zap" | tee -a $(REPORT_DIR)/run.log; PASS=$$((PASS+1)); STAGES="$$STAGES zap:PASS"; \
-		else \
-			echo "  WARN: zap (findings, see log)" | tee -a $(REPORT_DIR)/run.log; STAGES="$$STAGES zap:WARN"; \
-		fi; \
-	else \
-		echo "  SKIP: zap (server failed to start)" | tee -a $(REPORT_DIR)/run.log; STAGES="$$STAGES zap:SKIP"; \
-	fi; \
-	kill $$ZAP_PID 2>/dev/null || true; \
+	$(call RUN_STAGE,[1/9] Lint (staticcheck),lint,lint); \
+	$(call RUN_STAGE,[2/9] Unit tests (core + sub-modules race detector),unit,unit); \
+	$(call RUN_STAGE,[3/9] E2E tests (in-process race detector),e2e,e2e); \
+	$(call RUN_STAGE,[4/9] PostgreSQL / GORM tests,postgres,postgres); \
+	$(call RUN_STAGE,[5/9] Datastore tests,datastore,datastore); \
+	$(call RUN_STAGE,[6/9] Keycloak interop tests,keycloak,keycloak); \
+	$(call RUN_STAGE,[7/9] Secret scanning,secrets,secrets); \
+	$(call RUN_STAGE,[8/9] Vulnerability check,vulncheck,vulncheck); \
+	$(call RUN_STAGE,[9/9] ZAP baseline scan,zap,zap); \
 	\
 	echo "" | tee -a $(REPORT_DIR)/run.log; \
 	echo "=== Summary: $$PASS passed, $$FAIL failed ===" | tee -a $(REPORT_DIR)/run.log; \
@@ -171,7 +182,7 @@ test-all:
 	echo "Report: $(REPORT_DIR)/report.html"; \
 	if [ $$FAIL -gt 0 ]; then exit 1; fi
 
-# Generate HTML report from the last test-all run log
+# Generate HTML report from the last testall run log
 test-report:
 	@mkdir -p $(REPORT_DIR)
 	@TIMESTAMP=$$(date '+%Y-%m-%d %H:%M:%S'); \
@@ -544,25 +555,9 @@ pushtag:
 # Static analysis & security scanning
 # =============================================================================
 
-# Run govulncheck on all modules
-vulncheck:
-	govulncheck ./...
-	@for mod in $(LIBS); do \
-		echo "Checking $$mod..."; \
-		(cd $$mod && govulncheck ./...) || exit 1; \
-	done
-
 # Run gosec (security patterns) — suppress false positives
 seccheck:
 	gosec -quiet -severity=medium ./...
-
-# Run staticcheck (code quality + deprecated API usage)
-lint:
-	GOFLAGS=-buildvcs=false staticcheck ./...
-
-# Scan for accidentally committed secrets
-secrets:
-	gitleaks detect --source . --config .gitleaks.toml -v
 
 # Full security audit: dependency vulns + code patterns + secrets + race detection
 audit: vulncheck secrets
@@ -576,4 +571,9 @@ audit: vulncheck secrets
 	@echo "=== Audit complete ==="
 	@echo "Automated checks passed. For manual threat model review, see docs/TESTING.md."
 
-.PHONY: test test-hard test-all test-report e2e audit updb downdb dblogs testpg upds downds dslogs testds testrealDS upkcl downkcl kcllogs testkcl deploygae gaelogs integ docs setup-tools setup-hooks setup ball tallmods tidy deps norep rep tag pushtag vulncheck seccheck lint secrets
+.PHONY: test test-hard testall test-report e2e audit \
+	unit postgres datastore keycloak zap lint secrets vulncheck \
+	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
+	upkcl downkcl kcllogs testkcl deploygae gaelogs integ docs \
+	setup-tools setup-hooks setup ball tallmods tidy deps norep rep \
+	tag pushtag seccheck

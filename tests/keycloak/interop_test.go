@@ -638,6 +638,148 @@ func TestKeycloak_WrongSecret_Rejected(t *testing.T) {
 }
 
 // =============================================================================
+// #72 — Token endpoint auth method negotiation against real IdP
+// =============================================================================
+
+// TestKeycloak_AuthMethodNegotiation_Basic verifies that SelectAuthMethod
+// correctly chooses client_secret_basic when Keycloak's discovery metadata
+// includes it, and that a client_credentials token request with HTTP Basic
+// auth succeeds against Keycloak.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1
+// See: https://github.com/panyam/oneauth/issues/72
+func TestKeycloak_AuthMethodNegotiation_Basic(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	// Discover Keycloak metadata
+	meta, err := client.DiscoverAS(realmURL())
+	require.NoError(t, err, "DiscoverAS should succeed against Keycloak")
+
+	// Verify Keycloak advertises auth methods
+	require.NotEmpty(t, meta.TokenEndpointAuthMethods,
+		"Keycloak should advertise token_endpoint_auth_methods_supported")
+
+	// SelectAuthMethod should pick basic (Keycloak supports it)
+	method := client.SelectAuthMethod(confidentialClientSecret, meta.TokenEndpointAuthMethods)
+	assert.Equal(t, client.AuthMethodClientSecretBasic, method,
+		"should negotiate client_secret_basic with Keycloak")
+
+	// Verify Basic auth actually works against Keycloak's token endpoint
+	data := url.Values{
+		"grant_type": {"client_credentials"},
+		"scope":      {"openid"},
+	}
+	req, err := http.NewRequest("POST", meta.TokenEndpoint,
+		strings.NewReader(data.Encode()))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(confidentialClientID, confidentialClientSecret)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode,
+		"Keycloak should accept client_credentials with Basic auth")
+
+	var tokenResp map[string]any
+	require.NoError(t, decodeJSON(resp.Body, &tokenResp))
+	assert.NotEmpty(t, tokenResp["access_token"],
+		"should receive an access token")
+}
+
+// TestKeycloak_AuthMethodNegotiation_Post verifies that client_secret_post
+// also works against Keycloak — credentials sent as form body parameters
+// instead of the Authorization header.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1
+// See: https://github.com/panyam/oneauth/issues/72
+func TestKeycloak_AuthMethodNegotiation_Post(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	meta, err := client.DiscoverAS(realmURL())
+	require.NoError(t, err)
+
+	// Verify post is also supported
+	assert.Contains(t, meta.TokenEndpointAuthMethods, "client_secret_post",
+		"Keycloak should support client_secret_post")
+
+	// Send credentials in form body (no Basic auth header)
+	data := url.Values{
+		"grant_type":    {"client_credentials"},
+		"client_id":     {confidentialClientID},
+		"client_secret": {confidentialClientSecret},
+		"scope":         {"openid"},
+	}
+	resp, err := http.PostForm(meta.TokenEndpoint, data)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode,
+		"Keycloak should accept client_credentials with post auth")
+
+	var tokenResp map[string]any
+	require.NoError(t, decodeJSON(resp.Body, &tokenResp))
+	assert.NotEmpty(t, tokenResp["access_token"])
+}
+
+// TestKeycloak_ClientCredentials_WithAuthMethod verifies the full
+// ClientCredentialsToken flow using the client SDK with discovered AS metadata
+// for auth method negotiation against Keycloak.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4
+// See: https://github.com/panyam/oneauth/issues/72
+func TestKeycloak_ClientCredentials_WithAuthMethod(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	// Discover Keycloak metadata
+	meta, err := client.DiscoverAS(realmURL())
+	require.NoError(t, err)
+
+	// Use a minimal in-memory credential store.
+	// WithASMetadata provides both auth method negotiation and the full
+	// token endpoint URL (e.g., /realms/.../protocol/openid-connect/token).
+	store := &kclCredentialStore{creds: make(map[string]*client.ServerCredential)}
+	authClient := client.NewAuthClient(realmURL(), store,
+		client.WithASMetadata(meta))
+
+	cred, err := authClient.ClientCredentialsToken(
+		confidentialClientID, confidentialClientSecret, []string{"openid"})
+	require.NoError(t, err, "ClientCredentialsToken should succeed against Keycloak with auth method negotiation")
+	assert.NotEmpty(t, cred.AccessToken)
+	assert.False(t, cred.IsExpired(), "token should not be expired")
+}
+
+// kclCredentialStore is a minimal in-memory credential store for Keycloak tests.
+type kclCredentialStore struct {
+	creds map[string]*client.ServerCredential
+}
+
+func (m *kclCredentialStore) GetCredential(serverURL string) (*client.ServerCredential, error) {
+	return m.creds[serverURL], nil
+}
+
+func (m *kclCredentialStore) SetCredential(serverURL string, cred *client.ServerCredential) error {
+	m.creds[serverURL] = cred
+	return nil
+}
+
+func (m *kclCredentialStore) RemoveCredential(serverURL string) error {
+	delete(m.creds, serverURL)
+	return nil
+}
+
+func (m *kclCredentialStore) ListServers() ([]string, error) {
+	servers := make([]string, 0, len(m.creds))
+	for k := range m.creds {
+		servers = append(servers, k)
+	}
+	return servers, nil
+}
+
+func (m *kclCredentialStore) Save() error { return nil }
+
+// =============================================================================
 // Helpers
 // =============================================================================
 

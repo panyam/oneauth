@@ -22,7 +22,8 @@ type AuthClient struct {
 	store         CredentialStore
 	httpClient    *http.Client
 	baseTransport http.RoundTripper
-	tokenEndpoint string // e.g., "/auth/cli/token"
+	tokenEndpoint string       // e.g., "/auth/cli/token"
+	cachedASMeta  *ASMetadata  // cached AS discovery metadata for auth method negotiation
 }
 
 // OAuth2TokenRequest is the request body for token endpoint
@@ -80,6 +81,17 @@ func WithHTTPClient(client *http.Client) ClientOption {
 func WithTransport(transport http.RoundTripper) ClientOption {
 	return func(c *AuthClient) {
 		c.baseTransport = transport
+	}
+}
+
+// WithASMetadata pre-populates AS discovery metadata, enabling auth method
+// negotiation in ClientCredentialsToken without a separate discovery request.
+// Useful when DiscoverAS has already been called or for testing.
+//
+// See: https://github.com/panyam/oneauth/issues/72
+func WithASMetadata(meta *ASMetadata) ClientOption {
+	return func(c *AuthClient) {
+		c.cachedASMeta = meta
 	}
 }
 
@@ -192,23 +204,49 @@ func (c *AuthClient) Login(username, password, scope string) (*ServerCredential,
 	return cred, nil
 }
 
-// ClientCredentialsToken authenticates using the client_credentials grant (RFC 6749 §4.4).
-// This is for machine-to-machine authentication — no user context, no refresh token.
-// The access token is stored in the credential store for subsequent API calls.
+// ClientCredentialsToken authenticates using the client_credentials grant
+// (RFC 6749 §4.4). This is for machine-to-machine authentication where there
+// is no user context — the client authenticates on its own behalf using its
+// client_id and client_secret. No refresh token is issued.
+//
+// The request is sent as application/x-www-form-urlencoded (RFC 6749 §4.4.2).
+// Client credentials are sent using the negotiated auth method:
+//   - If AS metadata was provided via WithASMetadata, SelectAuthMethod picks
+//     the best method from token_endpoint_auth_methods_supported
+//   - Without metadata, defaults to client_secret_basic (RFC 6749 §2.3.1)
+//
+// The resulting access token is stored in the credential store for use by
+// subsequent API calls via the AuthClient's HTTP transport.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4
+// See: https://github.com/panyam/oneauth/issues/72
 func (c *AuthClient) ClientCredentialsToken(clientID, clientSecret string, scopes []string) (*ServerCredential, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	req := OAuth2TokenRequest{
-		GrantType:    "client_credentials",
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
+	// Negotiate auth method based on cached AS metadata
+	var asMethods []string
+	if c.cachedASMeta != nil {
+		asMethods = c.cachedASMeta.TokenEndpointAuthMethods
 	}
-	if len(scopes) > 0 {
-		req.Scope = strings.Join(scopes, " ")
+	authMethod := SelectAuthMethod(clientSecret, asMethods)
+
+	// Use discovered token endpoint URL if available (may include path like
+	// /realms/oneauth-test/protocol/openid-connect/token for Keycloak).
+	// Fall back to serverURL + tokenEndpoint path for simple deployments.
+	tokenEndpoint := c.serverURL + c.tokenEndpoint
+	if c.cachedASMeta != nil && c.cachedASMeta.TokenEndpoint != "" {
+		tokenEndpoint = c.cachedASMeta.TokenEndpoint
 	}
 
-	cred, err := c.requestToken(req)
+	data := url.Values{
+		"grant_type": {"client_credentials"},
+	}
+	if len(scopes) > 0 {
+		data.Set("scope", strings.Join(scopes, " "))
+	}
+
+	cred, err := c.requestTokenForm(tokenEndpoint, data, authMethod, clientID, clientSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +313,77 @@ func (c *AuthClient) refreshTokenLocked(cred *ServerCredential) error {
 	return c.store.Save()
 }
 
-// requestToken makes a token request to the server
+// requestTokenForm sends a form-encoded (application/x-www-form-urlencoded)
+// token request to the given endpoint with proper auth method negotiation
+// per RFC 6749. This is the standards-compliant token request path, used by
+// ClientCredentialsToken and exchangeCode.
+//
+// Unlike the legacy requestToken (which sends JSON to the oneauth-specific
+// /auth/cli/token endpoint), this method follows the OAuth 2.0 spec exactly:
+// form-encoded body, auth method applied via applyAuthToForm + SetBasicAuth.
+//
+// Uses baseTransport directly (not the auth-wrapping refreshTransport) to
+// avoid circular auth dependencies when obtaining the initial token.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4.2
+func (c *AuthClient) requestTokenForm(tokenEndpoint string, data url.Values, authMethod TokenEndpointAuthMethod, clientID, clientSecret string) (*ServerCredential, error) {
+	// Apply client authentication to form data
+	applyAuthToForm(authMethod, clientID, clientSecret, data)
+
+	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// For Basic auth, set the Authorization header
+	if authMethod == AuthMethodClientSecretBasic {
+		req.SetBasicAuth(clientID, clientSecret)
+	}
+
+	// Use base transport directly to avoid auth loop
+	httpClient := &http.Client{Transport: c.baseTransport}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var tokenResp OAuth2TokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("invalid response from server: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if tokenResp.ErrorDesc != "" {
+			return nil, fmt.Errorf("authentication failed: %s", tokenResp.ErrorDesc)
+		}
+		if tokenResp.Error != "" {
+			return nil, fmt.Errorf("authentication failed: %s", tokenResp.Error)
+		}
+		return nil, fmt.Errorf("authentication failed: HTTP %d", resp.StatusCode)
+	}
+
+	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+
+	return &ServerCredential{
+		AccessToken:  tokenResp.AccessToken,
+		RefreshToken: tokenResp.RefreshToken,
+		TokenType:    tokenResp.TokenType,
+		Scope:        tokenResp.Scope,
+		ExpiresAt:    expiresAt,
+		CreatedAt:    time.Now(),
+	}, nil
+}
+
+// requestToken makes a token request to the server using JSON encoding.
+// This is the legacy path used by Login and refreshTokenLocked for the
+// oneauth-specific /auth/cli/token endpoint.
 func (c *AuthClient) requestToken(req OAuth2TokenRequest) (*ServerCredential, error) {
 	tokenURL := c.serverURL + c.tokenEndpoint
 

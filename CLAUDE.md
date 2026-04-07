@@ -80,11 +80,23 @@ make tallmods      # Test all modules
 make tidy          # go mod tidy all modules
 make deps          # Show core module dep count
 
-# Testing
+# Testing — individual stages (each runnable standalone)
 make test          # Go unit tests (root module packages)
-make e2e           # Go e2e tests (in-process auth + resource servers, race detector)
+make lint          # staticcheck code quality
+make unit          # Unit tests + sub-modules (race detector)
+make e2e           # E2E tests (in-process auth + resource servers, race detector)
+make postgres      # PostgreSQL/GORM tests (needs Docker PG running)
+make datastore     # Datastore tests (needs GCP credentials)
+make keycloak      # Keycloak interop tests (waits for Docker KC)
+make secrets       # gitleaks secret scanning
+make vulncheck     # govulncheck vulnerability check
+make zap           # ZAP baseline security scan
+
+# Testing — composite targets
 make test-hard     # Full suite: unit + e2e + secret scan + keycloak
-make test-all      # Everything: test-hard + PG + Datastore + ZAP + vulncheck + HTML report
+make testall       # Everything: all 9 stages above + HTML report
+
+# Testing — legacy / infra helpers
 make testpg        # GORM tests against PostgreSQL (auto-starts Docker)
 make testds        # GAE tests against Datastore emulator (auto-starts Docker)
 make testrealDS    # GAE tests against real Datastore (needs credentials)
@@ -95,10 +107,7 @@ make kcllogs       # Tail Keycloak container logs
 
 # Security scanning
 make audit         # Full security audit: vulncheck + gosec + secrets + race detection
-make vulncheck     # govulncheck on all modules
 make seccheck      # gosec security patterns
-make lint          # staticcheck code quality
-make secrets       # gitleaks secret scanning
 
 # Publishing
 make norep         # Remove replace directives (before tagging releases)
@@ -125,7 +134,7 @@ In-process e2e tests using `httptest.NewServer`. Auth server + 2 resource server
 | APIAuth, APIMiddleware, IntrospectionHandler, ProtectedResourceMetadata, ASServerMetadata | `"github.com/panyam/oneauth/apiauth"` |
 | LocalAuth, NewCreateUserFunc, NewCredentialsValidator | `"github.com/panyam/oneauth/localauth"` |
 | Middleware, CSRFMiddleware, CSRFTemplateField, OneAuth | `"github.com/panyam/oneauth/httpauth"` |
-| AuthClient, DiscoverAS, LoginWithBrowser, ClientCredentialsToken | `"github.com/panyam/oneauth/client"` |
+| AuthClient, DiscoverAS, LoginWithBrowser, ClientCredentialsToken, FollowRedirects, SelectAuthMethod, TokenEndpointAuthMethod, WithASMetadata | `"github.com/panyam/oneauth/client"` |
 | TestAuthServer, NewTestAuthServer, GetClientCredentialsToken, DiscoverOIDC | `"github.com/panyam/oneauth/testutil"` |
 
 ## Key Patterns
@@ -195,7 +204,22 @@ cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
     Scopes:   []string{"openid", "read"},
 })
 
-// Machine-to-machine
+// Headless login for CI/testing (#71) — follows HTTP redirects instead of browser
+cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+    ClientID:    "my-cli",
+    OpenBrowser: client.FollowRedirects(nil),
+})
+
+// Confidential client auth code flow (#72) — negotiates auth method from AS metadata
+cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+    ClientID:     "my-app",
+    ClientSecret: "app-secret",
+    OpenBrowser:  client.FollowRedirects(nil),
+})
+
+// Machine-to-machine with auth method negotiation (#72)
+authClient := client.NewAuthClient(serverURL, store,
+    client.WithASMetadata(meta))  // enables auth method negotiation
 cred, _ := authClient.ClientCredentialsToken("svc-id", "secret", []string{"read"})
 ```
 
@@ -240,3 +264,4 @@ Design lessons and feedback from past sessions are in `memories/`. See `memories
 - **`make lint`** uses `GOFLAGS=-buildvcs=false` to work in worktrees.
 - **PKCE functions in `client/`** are inlined (not imported from `oauth2/` sub-module) to avoid cross-module dependency. The `oauth2/` sub-module has heavy deps (`golang.org/x/oauth2`).
 - **Token endpoint accepts both form-encoded and JSON** — `APIAuth.ServeHTTP` routes on `Content-Type`: `application/x-www-form-urlencoded` (RFC 6749 standard) or JSON (legacy/convenience). Standard OAuth clients (Keycloak, Auth0, testutil helpers) send form-encoded.
+- **Legacy `/api/token` JSON endpoint** — retained for `Login` and `refreshTokenLocked` backward compat. E2E tests now have `/oauth/token` (form-encoded, standards-compliant) for auth code and client_credentials flows. The legacy JSON path (`requestToken`) can be removed once the CLI client (`cmd/oneauth-cli`) migrates to form-encoded requests — tracked as a future cleanup item.

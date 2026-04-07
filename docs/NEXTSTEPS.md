@@ -19,6 +19,32 @@
 
 ---
 
+## Completed (Headless OAuth + Auth Method Negotiation — #71, #72)
+
+### Headless OAuth Flow (#71)
+- [x] `client.FollowRedirects(httpClient)` — returns `OpenBrowser`-compatible function that follows HTTP redirects instead of opening a browser
+- [x] Works with `LoginWithBrowser` for CI, conformance testing, headless CLI environments
+- [x] 4 unit tests + 1 e2e test (headless auth code + PKCE against in-process server)
+- [x] Keycloak interop: compiles against Keycloak, tests auth method negotiation
+
+### Token Endpoint Auth Method Negotiation (#72)
+- [x] `TokenEndpointAuthMethod` type: `none`, `client_secret_post`, `client_secret_basic`
+- [x] `SelectAuthMethod(clientSecret, asMethods)` — negotiates based on AS discovery metadata
+- [x] `BrowserLoginConfig.ClientSecret` — enables confidential client auth code flow
+- [x] `exchangeCode` refactored: builds `*http.Request` manually to support Basic auth header
+- [x] `ClientCredentialsToken` refactored: form-encoded (RFC 6749 §4.4.2) instead of JSON, with auth method negotiation via `WithASMetadata` option
+- [x] `requestTokenForm` — new standards-compliant internal method; legacy `requestToken` (JSON) retained for `/auth/cli/token`
+- [x] 8 unit tests (SelectAuthMethod + applyAuthToForm) + 7 unit tests (browser login auth methods + ClientCredentialsToken)
+- [x] 5 e2e tests: headless auth code, discovery, Basic auth, post auth, form-encoded
+- [x] 3 Keycloak interop tests: Basic auth, post auth, ClientCredentialsToken with discovered metadata
+
+### Legacy endpoint note
+- `/api/token` (JSON) retained for `Login` and `refreshTokenLocked` backward compat
+- `/oauth/token` (form-encoded) is the new standards-compliant endpoint in e2e tests
+- Legacy `/api/token` can be removed when all clients migrate to form-encoded flow
+
+---
+
 ## Completed (testutil Package — #68)
 
 ### Reusable Test Infrastructure

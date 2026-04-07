@@ -59,6 +59,15 @@ type BrowserLoginConfig struct {
 	//
 	// See: https://www.rfc-editor.org/rfc/rfc8707
 	Resource string
+
+	// ClientSecret is the client's secret for confidential clients.
+	// If empty, the client is treated as a public client (auth method "none")
+	// and only client_id is sent in the token exchange.
+	// When set, the auth method is negotiated based on AS metadata
+	// (token_endpoint_auth_methods_supported) per RFC 6749 §2.3.
+	//
+	// See: https://github.com/panyam/oneauth/issues/72
+	ClientSecret string
 }
 
 // callbackResult holds the result received on the loopback redirect.
@@ -147,6 +156,7 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 	// Resolve endpoints — use config or auto-discover
 	authEndpoint := cfg.AuthorizationEndpoint
 	tokenEndpoint := cfg.TokenEndpoint
+	var asMethods []string
 	if authEndpoint == "" || tokenEndpoint == "" {
 		discoveryOpts := []DiscoveryOption{}
 		if cfg.HTTPClient != nil {
@@ -162,6 +172,7 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		if tokenEndpoint == "" {
 			tokenEndpoint = meta.TokenEndpoint
 		}
+		asMethods = meta.TokenEndpointAuthMethods
 
 		// Verify PKCE S256 support (#65). Per OAuth 2.1 and MCP spec, clients
 		// MUST check code_challenge_methods_supported before proceeding.
@@ -177,6 +188,9 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 	if tokenEndpoint == "" {
 		return nil, fmt.Errorf("token_endpoint not found")
 	}
+
+	// Negotiate token endpoint auth method (#72)
+	authMethod := SelectAuthMethod(cfg.ClientSecret, asMethods)
 
 	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, cfg.Scopes, cfg.Resource)
 
@@ -219,7 +233,7 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		httpClient = http.DefaultClient
 	}
 
-	cred, err := c.exchangeCode(httpClient, tokenEndpoint, result.Code, verifier, redirectURI, cfg.ClientID, cfg.Resource)
+	cred, err := c.exchangeCode(httpClient, tokenEndpoint, result.Code, verifier, redirectURI, cfg.ClientID, cfg.ClientSecret, cfg.Resource, authMethod)
 	if err != nil {
 		return nil, fmt.Errorf("token exchange failed: %w", err)
 	}
@@ -238,20 +252,37 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 }
 
 // exchangeCode exchanges an authorization code for tokens via the token endpoint.
-// If resource is non-empty, it's included per RFC 8707.
-func (c *AuthClient) exchangeCode(httpClient *http.Client, tokenEndpoint, code, verifier, redirectURI, clientID, resource string) (*ServerCredential, error) {
+// The auth method determines how client credentials are sent (Basic header vs
+// form body vs none). If resource is non-empty, it's included per RFC 8707.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-4.1.3
+// See: https://github.com/panyam/oneauth/issues/72
+func (c *AuthClient) exchangeCode(httpClient *http.Client, tokenEndpoint, code, verifier, redirectURI, clientID, clientSecret, resource string, authMethod TokenEndpointAuthMethod) (*ServerCredential, error) {
 	data := url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
 		"code_verifier": {verifier},
 		"redirect_uri":  {redirectURI},
-		"client_id":     {clientID},
 	}
 	if resource != "" {
 		data.Set("resource", resource)
 	}
 
-	resp, err := httpClient.PostForm(tokenEndpoint, data)
+	// Apply client authentication to form data
+	applyAuthToForm(authMethod, clientID, clientSecret, data)
+
+	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to build token request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// For Basic auth, set the Authorization header
+	if authMethod == AuthMethodClientSecretBasic {
+		req.SetBasicAuth(clientID, clientSecret)
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -336,6 +367,42 @@ func containsString(slice []string, val string) bool {
 		}
 	}
 	return false
+}
+
+// FollowRedirects returns an OpenBrowser function that performs the OAuth
+// authorization flow by following HTTP redirects instead of opening a browser.
+// This enables headless environments: CI, conformance testing, CLI tools.
+//
+// The returned function GETs the authorization URL using the provided HTTP client.
+// The authorization server redirects to the loopback callback URI, which the
+// LoginWithBrowser loopback server catches — exactly as a browser would.
+//
+// Usage:
+//
+//	cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+//	    ClientID:    "my-cli",
+//	    OpenBrowser: client.FollowRedirects(nil),
+//	})
+//
+// The httpClient should follow redirects (default http.Client behavior). If nil,
+// a default client is used. For authorization servers that require form-based
+// login (e.g., Keycloak), the httpClient must handle cookie/session management
+// and form POST — FollowRedirects is designed for AS endpoints that auto-approve
+// (test/mock servers) or for pre-authenticated sessions.
+//
+// See: https://github.com/panyam/oneauth/issues/71
+func FollowRedirects(httpClient *http.Client) func(string) error {
+	if httpClient == nil {
+		httpClient = &http.Client{}
+	}
+	return func(authURL string) error {
+		resp, err := httpClient.Get(authURL)
+		if err != nil {
+			return fmt.Errorf("headless redirect failed: %w", err)
+		}
+		resp.Body.Close()
+		return nil
+	}
 }
 
 // openBrowserDefault opens a URL in the user's default browser.
