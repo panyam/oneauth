@@ -51,3 +51,16 @@ type CredentialStore interface {
 	// Save persists any pending changes (for stores that batch writes)
 	Save() error
 }
+
+// noopCredentialStore is a CredentialStore that silently discards writes
+// and returns "no credential" on reads. Used when NewAuthClient is called
+// with a nil store — the client works for single-request flows (e.g.,
+// LoginWithBrowser returning the credential directly) without persisting
+// tokens between calls.
+type noopCredentialStore struct{}
+
+func (noopCredentialStore) GetCredential(string) (*ServerCredential, error) { return nil, nil }
+func (noopCredentialStore) SetCredential(string, *ServerCredential) error   { return nil }
+func (noopCredentialStore) RemoveCredential(string) error                   { return nil }
+func (noopCredentialStore) ListServers() ([]string, error)                  { return nil, nil }
+func (noopCredentialStore) Save() error                                     { return nil }

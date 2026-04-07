@@ -19,6 +19,16 @@
 
 ---
 
+## Completed (Nil CredentialStore Safety — #76)
+
+### Nil CredentialStore fix (#76)
+- [x] `noopCredentialStore` — null object pattern implementing `CredentialStore` with no-op methods (discards writes, returns nil on reads)
+- [x] `NewAuthClient(url, nil)` substitutes no-op store instead of panicking — matches `admin.NoAuth` precedent
+- [x] Fixes MCPKit interop: `OAuthTokenSource` creates `AuthClient` without a credential store for conformance testing
+- [x] 7 unit tests in `client/client_nil_test.go` covering all store-touching methods: GetToken, IsLoggedIn, GetCredential, Logout, Login, ClientCredentialsToken, LoginWithBrowser
+
+---
+
 ## Completed (Headless OAuth + Auth Method Negotiation — #71, #72)
 
 ### Headless OAuth Flow (#71)
