@@ -95,12 +95,19 @@ func WithASMetadata(meta *ASMetadata) ClientOption {
 	}
 }
 
-// NewAuthClient creates a new authenticated HTTP client for a server
+// NewAuthClient creates a new authenticated HTTP client for a server.
+// If store is nil, a no-op store is used — methods that return credentials
+// (Login, LoginWithBrowser, ClientCredentialsToken) still work and return
+// the credential to the caller, but tokens are not persisted between calls.
 func NewAuthClient(serverURL string, store CredentialStore, opts ...ClientOption) *AuthClient {
 	// Normalize server URL
 	u, err := url.Parse(serverURL)
 	if err == nil && u.Scheme != "" && u.Host != "" {
 		serverURL = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+	}
+
+	if store == nil {
+		store = noopCredentialStore{}
 	}
 
 	c := &AuthClient{

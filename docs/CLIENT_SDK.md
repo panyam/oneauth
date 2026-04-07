@@ -64,7 +64,7 @@ The main entry point for the client SDK.
 func NewAuthClient(serverURL string, store CredentialStore, opts ...ClientOption) *AuthClient
 ```
 
-The server URL is normalized to `scheme://host` (path is stripped). Default token endpoint is `/auth/cli/token`.
+The server URL is normalized to `scheme://host` (path is stripped). Default token endpoint is `/auth/cli/token`. If `store` is nil, a no-op store is used — methods that return credentials (`Login`, `LoginWithBrowser`, `ClientCredentialsToken`) still work and return the credential to the caller, but tokens are not persisted between calls. This is useful for conformance testing and single-request flows (e.g., MCPKit's `OAuthTokenSource`).
 
 ### Options
 
