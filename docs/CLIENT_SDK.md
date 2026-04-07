@@ -155,6 +155,21 @@ cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
 })
 ```
 
+**Explicit endpoints with auth methods (#74):** When the caller provides explicit endpoints (skipping discovery), set `TokenEndpointAuthMethods` so the client negotiates the correct auth method. This is common when the caller performs its own PRM→AS discovery (e.g., MCPKit):
+
+```go
+cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+    ClientID:                 "my-app",
+    ClientSecret:             "app-secret",
+    AuthorizationEndpoint:    meta.AuthorizationEndpoint,
+    TokenEndpoint:            meta.TokenEndpoint,
+    TokenEndpointAuthMethods: meta.TokenEndpointAuthMethods,
+    OpenBrowser:              client.FollowRedirects(nil),
+})
+```
+
+Without `TokenEndpointAuthMethods`, explicit endpoints default to `client_secret_basic` per RFC 6749 §2.3.1.
+
 #### Logout
 
 ```go
