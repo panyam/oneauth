@@ -1,61 +1,63 @@
 === OneAuth Comprehensive Test Suite ===
-Started: Tue Apr  7 13:28:03 PDT 2026
-
+Started: Tue Apr  7 13:47:12 PDT 2026
 Starting PostgreSQL...
-490bbadfa5f7bc0ef413fd98e334a39a5a46863fc56219dfab307395e87d9556
+a4b5c27bf5c707c812e3bd16ca2a5ce6f7ee511bd1d8429341b25fc90a81b422
 Starting Keycloak...
-f6233f4443c2a42be43cadc8453ad5f9ac26c5c90d4f5cfe57d8a78725b99b11
+9086165642cdfbd8accaad1f8d0e200cb8879d7312787df9202bf96173fe2361
+
 --- [1/9] Lint (staticcheck) ---
+GOFLAGS=-buildvcs=false staticcheck ./...
   PASS: lint
 
---- [2/9] Unit tests (core + sub-modules, race detector) ---
+--- [2/9] Unit tests (core + sub-modules race detector) ---
+go test -buildvcs=false -race -count=1 -short ./...
 ?   	github.com/panyam/oneauth	[no test files]
-ok  	github.com/panyam/oneauth/admin	1.578s
-ok  	github.com/panyam/oneauth/apiauth	21.459s
-ok  	github.com/panyam/oneauth/client	2.294s
-ok  	github.com/panyam/oneauth/client/stores/fs	2.210s
+ok  	github.com/panyam/oneauth/admin	1.370s
+ok  	github.com/panyam/oneauth/apiauth	21.729s
+ok  	github.com/panyam/oneauth/client	2.059s
+ok  	github.com/panyam/oneauth/client/stores/fs	1.655s
 ?   	github.com/panyam/oneauth/core	[no test files]
-ok  	github.com/panyam/oneauth/examples	2.338s
-ok  	github.com/panyam/oneauth/httpauth	2.542s
-ok  	github.com/panyam/oneauth/keys	4.128s
+ok  	github.com/panyam/oneauth/examples	2.391s
+ok  	github.com/panyam/oneauth/httpauth	1.807s
+ok  	github.com/panyam/oneauth/keys	3.496s
 ?   	github.com/panyam/oneauth/keystoretest	[no test files]
-ok  	github.com/panyam/oneauth/localauth	49.302s
-ok  	github.com/panyam/oneauth/stores/fs	2.407s
-ok  	github.com/panyam/oneauth/tests/e2e	17.025s
-ok  	github.com/panyam/oneauth/testutil	4.458s
-ok  	github.com/panyam/oneauth/utils	4.696s
+ok  	github.com/panyam/oneauth/localauth	51.651s
+ok  	github.com/panyam/oneauth/stores/fs	2.727s
+ok  	github.com/panyam/oneauth/tests/e2e	16.345s
+ok  	github.com/panyam/oneauth/testutil	3.233s
+ok  	github.com/panyam/oneauth/utils	3.706s
+Testing sub-module: stores/gorm
+ok  	github.com/panyam/oneauth/stores/gorm	0.368s
+Testing sub-module: stores/gae
+ok  	github.com/panyam/oneauth/stores/gae	0.300s
+Testing sub-module: grpc
+ok  	github.com/panyam/oneauth/grpc	0.246s
+Testing sub-module: oauth2
+ok  	github.com/panyam/oneauth/oauth2	0.218s
   PASS: unit
-ok  	github.com/panyam/oneauth/stores/gorm	0.490s
-ok  	github.com/panyam/oneauth/stores/gae	0.377s
-ok  	github.com/panyam/oneauth/grpc	0.327s
-ok  	github.com/panyam/oneauth/oauth2	0.314s
 
---- [3/9] E2E tests (in-process, race detector) ---
-ok  	github.com/panyam/oneauth/tests/e2e	13.507s
+--- [3/9] E2E tests (in-process race detector) ---
+go test -buildvcs=false -race -count=1 ./tests/e2e/
+ok  	github.com/panyam/oneauth/tests/e2e	14.121s
   PASS: e2e
 
 --- [4/9] PostgreSQL / GORM tests ---
-ok  	github.com/panyam/oneauth/stores/gorm	0.685s
+ONEAUTH_TEST_PGDB=testdb ONEAUTH_TEST_PGPORT=5433 \
+		ONEAUTH_TEST_PGUSER=postgres ONEAUTH_TEST_PGPASSWORD=testpassword \
+		go test -buildvcs=false -count=1 ./stores/gorm/...
+ok  	github.com/panyam/oneauth/stores/gorm	0.698s
   PASS: postgres
 
---- [5/9] Datastore tests (real, skipped if no credentials) ---
-  SKIP: datastore (no credentials at ~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json)
+--- [5/9] Datastore tests ---
+SKIP: no credentials at ~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json
+  PASS: datastore
 
 --- [6/9] Keycloak interop tests ---
-  Waiting for Keycloak...
---- FAIL: TestKeycloak_ClientCredentials_WithAuthMethod (0.01s)
-    interop_test.go:747: 
-        	Error Trace:	/Users/dzshrh/newstack/oneauth/main/tests/keycloak/interop_test.go:747
-        	Error:      	Received unexpected error:
-        	            	authentication failed: Unable to find matching target resource method
-        	Test:       	TestKeycloak_ClientCredentials_WithAuthMethod
-        	Messages:   	ClientCredentialsToken should succeed against Keycloak with auth method negotiation
-FAIL
-FAIL	github.com/panyam/oneauth/tests/keycloak	1.151s
-FAIL
-  FAIL: keycloak
+ok  	github.com/panyam/oneauth/tests/keycloak	2.037s
+  PASS: keycloak
 
 --- [7/9] Secret scanning ---
+gitleaks detect --source . --config .gitleaks.toml
 
     ○
     │╲
@@ -63,22 +65,24 @@ FAIL
     ○ ░
     ░    gitleaks
 
-[90m1:29PM[0m [32mINF[0m [1mUnknown SCM platform. Use --platform to include links in findings.[0m [36mhost=[0mpanyam-github
-[90m1:29PM[0m [32mINF[0m [1m149 commits scanned.[0m
-[90m1:29PM[0m [32mINF[0m [1mscanned ~2042205 bytes (2.04 MB) in 483ms[0m
-[90m1:29PM[0m [32mINF[0m [1mno leaks found[0m
+[90m1:48PM[0m [32mINF[0m [1mUnknown SCM platform. Use --platform to include links in findings.[0m [36mhost=[0mpanyam-github
+[90m1:48PM[0m [32mINF[0m [1m153 commits scanned.[0m
+[90m1:48PM[0m [32mINF[0m [1mscanned ~2116257 bytes (2.12 MB) in 311ms[0m
+[90m1:48PM[0m [32mINF[0m [1mno leaks found[0m
   PASS: secrets
 
 --- [8/9] Vulnerability check ---
+govulncheck ./...
 No vulnerabilities found.
   PASS: vulncheck
 
 --- [9/9] ZAP baseline scan ---
-2026/04/07 13:29:22 Using in-memory KeyStore (not persistent)
-2026/04/07 13:29:22 WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext
-2026/04/07 13:29:22 Using filesystem user stores at /tmp/oneauth-zap-test-all
-2026/04/07 13:29:22 oneauth-server listening on 0.0.0.0:19876 (keystore=memory, user_stores=fs, auth=api-key)
-2026-04-07 20:29:23,178 A file based option has been specified but the directory '/zap/wrk' is not mounted 
+go build -buildvcs=false -o build/oneauth-server ./cmd/oneauth-server/
+2026/04/07 13:48:33 Using in-memory KeyStore (not persistent)
+2026/04/07 13:48:33 WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext
+2026/04/07 13:48:33 Using filesystem user stores at /tmp/oneauth-zap-test-all
+2026/04/07 13:48:33 oneauth-server listening on 0.0.0.0:19876 (keystore=memory, user_stores=fs, auth=api-key)
+2026-04-07 20:48:34,168 A file based option has been specified but the directory '/zap/wrk' is not mounted 
 Usage: zap-baseline.py -t <target> [options]
     -t target         target URL including the protocol, e.g. https://www.example.com
 Options:
@@ -111,9 +115,10 @@ Options:
     --plan-only       generate an automation framework plan but do not run it
 
 For more details see https://www.zaproxy.org/docs/docker/baseline-scan/
-  WARN: zap (findings, see log)
+make[1]: *** [zap] Error 3
+  FAIL: zap
 
-=== Summary: 6 passed, 1 failed ===
-Finished: Tue Apr  7 13:29:23 PDT 2026
+=== Summary: 8 passed, 1 failed ===
+Finished: Tue Apr  7 13:48:34 PDT 2026
 oneauth-test-pg
 oneauth-test-keycloak
