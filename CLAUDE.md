@@ -217,6 +217,17 @@ cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
     OpenBrowser:  client.FollowRedirects(nil),
 })
 
+// Explicit endpoints with auth method override (#74) — for callers that do
+// their own discovery (e.g., PRM→AS metadata) and pass endpoints directly
+cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+    ClientID:                 "my-app",
+    ClientSecret:             "app-secret",
+    AuthorizationEndpoint:    "https://auth.example.com/authorize",
+    TokenEndpoint:            "https://auth.example.com/token",
+    TokenEndpointAuthMethods: []string{"client_secret_post"},
+    OpenBrowser:              client.FollowRedirects(nil),
+})
+
 // Machine-to-machine with auth method negotiation (#72)
 authClient := client.NewAuthClient(serverURL, store,
     client.WithASMetadata(meta))  // enables auth method negotiation

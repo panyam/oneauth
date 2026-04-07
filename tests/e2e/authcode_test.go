@@ -197,6 +197,98 @@ func TestE2E_ClientCredentials_FormEncoded(t *testing.T) {
 }
 
 // =============================================================================
+// #74 — TokenEndpointAuthMethods with explicit endpoints
+// =============================================================================
+
+// TestE2E_AuthCodePKCE_ExplicitEndpoints_WithAuthMethods verifies that the
+// complete authorization code + PKCE flow works when the caller provides
+// explicit endpoints AND TokenEndpointAuthMethods. This reproduces the MCPKit
+// use case: the caller does its own PRM→AS discovery, gets endpoints + auth
+// methods, and passes them through to LoginWithBrowser.
+//
+// Before the fix (#74), TokenEndpointAuthMethods was ignored — asMethods was
+// always empty when discovery was skipped, causing the client to default to
+// client_secret_basic regardless of what the AS actually supports.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3
+// See: https://github.com/panyam/oneauth/issues/74
+func TestE2E_AuthCodePKCE_ExplicitEndpoints_WithAuthMethods(t *testing.T) {
+	env := NewTestEnv(t)
+	if env.IsRemote() {
+		t.Skip("auth code e2e requires in-process servers")
+	}
+
+	store := &memCredentialStore{creds: make(map[string]*client.ServerCredential)}
+	authClient := client.NewAuthClient(env.BaseURL(), store,
+		client.WithTokenEndpoint("/oauth/token"))
+
+	// Simulate MCPKit flow: caller already discovered endpoints + auth methods
+	// via PRM→AS metadata, and passes them explicitly.
+	cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+		ClientID:                 "e2e-public-client",
+		Scopes:                   []string{"openid", "read"},
+		AuthorizationEndpoint:    env.BaseURL() + "/authorize",
+		TokenEndpoint:            env.BaseURL() + "/oauth/token",
+		TokenEndpointAuthMethods: []string{"client_secret_post", "client_secret_basic"},
+		Timeout:                  5 * time.Second,
+		OpenBrowser:              client.FollowRedirects(nil),
+	})
+
+	require.NoError(t, err, "explicit endpoints with TokenEndpointAuthMethods should succeed")
+	require.NotNil(t, cred)
+	assert.Equal(t, "e2e-authcode-token", cred.AccessToken)
+	assert.Equal(t, "e2e-refresh-token", cred.RefreshToken)
+
+	// Verify credential was stored
+	stored, err := store.GetCredential(env.BaseURL())
+	require.NoError(t, err)
+	assert.Equal(t, "e2e-authcode-token", stored.AccessToken)
+}
+
+// TestE2E_AuthCodePKCE_ExplicitEndpoints_ConfidentialClient verifies the
+// confidential client auth code + PKCE flow with explicit endpoints and
+// TokenEndpointAuthMethods set to client_secret_post. This is the exact
+// scenario from issue #74: a confidential client that needs post auth when
+// discovery is skipped.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3
+// See: https://github.com/panyam/oneauth/issues/74
+func TestE2E_AuthCodePKCE_ExplicitEndpoints_ConfidentialClient(t *testing.T) {
+	env := NewTestEnv(t)
+	if env.IsRemote() {
+		t.Skip("auth code e2e requires in-process servers")
+	}
+
+	// Register a confidential client
+	clientID := "e2e-explicit-confidential"
+	secret := "e2e-explicit-secret"
+	env.KeyStore.PutKey(&keys.KeyRecord{
+		ClientID:  clientID,
+		Key:       []byte(secret),
+		Algorithm: "HS256",
+	})
+
+	store := &memCredentialStore{creds: make(map[string]*client.ServerCredential)}
+	authClient := client.NewAuthClient(env.BaseURL(), store,
+		client.WithTokenEndpoint("/oauth/token"))
+
+	cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+		ClientID:                 clientID,
+		ClientSecret:             secret,
+		Scopes:                   []string{"read"},
+		AuthorizationEndpoint:    env.BaseURL() + "/authorize",
+		TokenEndpoint:            env.BaseURL() + "/oauth/token",
+		TokenEndpointAuthMethods: []string{"client_secret_post"},
+		Timeout:                  5 * time.Second,
+		OpenBrowser:              client.FollowRedirects(nil),
+	})
+
+	require.NoError(t, err, "confidential client with explicit endpoints + post auth should succeed")
+	require.NotNil(t, cred)
+	assert.Equal(t, "e2e-authcode-token", cred.AccessToken)
+}
+
+// =============================================================================
 // Test helpers
 // =============================================================================
 

@@ -68,6 +68,23 @@ type BrowserLoginConfig struct {
 	//
 	// See: https://github.com/panyam/oneauth/issues/72
 	ClientSecret string
+
+	// TokenEndpointAuthMethods specifies the auth methods supported by the AS
+	// token endpoint (e.g., ["client_secret_post", "client_secret_basic"]).
+	// This is used when AuthorizationEndpoint and TokenEndpoint are explicitly
+	// provided and discovery is skipped — without this field, the client
+	// defaults to client_secret_basic which may not be what the AS supports.
+	//
+	// Callers that perform their own AS discovery (e.g., via PRM → AS metadata)
+	// should pass token_endpoint_auth_methods_supported here so the client
+	// negotiates the correct auth method per RFC 6749 §2.3.
+	//
+	// If empty and discovery is skipped, defaults to client_secret_basic
+	// per RFC 6749 §2.3.1.
+	//
+	// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3
+	// See: https://github.com/panyam/oneauth/issues/74
+	TokenEndpointAuthMethods []string
 }
 
 // callbackResult holds the result received on the loopback redirect.
@@ -181,6 +198,11 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		if !containsString(meta.CodeChallengeMethodsSupported, "S256") {
 			return nil, fmt.Errorf("authorization server does not support PKCE S256 (code_challenge_methods_supported missing or lacks S256)")
 		}
+	} else if len(cfg.TokenEndpointAuthMethods) > 0 {
+		// Explicit endpoints provided — use caller-supplied auth methods (#74).
+		// This covers the case where the caller performed their own discovery
+		// (e.g., PRM → AS metadata) and already knows the supported methods.
+		asMethods = cfg.TokenEndpointAuthMethods
 	}
 	if authEndpoint == "" {
 		return nil, fmt.Errorf("authorization_endpoint not found")

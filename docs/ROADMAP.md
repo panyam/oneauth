@@ -109,6 +109,12 @@ Server: `handleClientCredentialsGrant` in `APIAuth` with `ClientKeyStore` field.
 
 `IntrospectionValidator` in `apiauth/introspection_client.go`. Integrates into `APIMiddleware.Introspection` as fallback when local JWT validation fails. Response caching with configurable TTL. 7 unit + 1 e2e + 2 Keycloak interop tests.
 
+### Bug Fixes
+
+#### Fix auth method negotiation with explicit endpoints — #74 (P1, Bug) ✅ COMPLETE
+
+`BrowserLoginConfig.TokenEndpointAuthMethods` field. When explicit endpoints are provided (discovery skipped), callers can pass `token_endpoint_auth_methods_supported` from their own discovery so `SelectAuthMethod` negotiates correctly instead of defaulting to `client_secret_basic`. Found by MCPKit conformance test. 3 unit + 2 e2e tests.
+
 ---
 
 ## Execution Order
