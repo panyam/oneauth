@@ -716,6 +716,104 @@ func TestLoginWithBrowser_PublicClient_NoneAuth(t *testing.T) {
 	assert.Equal(t, "mock-access-token", cred.AccessToken)
 }
 
+// =============================================================================
+// #74 — TokenEndpointAuthMethods in BrowserLoginConfig
+// =============================================================================
+
+// TestLoginWithBrowser_ExplicitEndpoints_PostAuth verifies that when explicit
+// endpoints are provided with TokenEndpointAuthMethods set to ["client_secret_post"],
+// the client sends credentials in the form body instead of the Authorization header.
+// This is the core bug from #74: without TokenEndpointAuthMethods, explicit endpoints
+// cause asMethods to be empty, defaulting to client_secret_basic even when the AS
+// only supports client_secret_post.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3
+// See: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-3.2.1
+// See: https://github.com/panyam/oneauth/issues/74
+func TestLoginWithBrowser_ExplicitEndpoints_PostAuth(t *testing.T) {
+	// Server only accepts client_secret_post — rejects Basic auth
+	authSrv := mockAuthServerWithAuthMethods(t,
+		[]string{"client_secret_post"},
+		AuthMethodClientSecretPost)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:                 "confidential-app",
+		ClientSecret:             "app-secret",
+		AuthorizationEndpoint:    authSrv.URL + "/authorize",
+		TokenEndpoint:            authSrv.URL + "/token",
+		TokenEndpointAuthMethods: []string{"client_secret_post"},
+		Timeout:                  5 * time.Second,
+		OpenBrowser:              FollowRedirects(nil),
+	})
+
+	require.NoError(t, err, "explicit endpoints with post-only auth methods should use post auth")
+	assert.Equal(t, "mock-access-token", cred.AccessToken)
+}
+
+// TestLoginWithBrowser_ExplicitEndpoints_DefaultsToBasic verifies that when
+// explicit endpoints are provided WITHOUT TokenEndpointAuthMethods, the client
+// defaults to client_secret_basic per RFC 6749 §2.3.1. This preserves backward
+// compatibility for callers that don't set the new field.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1
+// See: https://github.com/panyam/oneauth/issues/74
+func TestLoginWithBrowser_ExplicitEndpoints_DefaultsToBasic(t *testing.T) {
+	// Server expects Basic auth (the default)
+	authSrv := mockAuthServerWithAuthMethods(t,
+		[]string{"client_secret_basic"},
+		AuthMethodClientSecretBasic)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:              "confidential-app",
+		ClientSecret:          "app-secret",
+		AuthorizationEndpoint: authSrv.URL + "/authorize",
+		TokenEndpoint:         authSrv.URL + "/token",
+		// No TokenEndpointAuthMethods — should default to basic
+		Timeout:     5 * time.Second,
+		OpenBrowser: FollowRedirects(nil),
+	})
+
+	require.NoError(t, err, "explicit endpoints without auth methods should default to basic")
+	assert.Equal(t, "mock-access-token", cred.AccessToken)
+}
+
+// TestLoginWithBrowser_ExplicitEndpoints_MethodsOverrideDiscovery verifies that
+// when both explicit endpoints AND TokenEndpointAuthMethods are provided, the
+// config methods are used (discovery is skipped entirely). This proves that the
+// caller's own PRM→AS discovery results take precedence.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3
+// See: https://github.com/panyam/oneauth/issues/74
+func TestLoginWithBrowser_ExplicitEndpoints_MethodsOverrideDiscovery(t *testing.T) {
+	// Server advertises both methods via discovery, but only accepts post
+	authSrv := mockAuthServerWithAuthMethods(t,
+		[]string{"client_secret_basic", "client_secret_post"},
+		AuthMethodClientSecretPost)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	// Pass explicit endpoints + override to post-only
+	// Without explicit TokenEndpointAuthMethods, discovery would return both
+	// and SelectAuthMethod would pick basic (preferred). But we override to
+	// post-only, proving the config field takes effect.
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:                 "confidential-app",
+		ClientSecret:             "app-secret",
+		AuthorizationEndpoint:    authSrv.URL + "/authorize",
+		TokenEndpoint:            authSrv.URL + "/token",
+		TokenEndpointAuthMethods: []string{"client_secret_post"},
+		Timeout:                  5 * time.Second,
+		OpenBrowser:              FollowRedirects(nil),
+	})
+
+	require.NoError(t, err, "explicit TokenEndpointAuthMethods should override discovery")
+	assert.Equal(t, "mock-access-token", cred.AccessToken)
+}
+
 // TestLoginWithBrowser_NoResourceParameter verifies that when Resource is not
 // set, the resource parameter is omitted from the authorization URL.
 //

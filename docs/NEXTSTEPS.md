@@ -38,6 +38,11 @@
 - [x] 5 e2e tests: headless auth code, discovery, Basic auth, post auth, form-encoded
 - [x] 3 Keycloak interop tests: Basic auth, post auth, ClientCredentialsToken with discovered metadata
 
+### Auth Method Negotiation with Explicit Endpoints (#74)
+- [x] `BrowserLoginConfig.TokenEndpointAuthMethods` — callers can pass AS-supported auth methods when providing explicit endpoints, so `SelectAuthMethod` negotiates correctly instead of defaulting to `client_secret_basic`
+- [x] Fixes MCPKit interop: `OAuthTokenSource` performs PRM→AS discovery and passes explicit endpoints; now auth methods flow through too
+- [x] 3 unit tests (post-only, default-to-basic, methods-override-discovery) + 2 e2e tests (public + confidential client with explicit endpoints)
+
 ### Legacy endpoint note
 - `/api/token` (JSON) retained for `Login` and `refreshTokenLocked` backward compat
 - `/oauth/token` (form-encoded) is the new standards-compliant endpoint in e2e tests
