@@ -77,7 +77,7 @@ func TestDiscovery_E2E_DiscoverASRoundTrip(t *testing.T) {
 	require.NoError(t, err, "DiscoverAS should find our auth server's OIDC config")
 
 	assert.Equal(t, env.BaseURL(), meta.Issuer)
-	assert.Equal(t, env.BaseURL()+"/api/token", meta.TokenEndpoint)
+	assert.Equal(t, env.BaseURL()+"/oauth/token", meta.TokenEndpoint)
 	assert.Equal(t, env.BaseURL()+"/.well-known/jwks.json", meta.JWKSURI)
 	assert.Equal(t, env.BaseURL()+"/oauth/introspect", meta.IntrospectionEndpoint)
 	assert.Contains(t, meta.GrantTypesSupported, "client_credentials")

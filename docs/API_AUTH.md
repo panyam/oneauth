@@ -98,23 +98,27 @@ apiAuth := &apiauth.APIAuth{
 }
 ```
 
-**Via client_secret_post** (credentials in request body):
+**Via client_secret_post** (credentials in request body, form-encoded per RFC 6749 §4.4.2):
 
 ```http
 POST /api/token
-Content-Type: application/json
+Content-Type: application/x-www-form-urlencoded
 
-{"grant_type":"client_credentials","client_id":"billing-svc","client_secret":"xxx","scope":"billing:read"}
+grant_type=client_credentials&client_id=billing-svc&client_secret=xxx&scope=billing:read
 ```
 
-**Via client_secret_basic** (HTTP Basic auth):
+> Note: The token endpoint also accepts JSON bodies for backward compatibility, but
+> form-encoded is the RFC 6749 standard and should be preferred for new integrations.
+> The client SDK's `ClientCredentialsToken` now sends form-encoded requests.
+
+**Via client_secret_basic** (HTTP Basic auth, RFC 6749 §2.3.1 default):
 
 ```http
 POST /api/token
 Authorization: Basic YmlsbGluZy1zdmM6eHh4
-Content-Type: application/json
+Content-Type: application/x-www-form-urlencoded
 
-{"grant_type":"client_credentials","scope":"billing:read"}
+grant_type=client_credentials&scope=billing:read
 ```
 
 Response:

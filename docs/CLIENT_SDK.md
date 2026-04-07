@@ -79,6 +79,10 @@ client.NewAuthClient(url, store, client.WithHTTPClient(&http.Client{
 
 // Custom transport
 client.NewAuthClient(url, store, client.WithTransport(customTransport))
+
+// Pre-populate AS metadata for auth method negotiation (#72)
+meta, _ := client.DiscoverAS("https://auth.example.com")
+client.NewAuthClient(url, store, client.WithASMetadata(meta))
 ```
 
 ### Methods
@@ -97,7 +101,16 @@ Sends a `grant_type=password` request to the token endpoint. Stores the credenti
 cred, err := authClient.ClientCredentialsToken("billing-svc", "secret", []string{"billing:read"})
 ```
 
-Sends a `grant_type=client_credentials` request. No refresh token — machine clients re-authenticate when the token expires. Stores the credential for subsequent API calls via `HTTPClient()`.
+Sends a `grant_type=client_credentials` request as `application/x-www-form-urlencoded` (RFC 6749 §4.4.2). No refresh token — machine clients re-authenticate when the token expires. Stores the credential for subsequent API calls via `HTTPClient()`.
+
+**Auth method negotiation (#72):** If AS metadata was provided via `WithASMetadata`, the client sends credentials using the AS's preferred method (`client_secret_basic` via Authorization header, or `client_secret_post` in the form body). Without metadata, defaults to `client_secret_basic` per RFC 6749 §2.3.1.
+
+```go
+// With auth method negotiation
+meta, _ := client.DiscoverAS("https://auth.example.com")
+authClient := client.NewAuthClient(url, store, client.WithASMetadata(meta))
+cred, err := authClient.ClientCredentialsToken("svc", "secret", nil)
+```
 
 #### AS Metadata Discovery (RFC 8414 / OIDC Discovery)
 
@@ -122,6 +135,25 @@ cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
 Opens the user's default browser to the authorization server's login page. After the user authenticates (password, SSO, MFA — whatever the AS supports), the browser redirects to a temporary loopback server that catches the authorization code. The code is exchanged for tokens via PKCE.
 
 This is the same pattern used by `gh auth login`, `gcloud auth login`, and `kubectl` with OIDC. Endpoints are auto-discovered via `DiscoverAS()`, or can be set explicitly via `AuthorizationEndpoint` and `TokenEndpoint` in the config.
+
+**Headless mode (#71):** For CI, conformance testing, or headless CLI environments, use `FollowRedirects` instead of opening a browser:
+
+```go
+cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+    ClientID:    "my-cli-app",
+    OpenBrowser: client.FollowRedirects(nil),  // follows HTTP redirects
+})
+```
+
+**Confidential client (#72):** Set `ClientSecret` for confidential clients. The auth method (`client_secret_basic` vs `client_secret_post`) is negotiated from AS metadata:
+
+```go
+cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+    ClientID:     "my-app",
+    ClientSecret: "app-secret",
+    OpenBrowser:  client.FollowRedirects(httpClient),
+})
+```
 
 #### Logout
 

@@ -3,8 +3,14 @@ package client
 // Tests for the AuthClient core logic: credential expiration, token retrieval, login state, and URL normalization.
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestServerCredential_IsExpired verifies that IsExpired correctly identifies credentials past their expiration time.
@@ -241,6 +247,145 @@ func TestAuthClient_Logout(t *testing.T) {
 	if _, ok := store.creds["http://localhost:8080"]; ok {
 		t.Error("Logout() did not remove credential")
 	}
+}
+
+// =============================================================================
+// #72 — ClientCredentialsToken auth method negotiation
+// =============================================================================
+
+// TestClientCredentialsToken_BasicAuth verifies that ClientCredentialsToken
+// sends credentials via HTTP Basic authentication when AS metadata advertises
+// client_secret_basic. The token request must use application/x-www-form-urlencoded
+// with grant_type in the body and credentials in the Authorization header.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1
+// See: https://github.com/panyam/oneauth/issues/72
+func TestClientCredentialsToken_BasicAuth(t *testing.T) {
+	var receivedBasicUser, receivedBasicPass string
+	var receivedBasicAuth bool
+	var receivedContentType string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedContentType = r.Header.Get("Content-Type")
+		receivedBasicUser, receivedBasicPass, receivedBasicAuth = r.BasicAuth()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(OAuth2TokenResponse{
+			AccessToken: "basic-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	store := newMockCredentialStore()
+	meta := &ASMetadata{TokenEndpointAuthMethods: []string{"client_secret_basic"}}
+	c := NewAuthClient(server.URL, store, WithASMetadata(meta), WithTokenEndpoint("/token"))
+
+	cred, err := c.ClientCredentialsToken("my-client", "my-secret", []string{"read"})
+	require.NoError(t, err)
+	assert.Equal(t, "basic-token", cred.AccessToken)
+	assert.True(t, receivedBasicAuth, "should use HTTP Basic auth")
+	assert.Equal(t, "my-client", receivedBasicUser)
+	assert.Equal(t, "my-secret", receivedBasicPass)
+	assert.Contains(t, receivedContentType, "application/x-www-form-urlencoded")
+}
+
+// TestClientCredentialsToken_PostAuth verifies that when the AS only supports
+// client_secret_post, credentials are sent as form body parameters instead of
+// the Authorization header.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1
+// See: https://github.com/panyam/oneauth/issues/72
+func TestClientCredentialsToken_PostAuth(t *testing.T) {
+	var receivedClientID, receivedClientSecret string
+	var receivedBasicAuth bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		_, _, receivedBasicAuth = r.BasicAuth()
+		receivedClientID = r.FormValue("client_id")
+		receivedClientSecret = r.FormValue("client_secret")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(OAuth2TokenResponse{
+			AccessToken: "post-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	store := newMockCredentialStore()
+	meta := &ASMetadata{TokenEndpointAuthMethods: []string{"client_secret_post"}}
+	c := NewAuthClient(server.URL, store, WithASMetadata(meta), WithTokenEndpoint("/token"))
+
+	cred, err := c.ClientCredentialsToken("my-client", "my-secret", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "post-token", cred.AccessToken)
+	assert.False(t, receivedBasicAuth, "should NOT use Basic auth")
+	assert.Equal(t, "my-client", receivedClientID)
+	assert.Equal(t, "my-secret", receivedClientSecret)
+}
+
+// TestClientCredentialsToken_DefaultBasic_NoDiscovery verifies that without
+// any AS metadata, ClientCredentialsToken defaults to client_secret_basic
+// per RFC 6749 §2.3.1. This is the backward-compatible safe default.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1
+// See: https://github.com/panyam/oneauth/issues/72
+func TestClientCredentialsToken_DefaultBasic_NoDiscovery(t *testing.T) {
+	var receivedBasicAuth bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _, receivedBasicAuth = r.BasicAuth()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(OAuth2TokenResponse{
+			AccessToken: "default-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	store := newMockCredentialStore()
+	// No WithASMetadata — no discovery data
+	c := NewAuthClient(server.URL, store, WithTokenEndpoint("/token"))
+
+	cred, err := c.ClientCredentialsToken("my-client", "my-secret", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "default-token", cred.AccessToken)
+	assert.True(t, receivedBasicAuth, "without metadata, should default to Basic auth")
+}
+
+// TestClientCredentialsToken_FormEncoded verifies that the token request is
+// sent as application/x-www-form-urlencoded (RFC 6749 §4.4.2), not JSON.
+// The previous implementation sent JSON which is non-standard.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4.2
+// See: https://github.com/panyam/oneauth/issues/72
+func TestClientCredentialsToken_FormEncoded(t *testing.T) {
+	var receivedContentType string
+	var receivedGrantType string
+	var receivedScope string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedContentType = r.Header.Get("Content-Type")
+		_ = r.ParseForm()
+		receivedGrantType = r.FormValue("grant_type")
+		receivedScope = r.FormValue("scope")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(OAuth2TokenResponse{
+			AccessToken: "form-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	store := newMockCredentialStore()
+	c := NewAuthClient(server.URL, store, WithTokenEndpoint("/token"))
+
+	_, err := c.ClientCredentialsToken("my-client", "my-secret", []string{"read", "write"})
+	require.NoError(t, err)
+	assert.Contains(t, receivedContentType, "application/x-www-form-urlencoded",
+		"token request must be form-encoded per RFC 6749 §4.4.2")
+	assert.Equal(t, "client_credentials", receivedGrantType)
+	assert.Equal(t, "read write", receivedScope)
 }
 
 // TestAuthClient_URLNormalization verifies that credentials are matched by base URL regardless of the path component.

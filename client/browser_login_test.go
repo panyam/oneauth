@@ -308,6 +308,105 @@ func TestLoginWithBrowser_ExplicitEndpoints(t *testing.T) {
 }
 
 // =============================================================================
+// #71 — Headless OAuth flow (FollowRedirects)
+// =============================================================================
+
+// TestFollowRedirects_FullFlow verifies the complete authorization code + PKCE
+// flow using FollowRedirects instead of a browser. The HTTP client follows the
+// AS redirect to the loopback callback, delivering the auth code exactly as a
+// browser would.
+//
+// See: https://github.com/panyam/oneauth/issues/71
+func TestFollowRedirects_FullFlow(t *testing.T) {
+	authSrv := mockAuthServer(t)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:    "test-cli",
+		Scopes:      []string{"openid", "read"},
+		Timeout:     5 * time.Second,
+		OpenBrowser: FollowRedirects(nil),
+	})
+
+	require.NoError(t, err, "headless flow should succeed")
+	require.NotNil(t, cred)
+	assert.Equal(t, "mock-access-token", cred.AccessToken)
+	assert.Equal(t, "mock-refresh-token", cred.RefreshToken)
+
+	// Verify credential was stored
+	stored, err := store.GetCredential(authSrv.URL)
+	require.NoError(t, err)
+	assert.Equal(t, "mock-access-token", stored.AccessToken)
+}
+
+// TestFollowRedirects_WithCustomHTTPClient verifies that a custom HTTP client
+// (e.g., with specific timeout or TLS config) can be passed to FollowRedirects
+// and the flow still works end-to-end.
+//
+// See: https://github.com/panyam/oneauth/issues/71
+func TestFollowRedirects_WithCustomHTTPClient(t *testing.T) {
+	authSrv := mockAuthServer(t)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	customClient := &http.Client{Timeout: 10 * time.Second}
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:    "test-cli",
+		Timeout:     5 * time.Second,
+		OpenBrowser: FollowRedirects(customClient),
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "mock-access-token", cred.AccessToken)
+}
+
+// TestFollowRedirects_AuthorizationError verifies that authorization errors
+// from the AS (e.g., access_denied) propagate correctly through the headless
+// flow, just as they would through a browser redirect.
+//
+// See: https://github.com/panyam/oneauth/issues/71
+func TestFollowRedirects_AuthorizationError(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+		redirectURI := r.URL.Query().Get("redirect_uri")
+		state := r.URL.Query().Get("state")
+		http.Redirect(w, r, redirectURI+"?error=access_denied&error_description=user+denied&state="+state, http.StatusFound)
+	})
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                           "http://" + r.Host,
+			"authorization_endpoint":           "http://" + r.Host + "/authorize",
+			"token_endpoint":                   "http://" + r.Host + "/token",
+			"code_challenge_methods_supported": []string{"S256"},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(srv.URL, store)
+
+	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:    "test-cli",
+		Timeout:     2 * time.Second,
+		OpenBrowser: FollowRedirects(nil),
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "access_denied")
+}
+
+// TestFollowRedirects_NilClient verifies that passing nil to FollowRedirects
+// creates a working default HTTP client instead of panicking.
+//
+// See: https://github.com/panyam/oneauth/issues/71
+func TestFollowRedirects_NilClient(t *testing.T) {
+	fn := FollowRedirects(nil)
+	assert.NotNil(t, fn, "should return a non-nil function even with nil client")
+}
+
+// =============================================================================
 // #65 — PKCE verification in AS metadata
 // =============================================================================
 
@@ -440,6 +539,181 @@ func TestLoginWithBrowser_ResourceParameter(t *testing.T) {
 	u, _ := url.Parse(capturedAuthURL)
 	assert.Equal(t, "https://api.example.com", u.Query().Get("resource"),
 		"authorization URL should include resource parameter")
+}
+
+// =============================================================================
+// #72 — Token endpoint auth method negotiation
+// =============================================================================
+
+// mockAuthServerWithAuthMethods creates a test OAuth server that advertises
+// the given token_endpoint_auth_methods_supported and verifies the client
+// uses the expected auth method on the /token endpoint.
+//
+// See: https://github.com/panyam/oneauth/issues/72
+func mockAuthServerWithAuthMethods(t *testing.T, supportedMethods []string, expectedMethod TokenEndpointAuthMethod) *httptest.Server {
+	t.Helper()
+	var storedChallenge, storedState, storedRedirectURI string
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		storedChallenge = q.Get("code_challenge")
+		storedState = q.Get("state")
+		storedRedirectURI = q.Get("redirect_uri")
+
+		if q.Get("response_type") != "code" {
+			http.Error(w, "invalid response_type", http.StatusBadRequest)
+			return
+		}
+		redirectURL := fmt.Sprintf("%s?code=test-auth-code&state=%s",
+			storedRedirectURI, storedState)
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+	})
+
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+
+		// Verify auth method
+		_, _, hasBasic := r.BasicAuth()
+		hasPostSecret := r.FormValue("client_secret") != ""
+
+		switch expectedMethod {
+		case AuthMethodClientSecretBasic:
+			if !hasBasic {
+				w.WriteHeader(http.StatusUnauthorized)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "invalid_client", "error_description": "expected Basic auth"})
+				return
+			}
+		case AuthMethodClientSecretPost:
+			if hasBasic || !hasPostSecret {
+				w.WriteHeader(http.StatusUnauthorized)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "invalid_client", "error_description": "expected client_secret in body"})
+				return
+			}
+		case AuthMethodNone:
+			if hasBasic || hasPostSecret {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "invalid_request", "error_description": "public client should not send secret"})
+				return
+			}
+		}
+
+		// Verify PKCE
+		verifier := r.FormValue("code_verifier")
+		hash := sha256.Sum256([]byte(verifier))
+		computed := base64.RawURLEncoding.EncodeToString(hash[:])
+		if computed != storedChallenge {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant", "error_description": "PKCE verification failed"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "mock-access-token",
+			"refresh_token": "mock-refresh-token",
+			"token_type":    "Bearer",
+			"expires_in":    900,
+		})
+	})
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		srv := r.Host
+		metadata := map[string]any{
+			"issuer":                           "http://" + srv,
+			"authorization_endpoint":           "http://" + srv + "/authorize",
+			"token_endpoint":                   "http://" + srv + "/token",
+			"code_challenge_methods_supported": []string{"S256"},
+		}
+		if len(supportedMethods) > 0 {
+			metadata["token_endpoint_auth_methods_supported"] = supportedMethods
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(metadata)
+	})
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestLoginWithBrowser_ConfidentialClient_BasicAuth verifies that when
+// ClientSecret is set and the AS advertises client_secret_basic, the token
+// exchange sends credentials via HTTP Basic authentication header.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1
+// See: https://github.com/panyam/oneauth/issues/72
+func TestLoginWithBrowser_ConfidentialClient_BasicAuth(t *testing.T) {
+	authSrv := mockAuthServerWithAuthMethods(t,
+		[]string{"client_secret_basic", "client_secret_post"},
+		AuthMethodClientSecretBasic)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:     "confidential-app",
+		ClientSecret: "app-secret",
+		Timeout:      5 * time.Second,
+		OpenBrowser:  FollowRedirects(nil),
+	})
+
+	require.NoError(t, err, "confidential client with Basic auth should succeed")
+	assert.Equal(t, "mock-access-token", cred.AccessToken)
+}
+
+// TestLoginWithBrowser_ConfidentialClient_PostAuth verifies that when the AS
+// only supports client_secret_post, credentials are sent in the form body
+// instead of the Authorization header.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1
+// See: https://github.com/panyam/oneauth/issues/72
+func TestLoginWithBrowser_ConfidentialClient_PostAuth(t *testing.T) {
+	authSrv := mockAuthServerWithAuthMethods(t,
+		[]string{"client_secret_post"},
+		AuthMethodClientSecretPost)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:     "confidential-app",
+		ClientSecret: "app-secret",
+		Timeout:      5 * time.Second,
+		OpenBrowser:  FollowRedirects(nil),
+	})
+
+	require.NoError(t, err, "confidential client with post auth should succeed")
+	assert.Equal(t, "mock-access-token", cred.AccessToken)
+}
+
+// TestLoginWithBrowser_PublicClient_NoneAuth verifies that when no ClientSecret
+// is set, the client uses auth method "none" — client_id in the form body, no
+// secret sent. This documents the existing behavior for PKCE-only public clients.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.1
+// See: https://github.com/panyam/oneauth/issues/72
+func TestLoginWithBrowser_PublicClient_NoneAuth(t *testing.T) {
+	authSrv := mockAuthServerWithAuthMethods(t,
+		[]string{"client_secret_basic", "client_secret_post"},
+		AuthMethodNone)
+	store := newMockCredentialStore()
+	authClient := NewAuthClient(authSrv.URL, store)
+
+	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+		ClientID:    "public-app",
+		Timeout:     5 * time.Second,
+		OpenBrowser: FollowRedirects(nil),
+		// No ClientSecret — public client
+	})
+
+	require.NoError(t, err, "public client with none auth should succeed")
+	assert.Equal(t, "mock-access-token", cred.AccessToken)
 }
 
 // TestLoginWithBrowser_NoResourceParameter verifies that when Resource is not
