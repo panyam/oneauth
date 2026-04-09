@@ -112,9 +112,10 @@ zap:
 		if curl -sf http://localhost:19876/_ah/health > /dev/null 2>&1; then ZAP_OK=1; break; fi; sleep 1; \
 	done; \
 	if [ $$ZAP_OK -eq 1 ]; then \
-		docker run --rm --network=host -v $(PWD)/.zap-rules.tsv:/zap/rules.tsv \
+		mkdir -p /tmp/zap-wrk && cp $(PWD)/.zap-rules.tsv /tmp/zap-wrk/rules.tsv && \
+		docker run --rm -v /tmp/zap-wrk:/zap/wrk:rw \
 			ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:19876 \
-			-c rules.tsv -a -J /dev/null; \
+			-c rules.tsv -a; \
 		ZAP_EXIT=$$?; \
 	else \
 		echo "SKIP: server failed to start"; ZAP_EXIT=0; \

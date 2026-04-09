@@ -1,6 +1,7 @@
 package core
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -121,6 +122,26 @@ func ValidateRequestedScopes(requested, allowed []string) (valid, invalid []stri
 		}
 	}
 	return valid, invalid
+}
+
+// UnionScopes returns the union of two scope slices, deduplicated and sorted.
+// This is the complement of IntersectScopes — use UnionScopes to merge scope
+// sets (e.g., combining existing and newly requested scopes), and IntersectScopes
+// to restrict scope sets (e.g., filtering requested scopes against allowed scopes).
+func UnionScopes(a, b []string) []string {
+	set := make(map[string]struct{}, len(a)+len(b))
+	for _, s := range a {
+		set[s] = struct{}{}
+	}
+	for _, s := range b {
+		set[s] = struct{}{}
+	}
+	result := make([]string, 0, len(set))
+	for s := range set {
+		result = append(result, s)
+	}
+	sort.Strings(result)
+	return result
 }
 
 // ScopesEqual checks if two scope slices contain the same scopes (order-independent)

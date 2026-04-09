@@ -282,10 +282,23 @@ func main() {
 	log.Printf("oneauth-server listening on %s (keystore=%s, user_stores=%s, auth=%s)",
 		addr, cfg.KeyStore.Type, cfg.UserStores.Type, cfg.AdminAuth.Type)
 
+	secHeaders := httpauth.SecurityHeadersWithConfig(httpauth.SecurityHeadersConfig{
+		HSTSMaxAge:            31536000,
+		HSTSIncludeSubDomains: true,
+		FrameOptions:          "DENY",
+		ContentSecurityPolicy: "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'",
+		ReferrerPolicy:        "strict-origin-when-cross-origin",
+		PermissionsPolicy:     "camera=(), microphone=(), geolocation=()",
+		CrossOriginEmbedderPolicy: "credentialless",
+		CrossOriginOpenerPolicy:   "same-origin",
+		CrossOriginResourcePolicy: "same-origin",
+	})
+	handler := secHeaders(mux)
+
 	if cfg.TLS.Enabled {
-		log.Fatal(http.ListenAndServeTLS(addr, cfg.TLS.Cert, cfg.TLS.Key, mux))
+		log.Fatal(http.ListenAndServeTLS(addr, cfg.TLS.Cert, cfg.TLS.Key, handler))
 	} else {
-		log.Fatal(http.ListenAndServe(addr, mux))
+		log.Fatal(http.ListenAndServe(addr, handler))
 	}
 }
 

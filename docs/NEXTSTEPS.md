@@ -19,6 +19,18 @@
 
 ---
 
+## Completed (MCPKit OAuth Pushdown — #78)
+
+### Client-Side DCR + Validation Utilities (mcpkit#158 → oneauth#78)
+- [x] `client/dcr.go` — `RegisterClient` (RFC 7591 client-side DCR caller), `ClientRegistrationRequest`, `ClientRegistrationResponse`
+- [x] `client/validation.go` — `ValidateHTTPS` (HTTPS enforcement, localhost exempt), `IsLocalhost`, `ValidateCIMDURL` (CIMD URL validation)
+- [x] `client/client_credentials_source.go` — `ClientCredentialsSource` (RFC 6749 §4.4 with caching + scope step-up), `TokenSource`, `ScopeAwareTokenSource` interfaces
+- [x] `core/scopes.go` — `UnionScopes` (sorted, deduplicated scope set union)
+- [x] 3 DCR tests (success, server error, empty client_id), 11 validation tests (HTTPS, localhost, CIMD), 3 client credentials tests (caching, expiry, scopes), 5 scope union tests
+- [x] All tests include RFC references in doc comments per convention
+
+---
+
 ## Completed (Nil CredentialStore Safety — #76)
 
 ### Nil CredentialStore fix (#76)

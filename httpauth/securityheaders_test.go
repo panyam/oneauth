@@ -39,6 +39,9 @@ func TestSecurityHeaders_DefaultHeaders(t *testing.T) {
 	assert.Contains(t, rr.Header().Get("Strict-Transport-Security"), "max-age=31536000")
 	assert.Contains(t, rr.Header().Get("Strict-Transport-Security"), "includeSubDomains")
 	assert.Contains(t, rr.Header().Get("Permissions-Policy"), "camera=()")
+	assert.Equal(t, "credentialless", rr.Header().Get("Cross-Origin-Embedder-Policy"))
+	assert.Equal(t, "same-origin", rr.Header().Get("Cross-Origin-Opener-Policy"))
+	assert.Equal(t, "same-origin", rr.Header().Get("Cross-Origin-Resource-Policy"))
 }
 
 // TestSecurityHeaders_HSTS verifies HSTS header format per RFC 6797.

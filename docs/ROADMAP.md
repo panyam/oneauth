@@ -162,6 +162,20 @@ OAuth Client Capabilities (parallel track)
 
 ---
 
+## MCPKit Pushdown — Generic OAuth Code (#78)
+
+Pure-OAuth code pushed down from mcpkit/ext/auth (mcpkit#158) into oneauth for broader reusability.
+
+### Client-Side DCR + Validation Utilities (#78) ✅ COMPLETE
+
+- `client/dcr.go` — `RegisterClient` (RFC 7591 client-side DCR caller), `ClientRegistrationRequest`, `ClientRegistrationResponse`. Note: server-side DCR was already in `admin/dcr.go`; this is the client-side counterpart.
+- `client/validation.go` — `ValidateHTTPS` (RFC 6749 §3.1.2.1 HTTPS enforcement with localhost exemption), `IsLocalhost` (loopback detection), `ValidateCIMDURL` (draft-ietf-oauth-client-id-metadata-document validation)
+- `client/client_credentials_source.go` — `ClientCredentialsSource` (RFC 6749 §4.4 grant wrapper with token caching and scope step-up), `TokenSource` and `ScopeAwareTokenSource` interfaces
+- `core/scopes.go` — `UnionScopes` (sorted, deduplicated scope union, complement to `IntersectScopes`)
+- 20+ tests across `client/dcr_test.go`, `client/validation_test.go`, `client/client_credentials_source_test.go`, `core/scopes_test.go`
+
+---
+
 ## Relationship to Existing Work
 
 ### What this track does NOT change
