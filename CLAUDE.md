@@ -128,13 +128,13 @@ In-process e2e tests using `httptest.NewServer`. Auth server + 2 resource server
 
 | What | Import |
 |---|---|
-| User, Identity, Channel, store interfaces, tokens, credentials, scopes | `"github.com/panyam/oneauth/core"` |
+| User, Identity, Channel, store interfaces, tokens, credentials, scopes, UnionScopes | `"github.com/panyam/oneauth/core"` |
 | KeyStorage, KeyRecord, InMemoryKeyStore, EncryptedKeyStorage, JWKSHandler | `"github.com/panyam/oneauth/keys"` |
 | AdminAuth, AppRegistrar, MintResourceToken, AppQuota | `"github.com/panyam/oneauth/admin"` |
 | APIAuth, APIMiddleware, IntrospectionHandler, ProtectedResourceMetadata, ASServerMetadata | `"github.com/panyam/oneauth/apiauth"` |
 | LocalAuth, NewCreateUserFunc, NewCredentialsValidator | `"github.com/panyam/oneauth/localauth"` |
 | Middleware, CSRFMiddleware, CSRFTemplateField, OneAuth | `"github.com/panyam/oneauth/httpauth"` |
-| AuthClient, DiscoverAS, LoginWithBrowser, ClientCredentialsToken, FollowRedirects, SelectAuthMethod, TokenEndpointAuthMethod, WithASMetadata | `"github.com/panyam/oneauth/client"` |
+| AuthClient, DiscoverAS, LoginWithBrowser, ClientCredentialsToken, FollowRedirects, SelectAuthMethod, TokenEndpointAuthMethod, WithASMetadata, RegisterClient, ClientRegistrationRequest, ClientRegistrationResponse, ClientCredentialsSource, TokenSource, ScopeAwareTokenSource, ValidateHTTPS, IsLocalhost, ValidateCIMDURL | `"github.com/panyam/oneauth/client"` |
 | TestAuthServer, NewTestAuthServer, GetClientCredentialsToken, DiscoverOIDC | `"github.com/panyam/oneauth/testutil"` |
 
 ## Key Patterns
