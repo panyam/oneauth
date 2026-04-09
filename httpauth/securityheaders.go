@@ -37,6 +37,12 @@ type SecurityHeadersConfig struct {
 	ReferrerPolicy string
 	// Permissions-Policy value. Default: disables camera, mic, geo. Set to "" to disable.
 	PermissionsPolicy string
+	// Cross-Origin-Embedder-Policy value. Default: "credentialless". Set to "" to disable.
+	CrossOriginEmbedderPolicy string
+	// Cross-Origin-Opener-Policy value. Default: "same-origin". Set to "" to disable.
+	CrossOriginOpenerPolicy string
+	// Cross-Origin-Resource-Policy value. Default: "same-origin". Set to "" to disable.
+	CrossOriginResourcePolicy string
 }
 
 // DefaultSecurityHeadersConfig returns secure defaults.
@@ -47,7 +53,10 @@ func DefaultSecurityHeadersConfig() SecurityHeadersConfig {
 		FrameOptions:          "DENY",
 		ContentSecurityPolicy: "default-src 'self'",
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
-		PermissionsPolicy:     "camera=(), microphone=(), geolocation=()",
+		PermissionsPolicy:         "camera=(), microphone=(), geolocation=()",
+		CrossOriginEmbedderPolicy: "credentialless",
+		CrossOriginOpenerPolicy:   "same-origin",
+		CrossOriginResourcePolicy: "same-origin",
 	}
 }
 
@@ -79,6 +88,15 @@ func SecurityHeadersWithConfig(cfg SecurityHeadersConfig) func(http.Handler) htt
 			}
 			if cfg.PermissionsPolicy != "" {
 				h.Set("Permissions-Policy", cfg.PermissionsPolicy)
+			}
+			if cfg.CrossOriginEmbedderPolicy != "" {
+				h.Set("Cross-Origin-Embedder-Policy", cfg.CrossOriginEmbedderPolicy)
+			}
+			if cfg.CrossOriginOpenerPolicy != "" {
+				h.Set("Cross-Origin-Opener-Policy", cfg.CrossOriginOpenerPolicy)
+			}
+			if cfg.CrossOriginResourcePolicy != "" {
+				h.Set("Cross-Origin-Resource-Policy", cfg.CrossOriginResourcePolicy)
 			}
 
 			next.ServeHTTP(w, r)
