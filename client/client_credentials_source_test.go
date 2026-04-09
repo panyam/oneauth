@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -19,13 +20,13 @@ func tokenServer(t *testing.T, expiry time.Duration, requestCount *atomic.Int32)
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
-		requestCount.Add(1)
+		n := requestCount.Add(1)
 		// AuthClient sends form-encoded POST
 		assert.Equal(t, "client_credentials", r.FormValue("grant_type"))
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"access_token": "tok-" + time.Now().Format("150405.000"),
+			"access_token": fmt.Sprintf("tok-%d", n),
 			"token_type":   "Bearer",
 			"expires_in":   int(expiry.Seconds()),
 		})
