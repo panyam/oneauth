@@ -1,63 +1,65 @@
 === OneAuth Comprehensive Test Suite ===
-Started: Tue Apr  7 13:47:12 PDT 2026
+Started: Thu Apr  9 00:30:53 PDT 2026
 Starting PostgreSQL...
-a4b5c27bf5c707c812e3bd16ca2a5ce6f7ee511bd1d8429341b25fc90a81b422
+dab022e8b616a81577cc06acd83e2471e7f402cfeebf23aeca0462b80b6a25b5
 Starting Keycloak...
-9086165642cdfbd8accaad1f8d0e200cb8879d7312787df9202bf96173fe2361
+39aa6d87d57315a576ab2ae2a968f29fdffc17ec9a1bb530861abb8c3e54b8b2
 
 --- [1/9] Lint (staticcheck) ---
-GOFLAGS=-buildvcs=false staticcheck ./...
+[lint] Running staticcheck...
   PASS: lint
 
 --- [2/9] Unit tests (core + sub-modules race detector) ---
-go test -buildvcs=false -race -count=1 -short ./...
+[unit] Testing core module (race detector)...
 ?   	github.com/panyam/oneauth	[no test files]
-ok  	github.com/panyam/oneauth/admin	1.370s
-ok  	github.com/panyam/oneauth/apiauth	21.729s
-ok  	github.com/panyam/oneauth/client	2.059s
-ok  	github.com/panyam/oneauth/client/stores/fs	1.655s
-?   	github.com/panyam/oneauth/core	[no test files]
-ok  	github.com/panyam/oneauth/examples	2.391s
-ok  	github.com/panyam/oneauth/httpauth	1.807s
-ok  	github.com/panyam/oneauth/keys	3.496s
+ok  	github.com/panyam/oneauth/admin	1.947s
+ok  	github.com/panyam/oneauth/apiauth	30.213s
+ok  	github.com/panyam/oneauth/client	2.592s
+ok  	github.com/panyam/oneauth/client/stores/fs	2.248s
+ok  	github.com/panyam/oneauth/core	2.817s
+ok  	github.com/panyam/oneauth/examples	4.606s
+ok  	github.com/panyam/oneauth/httpauth	3.469s
+ok  	github.com/panyam/oneauth/keys	5.816s
 ?   	github.com/panyam/oneauth/keystoretest	[no test files]
-ok  	github.com/panyam/oneauth/localauth	51.651s
-ok  	github.com/panyam/oneauth/stores/fs	2.727s
-ok  	github.com/panyam/oneauth/tests/e2e	16.345s
-ok  	github.com/panyam/oneauth/testutil	3.233s
-ok  	github.com/panyam/oneauth/utils	3.706s
-Testing sub-module: stores/gorm
-ok  	github.com/panyam/oneauth/stores/gorm	0.368s
-Testing sub-module: stores/gae
-ok  	github.com/panyam/oneauth/stores/gae	0.300s
-Testing sub-module: grpc
-ok  	github.com/panyam/oneauth/grpc	0.246s
-Testing sub-module: oauth2
-ok  	github.com/panyam/oneauth/oauth2	0.218s
+ok  	github.com/panyam/oneauth/localauth	72.801s
+ok  	github.com/panyam/oneauth/stores/fs	2.692s
+ok  	github.com/panyam/oneauth/tests/e2e	23.444s
+ok  	github.com/panyam/oneauth/testutil	7.151s
+ok  	github.com/panyam/oneauth/utils	7.683s
+[unit] Testing sub-module: stores/gorm
+ok  	github.com/panyam/oneauth/stores/gorm	0.480s
+[unit] Testing sub-module: stores/gae
+ok  	github.com/panyam/oneauth/stores/gae	0.432s
+[unit] Testing sub-module: grpc
+ok  	github.com/panyam/oneauth/grpc	0.380s
+[unit] Testing sub-module: oauth2
+ok  	github.com/panyam/oneauth/oauth2	0.359s
+[unit] Done.
   PASS: unit
 
 --- [3/9] E2E tests (in-process race detector) ---
-go test -buildvcs=false -race -count=1 ./tests/e2e/
-ok  	github.com/panyam/oneauth/tests/e2e	14.121s
+[e2e] Running in-process e2e tests (race detector)...
+ok  	github.com/panyam/oneauth/tests/e2e	19.278s
   PASS: e2e
 
 --- [4/9] PostgreSQL / GORM tests ---
-ONEAUTH_TEST_PGDB=testdb ONEAUTH_TEST_PGPORT=5433 \
-		ONEAUTH_TEST_PGUSER=postgres ONEAUTH_TEST_PGPASSWORD=testpassword \
-		go test -buildvcs=false -count=1 ./stores/gorm/...
-ok  	github.com/panyam/oneauth/stores/gorm	0.698s
+[postgres] Running GORM tests against PostgreSQL on port 5433...
+ok  	github.com/panyam/oneauth/stores/gorm	0.924s
   PASS: postgres
 
 --- [5/9] Datastore tests ---
+[datastore] Checking credentials...
 SKIP: no credentials at ~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json
   PASS: datastore
 
 --- [6/9] Keycloak interop tests ---
-ok  	github.com/panyam/oneauth/tests/keycloak	2.037s
+[keycloak] Waiting for Keycloak on port 8180...
+[keycloak] Running interop tests...
+ok  	github.com/panyam/oneauth/tests/keycloak	2.388s
   PASS: keycloak
 
 --- [7/9] Secret scanning ---
-gitleaks detect --source . --config .gitleaks.toml
+[secrets] Scanning for leaked secrets...
 
     ○
     │╲
@@ -65,60 +67,138 @@ gitleaks detect --source . --config .gitleaks.toml
     ○ ░
     ░    gitleaks
 
-[90m1:48PM[0m [32mINF[0m [1mUnknown SCM platform. Use --platform to include links in findings.[0m [36mhost=[0mpanyam-github
-[90m1:48PM[0m [32mINF[0m [1m153 commits scanned.[0m
-[90m1:48PM[0m [32mINF[0m [1mscanned ~2116257 bytes (2.12 MB) in 311ms[0m
-[90m1:48PM[0m [32mINF[0m [1mno leaks found[0m
+[90m12:32AM[0m [32mINF[0m [1mUnknown SCM platform. Use --platform to include links in findings.[0m [36mhost=[0mpanyam-github
+[90m12:32AM[0m [32mINF[0m [1m161 commits scanned.[0m
+[90m12:32AM[0m [32mINF[0m [1mscanned ~2172454 bytes (2.17 MB) in 643ms[0m
+[90m12:32AM[0m [32mINF[0m [1mno leaks found[0m
   PASS: secrets
 
 --- [8/9] Vulnerability check ---
-govulncheck ./...
+[vulncheck] Checking for known vulnerabilities...
 No vulnerabilities found.
   PASS: vulncheck
 
 --- [9/9] ZAP baseline scan ---
-go build -buildvcs=false -o build/oneauth-server ./cmd/oneauth-server/
-2026/04/07 13:48:33 Using in-memory KeyStore (not persistent)
-2026/04/07 13:48:33 WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext
-2026/04/07 13:48:33 Using filesystem user stores at /tmp/oneauth-zap-test-all
-2026/04/07 13:48:33 oneauth-server listening on 0.0.0.0:19876 (keystore=memory, user_stores=fs, auth=api-key)
-2026-04-07 20:48:34,168 A file based option has been specified but the directory '/zap/wrk' is not mounted 
-Usage: zap-baseline.py -t <target> [options]
-    -t target         target URL including the protocol, e.g. https://www.example.com
-Options:
-    -h                print this help message
-    -c config_file    config file to use to INFO, IGNORE or FAIL warnings
-    -u config_url     URL of config file to use to INFO, IGNORE or FAIL warnings
-    -g gen_file       generate default config file (all rules set to WARN)
-    -m mins           the number of minutes to spider for (default 1)
-    -r report_html    file to write the full ZAP HTML report
-    -w report_md      file to write the full ZAP Wiki (Markdown) report
-    -x report_xml     file to write the full ZAP XML report
-    -J report_json    file to write the full ZAP JSON document
-    -a                include the alpha passive scan rules as well
-    -d                show debug messages
-    -P                specify listen port
-    -D secs           delay in seconds to wait for passive scanning 
-    -i                default rules not in the config file to INFO
-    -I                do not return failure on warning
-    -j                use the Ajax spider in addition to the traditional one
-    -l level          minimum level to show: PASS, IGNORE, INFO, WARN or FAIL, use with -s to hide example URLs
-    -n context_file   context file which will be loaded prior to spidering the target
-    -p progress_file  progress file which specifies issues that are being addressed
-    -s                short output format - dont show PASSes or example URLs
-    -T mins           max time in minutes to wait for ZAP to start and the passive scan to run
-    -U user           username to use for authenticated scans - must be defined in the given context file
-    -z zap_options    ZAP command line options e.g. -z "-config aaa=bbb -config ccc=ddd"
-    --hook            path to python file that define your custom hooks
-    --auto            use the automation framework if supported for the given parameters (this is now the default)
-    --autooff         do not use the automation framework even if supported for the given parameters
-    --plan-only       generate an automation framework plan but do not run it
+[zap] Building server...
+[zap] Starting server on :19876...
+2026/04/09 00:32:45 Using in-memory KeyStore (not persistent)
+2026/04/09 00:32:45 WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext
+2026/04/09 00:32:45 Using filesystem user stores at /tmp/oneauth-zap-test-all
+2026/04/09 00:32:45 oneauth-server listening on 0.0.0.0:19876 (keystore=memory, user_stores=fs, auth=api-key)
+2026/04/09 00:33:11 
+=== EMAIL: Password Reset ===
+2026/04/09 00:33:11 To: zaproxy@example.com
+2026/04/09 00:33:11 Subject: Reset your password
+2026/04/09 00:33:11 Body: Reset your password by clicking: http://localhost:19876/auth/reset-password?token=33b4c7612c426530c55d3ef3b3193d72ecfac49d6a96e0e9ae672067dd938505
+2026/04/09 00:33:11 ==============================
+2026/04/09 00:33:11 error validating user:  invalid credentials
+Using the Automation Framework
+Total of 9 URLs
+PASS: Vulnerable JS Library (Powered by Retire.js) [10003]
+PASS: In Page Banner Information Leak [10009]
+PASS: Cookie Without Secure Flag [10011]
+PASS: Re-examine Cache-control Directives [10015]
+PASS: Content-Type Header Missing [10019]
+PASS: Anti-clickjacking Header [10020]
+PASS: X-Content-Type-Options Header Missing [10021]
+PASS: Information Disclosure - Debug Error Messages [10023]
+PASS: Information Disclosure - Sensitive Information in URL [10024]
+PASS: Information Disclosure - Sensitive Information in HTTP Referrer Header [10025]
+PASS: HTTP Parameter Override [10026]
+PASS: Information Disclosure - Suspicious Comments [10027]
+PASS: Off-site Redirect [10028]
+PASS: Cookie Poisoning [10029]
+PASS: User Controllable Charset [10030]
+PASS: Viewstate [10032]
+PASS: Directory Browsing [10033]
+PASS: Heartbleed OpenSSL Vulnerability (Indicative) [10034]
+PASS: Strict-Transport-Security Header [10035]
+PASS: HTTP Server Response Header [10036]
+PASS: Server Leaks Information via "X-Powered-By" HTTP Response Header Field(s) [10037]
+PASS: Content Security Policy (CSP) Header Not Set [10038]
+PASS: X-Backend-Server Header Information Leak [10039]
+PASS: Secure Pages Include Mixed Content [10040]
+PASS: HTTP to HTTPS Insecure Transition in Form Post [10041]
+PASS: HTTPS to HTTP Insecure Transition in Form Post [10042]
+PASS: User Controllable JavaScript Event (XSS) [10043]
+PASS: Big Redirect Detected (Potential Sensitive Information Leak) [10044]
+PASS: Retrieved from Cache [10050]
+PASS: X-ChromeLogger-Data (XCOLD) Header Information Leak [10052]
+PASS: Cookie without SameSite Attribute [10054]
+PASS: X-Debug-Token Information Leak [10056]
+PASS: Username Hash Found [10057]
+PASS: X-AspNet-Version Response Header [10061]
+PASS: PII Disclosure [10062]
+PASS: Permissions Policy Header Not Set [10063]
+PASS: Base64 Disclosure [10094]
+PASS: Timestamp Disclosure [10096]
+PASS: Hash Disclosure [10097]
+PASS: Cross-Domain Misconfiguration [10098]
+PASS: Source Code Disclosure [10099]
+PASS: Weak Authentication Method [10105]
+PASS: Reverse Tabnabbing [10108]
+PASS: Modern Web Application [10109]
+PASS: Dangerous JS Functions [10110]
+PASS: Verification Request Identified [10113]
+PASS: Script Served From Malicious Domain (polyfill) [10115]
+PASS: ZAP is Out of Date [10116]
+PASS: Absence of Anti-CSRF Tokens [10202]
+PASS: Full Path Disclosure [110009]
+PASS: Private IP Disclosure [2]
+PASS: Session ID in URL Rewrite [3]
+PASS: Script Passive Scan Rules [50001]
+PASS: Stats Passive Scan Rule [50003]
+PASS: Insecure JSF ViewState [90001]
+PASS: Java Serialization Object [90002]
+PASS: Insufficient Site Isolation Against Spectre Vulnerability [90004]
+PASS: Charset Mismatch [90011]
+PASS: Application Error Disclosure [90022]
+PASS: WSDL File Detection [90030]
+PASS: Loosely Scoped Cookie [90033]
+IGNORE: Cookie No HttpOnly Flag [10010] x 1 
+	http://host.docker.internal:19876/auth/login (200 OK)
+IGNORE: Cross-Domain JavaScript Source File Inclusion [10017] x 5 
+	http://host.docker.internal:19876 (200 OK)
+	http://host.docker.internal:19876/ (200 OK)
+	http://host.docker.internal:19876/auth/forgot-password (200 OK)
+	http://host.docker.internal:19876/auth/login (200 OK)
+	http://host.docker.internal:19876/auth/signup (200 OK)
+IGNORE: User Controllable HTML Element Attribute (Potential XSS) [10031] x 2 
+	http://host.docker.internal:19876/auth/login (200 OK)
+	http://host.docker.internal:19876/auth/signup (200 OK)
+IGNORE: Non-Storable Content [10049] x 6 
+	http://host.docker.internal:19876/auth/forgot-password (303 See Other)
+	http://host.docker.internal:19876/ (200 OK)
+	http://host.docker.internal:19876/auth/login (200 OK)
+	http://host.docker.internal:19876/auth/signup (200 OK)
+	http://host.docker.internal:19876/robots.txt (404 Not Found)
+IGNORE: CSP: style-src unsafe-inline [10055] x 5 
+	http://host.docker.internal:19876 (200 OK)
+	http://host.docker.internal:19876/ (200 OK)
+	http://host.docker.internal:19876/auth/forgot-password (200 OK)
+	http://host.docker.internal:19876/auth/login (200 OK)
+	http://host.docker.internal:19876/auth/signup (200 OK)
+IGNORE: Authentication Request Identified [10111] x 1 
+	http://host.docker.internal:19876/auth/login (200 OK)
+IGNORE: Session Management Response Identified [10112] x 2 
+	http://host.docker.internal:19876/auth/login (200 OK)
+	http://host.docker.internal:19876/auth/login (200 OK)
+IGNORE: Sub Resource Integrity Attribute Missing [90003] x 5 
+	http://host.docker.internal:19876 (200 OK)
+	http://host.docker.internal:19876/ (200 OK)
+	http://host.docker.internal:19876/auth/forgot-password (200 OK)
+	http://host.docker.internal:19876/auth/login (200 OK)
+	http://host.docker.internal:19876/auth/signup (200 OK)
+IGNORE: Sec-Fetch-Dest Header is Missing [90005] x 11 
+	http://host.docker.internal:19876/robots.txt (404 Not Found)
+	http://host.docker.internal:19876/sitemap.xml (404 Not Found)
+	http://host.docker.internal:19876/auth/forgot-password (303 See Other)
+	http://host.docker.internal:19876/robots.txt (404 Not Found)
+	http://host.docker.internal:19876/sitemap.xml (404 Not Found)
+FAIL-NEW: 0	FAIL-INPROG: 0	WARN-NEW: 0	WARN-INPROG: 0	INFO: 0	IGNORE: 9	PASS: 61
+  PASS: zap
 
-For more details see https://www.zaproxy.org/docs/docker/baseline-scan/
-make[1]: *** [zap] Error 3
-  FAIL: zap
-
-=== Summary: 8 passed, 1 failed ===
-Finished: Tue Apr  7 13:48:34 PDT 2026
+=== Summary: 9 passed, 0 failed ===
+Finished: Thu Apr  9 00:33:20 PDT 2026
 oneauth-test-pg
 oneauth-test-keycloak
