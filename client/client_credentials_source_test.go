@@ -125,3 +125,118 @@ func TestClientCredentialsSource_TokenForScopes(t *testing.T) {
 	// Scopes should be merged (union) and sorted
 	assert.Equal(t, []string{"read", "write"}, src.Scopes)
 }
+
+// TestClientCredentialsSource_ProactiveRefresh verifies that when Refresher
+// is configured with a positive Buffer, a background goroutine refreshes
+// the token before its natural expiry. This avoids latency spikes on the
+// hot path for long-running M2M agents.
+func TestClientCredentialsSource_ProactiveRefresh(t *testing.T) {
+	var count atomic.Int32
+	// Token expires in 2s, refresh 1s before expiry = refresh fires at ~1s
+	// (minWait between iterations is 500ms, so this is comfortably above it)
+	srv := tokenServer(t, 2*time.Second, &count)
+	defer srv.Close()
+
+	src := &ClientCredentialsSource{
+		TokenEndpoint: srv.URL + "/token",
+		ClientID:      "test-client",
+		ClientSecret:  "test-secret",
+		Refresher: &ProactiveRefresher{
+			Buffer: 1 * time.Second,
+		},
+	}
+	defer src.Close()
+
+	// First Token() call fetches + starts background refresh
+	_, err := src.Token()
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), count.Load())
+
+	// Wait long enough for at least one background refresh to fire
+	// (first refresh at +1s, next at +2s)
+	time.Sleep(1500 * time.Millisecond)
+
+	// Count should have increased due to background refresh
+	if got := count.Load(); got < 2 {
+		t.Errorf("expected at least 2 token fetches (initial + background), got %d", got)
+	}
+}
+
+// TestClientCredentialsSource_CloseStopsRefresher verifies that Close()
+// stops the background refresh goroutine. After Close, no further token
+// fetches should occur from the background goroutine.
+func TestClientCredentialsSource_CloseStopsRefresher(t *testing.T) {
+	var count atomic.Int32
+	// Long-lived token so reactive path doesn't fire
+	srv := tokenServer(t, 1*time.Hour, &count)
+	defer srv.Close()
+
+	src := &ClientCredentialsSource{
+		TokenEndpoint: srv.URL + "/token",
+		ClientID:      "test-client",
+		ClientSecret:  "test-secret",
+		Refresher: &ProactiveRefresher{
+			Buffer: 30 * time.Second,
+		},
+	}
+
+	// Start the refresher
+	_, err := src.Token()
+	require.NoError(t, err)
+
+	// Close before any background refresh fires
+	require.NoError(t, src.Close())
+
+	// Capture count after close
+	beforeClose := count.Load()
+
+	// Wait long enough that background refresh would have fired if still running
+	time.Sleep(1 * time.Second)
+
+	// Count should not have increased
+	afterWait := count.Load()
+	if afterWait != beforeClose {
+		t.Errorf("expected no fetches after Close, got %d -> %d", beforeClose, afterWait)
+	}
+}
+
+// TestClientCredentialsSource_CloseIdempotent verifies that Close() can be
+// called multiple times without panicking or returning an error.
+func TestClientCredentialsSource_CloseIdempotent(t *testing.T) {
+	var count atomic.Int32
+	srv := tokenServer(t, 1*time.Hour, &count)
+	defer srv.Close()
+
+	src := &ClientCredentialsSource{
+		TokenEndpoint: srv.URL + "/token",
+		ClientID:      "test-client",
+		ClientSecret:  "test-secret",
+		Refresher: &ProactiveRefresher{
+			Buffer: 30 * time.Second,
+		},
+	}
+
+	_, err := src.Token()
+	require.NoError(t, err)
+
+	// Double close — should not panic
+	require.NoError(t, src.Close())
+	require.NoError(t, src.Close())
+}
+
+// TestClientCredentialsSource_CloseWithoutRefresher verifies that Close()
+// is safe to call when no Refresher is configured (reactive-only mode).
+func TestClientCredentialsSource_CloseWithoutRefresher(t *testing.T) {
+	var count atomic.Int32
+	srv := tokenServer(t, 1*time.Hour, &count)
+	defer srv.Close()
+
+	src := &ClientCredentialsSource{
+		TokenEndpoint: srv.URL + "/token",
+		ClientID:      "test-client",
+		ClientSecret:  "test-secret",
+		// No Refresher
+	}
+
+	require.NoError(t, src.Close()) // should be no-op
+}
