@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -222,6 +223,125 @@ func TestClientCredentialsSource_CloseIdempotent(t *testing.T) {
 	// Double close — should not panic
 	require.NoError(t, src.Close())
 	require.NoError(t, src.Close())
+}
+
+// TestClientCredentialsSource_TokenForScopesConcurrent verifies that
+// concurrent calls to TokenForScopes from multiple goroutines correctly
+// accumulate scopes via core.UnionScopes without losing any. The mutex
+// on the source ensures serial execution of the update, so the final
+// Scopes set should contain the union of all requested scopes (#138).
+func TestClientCredentialsSource_TokenForScopesConcurrent(t *testing.T) {
+	var count atomic.Int32
+	srv := tokenServer(t, 1*time.Hour, &count)
+	defer srv.Close()
+
+	src := &ClientCredentialsSource{
+		TokenEndpoint: srv.URL + "/token",
+		ClientID:      "test-client",
+		ClientSecret:  "test-secret",
+		Scopes:        []string{"base"},
+	}
+
+	// Fetch initial token
+	_, err := src.Token()
+	require.NoError(t, err)
+
+	// 5 goroutines each requesting different scopes
+	var wg sync.WaitGroup
+	scopeRequests := [][]string{
+		{"read"},
+		{"write"},
+		{"admin"},
+		{"delete"},
+		{"audit"},
+	}
+	for _, scopes := range scopeRequests {
+		wg.Add(1)
+		go func(s []string) {
+			defer wg.Done()
+			_, err := src.TokenForScopes(s)
+			if err != nil {
+				t.Errorf("TokenForScopes(%v) failed: %v", s, err)
+			}
+		}(scopes)
+	}
+	wg.Wait()
+
+	// All 5 scopes + initial "base" should be present in src.Scopes
+	expected := []string{"admin", "audit", "base", "delete", "read", "write"}
+	src.mu.Lock()
+	got := src.Scopes
+	src.mu.Unlock()
+	assert.ElementsMatch(t, expected, got,
+		"concurrent TokenForScopes should accumulate all scopes via union")
+}
+
+// TestClientCredentialsSource_TokenForScopesEmptySlice verifies that
+// calling TokenForScopes with an empty slice does NOT clear the existing
+// scope set (union with empty leaves current unchanged). This preserves
+// accumulated scopes in the edge case where a caller passes nil or []
+// defensively (#138).
+func TestClientCredentialsSource_TokenForScopesEmptySlice(t *testing.T) {
+	var count atomic.Int32
+	srv := tokenServer(t, 1*time.Hour, &count)
+	defer srv.Close()
+
+	src := &ClientCredentialsSource{
+		TokenEndpoint: srv.URL + "/token",
+		ClientID:      "test-client",
+		ClientSecret:  "test-secret",
+		Scopes:        []string{"read", "write"},
+	}
+
+	// Establish scope set
+	_, err := src.Token()
+	require.NoError(t, err)
+
+	// Call TokenForScopes with empty slice
+	_, err = src.TokenForScopes([]string{})
+	require.NoError(t, err)
+
+	// Scopes should be unchanged
+	src.mu.Lock()
+	got := src.Scopes
+	src.mu.Unlock()
+	assert.ElementsMatch(t, []string{"read", "write"}, got,
+		"empty slice should not clear existing scopes")
+}
+
+// TestClientCredentialsSource_TokenForScopesTriggersRefetch verifies that
+// calling TokenForScopes invalidates the cached token and triggers a
+// fresh fetch with the accumulated scopes (#138). Without cache
+// invalidation, a step-up call could return the stale narrow-scope token.
+func TestClientCredentialsSource_TokenForScopesTriggersRefetch(t *testing.T) {
+	var count atomic.Int32
+	srv := tokenServer(t, 1*time.Hour, &count)
+	defer srv.Close()
+
+	src := &ClientCredentialsSource{
+		TokenEndpoint: srv.URL + "/token",
+		ClientID:      "test-client",
+		ClientSecret:  "test-secret",
+		Scopes:        []string{"read"},
+	}
+
+	// Initial fetch
+	tok1, err := src.Token()
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), count.Load())
+
+	// Another Token() call — should return cached
+	tok2, err := src.Token()
+	require.NoError(t, err)
+	assert.Equal(t, tok1, tok2)
+	assert.Equal(t, int32(1), count.Load())
+
+	// TokenForScopes should invalidate cache and refetch
+	tok3, err := src.TokenForScopes([]string{"write"})
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), count.Load(), "TokenForScopes should trigger refetch")
+	// The returned token should differ from the cached one (fresh fetch)
+	assert.NotEqual(t, tok1, tok3)
 }
 
 // TestClientCredentialsSource_CloseWithoutRefresher verifies that Close()
