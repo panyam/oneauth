@@ -40,6 +40,8 @@ type DiscoveryOption func(*discoveryConfig)
 
 type discoveryConfig struct {
 	httpClient *http.Client
+	store      ASMetadataStore
+	cacheTTL   time.Duration
 }
 
 // WithHTTPClientForDiscovery sets a custom HTTP client for the discovery request.
@@ -47,6 +49,33 @@ type discoveryConfig struct {
 func WithHTTPClientForDiscovery(client *http.Client) DiscoveryOption {
 	return func(cfg *discoveryConfig) {
 		cfg.httpClient = client
+	}
+}
+
+// WithASMetadataStore enables caching of AS metadata via the given store.
+// When set, DiscoverAS checks the store first and returns the cached value
+// on hit. On miss, it fetches from the well-known endpoint and stores the
+// result with the configured TTL (or the store's default).
+//
+// Typical usage is to share a single store across multiple token sources
+// in the same process:
+//
+//	cache := client.NewMemoryASMetadataStore(0)
+//	md1, _ := client.DiscoverAS("https://auth.example.com", client.WithASMetadataStore(cache))
+//	md2, _ := client.DiscoverAS("https://auth.example.com", client.WithASMetadataStore(cache))
+//	// md2 returned from cache; no second HTTP fetch.
+func WithASMetadataStore(store ASMetadataStore) DiscoveryOption {
+	return func(cfg *discoveryConfig) {
+		cfg.store = store
+	}
+}
+
+// WithASCacheTTL sets a custom TTL for cache writes during discovery.
+// Only applies when a store is also provided via WithASMetadataStore.
+// A TTL of 0 uses the store's default TTL.
+func WithASCacheTTL(ttl time.Duration) DiscoveryOption {
+	return func(cfg *discoveryConfig) {
+		cfg.cacheTTL = ttl
 	}
 }
 
@@ -76,6 +105,13 @@ func DiscoverAS(issuerURL string, opts ...DiscoveryOption) (*ASMetadata, error) 
 	// Normalize: strip trailing slash
 	issuerURL = strings.TrimRight(issuerURL, "/")
 
+	// Check cache first if configured
+	if cfg.store != nil {
+		if md, ok := cfg.store.Get(issuerURL); ok {
+			return md, nil
+		}
+	}
+
 	// Build discovery URLs based on whether the issuer has a path
 	urls := buildDiscoveryURLs(issuerURL)
 
@@ -83,6 +119,10 @@ func DiscoverAS(issuerURL string, opts ...DiscoveryOption) (*ASMetadata, error) 
 	for _, u := range urls {
 		meta, err := fetchMetadata(cfg.httpClient, u)
 		if err == nil {
+			// Store in cache if configured
+			if cfg.store != nil {
+				cfg.store.Put(issuerURL, meta, cfg.cacheTTL)
+			}
 			return meta, nil
 		}
 		lastErr = err
