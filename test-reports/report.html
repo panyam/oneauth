@@ -16,7 +16,7 @@ th { background: #f5f5f5; font-weight: 600; }
 pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; max-height: 400px; overflow-y: auto; }
 </style></head><body>
 <h1>OneAuth Test Report</h1>
-<div class='meta'>Branch: <strong>claude/mcpkit-issue-158-gR17h</strong> | Commit: <code>2b7c6dd</code> | Date: 2026-04-09 00:33:21</div>
+<div class='meta'>Branch: <strong>feature/as-cache-and-proactive-refresh</strong> | Commit: <code>2cca692</code> | Date: 2026-04-10 13:37:55</div>
 <table><tr><th>Stage</th><th>Result</th></tr>
 <tr><td>lint</td><td class='pass'>PASS</td></tr>
 <tr><td>unit</td><td class='pass'>PASS</td></tr>
@@ -31,11 +31,11 @@ pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; 
 <div class='summary-pass'>All 9 stages passed</div>
 <h2>Full Log</h2><pre>
 === OneAuth Comprehensive Test Suite ===
-Started: Thu Apr  9 00:30:53 PDT 2026
+Started: Fri Apr 10 13:35:42 PDT 2026
 Starting PostgreSQL...
-dab022e8b616a81577cc06acd83e2471e7f402cfeebf23aeca0462b80b6a25b5
+3a86aa60451048d340fb2c0dac47ce94f46524118da42afe38e381f6182d15ae
 Starting Keycloak...
-39aa6d87d57315a576ab2ae2a968f29fdffc17ec9a1bb530861abb8c3e54b8b2
+350bc5ed32b12edaa5125b713c298af9df2932fff83228e5c49e8dcc5c606d9c
 
 --- [1/9] Lint (staticcheck) ---
 [lint] Running staticcheck...
@@ -44,39 +44,39 @@ Starting Keycloak...
 --- [2/9] Unit tests (core + sub-modules race detector) ---
 [unit] Testing core module (race detector)...
 ?   	github.com/panyam/oneauth	[no test files]
-ok  	github.com/panyam/oneauth/admin	1.947s
-ok  	github.com/panyam/oneauth/apiauth	30.213s
-ok  	github.com/panyam/oneauth/client	2.592s
-ok  	github.com/panyam/oneauth/client/stores/fs	2.248s
-ok  	github.com/panyam/oneauth/core	2.817s
-ok  	github.com/panyam/oneauth/examples	4.606s
-ok  	github.com/panyam/oneauth/httpauth	3.469s
-ok  	github.com/panyam/oneauth/keys	5.816s
+ok  	github.com/panyam/oneauth/admin	1.625s
+ok  	github.com/panyam/oneauth/apiauth	21.684s
+ok  	github.com/panyam/oneauth/client	6.996s
+ok  	github.com/panyam/oneauth/client/stores/fs	3.266s
+ok  	github.com/panyam/oneauth/core	1.588s
+ok  	github.com/panyam/oneauth/examples	3.390s
+ok  	github.com/panyam/oneauth/httpauth	3.442s
+ok  	github.com/panyam/oneauth/keys	3.697s
 ?   	github.com/panyam/oneauth/keystoretest	[no test files]
-ok  	github.com/panyam/oneauth/localauth	72.801s
-ok  	github.com/panyam/oneauth/stores/fs	2.692s
-ok  	github.com/panyam/oneauth/tests/e2e	23.444s
-ok  	github.com/panyam/oneauth/testutil	7.151s
-ok  	github.com/panyam/oneauth/utils	7.683s
+ok  	github.com/panyam/oneauth/localauth	49.634s
+ok  	github.com/panyam/oneauth/stores/fs	1.981s
+ok  	github.com/panyam/oneauth/tests/e2e	16.029s
+ok  	github.com/panyam/oneauth/testutil	4.860s
+ok  	github.com/panyam/oneauth/utils	4.632s
 [unit] Testing sub-module: stores/gorm
-ok  	github.com/panyam/oneauth/stores/gorm	0.480s
+ok  	github.com/panyam/oneauth/stores/gorm	0.596s
 [unit] Testing sub-module: stores/gae
-ok  	github.com/panyam/oneauth/stores/gae	0.432s
+ok  	github.com/panyam/oneauth/stores/gae	0.484s
 [unit] Testing sub-module: grpc
-ok  	github.com/panyam/oneauth/grpc	0.380s
+ok  	github.com/panyam/oneauth/grpc	0.319s
 [unit] Testing sub-module: oauth2
-ok  	github.com/panyam/oneauth/oauth2	0.359s
+ok  	github.com/panyam/oneauth/oauth2	0.311s
 [unit] Done.
   PASS: unit
 
 --- [3/9] E2E tests (in-process race detector) ---
 [e2e] Running in-process e2e tests (race detector)...
-ok  	github.com/panyam/oneauth/tests/e2e	19.278s
+ok  	github.com/panyam/oneauth/tests/e2e	13.751s
   PASS: e2e
 
 --- [4/9] PostgreSQL / GORM tests ---
 [postgres] Running GORM tests against PostgreSQL on port 5433...
-ok  	github.com/panyam/oneauth/stores/gorm	0.924s
+ok  	github.com/panyam/oneauth/stores/gorm	0.833s
   PASS: postgres
 
 --- [5/9] Datastore tests ---
@@ -87,7 +87,7 @@ SKIP: no credentials at ~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json
 --- [6/9] Keycloak interop tests ---
 [keycloak] Waiting for Keycloak on port 8180...
 [keycloak] Running interop tests...
-ok  	github.com/panyam/oneauth/tests/keycloak	2.388s
+ok  	github.com/panyam/oneauth/tests/keycloak	2.249s
   PASS: keycloak
 
 --- [7/9] Secret scanning ---
@@ -99,10 +99,10 @@ ok  	github.com/panyam/oneauth/tests/keycloak	2.388s
     ○ ░
     ░    gitleaks
 
-[90m12:32AM[0m [32mINF[0m [1mUnknown SCM platform. Use --platform to include links in findings.[0m [36mhost=[0mpanyam-github
-[90m12:32AM[0m [32mINF[0m [1m161 commits scanned.[0m
-[90m12:32AM[0m [32mINF[0m [1mscanned ~2172454 bytes (2.17 MB) in 643ms[0m
-[90m12:32AM[0m [32mINF[0m [1mno leaks found[0m
+[90m1:37PM[0m [32mINF[0m [1mUnknown SCM platform. Use --platform to include links in findings.[0m [36mhost=[0mpanyam-github
+[90m1:37PM[0m [32mINF[0m [1m164 commits scanned.[0m
+[90m1:37PM[0m [32mINF[0m [1mscanned ~2210700 bytes (2.21 MB) in 558ms[0m
+[90m1:37PM[0m [32mINF[0m [1mno leaks found[0m
   PASS: secrets
 
 --- [8/9] Vulnerability check ---
@@ -113,17 +113,17 @@ No vulnerabilities found.
 --- [9/9] ZAP baseline scan ---
 [zap] Building server...
 [zap] Starting server on :19876...
-2026/04/09 00:32:45 Using in-memory KeyStore (not persistent)
-2026/04/09 00:32:45 WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext
-2026/04/09 00:32:45 Using filesystem user stores at /tmp/oneauth-zap-test-all
-2026/04/09 00:32:45 oneauth-server listening on 0.0.0.0:19876 (keystore=memory, user_stores=fs, auth=api-key)
-2026/04/09 00:33:11 
+2026/04/10 13:37:07 Using in-memory KeyStore (not persistent)
+2026/04/10 13:37:07 WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext
+2026/04/10 13:37:07 Using filesystem user stores at /tmp/oneauth-zap-test-all
+2026/04/10 13:37:07 oneauth-server listening on 0.0.0.0:19876 (keystore=memory, user_stores=fs, auth=api-key)
+2026/04/10 13:37:45 
 === EMAIL: Password Reset ===
-2026/04/09 00:33:11 To: zaproxy@example.com
-2026/04/09 00:33:11 Subject: Reset your password
-2026/04/09 00:33:11 Body: Reset your password by clicking: http://localhost:19876/auth/reset-password?token=33b4c7612c426530c55d3ef3b3193d72ecfac49d6a96e0e9ae672067dd938505
-2026/04/09 00:33:11 ==============================
-2026/04/09 00:33:11 error validating user:  invalid credentials
+2026/04/10 13:37:45 To: zaproxy@example.com
+2026/04/10 13:37:45 Subject: Reset your password
+2026/04/10 13:37:45 Body: Reset your password by clicking: http://localhost:19876/auth/reset-password?token=fb9ace421f46532c62c5f8e3b7f9a1f3be4dc847b30d35ce2fc877bec447b3f0
+2026/04/10 13:37:45 ==============================
+2026/04/10 13:37:45 error validating user:  invalid credentials
 Using the Automation Framework
 Total of 9 URLs
 PASS: Vulnerable JS Library (Powered by Retire.js) [10003]
@@ -193,45 +193,45 @@ IGNORE: Cross-Domain JavaScript Source File Inclusion [10017] x 5
 	http://host.docker.internal:19876 (200 OK)
 	http://host.docker.internal:19876/ (200 OK)
 	http://host.docker.internal:19876/auth/forgot-password (200 OK)
+	http://host.docker.internal:19876/auth/forgot-password?sent=true (200 OK)
 	http://host.docker.internal:19876/auth/login (200 OK)
-	http://host.docker.internal:19876/auth/signup (200 OK)
 IGNORE: User Controllable HTML Element Attribute (Potential XSS) [10031] x 2 
 	http://host.docker.internal:19876/auth/login (200 OK)
 	http://host.docker.internal:19876/auth/signup (200 OK)
 IGNORE: Non-Storable Content [10049] x 6 
 	http://host.docker.internal:19876/auth/forgot-password (303 See Other)
-	http://host.docker.internal:19876/ (200 OK)
-	http://host.docker.internal:19876/auth/login (200 OK)
+	http://host.docker.internal:19876/auth/forgot-password (200 OK)
+	http://host.docker.internal:19876/auth/forgot-password?sent=true (200 OK)
 	http://host.docker.internal:19876/auth/signup (200 OK)
 	http://host.docker.internal:19876/robots.txt (404 Not Found)
 IGNORE: CSP: style-src unsafe-inline [10055] x 5 
 	http://host.docker.internal:19876 (200 OK)
-	http://host.docker.internal:19876/ (200 OK)
 	http://host.docker.internal:19876/auth/forgot-password (200 OK)
+	http://host.docker.internal:19876/auth/forgot-password?sent=true (200 OK)
 	http://host.docker.internal:19876/auth/login (200 OK)
-	http://host.docker.internal:19876/auth/signup (200 OK)
+	http://host.docker.internal:19876/auth/login (200 OK)
 IGNORE: Authentication Request Identified [10111] x 1 
 	http://host.docker.internal:19876/auth/login (200 OK)
 IGNORE: Session Management Response Identified [10112] x 2 
 	http://host.docker.internal:19876/auth/login (200 OK)
 	http://host.docker.internal:19876/auth/login (200 OK)
 IGNORE: Sub Resource Integrity Attribute Missing [90003] x 5 
-	http://host.docker.internal:19876 (200 OK)
-	http://host.docker.internal:19876/ (200 OK)
 	http://host.docker.internal:19876/auth/forgot-password (200 OK)
+	http://host.docker.internal:19876/auth/forgot-password?sent=true (200 OK)
 	http://host.docker.internal:19876/auth/login (200 OK)
 	http://host.docker.internal:19876/auth/signup (200 OK)
-IGNORE: Sec-Fetch-Dest Header is Missing [90005] x 11 
+	http://host.docker.internal:19876/auth/login (200 OK)
+IGNORE: Sec-Fetch-Dest Header is Missing [90005] x 18 
+	http://host.docker.internal:19876 (200 OK)
+	http://host.docker.internal:19876/auth/forgot-password (200 OK)
 	http://host.docker.internal:19876/robots.txt (404 Not Found)
 	http://host.docker.internal:19876/sitemap.xml (404 Not Found)
 	http://host.docker.internal:19876/auth/forgot-password (303 See Other)
-	http://host.docker.internal:19876/robots.txt (404 Not Found)
-	http://host.docker.internal:19876/sitemap.xml (404 Not Found)
 FAIL-NEW: 0	FAIL-INPROG: 0	WARN-NEW: 0	WARN-INPROG: 0	INFO: 0	IGNORE: 9	PASS: 61
   PASS: zap
 
 === Summary: 9 passed, 0 failed ===
-Finished: Thu Apr  9 00:33:20 PDT 2026
+Finished: Fri Apr 10 13:37:55 PDT 2026
 oneauth-test-pg
 oneauth-test-keycloak
 </pre>
