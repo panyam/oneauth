@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/datastore v1.21.0
 	cloud.google.com/go/secretmanager v1.16.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/panyam/oneauth v0.0.69
+	github.com/panyam/oneauth v0.0.70
 	github.com/panyam/oneauth/stores/gae v0.0.69
 	github.com/panyam/oneauth/stores/gorm v0.0.69
 	golang.org/x/oauth2 v0.34.0
