@@ -71,6 +71,28 @@ The repo is a Go workspace with multiple modules. The core module is lightweight
 
 **Publish workflow:** `make norep` → tag all modules → push → `make rep` → `make tidy`
 
+### Releasing Sub-Modules (gotcha)
+
+Sub-module `go.mod` files contain `replace github.com/panyam/oneauth => ../..` so local dev works against unreleased root changes, but the `require github.com/panyam/oneauth vX.Y.Z` line must point to a **real, released root tag** — Go ignores `replace` directives in non-main (dependency) modules, so downstream consumers need a resolvable version.
+
+**The v0.0.0 and stale-require bug**: before `scripts/verify-submodule-deps.sh` was added, sub-module go.mod files drifted — some referenced `v0.0.0` (tests/keycloak pseudo-version style), others referenced `v0.0.39` (unchanged across many root releases up to v0.0.69). This worked locally but broke any downstream consumer doing `go get github.com/panyam/oneauth/stores/gorm@vX.Y.Z`. Caught by `make verify-submodule-deps` (wired into `make test` and optional pre-push hook).
+
+**Release order** when cutting a new root tag (N=current number):
+1. Commit root-only changes.
+2. Tag root: `git tag -a v0.0.N -m "v0.0.N"`.
+3. Push the root tag: `git push origin v0.0.N`.
+4. In each sub-module's `go.mod`, bump `require github.com/panyam/oneauth vX.Y.Z` to the new root tag. Keep the `replace` line. For sub-modules that cross-reference (e.g., `cmd/oneauth-server` requires `stores/gorm`), also bump the cross-sub-module require to match.
+5. Run `go mod tidy` in each sub-module (or `make tidy`).
+6. Commit: `chore: bump sub-modules to v0.0.N`.
+7. Tag each sub-module: `git tag -a stores/gorm/v0.0.N -m "stores/gorm/v0.0.N"`, same for `stores/gae`, `cmd/oneauth-server`, `cmd/demo-hostapp`, `cmd/demo-resource-server`. Sub-module tag numbers historically track root exactly.
+8. Push the sub-module tags.
+
+**Don't retag published sub-module versions.** Go module proxies cache aggressively; retagging `stores/gorm/v0.0.68` after the fact is a known footgun that breaks existing fetches. Ship a new version instead.
+
+**Test modules are not tagged.** `tests/keycloak` uses a zero pseudo-version for its root requirement — it's a test harness, not published, so it's excluded from the verification script.
+
+See [mcpkit#189](https://github.com/panyam/mcpkit/issues/189) for the same bug in a sibling repo.
+
 ## Build & Test Commands
 
 ```bash

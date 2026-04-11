@@ -22,8 +22,29 @@ type AuthClient struct {
 	store         CredentialStore
 	httpClient    *http.Client
 	baseTransport http.RoundTripper
-	tokenEndpoint string       // e.g., "/auth/cli/token"
-	cachedASMeta  *ASMetadata  // cached AS discovery metadata for auth method negotiation
+	tokenEndpoint string      // e.g., "/auth/cli/token"
+	cachedASMeta  *ASMetadata // cached AS discovery metadata for auth method negotiation
+
+	// OnToken is an optional callback invoked after a successful token
+	// refresh (the refresh_token grant path through refreshTokenLocked).
+	// It fires AFTER the new credential has been stored via CredentialStore,
+	// so consumers can use the callback for side-effects (logging, metrics,
+	// external persistence) that should observe the post-refresh state.
+	//
+	// Thread safety: the callback is invoked synchronously from whichever
+	// goroutine triggered the refresh. Implementations must be thread-safe
+	// if the AuthClient is shared across goroutines.
+	//
+	// Lock contract: the callback runs while the AuthClient internal mutex
+	// is held — same as CredentialStore.SetCredential. Callbacks must NOT
+	// re-enter AuthClient methods (GetToken, GetCredential, Login,
+	// refreshTokenLocked) or they will deadlock. Callbacks should be
+	// lightweight and non-blocking.
+	//
+	// Does NOT fire for initial logins (Login, LoginWithBrowser) — those
+	// return the credential directly to the caller, who can persist it
+	// explicitly. Only the automatic refresh_token grant path fires this.
+	OnToken func(*ServerCredential)
 }
 
 // OAuth2TokenRequest is the request body for token endpoint
@@ -290,8 +311,13 @@ func (c *AuthClient) IsLoggedIn() bool {
 	return !cred.IsExpired()
 }
 
-// refreshTokenLocked refreshes the access token using the refresh token
-// Caller must hold c.mu
+// refreshTokenLocked refreshes the access token using the refresh token.
+// Caller must hold c.mu.
+//
+// On success, stores the new credential via the CredentialStore and then
+// invokes OnToken (if set) with a copy of the new credential. Both run
+// under the caller's lock — callers must not re-enter AuthClient methods
+// from within OnToken (see the OnToken doc for the full contract).
 func (c *AuthClient) refreshTokenLocked(cred *ServerCredential) error {
 	req := OAuth2TokenRequest{
 		GrantType:    "refresh_token",
@@ -317,7 +343,17 @@ func (c *AuthClient) refreshTokenLocked(cred *ServerCredential) error {
 		return fmt.Errorf("failed to store refreshed credential: %w", err)
 	}
 
-	return c.store.Save()
+	if err := c.store.Save(); err != nil {
+		return err
+	}
+
+	// Fire OnToken after successful store+save. Pass a copy so the
+	// callback cannot mutate the stored value.
+	if c.OnToken != nil {
+		cp := *newCred
+		c.OnToken(&cp)
+	}
+	return nil
 }
 
 // requestTokenForm sends a form-encoded (application/x-www-form-urlencoded)

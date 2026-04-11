@@ -1,6 +1,12 @@
 
-test: lint
+test: lint verify-submodule-deps
 	go test -v ./...
+
+# Verify that sub-module go.mod files require a real, tagged version of the
+# root module. Catches the v0.0.0 placeholder and multi-bump staleness.
+# See CLAUDE.md "Releasing Sub-Modules" for the release order.
+verify-submodule-deps:
+	@bash scripts/verify-submodule-deps.sh
 
 # Run ALL tests: unit tests → e2e (in-process) → secrets scan -> Keycloak
 test-hard: tallmods e2e secrets testkcl
@@ -577,4 +583,4 @@ audit: vulncheck secrets
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
 	upkcl downkcl kcllogs testkcl deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy deps norep rep \
-	tag pushtag seccheck
+	tag pushtag seccheck verify-submodule-deps
