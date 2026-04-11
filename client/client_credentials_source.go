@@ -61,6 +61,25 @@ type ClientCredentialsSource struct {
 	// Close() is called on the source.
 	Refresher *ProactiveRefresher
 
+	// OnToken is an optional callback invoked after every successful token
+	// acquisition — both the initial fetch and all subsequent refreshes
+	// (reactive and proactive). Use this to persist the credential to an
+	// external store (file, database) without implementing a full
+	// CredentialStore.
+	//
+	// Thread safety: the callback may be invoked from the caller's
+	// goroutine (initial/reactive path) or from the background refresh
+	// goroutine (proactive path). Implementations must be thread-safe.
+	//
+	// The callback holds no locks of the source, so calling back into
+	// Token() from within the callback is safe (but useless — it will
+	// return the same token that was just passed in).
+	//
+	// The credential passed to the callback is the same value returned
+	// from AuthClient.ClientCredentialsToken. Mutating it from within the
+	// callback is not safe.
+	OnToken func(*ServerCredential)
+
 	mu     sync.Mutex
 	client *AuthClient
 	token  string
@@ -87,6 +106,9 @@ type ProactiveRefresher struct {
 //
 // If Refresher.Buffer > 0, the background refresh goroutine starts lazily
 // on the first Token() call.
+//
+// Invokes OnToken (if set) after a successful fetch, outside the source's
+// mutex — callbacks are free to call back into Token() without deadlock.
 func (s *ClientCredentialsSource) Token() (string, error) {
 	if s.Refresher != nil && s.Refresher.Buffer > 0 {
 		s.Refresher.once.Do(func() {
@@ -96,18 +118,25 @@ func (s *ClientCredentialsSource) Token() (string, error) {
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.token != "" && time.Now().Add(tokenExpiryBuffer).Before(s.expiry) {
-		return s.token, nil
+		tok := s.token
+		s.mu.Unlock()
+		return tok, nil
 	}
 
-	return s.fetchTokenLocked()
+	cred, err := s.fetchTokenLocked()
+	s.mu.Unlock()
+	if err != nil {
+		return "", err
+	}
+	s.fireOnToken(cred)
+	return cred.AccessToken, nil
 }
 
-// fetchTokenLocked performs a client_credentials token fetch.
-// Caller must hold s.mu.
-func (s *ClientCredentialsSource) fetchTokenLocked() (string, error) {
+// fetchTokenLocked performs a client_credentials token fetch and updates
+// the in-memory cache. Caller must hold s.mu. Returns the fetched
+// credential so the caller can invoke OnToken outside the lock.
+func (s *ClientCredentialsSource) fetchTokenLocked() (*ServerCredential, error) {
 	if s.client == nil {
 		s.client = NewAuthClient(s.TokenEndpoint, nil,
 			WithASMetadata(&ASMetadata{TokenEndpoint: s.TokenEndpoint}))
@@ -115,12 +144,24 @@ func (s *ClientCredentialsSource) fetchTokenLocked() (string, error) {
 
 	cred, err := s.client.ClientCredentialsToken(s.ClientID, s.ClientSecret, s.Scopes)
 	if err != nil {
-		return "", fmt.Errorf("client credentials: %w", err)
+		return nil, fmt.Errorf("client credentials: %w", err)
 	}
 
 	s.token = cred.AccessToken
 	s.expiry = cred.ExpiresAt
-	return s.token, nil
+	return cred, nil
+}
+
+// fireOnToken invokes the OnToken callback with a copy of the credential,
+// if set. Must be called outside the source's mutex so callbacks are free
+// to re-enter Token() without deadlock. The copy ensures the callback
+// cannot mutate internal cache state.
+func (s *ClientCredentialsSource) fireOnToken(cred *ServerCredential) {
+	if s.OnToken == nil || cred == nil {
+		return
+	}
+	copy := *cred
+	s.OnToken(&copy)
 }
 
 // backgroundRefresh runs in a goroutine and refreshes the token before
@@ -169,10 +210,13 @@ func (s *ClientCredentialsSource) backgroundRefresh() {
 // reactively if the token is actually expired by then.
 func (s *ClientCredentialsSource) doBackgroundRefresh() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, err := s.fetchTokenLocked(); err != nil {
+	cred, err := s.fetchTokenLocked()
+	s.mu.Unlock()
+	if err != nil {
 		log.Printf("oneauth: proactive token refresh failed: %v (will retry reactively)", err)
+		return
 	}
+	s.fireOnToken(cred)
 }
 
 // Close stops the background refresh goroutine if one is running.
