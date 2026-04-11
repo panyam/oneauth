@@ -514,6 +514,26 @@ tidy:
 	go mod tidy
 	@for mod in $(SUBMODULES); do (cd $$mod && go mod tidy) || exit 1; done
 
+# Alias for consistency with other projects (mcpkit uses this name).
+tidy-all: tidy
+
+# Bump each sub-module's require github.com/panyam/oneauth to a specific tag.
+# Usage: make bump-root V=v0.0.70
+#
+# Only touches the root self-reference. Cross-sub-module references
+# (e.g. stores/gorm referenced from cmd/oneauth-server) have their own
+# independent timelines and must be bumped manually when needed.
+bump-root:
+	@if [ -z "$(V)" ]; then echo "Usage: make bump-root V=v0.0.70"; exit 1; fi
+	@for mod in $(SUBMODULES); do \
+		if [ ! -f "$$mod/go.mod" ]; then continue; fi; \
+		if ! grep -q "github.com/panyam/oneauth v" "$$mod/go.mod"; then continue; fi; \
+		echo "==> $$mod/go.mod: require github.com/panyam/oneauth $(V)"; \
+		(cd $$mod && go mod edit -require=github.com/panyam/oneauth@$(V)) || exit 1; \
+	done
+	@$(MAKE) -s tidy
+	@$(MAKE) -s verify-submodule-deps
+
 # Dep count for core module
 deps:
 	@echo "Direct: $$(grep -c '^\t' go.mod) | Transitive: $$(go list -m all 2>/dev/null | wc -l | tr -d ' ')"
@@ -582,5 +602,5 @@ audit: vulncheck secrets
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
 	upkcl downkcl kcllogs testkcl deploygae gaelogs integ docs \
-	setup-tools setup-hooks setup ball tallmods tidy deps norep rep \
-	tag pushtag seccheck verify-submodule-deps
+	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
+	deps norep rep tag pushtag seccheck verify-submodule-deps
