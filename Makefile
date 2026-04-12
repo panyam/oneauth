@@ -44,6 +44,34 @@ lint:
 	@echo "[lint] Running staticcheck..."
 	@GOFLAGS=-buildvcs=false staticcheck ./...
 
+cover: ## Run tests with coverage summary (root module only)
+	@go test -buildvcs=false -cover ./... -count=1 -timeout 60s
+
+cover-html: ## Run tests with coverage and generate HTML report (root module only)
+	@mkdir -p $(REPORT_DIR)
+	go test -buildvcs=false -coverprofile=$(REPORT_DIR)/coverage.out ./... -count=1 -timeout 60s
+	go tool cover -html=$(REPORT_DIR)/coverage.out -o $(REPORT_DIR)/coverage.html
+	@echo "Coverage report: $(REPORT_DIR)/coverage.html"
+
+cover-func: ## Show per-function coverage sorted by lowest (top 30)
+	@mkdir -p $(REPORT_DIR)
+	go test -buildvcs=false -coverprofile=$(REPORT_DIR)/coverage.out ./... -count=1 -timeout 60s
+	go tool cover -func=$(REPORT_DIR)/coverage.out | sort -k3 -n | head -30
+
+cover-all: ## Run coverage across root + all library sub-modules, generate per-module HTML reports
+	@mkdir -p $(REPORT_DIR)
+	@echo "==> coverage: root module"
+	@go test -buildvcs=false -coverprofile=$(REPORT_DIR)/coverage-root.out ./... -count=1 -timeout 60s
+	@go tool cover -html=$(REPORT_DIR)/coverage-root.out -o $(REPORT_DIR)/coverage-root.html
+	@for mod in $(LIBS); do \
+		echo "==> coverage: $$mod"; \
+		(cd $$mod && go test -buildvcs=false -coverprofile=../../$(REPORT_DIR)/coverage-$$(echo $$mod | tr / -).out ./... -count=1 -timeout 30s) || true; \
+		go tool cover -html=$(REPORT_DIR)/coverage-$$(echo $$mod | tr / -).out -o $(REPORT_DIR)/coverage-$$(echo $$mod | tr / -).html 2>/dev/null || true; \
+	done
+	@echo ""
+	@echo "Coverage reports:"
+	@ls -1 $(REPORT_DIR)/coverage-*.html 2>/dev/null
+
 # Unit tests: core module + sub-modules, race detector enabled
 unit:
 	@echo "[unit] Testing core module (race detector)..."
@@ -166,7 +194,7 @@ testall:
 	@sleep 3
 	@PASS=0; FAIL=0; STAGES=""; \
 	$(call RUN_STAGE,[1/9] Lint (staticcheck),lint,lint); \
-	$(call RUN_STAGE,[2/9] Unit tests (core + sub-modules race detector),unit,unit); \
+	$(call RUN_STAGE,[2/9] Unit tests + coverage (core + sub-modules),unit+coverage,cover-html); \
 	$(call RUN_STAGE,[3/9] E2E tests (in-process race detector),e2e,e2e); \
 	$(call RUN_STAGE,[4/9] PostgreSQL / GORM tests,postgres,postgres); \
 	$(call RUN_STAGE,[5/9] Datastore tests,datastore,datastore); \
@@ -603,4 +631,5 @@ audit: vulncheck secrets
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
 	upkcl downkcl kcllogs testkcl deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
-	deps norep rep tag pushtag seccheck verify-submodule-deps
+	deps norep rep tag pushtag seccheck verify-submodule-deps \
+	cover cover-html cover-func cover-all
