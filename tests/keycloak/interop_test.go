@@ -780,6 +780,114 @@ func (m *kclCredentialStore) ListServers() ([]string, error) {
 func (m *kclCredentialStore) Save() error { return nil }
 
 // =============================================================================
+// RFC 8414 AS Metadata Proxy Tests
+// =============================================================================
+
+// TestKeycloak_RFC8414Proxy verifies that MountProtectedResource proxies
+// Keycloak's AS metadata at the RFC 8414 path on the resource server.
+// Keycloak only serves OIDC discovery — the proxy fetches from OIDC and
+// serves at RFC 8414, bridging the gap for clients like VS Code.
+//
+// Spec refs:
+//   - RFC 8414 §3: https://www.rfc-editor.org/rfc/rfc8414#section-3
+//   - RFC 9728 §3: https://www.rfc-editor.org/rfc/rfc9728#section-3
+func TestKeycloak_RFC8414Proxy(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	// Mount PRM + RFC 8414 proxy pointing at Keycloak
+	mux := http.NewServeMux()
+	apiauth.MountProtectedResource(mux, &apiauth.ProtectedResourceMetadata{
+		Resource:             "http://test-resource-server",
+		AuthorizationServers: []string{realmURL()},
+	}, true)
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	// 1. PRM should return Keycloak as AS
+	resp, err := http.Get(ts.URL + "/.well-known/oauth-protected-resource")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("PRM status = %d", resp.StatusCode)
+	}
+
+	// 2. RFC 8414 path-based proxy should return Keycloak's AS metadata
+	// This is the path VS Code would try: /.well-known/oauth-authorization-server/realms/oneauth-test
+	rfc8414URL := ts.URL + "/.well-known/oauth-authorization-server/realms/" + realmName
+	resp2, err := http.Get(rfc8414URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 200 {
+		body, _ := io.ReadAll(resp2.Body)
+		t.Fatalf("RFC 8414 proxy status = %d, body: %s", resp2.StatusCode, string(body))
+	}
+
+	var meta map[string]any
+	if err := decodeJSON(resp2.Body, &meta); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify it contains Keycloak's actual endpoints
+	if meta["issuer"] == nil {
+		t.Error("missing issuer in proxied AS metadata")
+	}
+	if meta["authorization_endpoint"] == nil {
+		t.Error("missing authorization_endpoint in proxied AS metadata")
+	}
+	if meta["token_endpoint"] == nil {
+		t.Error("missing token_endpoint in proxied AS metadata")
+	}
+	if meta["jwks_uri"] == nil {
+		t.Error("missing jwks_uri in proxied AS metadata")
+	}
+
+	// Verify issuer matches Keycloak realm
+	if issuer, ok := meta["issuer"].(string); ok {
+		if !strings.Contains(issuer, realmName) {
+			t.Errorf("issuer %q doesn't contain realm name %q", issuer, realmName)
+		}
+	}
+
+	t.Logf("RFC 8414 proxy returned AS metadata with issuer=%v, authorization_endpoint=%v",
+		meta["issuer"], meta["authorization_endpoint"])
+}
+
+// TestKeycloak_RFC8414Proxy_SimplePathAlsoWorks verifies the simple (non-path-based)
+// RFC 8414 endpoint also works as a fallback.
+func TestKeycloak_RFC8414Proxy_SimplePathAlsoWorks(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	mux := http.NewServeMux()
+	apiauth.MountProtectedResource(mux, &apiauth.ProtectedResourceMetadata{
+		Resource:             "http://test-resource-server",
+		AuthorizationServers: []string{realmURL()},
+	}, true)
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/.well-known/oauth-authorization-server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("simple RFC 8414 path status = %d", resp.StatusCode)
+	}
+
+	var meta map[string]any
+	decodeJSON(resp.Body, &meta)
+	if meta["authorization_endpoint"] == nil {
+		t.Error("missing authorization_endpoint")
+	}
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
 

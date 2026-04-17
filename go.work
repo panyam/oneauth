@@ -10,4 +10,5 @@ use (
 	./cmd/oneauth-server
 	./cmd/demo-hostapp
 	./cmd/demo-resource-server
+	./tests/keycloak
 )
