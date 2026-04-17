@@ -194,7 +194,7 @@ testall:
 	@sleep 3
 	@PASS=0; FAIL=0; STAGES=""; \
 	$(call RUN_STAGE,[1/9] Lint (staticcheck),lint,lint); \
-	$(call RUN_STAGE,[2/9] Unit tests + coverage (core + sub-modules),unit+coverage,cover-html); \
+	$(call RUN_STAGE,[2/9] Unit tests + coverage (core + sub-modules),cover-html,unit+coverage); \
 	$(call RUN_STAGE,[3/9] E2E tests (in-process race detector),e2e,e2e); \
 	$(call RUN_STAGE,[4/9] PostgreSQL / GORM tests,postgres,postgres); \
 	$(call RUN_STAGE,[5/9] Datastore tests,datastore,datastore); \
