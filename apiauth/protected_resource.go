@@ -52,6 +52,62 @@ type ProtectedResourceMetadata struct {
 	CacheMaxAge int `json:"-"`
 }
 
+// MountProtectedResource mounts the PRM endpoint on the given mux and
+// optionally proxies AS metadata at the RFC 8414 well-known path. This
+// ensures that clients which only try RFC 8414 discovery (and don't fall
+// back to OIDC discovery) can find the AS metadata via the resource server.
+//
+// Spec references:
+//   - RFC 9728 §3: PRM at /.well-known/oauth-protected-resource
+//     https://www.rfc-editor.org/rfc/rfc9728#section-3
+//   - RFC 8414 §3: AS metadata at /.well-known/oauth-authorization-server
+//     https://www.rfc-editor.org/rfc/rfc8414#section-3
+//   - MCP Auth (2025-11-25): clients discover AS via PRM → RFC 8414
+//     https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization
+//
+// When proxyASMetadata is true, for each URL in AuthorizationServers:
+//   - Fetches the AS's OIDC discovery document (with RFC 8414 fallback)
+//   - Caches and serves it at /.well-known/oauth-authorization-server on the resource server
+//   - Also serves path-based RFC 8414 (e.g., /.well-known/oauth-authorization-server/realms/foo)
+//
+// This bridges OIDC-only providers (Keycloak, Auth0) that don't natively
+// serve RFC 8414 metadata.
+//
+// Usage:
+//
+//	MountProtectedResource(mux, meta, true)
+//	// PRM at: /.well-known/oauth-protected-resource
+//	// AS metadata at: /.well-known/oauth-authorization-server (proxied)
+func MountProtectedResource(mux *http.ServeMux, meta *ProtectedResourceMetadata, proxyASMetadata bool, pathPrefix ...string) {
+	// Mount PRM
+	prmPath := "/.well-known/oauth-protected-resource"
+	if len(pathPrefix) > 0 && pathPrefix[0] != "" {
+		mux.Handle(prmPath+pathPrefix[0], NewProtectedResourceHandler(meta))
+	}
+	mux.Handle(prmPath, NewProtectedResourceHandler(meta))
+
+	if !proxyASMetadata {
+		return
+	}
+
+	// Mount RFC 8414 AS metadata proxy for each authorization server.
+	// Clients that discover the PRM and try RFC 8414 at the AS URL will
+	// get 404 from OIDC-only providers. They may retry at the resource
+	// server URL, where this proxy serves the cached metadata.
+	for _, asURL := range meta.AuthorizationServers {
+		proxy := NewASMetadataProxy(asURL, 0)
+		_, asPath := splitASOriginPath(asURL)
+
+		if asPath != "" {
+			// Path-based AS (e.g., Keycloak realms):
+			// /.well-known/oauth-authorization-server/realms/foo
+			mux.Handle("/.well-known/oauth-authorization-server"+asPath, proxy)
+		}
+		// Also mount at the simple path for non-path-based AS or as fallback
+		mux.Handle("/.well-known/oauth-authorization-server", proxy)
+	}
+}
+
 // NewProtectedResourceHandler returns an http.Handler that serves the
 // Protected Resource Metadata JSON at GET /.well-known/oauth-protected-resource.
 //
