@@ -3,10 +3,13 @@ package testutil
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/httpauth"
@@ -94,9 +97,12 @@ func WithScopes(scopes []string) Option {
 // The server signs JWTs with RS256 and serves the public key via JWKS.
 // Apps can be registered via /apps/register or /apps/dcr (RFC 7591),
 // and tokens can be obtained via /api/token (client_credentials grant).
-func NewTestAuthServer(t *testing.T, opts ...Option) *TestAuthServer {
-	t.Helper()
-
+// NewAuthServer creates an in-process OAuth authorization server without
+// requiring *testing.T. Use this in standalone examples, benchmarks, or
+// any non-test context. The caller must call Close() when done.
+//
+// For test code, prefer NewTestAuthServer which auto-registers cleanup.
+func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	cfg := config{
 		adminKey: defaultAdminKey,
 		issuer:   defaultIssuer,
@@ -106,21 +112,19 @@ func NewTestAuthServer(t *testing.T, opts ...Option) *TestAuthServer {
 		opt(&cfg)
 	}
 
-	// Generate RSA 2048 key pair
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		t.Fatalf("testutil: failed to generate RSA key: %v", err)
+		return nil, fmt.Errorf("testutil: failed to generate RSA key: %w", err)
 	}
 
-	// Store public key in KeyStore so JWKS can serve it
 	ks := keys.NewInMemoryKeyStore()
 	pubPEM, err := utils.EncodePublicKeyPEM(&privKey.PublicKey)
 	if err != nil {
-		t.Fatalf("testutil: failed to encode public key: %v", err)
+		return nil, fmt.Errorf("testutil: failed to encode public key: %w", err)
 	}
 	kid, err := utils.ComputeKid(&privKey.PublicKey, "RS256")
 	if err != nil {
-		t.Fatalf("testutil: failed to compute kid: %v", err)
+		return nil, fmt.Errorf("testutil: failed to compute kid: %w", err)
 	}
 	if err := ks.PutKey(&keys.KeyRecord{
 		ClientID:  cfg.issuer,
@@ -128,13 +132,11 @@ func NewTestAuthServer(t *testing.T, opts ...Option) *TestAuthServer {
 		Algorithm: "RS256",
 		Kid:       kid,
 	}); err != nil {
-		t.Fatalf("testutil: failed to store RSA key: %v", err)
+		return nil, fmt.Errorf("testutil: failed to store RSA key: %w", err)
 	}
 
-	// App registrar
 	registrar := admin.NewAppRegistrar(ks, admin.NewAPIKeyAuth(cfg.adminKey))
 
-	// APIAuth configured for RS256
 	apiAuth := &apiauth.APIAuth{
 		JWTSigningAlg:  "RS256",
 		JWTSigningKey:  privKey,
@@ -144,18 +146,14 @@ func NewTestAuthServer(t *testing.T, opts ...Option) *TestAuthServer {
 		ClientKeyStore: ks,
 	}
 
-	// Introspection
 	introspection := &apiauth.IntrospectionHandler{
 		Auth:           apiAuth,
 		ClientKeyStore: ks,
 	}
 
-	// JWKS
 	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
 
-	// Wire mux
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("GET /_ah/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
@@ -165,16 +163,11 @@ func NewTestAuthServer(t *testing.T, opts ...Option) *TestAuthServer {
 	mux.Handle("/apps/", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
 	mux.Handle("/apps", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
 
-	// Start server
 	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
 
-	// Register AS metadata now that we know the server URL.
-	// This works because the mux is the same pointer the server is using.
 	baseURL := server.URL
 	issuer := cfg.issuer
 	if issuer == defaultIssuer {
-		// Default issuer to server URL (standard for self-contained test servers)
 		issuer = baseURL
 		apiAuth.JWTIssuer = issuer
 	}
@@ -204,7 +197,19 @@ func NewTestAuthServer(t *testing.T, opts ...Option) *TestAuthServer {
 			audience: cfg.audience,
 			scopes:   cfg.scopes,
 		},
+	}, nil
+}
+
+// NewTestAuthServer creates an in-process authorization server for tests.
+// Cleanup is registered via t.Cleanup — the server is stopped automatically.
+func NewTestAuthServer(t *testing.T, opts ...Option) *TestAuthServer {
+	t.Helper()
+	s, err := NewAuthServer(opts...)
+	if err != nil {
+		t.Fatal(err)
 	}
+	t.Cleanup(s.Close)
+	return s
 }
 
 // URL returns the base URL of the test auth server (e.g., "http://127.0.0.1:PORT").
@@ -230,4 +235,27 @@ func (s *TestAuthServer) AdminKey() string {
 // Issuer returns the JWT issuer configured for this server.
 func (s *TestAuthServer) Issuer() string {
 	return s.cfg.issuer
+}
+
+// Close stops the underlying HTTP server.
+func (s *TestAuthServer) Close() {
+	if s.Server != nil {
+		s.Server.Close()
+	}
+}
+
+// MintTokenForSubject creates a valid RS256 JWT for the given subject and scopes.
+// The token has iss=server issuer, aud=server audience, exp=15 min.
+// Use this in standalone examples that don't have *testing.T.
+func (s *TestAuthServer) MintTokenForSubject(subject string, scopes []string) (string, error) {
+	claims := jwt.MapClaims{
+		"sub": subject,
+	}
+	if s.cfg.audience != "" {
+		claims["aud"] = s.cfg.audience
+	}
+	if len(scopes) > 0 {
+		claims["scope"] = strings.Join(scopes, " ")
+	}
+	return s.MintTokenWithClaims(claims)
 }
