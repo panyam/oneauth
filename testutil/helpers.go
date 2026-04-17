@@ -89,7 +89,7 @@ func GetClientCredentialsToken(t *testing.T, tokenEndpoint, clientID, clientSecr
 	if len(scopes) > 0 {
 		data.Set("scope", strings.Join(scopes, " "))
 	}
-	return postToken(t, tokenEndpoint, data)
+	return PostTokenEndpoint(t, tokenEndpoint, data)
 }
 
 // GetPasswordToken acquires a token using the OAuth 2.0 resource owner
@@ -106,12 +106,14 @@ func GetPasswordToken(t *testing.T, tokenEndpoint, clientID, clientSecret, usern
 		"username":      {username},
 		"password":      {password},
 	}
-	return postToken(t, tokenEndpoint, data)
+	return PostTokenEndpoint(t, tokenEndpoint, data)
 }
 
-// postToken sends a POST request to the token endpoint with the given form
-// data and decodes the JSON response. Calls t.Fatal on HTTP or decode errors.
-func postToken(t *testing.T, tokenEndpoint string, data url.Values) TokenResponse {
+// PostTokenEndpoint sends a form POST to an OAuth token endpoint and decodes
+// the JSON response into a TokenResponse. Use this for any grant type — the
+// convenience functions (GetClientCredentialsToken, GetPasswordToken) delegate
+// here. Calls t.Fatal on HTTP or decode errors.
+func PostTokenEndpoint(t *testing.T, tokenEndpoint string, data url.Values) TokenResponse {
 	t.Helper()
 	resp, err := http.PostForm(tokenEndpoint, data)
 	if err != nil {
