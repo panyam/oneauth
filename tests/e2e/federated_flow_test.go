@@ -29,7 +29,7 @@ func TestFederated_MintAndValidate(t *testing.T) {
 
 	// Mint resource token
 	token, err := admin.MintResourceToken("fed-user@example.com", clientID, clientSecret,
-		admin.AppQuota{MaxRooms: 10}, []string{"collab"})
+		admin.AppQuota{MaxRooms: 10}, []string{"collab"}, nil)
 	require.NoError(t, err)
 
 	// Validate against resource server A
@@ -58,7 +58,7 @@ func TestFederated_WrongSecretRejected(t *testing.T) {
 
 	// Mint with wrong secret
 	token, err := admin.MintResourceToken("hacker@evil.com", clientID, "wrong-secret",
-		admin.AppQuota{}, []string{"read"})
+		admin.AppQuota{}, []string{"read"}, nil)
 	require.NoError(t, err)
 
 	req, _ := http.NewRequest("POST", env.ResourceAURL()+"/validate", nil)
@@ -82,7 +82,7 @@ func TestFederated_CrossResourceServer(t *testing.T) {
 	defer NewTestClient(env).Delete("/apps/" + clientID)
 
 	token, err := admin.MintResourceToken("user@example.com", clientID, clientSecret,
-		admin.AppQuota{}, []string{"read"})
+		admin.AppQuota{}, []string{"read"}, nil)
 	require.NoError(t, err)
 
 	for _, rsURL := range []string{env.ResourceAURL(), env.ResourceBURL()} {
@@ -106,7 +106,7 @@ func TestFederated_DeletedAppTokenRejected(t *testing.T) {
 	clientID, clientSecret := RegisterApp(t, env, "delete-fed.example.com")
 
 	token, err := admin.MintResourceToken("user@example.com", clientID, clientSecret,
-		admin.AppQuota{}, []string{"read"})
+		admin.AppQuota{}, []string{"read"}, nil)
 	require.NoError(t, err)
 
 	// Delete the app

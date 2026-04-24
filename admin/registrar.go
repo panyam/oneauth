@@ -16,13 +16,14 @@ import (
 
 // AppRegistration holds metadata about a registered App.
 type AppRegistration struct {
-	ClientID     string    `json:"client_id"`
-	ClientDomain string    `json:"client_domain"`
-	SigningAlg   string    `json:"signing_alg"`
-	MaxRooms     int       `json:"max_rooms,omitempty"`
-	MaxMsgRate   float64   `json:"max_msg_rate,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	Revoked      bool      `json:"revoked"`
+	ClientID                  string    `json:"client_id"`
+	ClientDomain              string    `json:"client_domain"`
+	SigningAlg                string    `json:"signing_alg"`
+	MaxRooms                  int       `json:"max_rooms,omitempty"`
+	MaxMsgRate                float64   `json:"max_msg_rate,omitempty"`
+	AuthorizationDetailsTypes []string  `json:"authorization_details_types,omitempty"` // RFC 9396
+	CreatedAt                 time.Time `json:"created_at"`
+	Revoked                   bool      `json:"revoked"`
 }
 
 // AppRegistrar is an embeddable HTTP handler for App registration CRUD.

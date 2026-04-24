@@ -24,7 +24,7 @@ import (
 
 func TestMintResourceToken_HasKid(t *testing.T) {
 	secret := "test-secret-for-kid"
-	tokenStr, err := admin.MintResourceToken("user-1", "app-1", secret, admin.AppQuota{}, []string{"read"})
+	tokenStr, err := admin.MintResourceToken("user-1", "app-1", secret, admin.AppQuota{}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestMintResourceTokenWithKey_RSA_HasKid(t *testing.T) {
 	}
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 
-	tokenStr, err := admin.MintResourceTokenWithKey("user-1", "app-rsa", privKey, admin.AppQuota{}, []string{"read"})
+	tokenStr, err := admin.MintResourceTokenWithKey("user-1", "app-rsa", privKey, admin.AppQuota{}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestValidateJWT_WithKid(t *testing.T) {
 	ks.RegisterKey("app-1", secret, "HS256")
 
 	// Mint token (now includes kid header)
-	tokenStr, _ := admin.MintResourceToken("user-1", "app-1", string(secret), admin.AppQuota{}, []string{"read"})
+	tokenStr, _ := admin.MintResourceToken("user-1", "app-1", string(secret), admin.AppQuota{}, []string{"read"}, nil)
 
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	var gotUserID string
@@ -382,7 +382,7 @@ func TestValidateJWT_CrossAppRejectedViaKid(t *testing.T) {
 
 	// Mint with app-a's secret but claim client_id=app-b
 	// The kid will be derived from secret-a, so cross-check should fail
-	tokenStr, _ := admin.MintResourceToken("user-1", "app-b", "secret-a", admin.AppQuota{}, []string{"read"})
+	tokenStr, _ := admin.MintResourceToken("user-1", "app-b", "secret-a", admin.AppQuota{}, []string{"read"}, nil)
 
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -426,7 +426,7 @@ func TestAppRegistrar_RotateWithGrace(t *testing.T) {
 	oldSecret := regResp["client_secret"].(string)
 
 	// Mint token with old secret
-	oldToken, _ := admin.MintResourceToken("user-1", clientID, oldSecret, admin.AppQuota{}, []string{"read"})
+	oldToken, _ := admin.MintResourceToken("user-1", clientID, oldSecret, admin.AppQuota{}, []string{"read"}, nil)
 
 	// Rotate with grace period
 	rotBody, _ := json.Marshal(map[string]any{"grace_period": "1h"})
@@ -464,7 +464,7 @@ func TestAppRegistrar_RotateWithGrace(t *testing.T) {
 	}
 
 	// New token should work
-	newToken, _ := admin.MintResourceToken("user-1", clientID, newSecret, admin.AppQuota{}, []string{"read"})
+	newToken, _ := admin.MintResourceToken("user-1", clientID, newSecret, admin.AppQuota{}, []string{"read"}, nil)
 	req = httptest.NewRequest(http.MethodGet, "/resource", nil)
 	req.Header.Set("Authorization", "Bearer "+newToken)
 	rr = httptest.NewRecorder()
@@ -494,7 +494,7 @@ func TestAppRegistrar_RotateExpiredGrace(t *testing.T) {
 	clientID := regResp["client_id"].(string)
 	oldSecret := regResp["client_secret"].(string)
 
-	oldToken, _ := admin.MintResourceToken("user-1", clientID, oldSecret, admin.AppQuota{}, []string{"read"})
+	oldToken, _ := admin.MintResourceToken("user-1", clientID, oldSecret, admin.AppQuota{}, []string{"read"}, nil)
 
 	// Rotate (uses default tiny grace period)
 	req = httptest.NewRequest(http.MethodPost, "/apps/"+clientID+"/rotate", nil)

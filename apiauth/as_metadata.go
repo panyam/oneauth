@@ -32,7 +32,8 @@ type ASServerMetadata struct {
 	UserinfoEndpoint      string `json:"userinfo_endpoint,omitempty"`
 
 	// Supported features
-	ScopesSupported               []string `json:"scopes_supported,omitempty"`
+	AuthorizationDetailsTypesSupported []string `json:"authorization_details_types_supported,omitempty"` // RFC 9396
+	ScopesSupported                    []string `json:"scopes_supported,omitempty"`
 	ResponseTypesSupported        []string `json:"response_types_supported,omitempty"`
 	GrantTypesSupported           []string `json:"grant_types_supported,omitempty"`
 	TokenEndpointAuthMethods      []string `json:"token_endpoint_auth_methods_supported,omitempty"`

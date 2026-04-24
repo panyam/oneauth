@@ -17,7 +17,7 @@ func TestMintResourceToken_Basic(t *testing.T) {
 	token, err := admin.MintResourceToken("user-123", "app-abc", "my-secret", admin.AppQuota{
 		MaxRooms:   10,
 		MaxMsgRate: 30.0,
-	}, []string{"read", "write"})
+	}, []string{"read", "write"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceToken failed: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestMintResourceToken_Basic(t *testing.T) {
 
 // TestMintResourceToken_NoQuota verifies that zero-value quota fields are omitted from JWT claims.
 func TestMintResourceToken_NoQuota(t *testing.T) {
-	token, err := admin.MintResourceToken("user-1", "app-1", "secret", admin.AppQuota{}, []string{"read"})
+	token, err := admin.MintResourceToken("user-1", "app-1", "secret", admin.AppQuota{}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceToken failed: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestMintResourceToken_VerifiableByMiddleware(t *testing.T) {
 	clientID := "app-excaliframe"
 
 	// App mints token
-	token, err := admin.MintResourceToken("user-42", clientID, secret, admin.AppQuota{}, []string{"read"})
+	token, err := admin.MintResourceToken("user-42", clientID, secret, admin.AppQuota{}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceToken failed: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestMintResourceToken_VerifiableByMiddleware(t *testing.T) {
 // TestMintResourceToken_WrongSecretRejected verifies that a token signed with one secret
 // is rejected when verified with a different secret.
 func TestMintResourceToken_WrongSecretRejected(t *testing.T) {
-	token, _ := admin.MintResourceToken("user-1", "app-1", "correct-secret", admin.AppQuota{}, []string{"read"})
+	token, _ := admin.MintResourceToken("user-1", "app-1", "correct-secret", admin.AppQuota{}, []string{"read"}, nil)
 
 	// Verify with wrong secret should fail
 	_, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {

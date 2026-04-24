@@ -49,6 +49,9 @@ type ClientCredentialsSource struct {
 	// Scopes to request.
 	Scopes []string
 
+	// AuthorizationDetails to request (RFC 9396). Sent alongside scopes.
+	AuthorizationDetails []core.AuthorizationDetail
+
 	// Audience is the resource server's canonical URI (RFC 8707 resource indicator).
 	Audience string
 

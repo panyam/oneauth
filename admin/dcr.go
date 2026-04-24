@@ -48,6 +48,9 @@ type DCRRequest struct {
 	// Authentication method
 	TokenEndpointAuthMethod string `json:"token_endpoint_auth_method,omitempty"`
 
+	// RFC 9396 — authorization details types this client intends to use
+	AuthorizationDetailsTypes []string `json:"authorization_details_types,omitempty"`
+
 	// Keys — for asymmetric auth methods (private_key_jwt)
 	JWKS *utils.JWKSet `json:"jwks,omitempty"`
 }
@@ -62,9 +65,10 @@ type DCRResponse struct {
 	ClientName              string   `json:"client_name,omitempty"`
 	ClientURI               string   `json:"client_uri,omitempty"`
 	RedirectURIs            []string `json:"redirect_uris,omitempty"`
-	GrantTypes              []string `json:"grant_types,omitempty"`
-	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
-	Scope                   string   `json:"scope,omitempty"`
+	GrantTypes                []string `json:"grant_types,omitempty"`
+	TokenEndpointAuthMethod   string   `json:"token_endpoint_auth_method,omitempty"`
+	Scope                     string   `json:"scope,omitempty"`
+	AuthorizationDetailsTypes []string `json:"authorization_details_types,omitempty"` // RFC 9396
 }
 
 // ServeHTTP handles POST /register per RFC 7591.
@@ -113,15 +117,16 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := DCRResponse{
-		ClientID:                clientID,
-		ClientIDIssuedAt:        time.Now().Unix(),
-		ClientSecretExpiresAt:   0, // never expires
-		ClientName:              req.ClientName,
-		ClientURI:               req.ClientURI,
-		RedirectURIs:            req.RedirectURIs,
-		GrantTypes:              req.GrantTypes,
-		TokenEndpointAuthMethod: req.TokenEndpointAuthMethod,
-		Scope:                   req.Scope,
+		ClientID:                  clientID,
+		ClientIDIssuedAt:          time.Now().Unix(),
+		ClientSecretExpiresAt:     0, // never expires
+		ClientName:                req.ClientName,
+		ClientURI:                 req.ClientURI,
+		RedirectURIs:              req.RedirectURIs,
+		GrantTypes:                req.GrantTypes,
+		TokenEndpointAuthMethod:   req.TokenEndpointAuthMethod,
+		Scope:                     req.Scope,
+		AuthorizationDetailsTypes: req.AuthorizationDetailsTypes,
 	}
 
 	if utils.IsAsymmetricAlg(signingAlg) {
@@ -165,10 +170,11 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			domain = req.ClientName
 		}
 		reg := &AppRegistration{
-			ClientID:     clientID,
-			ClientDomain: domain,
-			SigningAlg:   signingAlg,
-			CreatedAt:    time.Now(),
+			ClientID:                  clientID,
+			ClientDomain:              domain,
+			SigningAlg:                signingAlg,
+			AuthorizationDetailsTypes: req.AuthorizationDetailsTypes,
+			CreatedAt:                 time.Now(),
 		}
 		h.Registrar.mu.Lock()
 		h.Registrar.apps[clientID] = reg

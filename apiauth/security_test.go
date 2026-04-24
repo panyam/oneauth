@@ -261,7 +261,7 @@ func TestSecurity_EmptySigningKey_Errors(t *testing.T) {
 // TestSecurity_NilKey_MintResourceToken proves that MintResourceTokenWithKey
 // returns an error when given a nil signing key.
 func TestSecurity_NilKey_MintResourceToken(t *testing.T) {
-	_, err := admin.MintResourceTokenWithKey("user1", "app1", nil, admin.AppQuota{}, []string{"read"})
+	_, err := admin.MintResourceTokenWithKey("user1", "app1", nil, admin.AppQuota{}, []string{"read"}, nil)
 	assert.Error(t, err, "nil signing key must return error")
 }
 
@@ -348,7 +348,7 @@ func TestSecurity_ScopeEscalation_Prevented(t *testing.T) {
 
 	// Mint with admin scope
 	token, _ := admin.MintResourceToken("user1", "app1", "secret",
-		admin.AppQuota{}, []string{"admin"})
+		admin.AppQuota{}, []string{"admin"}, nil)
 
 	// RequireScopes("admin") allows it
 	mw := &apiauth.APIMiddleware{KeyStore: ks}

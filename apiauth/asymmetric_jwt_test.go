@@ -32,7 +32,7 @@ func TestMintResourceTokenWithKey_RS256(t *testing.T) {
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	pubKey, _ := utils.ParsePublicKeyPEM(pubPEM)
 
-	tokenStr, err := admin.MintResourceTokenWithKey("user-1", "app-rsa", privKey, admin.AppQuota{MaxRooms: 5}, []string{"read"})
+	tokenStr, err := admin.MintResourceTokenWithKey("user-1", "app-rsa", privKey, admin.AppQuota{MaxRooms: 5}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceTokenWithKey: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestMintResourceTokenWithKey_ES256(t *testing.T) {
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	pubKey, _ := utils.ParsePublicKeyPEM(pubPEM)
 
-	tokenStr, err := admin.MintResourceTokenWithKey("user-2", "app-ec", privKey, admin.AppQuota{}, []string{"write"})
+	tokenStr, err := admin.MintResourceTokenWithKey("user-2", "app-ec", privKey, admin.AppQuota{}, []string{"write"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceTokenWithKey: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestMintResourceTokenWithKey_WrongKey(t *testing.T) {
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	otherPub, _ := utils.ParsePublicKeyPEM(otherPubPEM)
 
-	tokenStr, _ := admin.MintResourceTokenWithKey("user-1", "app-rsa", privKey, admin.AppQuota{}, []string{"read"})
+	tokenStr, _ := admin.MintResourceTokenWithKey("user-1", "app-rsa", privKey, admin.AppQuota{}, []string{"read"}, nil)
 
 	// Verify with wrong public key — should fail
 	_, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
@@ -109,7 +109,7 @@ func TestMintResourceTokenWithKey_WrongKey(t *testing.T) {
 // (HS256) API still works correctly alongside the new asymmetric key API.
 func TestMintResourceTokenWithKey_BackwardsCompat(t *testing.T) {
 	// MintResourceToken (old API) should still work
-	tokenStr, err := admin.MintResourceToken("user-1", "app-hs", "my-secret", admin.AppQuota{MaxRooms: 3}, []string{"read"})
+	tokenStr, err := admin.MintResourceToken("user-1", "app-hs", "my-secret", admin.AppQuota{MaxRooms: 3}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceToken: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestAPIMiddleware_RS256_MultiTenant(t *testing.T) {
 	ks.RegisterKey("app-rsa", pubPEM, "RS256")
 
 	// Mint a token with the private key
-	tokenStr, err := admin.MintResourceTokenWithKey("user-1", "app-rsa", privKey, admin.AppQuota{}, []string{"read"})
+	tokenStr, err := admin.MintResourceTokenWithKey("user-1", "app-rsa", privKey, admin.AppQuota{}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceTokenWithKey: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestAPIMiddleware_ES256_MultiTenant(t *testing.T) {
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	ks.RegisterKey("app-ec", pubPEM, "ES256")
 
-	tokenStr, _ := admin.MintResourceTokenWithKey("user-2", "app-ec", privKey, admin.AppQuota{}, []string{"write"})
+	tokenStr, _ := admin.MintResourceTokenWithKey("user-2", "app-ec", privKey, admin.AppQuota{}, []string{"write"}, nil)
 
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -395,7 +395,7 @@ func TestAPIMiddleware_AlgorithmConfusion(t *testing.T) {
 
 func mustMintHS256(t *testing.T, userID, clientID, secret string) string {
 	t.Helper()
-	tok, err := admin.MintResourceToken(userID, clientID, secret, admin.AppQuota{}, []string{"read"})
+	tok, err := admin.MintResourceToken(userID, clientID, secret, admin.AppQuota{}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceToken: %v", err)
 	}
@@ -404,7 +404,7 @@ func mustMintHS256(t *testing.T, userID, clientID, secret string) string {
 
 func mustMintWithKey(t *testing.T, userID, clientID string, key any) string {
 	t.Helper()
-	tok, err := admin.MintResourceTokenWithKey(userID, clientID, key, admin.AppQuota{}, []string{"read"})
+	tok, err := admin.MintResourceTokenWithKey(userID, clientID, key, admin.AppQuota{}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceTokenWithKey: %v", err)
 	}
