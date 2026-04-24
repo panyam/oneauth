@@ -80,10 +80,10 @@ func TestInMemoryBlacklist_Cleanup(t *testing.T) {
 func TestBlacklist_JTIInAccessToken(t *testing.T) {
 	auth := &apiauth.APIAuth{JWTSecretKey: "test-secret"}
 
-	token1, _, err := auth.CreateAccessToken("user1", []string{"read"})
+	token1, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
 	require.NoError(t, err)
 
-	token2, _, err := auth.CreateAccessToken("user1", []string{"read"})
+	token2, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
 	require.NoError(t, err)
 
 	// Parse tokens to extract jti
@@ -116,7 +116,7 @@ func TestBlacklist_RevokedTokenRejected(t *testing.T) {
 		Blacklist:    bl,
 	}
 
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"})
+	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
 	require.NoError(t, err)
 
 	// Token should work before revocation
@@ -145,7 +145,7 @@ func TestBlacklist_NonRevokedTokenAccepted(t *testing.T) {
 		Blacklist:    bl,
 	}
 
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"})
+	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
 	require.NoError(t, err)
 
 	// Revoke a DIFFERENT token
@@ -163,7 +163,7 @@ func TestBlacklist_NoBlacklistConfigured(t *testing.T) {
 	auth := &apiauth.APIAuth{JWTSecretKey: "test-secret"}
 	// No Blacklist field set
 
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"})
+	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
 	require.NoError(t, err)
 
 	userID, _, err := auth.ValidateAccessToken(token)
@@ -196,7 +196,7 @@ func TestBlacklist_MiddlewareChecksBlacklist(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	token, _, _ := auth.CreateAccessToken("user1", []string{"read"})
+	token, _, _ := auth.CreateAccessToken("user1", []string{"read"}, nil)
 
 	// Should work before revocation
 	rr := httptest.NewRecorder()
@@ -229,7 +229,7 @@ func TestBlacklist_ValidateAccessTokenFull_ChecksBlacklist(t *testing.T) {
 		Blacklist:    bl,
 	}
 
-	token, _, _ := auth.CreateAccessToken("user1", []string{"read"})
+	token, _, _ := auth.CreateAccessToken("user1", []string{"read"}, nil)
 
 	// Extract and revoke
 	parser := jwt.NewParser()

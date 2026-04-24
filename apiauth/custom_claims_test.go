@@ -31,7 +31,7 @@ func TestCustomClaimsFunc_RoundTrip(t *testing.T) {
 	}
 
 	// Mint a token using the exported method
-	token, _, err := apiAuth.CreateAccessToken("user-123", []string{"read", "write"})
+	token, _, err := apiAuth.CreateAccessToken("user-123", []string{"read", "write"}, nil)
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestCustomClaimsFunc_Nil(t *testing.T) {
 		// CustomClaimsFunc is nil
 	}
 
-	token, _, err := apiAuth.CreateAccessToken("user-123", []string{"read"})
+	token, _, err := apiAuth.CreateAccessToken("user-123", []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestCustomClaimsFunc_Error(t *testing.T) {
 		},
 	}
 
-	_, _, err := apiAuth.CreateAccessToken("user-123", []string{"read"})
+	_, _, err := apiAuth.CreateAccessToken("user-123", []string{"read"}, nil)
 	if err == nil {
 		t.Fatal("Expected error from CreateAccessToken when CustomClaimsFunc fails")
 	}
@@ -124,7 +124,7 @@ func TestCustomClaimsFunc_NoOverrideStandard(t *testing.T) {
 		},
 	}
 
-	token, _, err := apiAuth.CreateAccessToken("real-user", []string{"read"})
+	token, _, err := apiAuth.CreateAccessToken("real-user", []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestValidateAccessTokenFull_StandardClaimsExcluded(t *testing.T) {
 		},
 	}
 
-	token, _, err := apiAuth.CreateAccessToken("user-1", []string{"read"})
+	token, _, err := apiAuth.CreateAccessToken("user-1", []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
 	}

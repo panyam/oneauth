@@ -136,7 +136,7 @@ func TestSecurity_ExpiredToken_Rejected(t *testing.T) {
 	secret := "test-secret-key-for-jwt"
 	auth := &apiauth.APIAuth{JWTSecretKey: secret}
 
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"})
+	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
 	require.NoError(t, err)
 
 	// Validate immediately — should work
@@ -241,7 +241,7 @@ func TestSecurity_EmptySigningKey_Errors(t *testing.T) {
 	// CreateAccessToken with empty key should still produce a token
 	// (jwt library allows it), but validation should use the same empty key.
 	// The real risk is key misconfiguration — this documents current behavior.
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"})
+	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
 	if err != nil {
 		// If it errors on creation, that's fine — fail-safe
 		return

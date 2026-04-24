@@ -116,6 +116,13 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ClientID:     r.FormValue("client_id"),
 			ClientSecret: r.FormValue("client_secret"),
 		}
+		// RFC 9396 §6.1: authorization_details is a JSON-encoded string in form params
+		if adStr := r.FormValue("authorization_details"); adStr != "" {
+			if err := json.Unmarshal([]byte(adStr), &req.AuthorizationDetails); err != nil {
+				a.errorResponse(w, "invalid_authorization_details", "Invalid authorization_details JSON", http.StatusBadRequest)
+				return
+			}
+		}
 	} else {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			a.errorResponse(w, "invalid_request", "Invalid request body", http.StatusBadRequest)
@@ -199,8 +206,14 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 		return
 	}
 
+	// Validate authorization_details if present (RFC 9396)
+	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
+		a.errorResponse(w, "invalid_authorization_details", err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Create access token (JWT)
-	accessToken, expiresIn, err := a.CreateAccessToken(user.Id(), grantedScopes)
+	accessToken, expiresIn, err := a.CreateAccessToken(user.Id(), grantedScopes, req.AuthorizationDetails)
 	if err != nil {
 		log.Printf("Error creating access token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -213,7 +226,7 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 	}
 
 	// Return token pair
-	a.tokenResponse(w, accessToken, expiresIn, refreshToken.Token, grantedScopes)
+	a.tokenResponse(w, accessToken, expiresIn, refreshToken.Token, grantedScopes, req.AuthorizationDetails)
 }
 
 // handleRefreshTokenGrant handles the refresh_token grant type
@@ -264,8 +277,8 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Create new access token
-	accessToken, expiresIn, err := a.CreateAccessToken(refreshToken.UserID, refreshToken.Scopes)
+	// Create new access token (carry forward authorization_details from original grant)
+	accessToken, expiresIn, err := a.CreateAccessToken(refreshToken.UserID, refreshToken.Scopes, refreshToken.AuthorizationDetails)
 	if err != nil {
 		log.Printf("Error creating access token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -273,7 +286,7 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 	}
 
 	// Return new token pair
-	a.tokenResponse(w, accessToken, expiresIn, newRefreshToken.Token, refreshToken.Scopes)
+	a.tokenResponse(w, accessToken, expiresIn, newRefreshToken.Token, refreshToken.Scopes, refreshToken.AuthorizationDetails)
 }
 
 // handleClientCredentialsGrant handles the client_credentials grant type (RFC 6749 §4.4).
@@ -330,8 +343,14 @@ func (a *APIAuth) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Re
 		scopes = strings.Split(req.Scope, " ")
 	}
 
+	// Validate authorization_details if present (RFC 9396)
+	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
+		a.errorResponse(w, "invalid_authorization_details", err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Create access token with sub=client_id (no user context)
-	accessToken, expiresIn, err := a.CreateAccessToken(clientID, scopes)
+	accessToken, expiresIn, err := a.CreateAccessToken(clientID, scopes, req.AuthorizationDetails)
 	if err != nil {
 		log.Printf("Error creating client_credentials token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -339,7 +358,7 @@ func (a *APIAuth) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Re
 	}
 
 	// Return access token only — no refresh token for client_credentials
-	a.tokenResponse(w, accessToken, expiresIn, "", scopes)
+	a.tokenResponse(w, accessToken, expiresIn, "", scopes, req.AuthorizationDetails)
 }
 
 // constantTimeEqual performs a constant-time string comparison to prevent
@@ -460,11 +479,13 @@ func (a *APIAuth) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 var standardClaims = map[string]bool{
 	"sub": true, "iss": true, "aud": true, "exp": true,
 	"iat": true, "type": true, "scopes": true, "jti": true,
+	"authorization_details": true, // RFC 9396
 }
 
 // CreateAccessToken creates a signed JWT access token. If CustomClaimsFunc is set,
 // its returned claims are merged into the token (standard claims cannot be overridden).
-func (a *APIAuth) CreateAccessToken(userID string, scopes []string) (string, int64, error) {
+// authzDetails is an optional RFC 9396 authorization_details array embedded in the JWT.
+func (a *APIAuth) CreateAccessToken(userID string, scopes []string, authzDetails []core.AuthorizationDetail) (string, int64, error) {
 	expiry := a.AccessTokenExpiry
 	if expiry == 0 {
 		expiry = core.TokenExpiryAccessToken
@@ -486,6 +507,10 @@ func (a *APIAuth) CreateAccessToken(userID string, scopes []string) (string, int
 		"jti":    jti,
 		"iat":    now.Unix(),
 		"exp":    expiresAt.Unix(),
+	}
+
+	if len(authzDetails) > 0 {
+		claims["authorization_details"] = authzDetails
 	}
 
 	if a.JWTIssuer != "" {
@@ -722,13 +747,14 @@ func (a *APIAuth) jwtKeyFunc(token *jwt.Token) (any, error) {
 }
 
 // tokenResponse sends a successful token response
-func (a *APIAuth) tokenResponse(w http.ResponseWriter, accessToken string, expiresIn int64, refreshToken string, scopes []string) {
+func (a *APIAuth) tokenResponse(w http.ResponseWriter, accessToken string, expiresIn int64, refreshToken string, scopes []string, authzDetails []core.AuthorizationDetail) {
 	resp := core.TokenPair{
-		AccessToken:  accessToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    expiresIn,
-		RefreshToken: refreshToken,
-		Scope:        core.JoinScopes(scopes),
+		AccessToken:          accessToken,
+		TokenType:            "Bearer",
+		ExpiresIn:            expiresIn,
+		RefreshToken:         refreshToken,
+		Scope:                core.JoinScopes(scopes),
+		AuthorizationDetails: authzDetails,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

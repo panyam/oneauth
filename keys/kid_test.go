@@ -82,7 +82,7 @@ func TestCreateAccessToken_HasKid(t *testing.T) {
 	auth := &apiauth.APIAuth{
 		JWTSecretKey: "my-secret",
 	}
-	tokenStr, _, err := auth.CreateAccessToken("user-1", []string{"read"})
+	tokenStr, _, err := auth.CreateAccessToken("user-1", []string{"read"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

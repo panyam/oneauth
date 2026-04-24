@@ -158,18 +158,19 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*core.Refresh
 	}
 
 	refreshToken := &core.RefreshToken{
-		Token:      newToken,
-		TokenHash:  s.hashToken(newToken),
-		UserID:     old.UserID,
-		ClientID:   old.ClientID,
-		DeviceInfo: old.DeviceInfo,
-		Family:     old.Family,
-		Generation: old.Generation + 1,
-		Scopes:     old.Scopes,
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
-		LastUsedAt: now,
-		Revoked:    false,
+		Token:                newToken,
+		TokenHash:            s.hashToken(newToken),
+		UserID:               old.UserID,
+		ClientID:             old.ClientID,
+		DeviceInfo:           old.DeviceInfo,
+		Family:               old.Family,
+		Generation:           old.Generation + 1,
+		Scopes:               old.Scopes,
+		AuthorizationDetails: old.AuthorizationDetails,
+		CreatedAt:            now,
+		ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
+		LastUsedAt:           now,
+		Revoked:              false,
 	}
 
 	if err := s.saveToken(refreshToken); err != nil {

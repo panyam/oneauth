@@ -146,7 +146,7 @@ func TestAPIAuth_RS256_Signing(t *testing.T) {
 		JWTIssuer:     "test",
 	}
 
-	tokenStr, _, err := auth.CreateAccessToken("user-rsa", []string{"read"})
+	tokenStr, _, err := auth.CreateAccessToken("user-rsa", []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("CreateAccessToken: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestAPIAuth_ES256_Signing(t *testing.T) {
 		JWTVerifyKey:  pubKey,
 	}
 
-	tokenStr, _, err := auth.CreateAccessToken("user-ec", []string{"write"})
+	tokenStr, _, err := auth.CreateAccessToken("user-ec", []string{"write"}, nil)
 	if err != nil {
 		t.Fatalf("CreateAccessToken: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestAPIAuth_RS256_RejectsHMAC(t *testing.T) {
 	}
 
 	// Create a valid RS256 token, then try to validate with HMAC-configured auth
-	tokenStr, _, _ := auth.CreateAccessToken("user-1", []string{"read"})
+	tokenStr, _, _ := auth.CreateAccessToken("user-1", []string{"read"}, nil)
 
 	hmacAuth := &apiauth.APIAuth{JWTSecretKey: "some-secret"}
 	_, _, err := hmacAuth.ValidateAccessToken(tokenStr)
@@ -232,7 +232,7 @@ func TestAPIAuth_ValidateAccessTokenFull_RS256(t *testing.T) {
 		},
 	}
 
-	tokenStr, _, _ := auth.CreateAccessToken("user-1", []string{"read"})
+	tokenStr, _, _ := auth.CreateAccessToken("user-1", []string{"read"}, nil)
 	userID, _, custom, err := auth.ValidateAccessTokenFull(tokenStr)
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull: %v", err)

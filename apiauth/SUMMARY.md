@@ -10,6 +10,7 @@ JWT-based API authentication: token issuance (login/refresh/client_credentials),
 - **protected_resource.go** — `ProtectedResourceMetadata` struct + `NewProtectedResourceHandler` for RFC 9728 discovery
 
 ## Recent Changes
+- **RFC 9396 Rich Authorization Requests** — Token endpoint accepts `authorization_details` parameter (JSON body or form-encoded JSON string). Granted details are embedded in JWT claims and returned in token/introspection responses. `CreateAccessToken` signature: `(userID, scopes, authzDetails)`. `standardClaims` guard blocks `CustomClaimsFunc` from overriding `authorization_details`.
 - **client_credentials grant** — `APIAuth.ClientKeyStore` enables machine-to-machine auth via `grant_type=client_credentials` (RFC 6749 §4.4). Supports `client_secret_post` and `client_secret_basic`.
 - **Protected Resource Metadata** — `NewProtectedResourceHandler` serves RFC 9728 metadata at `/.well-known/oauth-protected-resource`, enabling clients to auto-discover resource server capabilities
 - **Audience validation** — `ValidateAccessToken` checks `aud` claim against expected audiences; handles both string and array formats (RFC 7519 §4.1.3, #52)
