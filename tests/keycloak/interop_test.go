@@ -888,6 +888,142 @@ func TestKeycloak_RFC8414Proxy_SimplePathAlsoWorks(t *testing.T) {
 }
 
 // =============================================================================
+// RFC 9396 Backward Compatibility Tests
+// =============================================================================
+//
+// Keycloak does NOT support RFC 9396 Rich Authorization Requests on standard
+// OAuth flows (client_credentials, authorization_code) as of version 26.6.
+// The org.keycloak.rar package exists internally but is only used for OID4VCI
+// (Verifiable Credentials Issuance).
+//
+// These tests prove that OneAuth's RAR-aware middleware correctly handles
+// non-RAR tokens from external IdPs. They also act as a canary: when KC adds
+// RAR support (tracked: keycloak/keycloak#29340), the discovery test will fail,
+// alerting us to add full RAR interop tests against Keycloak.
+//
+// Migration path: when Keycloak adds RFC 9396 support, copy the test patterns
+// from rar_interop_test.go (RAR test issuer) and point them at Keycloak.
+// The RAR test issuer binary (cmd/rar-test-issuer) can then be retired.
+
+// TestKeycloak_Discovery_NoRARTypes verifies that Keycloak's discovery document
+// does NOT contain authorization_details_types_supported. This is a canary test:
+// when KC adds RAR, this test fails and prompts us to add RAR interop tests.
+//
+// See: https://www.rfc-editor.org/rfc/rfc9396#section-10
+func TestKeycloak_Discovery_NoRARTypes(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	cfg := discoverOIDC(t)
+	// KC does not advertise RAR types — verify absence
+	// (the OIDCConfig struct may not have this field; check raw JSON)
+	resp, err := http.Get(realmURL() + "/.well-known/openid-configuration")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var raw map[string]any
+	require.NoError(t, decodeJSON(resp.Body, &raw))
+	_, hasRARTypes := raw["authorization_details_types_supported"]
+	assert.False(t, hasRARTypes,
+		"Keycloak should NOT advertise authorization_details_types_supported (if this fails, KC added RAR — time to add full RAR interop tests!)")
+	_ = cfg
+}
+
+// TestKeycloak_RARMiddleware_NilForNonRARToken verifies that when APIMiddleware
+// validates a normal Keycloak token (no authorization_details), the context
+// helper GetAuthorizationDetailsFromContext returns nil. Proves RAR-aware
+// middleware is backwards-compatible with non-RAR tokens.
+//
+// See: https://www.rfc-editor.org/rfc/rfc9396#section-7
+func TestKeycloak_RARMiddleware_NilForNonRARToken(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	cfg := discoverOIDC(t)
+	tokenResp := getClientCredentialsToken(t, cfg.TokenEndpoint, confidentialClientID, confidentialClientSecret)
+
+	// Set up a JWKS-backed middleware pointing at Keycloak
+	jwksKS := keys.NewJWKSKeyStore(cfg.JWKSURI)
+	mw := &apiauth.APIMiddleware{KeyStore: jwksKS}
+
+	// Validate the token through middleware
+	var capturedDetails []any
+	handler := mw.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ad := apiauth.GetAuthorizationDetailsFromContext(r.Context())
+		if ad != nil {
+			capturedDetails = make([]any, len(ad))
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "token should validate successfully")
+	assert.Nil(t, capturedDetails, "authorization_details should be nil for non-RAR KC token")
+}
+
+// TestKeycloak_RequireAuthorizationDetails_RejectsNonRAR verifies that
+// RequireAuthorizationDetails correctly rejects a Keycloak token that does
+// not contain authorization_details. This proves enforcement works against
+// real-world tokens that lack RAR.
+//
+// See: https://www.rfc-editor.org/rfc/rfc9396#section-2
+func TestKeycloak_RequireAuthorizationDetails_RejectsNonRAR(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	cfg := discoverOIDC(t)
+	tokenResp := getClientCredentialsToken(t, cfg.TokenEndpoint, confidentialClientID, confidentialClientSecret)
+
+	jwksKS := keys.NewJWKSKeyStore(cfg.JWKSURI)
+	mw := &apiauth.APIMiddleware{KeyStore: jwksKS}
+
+	handler := mw.RequireAuthorizationDetails("payment_initiation")(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code,
+		"RequireAuthorizationDetails should reject KC token without RAR")
+}
+
+// TestKeycloak_Introspection_NoAuthzDetails verifies that introspecting a
+// Keycloak token does not return an authorization_details field. Confirms
+// clean introspection for non-RAR tokens.
+//
+// See: https://www.rfc-editor.org/rfc/rfc9396#section-9.1
+func TestKeycloak_Introspection_NoAuthzDetails(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	cfg := discoverOIDC(t)
+	tokenResp := getClientCredentialsToken(t, cfg.TokenEndpoint, confidentialClientID, confidentialClientSecret)
+
+	// Introspect via Keycloak's introspection endpoint
+	form := url.Values{"token": {tokenResp.AccessToken}}
+	req, _ := http.NewRequest("POST", cfg.IntrospectionEndpoint, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(confidentialClientID, confidentialClientSecret)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
+	assert.Equal(t, true, result["active"])
+
+	_, hasAD := result["authorization_details"]
+	assert.False(t, hasAD, "KC introspection should not return authorization_details for non-RAR token")
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
 

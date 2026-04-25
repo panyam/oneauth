@@ -1,14 +1,15 @@
-go 1.26.1
+go 1.26.2
 
 use (
 	.
-	./stores/gorm
-	./stores/gae
-	./saml
-	./grpc
-	./oauth2
-	./cmd/oneauth-server
 	./cmd/demo-hostapp
 	./cmd/demo-resource-server
+	./cmd/oneauth-server
+	./cmd/rar-test-issuer
+	./grpc
+	./oauth2
+	./saml
+	./stores/gae
+	./stores/gorm
 	./tests/keycloak
 )

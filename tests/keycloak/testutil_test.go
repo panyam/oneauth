@@ -23,14 +23,21 @@ import (
 )
 
 const (
-	defaultKeycloakURL = "http://localhost:8180"
-	realmName          = "oneauth-test"
+	defaultKeycloakURL  = "http://localhost:8180"
+	defaultRARIssuerURL = "http://localhost:8181"
+	realmName           = "oneauth-test"
 
-	// Clients defined in realm.json
+	// Clients defined in realm.json (Keycloak)
 	confidentialClientID     = "test-confidential"
 	confidentialClientSecret = "test-secret-for-confidential-client"
 	audienceClientID         = "test-audience"
 	audienceClientSecret     = "test-audience-secret"
+
+	// Clients pre-registered in rar-test-issuer
+	rarClientID        = "rar-test-client"
+	rarClientSecret    = "rar-test-secret"
+	rarIntroClientID   = "rar-introspect-client"
+	rarIntroSecret     = "rar-introspect-secret"
 
 	// Test user defined in realm.json
 	testUsername = "testuser"
@@ -106,4 +113,37 @@ func parseJWTClaims(t *testing.T, tokenStr string) map[string]any {
 func parseJWTHeader(t *testing.T, tokenStr string) map[string]any {
 	t.Helper()
 	return testutil.ParseJWTHeader(t, tokenStr)
+}
+
+// =============================================================================
+// RAR Test Issuer helpers
+// =============================================================================
+
+// rarIssuerURL returns the RAR test issuer URL from env or default.
+func rarIssuerURL() string {
+	if u := os.Getenv("RAR_ISSUER_URL"); u != "" {
+		return u
+	}
+	return defaultRARIssuerURL
+}
+
+// skipIfRARIssuerNotRunning checks if the RAR test issuer is reachable and
+// skips the test if not. Run 'make uprar' to start it.
+func skipIfRARIssuerNotRunning(t *testing.T) {
+	t.Helper()
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(rarIssuerURL() + "/_ah/health")
+	if err != nil {
+		t.Skipf("RAR test issuer not reachable at %s: %v (run 'make uprar' to start)", rarIssuerURL(), err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Skipf("RAR test issuer not ready (status %d)", resp.StatusCode)
+	}
+}
+
+// discoverRARIssuer fetches OIDC discovery from the RAR test issuer.
+func discoverRARIssuer(t *testing.T) testutil.OIDCConfig {
+	t.Helper()
+	return testutil.DiscoverOIDC(t, rarIssuerURL())
 }

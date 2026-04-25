@@ -40,3 +40,4 @@ demo/data/
 .gcloudignore
 .playwright-mcp/
 cmd/oneauth-server/oneauth-server
+rar-test-issuer
