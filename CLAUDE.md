@@ -206,6 +206,7 @@ Separate Go module (`tests/keycloak/go.mod`) proving APIMiddleware + JWKSKeyStor
 |----------|---------|-----|
 | `POST /api/token` (client_credentials) | `APIAuth.ServeHTTP` (accepts form-encoded + JSON) | RFC 6749 §4.4 |
 | `POST /oauth/introspect` | `IntrospectionHandler` | RFC 7662 |
+| `POST /oauth/revoke` | `RevocationHandler` | RFC 7009 |
 | `GET /.well-known/openid-configuration` | `NewASMetadataHandler` | RFC 8414 |
 | `GET /.well-known/jwks.json` | `JWKSHandler` | RFC 7517 |
 | `GET /.well-known/oauth-protected-resource` | `NewProtectedResourceHandler` (resource servers) | RFC 9728 |

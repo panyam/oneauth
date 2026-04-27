@@ -245,6 +245,13 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	}
 	mux.Handle("POST /oauth/introspect", introspectionHandler)
 
+	// Token Revocation (RFC 7009)
+	revocationHandler := &apiauth.RevocationHandler{
+		Auth:           e.apiAuth,
+		ClientKeyStore: e.KeyStore,
+	}
+	mux.Handle("POST /oauth/revoke", revocationHandler)
+
 	// JWKS
 	jwksHandler := &keys.JWKSHandler{KeyStore: e.KeyStore}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
@@ -264,6 +271,7 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		TokenEndpoint:                  baseURL + "/oauth/token",
 		JWKSURI:                        baseURL + "/.well-known/jwks.json",
 		IntrospectionEndpoint:          baseURL + "/oauth/introspect",
+		RevocationEndpoint:            baseURL + "/oauth/revoke",
 		RegistrationEndpoint:           baseURL + "/apps/register",
 		ScopesSupported:                []string{"read", "write", "admin"},
 		GrantTypesSupported:            []string{"authorization_code", "password", "refresh_token", "client_credentials"},
