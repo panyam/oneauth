@@ -239,17 +239,11 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	mux.Handle("/apps", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(e.registrar.Handler()))
 
 	// Token Introspection (RFC 7662)
-	introspectionHandler := &apiauth.IntrospectionHandler{
-		Auth:           e.apiAuth,
-		ClientKeyStore: e.KeyStore,
-	}
+	introspectionHandler := apiauth.NewIntrospectionHandler(e.apiAuth, e.KeyStore)
 	mux.Handle("POST /oauth/introspect", introspectionHandler)
 
 	// Token Revocation (RFC 7009)
-	revocationHandler := &apiauth.RevocationHandler{
-		Auth:           e.apiAuth,
-		ClientKeyStore: e.KeyStore,
-	}
+	revocationHandler := apiauth.NewRevocationHandler(e.apiAuth, e.KeyStore)
 	mux.Handle("POST /oauth/revoke", revocationHandler)
 
 	// JWKS

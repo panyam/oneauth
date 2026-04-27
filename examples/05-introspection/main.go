@@ -91,10 +91,7 @@ func main() {
 				Blacklist:      blacklist,
 			}
 
-			introspectionHandler := &apiauth.IntrospectionHandler{
-				Auth:           apiAuth,
-				ClientKeyStore: ks,
-			}
+			introspectionHandler := apiauth.NewIntrospectionHandler(apiAuth, ks)
 
 			mux := http.NewServeMux()
 			mux.Handle("/apps/", registrar.Handler())

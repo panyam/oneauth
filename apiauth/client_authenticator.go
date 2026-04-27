@@ -4,6 +4,12 @@ import (
 	"github.com/panyam/oneauth/keys"
 )
 
+var errInvalidClient = &clientError{"invalid_client"}
+
+type clientError struct{ msg string }
+
+func (e *clientError) Error() string { return e.msg }
+
 // clientAuthenticator implements ClientAuthenticator using a KeyLookup
 // with constant-time secret comparison.
 type clientAuthenticator struct {

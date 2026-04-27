@@ -54,10 +54,7 @@ func setupIntrospection(t *testing.T) (*apiauth.IntrospectionHandler, *apiauth.A
 		Blacklist:    blacklist,
 	}
 
-	handler := &apiauth.IntrospectionHandler{
-		Auth:           auth,
-		ClientKeyStore: ks,
-	}
+	handler := apiauth.NewIntrospectionHandler(auth, ks)
 
 	return handler, auth, ks, blacklist
 }

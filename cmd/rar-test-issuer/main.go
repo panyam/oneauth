@@ -102,10 +102,7 @@ func main() {
 	}
 
 	// Introspection
-	introspection := &apiauth.IntrospectionHandler{
-		Auth:           apiAuth,
-		ClientKeyStore: ks,
-	}
+	introspection := apiauth.NewIntrospectionHandler(apiAuth, ks)
 
 	// JWKS
 	jwksHandler := &keys.JWKSHandler{KeyStore: ks}

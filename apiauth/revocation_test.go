@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/core"
@@ -50,15 +51,9 @@ func setupRevocation(t *testing.T) (*apiauth.RevocationHandler, *apiauth.APIAuth
 		ClientKeyStore:    ks,
 	}
 
-	revHandler := &apiauth.RevocationHandler{
-		Auth:           auth,
-		ClientKeyStore: ks,
-	}
+	revHandler := apiauth.NewRevocationHandler(auth, ks)
 
-	introHandler := &apiauth.IntrospectionHandler{
-		Auth:           auth,
-		ClientKeyStore: ks,
-	}
+	introHandler := apiauth.NewIntrospectionHandler(auth, ks)
 
 	return revHandler, auth, introHandler
 }
@@ -231,11 +226,14 @@ func newInMemoryRefreshStore() *inMemoryRefreshStore {
 
 func (s *inMemoryRefreshStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
 	token, _ := core.GenerateSecureToken()
+	family, _ := core.GenerateSecureToken()
 	rt := &core.RefreshToken{
-		Token:    token,
-		UserID:   userID,
-		ClientID: clientID,
-		Scopes:   scopes,
+		Token:     token,
+		UserID:    userID,
+		ClientID:  clientID,
+		Scopes:    scopes,
+		Family:    family[:16],
+		ExpiresAt: time.Now().Add(core.TokenExpiryRefreshToken),
 	}
 	s.tokens[token] = rt
 	return rt, nil
@@ -259,7 +257,28 @@ func (s *inMemoryRefreshStore) RevokeRefreshToken(token string) error {
 }
 
 func (s *inMemoryRefreshStore) RotateRefreshToken(old string) (*core.RefreshToken, error) {
-	return nil, core.ErrTokenNotFound
+	rt, ok := s.tokens[old]
+	if !ok {
+		return nil, core.ErrTokenNotFound
+	}
+	if rt.Revoked {
+		return nil, core.ErrTokenReused
+	}
+	// Revoke old
+	rt.Revoked = true
+	// Create new in same family
+	newToken, _ := core.GenerateSecureToken()
+	newRT := &core.RefreshToken{
+		Token:                newToken,
+		UserID:               rt.UserID,
+		ClientID:             rt.ClientID,
+		Scopes:               rt.Scopes,
+		AuthorizationDetails: rt.AuthorizationDetails,
+		Family:               rt.Family,
+		ExpiresAt:            time.Now().Add(core.TokenExpiryRefreshToken),
+	}
+	s.tokens[newToken] = newRT
+	return newRT, nil
 }
 
 func (s *inMemoryRefreshStore) RevokeUserTokens(userID string) error { return nil }

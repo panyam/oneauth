@@ -79,10 +79,7 @@ func main() {
 				ClientKeyStore: ks,
 			}
 
-			introspection := &apiauth.IntrospectionHandler{
-				Auth:           apiAuth,
-				ClientKeyStore: ks,
-			}
+			introspection := apiauth.NewIntrospectionHandler(apiAuth, ks)
 
 			mux := http.NewServeMux()
 			mux.Handle("/apps/", registrar.Handler())

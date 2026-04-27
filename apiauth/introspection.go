@@ -3,9 +3,7 @@ package apiauth
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -13,24 +11,89 @@ import (
 // Resource servers POST tokens to this endpoint to check validity, as an
 // alternative to local JWT validation via JWKS.
 //
-// The handler:
-//   - Accepts POST with application/x-www-form-urlencoded body (token=...)
-//   - Authenticates the caller via ClientKeyStore (Basic auth)
-//   - Validates the token using APIAuth.ValidateAccessTokenFull
-//   - Checks the token blacklist if configured on APIAuth
-//   - Returns {"active": true, ...claims} for valid tokens
-//   - Returns {"active": false} for ANY invalid token (never reveals why)
+// The handler is a thin HTTP wrapper over TokenIntrospector (core logic)
+// and ClientAuthenticator (caller verification).
 //
 // See: https://www.rfc-editor.org/rfc/rfc7662
 type IntrospectionHandler struct {
-	// Auth is the APIAuth instance used to validate tokens.
-	// Must have JWTSecretKey (or JWTVerifyKey) configured.
-	Auth *APIAuth
+	// Introspector performs the actual token introspection (transport-independent).
+	Introspector TokenIntrospector
 
-	// ClientKeyStore authenticates callers of the introspection endpoint.
-	// Resource servers must present valid client_id + client_secret via
-	// HTTP Basic auth. If nil, all callers are rejected.
-	ClientKeyStore keys.KeyLookup
+	// Authenticator verifies the caller's client credentials.
+	Authenticator ClientAuthenticator
+}
+
+// NewIntrospectionHandler creates an IntrospectionHandler from an APIAuth
+// and a client KeyLookup. This is the bridge between the old-style APIAuth
+// configuration and the new core interfaces.
+func NewIntrospectionHandler(auth *APIAuth, clientKeyStore keys.KeyLookup) *IntrospectionHandler {
+	// Build a validator that mirrors APIAuth's validation logic.
+	// APIAuth supports both single-key (JWTSecretKey) and multi-tenant (ClientKeyStore).
+	// We wrap this by using APIAuth.ValidateAccessTokenFull as the validation backend.
+	introspector := &apiauthIntrospector{auth: auth}
+	return &IntrospectionHandler{
+		Introspector:  introspector,
+		Authenticator: NewClientAuthenticator(clientKeyStore),
+	}
+}
+
+// apiauthIntrospector adapts an APIAuth into a TokenIntrospector.
+// This preserves the exact validation behavior of the old IntrospectionHandler.
+type apiauthIntrospector struct {
+	auth *APIAuth
+}
+
+func (ai *apiauthIntrospector) Introspect(tokenString string) (*IntrospectionResult, error) {
+	userID, scopes, _, err := ai.auth.ValidateAccessTokenFull(tokenString)
+	if err != nil {
+		return &IntrospectionResult{Active: false}, nil
+	}
+
+	rawClaims := parseRawJWTClaims(tokenString)
+
+	result := &IntrospectionResult{
+		Active:    true,
+		Sub:       userID,
+		TokenType: "access_token",
+	}
+
+	if len(scopes) > 0 {
+		result.Scope = joinScopes(scopes)
+	}
+
+	if rawClaims != nil {
+		if v, ok := rawClaims["iss"].(string); ok {
+			result.Iss = v
+		}
+		if v, ok := rawClaims["exp"].(float64); ok {
+			result.Exp = int64(v)
+		}
+		if v, ok := rawClaims["iat"].(float64); ok {
+			result.Iat = int64(v)
+		}
+		if v, ok := rawClaims["jti"].(string); ok {
+			result.Jti = v
+		}
+		if v, ok := rawClaims["aud"]; ok {
+			result.Aud = v
+		}
+		if v, ok := rawClaims["client_id"].(string); ok {
+			result.ClientID = v
+		}
+	}
+
+	return result, nil
+}
+
+func joinScopes(scopes []string) string {
+	s := ""
+	for i, sc := range scopes {
+		if i > 0 {
+			s += " "
+		}
+		s += sc
+	}
+	return s
 }
 
 // ServeHTTP handles POST /oauth/introspect per RFC 7662.
@@ -47,7 +110,7 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if err := h.authenticateCaller(clientID, clientSecret); err != nil {
+	if err := h.Authenticator.AuthenticateClient(clientID, clientSecret); err != nil {
 		w.Header().Set("WWW-Authenticate", `Basic realm="introspection"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -64,86 +127,50 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Validate the token using APIAuth (checks signature, expiry, blacklist)
-	userID, scopes, _, err := h.Auth.ValidateAccessTokenFull(token)
-	if err != nil {
+	// Delegate to transport-independent introspector
+	result, err := h.Introspector.Introspect(token)
+	if err != nil || !result.Active {
 		// RFC 7662: invalid tokens get {"active": false}, never an error
 		h.jsonResponse(w, http.StatusOK, map[string]any{"active": false})
 		return
 	}
 
-	// Parse raw claims for the introspection response (ValidateAccessTokenFull
-	// strips standard claims from customClaims, but we need them here)
-	rawClaims := h.parseRawClaims(token)
-
-	// Build the introspection response
+	// Build response from IntrospectionResult
 	resp := map[string]any{
 		"active":     true,
-		"sub":        userID,
-		"token_type": "access_token",
+		"sub":        result.Sub,
+		"token_type": result.TokenType,
 	}
-
-	// Add scope as space-separated string (RFC 7662 §2.2)
-	if len(scopes) > 0 {
-		resp["scope"] = strings.Join(scopes, " ")
+	if result.Scope != "" {
+		resp["scope"] = result.Scope
 	}
-
-	// Add standard claims from the raw token
-	for _, claim := range []string{"iss", "exp", "iat", "aud", "jti", "client_id"} {
-		if v, ok := rawClaims[claim]; ok {
-			resp[claim] = v
-		}
+	if result.Iss != "" {
+		resp["iss"] = result.Iss
+	}
+	if result.Exp != 0 {
+		resp["exp"] = result.Exp
+	}
+	if result.Iat != 0 {
+		resp["iat"] = result.Iat
+	}
+	if result.Aud != nil {
+		resp["aud"] = result.Aud
+	}
+	if result.Jti != "" {
+		resp["jti"] = result.Jti
+	}
+	if result.ClientID != "" {
+		resp["client_id"] = result.ClientID
 	}
 
 	// Include authorization_details if present (RFC 9396 §9.1)
+	rawClaims := parseRawJWTClaims(token)
 	if ad, ok := rawClaims["authorization_details"]; ok {
 		resp["authorization_details"] = ad
 	}
 
 	h.jsonResponse(w, http.StatusOK, resp)
 }
-
-// parseRawClaims extracts all claims from a JWT without validation.
-// Used to populate the introspection response with standard claims that
-// ValidateAccessTokenFull strips from customClaims.
-func (h *IntrospectionHandler) parseRawClaims(tokenStr string) map[string]any {
-	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
-	token, _, err := parser.ParseUnverified(tokenStr, jwt.MapClaims{})
-	if err != nil {
-		return nil
-	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil
-	}
-	return claims
-}
-
-// authenticateCaller verifies the caller's client_id + client_secret against
-// the ClientKeyStore using constant-time comparison.
-func (h *IntrospectionHandler) authenticateCaller(clientID, clientSecret string) error {
-	if h.ClientKeyStore == nil {
-		return errInvalidClient
-	}
-	rec, err := h.ClientKeyStore.GetKey(clientID)
-	if err != nil || rec == nil {
-		return errInvalidClient
-	}
-	storedKey, ok := rec.Key.([]byte)
-	if !ok {
-		return errInvalidClient
-	}
-	if !constantTimeEqual(string(storedKey), clientSecret) {
-		return errInvalidClient
-	}
-	return nil
-}
-
-var errInvalidClient = &clientError{"invalid_client"}
-
-type clientError struct{ msg string }
-
-func (e *clientError) Error() string { return e.msg }
 
 // jsonResponse writes a JSON response with the given status code.
 func (h *IntrospectionHandler) jsonResponse(w http.ResponseWriter, status int, body any) {

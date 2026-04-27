@@ -71,7 +71,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		signingAlg = "HS256"
 	}
 
-	// Wire the issuer — needs signing config + client key lookup
+	// Wire the issuer — needs signing config + client key lookup + refresh store
 	issuer := NewJWTIssuer(JWTIssuerConfig{
 		SigningKey:      cfg.SigningKey,
 		SigningAlg:      signingAlg,
@@ -79,6 +79,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		Audience:        cfg.Audience,
 		AccessExpiry:    cfg.AccessExpiry,
 		ClientKeyLookup: cfg.KeyStore, // KeyStorage implements KeyLookup
+		RefreshStore:    cfg.RefreshStore,
 		Hooks:           cfg.Hooks.Token,
 	})
 
@@ -104,7 +105,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	// Wire the client authenticator — needs key lookup
 	authenticator := NewClientAuthenticator(cfg.KeyStore)
 
-	return &OneAuth{
+	oa := &OneAuth{
 		Issuer:        issuer,
 		Validator:     validator,
 		Introspector:  introspector,
@@ -114,5 +115,36 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		Blacklist:     cfg.Blacklist,
 		RefreshStore:  cfg.RefreshStore,
 		Hooks:         cfg.Hooks,
+	}
+	return oa
+}
+
+// --- HTTP Convenience Methods ---
+// These create HTTP handlers wired to the OneAuth core interfaces.
+// Use these when mounting endpoints on an HTTP mux.
+
+// IntrospectionHTTPHandler returns an http.Handler for POST /oauth/introspect.
+func (oa *OneAuth) IntrospectionHTTPHandler() *IntrospectionHandler {
+	return &IntrospectionHandler{
+		Introspector:  oa.Introspector,
+		Authenticator: oa.Authenticator,
+	}
+}
+
+// RevocationHTTPHandler returns an http.Handler for POST /oauth/revoke.
+func (oa *OneAuth) RevocationHTTPHandler() *RevocationHandler {
+	return &RevocationHandler{
+		Revoker:       oa.Revoker,
+		Authenticator: oa.Authenticator,
+	}
+}
+
+// HTTPMiddleware returns an APIMiddleware wired to the OneAuth TokenValidator.
+// Use this for protecting resource endpoints.
+func (oa *OneAuth) HTTPMiddleware() *APIMiddleware {
+	return &APIMiddleware{
+		Validator: oa.Validator,
+		Blacklist: oa.Blacklist,
+		KeyStore:  oa.KeyStore,
 	}
 }

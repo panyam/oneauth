@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -1021,6 +1022,16 @@ type APIMiddleware struct {
 	// (no JWTSecretKey, no KeyStore), introspection is the only validation path.
 	// If nil, only local validation is used.
 	Introspection *IntrospectionValidator
+
+	// Validator is the transport-independent token validator (Phase 2).
+	// When set, validateJWT delegates to it instead of using inline logic.
+	// When nil, a validator is lazily built from the existing fields
+	// (JWTSecretKey, KeyStore, Blacklist, etc.) on first use.
+	Validator TokenValidator
+
+	// validatorOnce ensures the lazy validator is built only once.
+	validatorOnce sync.Once
+	lazyValidator TokenValidator
 }
 
 // GetUserIDFromAPIContext retrieves the user ID from the API middleware context
@@ -1174,8 +1185,55 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes 
 	return "", nil, "", nil, jwtErr
 }
 
-// validateJWT validates a JWT access token
+// getValidator returns the TokenValidator, lazily building one from existing
+// fields if Validator is not explicitly set.
+func (m *APIMiddleware) getValidator() TokenValidator {
+	if m.Validator != nil {
+		return m.Validator
+	}
+	m.validatorOnce.Do(func() {
+		if m.KeyStore != nil {
+			// Multi-tenant: use KeyStore for kid/client_id-based lookup
+			m.lazyValidator = NewJWTValidator(JWTValidatorConfig{
+				KeyLookup: m.KeyStore,
+				Blacklist: m.Blacklist,
+				Issuer:    m.JWTIssuer,
+				Audience:  m.JWTAudience,
+			})
+		} else {
+			// Single-tenant: can't use jwtValidator (it needs kid/client_id lookup).
+			// Fall back to the original inline validation which handles JWTSecretKey directly.
+			m.lazyValidator = nil
+		}
+	})
+	return m.lazyValidator
+}
+
+// validateJWT validates a JWT access token using the TokenValidator.
 func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
+	if v := m.getValidator(); v != nil {
+		info, verr := v.ValidateToken(tokenString)
+		if verr != nil {
+			return "", nil, "", nil, verr
+		}
+		customClaims = info.CustomClaims
+		if customClaims == nil {
+			customClaims = make(map[string]any)
+		}
+		// Store authorization_details in customClaims for context extraction
+		if len(info.AuthorizationDetails) > 0 {
+			customClaims["__authz_details"] = info.AuthorizationDetails
+		}
+		return info.UserID, info.Scopes, info.AuthType, customClaims, nil
+	}
+
+	// Fallback: single-tenant JWTSecretKey validation (no KeyStore configured)
+	return m.validateJWTInline(tokenString)
+}
+
+// validateJWTInline is the original inline JWT validation logic, preserved
+// as fallback. Will be removed in Phase 3.
+func (m *APIMiddleware) validateJWTInline(tokenString string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if m.KeyStore != nil {
 			// Try kid-based lookup first (if kid header present)

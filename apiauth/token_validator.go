@@ -210,13 +210,14 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 
 // jwtIssuer implements TokenIssuer using JWT signing.
 type jwtIssuer struct {
-	signingKey    any    // []byte for HS256, *rsa.PrivateKey for RS256, *ecdsa.PrivateKey for ES256
-	signingAlg    string // "HS256", "RS256", "ES256"
-	issuer        string
-	audience      string
-	accessExpiry  time.Duration
+	signingKey      any    // []byte for HS256, *rsa.PrivateKey for RS256, *ecdsa.PrivateKey for ES256
+	signingAlg      string // "HS256", "RS256", "ES256"
+	issuer          string
+	audience        string
+	accessExpiry    time.Duration
 	clientKeyLookup keys.KeyLookup
-	hooks         TokenHooks
+	refreshStore    core.RefreshTokenStore
+	hooks           TokenHooks
 }
 
 // JWTIssuerConfig configures a jwtIssuer.
@@ -226,7 +227,8 @@ type JWTIssuerConfig struct {
 	Issuer         string
 	Audience       string
 	AccessExpiry   time.Duration
-	ClientKeyLookup keys.KeyLookup // for client_credentials authentication
+	ClientKeyLookup keys.KeyLookup         // for client_credentials authentication
+	RefreshStore   core.RefreshTokenStore  // for refresh_token grant
 	Hooks          TokenHooks
 }
 
@@ -243,6 +245,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		audience:        cfg.Audience,
 		accessExpiry:    expiry,
 		clientKeyLookup: cfg.ClientKeyLookup,
+		refreshStore:    cfg.RefreshStore,
 		hooks:           cfg.Hooks,
 	}
 }
@@ -339,4 +342,58 @@ func (i *jwtIssuer) ClientCredentials(clientID, clientSecret string, scopes []st
 		AuthorizationDetails: details,
 	}
 	return resp, nil
+}
+
+// RefreshGrant rotates a refresh token and returns new access + refresh tokens.
+// Handles theft detection: if the old token was already revoked, revokes the
+// entire token family (all sessions from that initial login).
+func (i *jwtIssuer) RefreshGrant(refreshToken string) (*core.TokenPair, error) {
+	if i.refreshStore == nil {
+		return nil, fmt.Errorf("refresh_token grant not configured")
+	}
+
+	// Get and validate the refresh token
+	rt, err := i.refreshStore.GetRefreshToken(refreshToken)
+	if err != nil {
+		if err == core.ErrTokenNotFound {
+			return nil, fmt.Errorf("invalid_grant: invalid refresh token")
+		}
+		return nil, fmt.Errorf("server_error: %w", err)
+	}
+
+	// Check if revoked — token reuse detection (theft)
+	if rt.Revoked {
+		i.refreshStore.RevokeTokenFamily(rt.Family)
+		return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
+	}
+	if rt.IsExpired() {
+		return nil, fmt.Errorf("invalid_grant: token has expired")
+	}
+
+	// Rotate: invalidate old, create new in same family
+	newRT, err := i.refreshStore.RotateRefreshToken(refreshToken)
+	if err != nil {
+		if err == core.ErrTokenReused {
+			i.refreshStore.RevokeTokenFamily(rt.Family)
+			return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
+		}
+		return nil, fmt.Errorf("server_error: %w", err)
+	}
+
+	// Create new access token (carry forward scopes + authorization_details)
+	tokenStr, expiresIn, err := i.CreateAccessToken(rt.UserID, rt.Scopes, rt.AuthorizationDetails)
+	if err != nil {
+		return nil, fmt.Errorf("server_error: %w", err)
+	}
+
+	i.hooks.fireOnIssued(rt.UserID, "refresh_token")
+
+	return &core.TokenPair{
+		AccessToken:          tokenStr,
+		TokenType:            "Bearer",
+		ExpiresIn:            expiresIn,
+		RefreshToken:         newRT.Token,
+		Scope:                strings.Join(rt.Scopes, " "),
+		AuthorizationDetails: rt.AuthorizationDetails,
+	}, nil
 }
