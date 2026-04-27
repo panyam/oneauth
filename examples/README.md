@@ -49,18 +49,20 @@ Developer builds the App (GitHub bot)
 
 ## Examples
 
-| # | Example | Type | Infra | What you'll learn |
-|---|---------|------|-------|-------------------|
-| [01](01-client-credentials/) | Client Credentials | Non-UI | None | Get your first token via the HTTP token endpoint |
-| [02](02-resource-token-hs256/) | Resource Token (HS256) | Non-UI | None | Federated auth: app registers, mints tokens, resource server validates |
-| [03](03-resource-token-rs256-jwks/) | Resource Token (RS256 + JWKS) | Non-UI | None | Asymmetric signing with automatic JWKS key discovery |
-| [04](04-discovery/) | AS Metadata Discovery | Non-UI | None | Auto-discover endpoints — no hardcoded URLs |
-| [05](05-introspection/) | Token Introspection | Non-UI | None | Remote token validation via RFC 7662 |
-| [06](06-dynamic-client-registration/) | Dynamic Client Registration | Non-UI | None | Self-service client onboarding via RFC 7591 |
-| [07](07-client-sdk/) | Client SDK | Non-UI | None | Production patterns: caching, auto-refresh, scope step-up |
-| [08](08-rich-authorization-requests/) | Rich Authorization Requests | Non-UI | None | Fine-grained authorization beyond scopes (RFC 9396) |
-| [09](09-key-rotation/) | Key Rotation | Non-UI | None | Rotate secrets with grace periods — zero downtime |
-| [10](10-security/) | Security | Non-UI | None | Attack prevention: algorithm confusion, cross-app forgery |
+| #                                     | Example                       | Type   | Infra               | Keycloak | What you'll learn                                                      |
+|---------------------------------------|-------------------------------|--------|---------------------|----------|------------------------------------------------------------------------|
+| [01](01-client-credentials/README.md)          | Client Credentials            | Non-UI | None                | —        | Get your first token via the HTTP token endpoint                       |
+| [02](02-resource-token-hs256/README.md)        | Resource Token (HS256)        | Non-UI | None                | —        | Federated auth: app registers, mints tokens, resource server validates |
+| [03](03-resource-token-rs256-jwks/README.md)   | Resource Token (RS256 + JWKS) | Non-UI | None                | —        | Asymmetric signing with automatic JWKS key discovery                   |
+| [04](04-discovery/README.md)          | AS Metadata Discovery         | Non-UI | KC optional         | Optional | Auto-discover endpoints — no hardcoded URLs                            |
+| [05](05-introspection/README.md)               | Token Introspection           | Non-UI | KC optional         | Optional | Remote token validation via RFC 7662                                   |
+| [06](06-dynamic-client-registration/README.md) | Dynamic Client Registration   | Non-UI | KC optional         | Optional | Self-service client onboarding via RFC 7591                            |
+| [07](07-client-sdk/README.md)                  | Client SDK                    | Non-UI | KC optional         | Optional | Production patterns: caching, auto-refresh, scope step-up              |
+| [08](08-rich-authorization-requests/README.md) | Rich Authorization Requests   | Non-UI | RAR issuer optional | —        | Fine-grained authorization beyond scopes (RFC 9396)                    |
+| [09](09-key-rotation/README.md)                | Key Rotation                  | Non-UI | None                | —        | Rotate secrets with grace periods — zero downtime                      |
+| [10](10-security/README.md)                    | Security                      | Non-UI | None                | —        | Attack prevention: algorithm confusion, cross-app forgery              |
+
+**Keycloak column:** Examples marked "Optional" have an extra step that runs against Keycloak if it's available, showing the same code working against a real-world IdP. Start KC with `cd examples && make upkcl`. All examples work without KC — the KC steps skip gracefully.
 
 ## Run examples
 
