@@ -50,10 +50,7 @@ func setupRevocation(t *testing.T) (*apiauth.RevocationHandler, *apiauth.APIAuth
 		ClientKeyStore:    ks,
 	}
 
-	revHandler := &apiauth.RevocationHandler{
-		Auth:           auth,
-		ClientKeyStore: ks,
-	}
+	revHandler := apiauth.NewRevocationHandler(auth, ks)
 
 	introHandler := apiauth.NewIntrospectionHandler(auth, ks)
 

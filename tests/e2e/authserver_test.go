@@ -243,10 +243,7 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	mux.Handle("POST /oauth/introspect", introspectionHandler)
 
 	// Token Revocation (RFC 7009)
-	revocationHandler := &apiauth.RevocationHandler{
-		Auth:           e.apiAuth,
-		ClientKeyStore: e.KeyStore,
-	}
+	revocationHandler := apiauth.NewRevocationHandler(e.apiAuth, e.KeyStore)
 	mux.Handle("POST /oauth/revoke", revocationHandler)
 
 	// JWKS
