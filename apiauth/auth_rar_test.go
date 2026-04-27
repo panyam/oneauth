@@ -253,10 +253,7 @@ func TestIntrospection_WithRAR(t *testing.T) {
 		ClientKeyStore: ks,
 	}
 
-	handler := &apiauth.IntrospectionHandler{
-		Auth:           auth,
-		ClientKeyStore: ks,
-	}
+	handler := apiauth.NewIntrospectionHandler(auth, ks)
 
 	details := []core.AuthorizationDetail{
 		{
@@ -305,10 +302,7 @@ func TestIntrospection_WithoutRAR(t *testing.T) {
 		ClientKeyStore: ks,
 	}
 
-	handler := &apiauth.IntrospectionHandler{
-		Auth:           auth,
-		ClientKeyStore: ks,
-	}
+	handler := apiauth.NewIntrospectionHandler(auth, ks)
 
 	token, _, err := auth.CreateAccessToken("user-normal", []string{"read"}, nil)
 	require.NoError(t, err)
