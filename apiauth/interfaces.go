@@ -27,6 +27,31 @@ type TokenIssuer interface {
 	// RefreshGrant rotates a refresh token and returns a new access + refresh token pair.
 	// Handles theft detection (revoked token → revoke entire family).
 	RefreshGrant(refreshToken string) (*core.TokenPair, error)
+
+	// PasswordGrant authenticates a user with username/password and returns
+	// an access token. Does NOT create a refresh token — that's the caller's
+	// responsibility (via RefreshTokenStore.CreateRefreshToken), since refresh
+	// tokens may carry transport-specific metadata (device info, IP, etc.).
+	PasswordGrant(req PasswordGrantRequest) (*PasswordGrantResult, error)
+}
+
+// PasswordGrantRequest holds the inputs for a password grant.
+type PasswordGrantRequest struct {
+	Username             string
+	Password             string
+	Scopes               []string                  // requested (intersected with allowed)
+	AuthorizationDetails []core.AuthorizationDetail // RFC 9396
+	ClientID             string                     // optional — associated client
+}
+
+// PasswordGrantResult holds the output of a successful password grant.
+// The caller uses UserID + GrantedScopes to create a refresh token if needed.
+type PasswordGrantResult struct {
+	UserID               string
+	AccessToken          string
+	ExpiresIn            int64
+	GrantedScopes        []string
+	AuthorizationDetails []core.AuthorizationDetail
 }
 
 // TokenValidator validates tokens and checks authorization.

@@ -59,6 +59,10 @@ type OneAuthConfig struct {
 	Blacklist    core.TokenBlacklist    // for access token revocation (optional)
 	RefreshStore core.RefreshTokenStore // for refresh token management (optional)
 
+	// Password grant callbacks (optional — only needed if password grant is used)
+	ValidateCredentials core.CredentialsValidator // validates username/password
+	GetUserScopes       core.GetUserScopesFunc   // returns allowed scopes for a user
+
 	// Hooks — lifecycle callbacks
 	Hooks Hooks
 }
@@ -78,9 +82,11 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		Issuer:          cfg.Issuer,
 		Audience:        cfg.Audience,
 		AccessExpiry:    cfg.AccessExpiry,
-		ClientKeyLookup: cfg.KeyStore, // KeyStorage implements KeyLookup
-		RefreshStore:    cfg.RefreshStore,
-		Hooks:           cfg.Hooks.Token,
+		ClientKeyLookup:     cfg.KeyStore, // KeyStorage implements KeyLookup
+		RefreshStore:        cfg.RefreshStore,
+		ValidateCredentials: cfg.ValidateCredentials,
+		GetUserScopes:       cfg.GetUserScopes,
+		Hooks:               cfg.Hooks.Token,
 	})
 
 	// Wire the validator — needs read-only key lookup + blacklist
