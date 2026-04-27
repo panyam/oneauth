@@ -113,6 +113,7 @@ func main() {
 		JWTIssuer:           cfg.JWT.Issuer,
 		ValidateCredentials: localAuth.ValidateCredentials,
 		Blacklist:           blacklist,
+		ClientKeyStore:      keyStore, // enables client_credentials grant
 	}
 
 	// CSRF middleware for browser form endpoints
@@ -262,16 +263,18 @@ func main() {
 		baseURL = fmt.Sprintf("https://%s:%s", cfg.Server.Host, cfg.Server.Port)
 	}
 	asMetaHandler := apiauth.NewASMetadataHandler(&apiauth.ASServerMetadata{
-		Issuer:                        baseURL,
-		TokenEndpoint:                 baseURL + "/api/token",
-		JWKSURI:                       baseURL + "/.well-known/jwks.json",
-		IntrospectionEndpoint:         baseURL + "/oauth/introspect",
-		RegistrationEndpoint:          baseURL + "/apps/register",
-		GrantTypesSupported:           []string{"password", "refresh_token", "client_credentials"},
-		ResponseTypesSupported:        []string{"token"},
-		TokenEndpointAuthMethods:      []string{"client_secret_post", "client_secret_basic"},
-		CodeChallengeMethodsSupported: []string{"S256"},
-		SubjectTypesSupported:         []string{"public"},
+		Issuer:                             baseURL,
+		TokenEndpoint:                      baseURL + "/api/token",
+		JWKSURI:                            baseURL + "/.well-known/jwks.json",
+		IntrospectionEndpoint:              baseURL + "/oauth/introspect",
+		RevocationEndpoint:                 baseURL + "/oauth/revoke",
+		RegistrationEndpoint:               baseURL + "/apps/register",
+		GrantTypesSupported:                []string{"password", "refresh_token", "client_credentials"},
+		ResponseTypesSupported:             []string{"token"},
+		TokenEndpointAuthMethods:           []string{"client_secret_post", "client_secret_basic"},
+		CodeChallengeMethodsSupported:      []string{"S256"},
+		SubjectTypesSupported:              []string{"public"},
+		AuthorizationDetailsTypesSupported: cfg.JWT.AuthorizationDetailsTypes,
 	})
 	mux.Handle("GET /.well-known/openid-configuration", asMetaHandler)
 
@@ -306,15 +309,38 @@ type userStores struct {
 	channelStore      core.ChannelStore
 	tokenStore        core.TokenStore
 	refreshTokenStore core.RefreshTokenStore
+	cleanupPath       string // temp dir to remove on shutdown (memory mode)
+}
+
+// Cleanup removes the temp directory if this was created in memory mode.
+func (s *userStores) Cleanup() {
+	if s.cleanupPath != "" {
+		os.RemoveAll(s.cleanupPath)
+		log.Printf("Cleaned up ephemeral data at %s", s.cleanupPath)
+	}
 }
 
 func buildUserStores(cfg *Config, db *gorm.DB) (*userStores, error) {
 	switch cfg.UserStores.Type {
+	case "memory":
+		path, err := os.MkdirTemp("", "oneauth-memory-*")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temp dir: %w", err)
+		}
+		log.Printf("Using ephemeral user stores at %s (will be cleaned up on exit)", path)
+		return &userStores{
+			userStore:         fsstore.NewFSUserStore(path),
+			identityStore:     fsstore.NewFSIdentityStore(path),
+			channelStore:      fsstore.NewFSChannelStore(path),
+			tokenStore:        fsstore.NewFSTokenStore(path),
+			refreshTokenStore: fsstore.NewFSRefreshTokenStore(path),
+			cleanupPath:       path,
+		}, nil
+
 	case "gorm":
 		if db == nil {
 			return nil, fmt.Errorf("user_stores type=gorm requires keystore type=gorm (shared database)")
 		}
-		// Run migrations for all user tables
 		if err := gormstore.AutoMigrate(db); err != nil {
 			return nil, fmt.Errorf("failed to run user store migrations: %w", err)
 		}

@@ -52,3 +52,4 @@ cmd/oneauth-server/oneauth-server
 /08-rich-authorization-requests
 /09-key-rotation
 /10-security
+/oneauth-server

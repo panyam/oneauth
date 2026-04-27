@@ -1,9 +1,9 @@
 === OneAuth Comprehensive Test Suite ===
-Started: Mon Apr 27 14:47:38 PDT 2026
+Started: Mon Apr 27 16:21:13 PDT 2026
 Starting PostgreSQL...
-b6cffe2f23f8fa65ba0983524be6f2b52e01d776e1b98143ed497a08ee3a7bed
+04ca097b344244702cd626d0f68ebcc7882e3b7a90b6c1c5ae2a72389445b40c
 Starting Keycloak...
-6d8c242536bdac8db5d96021e383410605051af554eedb775e7f9904041d4567
+8455abb110ecec20eec8674745d54c5c0f0664ea6f812e067669f79f14fa19b7
 
 --- [1/9] Lint (staticcheck) ---
 [lint] Running staticcheck...
@@ -12,12 +12,12 @@ Starting Keycloak...
 --- [2/9] Unit tests + coverage (core + sub-modules) ---
 go test -buildvcs=false -coverprofile=test-reports/coverage.out ./... -count=1 -timeout 60s
 ?   	github.com/panyam/oneauth	[no test files]
-ok  	github.com/panyam/oneauth/admin	0.483s	coverage: 75.6% of statements
-ok  	github.com/panyam/oneauth/apiauth	3.270s	coverage: 75.2% of statements
-ok  	github.com/panyam/oneauth/client	4.990s	coverage: 82.4% of statements
-ok  	github.com/panyam/oneauth/client/stores/fs	0.731s	coverage: 77.9% of statements
-ok  	github.com/panyam/oneauth/core	0.938s	coverage: 20.1% of statements
-ok  	github.com/panyam/oneauth/examples	1.591s	coverage: [no statements]
+ok  	github.com/panyam/oneauth/admin	1.005s	coverage: 75.6% of statements
+ok  	github.com/panyam/oneauth/apiauth	5.805s	coverage: 75.2% of statements
+ok  	github.com/panyam/oneauth/client	5.398s	coverage: 82.4% of statements
+ok  	github.com/panyam/oneauth/client/stores/fs	1.187s	coverage: 77.9% of statements
+ok  	github.com/panyam/oneauth/core	1.461s	coverage: 20.1% of statements
+ok  	github.com/panyam/oneauth/examples	1.553s	coverage: [no statements]
 	github.com/panyam/oneauth/examples/01-client-credentials		coverage: 0.0% of statements
 	github.com/panyam/oneauth/examples/02-resource-token-hs256		coverage: 0.0% of statements
 	github.com/panyam/oneauth/examples/03-resource-token-rs256-jwks		coverage: 0.0% of statements
@@ -29,26 +29,26 @@ ok  	github.com/panyam/oneauth/examples	1.591s	coverage: [no statements]
 	github.com/panyam/oneauth/examples/09-key-rotation		coverage: 0.0% of statements
 	github.com/panyam/oneauth/examples/10-security		coverage: 0.0% of statements
 ?   	github.com/panyam/oneauth/examples/refs	[no test files]
-ok  	github.com/panyam/oneauth/httpauth	1.164s	coverage: 29.4% of statements
-ok  	github.com/panyam/oneauth/keys	2.316s	coverage: 75.6% of statements
+ok  	github.com/panyam/oneauth/httpauth	1.034s	coverage: 29.4% of statements
+ok  	github.com/panyam/oneauth/keys	2.386s	coverage: 75.6% of statements
 	github.com/panyam/oneauth/keystoretest		coverage: 0.0% of statements
-ok  	github.com/panyam/oneauth/localauth	6.295s	coverage: 65.1% of statements
-ok  	github.com/panyam/oneauth/stores/fs	1.950s	coverage: 27.9% of statements
-ok  	github.com/panyam/oneauth/tests/e2e	4.071s	coverage: [no statements]
-ok  	github.com/panyam/oneauth/testutil	3.202s	coverage: 79.1% of statements
-ok  	github.com/panyam/oneauth/utils	4.117s	coverage: 54.7% of statements
+ok  	github.com/panyam/oneauth/localauth	8.836s	coverage: 65.1% of statements
+ok  	github.com/panyam/oneauth/stores/fs	1.665s	coverage: 27.9% of statements
+ok  	github.com/panyam/oneauth/tests/e2e	4.852s	coverage: [no statements]
+ok  	github.com/panyam/oneauth/testutil	3.574s	coverage: 79.1% of statements
+ok  	github.com/panyam/oneauth/utils	3.638s	coverage: 54.7% of statements
 go tool cover -html=test-reports/coverage.out -o test-reports/coverage.html
 Coverage report: test-reports/coverage.html
   PASS: unit+coverage
 
 --- [3/9] E2E tests (in-process race detector) ---
 [e2e] Running in-process e2e tests (race detector)...
-ok  	github.com/panyam/oneauth/tests/e2e	14.980s
+ok  	github.com/panyam/oneauth/tests/e2e	20.876s
   PASS: e2e
 
 --- [4/9] PostgreSQL / GORM tests ---
 [postgres] Running GORM tests against PostgreSQL on port 5433...
-ok  	github.com/panyam/oneauth/stores/gorm	0.881s
+ok  	github.com/panyam/oneauth/stores/gorm	0.873s
   PASS: postgres
 
 --- [5/9] Datastore tests ---
@@ -59,8 +59,83 @@ SKIP: no credentials at ~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json
 --- [6/9] Keycloak interop tests ---
 [keycloak] Waiting for Keycloak on port 8180...
 [keycloak] Running interop tests...
-ok  	github.com/panyam/oneauth/tests/keycloak	2.298s
-  PASS: keycloak
+--- FAIL: TestRAR_TokenRequest_WithDetails (0.00s)
+    rar_interop_test.go:112: 
+        	Error Trace:	/Users/dzshrh/newstack/oneauth/main/tests/keycloak/rar_interop_test.go:112
+        	Error:      	Not equal: 
+        	            	expected: 200
+        	            	actual  : 400
+        	Test:       	TestRAR_TokenRequest_WithDetails
+--- FAIL: TestRAR_TokenRequest_MultipleDetails (0.00s)
+    rar_interop_test.go:154: 
+        	Error Trace:	/Users/dzshrh/newstack/oneauth/main/tests/keycloak/rar_interop_test.go:154
+        	Error:      	Not equal: 
+        	            	expected: 200
+        	            	actual  : 400
+        	Test:       	TestRAR_TokenRequest_MultipleDetails
+--- FAIL: TestRAR_TokenRequest_FormEncoded (0.00s)
+    rar_interop_test.go:192: 
+        	Error Trace:	/Users/dzshrh/newstack/oneauth/main/tests/keycloak/rar_interop_test.go:192
+        	Error:      	Not equal: 
+        	            	expected: 200
+        	            	actual  : 400
+        	Test:       	TestRAR_TokenRequest_FormEncoded
+--- FAIL: TestRAR_CoexistsWithScope (0.00s)
+    rar_interop_test.go:228: 
+        	Error Trace:	/Users/dzshrh/newstack/oneauth/main/tests/keycloak/rar_interop_test.go:228
+        	Error:      	Not equal: 
+        	            	expected: 200
+        	            	actual  : 400
+        	Test:       	TestRAR_CoexistsWithScope
+--- FAIL: TestRAR_Error_MissingType (0.00s)
+    rar_interop_test.go:267: 
+        	Error Trace:	/Users/dzshrh/newstack/oneauth/main/tests/keycloak/rar_interop_test.go:267
+        	Error:      	Not equal: 
+        	            	expected: "invalid_authorization_details"
+        	            	actual  : "unsupported_grant_type"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-invalid_authorization_details
+        	            	+unsupported_grant_type
+        	Test:       	TestRAR_Error_MissingType
+        	Messages:   	missing type must produce invalid_authorization_details error
+--- FAIL: TestRAR_JWT_ContainsAuthorizationDetails (0.00s)
+    rar_interop_test.go:328: 
+        	Error Trace:	/Users/dzshrh/newstack/oneauth/main/tests/keycloak/rar_interop_test.go:328
+        	Error:      	Not equal: 
+        	            	expected: 200
+        	            	actual  : 400
+        	Test:       	TestRAR_JWT_ContainsAuthorizationDetails
+--- FAIL: TestRAR_JWKS_ValidateToken (0.00s)
+    rar_interop_test.go:383: 
+        	Error Trace:	/Users/dzshrh/newstack/oneauth/main/tests/keycloak/rar_interop_test.go:383
+        	Error:      	Not equal: 
+        	            	expected: 200
+        	            	actual  : 400
+        	Test:       	TestRAR_JWKS_ValidateToken
+--- FAIL: TestRAR_JWKS_RequireAuthorizationDetails (0.00s)
+panic: interface conversion: interface {} is nil, not string [recovered, repanicked]
+
+goroutine 374 [running]:
+testing.tRunner.func1.2({0x1032d0f40, 0xc0000b08d0})
+	/opt/homebrew/Cellar/go/1.26.2/libexec/src/testing/testing.go:1974 +0x2b8
+testing.tRunner.func1()
+	/opt/homebrew/Cellar/go/1.26.2/libexec/src/testing/testing.go:1977 +0x460
+panic({0x1032d0f40?, 0xc0000b08d0?})
+	/opt/homebrew/Cellar/go/1.26.2/libexec/src/runtime/panic.go:860 +0x12c
+github.com/panyam/oneauth/tests/keycloak_test.TestRAR_JWKS_RequireAuthorizationDetails(0xc0004b4d88)
+	/Users/dzshrh/newstack/oneauth/main/tests/keycloak/rar_interop_test.go:437 +0x91c
+testing.tRunner(0xc0004b4d88, 0x10334af98)
+	/opt/homebrew/Cellar/go/1.26.2/libexec/src/testing/testing.go:2036 +0x168
+created by testing.(*T).Run in goroutine 1
+	/opt/homebrew/Cellar/go/1.26.2/libexec/src/testing/testing.go:2101 +0x7c0
+FAIL	github.com/panyam/oneauth/tests/keycloak	0.745s
+FAIL
+make[1]: *** [keycloak] Error 1
+  FAIL: keycloak
 
 --- [7/9] Secret scanning ---
 [secrets] Scanning for leaked secrets...
@@ -71,10 +146,10 @@ ok  	github.com/panyam/oneauth/tests/keycloak	2.298s
     ○ ░
     ░    gitleaks
 
-[90m2:48PM[0m [32mINF[0m [1mUnknown SCM platform. Use --platform to include links in findings.[0m [36mhost=[0mpanyam-github
-[90m2:48PM[0m [32mINF[0m [1m203 commits scanned.[0m
-[90m2:48PM[0m [32mINF[0m [1mscanned ~3614492 bytes (3.61 MB) in 615ms[0m
-[90m2:48PM[0m [32mINF[0m [1mno leaks found[0m
+[90m4:21PM[0m [32mINF[0m [1mUnknown SCM platform. Use --platform to include links in findings.[0m [36mhost=[0mpanyam-github
+[90m4:21PM[0m [32mINF[0m [1m205 commits scanned.[0m
+[90m4:21PM[0m [32mINF[0m [1mscanned ~3639253 bytes (3.64 MB) in 567ms[0m
+[90m4:21PM[0m [32mINF[0m [1mno leaks found[0m
   PASS: secrets
 
 --- [8/9] Vulnerability check ---
@@ -85,124 +160,24 @@ No vulnerabilities found.
 --- [9/9] ZAP baseline scan ---
 [zap] Building server...
 [zap] Starting server on :19876...
-2026/04/27 14:48:18 Using in-memory KeyStore (not persistent)
-2026/04/27 14:48:18 WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext
-2026/04/27 14:48:18 Using filesystem user stores at /tmp/oneauth-zap-test-all
-2026/04/27 14:48:18 oneauth-server listening on 0.0.0.0:19876 (keystore=memory, user_stores=fs, auth=api-key)
-2026/04/27 14:48:49 
-=== EMAIL: Password Reset ===
-2026/04/27 14:48:49 To: zaproxy@example.com
-2026/04/27 14:48:49 Subject: Reset your password
-2026/04/27 14:48:49 Body: Reset your password by clicking: http://localhost:19876/auth/reset-password?token=5ac266021ce2f3910bb42b8ab49b835f050d06e055dd1f53c72770a5a8ef5c9b
-2026/04/27 14:48:49 ==============================
-2026/04/27 14:48:49 error validating user:  invalid credentials
+2026/04/27 16:21:57 Using in-memory KeyStore (not persistent)
+2026/04/27 16:21:57 WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext
+2026/04/27 16:21:57 Using filesystem user stores at /tmp/oneauth-zap-test-all
+2026/04/27 16:21:57 oneauth-server listening on 0.0.0.0:19876 (keystore=memory, user_stores=fs, auth=api-key)
 Using the Automation Framework
-Total of 9 URLs
-PASS: Vulnerable JS Library (Powered by Retire.js) [10003]
-PASS: In Page Banner Information Leak [10009]
-PASS: Cookie Without Secure Flag [10011]
-PASS: Re-examine Cache-control Directives [10015]
-PASS: Content-Type Header Missing [10019]
-PASS: Anti-clickjacking Header [10020]
-PASS: X-Content-Type-Options Header Missing [10021]
-PASS: Information Disclosure - Debug Error Messages [10023]
-PASS: Information Disclosure - Sensitive Information in URL [10024]
-PASS: Information Disclosure - Sensitive Information in HTTP Referrer Header [10025]
-PASS: HTTP Parameter Override [10026]
-PASS: Information Disclosure - Suspicious Comments [10027]
-PASS: Off-site Redirect [10028]
-PASS: Cookie Poisoning [10029]
-PASS: User Controllable Charset [10030]
-PASS: Viewstate [10032]
-PASS: Directory Browsing [10033]
-PASS: Heartbleed OpenSSL Vulnerability (Indicative) [10034]
-PASS: Strict-Transport-Security Header [10035]
-PASS: HTTP Server Response Header [10036]
-PASS: Server Leaks Information via "X-Powered-By" HTTP Response Header Field(s) [10037]
-PASS: Content Security Policy (CSP) Header Not Set [10038]
-PASS: X-Backend-Server Header Information Leak [10039]
-PASS: Secure Pages Include Mixed Content [10040]
-PASS: HTTP to HTTPS Insecure Transition in Form Post [10041]
-PASS: HTTPS to HTTP Insecure Transition in Form Post [10042]
-PASS: User Controllable JavaScript Event (XSS) [10043]
-PASS: Big Redirect Detected (Potential Sensitive Information Leak) [10044]
-PASS: Retrieved from Cache [10050]
-PASS: X-ChromeLogger-Data (XCOLD) Header Information Leak [10052]
-PASS: Cookie without SameSite Attribute [10054]
-PASS: X-Debug-Token Information Leak [10056]
-PASS: Username Hash Found [10057]
-PASS: X-AspNet-Version Response Header [10061]
-PASS: PII Disclosure [10062]
-PASS: Permissions Policy Header Not Set [10063]
-PASS: Base64 Disclosure [10094]
-PASS: Timestamp Disclosure [10096]
-PASS: Hash Disclosure [10097]
-PASS: Cross-Domain Misconfiguration [10098]
-PASS: Source Code Disclosure [10099]
-PASS: Weak Authentication Method [10105]
-PASS: Reverse Tabnabbing [10108]
-PASS: Modern Web Application [10109]
-PASS: Dangerous JS Functions [10110]
-PASS: Verification Request Identified [10113]
-PASS: Script Served From Malicious Domain (polyfill) [10115]
-PASS: ZAP is Out of Date [10116]
-PASS: Absence of Anti-CSRF Tokens [10202]
-PASS: Full Path Disclosure [110009]
-PASS: Private IP Disclosure [2]
-PASS: Session ID in URL Rewrite [3]
-PASS: Script Passive Scan Rules [50001]
-PASS: Stats Passive Scan Rule [50003]
-PASS: Insecure JSF ViewState [90001]
-PASS: Java Serialization Object [90002]
-PASS: Insufficient Site Isolation Against Spectre Vulnerability [90004]
-PASS: Charset Mismatch [90011]
-PASS: Application Error Disclosure [90022]
-PASS: WSDL File Detection [90030]
-PASS: Loosely Scoped Cookie [90033]
-IGNORE: Cookie No HttpOnly Flag [10010] x 1 
-	http://host.docker.internal:19876/auth/login (200 OK)
-IGNORE: Cross-Domain JavaScript Source File Inclusion [10017] x 5 
-	http://host.docker.internal:19876 (200 OK)
-	http://host.docker.internal:19876/ (200 OK)
-	http://host.docker.internal:19876/auth/forgot-password (200 OK)
-	http://host.docker.internal:19876/auth/login (200 OK)
-	http://host.docker.internal:19876/auth/login (200 OK)
-IGNORE: User Controllable HTML Element Attribute (Potential XSS) [10031] x 2 
-	http://host.docker.internal:19876/auth/login (200 OK)
-	http://host.docker.internal:19876/auth/signup (200 OK)
-IGNORE: Non-Storable Content [10049] x 6 
-	http://host.docker.internal:19876/auth/forgot-password (303 See Other)
-	http://host.docker.internal:19876 (200 OK)
-	http://host.docker.internal:19876/ (200 OK)
-	http://host.docker.internal:19876/auth/login (200 OK)
-	http://host.docker.internal:19876/robots.txt (404 Not Found)
-IGNORE: CSP: style-src unsafe-inline [10055] x 5 
-	http://host.docker.internal:19876 (200 OK)
-	http://host.docker.internal:19876/ (200 OK)
-	http://host.docker.internal:19876/auth/forgot-password (200 OK)
-	http://host.docker.internal:19876/auth/forgot-password?sent=true (200 OK)
-	http://host.docker.internal:19876/auth/login (200 OK)
-IGNORE: Authentication Request Identified [10111] x 1 
-	http://host.docker.internal:19876/auth/login (200 OK)
-IGNORE: Session Management Response Identified [10112] x 2 
-	http://host.docker.internal:19876/auth/login (200 OK)
-	http://host.docker.internal:19876/auth/login (200 OK)
-IGNORE: Sub Resource Integrity Attribute Missing [90003] x 5 
-	http://host.docker.internal:19876 (200 OK)
-	http://host.docker.internal:19876/ (200 OK)
-	http://host.docker.internal:19876/auth/forgot-password (200 OK)
-	http://host.docker.internal:19876/auth/login (200 OK)
-	http://host.docker.internal:19876/auth/login (200 OK)
-IGNORE: Sec-Fetch-Dest Header is Missing [90005] x 12 
-	http://host.docker.internal:19876/robots.txt (404 Not Found)
-	http://host.docker.internal:19876/sitemap.xml (404 Not Found)
-	http://host.docker.internal:19876/auth/forgot-password (303 See Other)
-	http://host.docker.internal:19876/robots.txt (404 Not Found)
-	http://host.docker.internal:19876/sitemap.xml (404 Not Found)
-FAIL-NEW: 0	FAIL-INPROG: 0	WARN-NEW: 0	WARN-INPROG: 0	INFO: 0	IGNORE: 9	PASS: 61
-  PASS: zap
-
-=== Summary: 9 passed, 0 failed ===
-Finished: Mon Apr 27 14:48:59 PDT 2026
-oneauth-test-pg
-oneauth-test-keycloak
+Traceback (most recent call last):
+  File "/zap/zap-baseline.py", line 712, in <module>
+    main(sys.argv[1:])
+  File "/zap/zap-baseline.py", line 462, in main
+    run_zap_inline(port, install_opts)
+  File "/zap/zap_common.py", line 304, in run_zap_inline
+    process = subprocess.run(
+              ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/subprocess.py", line 1194, in communicate
+    stdout = self.stdout.read()
+             ^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+make[1]: *** [zap] Error 130

@@ -5,7 +5,6 @@ use (
 	./cmd/demo-hostapp
 	./cmd/demo-resource-server
 	./cmd/oneauth-server
-	./cmd/rar-test-issuer
 	./grpc
 	./oauth2
 	./saml

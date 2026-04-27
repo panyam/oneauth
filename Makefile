@@ -459,12 +459,12 @@ testkcl:
 		until curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; do sleep 2; done; \
 		echo "Keycloak ready."; \
 	fi
-	@if ! docker ps --format '{{.Names}}' | grep -q '^$(RAR_CONTAINER_NAME)$$'; then \
-		echo "Building and starting RAR test issuer..."; \
-		docker build -f cmd/rar-test-issuer/Dockerfile -t $(RAR_IMAGE) . > /dev/null 2>&1; \
-		docker run --rm -d --name $(RAR_CONTAINER_NAME) -p $(RAR_PORT):8181 $(RAR_IMAGE); \
+	@if ! curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; then \
+		echo "Starting RAR test server..."; \
+		go run -buildvcs=false ./cmd/oneauth-server/ \
+			--config cmd/oneauth-server/deploy-examples/rar-test.yaml > /dev/null 2>&1 & \
 		until curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; do sleep 1; done; \
-		echo "RAR test issuer ready."; \
+		echo "RAR test server ready."; \
 	fi
 	cd tests/keycloak && \
 	KEYCLOAK_URL=http://localhost:$(KC_PORT) \
@@ -484,34 +484,32 @@ testkcl:
 # Keycloak and retire this binary. The tests in tests/keycloak/rar_interop_test.go
 # are structured to make this migration straightforward — swap the URL and
 # client credentials, keep the assertions.
-RAR_CONTAINER_NAME := oneauth-rar-test-issuer
 RAR_PORT := 8181
-RAR_IMAGE := oneauth-rar-test-issuer
+RAR_PID_FILE := /tmp/oneauth-rar-test.pid
 
-# Build the RAR test issuer Docker image
-buildrar:
-	@echo "Building RAR test issuer image..."
-	@docker build -f cmd/rar-test-issuer/Dockerfile -t $(RAR_IMAGE) .
+# Start RAR test server (oneauth-server with rar-test.yaml config)
+uprar:
+	@if [ -f $(RAR_PID_FILE) ] && kill -0 $$(cat $(RAR_PID_FILE)) 2>/dev/null; then \
+		echo "RAR test server already running (pid $$(cat $(RAR_PID_FILE)))"; \
+	else \
+		echo "Starting RAR test server on port $(RAR_PORT)..."; \
+		go run -buildvcs=false ./cmd/oneauth-server/ \
+			--config cmd/oneauth-server/deploy-examples/rar-test.yaml & \
+		echo $$! > $(RAR_PID_FILE); \
+		until curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; do sleep 1; done; \
+		echo "RAR test server ready (pid $$(cat $(RAR_PID_FILE)))"; \
+		echo "  Discovery: http://localhost:$(RAR_PORT)/.well-known/openid-configuration"; \
+	fi
 
-# Start the RAR test issuer container
-uprar: buildrar
-	@echo "Starting RAR test issuer container..."
-	@docker run --rm -d \
-		--name $(RAR_CONTAINER_NAME) \
-		-p $(RAR_PORT):8181 \
-		$(RAR_IMAGE)
-	@echo "Waiting for RAR test issuer to be ready..."
-	@until curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; do sleep 1; done
-	@echo ""
-	@echo "RAR test issuer is running!"
-	@echo "  Discovery: http://localhost:$(RAR_PORT)/.well-known/openid-configuration"
-	@echo "  JWKS:      http://localhost:$(RAR_PORT)/.well-known/jwks.json"
-	@echo "To stop: make downrar"
-
-# Stop the RAR test issuer container
+# Stop RAR test server
 downrar:
-	@echo "Stopping RAR test issuer container..."
-	@docker stop $(RAR_CONTAINER_NAME) 2>/dev/null || echo "Container not running"
+	@if [ -f $(RAR_PID_FILE) ]; then \
+		kill $$(cat $(RAR_PID_FILE)) 2>/dev/null || true; \
+		rm -f $(RAR_PID_FILE); \
+		echo "RAR test server stopped."; \
+	else \
+		echo "Not running"; \
+	fi
 
 # =============================================================================
 # GAE deployment
@@ -634,7 +632,7 @@ rep:
 
 # Tag a release across all modules. Usage: make tag V=v0.0.40
 # Sub-modules are tagged with path prefix per Go convention (e.g. stores/gorm/v0.0.40)
-SUB_MODS_TO_TAG := stores/gorm stores/gae saml grpc oauth2 cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server cmd/rar-test-issuer
+SUB_MODS_TO_TAG := stores/gorm stores/gae saml grpc oauth2 cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
 tag:
 	@if [ -z "$(V)" ]; then echo "Usage: make tag V=v0.0.40"; exit 1; fi
 	@echo "Tagging $(V) across all modules..."
@@ -678,7 +676,7 @@ audit: vulncheck secrets
 .PHONY: test test-hard testall test-report e2e audit \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
-	upkcl downkcl kcllogs testkcl buildrar uprar downrar deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
 	deps norep rep tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all
