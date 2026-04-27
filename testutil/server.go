@@ -146,10 +146,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		ClientKeyStore: ks,
 	}
 
-	introspection := &apiauth.IntrospectionHandler{
-		Auth:           apiAuth,
-		ClientKeyStore: ks,
-	}
+	introspection := apiauth.NewIntrospectionHandler(apiAuth, ks)
 
 	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
 
