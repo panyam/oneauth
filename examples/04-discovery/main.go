@@ -23,7 +23,8 @@ import (
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/client"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -66,7 +67,7 @@ func main() {
 
 	// --- Setup ---
 	demo.Step("Start auth server with discovery, token, JWKS, and introspection endpoints").
-		Ref(demokit.RFC8414).
+		Ref(refs.RFC8414).
 		Note("This is the most complete auth server we've built so far — it serves discovery, tokens, JWKS, introspection, and registration.").
 		Run(func() {
 			ks = keys.NewInMemoryKeyStore()
@@ -131,7 +132,7 @@ func main() {
 
 	// --- Fetch raw metadata ---
 	demo.Step("Fetch the discovery document (raw HTTP)").
-		Ref(demokit.RFC8414).
+		Ref(refs.RFC8414).
 		Arrow("App", "AS", "GET /.well-known/openid-configuration").
 		DashedArrow("AS", "App", "JSON {issuer, token_endpoint, jwks_uri, ...}").
 		Note("The discovery document is a JSON object listing every endpoint the server supports. This is the same format Keycloak, Auth0, and Google use.").
@@ -164,7 +165,7 @@ func main() {
 
 	// --- Use client.DiscoverAS ---
 	demo.Step("Discover using the client SDK (client.DiscoverAS)").
-		Ref(demokit.RFC8414).
+		Ref(refs.RFC8414).
 		Arrow("App", "AS", "client.DiscoverAS(serverURL)").
 		DashedArrow("AS", "App", "typed ASMetadata struct").
 		Note("client.DiscoverAS() fetches and parses the metadata into a typed Go struct. Production code should use this — no manual JSON parsing needed.").
@@ -209,7 +210,7 @@ func main() {
 
 	// --- Get token using discovered endpoint ---
 	demo.Step("Get a token (using discovered token endpoint)").
-		Ref(demokit.RFC6749_ClientCredentials).
+		Ref(refs.RFC6749_ClientCredentials).
 		Arrow("App", "AS", "POST {discovered_token_endpoint}").
 		DashedArrow("AS", "App", "{access_token, token_type, expires_in}").
 		Note("We use discoveredMeta.TokenEndpoint instead of hardcoding /api/token. This is the key benefit — the same client code works against any compliant AS.").
@@ -233,7 +234,7 @@ func main() {
 
 	// --- Use the token ---
 	demo.Step("Use the token on a resource server").
-		Ref(demokit.RFC6750).
+		Ref(refs.RFC6750).
 		Arrow("App", "RS", "GET /resource (Bearer token)").
 		DashedArrow("RS", "App", "200 {data}").
 		Note("The resource server validates the token as in previous examples. Discovery doesn't change how tokens work — it only changes how the client finds the endpoints.").
@@ -253,7 +254,7 @@ func main() {
 
 	// --- Optional: Keycloak comparison ---
 	demo.Step("Discover Keycloak endpoints (optional)").
-		Ref(demokit.RFC8414).
+		Ref(refs.RFC8414).
 		Arrow("App", "AS", "client.DiscoverAS(keycloakRealmURL)").
 		DashedArrow("AS", "App", "{issuer, token_endpoint, jwks_uri, ...}").
 		Note("Same DiscoverAS() call, completely different server. If Keycloak isn't running, this step is skipped — run 'make upkcl' in examples/ to start it.").

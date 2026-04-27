@@ -23,7 +23,8 @@ import (
 
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -96,7 +97,7 @@ func main() {
 
 	// --- Register ---
 	demo.Step("Register an app with HS256 signing").
-		Ref(demokit.RFC7515).
+		Ref(refs.RFC7515).
 		Arrow("App", "AS", "POST /apps/register {domain: myapp.example.com, signing_alg: HS256}").
 		DashedArrow("AS", "App", "{client_id, client_secret}").
 		Note("The app gets a client_id and a shared secret. The secret is stored in the KeyStore — both the app and resource server can use it for signing/verification.").
@@ -132,9 +133,9 @@ func main() {
 
 	// --- Mint for Alice ---
 	demo.Step("Mint a resource token for user Alice").
-		Ref(demokit.RFC7519).
-		Ref(demokit.RFC7515).
-		Ref(demokit.RFC7638).
+		Ref(refs.RFC7519).
+		Ref(refs.RFC7515).
+		Ref(refs.RFC7638).
 		Arrow("App", "App", "MintResourceToken(alice, scopes=[read,write], max_rooms=10)").
 		Note("The app creates a JWT with sub=alice, signed with its HS256 secret. The token includes quota claims (max_rooms) for resource-level enforcement.").
 		Run(func() {
@@ -153,7 +154,7 @@ func main() {
 
 	// --- Mint for Bob ---
 	demo.Step("Mint a resource token for user Bob (different scopes)").
-		Ref(demokit.RFC7519).
+		Ref(refs.RFC7519).
 		Arrow("App", "App", "MintResourceToken(bob, scopes=[read], max_rooms=3)").
 		Note("Same app, different user, different permissions. Bob gets read-only access with a lower room quota.").
 		Run(func() {
@@ -172,8 +173,8 @@ func main() {
 
 	// --- Validate Alice ---
 	demo.Step("Resource server validates Alice's token").
-		Ref(demokit.RFC6750).
-		Ref(demokit.RFC7515).
+		Ref(refs.RFC6750).
+		Ref(refs.RFC7515).
 		Arrow("App", "RS", "GET /resource (Bearer: alice's token)").
 		Arrow("RS", "RS", "Validate HS256 signature via KeyStore").
 		DashedArrow("RS", "App", "200 {user: alice, scopes: [read,write], max_rooms: 10}").
@@ -213,7 +214,7 @@ func main() {
 
 	// --- Wrong secret ---
 	demo.Step("Token signed with wrong secret is rejected").
-		Ref(demokit.RFC7515).
+		Ref(refs.RFC7515).
 		Arrow("App", "App", "MintResourceToken(eve, secret=wrong-secret)").
 		Arrow("App", "RS", "GET /resource (Bearer: bad token)").
 		DashedArrow("RS", "App", "401 Unauthorized").

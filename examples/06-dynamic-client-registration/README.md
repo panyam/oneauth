@@ -127,10 +127,10 @@ configuration — all wrapped in a simple `TokenSource` interface.
 
 ## References
 
+- [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 - [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591)
 - [RFC 8414 — AS Metadata Discovery](https://www.rfc-editor.org/rfc/rfc8414)
 - [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
-- [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 
 ## Run it
 

@@ -24,7 +24,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
@@ -57,7 +58,7 @@ func main() {
 
 	// --- Setup ---
 	demo.Step("Set up KeyStore with an RS256 app and an HS256 app").
-		Ref(demokit.RFC7517).
+		Ref(refs.RFC7517).
 		Note("Two apps coexist: one with an RSA key pair (RS256), one with a shared secret (HS256). The resource server validates tokens from both.").
 		Run(func() {
 			ks = keys.NewInMemoryKeyStore()
@@ -78,8 +79,8 @@ func main() {
 
 	// --- Attack 1: Algorithm confusion ---
 	demo.Step("Attack 1: Algorithm confusion (CVE-2015-9235)").
-		Ref(demokit.CVE_2015_9235).
-		Ref(demokit.RFC7515).
+		Ref(refs.CVE_2015_9235).
+		Ref(refs.RFC7515).
 		Arrow("Attacker", "Attacker", "Craft JWT: alg=HS256, sign with RSA public key").
 		Arrow("Attacker", "RS", "Bearer: confused token").
 		DashedArrow("RS", "Attacker", "401 Unauthorized (blocked)").
@@ -113,7 +114,7 @@ func main() {
 
 	// --- Attack 2: alg:none ---
 	demo.Step("Attack 2: alg:none — no signature at all").
-		Ref(demokit.CVE_2015_9235).
+		Ref(refs.CVE_2015_9235).
 		Arrow("Attacker", "Attacker", "Craft JWT: alg=none, no signature").
 		Arrow("Attacker", "RS", "Bearer: unsigned token").
 		DashedArrow("RS", "Attacker", "401 Unauthorized (blocked)").
@@ -176,7 +177,7 @@ func main() {
 
 	// --- JWKS security ---
 	demo.Step("JWKS security: only public keys, never secrets").
-		Ref(demokit.RFC7517).
+		Ref(refs.RFC7517).
 		Arrow("Anyone", "AS", "GET /.well-known/jwks.json").
 		DashedArrow("AS", "Anyone", "{keys: [RSA public key only]}").
 		Note("JWKS serves only asymmetric public keys. HS256 secrets are excluded entirely. RSA keys include only public components (n, e) — private fields (d, p, q) are structurally absent from the JWK type.").

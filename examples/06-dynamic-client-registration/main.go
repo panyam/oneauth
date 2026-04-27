@@ -24,7 +24,8 @@ import (
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/client"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
@@ -65,8 +66,8 @@ func main() {
 
 	// --- Setup ---
 	demo.Step("Start auth server with DCR endpoint").
-		Ref(demokit.RFC7591).
-		Ref(demokit.RFC8414).
+		Ref(refs.RFC7591).
+		Ref(refs.RFC8414).
 		Note("The auth server serves /apps/dcr (RFC 7591) alongside the proprietary /apps/register. Both create clients in the same KeyStore.").
 		Run(func() {
 			ks = keys.NewInMemoryKeyStore()
@@ -125,7 +126,7 @@ func main() {
 
 	// --- Symmetric registration ---
 	demo.Step("Register a symmetric client (client_secret_post)").
-		Ref(demokit.RFC7591).
+		Ref(refs.RFC7591).
 		Arrow("App", "AS", "POST /apps/dcr {client_name, grant_types, auth_method}").
 		DashedArrow("AS", "App", "{client_id, client_secret, client_id_issued_at}").
 		Note("The simplest DCR: the AS generates both a client_id and client_secret. The client uses client_secret_post to authenticate at the token endpoint.").
@@ -157,7 +158,7 @@ func main() {
 
 	// --- Use the registered client ---
 	demo.Step("Get a token with the DCR-registered client").
-		Ref(demokit.RFC6749_ClientCredentials).
+		Ref(refs.RFC6749_ClientCredentials).
 		Arrow("App", "AS", "POST /api/token {client_id, client_secret from DCR}").
 		DashedArrow("AS", "App", "{access_token}").
 		Note("The dynamically registered client works exactly like a manually registered one — the AS doesn't distinguish between registration methods.").
@@ -179,8 +180,8 @@ func main() {
 
 	// --- Asymmetric registration ---
 	demo.Step("Register an asymmetric client (private_key_jwt with JWKS)").
-		Ref(demokit.RFC7591).
-		Ref(demokit.RFC7517).
+		Ref(refs.RFC7591).
+		Ref(refs.RFC7517).
 		Arrow("App", "AS", "POST /apps/dcr {auth_method: private_key_jwt, jwks: {keys: [...]}}").
 		DashedArrow("AS", "App", "{client_id} (no client_secret — asymmetric!)").
 		Note("For asymmetric auth, the client sends its public key as a JWK set. No secret is returned — the client authenticates with signed JWTs using its private key.").
@@ -228,7 +229,7 @@ func main() {
 
 	// --- Optional: Keycloak DCR ---
 	demo.Step("Register via Keycloak DCR (optional)").
-		Ref(demokit.RFC7591).
+		Ref(refs.RFC7591).
 		Arrow("App", "AS", "POST {KC registration_endpoint} {client_name, grant_types}").
 		DashedArrow("AS", "App", "{client_id, client_secret, registration_access_token}").
 		Note("Same DCR request format against Keycloak. KC returns additional fields like registration_access_token for client management. If KC isn't running, this step is skipped.").

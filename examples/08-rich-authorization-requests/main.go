@@ -27,7 +27,8 @@ import (
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/client"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -77,8 +78,8 @@ func main() {
 
 	// --- Setup ---
 	demo.Step("Start auth server with RAR support + two resource servers").
-		Ref(demokit.RFC9396).
-		Ref(demokit.RFC8414).
+		Ref(refs.RFC9396).
+		Ref(refs.RFC8414).
 		Note("The auth server advertises authorization_details_types_supported in its discovery document. Two resource servers enforce different authorization types.").
 		Run(func() {
 			ks = keys.NewInMemoryKeyStore()
@@ -154,8 +155,8 @@ func main() {
 
 	// --- Discovery ---
 	demo.Step("Discover supported authorization_details types").
-		Ref(demokit.RFC9396).
-		Ref(demokit.RFC8414).
+		Ref(refs.RFC9396).
+		Ref(refs.RFC8414).
 		Arrow("App", "AS", "GET /.well-known/openid-configuration").
 		DashedArrow("AS", "App", "{..., authorization_details_types_supported: [...]}").
 		Note("RFC 9396 §10: the AS advertises which authorization_details types it supports. Clients check this before requesting.").
@@ -174,7 +175,7 @@ func main() {
 
 	// --- Register via DCR ---
 	demo.Step("Register a banking app via DCR (RFC 7591)").
-		Ref(demokit.RFC7591).
+		Ref(refs.RFC7591).
 		Arrow("App", "AS", "POST /apps/dcr {client_name, grant_types, scope}").
 		DashedArrow("AS", "App", "{client_id, client_secret}").
 		Note("Using standards-compliant DCR (Example 06) instead of the proprietary endpoint. A banking app should be fully standards-based.").
@@ -198,8 +199,8 @@ func main() {
 
 	// --- Payment token ---
 	demo.Step("Request a token with payment authorization_details").
-		Ref(demokit.RFC9396).
-		Ref(demokit.RFC6749_ClientCredentials).
+		Ref(refs.RFC9396).
+		Ref(refs.RFC6749_ClientCredentials).
 		Arrow("App", "AS", "POST /api/token {authorization_details: [{type: payment_initiation, ...}]}").
 		DashedArrow("AS", "App", "{access_token, authorization_details: [{type: payment_initiation, ...}]}").
 		Note("The token request includes structured authorization_details — not just 'scope=payments' but the exact payment to initiate. The AS validates, embeds in the JWT, and echoes in the response.").
@@ -259,7 +260,7 @@ func main() {
 
 	// --- Use on payments RS ---
 	demo.Step("Access the Payments API (authorized)").
-		Ref(demokit.RFC9396).
+		Ref(refs.RFC9396).
 		Arrow("App", "Pay", "POST /payments (Bearer: payment token)").
 		Arrow("Pay", "Pay", "RequireAuthorizationDetails(\"payment_initiation\") ✓").
 		DashedArrow("Pay", "App", "200 {status: payment_accepted, details: [...]}").
@@ -280,7 +281,7 @@ func main() {
 
 	// --- Use on accounts RS (should fail) ---
 	demo.Step("Access the Accounts API with a payment token (rejected)").
-		Ref(demokit.RFC9396).
+		Ref(refs.RFC9396).
 		Arrow("App", "Acct", "GET /accounts (Bearer: payment token)").
 		Arrow("Acct", "Acct", "RequireAuthorizationDetails(\"account_information\") ✗").
 		DashedArrow("Acct", "App", "401 Unauthorized").
@@ -296,8 +297,8 @@ func main() {
 
 	// --- Introspect ---
 	demo.Step("Introspect the payment token").
-		Ref(demokit.RFC9396).
-		Ref(demokit.RFC7662).
+		Ref(refs.RFC9396).
+		Ref(refs.RFC7662).
 		Arrow("RS", "AS", "POST /oauth/introspect {token}").
 		DashedArrow("AS", "RS", "{active: true, authorization_details: [...]}").
 		Note("Introspection returns the authorization_details alongside the standard claims. Resource servers that use introspection (instead of local JWT validation) get the same fine-grained information.").
@@ -319,7 +320,7 @@ func main() {
 
 	// --- Scope coexistence ---
 	demo.Step("RAR coexists with scopes").
-		Ref(demokit.RFC9396).
+		Ref(refs.RFC9396).
 		Arrow("App", "AS", "POST /api/token {scope: read, authorization_details: [...]}").
 		DashedArrow("AS", "App", "{scope: read, authorization_details: [...]}").
 		Note("Scopes and authorization_details are independent — you can use both in the same request. Scopes for coarse-grained access, RAR for fine-grained.").
@@ -348,7 +349,7 @@ func main() {
 
 	// --- Optional: RAR test issuer ---
 	demo.Step("Cross-server RAR validation (optional — RAR test issuer)").
-		Ref(demokit.RFC9396).
+		Ref(refs.RFC9396).
 		Arrow("App", "AS", "POST {RAR issuer}/api/token {authorization_details}").
 		Arrow("App", "RS", "Bearer token → validate via JWKS from RAR issuer").
 		Note("No open-source IdP supports RFC 9396 on standard OAuth flows yet. We built a RAR test issuer (cmd/rar-test-issuer) for interop testing. Run 'make uprar' to start it. When Keycloak adds RAR support, this step will migrate to KC.").

@@ -29,7 +29,8 @@ import (
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/client"
 	"github.com/panyam/oneauth/core"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -76,7 +77,7 @@ func main() {
 
 	// --- Setup ---
 	demo.Step("Start auth server with token endpoint, introspection, and blacklist").
-		Ref(demokit.RFC7662).
+		Ref(refs.RFC7662).
 		Note("The auth server now has a blacklist for token revocation. The introspection endpoint checks it before responding.").
 		Run(func() {
 			ks = keys.NewInMemoryKeyStore()
@@ -109,8 +110,8 @@ func main() {
 
 	// --- Register + get token ---
 	demo.Step("Register a client and get an access token").
-		Ref(demokit.RFC6749_ClientCredentials).
-		Ref(demokit.RFC7519).
+		Ref(refs.RFC6749_ClientCredentials).
+		Ref(refs.RFC7519).
 		Arrow("App", "AS", "POST /apps/register → POST /api/token").
 		DashedArrow("AS", "App", "{client_id, client_secret, access_token}").
 		Note("Same as Example 01 — register, then client_credentials grant. The token includes a jti (JWT ID) claim used for revocation.").
@@ -165,7 +166,7 @@ func main() {
 
 	// --- Introspect valid token ---
 	demo.Step("Introspect a valid token").
-		Ref(demokit.RFC7662).
+		Ref(refs.RFC7662).
 		Arrow("RS", "AS", "POST /oauth/introspect {token} (Basic auth)").
 		DashedArrow("AS", "RS", "{active: true, sub, scope, exp, iss, jti}").
 		Note("The RS authenticates with its own credentials (same client in this example). The response includes the token's claims — the RS doesn't need to decode the JWT itself.").
@@ -177,7 +178,7 @@ func main() {
 
 	// --- Introspect garbage ---
 	demo.Step("Introspect a garbage token").
-		Ref(demokit.RFC7662).
+		Ref(refs.RFC7662).
 		Arrow("RS", "AS", "POST /oauth/introspect {token: not-a-real-token}").
 		DashedArrow("AS", "RS", "{active: false}").
 		Note("Invalid tokens always return {active: false} — the AS never reveals why. This is a security requirement of RFC 7662.").
@@ -189,7 +190,7 @@ func main() {
 
 	// --- Revoke and re-introspect ---
 	demo.Step("Revoke the token, then introspect again").
-		Ref(demokit.RFC7662).
+		Ref(refs.RFC7662).
 		Arrow("Admin", "AS", "blacklist.Revoke(jti)").
 		Arrow("RS", "AS", "POST /oauth/introspect {same token as step 3}").
 		DashedArrow("AS", "RS", "{active: false}").
@@ -209,7 +210,7 @@ func main() {
 
 	// --- Unauthenticated caller ---
 	demo.Step("Introspect without authentication (rejected)").
-		Ref(demokit.RFC7662).
+		Ref(refs.RFC7662).
 		Arrow("Attacker", "AS", "POST /oauth/introspect {token} (no Basic auth)").
 		DashedArrow("AS", "Attacker", "401 Unauthorized").
 		Note("The introspection endpoint requires the caller to authenticate. An unauthenticated request is rejected — you can't fish for valid tokens.").
@@ -226,7 +227,7 @@ func main() {
 
 	// --- Optional: Keycloak introspection ---
 	demo.Step("Introspect via Keycloak (optional)").
-		Ref(demokit.RFC7662).
+		Ref(refs.RFC7662).
 		Arrow("App", "AS", "POST {KC token_endpoint} → get KC token").
 		Arrow("RS", "AS", "POST {KC introspection_endpoint} {token}").
 		DashedArrow("AS", "RS", "{active: true, sub, scope, ...}").

@@ -26,7 +26,8 @@ import (
 
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
@@ -67,7 +68,7 @@ func main() {
 
 	// --- Setup ---
 	demo.Step("Start auth server with JWKS endpoint").
-		Ref(demokit.RFC7517).
+		Ref(refs.RFC7517).
 		Note("The auth server now serves two endpoints: /apps/ for registration and /.well-known/jwks.json for public key discovery.").
 		Run(func() {
 			ks = keys.NewInMemoryKeyStore()
@@ -85,7 +86,7 @@ func main() {
 
 	// --- Generate key pair ---
 	demo.Step("App generates an RSA key pair").
-		Ref(demokit.RFC7515).
+		Ref(refs.RFC7515).
 		Note("The app generates a 2048-bit RSA key pair. The private key stays with the app. The public key will be registered with the auth server.").
 		Run(func() {
 			privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
@@ -102,7 +103,7 @@ func main() {
 
 	// --- Register with public key ---
 	demo.Step("Register app with RS256 public key").
-		Ref(demokit.RFC7517).
+		Ref(refs.RFC7517).
 		Arrow("App", "AS", "POST /apps/register {domain, signing_alg: RS256, public_key}").
 		DashedArrow("AS", "App", "{client_id} (no client_secret — asymmetric!)").
 		Note("Unlike HS256 registration, no secret is returned. The auth server stores the public key and serves it via JWKS.").
@@ -126,8 +127,8 @@ func main() {
 
 	// --- Verify JWKS ---
 	demo.Step("Verify the public key appears in JWKS").
-		Ref(demokit.RFC7517).
-		Ref(demokit.RFC7638).
+		Ref(refs.RFC7517).
+		Ref(refs.RFC7638).
 		Arrow("App", "AS", "GET /.well-known/jwks.json").
 		DashedArrow("AS", "App", "{keys: [{kty: RSA, alg: RS256, kid: ..., n: ..., e: ...}]}").
 		Note("The JWKS endpoint serves only public keys — HS256 secrets are never exposed. Each key includes a kid (Key ID) computed from the key thumbprint (RFC 7638).").
@@ -171,7 +172,7 @@ func main() {
 
 	// --- Start resource server with JWKS discovery ---
 	demo.Step("Start resource server with JWKS-based key discovery").
-		Ref(demokit.RFC7517).
+		Ref(refs.RFC7517).
 		Note("The resource server points its JWKSKeyStore at the auth server's JWKS URL. It automatically fetches and caches the public keys.").
 		Run(func() {
 			jwksKS := keys.NewJWKSKeyStore(
@@ -200,9 +201,9 @@ func main() {
 
 	// --- Mint and validate ---
 	demo.Step("Mint a token with the private key and validate via JWKS").
-		Ref(demokit.RFC7519).
-		Ref(demokit.RFC7515).
-		Ref(demokit.RFC7638).
+		Ref(refs.RFC7519).
+		Ref(refs.RFC7515).
+		Ref(refs.RFC7638).
 		Arrow("App", "App", "MintResourceTokenWithKey(alice, privKey)").
 		Arrow("App", "RS", "GET /resource (Bearer: RS256 token)").
 		Arrow("RS", "AS", "GET /.well-known/jwks.json (cached)").
@@ -231,7 +232,7 @@ func main() {
 
 	// --- Wrong key ---
 	demo.Step("Token signed with a different private key is rejected").
-		Ref(demokit.RFC7515).
+		Ref(refs.RFC7515).
 		Arrow("App", "App", "MintResourceTokenWithKey(eve, differentPrivKey)").
 		Arrow("App", "RS", "GET /resource (Bearer: bad token)").
 		DashedArrow("RS", "App", "401 Unauthorized").

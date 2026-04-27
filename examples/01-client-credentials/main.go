@@ -20,7 +20,8 @@ import (
 
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -105,7 +106,7 @@ func main() {
 
 	// --- Step 1: Register ---
 	demo.Step("Register a client").
-		Ref(demokit.RFC7591).
+		Ref(refs.RFC7591).
 		Arrow("App", "AS", "POST /apps/register {domain, signing_alg}").
 		DashedArrow("AS", "App", "{client_id, client_secret}").
 		Note("The client receives credentials it will use to authenticate in the next step.").
@@ -128,8 +129,8 @@ func main() {
 
 	// --- Step 2: Token ---
 	demo.Step("Request an access token").
-		Ref(demokit.RFC6749_ClientCredentials).
-		Ref(demokit.RFC7519).
+		Ref(refs.RFC6749_ClientCredentials).
+		Ref(refs.RFC7519).
 		Arrow("App", "AS", "POST /api/token {grant_type: client_credentials}").
 		DashedArrow("AS", "App", "{access_token, token_type, expires_in}").
 		Note("The AS verifies the client credentials and returns a signed JWT. The token carries sub=client_id (no user context in this flow).").
@@ -165,8 +166,8 @@ func main() {
 
 	// --- Step 3: Use token ---
 	demo.Step("Access a protected resource").
-		Ref(demokit.RFC6750).
-		Ref(demokit.RFC7515).
+		Ref(refs.RFC6750).
+		Ref(refs.RFC7515).
 		Arrow("App", "RS", "GET /resource (Authorization: Bearer token)").
 		Arrow("RS", "RS", "Validate JWT signature + claims").
 		DashedArrow("RS", "App", "200 {data}").
@@ -187,7 +188,7 @@ func main() {
 
 	// --- Step 4: No token ---
 	demo.Step("Access without a token (expect rejection)").
-		Ref(demokit.RFC6750).
+		Ref(refs.RFC6750).
 		Arrow("App", "RS", "GET /resource (no Authorization header)").
 		DashedArrow("RS", "App", "401 Unauthorized").
 		Note("Without a valid Bearer token, the resource server rejects the request.").

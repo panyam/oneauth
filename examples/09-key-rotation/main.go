@@ -22,7 +22,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -68,8 +69,8 @@ func main() {
 
 	// --- Setup ---
 	demo.Step("Set up auth server with key rotation support").
-		Ref(demokit.RFC7517).
-		Ref(demokit.RFC7638).
+		Ref(refs.RFC7517).
+		Ref(refs.RFC7638).
 		Note("The auth server uses a KidStore alongside the main KeyStore. On rotation, the old key moves to KidStore with a grace period TTL. The CompositeKeyLookup checks both.").
 		Run(func() {
 			ks = keys.NewInMemoryKeyStore()
@@ -93,7 +94,7 @@ func main() {
 
 	// --- Register and mint ---
 	demo.Step("Register an app and mint a token with the original key").
-		Ref(demokit.RFC7519).
+		Ref(refs.RFC7519).
 		Arrow("Admin", "AS", "POST /apps/register").
 		DashedArrow("AS", "Admin", "{client_id, client_secret}").
 		Arrow("Admin", "Admin", "MintResourceToken(alice, oldSecret)").
@@ -124,7 +125,7 @@ func main() {
 
 	// --- Rotate ---
 	demo.Step("Rotate the key").
-		Ref(demokit.RFC7517).
+		Ref(refs.RFC7517).
 		Arrow("Admin", "AS", "POST /apps/{id}/rotate").
 		DashedArrow("AS", "Admin", "{client_secret: newSecret}").
 		Note("Rotation replaces the key in the main KeyStore and moves the old key to KidStore with a grace period TTL. Both keys are now valid.").
@@ -151,7 +152,7 @@ func main() {
 
 	// --- During grace period ---
 	demo.Step("During grace period — both tokens work").
-		Ref(demokit.RFC7638).
+		Ref(refs.RFC7638).
 		Arrow("RS", "RS", "Validate old token → kid found in KidStore (grace) ✓").
 		Arrow("RS", "RS", "Validate new token → kid found in KeyStore (current) ✓").
 		Note("The CompositeKeyLookup checks the main KeyStore first, then falls back to KidStore. Old tokens find their key in the grace store; new tokens find theirs in the main store.").

@@ -22,7 +22,8 @@ import (
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/client"
-	"github.com/panyam/oneauth/examples/demokit"
+	"github.com/panyam/demokit"
+	"github.com/panyam/oneauth/examples/refs"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -121,8 +122,8 @@ func main() {
 
 	// --- One-shot token ---
 	demo.Step("One-shot token with AuthClient").
-		Ref(demokit.RFC6749_ClientCredentials).
-		Ref(demokit.RFC8414).
+		Ref(refs.RFC6749_ClientCredentials).
+		Ref(refs.RFC8414).
 		Arrow("App", "AS", "client.DiscoverAS(serverURL)").
 		Arrow("App", "AS", "authClient.ClientCredentialsToken(id, secret, scopes)").
 		DashedArrow("AS", "App", "ServerCredential{AccessToken, ExpiresAt, Scope}").
@@ -157,7 +158,7 @@ func main() {
 
 	// --- TokenSource with caching ---
 	demo.Step("Cached token with ClientCredentialsSource").
-		Ref(demokit.RFC6749_ClientCredentials).
+		Ref(refs.RFC6749_ClientCredentials).
 		Arrow("App", "App", "tokenSource.Token() → cached or fetched").
 		Arrow("App", "RS", "GET /resource (Bearer: cached token)").
 		DashedArrow("RS", "App", "200 {data}").
@@ -238,8 +239,8 @@ func main() {
 
 	// --- Optional: Keycloak ---
 	demo.Step("Use the SDK against Keycloak (optional)").
-		Ref(demokit.RFC8414).
-		Ref(demokit.RFC6749_ClientCredentials).
+		Ref(refs.RFC8414).
+		Ref(refs.RFC6749_ClientCredentials).
 		Arrow("App", "AS", "client.DiscoverAS(keycloakRealmURL)").
 		Arrow("App", "AS", "authClient.ClientCredentialsToken(...)").
 		DashedArrow("AS", "App", "ServerCredential from Keycloak").

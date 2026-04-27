@@ -126,9 +126,9 @@ You've completed all 10 examples! Here's what you've learned:
 
 ## References
 
+- [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 - [CVE-2015-9235 — JWT Algorithm Confusion](https://nvd.nist.gov/vuln/detail/CVE-2015-9235)
 - [RFC 7515 — JSON Web Signature (JWS)](https://www.rfc-editor.org/rfc/rfc7515)
-- [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 
 ## Run it
 
