@@ -888,6 +888,72 @@ func TestKeycloak_RFC8414Proxy_SimplePathAlsoWorks(t *testing.T) {
 }
 
 // =============================================================================
+// RFC 7009 Token Revocation Tests
+// =============================================================================
+
+// TestKeycloak_Discovery_RevocationEndpoint verifies that Keycloak advertises
+// a revocation_endpoint in its discovery document.
+//
+// See: https://www.rfc-editor.org/rfc/rfc7009
+func TestKeycloak_Discovery_RevocationEndpoint(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	resp, err := http.Get(realmURL() + "/.well-known/openid-configuration")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var raw map[string]any
+	require.NoError(t, decodeJSON(resp.Body, &raw))
+	revEndpoint, ok := raw["revocation_endpoint"]
+	require.True(t, ok, "Keycloak should advertise revocation_endpoint")
+	assert.Contains(t, revEndpoint.(string), "revoke", "revocation endpoint URL should contain 'revoke'")
+}
+
+// TestKeycloak_Revocation verifies that revoking a Keycloak-issued token
+// via KC's revocation endpoint makes it inactive on introspection.
+//
+// See: https://www.rfc-editor.org/rfc/rfc7009#section-2
+func TestKeycloak_Revocation(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+
+	cfg := discoverOIDC(t)
+	tokenResp := getClientCredentialsToken(t, cfg.TokenEndpoint, confidentialClientID, confidentialClientSecret)
+
+	// Discover revocation endpoint
+	resp, _ := http.Get(realmURL() + "/.well-known/openid-configuration")
+	var raw map[string]any
+	decodeJSON(resp.Body, &raw)
+	resp.Body.Close()
+	revEndpoint := raw["revocation_endpoint"].(string)
+
+	// Revoke via KC's endpoint
+	form := url.Values{
+		"token":           {tokenResp.AccessToken},
+		"token_type_hint": {"access_token"},
+	}
+	req, _ := http.NewRequest("POST", revEndpoint, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(confidentialClientID, confidentialClientSecret)
+	revResp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	revResp.Body.Close()
+	assert.Equal(t, http.StatusOK, revResp.StatusCode, "KC revocation should return 200")
+
+	// Introspect — should be inactive after revocation
+	introForm := url.Values{"token": {tokenResp.AccessToken}}
+	introReq, _ := http.NewRequest("POST", cfg.IntrospectionEndpoint, strings.NewReader(introForm.Encode()))
+	introReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	introReq.SetBasicAuth(confidentialClientID, confidentialClientSecret)
+	introResp, _ := http.DefaultClient.Do(introReq)
+	var introResult map[string]any
+	json.NewDecoder(introResp.Body).Decode(&introResult)
+	introResp.Body.Close()
+
+	assert.Equal(t, false, introResult["active"],
+		"token should be inactive after revocation via KC endpoint")
+}
+
+// =============================================================================
 // RFC 9396 Backward Compatibility Tests
 // =============================================================================
 //
