@@ -9,9 +9,23 @@ JWT-based API authentication: token issuance (login/refresh/client_credentials),
 - **introspection_client.go** — `IntrospectionValidator` for RFC 7662 token introspection (client side, with caching)
 - **protected_resource.go** — `ProtectedResourceMetadata` struct + `NewProtectedResourceHandler` for RFC 9728 discovery
 
+## Transport-Independent Core (OneAuth)
+
+The `OneAuth` struct composes focused interfaces for all auth operations without HTTP:
+- **interfaces.go** — `TokenIssuer`, `TokenValidator`, `TokenIntrospector`, `TokenRevoker`, `ClientAuthenticator`, `TokenInfo`
+- **hooks.go** — `Hooks` (grouped: `TokenHooks`, `AuthHooks`, `ClientHooks`, `SecurityHooks`)
+- **token_validator.go** — `jwtValidator` + `jwtIssuer` implementations
+- **token_introspector.go** — `tokenIntrospector` (delegates to `TokenValidator`)
+- **token_revoker.go** — `tokenRevoker` (blacklist + refresh store)
+- **client_authenticator.go** — `clientAuthenticator` (constant-time secret comparison)
+- **oneauth.go** — `OneAuth` composite, `NewOneAuth()` constructor, HTTP convenience methods (`IntrospectionHTTPHandler`, `RevocationHTTPHandler`, `HTTPMiddleware`)
+
+HTTP handlers (`IntrospectionHandler`, `RevocationHandler`) delegate to core interfaces. `APIMiddleware` delegates to `TokenValidator` when `KeyStore` is set.
+
 ## Recent Changes
-- **RFC 9396 Rich Authorization Requests** — Token endpoint accepts `authorization_details` parameter (JSON body or form-encoded JSON string). Granted details are embedded in JWT claims and returned in token/introspection responses. `CreateAccessToken` signature: `(userID, scopes, authzDetails)`. `standardClaims` guard blocks `CustomClaimsFunc` from overriding `authorization_details`.
-- **client_credentials grant** — `APIAuth.ClientKeyStore` enables machine-to-machine auth via `grant_type=client_credentials` (RFC 6749 §4.4). Supports `client_secret_post` and `client_secret_basic`.
+- **Token revocation** — `RevocationHandler` at `POST /oauth/revoke` (RFC 7009). Always returns 200. Supports `token_type_hint`.
+- **RFC 9396 Rich Authorization Requests** — `authorization_details` on token requests, JWT claims, introspection, middleware enforcement via `RequireAuthorizationDetails`.
+- **client_credentials grant** — `APIAuth.ClientKeyStore` enables machine-to-machine auth via `grant_type=client_credentials` (RFC 6749 §4.4).
 - **Protected Resource Metadata** — `NewProtectedResourceHandler` serves RFC 9728 metadata at `/.well-known/oauth-protected-resource`, enabling clients to auto-discover resource server capabilities
 - **Audience validation** — `ValidateAccessToken` checks `aud` claim against expected audiences; handles both string and array formats (RFC 7519 §4.1.3, #52)
 - **Token blacklist** — `APIAuth.Blacklist` and `APIMiddleware.Blacklist` fields enable jti-based token revocation via `core.TokenBlacklist`. All tokens now include a `jti` claim.

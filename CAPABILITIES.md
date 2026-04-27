@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-0.0.64
+0.0.77
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
@@ -28,6 +28,11 @@
 - token-blacklist: JWT revocation via jti-based blacklist
 - encryption-at-rest: AES-256-GCM encryption of HS256 secrets via EncryptedKeyStorage
 - security-headers: HSTS, CSP, X-Frame-Options middleware
+- rich-authorization-requests: RFC 9396 authorization_details on token endpoint, introspection, middleware enforcement
+- token-revocation: RFC 7009 endpoint for access and refresh token revocation
+- transport-agnostic-core: OneAuth struct with composed interfaces (TokenIssuer, TokenValidator, TokenIntrospector, TokenRevoker) — usable without HTTP
+- lifecycle-hooks: Grouped callbacks (TokenHooks, AuthHooks, ClientHooks, SecurityHooks) for audit, alerting, integration
+- interactive-examples: 10 progressive examples with demokit framework, mermaid diagrams, RFC references
 - client-sdk: AuthClient with credential store, auto-refresh, browser login
 - test-infrastructure: Reusable testutil package with TestAuthServer (RSA, JWKS, AS metadata) and shared OAuth helpers
 

@@ -19,6 +19,70 @@
 
 ---
 
+## Completed (RFC 9396 RAR + OneAuth Core — v0.0.76-v0.0.77)
+
+### RFC 9396 Rich Authorization Requests (#87, #91)
+- [x] `core/authorization_details.go` — `AuthorizationDetail` struct with custom JSON flattening, `ValidateAll`, `FilterByType`
+- [x] Token endpoint: parse, validate, embed in JWT, return in response (form-encoded + JSON)
+- [x] Introspection: `authorization_details` in response
+- [x] AS metadata: `authorization_details_types_supported`
+- [x] DCR: `authorization_details_types` on client registration
+- [x] Middleware: `RequireAuthorizationDetails()`, `GetAuthorizationDetailsFromContext()`
+- [x] `MintResourceToken` + client SDK with RAR support
+- [x] 38 tests (unit + E2E + KC defensive + RAR conformance)
+
+### Token Revocation — RFC 7009 (#96)
+- [x] `RevocationHandler` at `POST /oauth/revoke` — access + refresh token revocation
+- [x] 15 tests (unit + E2E + KC interop)
+
+### Transport-Independent OneAuth Core (#110)
+- [x] Phase 1: Interfaces (`TokenIssuer`, `TokenValidator`, etc.) + implementations + hooks + `OneAuth` struct
+- [x] Phase 2: HTTP handlers delegate to core interfaces
+- [x] 18 OneAuth-specific tests (15 library + 3 HTTP round-trip)
+
+### Interactive Examples (#107)
+- [x] 10 progressive examples with `demokit` framework (extracted to `github.com/panyam/demokit`)
+- [x] Cast of Characters glossary, registration trust model docs
+- [x] Per-example Makefiles with `run`/`demo`/`readme` targets
+- [x] Optional Keycloak steps in examples 04-07
+
+### RAR Test Infrastructure (#92)
+- [x] `cmd/rar-test-issuer` — minimal RAR-capable AS for interop testing
+- [x] 4 KC defensive tests + 14 RAR conformance tests
+- [x] KC upgraded 26.0 → 26.6
+
+## Open — P0
+
+### Security & RFC Compliance Audit (#88) `P0` `[SECURITY]` `[COMPLIANCE]`
+Banking client evaluation. Full audit needed: RFC conformance matrix, security findings, FAPI readiness.
+
+## Open — P1
+
+### oneauth-server Lightweight Mode (#101) `P1` `[DX]`
+`--store=memory` mode. Enables retiring `cmd/rar-test-issuer`. Simpler dev/CI experience.
+
+### Registration Approval Workflows (#108) `P1` `[ADOPTION]`
+Initial access tokens (RFC 7591 §3), approval queues, rate limiting on DCR.
+
+## Open — P2
+
+### PAR — RFC 9126 (#94) `P2`
+Pushed Authorization Requests. Required for FAPI 2.0.
+
+### DPoP — RFC 9449 (#95) `P2`
+Sender-constrained tokens. Required for FAPI 2.0.
+
+### mTLS — RFC 8705 (#97) `P2`
+Alternative to DPoP for FAPI 2.0.
+
+### Full OIDC (#99) `P2`
+ID tokens, userinfo endpoint, standard claims.
+
+### FAPI 2.0 Certification (#100) `P3`
+Formal certification. Requires PAR + DPoP/mTLS + audit.
+
+---
+
 ## Completed (MCPKit OAuth Pushdown — #78)
 
 ### Client-Side DCR + Validation Utilities (mcpkit#158 → oneauth#78)
