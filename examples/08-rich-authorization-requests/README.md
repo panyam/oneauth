@@ -183,11 +183,11 @@ transition, then fail after the grace window closes.
 
 ## References
 
+- [RFC 9396 — Rich Authorization Requests](https://www.rfc-editor.org/rfc/rfc9396)
 - [RFC 8414 — AS Metadata Discovery](https://www.rfc-editor.org/rfc/rfc8414)
 - [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591)
 - [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 - [RFC 7662 — Token Introspection](https://www.rfc-editor.org/rfc/rfc7662)
-- [RFC 9396 — Rich Authorization Requests](https://www.rfc-editor.org/rfc/rfc9396)
 
 ## Run it
 

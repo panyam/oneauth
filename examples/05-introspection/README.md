@@ -158,9 +158,9 @@ no admin dashboard needed. This is how third-party integrations onboard.
 
 ## References
 
+- [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 - [RFC 7662 — Token Introspection](https://www.rfc-editor.org/rfc/rfc7662)
 - [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
-- [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 
 ## Run it
 

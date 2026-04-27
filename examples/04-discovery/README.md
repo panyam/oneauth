@@ -148,9 +148,9 @@ for opaque tokens.
 
 ## References
 
-- [RFC 8414 — AS Metadata Discovery](https://www.rfc-editor.org/rfc/rfc8414)
 - [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 - [RFC 6750 — Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750)
+- [RFC 8414 — AS Metadata Discovery](https://www.rfc-editor.org/rfc/rfc8414)
 
 ## Run it
 
