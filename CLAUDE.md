@@ -2,302 +2,79 @@
 
 ## What is OneAuth?
 
-Go authentication library with unified local/OAuth auth, multi-tenant JWT (KeyStore with HS256/RS256/ES256), and an App Registration API for federated resource server auth. Three storage backends: filesystem, GORM (SQL), and GAE/Datastore.
+Go authentication library with unified local/OAuth auth, multi-tenant JWT, and federated resource server auth. See [README.md](README.md) for full overview.
 
 ## Repository Structure
 
-```
-oneauth/
-├── doc.go                # Package overview (routes to subpackages)
-├── core/                 # Foundation types: User, Identity, Channel, store interfaces,
-│                         #   tokens, credentials, scopes, email, context helpers
-├── keys/                 # Key storage: KeyRecord, KeyLookup, KeyStorage, InMemoryKeyStore,
-│                         #   EncryptedKeyStorage, KidStore, JWKSHandler, JWKSKeyStore
-├── admin/                # Admin auth: AdminAuth, AppRegistrar, MintResourceToken
-├── apiauth/              # API auth: APIAuth, APIMiddleware, context helpers
-├── localauth/            # Local auth: LocalAuth, signup, helpers (NewCreateUserFunc, etc.)
-├── httpauth/             # HTTP middleware: Middleware, CSRFMiddleware, OneAuth session mux
-├── utils/                # Crypto helpers (PEM encode/decode, DecodeVerifyKey, key generation, JWK conversion)
-├── stores/
-│   ├── fs/               # File-based stores + FSKeyStore
-│   ├── gorm/             # GORM SQL stores + GORMKeyStore + SigningKeyModel
-│   └── gae/              # Google Datastore stores + GAEKeyStore
-├── testutil/             # Reusable test infrastructure: TestAuthServer, OAuth helpers
-├── keystoretest/         # Shared WritableKeyStore test suite (factory pattern)
-├── client/               # Client SDK (CredentialStore, AuthClient, HTTPClient)
-│   └── stores/fs/        # FS-based credential store
-├── grpc/                 # gRPC auth interceptors
-├── oauth2/               # OAuth2 provider implementations
-├── cmd/oneauth-server/   # Reference server (config-driven, deployable)
-│   ├── main.go           # Wiring: KeyStore + AdminAuth + AppRegistrar
-│   ├── config.go         # YAML config + ${ENV_VAR:-default} substitution
-│   ├── Dockerfile
-│   └── deploy-examples/  # GAE, Docker Compose, Kubernetes
-├── tests/integration/    # Pytest integration tests (against live server)
-└── Makefile
-```
+Each subpackage has a `SUMMARY.md` with detailed contents.
 
-### Dependency DAG (strictly acyclic)
+| Package | What | Details |
+|---------|------|---------|
+| `core/` | Foundation types, store interfaces, tokens, scopes, RFC 9396 AuthorizationDetail | [core/SUMMARY.md](core/SUMMARY.md) |
+| `keys/` | Key storage, JWKS, EncryptedKeyStorage, KidStore | [keys/SUMMARY.md](keys/SUMMARY.md) |
+| `admin/` | AdminAuth, AppRegistrar, DCR (RFC 7591), MintResourceToken | [admin/SUMMARY.md](admin/SUMMARY.md) |
+| `apiauth/` | APIAuth, APIMiddleware, OneAuth core, introspection, revocation | [apiauth/SUMMARY.md](apiauth/SUMMARY.md) |
+| `localauth/` | Local auth (signup, login, password reset) | [localauth/SUMMARY.md](localauth/SUMMARY.md) |
+| `httpauth/` | HTTP middleware, CSRF, session management | [httpauth/SUMMARY.md](httpauth/SUMMARY.md) |
+| `client/` | Client SDK (AuthClient, ClientCredentialsSource, discovery) | [client/SUMMARY.md](client/SUMMARY.md) |
+| `stores/` | FS, GORM, GAE backend implementations | `stores/*/SUMMARY.md` |
+| `examples/` | 10 progressive interactive examples with demokit | [examples/README.md](examples/README.md) |
+| `tests/keycloak/` | Keycloak interop + RAR conformance tests | [tests/keycloak/README.md](tests/keycloak/README.md) |
+| `cmd/oneauth-server/` | Config-driven reference server | `cmd/oneauth-server/config.go` |
+| `cmd/rar-test-issuer/` | Minimal RAR-capable AS for interop testing | `cmd/rar-test-issuer/main.go` header |
 
-```
-              core
-            / | \  \
-           /  |  \  \
-        keys  |  localauth
-        / \   |
-       /   \  |
-    admin  apiauth
-              |
-           httpauth
-```
+## Multi-Module Structure
 
-Each subpackage has a `SUMMARY.md` describing its contents.
+Go workspace with separate sub-modules for heavy backends. See `go.work` for the full list. Sub-modules have `replace` directives for local dev. See [docs/MIGRATION.md](docs/MIGRATION.md) for consumer guide.
 
-### Multi-Module Structure
-
-The repo is a Go workspace with multiple modules. The core module is lightweight (~6 deps). Heavy backends are separate sub-modules:
-
-| Module | Heavy Deps |
-|--------|-----------|
-| `github.com/panyam/oneauth` (core) | None — jwt, scs, x/crypto, x/oauth2 only |
-| `stores/gorm` | gorm.io/gorm, postgres/sqlite drivers |
-| `stores/gae` | cloud.google.com/go/datastore + GCP SDK |
-| `saml` | crewjam/saml |
-| `grpc` | google.golang.org/grpc |
-| `oauth2` | golang.org/x/oauth2/google |
-| `cmd/*` | Various (integration points) |
-
-`go.work` at root enables local multi-module dev. Sub-modules have `replace` directives for `go mod tidy` compatibility. See [docs/MIGRATION.md](docs/MIGRATION.md) for consumer migration guide.
-
-**Publish workflow:** `make norep` → tag all modules → push → `make rep` → `make tidy`
-
-### Releasing Sub-Modules (gotcha)
-
-Sub-module `go.mod` files contain `replace github.com/panyam/oneauth => ../..` so local dev works against unreleased root changes, but the `require github.com/panyam/oneauth vX.Y.Z` line must point to a **real, released root tag** — Go ignores `replace` directives in non-main (dependency) modules, so downstream consumers need a resolvable version.
-
-**The v0.0.0 and stale-require bug**: before `scripts/verify-submodule-deps.sh` was added, sub-module go.mod files drifted — some referenced `v0.0.0` (tests/keycloak pseudo-version style), others referenced `v0.0.39` (unchanged across many root releases up to v0.0.69). This worked locally but broke any downstream consumer doing `go get github.com/panyam/oneauth/stores/gorm@vX.Y.Z`. Caught by `make verify-submodule-deps` (wired into `make test` and optional pre-push hook).
-
-**Release order** when cutting a new root tag (N=current number):
-1. Commit root-only changes.
-2. Tag root: `git tag -a v0.0.N -m "v0.0.N"`.
-3. Push the root tag: `git push origin v0.0.N`.
-4. In each sub-module's `go.mod`, bump `require github.com/panyam/oneauth vX.Y.Z` to the new root tag. Keep the `replace` line. For sub-modules that cross-reference (e.g., `cmd/oneauth-server` requires `stores/gorm`), also bump the cross-sub-module require to match.
-5. Run `go mod tidy` in each sub-module (or `make tidy`).
-6. Commit: `chore: bump sub-modules to v0.0.N`.
-7. Tag each sub-module: `git tag -a stores/gorm/v0.0.N -m "stores/gorm/v0.0.N"`, same for `stores/gae`, `cmd/oneauth-server`, `cmd/demo-hostapp`, `cmd/demo-resource-server`. Sub-module tag numbers historically track root exactly.
-8. Push the sub-module tags.
-
-**Don't retag published sub-module versions.** Go module proxies cache aggressively; retagging `stores/gorm/v0.0.68` after the fact is a known footgun that breaks existing fetches. Ship a new version instead.
-
-**Test modules are not tagged.** `tests/keycloak` uses a zero pseudo-version for its root requirement — it's a test harness, not published, so it's excluded from the verification script.
-
-See [mcpkit#189](https://github.com/panyam/mcpkit/issues/189) for the same bug in a sibling repo.
-
-## Build & Test Commands
+## Build & Test
 
 ```bash
-# Multi-module (all modules at once)
-make ball          # Build all modules (binaries → build/)
-make tallmods      # Test all modules
-make tidy          # go mod tidy all modules
-make deps          # Show core module dep count
-
-# Testing — individual stages (each runnable standalone)
-make test          # Go unit tests (root module packages)
-make lint          # staticcheck code quality
-make unit          # Unit tests + sub-modules (race detector)
-make e2e           # E2E tests (in-process auth + resource servers, race detector)
-make postgres      # PostgreSQL/GORM tests (needs Docker PG running)
-make datastore     # Datastore tests (needs GCP credentials)
-make keycloak      # Keycloak interop tests (waits for Docker KC)
-make secrets       # gitleaks secret scanning
-make vulncheck     # govulncheck vulnerability check
-make zap           # ZAP baseline security scan
-
-# Testing — composite targets
-make test-hard     # Full suite: unit + e2e + secret scan + keycloak
-make testall       # Everything: all 9 stages above + HTML report
-
-# Testing — legacy / infra helpers
-make testpg        # GORM tests against PostgreSQL (auto-starts Docker)
-make testds        # GAE tests against Datastore emulator (auto-starts Docker)
-make testrealDS    # GAE tests against real Datastore (needs credentials)
-make testkcl       # Keycloak interop tests (auto-starts Docker, ~15s startup)
-make upkcl         # Start Keycloak container only
-make downkcl       # Stop Keycloak container
-make kcllogs       # Tail Keycloak container logs
-
-# Security scanning
-make audit         # Full security audit: vulncheck + gosec + secrets + race detection
-make seccheck      # gosec security patterns
-
-# Publishing
-make norep         # Remove replace directives (before tagging releases)
-make rep           # Restore replace directives (after publishing)
-
-# Infrastructure
-make deploygae     # Deploy to GAE (project: oneauthsvc)
-make gaelogs       # Tail GAE logs
+make test          # Unit tests
+make e2e           # E2E tests (in-process)
+make testkcl       # Keycloak + RAR issuer interop (auto-starts Docker)
+make testall       # Everything (9 stages + report)
+make tag V=v0.0.X  # Tag all modules
+make pushtag V=v0.0.X  # Push all tags
 ```
 
-### E2E Tests (`tests/e2e/`)
+Full command reference: see `Makefile` header comments and `make help` (if available).
 
-In-process e2e tests using `httptest.NewServer`. Auth server + 2 resource servers start in ~2s, race detector works across all servers. Remote mode: `TEST_BASE_URL=https://... make e2e` for deployed server testing.
+## Key Architecture Decisions
 
-**Always use `NewAppRegistrar()`** constructor (not struct literal) — the map must be initialized to avoid data races under concurrent requests.
+- **Client library, not a proxy** — embeddable, no extra service to operate
+- **Transport-independent core** — `OneAuth` struct with `TokenIssuer`, `TokenValidator`, `TokenIntrospector`, `TokenRevoker` interfaces. HTTP handlers are thin wrappers. See [#110](https://github.com/panyam/oneauth/issues/110).
+- **Storage-agnostic** — interface-based, three backends (FS, GORM, GAE)
+- **Composed interfaces** — no god objects. Each implementation takes only the deps it needs.
+- **Grouped hooks** — `TokenHooks`, `AuthHooks`, `ClientHooks`, `SecurityHooks`. See `apiauth/hooks.go`.
 
-## Import Map (Post-Reorganization)
-
-| What | Import |
-|---|---|
-| User, Identity, Channel, store interfaces, tokens, credentials, scopes, UnionScopes, AuthorizationDetail (RFC 9396) | `"github.com/panyam/oneauth/core"` |
-| KeyStorage, KeyRecord, InMemoryKeyStore, EncryptedKeyStorage, JWKSHandler | `"github.com/panyam/oneauth/keys"` |
-| AdminAuth, AppRegistrar, MintResourceToken, AppQuota | `"github.com/panyam/oneauth/admin"` |
-| APIAuth, APIMiddleware, IntrospectionHandler, ProtectedResourceMetadata, ASServerMetadata | `"github.com/panyam/oneauth/apiauth"` |
-| LocalAuth, NewCreateUserFunc, NewCredentialsValidator | `"github.com/panyam/oneauth/localauth"` |
-| Middleware, CSRFMiddleware, CSRFTemplateField, OneAuth | `"github.com/panyam/oneauth/httpauth"` |
-| AuthClient, DiscoverAS, LoginWithBrowser, ClientCredentialsToken, FollowRedirects, SelectAuthMethod, TokenEndpointAuthMethod, WithASMetadata, RegisterClient, ClientRegistrationRequest, ClientRegistrationResponse, ClientCredentialsSource, TokenSource, ScopeAwareTokenSource, ValidateHTTPS, IsLocalhost, ValidateCIMDURL | `"github.com/panyam/oneauth/client"` |
-| TestAuthServer, NewTestAuthServer, GetClientCredentialsToken, DiscoverOIDC | `"github.com/panyam/oneauth/testutil"` |
-
-## Key Patterns
-
-### Shared Test Suites (Factory Pattern)
-`keystoretest.RunAll(t, factory)` runs identical tests against any `KeyStorage` implementation. Each backend test file creates a factory that returns its store type. This is the pattern to follow for any new interface with multiple backends.
-
-### Three-Backend Store Pattern
-Every persistent interface (UserStore, IdentityStore, ChannelStore, KeyStorage) has three implementations: `stores/fs/`, `stores/gorm/`, `stores/gae/`. New store types must implement all three. GORM models use dialect-agnostic column types — never use `type:blob` (fails on PostgreSQL), let GORM auto-select.
-
-Store backends import `core/` for entity types and `keys/` for key types.
-
-### Config-Driven Reference Server
-`cmd/oneauth-server/` uses YAML config with `${ENV_VAR:-default}` substitution. On GAE (no config file), falls back to `configFromEnv()` which reads all config from env vars. The server supports memory, fs, gorm (postgres only — sqlite requires CGO), and gae keystores.
-
-### KeyStorage / KeyLookup Interfaces (in keys/)
-The key storage layer uses two focused interfaces instead of a single god interface:
-- `KeyLookup` (read-only): `GetKey(clientID)` + `GetKeyByKid(kid)` → returns `*KeyRecord`
-- `KeyStorage` (read+write): embeds `KeyLookup` + `PutKey`, `DeleteKey`, `ListKeyIDs`
-- `KeyRecord` struct: `{ClientID, Key, Algorithm, Kid}` — all fields in one place
-
-All backends (InMemory, GORM, FS, GAE) implement `KeyStorage`. `JWKSKeyStore` and `KidStore` implement only `KeyLookup`.
-
-Backward-compatible alias methods (`RegisterKey`, `GetVerifyKey`, `GetExpectedAlg`, `ListKeys`) exist on all backends for migration. Prefer the new `KeyStorage` methods in new code.
-
-### EncryptedKeyStorage (Decorator Pattern, in keys/)
-`EncryptedKeyStorage` wraps any `KeyStorage` to encrypt HS256 secrets at rest using AES-256-GCM. Kid is computed from plaintext before encryption. Configured via `ONEAUTH_MASTER_KEY` env var (64 hex chars = 32 bytes). Plaintext fallback on read enables migration. See [JWT_SIGNING.md](docs/JWT_SIGNING.md#encryption-at-rest-encryptedkeystore) for details.
-
-### kid (Key ID) in JWTs
-All minted JWTs include a `kid` header (RFC 7638 thumbprint). `APIMiddleware` tries kid-based lookup first (`GetKeyByKid`), then falls back to `client_id` claim (`GetKey`). Legacy tokens without `kid` still work. Key rotation uses `KidStore` to retain old keys with a grace period expiry.
-
-### AdminAuth Interface (in admin/)
-`AdminAuth.Authenticate(r *http.Request) error` — constant-time API key comparison (`crypto/subtle`). Implementations: `APIKeyAuth` (reads `X-Admin-Key` header), `NoAuth` (dev only). On GAE, the API key is fetched from Secret Manager at startup if `ADMIN_API_KEY` env var is not set.
-
-### BasicUser (in core/)
-`BasicUser` has exported fields `ID` and `ProfileData` (not the original unexported `id`/`profile`). This was changed during the subpackage reorganization for cross-package access.
-
-### Keycloak Interop Tests (`tests/keycloak/`)
-
-Separate Go module (`tests/keycloak/go.mod`) proving APIMiddleware + JWKSKeyStore validate Keycloak-issued tokens. Runs with `make testkcl` (auto-starts Docker). Tests skip gracefully when Keycloak is not running — `make test` and `make e2e` are unaffected.
-
-**Gotcha:** `tests/keycloak/` is a separate Go module. Must `cd` into it or use `GOWORK=off` when running directly. The Makefile handles this.
-
-### Standards Endpoints (on the auth server)
+## Standards Compliance
 
 | Endpoint | Handler | RFC |
 |----------|---------|-----|
-| `POST /api/token` (client_credentials) | `APIAuth.ServeHTTP` (accepts form-encoded + JSON) | RFC 6749 §4.4 |
+| `POST /api/token` | `APIAuth.ServeHTTP` | RFC 6749 |
 | `POST /oauth/introspect` | `IntrospectionHandler` | RFC 7662 |
 | `POST /oauth/revoke` | `RevocationHandler` | RFC 7009 |
 | `GET /.well-known/openid-configuration` | `NewASMetadataHandler` | RFC 8414 |
 | `GET /.well-known/jwks.json` | `JWKSHandler` | RFC 7517 |
-| `GET /.well-known/oauth-protected-resource` | `NewProtectedResourceHandler` (resource servers) | RFC 9728 |
-| `POST /apps/dcr` | `DCRHandler` (via `AppRegistrar.Handler()`) | RFC 7591 |
+| `GET /.well-known/oauth-protected-resource` | `NewProtectedResourceHandler` | RFC 9728 |
+| `POST /apps/dcr` | `DCRHandler` | RFC 7591 |
 
-**Client-side validators** (resource servers use these instead of local JWT validation):
-- `IntrospectionValidator` — calls remote `/oauth/introspect`, integrates into `APIMiddleware.Introspection` as fallback. Optional `CacheTTL`.
-
-### Client SDK Discovery + Browser Login
-
-```go
-// Auto-discover endpoints
-meta, _ := client.DiscoverAS("https://auth.example.com")
-
-// Browser-based login for CLI tools (loopback redirect + PKCE)
-cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
-    ClientID: "my-cli",
-    Scopes:   []string{"openid", "read"},
-})
-
-// Headless login for CI/testing (#71) — follows HTTP redirects instead of browser
-cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
-    ClientID:    "my-cli",
-    OpenBrowser: client.FollowRedirects(nil),
-})
-
-// Confidential client auth code flow (#72) — negotiates auth method from AS metadata
-cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
-    ClientID:     "my-app",
-    ClientSecret: "app-secret",
-    OpenBrowser:  client.FollowRedirects(nil),
-})
-
-// Explicit endpoints with auth method override (#74) — for callers that do
-// their own discovery (e.g., PRM→AS metadata) and pass endpoints directly
-cred, _ := authClient.LoginWithBrowser(client.BrowserLoginConfig{
-    ClientID:                 "my-app",
-    ClientSecret:             "app-secret",
-    AuthorizationEndpoint:    "https://auth.example.com/authorize",
-    TokenEndpoint:            "https://auth.example.com/token",
-    TokenEndpointAuthMethods: []string{"client_secret_post"},
-    OpenBrowser:              client.FollowRedirects(nil),
-})
-
-// Machine-to-machine with auth method negotiation (#72)
-authClient := client.NewAuthClient(serverURL, store,
-    client.WithASMetadata(meta))  // enables auth method negotiation
-cred, _ := authClient.ClientCredentialsToken("svc-id", "secret", []string{"read"})
-```
-
-## GAE Deployment Notes
-
-- Runtime: `go124` (not go125 — doesn't exist yet)
-- No sqlite in reference server — `mattn/go-sqlite3` requires CGO, unavailable on GAE standard
-- Health endpoint: `/_ah/health` (GAE intercepts `/healthz`)
-- Deploy from repo root: `gcloud app deploy --appyaml=cmd/oneauth-server/deploy-examples/gae/app.yaml --project=oneauthsvc .`
-- Source must be module root (not the app.yaml directory) so `main: ./cmd/oneauth-server` resolves
-- GAE project: `oneauthsvc` (us-west1, free tier: F1 instance, scale-to-zero)
-- Admin key stored in Secret Manager: `oneauth-admin-key`
-
-## Federated Auth Architecture
-
-Three projects collaborate:
-1. **oneauth** (this repo) — shared auth library + App Registration API
-2. **massrelay** — WebSocket relay (a resource server), validates resource-scoped JWTs using KeyStore
-3. **excaliframe** (document app) — registers as an App, mints resource tokens for users
-
-Flow: App registers with oneauth-server → gets `client_id` + `client_secret` (HS256) or registers a public key (RS256/ES256) → App authenticates users locally → mints resource-scoped JWTs with `admin.MintResourceToken()` or `admin.MintResourceTokenWithKey()` → resource server validates using shared KeyStore or JWKS discovery (`/.well-known/jwks.json`).
-
-## Memories
-
-Design lessons and feedback from past sessions are in `memories/`. See `memories/MEMORY.md` for the index. These are checked into the repo so they're available to all collaborators.
-
-**Important:** Always save memories to the `memories/` folder in this repo (not `~/.claude/`). This keeps them version-controlled and available to all collaborators. Update `memories/MEMORY.md` index when adding new entries.
+RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspection, and middleware. See `core/authorization_details.go`.
 
 ## Conventions
 
-- Update SUMMARY.md, NEXTSTEPS.md, ROADMAP.md with each PR
-- Each subpackage has a SUMMARY.md for LLM discoverability
-- GitHub issues track all planned work with priority levels (P0/P1/P2)
-- Use `GH_TOKEN="$GH_PERSONAL_TOKEN"` for gh CLI (Enterprise Managed User)
-- PostgreSQL test container: `arm64v8/postgres:18.1` on port 5433
-- Datastore test credentials: `~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json`
-- **Security tests must include `// See:` links** to the relevant RFC, CVE, CWE, or OWASP reference in each test function's doc comment. This makes it easy to trace why a test exists and what attack it prevents. Example: `// See: https://nvd.nist.gov/vuln/detail/CVE-2015-9235`
-- Keycloak interop tests: `quay.io/keycloak/keycloak:26.6` on port 8180, realm config at `tests/keycloak/realm.json`
-- RAR test issuer (`cmd/rar-test-issuer`): port 8181, RFC 9396 interop tests. See `cmd/rar-test-issuer/main.go` header and `tests/keycloak/rar_interop_test.go` for details and KC migration path.
-- **`type: "access"` claim is OneAuth-specific** — external IdP tokens (Keycloak, Auth0) don't have it. The check accepts tokens without the claim; only rejects tokens with `type` set to something other than `"access"` (e.g., refresh tokens).
-- **`aud` claim may be string or array** (RFC 7519 §4.1.3) — `matchesAudience()` helper handles both. Keycloak/Auth0/Azure AD send arrays.
-- **Separate Go modules** (`tests/keycloak/`, `stores/gorm/`, `stores/gae/`, etc.) need `GOWORK=off` or `cd` into the module dir when running outside `go.work`.
-- **`make lint`** uses `GOFLAGS=-buildvcs=false` to work in worktrees.
-- **PKCE functions in `client/`** are inlined (not imported from `oauth2/` sub-module) to avoid cross-module dependency. The `oauth2/` sub-module has heavy deps (`golang.org/x/oauth2`).
-- **Token endpoint accepts both form-encoded and JSON** — `APIAuth.ServeHTTP` routes on `Content-Type`: `application/x-www-form-urlencoded` (RFC 6749 standard) or JSON (legacy/convenience). Standard OAuth clients (Keycloak, Auth0, testutil helpers) send form-encoded.
-- **RFC 9396 Rich Authorization Requests** — `authorization_details` parameter is supported on token requests (both form-encoded as a JSON string, and JSON body). The granted details are returned in the token response and embedded in the JWT as an `authorization_details` claim. Introspection responses also include it. `CreateAccessToken` takes `authzDetails []core.AuthorizationDetail` as a third parameter. `standardClaims` guard prevents `CustomClaimsFunc` from overriding it.
-- **Legacy `/api/token` JSON endpoint** — retained for `Login` and `refreshTokenLocked` backward compat. E2E tests now have `/oauth/token` (form-encoded, standards-compliant) for auth code and client_credentials flows. The legacy JSON path (`requestToken`) can be removed once the CLI client (`cmd/oneauth-cli`) migrates to form-encoded requests — tracked as a future cleanup item.
+- Each subpackage has a `SUMMARY.md` for LLM discoverability
+- Security tests must include `// See:` links to RFC/CVE/CWE references
+- Use `GH_TOKEN="$GH_PERSONAL_TOKEN"` for gh CLI
+- Keycloak: `quay.io/keycloak/keycloak:26.6` on port 8180
+- RAR test issuer: port 8181. See `cmd/rar-test-issuer/main.go` for details.
+- Sub-modules need `GOWORK=off` when running outside workspace
+
+## Federated Auth Architecture
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) or the [examples/README.md](examples/README.md) Cast of Characters for the full picture. Three projects collaborate: oneauth (auth library), massrelay (WebSocket relay), excaliframe (document app).
+
+## Memories
+
+Design lessons from past sessions in `memories/`. See `memories/MEMORY.md` for index. Always save memories to `memories/` (not `~/.claude/`).
