@@ -39,6 +39,21 @@ Developer builds the App (GitHub bot)
    └──────────┘
 ```
 
+### How does an App get registered?
+
+Before an App can get tokens, it must register with the Auth Server and receive credentials (`client_id` + `client_secret`). But who is allowed to register?
+
+| Method | Real-world example | Who acts | Automated? |
+|--------|-------------------|----------|-----------|
+| **Web dashboard** | GitHub Developer Settings, Google Cloud Console | Developer logs in, fills a form | No — human reviews |
+| **Admin API** | Internal tooling with `X-Admin-Key` | Admin provisions via script | Yes, gated by admin key |
+| **DCR + access token** | RFC 7591 §3 | Developer's code self-registers | Yes, gated by one-time token |
+| **Open DCR** | Examples in this repo (`NewNoAuth()`) | Anyone | Yes, **ungated — not for production** |
+
+**In these examples**, registration is open (`NewNoAuth()`) for simplicity. In production, always gate registration with authentication — see `admin.NewAPIKeyAuth()` or protect the endpoint at the network level.
+
+**Important:** The `client_secret` is a backend credential. It lives in your server, not in a browser or mobile app. Frontend apps use PKCE (public clients) instead of secrets.
+
 ### When is a user involved?
 
 | Flow | Slack equivalent | User involved? | Who authenticates? |

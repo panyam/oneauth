@@ -91,11 +91,16 @@ func main() {
 
 	demo.Section("How client registration works",
 		"Before a client can get tokens, it needs to register with the auth server",
-		"and receive a `client_id` + `client_secret` pair. This is the OneAuth",
-		"equivalent of creating an OAuth application in a provider's dashboard.",
+		"and receive a `client_id` + `client_secret` pair. This is the equivalent",
+		"of going to GitHub Developer Settings → OAuth Apps → \"New OAuth App\".",
 		"",
-		"In this example we use the `/apps/register` endpoint with open auth.",
-		"In production, you'd protect this with an admin API key.",
+		"In this example, registration is **open** (`NewNoAuth()`) for simplicity.",
+		"In production, gate registration with authentication — see",
+		"[How does an App get registered?](../README.md#how-does-an-app-get-registered)",
+		"for the full spectrum from web dashboards to automated DCR.",
+		"",
+		"**The `client_secret` is a backend credential.** It lives in your server,",
+		"not in a browser or mobile app. Never expose it in frontend code.",
 	)
 
 	// --- Step 1: Register ---

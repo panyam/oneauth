@@ -58,11 +58,16 @@ We spin up two in-process HTTP servers: one for the AS (issues tokens) and one f
 ### How client registration works
 
 Before a client can get tokens, it needs to register with the auth server
-and receive a `client_id` + `client_secret` pair. This is the OneAuth
-equivalent of creating an OAuth application in a provider's dashboard.
+and receive a `client_id` + `client_secret` pair. This is the equivalent
+of going to GitHub Developer Settings → OAuth Apps → "New OAuth App".
 
-In this example we use the `/apps/register` endpoint with open auth.
-In production, you'd protect this with an admin API key.
+In this example, registration is **open** (`NewNoAuth()`) for simplicity.
+In production, gate registration with authentication — see
+[How does an App get registered?](../README.md#how-does-an-app-get-registered)
+for the full spectrum from web dashboards to automated DCR.
+
+**The `client_secret` is a backend credential.** It lives in your server,
+not in a browser or mobile app. Never expose it in frontend code.
 
 ### Step 2: Register a client
 
@@ -109,11 +114,11 @@ multi-app architecture.
 
 ## References
 
-- [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591)
-- [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 - [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 - [RFC 6750 — Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750)
 - [RFC 7515 — JSON Web Signature (JWS)](https://www.rfc-editor.org/rfc/rfc7515)
+- [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591)
+- [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 
 ## Run it
 
