@@ -7,6 +7,10 @@ package apiauth_test
 // See: https://github.com/panyam/oneauth/issues/110
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/panyam/oneauth/apiauth"
@@ -306,6 +310,70 @@ func TestOneAuth_Hooks_OnBlacklistHit(t *testing.T) {
 	_, err := oa.Validator.ValidateToken(token)
 	assert.Error(t, err)
 	assert.NotEmpty(t, firedJTI, "OnBlacklistHit should have fired")
+}
+
+// =============================================================================
+// HTTP Convenience Methods — prove the OneAuth→HTTP bridge works
+// =============================================================================
+
+// TestOneAuth_IntrospectionHTTPHandler verifies that introspection works
+// via OneAuth's HTTP handler — full HTTP round-trip, no old-style APIAuth.
+func TestOneAuth_IntrospectionHTTPHandler(t *testing.T) {
+	oa := newTestOneAuth(t)
+	handler := oa.IntrospectionHTTPHandler()
+
+	token, _, _ := oa.Issuer.CreateAccessToken("http-user", []string{"read"}, nil)
+
+	// Introspect via HTTP
+	rr := postIntrospect(t, handler, token, "test-client", "test-client-secret-32chars-min!!")
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"active":true`)
+	assert.Contains(t, rr.Body.String(), `"sub":"http-user"`)
+}
+
+// TestOneAuth_RevocationHTTPHandler verifies that revocation works
+// via OneAuth's HTTP handler — full HTTP round-trip.
+func TestOneAuth_RevocationHTTPHandler(t *testing.T) {
+	oa := newTestOneAuth(t)
+	revHandler := oa.RevocationHTTPHandler()
+	introHandler := oa.IntrospectionHTTPHandler()
+
+	token, _, _ := oa.Issuer.CreateAccessToken("revoke-http", []string{"read"}, nil)
+
+	// Revoke via HTTP
+	form := url.Values{"token": {token}, "token_type_hint": {"access_token"}}
+	req := httptest.NewRequest(http.MethodPost, "/oauth/revoke", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth("test-client", "test-client-secret-32chars-min!!")
+	rr := httptest.NewRecorder()
+	revHandler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// Introspect — should be inactive
+	rr = postIntrospect(t, introHandler, token, "test-client", "test-client-secret-32chars-min!!")
+	assert.Contains(t, rr.Body.String(), `"active":false`)
+}
+
+// TestOneAuth_HTTPMiddleware verifies that token validation works
+// via OneAuth's HTTP middleware — full HTTP round-trip.
+func TestOneAuth_HTTPMiddleware(t *testing.T) {
+	oa := newTestOneAuth(t)
+	mw := oa.HTTPMiddleware()
+
+	token, _, _ := oa.Issuer.CreateAccessToken("mw-user", []string{"read"}, nil)
+
+	handler := mw.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		w.Write([]byte(userID))
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/resource", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "mw-user", rr.Body.String())
 }
 
 // TestOneAuth_AuthenticateClient verifies client authentication via library call.
