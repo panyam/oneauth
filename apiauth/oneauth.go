@@ -71,7 +71,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		signingAlg = "HS256"
 	}
 
-	// Wire the issuer — needs signing config + client key lookup
+	// Wire the issuer — needs signing config + client key lookup + refresh store
 	issuer := NewJWTIssuer(JWTIssuerConfig{
 		SigningKey:      cfg.SigningKey,
 		SigningAlg:      signingAlg,
@@ -79,6 +79,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		Audience:        cfg.Audience,
 		AccessExpiry:    cfg.AccessExpiry,
 		ClientKeyLookup: cfg.KeyStore, // KeyStorage implements KeyLookup
+		RefreshStore:    cfg.RefreshStore,
 		Hooks:           cfg.Hooks.Token,
 	})
 

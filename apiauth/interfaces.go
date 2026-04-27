@@ -23,6 +23,10 @@ type TokenIssuer interface {
 	// ClientCredentials performs the full client_credentials grant:
 	// authenticates the client, validates scopes/details, and returns a token response.
 	ClientCredentials(clientID, clientSecret string, scopes []string, details []core.AuthorizationDetail) (*core.TokenPair, error)
+
+	// RefreshGrant rotates a refresh token and returns a new access + refresh token pair.
+	// Handles theft detection (revoked token → revoke entire family).
+	RefreshGrant(refreshToken string) (*core.TokenPair, error)
 }
 
 // TokenValidator validates tokens and checks authorization.
