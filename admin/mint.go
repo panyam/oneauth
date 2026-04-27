@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/utils"
 )
 
@@ -18,8 +19,8 @@ type AppQuota struct {
 
 // MintResourceToken creates a resource-scoped JWT for a user on behalf of a registered App,
 // signed with the app's shared secret (HS256). This is the backwards-compatible API.
-func MintResourceToken(userID, appClientID, appSecret string, quota AppQuota, scopes []string) (string, error) {
-	return MintResourceTokenWithKey(userID, appClientID, []byte(appSecret), quota, scopes)
+func MintResourceToken(userID, appClientID, appSecret string, quota AppQuota, scopes []string, authzDetails []core.AuthorizationDetail) (string, error) {
+	return MintResourceTokenWithKey(userID, appClientID, []byte(appSecret), quota, scopes, authzDetails)
 }
 
 // MintResourceTokenWithKey creates a resource-scoped JWT signed with the provided key.
@@ -27,7 +28,7 @@ func MintResourceToken(userID, appClientID, appSecret string, quota AppQuota, sc
 //   - []byte → HS256
 //   - *rsa.PrivateKey → RS256
 //   - *ecdsa.PrivateKey → ES256
-func MintResourceTokenWithKey(userID, appClientID string, signingKey any, quota AppQuota, scopes []string) (string, error) {
+func MintResourceTokenWithKey(userID, appClientID string, signingKey any, quota AppQuota, scopes []string, authzDetails []core.AuthorizationDetail) (string, error) {
 	method, err := signingMethodFromKey(signingKey)
 	if err != nil {
 		return "", err
@@ -41,6 +42,10 @@ func MintResourceTokenWithKey(userID, appClientID string, signingKey any, quota 
 		"scopes":    scopes,
 		"iat":       now.Unix(),
 		"exp":       now.Add(15 * time.Minute).Unix(),
+	}
+
+	if len(authzDetails) > 0 {
+		claims["authorization_details"] = authzDetails
 	}
 
 	if quota.MaxRooms > 0 {

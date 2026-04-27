@@ -81,8 +81,9 @@ type RefreshToken struct {
 	DeviceInfo map[string]any `json:"device_info"` // User agent, IP, etc.
 	Family     string         `json:"family"`      // Token family for rotation tracking
 	Generation int            `json:"generation"`  // Increments on rotation
-	Scopes     []string       `json:"scopes"`      // Granted scopes
-	CreatedAt  time.Time      `json:"created_at"`
+	Scopes               []string              `json:"scopes"`                          // Granted scopes
+	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
+	CreatedAt            time.Time             `json:"created_at"`
 	ExpiresAt  time.Time      `json:"expires_at"`
 	LastUsedAt time.Time      `json:"last_used_at"`
 	RevokedAt  *time.Time     `json:"revoked_at,omitempty"`
@@ -128,22 +129,24 @@ func (k *APIKey) IsValid() bool {
 
 // TokenPair represents the response from a successful authentication
 type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`     // "Bearer"
-	ExpiresIn    int64  `json:"expires_in"`     // Seconds until access token expires
-	RefreshToken string `json:"refresh_token,omitempty"`
-	Scope        string `json:"scope,omitempty"`
+	AccessToken          string                `json:"access_token"`
+	TokenType            string                `json:"token_type"`                        // "Bearer"
+	ExpiresIn            int64                 `json:"expires_in"`                        // Seconds until access token expires
+	RefreshToken         string                `json:"refresh_token,omitempty"`
+	Scope                string                `json:"scope,omitempty"`
+	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
 }
 
 // TokenRequest represents a request to the token endpoint
 type TokenRequest struct {
-	GrantType    string `json:"grant_type"`              // "password", "refresh_token", "client_credentials"
-	Username     string `json:"username,omitempty"`      // For password grant
-	Password     string `json:"password,omitempty"`      // For password grant
-	RefreshToken string `json:"refresh_token,omitempty"` // For refresh_token grant
-	Scope        string `json:"scope,omitempty"`         // Requested scopes
-	ClientID     string `json:"client_id,omitempty"`     // Client identifier (for client_credentials, optional for others)
-	ClientSecret string `json:"client_secret,omitempty"` // Client secret (for client_credentials via client_secret_post)
+	GrantType            string                `json:"grant_type"`                                  // "password", "refresh_token", "client_credentials"
+	Username             string                `json:"username,omitempty"`                          // For password grant
+	Password             string                `json:"password,omitempty"`                          // For password grant
+	RefreshToken         string                `json:"refresh_token,omitempty"`                     // For refresh_token grant
+	Scope                string                `json:"scope,omitempty"`                             // Requested scopes
+	ClientID             string                `json:"client_id,omitempty"`                         // Client identifier (for client_credentials, optional for others)
+	ClientSecret         string                `json:"client_secret,omitempty"`                     // Client secret (for client_credentials via client_secret_post)
+	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"`             // RFC 9396
 }
 
 // TokenError represents an OAuth 2.0 compliant error response

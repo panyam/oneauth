@@ -95,6 +95,11 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// Include authorization_details if present (RFC 9396 §9.1)
+	if ad, ok := rawClaims["authorization_details"]; ok {
+		resp["authorization_details"] = ad
+	}
+
 	h.jsonResponse(w, http.StatusOK, resp)
 }
 

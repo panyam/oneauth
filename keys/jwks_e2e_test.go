@@ -54,7 +54,7 @@ func TestFederated_EndToEnd_HS256(t *testing.T) {
 	tokenStr, err := admin.MintResourceToken(
 		"user-alice", clientID, clientSecret,
 		admin.AppQuota{MaxRooms: 10, MaxMsgRate: 30},
-		[]string{"collab", "read"},
+		[]string{"collab", "read"}, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestFederated_EndToEnd_HS256_WrongSecret(t *testing.T) {
 	clientID := regResp["client_id"].(string)
 
 	// Mint with wrong secret
-	tokenStr, _ := admin.MintResourceToken("user-eve", clientID, "totally-wrong-secret", admin.AppQuota{}, []string{"read"})
+	tokenStr, _ := admin.MintResourceToken("user-eve", clientID, "totally-wrong-secret", admin.AppQuota{}, []string{"read"}, nil)
 
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -144,7 +144,7 @@ func TestFederated_EndToEnd_HS256_CrossAppRejection(t *testing.T) {
 	}
 
 	// Mint token with app A's secret but claim app B's client_id
-	tokenStr, _ := admin.MintResourceToken("user-1", clientIDs[1], secrets[0], admin.AppQuota{}, []string{"read"})
+	tokenStr, _ := admin.MintResourceToken("user-1", clientIDs[1], secrets[0], admin.AppQuota{}, []string{"read"}, nil)
 
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +180,7 @@ func TestFederated_EndToEnd_HS256_SecretRotation(t *testing.T) {
 	oldSecret := regResp["client_secret"].(string)
 
 	// Mint with old secret
-	oldToken, _ := admin.MintResourceToken("user-1", clientID, oldSecret, admin.AppQuota{}, []string{"read"})
+	oldToken, _ := admin.MintResourceToken("user-1", clientID, oldSecret, admin.AppQuota{}, []string{"read"}, nil)
 
 	// Rotate
 	req = httptest.NewRequest(http.MethodPost, "/apps/"+clientID+"/rotate", nil)
@@ -205,7 +205,7 @@ func TestFederated_EndToEnd_HS256_SecretRotation(t *testing.T) {
 	}
 
 	// New token should succeed
-	newToken, _ := admin.MintResourceToken("user-1", clientID, newSecret, admin.AppQuota{}, []string{"read"})
+	newToken, _ := admin.MintResourceToken("user-1", clientID, newSecret, admin.AppQuota{}, []string{"read"}, nil)
 	req = httptest.NewRequest(http.MethodGet, "/resource", nil)
 	req.Header.Set("Authorization", "Bearer "+newToken)
 	rr = httptest.NewRecorder()
@@ -244,7 +244,7 @@ func TestFederated_EndToEnd_RS256_ViaRegistrar(t *testing.T) {
 	clientID := regResp["client_id"].(string)
 
 	// Mint with private key
-	tokenStr, _ := admin.MintResourceTokenWithKey("alice", clientID, privKey, admin.AppQuota{MaxRooms: 5}, []string{"read"})
+	tokenStr, _ := admin.MintResourceTokenWithKey("alice", clientID, privKey, admin.AppQuota{MaxRooms: 5}, []string{"read"}, nil)
 
 	// Validate via middleware
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
@@ -306,7 +306,7 @@ func TestJWKS_EndToEnd_RS256(t *testing.T) {
 	tokenStr, err := admin.MintResourceTokenWithKey(
 		"alice", "app_rsa_e2e", privKey,
 		admin.AppQuota{MaxRooms: 10, MaxMsgRate: 50},
-		[]string{"collab", "read"},
+		[]string{"collab", "read"}, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -359,7 +359,7 @@ func TestJWKS_EndToEnd_ES256(t *testing.T) {
 	tokenStr, err := admin.MintResourceTokenWithKey(
 		"bob", "app_ec_e2e", privKey,
 		admin.AppQuota{MaxRooms: 5},
-		[]string{"write"},
+		[]string{"write"}, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -409,7 +409,7 @@ func TestJWKS_EndToEnd_HS256Excluded(t *testing.T) {
 	resourceKeyStore.Start()
 	defer resourceKeyStore.Stop()
 
-	tokenStr, _ := admin.MintResourceToken("user1", "app_hmac", "supersecret", admin.AppQuota{}, []string{"read"})
+	tokenStr, _ := admin.MintResourceToken("user1", "app_hmac", "supersecret", admin.AppQuota{}, []string{"read"}, nil)
 
 	middleware := &apiauth.APIMiddleware{KeyStore: resourceKeyStore}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -445,7 +445,7 @@ func TestJWKS_EndToEnd_WrongPrivateKey(t *testing.T) {
 	resourceKeyStore.Start()
 	defer resourceKeyStore.Stop()
 
-	tokenStr, _ := admin.MintResourceTokenWithKey("eve", "app_rsa", otherPrivKey, admin.AppQuota{}, []string{"read"})
+	tokenStr, _ := admin.MintResourceTokenWithKey("eve", "app_rsa", otherPrivKey, admin.AppQuota{}, []string{"read"}, nil)
 
 	middleware := &apiauth.APIMiddleware{KeyStore: resourceKeyStore}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -503,7 +503,7 @@ func TestJWKS_EndToEnd_MixedAlgorithms(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tokenStr, _ := admin.MintResourceTokenWithKey(tt.userID, tt.clientID, tt.key, admin.AppQuota{}, []string{"read"})
+			tokenStr, _ := admin.MintResourceTokenWithKey(tt.userID, tt.clientID, tt.key, admin.AppQuota{}, []string{"read"}, nil)
 			req := httptest.NewRequest(http.MethodGet, "/resource", nil)
 			req.Header.Set("Authorization", "Bearer "+tokenStr)
 			rr := httptest.NewRecorder()

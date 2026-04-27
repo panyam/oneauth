@@ -150,7 +150,7 @@ In-process e2e tests using `httptest.NewServer`. Auth server + 2 resource server
 
 | What | Import |
 |---|---|
-| User, Identity, Channel, store interfaces, tokens, credentials, scopes, UnionScopes | `"github.com/panyam/oneauth/core"` |
+| User, Identity, Channel, store interfaces, tokens, credentials, scopes, UnionScopes, AuthorizationDetail (RFC 9396) | `"github.com/panyam/oneauth/core"` |
 | KeyStorage, KeyRecord, InMemoryKeyStore, EncryptedKeyStorage, JWKSHandler | `"github.com/panyam/oneauth/keys"` |
 | AdminAuth, AppRegistrar, MintResourceToken, AppQuota | `"github.com/panyam/oneauth/admin"` |
 | APIAuth, APIMiddleware, IntrospectionHandler, ProtectedResourceMetadata, ASServerMetadata | `"github.com/panyam/oneauth/apiauth"` |
@@ -290,11 +290,13 @@ Design lessons and feedback from past sessions are in `memories/`. See `memories
 - PostgreSQL test container: `arm64v8/postgres:18.1` on port 5433
 - Datastore test credentials: `~/dev-app-data/secrets/gappeng/gappeng-7bb71377bfa2.json`
 - **Security tests must include `// See:` links** to the relevant RFC, CVE, CWE, or OWASP reference in each test function's doc comment. This makes it easy to trace why a test exists and what attack it prevents. Example: `// See: https://nvd.nist.gov/vuln/detail/CVE-2015-9235`
-- Keycloak interop tests: `quay.io/keycloak/keycloak:26.0` on port 8180, realm config at `tests/keycloak/realm.json`
+- Keycloak interop tests: `quay.io/keycloak/keycloak:26.6` on port 8180, realm config at `tests/keycloak/realm.json`
+- RAR test issuer (`cmd/rar-test-issuer`): port 8181, RFC 9396 interop tests. See `cmd/rar-test-issuer/main.go` header and `tests/keycloak/rar_interop_test.go` for details and KC migration path.
 - **`type: "access"` claim is OneAuth-specific** — external IdP tokens (Keycloak, Auth0) don't have it. The check accepts tokens without the claim; only rejects tokens with `type` set to something other than `"access"` (e.g., refresh tokens).
 - **`aud` claim may be string or array** (RFC 7519 §4.1.3) — `matchesAudience()` helper handles both. Keycloak/Auth0/Azure AD send arrays.
 - **Separate Go modules** (`tests/keycloak/`, `stores/gorm/`, `stores/gae/`, etc.) need `GOWORK=off` or `cd` into the module dir when running outside `go.work`.
 - **`make lint`** uses `GOFLAGS=-buildvcs=false` to work in worktrees.
 - **PKCE functions in `client/`** are inlined (not imported from `oauth2/` sub-module) to avoid cross-module dependency. The `oauth2/` sub-module has heavy deps (`golang.org/x/oauth2`).
 - **Token endpoint accepts both form-encoded and JSON** — `APIAuth.ServeHTTP` routes on `Content-Type`: `application/x-www-form-urlencoded` (RFC 6749 standard) or JSON (legacy/convenience). Standard OAuth clients (Keycloak, Auth0, testutil helpers) send form-encoded.
+- **RFC 9396 Rich Authorization Requests** — `authorization_details` parameter is supported on token requests (both form-encoded as a JSON string, and JSON body). The granted details are returned in the token response and embedded in the JWT as an `authorization_details` claim. Introspection responses also include it. `CreateAccessToken` takes `authzDetails []core.AuthorizationDetail` as a third parameter. `standardClaims` guard prevents `CustomClaimsFunc` from overriding it.
 - **Legacy `/api/token` JSON endpoint** — retained for `Login` and `refreshTokenLocked` backward compat. E2E tests now have `/oauth/token` (form-encoded, standards-compliant) for auth code and client_credentials flows. The legacy JSON path (`requestToken`) can be removed once the CLI client (`cmd/oneauth-cli`) migrates to form-encoded requests — tracked as a future cleanup item.

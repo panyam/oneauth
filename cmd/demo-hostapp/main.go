@@ -175,7 +175,7 @@ func main() {
 			creds.ClientID,
 			creds.ClientSecret,
 			admin.AppQuota{MaxRooms: 10, MaxMsgRate: 100},
-			[]string{"collab"},
+			[]string{"collab"}, nil,
 		)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")

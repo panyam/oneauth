@@ -1,0 +1,14 @@
+# 10-security
+
+EXAMPLE_DIR := 10-security
+
+run:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/
+
+demo:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --non-interactive
+
+readme:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --readme > examples/$(EXAMPLE_DIR)/README.md
+
+.PHONY: run demo readme

@@ -4,18 +4,21 @@ package client
 
 import (
 	"time"
+
+	"github.com/panyam/oneauth/core"
 )
 
 // ServerCredential holds authentication info for a single server
 type ServerCredential struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token,omitempty"`
-	TokenType    string    `json:"token_type,omitempty"`
-	UserID       string    `json:"user_id,omitempty"`
-	UserEmail    string    `json:"user_email,omitempty"`
-	Scope        string    `json:"scope,omitempty"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	CreatedAt    time.Time `json:"created_at"`
+	AccessToken          string                     `json:"access_token"`
+	RefreshToken         string                     `json:"refresh_token,omitempty"`
+	TokenType            string                     `json:"token_type,omitempty"`
+	UserID               string                     `json:"user_id,omitempty"`
+	UserEmail            string                     `json:"user_email,omitempty"`
+	Scope                string                     `json:"scope,omitempty"`
+	AuthorizationDetails []core.AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
+	ExpiresAt            time.Time                  `json:"expires_at"`
+	CreatedAt            time.Time                  `json:"created_at"`
 }
 
 // IsExpired returns true if the access token has expired

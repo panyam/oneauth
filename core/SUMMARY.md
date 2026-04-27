@@ -12,6 +12,7 @@ Foundation types and interfaces for the OneAuth authentication framework. Every 
 - **context.go** — `GetUserIDFromContext()`, `SetUserIDInContext()`, `DefaultUserParamName`
 
 ## Recent Additions
+- **authorization_details.go** — `AuthorizationDetail` struct (RFC 9396), custom JSON marshal/unmarshal with extension flattening, `ValidateAll()`, `FilterByType()`, `ErrInvalidAuthorizationDetails`
 - **blacklist.go** — `TokenBlacklist` interface and `InMemoryBlacklist` for jti-based JWT revocation
 - **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket)
 - **lockout.go** — `AccountLockout` struct for tracking failed login attempts and temporary account lockouts

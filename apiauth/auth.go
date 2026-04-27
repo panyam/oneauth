@@ -116,6 +116,13 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ClientID:     r.FormValue("client_id"),
 			ClientSecret: r.FormValue("client_secret"),
 		}
+		// RFC 9396 §6.1: authorization_details is a JSON-encoded string in form params
+		if adStr := r.FormValue("authorization_details"); adStr != "" {
+			if err := json.Unmarshal([]byte(adStr), &req.AuthorizationDetails); err != nil {
+				a.errorResponse(w, "invalid_authorization_details", "Invalid authorization_details JSON", http.StatusBadRequest)
+				return
+			}
+		}
 	} else {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			a.errorResponse(w, "invalid_request", "Invalid request body", http.StatusBadRequest)
@@ -199,8 +206,14 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 		return
 	}
 
+	// Validate authorization_details if present (RFC 9396)
+	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
+		a.errorResponse(w, "invalid_authorization_details", err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Create access token (JWT)
-	accessToken, expiresIn, err := a.CreateAccessToken(user.Id(), grantedScopes)
+	accessToken, expiresIn, err := a.CreateAccessToken(user.Id(), grantedScopes, req.AuthorizationDetails)
 	if err != nil {
 		log.Printf("Error creating access token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -213,7 +226,7 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 	}
 
 	// Return token pair
-	a.tokenResponse(w, accessToken, expiresIn, refreshToken.Token, grantedScopes)
+	a.tokenResponse(w, accessToken, expiresIn, refreshToken.Token, grantedScopes, req.AuthorizationDetails)
 }
 
 // handleRefreshTokenGrant handles the refresh_token grant type
@@ -264,8 +277,8 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Create new access token
-	accessToken, expiresIn, err := a.CreateAccessToken(refreshToken.UserID, refreshToken.Scopes)
+	// Create new access token (carry forward authorization_details from original grant)
+	accessToken, expiresIn, err := a.CreateAccessToken(refreshToken.UserID, refreshToken.Scopes, refreshToken.AuthorizationDetails)
 	if err != nil {
 		log.Printf("Error creating access token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -273,7 +286,7 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 	}
 
 	// Return new token pair
-	a.tokenResponse(w, accessToken, expiresIn, newRefreshToken.Token, refreshToken.Scopes)
+	a.tokenResponse(w, accessToken, expiresIn, newRefreshToken.Token, refreshToken.Scopes, refreshToken.AuthorizationDetails)
 }
 
 // handleClientCredentialsGrant handles the client_credentials grant type (RFC 6749 §4.4).
@@ -330,8 +343,14 @@ func (a *APIAuth) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Re
 		scopes = strings.Split(req.Scope, " ")
 	}
 
+	// Validate authorization_details if present (RFC 9396)
+	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
+		a.errorResponse(w, "invalid_authorization_details", err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Create access token with sub=client_id (no user context)
-	accessToken, expiresIn, err := a.CreateAccessToken(clientID, scopes)
+	accessToken, expiresIn, err := a.CreateAccessToken(clientID, scopes, req.AuthorizationDetails)
 	if err != nil {
 		log.Printf("Error creating client_credentials token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -339,7 +358,7 @@ func (a *APIAuth) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Re
 	}
 
 	// Return access token only — no refresh token for client_credentials
-	a.tokenResponse(w, accessToken, expiresIn, "", scopes)
+	a.tokenResponse(w, accessToken, expiresIn, "", scopes, req.AuthorizationDetails)
 }
 
 // constantTimeEqual performs a constant-time string comparison to prevent
@@ -460,11 +479,13 @@ func (a *APIAuth) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 var standardClaims = map[string]bool{
 	"sub": true, "iss": true, "aud": true, "exp": true,
 	"iat": true, "type": true, "scopes": true, "jti": true,
+	"authorization_details": true, // RFC 9396
 }
 
 // CreateAccessToken creates a signed JWT access token. If CustomClaimsFunc is set,
 // its returned claims are merged into the token (standard claims cannot be overridden).
-func (a *APIAuth) CreateAccessToken(userID string, scopes []string) (string, int64, error) {
+// authzDetails is an optional RFC 9396 authorization_details array embedded in the JWT.
+func (a *APIAuth) CreateAccessToken(userID string, scopes []string, authzDetails []core.AuthorizationDetail) (string, int64, error) {
 	expiry := a.AccessTokenExpiry
 	if expiry == 0 {
 		expiry = core.TokenExpiryAccessToken
@@ -486,6 +507,10 @@ func (a *APIAuth) CreateAccessToken(userID string, scopes []string) (string, int
 		"jti":    jti,
 		"iat":    now.Unix(),
 		"exp":    expiresAt.Unix(),
+	}
+
+	if len(authzDetails) > 0 {
+		claims["authorization_details"] = authzDetails
 	}
 
 	if a.JWTIssuer != "" {
@@ -722,13 +747,14 @@ func (a *APIAuth) jwtKeyFunc(token *jwt.Token) (any, error) {
 }
 
 // tokenResponse sends a successful token response
-func (a *APIAuth) tokenResponse(w http.ResponseWriter, accessToken string, expiresIn int64, refreshToken string, scopes []string) {
+func (a *APIAuth) tokenResponse(w http.ResponseWriter, accessToken string, expiresIn int64, refreshToken string, scopes []string, authzDetails []core.AuthorizationDetail) {
 	resp := core.TokenPair{
-		AccessToken:  accessToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    expiresIn,
-		RefreshToken: refreshToken,
-		Scope:        core.JoinScopes(scopes),
+		AccessToken:          accessToken,
+		TokenType:            "Bearer",
+		ExpiresIn:            expiresIn,
+		RefreshToken:         refreshToken,
+		Scope:                core.JoinScopes(scopes),
+		AuthorizationDetails: authzDetails,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -949,10 +975,11 @@ func (a *APIAuth) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 type apiContextKey string
 
 const (
-	contextKeyUserID   apiContextKey = "api_user_id"
-	contextKeyScopes   apiContextKey = "api_scopes"
-	contextKeyAuthType    apiContextKey = "api_auth_type" // "jwt" or "api_key"
-	contextKeyCustomClaims apiContextKey = "api_custom_claims"
+	contextKeyUserID               apiContextKey = "api_user_id"
+	contextKeyScopes               apiContextKey = "api_scopes"
+	contextKeyAuthType             apiContextKey = "api_auth_type" // "jwt" or "api_key"
+	contextKeyCustomClaims         apiContextKey = "api_custom_claims"
+	contextKeyAuthorizationDetails apiContextKey = "api_authorization_details" // RFC 9396
 )
 
 // APIMiddleware provides middleware for validating API tokens
@@ -1037,6 +1064,17 @@ func GetCustomClaimsFromContext(ctx context.Context) map[string]any {
 	return nil
 }
 
+// GetAuthorizationDetailsFromContext retrieves the RFC 9396 authorization_details from context.
+// Returns nil if no authorization details are present (e.g., API key auth or token without RAR).
+func GetAuthorizationDetailsFromContext(ctx context.Context) []core.AuthorizationDetail {
+	if v := ctx.Value(contextKeyAuthorizationDetails); v != nil {
+		if details, ok := v.([]core.AuthorizationDetail); ok {
+			return details
+		}
+	}
+	return nil
+}
+
 // ValidateToken middleware validates Bearer tokens (JWT or API key) and sets user info in context
 func (m *APIMiddleware) ValidateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1046,15 +1084,7 @@ func (m *APIMiddleware) ValidateToken(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := r.Context()
-		ctx = context.WithValue(ctx, contextKeyUserID, userID)
-		ctx = context.WithValue(ctx, contextKeyScopes, scopes)
-		ctx = context.WithValue(ctx, contextKeyAuthType, authType)
-		if customClaims != nil {
-			ctx = context.WithValue(ctx, contextKeyCustomClaims, customClaims)
-		}
-		ctx = core.SetUserIDInContext(ctx, userID)
-
+		ctx := setAuthContext(r.Context(), userID, scopes, authType, customClaims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -1074,15 +1104,7 @@ func (m *APIMiddleware) RequireScopes(requiredScopes ...string) func(http.Handle
 				return
 			}
 
-			ctx := r.Context()
-			ctx = context.WithValue(ctx, contextKeyUserID, userID)
-			ctx = context.WithValue(ctx, contextKeyScopes, grantedScopes)
-			ctx = context.WithValue(ctx, contextKeyAuthType, authType)
-			if customClaims != nil {
-				ctx = context.WithValue(ctx, contextKeyCustomClaims, customClaims)
-			}
-			ctx = core.SetUserIDInContext(ctx, userID)
-
+			ctx := setAuthContext(r.Context(), userID, grantedScopes, authType, customClaims)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -1093,14 +1115,7 @@ func (m *APIMiddleware) Optional(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID, scopes, authType, customClaims, err := m.validateRequest(r)
 		if err == nil && userID != "" {
-			ctx := r.Context()
-			ctx = context.WithValue(ctx, contextKeyUserID, userID)
-			ctx = context.WithValue(ctx, contextKeyScopes, scopes)
-			ctx = context.WithValue(ctx, contextKeyAuthType, authType)
-			if customClaims != nil {
-				ctx = context.WithValue(ctx, contextKeyCustomClaims, customClaims)
-			}
-			ctx = core.SetUserIDInContext(ctx, userID)
+			ctx := setAuthContext(r.Context(), userID, scopes, authType, customClaims)
 			r = r.WithContext(ctx)
 		}
 		next.ServeHTTP(w, r)
@@ -1272,6 +1287,15 @@ func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes [
 		}
 	}
 
+	// Extract authorization_details (RFC 9396) from JWT claims.
+	// Stored under a private key in customClaims so context-setting code can extract it.
+	if adRaw, ok := claims["authorization_details"].([]any); ok {
+		authzDetails := parseAuthorizationDetailsFromClaims(adRaw)
+		if len(authzDetails) > 0 {
+			customClaims["__authz_details"] = authzDetails
+		}
+	}
+
 	// Check blacklist if configured
 	if m.Blacklist != nil {
 		if jti, ok := claims["jti"].(string); ok && jti != "" {
@@ -1339,4 +1363,123 @@ func getClientIP(r *http.Request) string {
 		ip = ip[:colonIdx]
 	}
 	return ip
+}
+
+// =============================================================================
+// RFC 9396 helpers
+// =============================================================================
+
+// standardADFields are the RFC 9396 §2 common field names used when parsing
+// authorization_details from JWT claims to separate known fields from extensions.
+var standardADFields = map[string]bool{
+	"type": true, "locations": true, "actions": true,
+	"datatypes": true, "identifier": true, "privileges": true,
+}
+
+// parseAuthorizationDetailsFromClaims converts raw JWT claim data ([]any of
+// map[string]any) into typed AuthorizationDetail structs.
+func parseAuthorizationDetailsFromClaims(raw []any) []core.AuthorizationDetail {
+	var result []core.AuthorizationDetail
+	for _, item := range raw {
+		adMap, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		ad := core.AuthorizationDetail{
+			Type:       stringFromMap(adMap, "type"),
+			Identifier: stringFromMap(adMap, "identifier"),
+			Locations:  toStringSlice(anySliceFromMap(adMap, "locations")),
+			Actions:    toStringSlice(anySliceFromMap(adMap, "actions")),
+			DataTypes:  toStringSlice(anySliceFromMap(adMap, "datatypes")),
+			Privileges: toStringSlice(anySliceFromMap(adMap, "privileges")),
+		}
+		for k, v := range adMap {
+			if !standardADFields[k] {
+				if ad.Extra == nil {
+					ad.Extra = make(map[string]any)
+				}
+				ad.Extra[k] = v
+			}
+		}
+		result = append(result, ad)
+	}
+	return result
+}
+
+func stringFromMap(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+func anySliceFromMap(m map[string]any, key string) []any {
+	if v, ok := m[key].([]any); ok {
+		return v
+	}
+	return nil
+}
+
+func toStringSlice(raw []any) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// setAuthContext sets all standard auth context values on the request context.
+func setAuthContext(ctx context.Context, userID string, scopes []string, authType string, customClaims map[string]any) context.Context {
+	ctx = context.WithValue(ctx, contextKeyUserID, userID)
+	ctx = context.WithValue(ctx, contextKeyScopes, scopes)
+	ctx = context.WithValue(ctx, contextKeyAuthType, authType)
+	if customClaims != nil {
+		// Extract authorization_details from the private key and set in dedicated context
+		if authzDetails, ok := customClaims["__authz_details"].([]core.AuthorizationDetail); ok {
+			ctx = context.WithValue(ctx, contextKeyAuthorizationDetails, authzDetails)
+			delete(customClaims, "__authz_details")
+		}
+		ctx = context.WithValue(ctx, contextKeyCustomClaims, customClaims)
+	}
+	ctx = core.SetUserIDInContext(ctx, userID)
+	return ctx
+}
+
+// RequireAuthorizationDetails middleware ensures the token contains
+// authorization_details matching all required types. For each required type,
+// there must be at least one authorization_details entry with that type.
+//
+// See: https://www.rfc-editor.org/rfc/rfc9396
+func (m *APIMiddleware) RequireAuthorizationDetails(requiredTypes ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID, scopes, authType, customClaims, err := m.validateRequest(r)
+			if err != nil {
+				m.handleAuthError(w, r, err)
+				return
+			}
+
+			ctx := setAuthContext(r.Context(), userID, scopes, authType, customClaims)
+			granted := GetAuthorizationDetailsFromContext(ctx)
+
+			// Check that all required types are present
+			grantedTypes := make(map[string]bool)
+			for _, ad := range granted {
+				grantedTypes[ad.Type] = true
+			}
+			for _, reqType := range requiredTypes {
+				if !grantedTypes[reqType] {
+					m.handleAuthError(w, r, fmt.Errorf("missing required authorization_details type: %s", reqType))
+					return
+				}
+			}
+
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }

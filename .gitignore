@@ -40,3 +40,15 @@ demo/data/
 .gcloudignore
 .playwright-mcp/
 cmd/oneauth-server/oneauth-server
+# Built binaries from examples and cmd
+/rar-test-issuer
+/01-client-credentials
+/02-resource-token-hs256
+/03-resource-token-rs256-jwks
+/04-discovery
+/05-introspection
+/06-dynamic-client-registration
+/07-client-sdk
+/08-rich-authorization-requests
+/09-key-rotation
+/10-security

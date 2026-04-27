@@ -106,18 +106,19 @@ func AuthTokenToEntity(t *core.AuthToken, key *datastore.Key) *AuthTokenEntity {
 
 // RefreshTokenEntity is the Datastore entity for refresh tokens
 type RefreshTokenEntity struct {
-	Key        *datastore.Key `datastore:"__key__"` // Key is the token hash
-	UserID     string         `datastore:"user_id"`
-	ClientID   string         `datastore:"client_id,omitempty"`
-	DeviceInfo []byte         `datastore:"device_info,noindex"` // JSON encoded
-	Family     string         `datastore:"family"`
-	Generation int            `datastore:"generation"`
-	Scopes     []byte         `datastore:"scopes,noindex"` // JSON encoded
-	CreatedAt  time.Time      `datastore:"created_at"`
-	ExpiresAt  time.Time      `datastore:"expires_at"`
-	LastUsedAt time.Time      `datastore:"last_used_at"`
-	RevokedAt  time.Time      `datastore:"revoked_at,omitempty"`
-	Revoked    bool           `datastore:"revoked"`
+	Key                  *datastore.Key `datastore:"__key__"` // Key is the token hash
+	UserID               string         `datastore:"user_id"`
+	ClientID             string         `datastore:"client_id,omitempty"`
+	DeviceInfo           []byte         `datastore:"device_info,noindex"`            // JSON encoded
+	Family               string         `datastore:"family"`
+	Generation           int            `datastore:"generation"`
+	Scopes               []byte         `datastore:"scopes,noindex"`                // JSON encoded
+	AuthorizationDetails []byte         `datastore:"authorization_details,noindex"` // JSON encoded, RFC 9396
+	CreatedAt            time.Time      `datastore:"created_at"`
+	ExpiresAt            time.Time      `datastore:"expires_at"`
+	LastUsedAt           time.Time      `datastore:"last_used_at"`
+	RevokedAt            time.Time      `datastore:"revoked_at,omitempty"`
+	Revoked              bool           `datastore:"revoked"`
 }
 
 // APIKeyEntity is the Datastore entity for API keys

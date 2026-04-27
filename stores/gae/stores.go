@@ -692,19 +692,24 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 	if entity.Scopes != nil {
 		json.Unmarshal(entity.Scopes, &scopes)
 	}
+	var authzDetails []core.AuthorizationDetail
+	if entity.AuthorizationDetails != nil {
+		json.Unmarshal(entity.AuthorizationDetails, &authzDetails)
+	}
 
 	rt := &core.RefreshToken{
-		TokenHash:  entity.Key.Name,
-		UserID:     entity.UserID,
-		ClientID:   entity.ClientID,
-		DeviceInfo: deviceInfo,
-		Family:     entity.Family,
-		Generation: entity.Generation,
-		Scopes:     scopes,
-		CreatedAt:  entity.CreatedAt,
-		ExpiresAt:  entity.ExpiresAt,
-		LastUsedAt: entity.LastUsedAt,
-		Revoked:    entity.Revoked,
+		TokenHash:            entity.Key.Name,
+		UserID:               entity.UserID,
+		ClientID:             entity.ClientID,
+		DeviceInfo:           deviceInfo,
+		Family:               entity.Family,
+		Generation:           entity.Generation,
+		Scopes:               scopes,
+		AuthorizationDetails: authzDetails,
+		CreatedAt:            entity.CreatedAt,
+		ExpiresAt:            entity.ExpiresAt,
+		LastUsedAt:           entity.LastUsedAt,
+		Revoked:              entity.Revoked,
 	}
 	if !entity.RevokedAt.IsZero() {
 		rt.RevokedAt = &entity.RevokedAt
@@ -774,26 +779,30 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 		newHash := s.hashToken(newTokenStr)
 		newKey := s.namespacedKey(KindRefreshToken, newHash)
 
-		var deviceBytes, scopeBytes []byte
+		var deviceBytes, scopeBytes, authzDetailsBytes []byte
 		if oldRT.DeviceInfo != nil {
 			deviceBytes, _ = json.Marshal(oldRT.DeviceInfo)
 		}
 		if oldRT.Scopes != nil {
 			scopeBytes, _ = json.Marshal(oldRT.Scopes)
 		}
+		if oldRT.AuthorizationDetails != nil {
+			authzDetailsBytes, _ = json.Marshal(oldRT.AuthorizationDetails)
+		}
 
 		newEntity := &RefreshTokenEntity{
-			Key:        newKey,
-			UserID:     oldRT.UserID,
-			ClientID:   oldRT.ClientID,
-			DeviceInfo: deviceBytes,
-			Family:     oldRT.Family,
-			Generation: oldRT.Generation + 1,
-			Scopes:     scopeBytes,
-			CreatedAt:  now,
-			ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
-			LastUsedAt: now,
-			Revoked:    false,
+			Key:                  newKey,
+			UserID:               oldRT.UserID,
+			ClientID:             oldRT.ClientID,
+			DeviceInfo:           deviceBytes,
+			Family:               oldRT.Family,
+			Generation:           oldRT.Generation + 1,
+			Scopes:               scopeBytes,
+			AuthorizationDetails: authzDetailsBytes,
+			CreatedAt:            now,
+			ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
+			LastUsedAt:           now,
+			Revoked:              false,
 		}
 
 		if _, err := tx.Put(newKey, newEntity); err != nil {
@@ -801,17 +810,18 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 		}
 
 		newRefreshToken = &core.RefreshToken{
-			Token:      newTokenStr,
-			TokenHash:  newHash,
-			UserID:     oldRT.UserID,
-			ClientID:   oldRT.ClientID,
-			DeviceInfo: oldRT.DeviceInfo,
-			Family:     oldRT.Family,
-			Generation: oldRT.Generation + 1,
-			Scopes:     oldRT.Scopes,
-			CreatedAt:  now,
-			ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
-			LastUsedAt: now,
+			Token:                newTokenStr,
+			TokenHash:            newHash,
+			UserID:               oldRT.UserID,
+			ClientID:             oldRT.ClientID,
+			DeviceInfo:           oldRT.DeviceInfo,
+			Family:               oldRT.Family,
+			Generation:           oldRT.Generation + 1,
+			Scopes:               oldRT.Scopes,
+			AuthorizationDetails: oldRT.AuthorizationDetails,
+			CreatedAt:            now,
+			ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
+			LastUsedAt:           now,
 			Revoked:    false,
 		}
 

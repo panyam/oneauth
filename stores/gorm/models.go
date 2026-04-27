@@ -55,6 +55,28 @@ func (s *StringSlice) Scan(value any) error {
 	return json.Unmarshal(bytes, s)
 }
 
+// AuthorizationDetailsJSON is a helper type for storing []core.AuthorizationDetail in GORM as JSONB
+type AuthorizationDetailsJSON []core.AuthorizationDetail
+
+func (a AuthorizationDetailsJSON) Value() (driver.Value, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return json.Marshal(a)
+}
+
+func (a *AuthorizationDetailsJSON) Scan(value any) error {
+	if value == nil {
+		*a = nil
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return nil
+	}
+	return json.Unmarshal(bytes, a)
+}
+
 // UserModel is the GORM model for users
 type UserModel struct {
 	ID        string    `gorm:"primaryKey;size:64"`
@@ -194,13 +216,14 @@ type RefreshTokenModel struct {
 	ClientID   string      `gorm:"size:64"`
 	DeviceInfo JSONMap     `gorm:"type:jsonb"`
 	Family     string      `gorm:"size:32;index"`
-	Generation int         `gorm:"default:1"`
-	Scopes     StringSlice `gorm:"type:jsonb"`
-	CreatedAt  time.Time   `gorm:"autoCreateTime"`
-	ExpiresAt  time.Time   `gorm:"index"`
-	LastUsedAt time.Time
-	RevokedAt  *time.Time
-	Revoked    bool `gorm:"default:false;index"`
+	Generation           int                      `gorm:"default:1"`
+	Scopes               StringSlice              `gorm:"type:jsonb"`
+	AuthorizationDetails AuthorizationDetailsJSON `gorm:"type:jsonb"` // RFC 9396
+	CreatedAt            time.Time                `gorm:"autoCreateTime"`
+	ExpiresAt            time.Time                `gorm:"index"`
+	LastUsedAt           time.Time
+	RevokedAt            *time.Time
+	Revoked              bool `gorm:"default:false;index"`
 }
 
 func (RefreshTokenModel) TableName() string {
@@ -209,34 +232,36 @@ func (RefreshTokenModel) TableName() string {
 
 func (m *RefreshTokenModel) ToRefreshToken() *core.RefreshToken {
 	return &core.RefreshToken{
-		Token:      m.Token,
-		TokenHash:  m.TokenHash,
-		UserID:     m.UserID,
-		ClientID:   m.ClientID,
-		DeviceInfo: m.DeviceInfo,
-		Family:     m.Family,
-		Generation: m.Generation,
-		Scopes:     m.Scopes,
-		CreatedAt:  m.CreatedAt,
-		ExpiresAt:  m.ExpiresAt,
-		LastUsedAt: m.LastUsedAt,
-		RevokedAt:  m.RevokedAt,
-		Revoked:    m.Revoked,
+		Token:                m.Token,
+		TokenHash:            m.TokenHash,
+		UserID:               m.UserID,
+		ClientID:             m.ClientID,
+		DeviceInfo:           m.DeviceInfo,
+		Family:               m.Family,
+		Generation:           m.Generation,
+		Scopes:               m.Scopes,
+		AuthorizationDetails: m.AuthorizationDetails,
+		CreatedAt:            m.CreatedAt,
+		ExpiresAt:            m.ExpiresAt,
+		LastUsedAt:           m.LastUsedAt,
+		RevokedAt:            m.RevokedAt,
+		Revoked:              m.Revoked,
 	}
 }
 
 func RefreshTokenToModel(t *core.RefreshToken) *RefreshTokenModel {
 	return &RefreshTokenModel{
-		Token:      t.Token,
-		TokenHash:  t.TokenHash,
-		UserID:     t.UserID,
-		ClientID:   t.ClientID,
-		DeviceInfo: JSONMap(t.DeviceInfo),
-		Family:     t.Family,
-		Generation: t.Generation,
-		Scopes:     StringSlice(t.Scopes),
-		CreatedAt:  t.CreatedAt,
-		ExpiresAt:  t.ExpiresAt,
+		Token:                t.Token,
+		TokenHash:            t.TokenHash,
+		UserID:               t.UserID,
+		ClientID:             t.ClientID,
+		DeviceInfo:           JSONMap(t.DeviceInfo),
+		Family:               t.Family,
+		Generation:           t.Generation,
+		Scopes:               StringSlice(t.Scopes),
+		AuthorizationDetails: AuthorizationDetailsJSON(t.AuthorizationDetails),
+		CreatedAt:            t.CreatedAt,
+		ExpiresAt:            t.ExpiresAt,
 		LastUsedAt: t.LastUsedAt,
 		RevokedAt:  t.RevokedAt,
 		Revoked:    t.Revoked,

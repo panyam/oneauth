@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/panyam/oneauth/core"
 )
 
 // RefreshThreshold is how long before expiry to proactively refresh
@@ -63,13 +65,14 @@ type OAuth2TokenRequest struct {
 
 // OAuth2TokenResponse is the response from token endpoint
 type OAuth2TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int64  `json:"expires_in"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	Scope        string `json:"scope,omitempty"`
-	Error        string `json:"error,omitempty"`
-	ErrorDesc    string `json:"error_description,omitempty"`
+	AccessToken          string `json:"access_token"`
+	TokenType            string `json:"token_type"`
+	ExpiresIn            int64  `json:"expires_in"`
+	RefreshToken         string `json:"refresh_token,omitempty"`
+	Scope                string `json:"scope,omitempty"`
+	AuthorizationDetails []any  `json:"authorization_details,omitempty"` // RFC 9396 (raw JSON)
+	Error                string `json:"error,omitempty"`
+	ErrorDesc            string `json:"error_description,omitempty"`
 }
 
 // ClientOption configures an AuthClient
@@ -414,14 +417,16 @@ func (c *AuthClient) requestTokenForm(tokenEndpoint string, data url.Values, aut
 
 	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 
-	return &ServerCredential{
+	cred := &ServerCredential{
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
 		TokenType:    tokenResp.TokenType,
 		Scope:        tokenResp.Scope,
 		ExpiresAt:    expiresAt,
 		CreatedAt:    time.Now(),
-	}, nil
+	}
+	cred.AuthorizationDetails = parseAuthzDetailsFromRaw(tokenResp.AuthorizationDetails)
+	return cred, nil
 }
 
 // requestToken makes a token request to the server using JSON encoding.
@@ -465,14 +470,16 @@ func (c *AuthClient) requestToken(req OAuth2TokenRequest) (*ServerCredential, er
 
 	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 
-	return &ServerCredential{
+	cred := &ServerCredential{
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
 		TokenType:    tokenResp.TokenType,
 		Scope:        tokenResp.Scope,
 		ExpiresAt:    expiresAt,
 		CreatedAt:    time.Now(),
-	}, nil
+	}
+	cred.AuthorizationDetails = parseAuthzDetailsFromRaw(tokenResp.AuthorizationDetails)
+	return cred, nil
 }
 
 // refreshTransport is an http.RoundTripper that adds auth and handles refresh
@@ -527,4 +534,21 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	return resp, nil
+}
+
+// parseAuthzDetailsFromRaw converts raw JSON authorization_details ([]any from
+// token response) into typed AuthorizationDetail structs via JSON re-marshal.
+func parseAuthzDetailsFromRaw(raw []any) []core.AuthorizationDetail {
+	if len(raw) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var details []core.AuthorizationDetail
+	if err := json.Unmarshal(data, &details); err != nil {
+		return nil
+	}
+	return details
 }

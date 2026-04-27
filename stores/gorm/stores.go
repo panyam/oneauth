@@ -376,16 +376,17 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 		newTokenValue = newToken
 
 		newModel := &RefreshTokenModel{
-			TokenHash:  s.hashToken(newToken),
-			UserID:     oldModel.UserID,
-			ClientID:   oldModel.ClientID,
-			DeviceInfo: oldModel.DeviceInfo,
-			Family:     oldModel.Family,
-			Generation: oldModel.Generation + 1,
-			Scopes:     oldModel.Scopes,
-			ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
-			LastUsedAt: now,
-			Revoked:    false,
+			TokenHash:            s.hashToken(newToken),
+			UserID:               oldModel.UserID,
+			ClientID:             oldModel.ClientID,
+			DeviceInfo:           oldModel.DeviceInfo,
+			Family:               oldModel.Family,
+			Generation:           oldModel.Generation + 1,
+			Scopes:               oldModel.Scopes,
+			AuthorizationDetails: oldModel.AuthorizationDetails,
+			ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
+			LastUsedAt:           now,
+			Revoked:              false,
 		}
 
 		if err := tx.Create(newModel).Error; err != nil {

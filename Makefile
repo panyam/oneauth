@@ -414,7 +414,7 @@ testrealDS:
 # =============================================================================
 KC_CONTAINER_NAME := oneauth-test-keycloak
 KC_PORT := 8180
-KC_IMAGE := quay.io/keycloak/keycloak:26.0
+KC_IMAGE := quay.io/keycloak/keycloak:26.6
 
 # Start a Keycloak instance using Docker for interop testing
 upkcl:
@@ -459,10 +459,59 @@ testkcl:
 		until curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; do sleep 2; done; \
 		echo "Keycloak ready."; \
 	fi
+	@if ! docker ps --format '{{.Names}}' | grep -q '^$(RAR_CONTAINER_NAME)$$'; then \
+		echo "Building and starting RAR test issuer..."; \
+		docker build -f cmd/rar-test-issuer/Dockerfile -t $(RAR_IMAGE) . > /dev/null 2>&1; \
+		docker run --rm -d --name $(RAR_CONTAINER_NAME) -p $(RAR_PORT):8181 $(RAR_IMAGE); \
+		until curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; do sleep 1; done; \
+		echo "RAR test issuer ready."; \
+	fi
 	cd tests/keycloak && \
 	KEYCLOAK_URL=http://localhost:$(KC_PORT) \
+	RAR_ISSUER_URL=http://localhost:$(RAR_PORT) \
 	GOWORK=off \
 	go test -v -race -count=1 ./...
+
+# =============================================================================
+# RAR Test Issuer — RFC 9396 interop testing
+# =============================================================================
+# A minimal OneAuth-based AS that supports Rich Authorization Requests.
+# Used for interop testing: proves OneAuth resource servers can validate
+# RAR tokens issued by an external AS over real HTTP.
+#
+# Migration path: when Keycloak adds RFC 9396 RAR support on standard OAuth
+# flows (tracked: keycloak/keycloak#29340), migrate these tests to use
+# Keycloak and retire this binary. The tests in tests/keycloak/rar_interop_test.go
+# are structured to make this migration straightforward — swap the URL and
+# client credentials, keep the assertions.
+RAR_CONTAINER_NAME := oneauth-rar-test-issuer
+RAR_PORT := 8181
+RAR_IMAGE := oneauth-rar-test-issuer
+
+# Build the RAR test issuer Docker image
+buildrar:
+	@echo "Building RAR test issuer image..."
+	@docker build -f cmd/rar-test-issuer/Dockerfile -t $(RAR_IMAGE) .
+
+# Start the RAR test issuer container
+uprar: buildrar
+	@echo "Starting RAR test issuer container..."
+	@docker run --rm -d \
+		--name $(RAR_CONTAINER_NAME) \
+		-p $(RAR_PORT):8181 \
+		$(RAR_IMAGE)
+	@echo "Waiting for RAR test issuer to be ready..."
+	@until curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; do sleep 1; done
+	@echo ""
+	@echo "RAR test issuer is running!"
+	@echo "  Discovery: http://localhost:$(RAR_PORT)/.well-known/openid-configuration"
+	@echo "  JWKS:      http://localhost:$(RAR_PORT)/.well-known/jwks.json"
+	@echo "To stop: make downrar"
+
+# Stop the RAR test issuer container
+downrar:
+	@echo "Stopping RAR test issuer container..."
+	@docker stop $(RAR_CONTAINER_NAME) 2>/dev/null || echo "Container not running"
 
 # =============================================================================
 # GAE deployment
@@ -629,7 +678,7 @@ audit: vulncheck secrets
 .PHONY: test test-hard testall test-report e2e audit \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
-	upkcl downkcl kcllogs testkcl deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl buildrar uprar downrar deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
 	deps norep rep tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all
