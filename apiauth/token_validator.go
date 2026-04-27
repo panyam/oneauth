@@ -210,26 +210,30 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 
 // jwtIssuer implements TokenIssuer using JWT signing.
 type jwtIssuer struct {
-	signingKey      any    // []byte for HS256, *rsa.PrivateKey for RS256, *ecdsa.PrivateKey for ES256
-	signingAlg      string // "HS256", "RS256", "ES256"
-	issuer          string
-	audience        string
-	accessExpiry    time.Duration
-	clientKeyLookup keys.KeyLookup
-	refreshStore    core.RefreshTokenStore
-	hooks           TokenHooks
+	signingKey          any    // []byte for HS256, *rsa.PrivateKey for RS256, *ecdsa.PrivateKey for ES256
+	signingAlg          string // "HS256", "RS256", "ES256"
+	issuer              string
+	audience            string
+	accessExpiry        time.Duration
+	clientKeyLookup     keys.KeyLookup
+	refreshStore        core.RefreshTokenStore
+	validateCredentials core.CredentialsValidator
+	getUserScopes       core.GetUserScopesFunc
+	hooks               TokenHooks
 }
 
 // JWTIssuerConfig configures a jwtIssuer.
 type JWTIssuerConfig struct {
-	SigningKey      any
-	SigningAlg      string
-	Issuer         string
-	Audience       string
-	AccessExpiry   time.Duration
-	ClientKeyLookup keys.KeyLookup         // for client_credentials authentication
-	RefreshStore   core.RefreshTokenStore  // for refresh_token grant
-	Hooks          TokenHooks
+	SigningKey           any
+	SigningAlg           string
+	Issuer              string
+	Audience            string
+	AccessExpiry        time.Duration
+	ClientKeyLookup     keys.KeyLookup         // for client_credentials authentication
+	RefreshStore        core.RefreshTokenStore  // for refresh_token grant
+	ValidateCredentials core.CredentialsValidator // for password grant
+	GetUserScopes       core.GetUserScopesFunc   // for password grant (optional)
+	Hooks               TokenHooks
 }
 
 // NewJWTIssuer creates a TokenIssuer that signs JWTs.
@@ -239,14 +243,16 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		expiry = core.TokenExpiryAccessToken
 	}
 	return &jwtIssuer{
-		signingKey:      cfg.SigningKey,
-		signingAlg:      cfg.SigningAlg,
-		issuer:          cfg.Issuer,
-		audience:        cfg.Audience,
-		accessExpiry:    expiry,
-		clientKeyLookup: cfg.ClientKeyLookup,
-		refreshStore:    cfg.RefreshStore,
-		hooks:           cfg.Hooks,
+		signingKey:          cfg.SigningKey,
+		signingAlg:          cfg.SigningAlg,
+		issuer:              cfg.Issuer,
+		audience:            cfg.Audience,
+		accessExpiry:        expiry,
+		clientKeyLookup:     cfg.ClientKeyLookup,
+		refreshStore:        cfg.RefreshStore,
+		validateCredentials: cfg.ValidateCredentials,
+		getUserScopes:       cfg.GetUserScopes,
+		hooks:               cfg.Hooks,
 	}
 }
 
@@ -395,5 +401,59 @@ func (i *jwtIssuer) RefreshGrant(refreshToken string) (*core.TokenPair, error) {
 		RefreshToken:         newRT.Token,
 		Scope:                strings.Join(rt.Scopes, " "),
 		AuthorizationDetails: rt.AuthorizationDetails,
+	}, nil
+}
+
+// PasswordGrant authenticates a user and returns an access token.
+// Does NOT create a refresh token — the caller handles that with
+// transport-specific metadata (device info, IP, etc.).
+func (i *jwtIssuer) PasswordGrant(req PasswordGrantRequest) (*PasswordGrantResult, error) {
+	if i.validateCredentials == nil {
+		return nil, fmt.Errorf("server_error: password grant not configured")
+	}
+
+	// Validate credentials
+	usernameType := core.DetectUsernameType(req.Username)
+	user, err := i.validateCredentials(req.Username, req.Password, usernameType)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("invalid_grant: invalid credentials")
+	}
+
+	// Get allowed scopes
+	allowedScopes := []string{core.ScopeRead, core.ScopeWrite, core.ScopeProfile, core.ScopeOffline}
+	if i.getUserScopes != nil {
+		var err error
+		allowedScopes, err = i.getUserScopes(user.Id())
+		if err != nil {
+			return nil, fmt.Errorf("server_error: failed to get user scopes: %w", err)
+		}
+	}
+
+	// Intersect requested with allowed
+	requestedScopes := req.Scopes
+	if len(requestedScopes) == 0 {
+		requestedScopes = allowedScopes
+	}
+	grantedScopes := core.IntersectScopes(requestedScopes, allowedScopes)
+
+	// Validate authorization_details (RFC 9396)
+	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
+		return nil, err
+	}
+
+	// Create access token
+	tokenStr, expiresIn, err := i.CreateAccessToken(user.Id(), grantedScopes, req.AuthorizationDetails)
+	if err != nil {
+		return nil, fmt.Errorf("server_error: %w", err)
+	}
+
+	i.hooks.fireOnIssued(user.Id(), "password")
+
+	return &PasswordGrantResult{
+		UserID:               user.Id(),
+		AccessToken:          tokenStr,
+		ExpiresIn:            expiresIn,
+		GrantedScopes:        grantedScopes,
+		AuthorizationDetails: req.AuthorizationDetails,
 	}, nil
 }
