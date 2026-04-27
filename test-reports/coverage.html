@@ -87,7 +87,7 @@
 				
 				<option value="file15">github.com/panyam/oneauth/apiauth/token_revoker.go (87.5%)</option>
 				
-				<option value="file16">github.com/panyam/oneauth/apiauth/token_validator.go (78.6%)</option>
+				<option value="file16">github.com/panyam/oneauth/apiauth/token_validator.go (76.6%)</option>
 				
 				<option value="file17">github.com/panyam/oneauth/client/as_cache.go (100.0%)</option>
 				
@@ -3352,7 +3352,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth <span class="cov8" title="1">{
                 signingAlg = "HS256"
         }</span>
 
-        // Wire the issuer — needs signing config + client key lookup
+        // Wire the issuer — needs signing config + client key lookup + refresh store
         <span class="cov8" title="1">issuer := NewJWTIssuer(JWTIssuerConfig{
                 SigningKey:      cfg.SigningKey,
                 SigningAlg:      signingAlg,
@@ -3360,6 +3360,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth <span class="cov8" title="1">{
                 Audience:        cfg.Audience,
                 AccessExpiry:    cfg.AccessExpiry,
                 ClientKeyLookup: cfg.KeyStore, // KeyStorage implements KeyLookup
+                RefreshStore:    cfg.RefreshStore,
                 Hooks:           cfg.Hooks.Token,
         })
 
@@ -4070,13 +4071,14 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) <span class="co
 
 // jwtIssuer implements TokenIssuer using JWT signing.
 type jwtIssuer struct {
-        signingKey    any    // []byte for HS256, *rsa.PrivateKey for RS256, *ecdsa.PrivateKey for ES256
-        signingAlg    string // "HS256", "RS256", "ES256"
-        issuer        string
-        audience      string
-        accessExpiry  time.Duration
+        signingKey      any    // []byte for HS256, *rsa.PrivateKey for RS256, *ecdsa.PrivateKey for ES256
+        signingAlg      string // "HS256", "RS256", "ES256"
+        issuer          string
+        audience        string
+        accessExpiry    time.Duration
         clientKeyLookup keys.KeyLookup
-        hooks         TokenHooks
+        refreshStore    core.RefreshTokenStore
+        hooks           TokenHooks
 }
 
 // JWTIssuerConfig configures a jwtIssuer.
@@ -4086,7 +4088,8 @@ type JWTIssuerConfig struct {
         Issuer         string
         Audience       string
         AccessExpiry   time.Duration
-        ClientKeyLookup keys.KeyLookup // for client_credentials authentication
+        ClientKeyLookup keys.KeyLookup         // for client_credentials authentication
+        RefreshStore   core.RefreshTokenStore  // for refresh_token grant
         Hooks          TokenHooks
 }
 
@@ -4103,6 +4106,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer <span class="cov8" title="1">
                 audience:        cfg.Audience,
                 accessExpiry:    expiry,
                 clientKeyLookup: cfg.ClientKeyLookup,
+                refreshStore:    cfg.RefreshStore,
                 hooks:           cfg.Hooks,
         }</span>
 }
@@ -4199,6 +4203,60 @@ func (i *jwtIssuer) ClientCredentials(clientID, clientSecret string, scopes []st
                 AuthorizationDetails: details,
         }
         return resp, nil</span>
+}
+
+// RefreshGrant rotates a refresh token and returns new access + refresh tokens.
+// Handles theft detection: if the old token was already revoked, revokes the
+// entire token family (all sessions from that initial login).
+func (i *jwtIssuer) RefreshGrant(refreshToken string) (*core.TokenPair, error) <span class="cov8" title="1">{
+        if i.refreshStore == nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("refresh_token grant not configured")
+        }</span>
+
+        // Get and validate the refresh token
+        <span class="cov8" title="1">rt, err := i.refreshStore.GetRefreshToken(refreshToken)
+        if err != nil </span><span class="cov8" title="1">{
+                if err == core.ErrTokenNotFound </span><span class="cov8" title="1">{
+                        return nil, fmt.Errorf("invalid_grant: invalid refresh token")
+                }</span>
+                <span class="cov0" title="0">return nil, fmt.Errorf("server_error: %w", err)</span>
+        }
+
+        // Check if revoked — token reuse detection (theft)
+        <span class="cov8" title="1">if rt.Revoked </span><span class="cov8" title="1">{
+                i.refreshStore.RevokeTokenFamily(rt.Family)
+                return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
+        }</span>
+        <span class="cov8" title="1">if rt.IsExpired() </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("invalid_grant: token has expired")
+        }</span>
+
+        // Rotate: invalidate old, create new in same family
+        <span class="cov8" title="1">newRT, err := i.refreshStore.RotateRefreshToken(refreshToken)
+        if err != nil </span><span class="cov0" title="0">{
+                if err == core.ErrTokenReused </span><span class="cov0" title="0">{
+                        i.refreshStore.RevokeTokenFamily(rt.Family)
+                        return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
+                }</span>
+                <span class="cov0" title="0">return nil, fmt.Errorf("server_error: %w", err)</span>
+        }
+
+        // Create new access token (carry forward scopes + authorization_details)
+        <span class="cov8" title="1">tokenStr, expiresIn, err := i.CreateAccessToken(rt.UserID, rt.Scopes, rt.AuthorizationDetails)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("server_error: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">i.hooks.fireOnIssued(rt.UserID, "refresh_token")
+
+        return &amp;core.TokenPair{
+                AccessToken:          tokenStr,
+                TokenType:            "Bearer",
+                ExpiresIn:            expiresIn,
+                RefreshToken:         newRT.Token,
+                Scope:                strings.Join(rt.Scopes, " "),
+                AuthorizationDetails: rt.AuthorizationDetails,
+        }, nil</span>
 }
 </pre>
 		
