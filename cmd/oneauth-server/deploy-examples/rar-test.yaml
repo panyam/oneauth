@@ -1,0 +1,35 @@
+# RAR test server configuration — replaces cmd/rar-test-issuer.
+# Ephemeral in-memory server with RFC 9396 Rich Authorization Requests.
+#
+# Usage:
+#   oneauth-server --config deploy-examples/rar-test.yaml
+#
+# Then register test clients via DCR:
+#   curl -X POST http://localhost:8181/apps/dcr \
+#     -H 'Content-Type: application/json' \
+#     -d '{"client_name":"rar-test-client","grant_types":["client_credentials"],"scope":"read write payments"}'
+#
+# Migration path: when Keycloak adds RFC 9396 RAR support on standard
+# OAuth flows (keycloak/keycloak#29340), migrate interop tests to KC
+# and retire this config.
+
+server:
+  port: ${RAR_ISSUER_PORT:-8181}
+  host: 0.0.0.0
+
+keystore:
+  type: memory
+
+user_stores:
+  type: memory
+
+jwt:
+  secret_key: ${JWT_SECRET_KEY:-rar-test-secret-change-in-prod!!!!}
+  issuer: ${JWT_ISSUER:-http://localhost:8181}
+  authorization_details_types:
+    - payment_initiation
+    - account_information
+    - signing_service
+
+admin_auth:
+  type: none

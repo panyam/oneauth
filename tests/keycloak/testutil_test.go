@@ -14,12 +14,24 @@ package keycloak_test
 // Keycloak is not reachable.
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/panyam/oneauth/testutil"
+)
+
+// RAR test client credentials — registered via DCR on first use.
+var (
+	rarClientID      string
+	rarClientSecret  string
+	rarIntroClientID string
+	rarIntroSecret   string
+	rarClientsOnce   sync.Once
 )
 
 const (
@@ -32,12 +44,6 @@ const (
 	confidentialClientSecret = "test-secret-for-confidential-client"
 	audienceClientID         = "test-audience"
 	audienceClientSecret     = "test-audience-secret"
-
-	// Clients pre-registered in rar-test-issuer
-	rarClientID        = "rar-test-client"
-	rarClientSecret    = "rar-test-secret"
-	rarIntroClientID   = "rar-introspect-client"
-	rarIntroSecret     = "rar-introspect-secret"
 
 	// Test user defined in realm.json
 	testUsername = "testuser"
@@ -127,19 +133,63 @@ func rarIssuerURL() string {
 	return defaultRARIssuerURL
 }
 
-// skipIfRARIssuerNotRunning checks if the RAR test issuer is reachable and
-// skips the test if not. Run 'make uprar' to start it.
+// skipIfRARIssuerNotRunning checks if the RAR test issuer is reachable,
+// skips if not, and registers test clients via DCR on first call.
 func skipIfRARIssuerNotRunning(t *testing.T) {
 	t.Helper()
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get(rarIssuerURL() + "/_ah/health")
+	httpClient := &http.Client{Timeout: 2 * time.Second}
+	resp, err := httpClient.Get(rarIssuerURL() + "/_ah/health")
 	if err != nil {
-		t.Skipf("RAR test issuer not reachable at %s: %v (run 'make uprar' to start)", rarIssuerURL(), err)
+		t.Skipf("RAR issuer not reachable at %s: %v (run 'make uprar' to start)", rarIssuerURL(), err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Skipf("RAR test issuer not ready (status %d)", resp.StatusCode)
+		t.Skipf("RAR issuer not ready (status %d)", resp.StatusCode)
 	}
+	// Register test clients via DCR (once per test run)
+	ensureRARClients(t)
+}
+
+// ensureRARClients registers test clients via DCR on first call.
+// Subsequent calls are no-ops (sync.Once).
+func ensureRARClients(t *testing.T) {
+	t.Helper()
+	rarClientsOnce.Do(func() {
+		base := rarIssuerURL()
+
+		// Register main test client
+		resp := dcrRegister(t, base, "rar-test-client")
+		rarClientID = resp["client_id"].(string)
+		rarClientSecret = resp["client_secret"].(string)
+
+		// Register introspection client
+		resp = dcrRegister(t, base, "rar-introspect-client")
+		rarIntroClientID = resp["client_id"].(string)
+		rarIntroSecret = resp["client_secret"].(string)
+
+		t.Logf("Registered RAR clients: %s, %s", rarClientID, rarIntroClientID)
+	})
+}
+
+// dcrRegister registers a client via the DCR endpoint and returns the response.
+func dcrRegister(t *testing.T, baseURL, clientName string) map[string]any {
+	t.Helper()
+	body, _ := json.Marshal(map[string]any{
+		"client_name": clientName,
+		"grant_types": []string{"client_credentials"},
+		"token_endpoint_auth_method": "client_secret_post",
+	})
+	resp, err := http.Post(baseURL+"/apps/dcr", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("DCR registration failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 201 {
+		t.Fatalf("DCR returned %d", resp.StatusCode)
+	}
+	var result map[string]any
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result
 }
 
 // discoverRARIssuer fetches OIDC discovery from the RAR test issuer.

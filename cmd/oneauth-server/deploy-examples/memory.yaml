@@ -1,0 +1,29 @@
+# Ephemeral in-memory configuration for development and testing.
+# All data is lost on restart — no database, no persistent files.
+#
+# Usage:
+#   oneauth-server --config deploy-examples/memory.yaml
+#
+# Or with env vars:
+#   JWT_SECRET_KEY=my-secret PORT=9090 oneauth-server --config deploy-examples/memory.yaml
+
+server:
+  port: ${PORT:-8080}
+  host: 0.0.0.0
+
+keystore:
+  type: memory
+
+user_stores:
+  type: memory
+
+jwt:
+  secret_key: ${JWT_SECRET_KEY:-dev-secret-change-in-production!!}
+  issuer: ${JWT_ISSUER:-http://localhost:8080}
+  # RFC 9396 — advertise supported authorization_details types in discovery
+  # authorization_details_types:
+  #   - payment_initiation
+  #   - account_information
+
+admin_auth:
+  type: none    # open registration — for dev only

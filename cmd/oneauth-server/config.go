@@ -28,8 +28,9 @@ type UserStoresConfig struct {
 
 // JWTConfig configures JWT signing for browser sessions and API tokens.
 type JWTConfig struct {
-	SecretKey string `yaml:"secret_key"` // Secret key for signing JWTs
-	Issuer    string `yaml:"issuer"`     // JWT issuer claim
+	SecretKey                string   `yaml:"secret_key"`                 // Secret key for signing JWTs
+	Issuer                   string   `yaml:"issuer"`                     // JWT issuer claim
+	AuthorizationDetailsTypes []string `yaml:"authorization_details_types"` // RFC 9396 supported types (advertised in AS metadata)
 }
 
 type ServerConfig struct {
@@ -179,3 +180,4 @@ func configFromEnv() Config {
 		},
 	}
 }
+
