@@ -70,6 +70,12 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - Keycloak: `quay.io/keycloak/keycloak:26.6` on port 8180
 - RAR test issuer: port 8181. See `cmd/rar-test-issuer/main.go` for details.
 - Sub-modules need `GOWORK=off` when running outside workspace
+- Examples split into `main.go` (server, supports `--serve` to bind real ports) + `walkthrough.go` (demokit client demo). Each ships slim `README.md` + generated `WALKTHROUGH.md` (`make walkthrough`). Default `make demo` uses TUI renderer.
+
+## Gap analyses
+
+- [docs/gaps/AUTH0_GAP_ANALYSIS.md](docs/gaps/AUTH0_GAP_ANALYSIS.md) — vs Auth0 (full IdP-as-a-service)
+- [docs/gaps/AUTHLETE_GAP_ANALYSIS.md](docs/gaps/AUTHLETE_GAP_ANALYSIS.md) — vs Authlete (semi-hosted OAuth backend); meta-tracker issue #163
 
 ## Federated Auth Architecture
 

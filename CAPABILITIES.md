@@ -32,7 +32,7 @@
 - token-revocation: RFC 7009 endpoint for access and refresh token revocation
 - transport-agnostic-core: OneAuth struct with composed interfaces (TokenIssuer, TokenValidator, TokenIntrospector, TokenRevoker) — usable without HTTP
 - lifecycle-hooks: Grouped callbacks (TokenHooks, AuthHooks, ClientHooks, SecurityHooks) for audit, alerting, integration
-- interactive-examples: 10 progressive examples with demokit framework, mermaid diagrams, RFC references
+- interactive-examples: 10 progressive examples on demokit v0.0.16 — split into `main.go` (server with `--serve` real-port mode) + `walkthrough.go` (client demo). Slim `README.md` + generated `WALKTHROUGH.md` (mermaid + steps + copy-paste curl reproductions). Default `make demo` uses the TUI renderer.
 - client-sdk: AuthClient with credential store, auto-refresh, browser login
 - test-infrastructure: Reusable testutil package with TestAuthServer (RSA, JWKS, AS metadata) and shared OAuth helpers
 
