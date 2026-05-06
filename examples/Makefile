@@ -1,22 +1,32 @@
 # Examples top-level Makefile
 #
 # Batch operations across all examples. Per-example commands
-# (run, demo, readme) live in each example's own Makefile.
+# (demo, demo-plain, demo-ci, serve, walkthrough) live in each
+# example's own Makefile.
 
 EXAMPLES := $(sort $(wildcard [0-9][0-9]-*/))
 
-# Generate README.md for every example that has Go files.
-readmes:
+# Regenerate WALKTHROUGH.md for every example that has Go files.
+walkthroughs:
 	@count=0; for dir in $(EXAMPLES); do \
 		if ls $$dir/*.go >/dev/null 2>&1; then \
-			echo "[readme] $$dir"; \
-			$(MAKE) -C $$dir readme; \
+			echo "[walkthrough] $$dir"; \
+			$(MAKE) -C $$dir walkthrough; \
 			count=$$((count + 1)); \
 		else \
-			echo "[skip]   $$dir (no Go files yet)"; \
+			echo "[skip]        $$dir (no Go files yet)"; \
 		fi; \
 	done; \
-	echo "Done. Generated $$count READMEs."
+	echo "Done. Generated $$count WALKTHROUGH.md files."
+
+# Smoke test every example in non-interactive mode.
+demos-ci:
+	@for dir in $(EXAMPLES); do \
+		if ls $$dir/*.go >/dev/null 2>&1; then \
+			echo "[demo-ci] $$dir"; \
+			$(MAKE) -C $$dir demo-ci || exit 1; \
+		fi; \
+	done
 
 # List all examples.
 list:
@@ -53,4 +63,4 @@ upkcl:
 downkcl:
 	@docker stop $(KC_EXAMPLES_CONTAINER) 2>/dev/null || echo "Not running"
 
-.PHONY: readmes list upkcl downkcl
+.PHONY: walkthroughs demos-ci list upkcl downkcl

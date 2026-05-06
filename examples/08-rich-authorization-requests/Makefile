@@ -1,19 +1,21 @@
 # 08 — Rich Authorization Requests (RFC 9396)
-#
-# Infrastructure: None (RAR test issuer optional for cross-server demo)
-#
-# To see the cross-server step:
-#   make uprar (from repo root) — starts RAR test issuer on port 8181
 
 EXAMPLE_DIR := 08-rich-authorization-requests
 
-run:
+demo:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --tui
+
+demo-plain:
 	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/
 
-demo:
+demo-ci:
 	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --non-interactive
 
-readme:
-	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --readme > examples/$(EXAMPLE_DIR)/README.md
+serve:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --serve
 
-.PHONY: run demo readme
+walkthrough:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --doc md > examples/$(EXAMPLE_DIR)/WALKTHROUGH.md
+
+.PHONY: demo demo-plain demo-ci serve walkthrough
+.DEFAULT_GOAL := demo

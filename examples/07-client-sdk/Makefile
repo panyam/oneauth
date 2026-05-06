@@ -1,17 +1,21 @@
 # 07 — Client SDK: Production Patterns
-#
-# Infrastructure: None (Keycloak optional for cross-server demo)
 
 EXAMPLE_DIR := 07-client-sdk
 
-run:
+demo:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --tui
+
+demo-plain:
 	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/
 
-demo:
+demo-ci:
 	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --non-interactive
 
-readme:
-	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --readme > examples/$(EXAMPLE_DIR)/README.md
+serve:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --serve
+
+walkthrough:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --doc md > examples/$(EXAMPLE_DIR)/WALKTHROUGH.md
 
 upkcl:
 	$(MAKE) -C .. upkcl
@@ -19,4 +23,5 @@ upkcl:
 downkcl:
 	$(MAKE) -C .. downkcl
 
-.PHONY: run demo readme upkcl downkcl
+.PHONY: demo demo-plain demo-ci serve walkthrough upkcl downkcl
+.DEFAULT_GOAL := demo

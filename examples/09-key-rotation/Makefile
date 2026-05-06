@@ -1,14 +1,21 @@
-# 09-key-rotation
+# 09 — Key Rotation with Grace Periods
 
 EXAMPLE_DIR := 09-key-rotation
 
-run:
+demo:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --tui
+
+demo-plain:
 	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/
 
-demo:
+demo-ci:
 	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --non-interactive
 
-readme:
-	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --readme > examples/$(EXAMPLE_DIR)/README.md
+serve:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --serve
 
-.PHONY: run demo readme
+walkthrough:
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --doc md > examples/$(EXAMPLE_DIR)/WALKTHROUGH.md
+
+.PHONY: demo demo-plain demo-ci serve walkthrough
+.DEFAULT_GOAL := demo

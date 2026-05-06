@@ -82,20 +82,30 @@ Before an App can get tokens, it must register with the Auth Server and receive 
 ## Run examples
 
 ```bash
-# Interactive step-through
-cd examples/01-client-credentials && make run
-
-# Non-interactive (full output)
+# Interactive walkthrough (TUI renderer — default)
 cd examples/01-client-credentials && make demo
 
-# Regenerate all READMEs from code
-cd examples && make readmes
+# Plain stdout renderer (good for piping)
+cd examples/01-client-credentials && make demo-plain
+
+# Non-interactive — fire every step without pausing (CI smoke)
+cd examples/01-client-credentials && make demo-ci
+
+# Run just the auth + resource servers and let an external client drive them
+cd examples/01-client-credentials && make serve
+# (then use curl, your own app, an MCP host, etc.)
+
+# Regenerate every WALKTHROUGH.md from the demo definitions
+cd examples && make walkthroughs
 ```
 
 ## How the examples work
 
-Every example is a standalone `main.go` you run with `go run`. No external services needed — they spin up in-memory stores and `httptest` servers, make real HTTP calls, and print step-by-step output.
+Each example splits into two files:
 
-In interactive mode (`make run`), the example pauses between steps so you can follow along with the README's sequence diagram. In non-interactive mode (`make demo`), it runs straight through.
+- **`main.go`** — boots a real auth server (and resource server, where applicable). With `--serve`, it binds the servers on real ports and blocks so any OAuth client can drive them.
+- **`walkthrough.go`** — the demokit demo. It spins up the same servers in-process via `httptest` and runs as a scripted client. The two share the server builders (`newAuthServer`, `newResourceServer`), so the wire bytes are identical between the two modes.
 
-READMEs are generated from the code (`make readme` in each directory). The sequence diagrams, step descriptions, and reference links are all defined in the Go source — single source of truth.
+Each directory has a slim **`README.md`** (how to run it) and a generated **`WALKTHROUGH.md`** (the full step-by-step with mermaid sequence diagram, copy-paste curl reproductions for every wire-level call, and reference links). `WALKTHROUGH.md` is regenerated from the demo definitions via `make walkthrough` — the demo source is the single source of truth.
+
+The TUI renderer (`make demo`, the default) shows colored boxes per step with countdown bars between them. The plain renderer (`make demo-plain`) writes flat stdout for piping. Use `make demo-ci` to run every step back-to-back without pauses — useful for CI smoke or for scripted comparisons.
