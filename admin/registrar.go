@@ -2,6 +2,7 @@ package admin
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -122,6 +123,48 @@ func (h *AppRegistrar) SaveRegistration(reg *AppRegistration) error {
 	return nil
 }
 
+// GetRegistration implements ClientRegistrationManager. It returns the
+// RFC 7591 registration for clientID iff accessToken matches the stored
+// registration_access_token. Returns ErrUnauthorized for every failure mode
+// — wrong/missing token, unknown client_id, or a registration that lacks a
+// management token (e.g., a legacy /apps/register entry) — so the management
+// endpoint cannot be used to probe for valid client_ids.
+//
+// The returned DCRResponse intentionally omits client_secret. RFC 7592 §3
+// permits but does not require echoing the secret on read; re-emitting
+// symmetric credentials on every read enlarges the disclosure window if the
+// registration access token is ever logged or proxied. Clients that lose
+// the secret can rotate via PUT (#169).
+func (h *AppRegistrar) GetRegistration(clientID, accessToken string) (*DCRResponse, error) {
+	if clientID == "" || accessToken == "" {
+		return nil, ErrUnauthorized
+	}
+	reg, err := h.Store.GetApp(clientID)
+	if err != nil || reg == nil {
+		return nil, ErrUnauthorized
+	}
+	if reg.RegistrationAccessToken == "" {
+		return nil, ErrUnauthorized
+	}
+	if subtle.ConstantTimeCompare([]byte(reg.RegistrationAccessToken), []byte(accessToken)) != 1 {
+		return nil, ErrUnauthorized
+	}
+	return &DCRResponse{
+		ClientID:                  reg.ClientID,
+		ClientIDIssuedAt:          reg.CreatedAt.Unix(),
+		ClientSecretExpiresAt:     0,
+		ClientName:                reg.ClientName,
+		ClientURI:                 reg.ClientURI,
+		RedirectURIs:              reg.RedirectURIs,
+		GrantTypes:                reg.GrantTypes,
+		TokenEndpointAuthMethod:   reg.TokenEndpointAuthMethod,
+		Scope:                     reg.Scope,
+		AuthorizationDetailsTypes: reg.AuthorizationDetailsTypes,
+		RegistrationAccessToken:   reg.RegistrationAccessToken,
+		RegistrationClientURI:     reg.RegistrationClientURI,
+	}, nil
+}
+
 // RLockApps calls fn with a read-locked view of all registered apps.
 func (h *AppRegistrar) RLockApps(fn func(map[string]*AppRegistration)) {
 	h.mu.RLock()
@@ -130,23 +173,31 @@ func (h *AppRegistrar) RLockApps(fn func(map[string]*AppRegistration)) {
 }
 
 // Handler returns an http.Handler for app registration endpoints.
-// Includes both custom OneAuth API and RFC 7591 DCR endpoint:
+// Includes both custom OneAuth API, RFC 7591 DCR, and RFC 7592 DCR Management:
 //
-//	POST /apps/register  — OneAuth custom registration
-//	POST /apps/dcr       — RFC 7591 Dynamic Client Registration
-//	GET  /apps           — List all apps
-//	GET  /apps/{id}      — Get app metadata
-//	DELETE /apps/{id}    — Delete app
-//	POST /apps/{id}/rotate — Rotate secret/key
+//	POST   /apps/register         — OneAuth custom registration
+//	POST   /apps/dcr              — RFC 7591 Dynamic Client Registration
+//	GET    /apps/dcr/{client_id}  — RFC 7592 DCR Management read (issue #168)
+//	GET    /apps                  — List all apps
+//	GET    /apps/{id}             — Get app metadata
+//	DELETE /apps/{id}             — Delete app
+//	POST   /apps/{id}/rotate      — Rotate secret/key
+//
+// Routing precedence note: Go's ServeMux uses longest-prefix matching, so the
+// "/apps/dcr/" prefix below wins over the "/apps/" catch-all without further
+// fiddling. The exact-match "/apps/dcr" route handles RFC 7591 registration.
 func (h *AppRegistrar) Handler() http.Handler {
 	dcr := &DCRHandler{
 		KeyStore:  h.KeyStore,
 		Auth:      h.Auth,
 		Registrar: h,
 	}
+	dcrMgmt := &DCRManagementHandler{Manager: h}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/apps/register", h.withAuth(h.handleRegister))
 	mux.Handle("/apps/dcr", http.HandlerFunc(dcr.ServeHTTP))
+	mux.Handle("/apps/dcr/", http.HandlerFunc(dcrMgmt.ServeHTTP))
 	mux.HandleFunc("/apps/", h.withAuth(h.handleAppByID))
 	mux.HandleFunc("/apps", h.withAuth(h.handleListApps))
 	return mux

@@ -56,6 +56,39 @@ func TestDCR_SymmetricRegistration(t *testing.T) {
 	assert.Equal(t, "HS256", rec.Algorithm)
 }
 
+// TestDCR_RegistrationResponseIncludesManagementCredentials verifies that every
+// successful DCR registration returns a registration_access_token and a
+// registration_client_uri (RFC 7592 §3). These are the credentials the client
+// will use to read / update / delete its own registration via /apps/dcr/{client_id}.
+//
+// See: https://www.rfc-editor.org/rfc/rfc7592#section-3
+// See: https://github.com/panyam/oneauth/issues/168
+func TestDCR_RegistrationResponseIncludesManagementCredentials(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	handler := registrar.Handler()
+
+	body := `{"client_name":"Mgmt App","redirect_uris":["https://app.example/cb"]}`
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = "auth.example.com"
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+
+	tok, _ := resp["registration_access_token"].(string)
+	require.NotEmpty(t, tok, "registration_access_token must be set per RFC 7592 §3")
+	assert.GreaterOrEqual(t, len(tok), 32, "registration_access_token must have meaningful entropy")
+
+	uri, _ := resp["registration_client_uri"].(string)
+	require.NotEmpty(t, uri, "registration_client_uri must be set per RFC 7592 §3")
+	clientID := resp["client_id"].(string)
+	assert.Contains(t, uri, "/apps/dcr/"+clientID, "URI must point at the client's management endpoint")
+}
+
 // TestDCR_AsymmetricRegistration verifies that a client can register with
 // a JWK public key (private_key_jwt auth method). No client_secret should
 // be returned — the client keeps its private key.

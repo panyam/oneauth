@@ -292,6 +292,40 @@ refreshTransport.RoundTrip()
 
 The refresh uses a `grant_type=refresh_token` request to the token endpoint. The base transport is used for refresh requests to avoid infinite loops.
 
+## Dynamic Client Registration & Management (RFC 7591 / 7592)
+
+The `client/dcr.go` helpers let an application register itself at an authorization server and subsequently manage that registration without going through an admin UI.
+
+### Register
+
+```go
+resp, err := client.RegisterClient(asMetadata.RegistrationEndpoint, client.ClientRegistrationRequest{
+    ClientName:   "My Bot",
+    RedirectURIs: []string{"https://bot.example/cb"},
+    GrantTypes:   []string{"client_credentials"},
+}, nil)
+// resp.ClientID, resp.ClientSecret — the credentials
+// resp.RegistrationAccessToken, resp.RegistrationClientURI — RFC 7592 management credentials
+```
+
+### Read your own registration (RFC 7592 §2.1)
+
+Once registered, the client holds two extra fields — `RegistrationAccessToken` and `RegistrationClientURI`. They are the management credentials for *that specific registration*.
+
+```go
+got, err := client.GetRegistration(resp.RegistrationClientURI, resp.RegistrationAccessToken, nil)
+if errors.Is(err, client.ErrRegistrationUnauthorized) {
+    // Token rejected — the AS returned 401. The token may have been rotated
+    // (RFC 7592 §2.2 allows re-issue on PUT) or the client unregistered.
+}
+```
+
+`GetRegistration` returns the current registration metadata. The response intentionally **does not** echo `client_secret`; clients that lose the secret rotate via PUT (issue 169, pending).
+
+### Update / Delete (planned)
+
+`UpdateRegistration` (PUT) and `DeleteRegistration` (DELETE) ship in issues 169 and 170. The shape will mirror `GetRegistration`.
+
 ## AuthTransport (Static Token)
 
 For simpler cases where you have a static token and don't need refresh:

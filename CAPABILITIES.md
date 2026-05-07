@@ -16,6 +16,7 @@
 - csrf-protection: Double-submit cookie CSRF protection
 - multi-backend-storage: Store implementations for filesystem, GORM (PostgreSQL/MySQL), Google Datastore
 - pluggable-app-registry: AppRegistrationStore interface for persisting registered apps; in-memory backend ships now, FS / GORM backends pending (issues 166, 167)
+- dcr-management-rfc7592: GET /apps/dcr/{client_id} for RFC 7592 read; clients get registration_access_token + registration_client_uri at registration time (issue 168). PUT/DELETE arrive in 169/170. Backed by a transport-agnostic ClientRegistrationManager interface (admin/client_management.go).
 - http-middleware: Auth middleware for HTTP handlers with scope enforcement
 - user-identity-model: Three-layer User→Identity→Channel model
 - client-credentials-grant: Machine-to-machine auth (RFC 6749 §4.4)

@@ -24,6 +24,7 @@ var (
 // Token management
 var (
 	RFC7591 = demokit.Ref{Name: "RFC 7591 — Dynamic Client Registration", URL: "https://www.rfc-editor.org/rfc/rfc7591"}
+	RFC7592 = demokit.Ref{Name: "RFC 7592 — Dynamic Client Registration Management", URL: "https://www.rfc-editor.org/rfc/rfc7592"}
 	RFC7636 = demokit.Ref{Name: "RFC 7636 — PKCE", URL: "https://www.rfc-editor.org/rfc/rfc7636"}
 	RFC7662 = demokit.Ref{Name: "RFC 7662 — Token Introspection", URL: "https://www.rfc-editor.org/rfc/rfc7662"}
 	RFC8414 = demokit.Ref{Name: "RFC 8414 — AS Metadata Discovery", URL: "https://www.rfc-editor.org/rfc/rfc8414"}
