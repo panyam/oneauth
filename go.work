@@ -10,5 +10,6 @@ use (
 	./saml
 	./stores/gae
 	./stores/gorm
+	./tests/conformance
 	./tests/keycloak
 )
