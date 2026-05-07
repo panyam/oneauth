@@ -1,6 +1,6 @@
 module github.com/panyam/oneauth/cmd/oneauth-server
 
-go 1.26.1
+go 1.26.3
 
 require (
 	cloud.google.com/go/datastore v1.21.0

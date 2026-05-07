@@ -1,6 +1,6 @@
 module github.com/panyam/oneauth/tests/keycloak
 
-go 1.26.2
+go 1.26.3
 
 replace github.com/panyam/oneauth => ../..
 
