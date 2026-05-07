@@ -238,3 +238,71 @@ func TestASMetadata_SubjectTypesSupported(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, []any{"public"}, body["subject_types_supported"])
 }
+
+// TestASMetadata_AuthorizationResponseIssParameterSupported_True verifies
+// RFC 9207 (#180) — when the AS implements iss-parameter-on-redirect, it
+// MUST advertise that capability via this metadata field. Pointer
+// semantics: explicitly setting &true serializes as `true`.
+//
+// See: https://www.rfc-editor.org/rfc/rfc9207#section-3
+func TestASMetadata_AuthorizationResponseIssParameterSupported_True(t *testing.T) {
+	supported := true
+	meta := &apiauth.ASServerMetadata{
+		Issuer:        "https://auth.example.com",
+		TokenEndpoint: "https://auth.example.com/api/token",
+		AuthorizationResponseIssParameterSupported: &supported,
+	}
+
+	handler := apiauth.NewASMetadataHandler(meta)
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, true, body["authorization_response_iss_parameter_supported"])
+}
+
+// TestASMetadata_AuthorizationResponseIssParameterSupported_False verifies
+// the explicit `false` advertisement — the AS deliberately signals that
+// it does NOT emit iss in authorization responses (distinct from absence
+// of the field).
+func TestASMetadata_AuthorizationResponseIssParameterSupported_False(t *testing.T) {
+	supported := false
+	meta := &apiauth.ASServerMetadata{
+		Issuer:        "https://auth.example.com",
+		TokenEndpoint: "https://auth.example.com/api/token",
+		AuthorizationResponseIssParameterSupported: &supported,
+	}
+
+	handler := apiauth.NewASMetadataHandler(meta)
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, false, body["authorization_response_iss_parameter_supported"])
+}
+
+// TestASMetadata_AuthorizationResponseIssParameterSupported_Absent verifies
+// pointer-nil semantics: when the field is unset, the JSON output omits it
+// entirely (RFC 8414 lets clients infer absence as "no advertisement,"
+// distinct from explicit `false`).
+func TestASMetadata_AuthorizationResponseIssParameterSupported_Absent(t *testing.T) {
+	meta := &apiauth.ASServerMetadata{
+		Issuer:        "https://auth.example.com",
+		TokenEndpoint: "https://auth.example.com/api/token",
+		// AuthorizationResponseIssParameterSupported intentionally nil.
+	}
+
+	handler := apiauth.NewASMetadataHandler(meta)
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	_, present := body["authorization_response_iss_parameter_supported"]
+	assert.False(t, present, "field MUST be omitted when nil")
+}
