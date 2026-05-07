@@ -262,7 +262,7 @@ func main() {
 	if cfg.TLS.Enabled {
 		baseURL = fmt.Sprintf("https://%s:%s", cfg.Server.Host, cfg.Server.Port)
 	}
-	asMetaHandler := apiauth.NewASMetadataHandler(&apiauth.ASServerMetadata{
+	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
 		Issuer:                             baseURL,
 		TokenEndpoint:                      baseURL + "/api/token",
 		JWKSURI:                            baseURL + "/.well-known/jwks.json",
@@ -276,7 +276,6 @@ func main() {
 		SubjectTypesSupported:              []string{"public"},
 		AuthorizationDetailsTypesSupported: cfg.JWT.AuthorizationDetailsTypes,
 	})
-	mux.Handle("GET /.well-known/openid-configuration", asMetaHandler)
 
 	addr := cfg.Server.Host + ":" + cfg.Server.Port
 	log.Printf("oneauth-server listening on %s (keystore=%s, user_stores=%s, auth=%s)",

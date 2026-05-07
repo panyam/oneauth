@@ -17,18 +17,4 @@
 #   reason    — multi-line; what is missing and why this is filed instead of fixed
 #   expires   — ISO date; advisory only (consumed by the report, not the ratchet)
 
-- suite: as_metadata
-  id: TestDualPathParity/rfc8414_path_parity
-  status: expected-fail
-  issue: 187
-  owner: panyam
-  reason: |
-    OneAuth's AS only registers /.well-known/openid-configuration
-    (cmd/oneauth-server/main.go:279, testutil/server.go:183). RFC 8414 §3
-    requires the same metadata be served at /.well-known/oauth-authorization-server
-    so OAuth-only clients can discover it. Fix is a second mux registration
-    pointing at the same handler.
-
-    NOTE: issue number 187 is a placeholder; replace with the real tracking
-    issue when the seed PR lands.
-  expires: 2026-08-07
+[]

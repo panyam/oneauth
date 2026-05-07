@@ -168,7 +168,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		issuer = baseURL
 		apiAuth.JWTIssuer = issuer
 	}
-	asMetaHandler := apiauth.NewASMetadataHandler(&apiauth.ASServerMetadata{
+	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
 		Issuer:                        issuer,
 		TokenEndpoint:                 baseURL + "/api/token",
 		JWKSURI:                       baseURL + "/.well-known/jwks.json",
@@ -180,7 +180,6 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		TokenEndpointAuthMethods:      []string{"client_secret_post", "client_secret_basic"},
 		CodeChallengeMethodsSupported: []string{"S256"},
 	})
-	mux.Handle("GET /.well-known/openid-configuration", asMetaHandler)
 
 	return &TestAuthServer{
 		Server:     server,
