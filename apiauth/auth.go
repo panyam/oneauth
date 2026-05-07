@@ -160,6 +160,8 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.handleClientCredentialsGrant(w, r, &req)
 	case JwtBearerGrantType:
 		a.handleJwtBearerGrant(w, r, &req)
+	case TokenExchangeGrantType:
+		a.handleTokenExchangeGrant(w, r, &req)
 	default:
 		a.errorResponse(w, "unsupported_grant_type", "Grant type not supported", http.StatusBadRequest)
 	}

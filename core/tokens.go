@@ -135,6 +135,14 @@ type TokenPair struct {
 	RefreshToken         string                `json:"refresh_token,omitempty"`
 	Scope                string                `json:"scope,omitempty"`
 	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
+
+	// IssuedTokenType identifies the type of token issued (RFC 8693 §2.2,
+	// REQUIRED for token-exchange responses; absent for other grants).
+	// Common values:
+	//   urn:ietf:params:oauth:token-type:access_token
+	//   urn:ietf:params:oauth:token-type:refresh_token
+	//   urn:ietf:params:oauth:token-type:jwt
+	IssuedTokenType string `json:"issued_token_type,omitempty"`
 }
 
 // TokenRequest represents a request to the token endpoint
