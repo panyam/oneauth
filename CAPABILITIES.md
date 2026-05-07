@@ -16,7 +16,7 @@
 - csrf-protection: Double-submit cookie CSRF protection
 - multi-backend-storage: Store implementations for filesystem, GORM (PostgreSQL/MySQL), Google Datastore
 - pluggable-app-registry: AppRegistrationStore interface for persisting registered apps; in-memory backend ships now, FS / GORM backends pending (issues 166, 167)
-- dcr-management-rfc7592: Full RFC 7592 verb trio at /apps/dcr/{client_id} — GET (issue 168), PUT with registration_access_token rotation (issue 169), DELETE with credential invalidation (issue 170). Clients receive registration_access_token + registration_client_uri at registration time. Keycloak interop test pending in 171. Backed by a transport-agnostic ClientRegistrationManager interface (admin/client_management.go) following the (ctx, *Req) → (*Resp, error) convention adopted across the library.
+- dcr-management-rfc7592: Full RFC 7592 verb trio at /apps/dcr/{client_id} — GET (issue 168), PUT with registration_access_token rotation (issue 169), DELETE with credential invalidation (issue 170), Keycloak lifecycle interop (issue 171). Clients receive registration_access_token + registration_client_uri at registration time. Backed by a transport-agnostic ClientRegistrationManager interface (admin/client_management.go) following the (ctx, *Req) → (*Resp, error) convention adopted across the library.
 - http-middleware: Auth middleware for HTTP handlers with scope enforcement
 - user-identity-model: Three-layer User→Identity→Channel model
 - client-credentials-grant: Machine-to-machine auth (RFC 6749 §4.4)
