@@ -163,7 +163,7 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Store metadata in AppRegistrar if available
+	// Store metadata in AppRegistrar if available (persists to Store + updates cache).
 	if h.Registrar != nil {
 		domain := req.ClientURI
 		if domain == "" {
@@ -175,10 +175,17 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			SigningAlg:                signingAlg,
 			AuthorizationDetailsTypes: req.AuthorizationDetailsTypes,
 			CreatedAt:                 time.Now(),
+			ClientName:                req.ClientName,
+			ClientURI:                 req.ClientURI,
+			RedirectURIs:              req.RedirectURIs,
+			GrantTypes:                req.GrantTypes,
+			Scope:                     req.Scope,
+			TokenEndpointAuthMethod:   req.TokenEndpointAuthMethod,
 		}
-		h.Registrar.mu.Lock()
-		h.Registrar.apps[clientID] = reg
-		h.Registrar.mu.Unlock()
+		if err := h.Registrar.SaveRegistration(reg); err != nil {
+			h.jsonError(w, "server_error", "Failed to persist registration", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

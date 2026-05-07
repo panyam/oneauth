@@ -176,6 +176,20 @@ Pure-OAuth code pushed down from mcpkit/ext/auth (mcpkit#158) into oneauth for b
 
 ---
 
+## App Registrar Persistence
+
+Splits issue 20 (Persist AppRegistrar state) into shippable backend chunks. The schema additions for issue 157 (RFC 7592 management) are baked in upfront so subsequent tickets do not churn the table layout.
+
+| # | Scope | Status |
+|---|-------|--------|
+| 165 | `AppRegistrationStore` interface + `InMemoryAppStore` + AppRegistrar refactor (cache + write-through) + `appstoretest` contract suite + e2e simulated-restart test | In progress |
+| 166 | `FSAppStore` (filesystem backend) | Pending |
+| 167 | `GORMAppStore` + reference-server config wiring | Pending |
+
+After 167 lands, parent issue 20 can close. The chain unblocks the entire RFC 7592 track (issues 168 / 169 / 170 / 171) tracked under issue 157.
+
+---
+
 ## Relationship to Existing Work
 
 ### What this track does NOT change
