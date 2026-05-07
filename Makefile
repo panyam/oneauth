@@ -449,18 +449,12 @@ kcllogs:
 # =============================================================================
 # Runs every known conformance test (passing AND expected-fail) and diffs
 # the outcome against tests/conformance/known-gaps.yaml. Exits non-zero on
-# any drift: regression, ratchet-up, stale entry, or t.Skip().
+# any drift: regression, ratchet-up, stale entry, or t.Skip(). Also writes
+# a Markdown report at test-reports/conformance.md — scoped runs derive
+# distinct filenames (e.g., conformance-as_metadata.md), so parallel runs
+# of different suites don't clobber each other.
 testconformance:
 	@cd tests/conformance && GOWORK=off go run ./cmd/runner -package ./...
-
-# Same suite plus a Markdown report at test-reports/conformance-<date>.md.
-# The report is for humans (gap surface, expires audit). CI gating still
-# comes from the ratchet exit code, not the report.
-testconformance-report:
-	@mkdir -p $(REPORT_DIR)
-	@cd tests/conformance && GOWORK=off go run ./cmd/runner \
-		-package ./... \
-		-report ../../$(REPORT_DIR)/conformance-$$(date +%Y-%m-%d).md
 
 # Run Keycloak interop tests (starts container if not running)
 testkcl:

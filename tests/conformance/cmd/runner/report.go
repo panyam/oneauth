@@ -11,12 +11,17 @@ import (
 // writeReport emits a Markdown summary of a runner invocation, suitable
 // for checking into test-reports/. It's purely advisory — exit codes
 // drive CI, the report is for humans reading the gap surface.
-func writeReport(path string, results []Result, manifest map[string]Entry, issues []Issue) error {
+//
+// pkg is the Go package pattern that scoped this run; it's emitted in
+// the header so the file is self-describing (a scoped report and a full
+// report otherwise look identical when only one suite exists).
+func writeReport(path, pkg string, results []Result, manifest map[string]Entry, issues []Issue) error {
 	var b strings.Builder
 
 	now := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
 	fmt.Fprintf(&b, "# OneAuth Conformance Report\n\n")
-	fmt.Fprintf(&b, "Generated: %s\n\n", now)
+	fmt.Fprintf(&b, "Generated: %s  \n", now)
+	fmt.Fprintf(&b, "Package pattern: `%s`\n\n", pkg)
 
 	pass, fail, skip, gapped := 0, 0, 0, 0
 	for _, r := range results {

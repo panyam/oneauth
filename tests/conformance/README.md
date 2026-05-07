@@ -6,12 +6,32 @@ for the full strategy; this README covers mechanics.
 
 ## Running
 
+From the repo root:
+
 ```bash
-make testconformance         # gating: exit non-zero on any ratchet diff
-make testconformance-report  # plus a Markdown summary at test-reports/
+make testconformance         # full run + report at test-reports/conformance.md
 ```
 
-Both targets run from the repo root; the runner lives in this submodule.
+Reports are always written. The filename is derived from the package
+pattern, so a full run and a scoped run produce different files and can
+run in parallel without clobbering:
+
+| Command | Report path |
+|---|---|
+| `make testconformance` | `test-reports/conformance.md` |
+| `go run ./cmd/runner -package ./as_metadata/...` | `test-reports/conformance-as_metadata.md` |
+| `go run ./cmd/runner -package ./prm/...` | `test-reports/conformance-prm.md` |
+
+Scoped runs go through the runner binary directly:
+
+```bash
+cd tests/conformance
+GOWORK=off go run ./cmd/runner -package ./as_metadata/...
+```
+
+The runner finds `test-reports/` by walking up to the workspace root
+(the directory containing `go.work`), so it works the same from any
+subdirectory.
 
 ## The model
 
@@ -89,10 +109,17 @@ fails until the entry is removed.
 
 ```
 runner [flags]
-  -manifest string   path to known-gaps.yaml (default ./known-gaps.yaml)
-  -package string    Go package pattern (default ./...)
-  -report string     if set, write a Markdown report to this path
+  -manifest string     path to known-gaps.yaml (default ./known-gaps.yaml)
+  -package string      Go package pattern (default ./...)
+  -report-dir string   directory for reports (default: <workspace>/test-reports)
+  -report string       explicit report path (overrides -report-dir)
+  -no-report           skip writing a report
 ```
+
+Default behavior: every run writes to
+`<workspace>/test-reports/conformance[-<scope>].md`. Use `-report` to
+override the path, `-report-dir` to redirect just the directory, or
+`-no-report` to skip.
 
 Exit codes: `0` clean, `1` ratchet diff, `2` invalid manifest, `3` `go test`
 infra failure (compile error, etc.).
