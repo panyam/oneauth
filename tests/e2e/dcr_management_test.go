@@ -11,6 +11,7 @@ package e2e_test
 //   - https://github.com/panyam/oneauth/issues/168
 
 import (
+	"context"
 	"testing"
 
 	"github.com/panyam/oneauth/client"
@@ -51,8 +52,13 @@ func TestE2E_DCRManagement_GetRegistration(t *testing.T) {
 	require.NotEmpty(t, regURI, "DCR must issue registration_client_uri (RFC 7592 §3)")
 
 	// Drive the SDK against the live management endpoint.
-	got, err := client.GetRegistration(regURI, regToken, nil)
+	resp2, err := client.GetRegistration(context.Background(), &client.GetRegistrationRequest{
+		RegistrationClientURI:   regURI,
+		RegistrationAccessToken: regToken,
+	})
 	require.NoError(t, err)
+	require.NotNil(t, resp2.Registration)
+	got := resp2.Registration
 
 	assert.Equal(t, clientID, got.ClientID, "GET must echo the registered client_id")
 	assert.Equal(t, "E2E Mgmt Client", got.ClientName)
@@ -83,9 +89,101 @@ func TestE2E_DCRManagement_WrongTokenReturns401(t *testing.T) {
 	clientID, _ := dcr["client_id"].(string)
 	regURI, _ := dcr["registration_client_uri"].(string)
 
-	_, err := client.GetRegistration(regURI, "this-is-not-the-token", nil)
+	_, err := client.GetRegistration(context.Background(), &client.GetRegistrationRequest{
+		RegistrationClientURI:   regURI,
+		RegistrationAccessToken: "this-is-not-the-token",
+	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, client.ErrRegistrationUnauthorized)
+
+	c.Delete("/apps/" + clientID)
+}
+
+// TestE2E_DCRManagement_UpdateRegistration drives the full RFC 7592 §2.2 PUT
+// round trip against the real auth server: register → update scope → verify
+// the GET reflects the new metadata using the *rotated* token. The original
+// token must stop working after rotation — that's the security guarantee for
+// post-update token leakage.
+func TestE2E_DCRManagement_UpdateRegistration(t *testing.T) {
+	env := NewTestEnv(t)
+	c := NewTestClient(env)
+
+	resp := c.PostJSON("/apps/dcr", map[string]any{
+		"client_name": "PUT E2E",
+		"scope":       "read",
+	})
+	require.Equal(t, 201, resp.StatusCode)
+	dcr := ReadJSON(resp)
+	clientID, _ := dcr["client_id"].(string)
+	oldToken, _ := dcr["registration_access_token"].(string)
+	regURI, _ := dcr["registration_client_uri"].(string)
+
+	// PUT — change scope.
+	updateResp, err := client.UpdateRegistration(context.Background(), &client.UpdateRegistrationRequest{
+		RegistrationClientURI:   regURI,
+		RegistrationAccessToken: oldToken,
+		ClientID:                clientID,
+		Metadata: client.ClientRegistrationRequest{
+			ClientName: "PUT E2E Updated",
+			Scope:      "read write",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updateResp.Registration)
+	updated := updateResp.Registration
+	assert.Equal(t, "PUT E2E Updated", updated.ClientName)
+	assert.Equal(t, "read write", updated.Scope)
+
+	newToken := updated.RegistrationAccessToken
+	require.NotEmpty(t, newToken)
+	assert.NotEqual(t, oldToken, newToken, "AS must rotate the registration_access_token on PUT")
+
+	// New token works for GET; old token is now rejected with 401.
+	getResp, err := client.GetRegistration(context.Background(), &client.GetRegistrationRequest{
+		RegistrationClientURI:   regURI,
+		RegistrationAccessToken: newToken,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "PUT E2E Updated", getResp.Registration.ClientName)
+
+	_, err = client.GetRegistration(context.Background(), &client.GetRegistrationRequest{
+		RegistrationClientURI:   regURI,
+		RegistrationAccessToken: oldToken,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, client.ErrRegistrationUnauthorized,
+		"old token must be invalid after rotation")
+
+	c.Delete("/apps/" + clientID)
+}
+
+// TestE2E_DCRManagement_PUT_BodyMismatchReturns400 verifies that the AS
+// rejects a body whose client_id does not match the URL with HTTP 400
+// (RFC 7592 §2.2 MUST). The SDK auto-fills the body so an explicit override
+// to a wrong value is the realistic failure mode.
+func TestE2E_DCRManagement_PUT_BodyMismatchReturns400(t *testing.T) {
+	env := NewTestEnv(t)
+	c := NewTestClient(env)
+
+	resp := c.PostJSON("/apps/dcr", map[string]any{"client_name": "Body Mismatch"})
+	require.Equal(t, 201, resp.StatusCode)
+	dcr := ReadJSON(resp)
+	clientID, _ := dcr["client_id"].(string)
+	token, _ := dcr["registration_access_token"].(string)
+	regURI, _ := dcr["registration_client_uri"].(string)
+
+	// Send a body whose client_id is wrong on purpose.
+	_, err := client.UpdateRegistration(context.Background(), &client.UpdateRegistrationRequest{
+		RegistrationClientURI:   regURI,
+		RegistrationAccessToken: token,
+		ClientID:                clientID,
+		Metadata: client.ClientRegistrationRequest{
+			ClientID:   "app_other_id",
+			ClientName: "Should Fail",
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "400")
 
 	c.Delete("/apps/" + clientID)
 }

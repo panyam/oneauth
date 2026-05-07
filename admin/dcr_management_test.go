@@ -11,6 +11,7 @@ package admin_test
 //   - Blueprint for transport-agnostic admin/ refactor: issue 172.
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -54,13 +55,18 @@ func TestGetRegistration_ValidTokenReturnsResponse(t *testing.T) {
 	clientID := registered["client_id"].(string)
 	token := registered["registration_access_token"].(string)
 
-	resp, err := registrar.GetRegistration(clientID, token)
+	resp, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
+		ClientID:    clientID,
+		AccessToken: token,
+	})
 	require.NoError(t, err)
-	assert.Equal(t, clientID, resp.ClientID)
-	assert.Equal(t, "Read Me", resp.ClientName)
-	assert.Equal(t, []string{"https://app.example/cb"}, resp.RedirectURIs)
-	assert.Equal(t, token, resp.RegistrationAccessToken)
-	assert.Empty(t, resp.ClientSecret, "client_secret must NOT be echoed on read")
+	require.NotNil(t, resp.Registration)
+	got := resp.Registration
+	assert.Equal(t, clientID, got.ClientID)
+	assert.Equal(t, "Read Me", got.ClientName)
+	assert.Equal(t, []string{"https://app.example/cb"}, got.RedirectURIs)
+	assert.Equal(t, token, got.RegistrationAccessToken)
+	assert.Empty(t, got.ClientSecret, "client_secret must NOT be echoed on read")
 }
 
 // TestGetRegistration_WrongTokenReturnsUnauthorized verifies that a caller
@@ -71,7 +77,10 @@ func TestGetRegistration_WrongTokenReturnsUnauthorized(t *testing.T) {
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	registered := registerDCRClient(t, registrar, `{"client_name":"Wrong Token"}`)
 
-	_, err := registrar.GetRegistration(registered["client_id"].(string), "definitely-not-the-token")
+	_, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
+		ClientID:    registered["client_id"].(string),
+		AccessToken: "definitely-not-the-token",
+	})
 	assert.True(t, errors.Is(err, admin.ErrUnauthorized), "expected ErrUnauthorized, got %v", err)
 }
 
@@ -83,7 +92,10 @@ func TestGetRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 
-	_, err := registrar.GetRegistration("app_does_not_exist", "any-token")
+	_, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
+		ClientID:    "app_does_not_exist",
+		AccessToken: "any-token",
+	})
 	assert.True(t, errors.Is(err, admin.ErrUnauthorized), "expected ErrUnauthorized, got %v", err)
 }
 
@@ -104,7 +116,10 @@ func TestGetRegistration_LegacyRegistrationCannotBeRead(t *testing.T) {
 	var legacy map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &legacy))
 
-	_, err := registrar.GetRegistration(legacy["client_id"].(string), "any-token")
+	_, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
+		ClientID:    legacy["client_id"].(string),
+		AccessToken: "any-token",
+	})
 	assert.True(t, errors.Is(err, admin.ErrUnauthorized), "legacy app must not be readable via mgmt endpoint")
 }
 
@@ -123,7 +138,10 @@ func TestGetRegistration_EmptyInputsReturnUnauthorized(t *testing.T) {
 		{"both empty", "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := registrar.GetRegistration(tc.clientID, tc.token)
+			_, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
+				ClientID:    tc.clientID,
+				AccessToken: tc.token,
+			})
 			assert.True(t, errors.Is(err, admin.ErrUnauthorized), "expected ErrUnauthorized for %s", tc.name)
 		})
 	}
@@ -205,15 +223,16 @@ func TestDCRManagement_GET_UnknownClient_Returns401NotFound(t *testing.T) {
 	assert.NotEqual(t, http.StatusNotFound, rr.Code)
 }
 
-// TestDCRManagement_NonGETMethodReturns405 verifies that PUT / DELETE / POST
-// against /apps/dcr/{client_id} return 405 with an Allow: GET header until
-// #169 / #170 land.
-func TestDCRManagement_NonGETMethodReturns405(t *testing.T) {
+// TestDCRManagement_UnsupportedMethodReturns405 verifies that methods we
+// don't yet support (DELETE — pending #170 — and arbitrary verbs like POST)
+// return 405 with an Allow header advertising the currently supported set.
+// This list shrinks as #170 lands.
+func TestDCRManagement_UnsupportedMethodReturns405(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	registered := registerDCRClient(t, registrar, `{"client_name":"405 Test"}`)
 
-	for _, method := range []string{http.MethodPut, http.MethodDelete, http.MethodPost} {
+	for _, method := range []string{http.MethodDelete, http.MethodPost} {
 		t.Run(method, func(t *testing.T) {
 			req := httptest.NewRequest(method, "/apps/dcr/"+registered["client_id"].(string), nil)
 			req.Header.Set("Authorization", "Bearer "+registered["registration_access_token"].(string))
@@ -221,9 +240,216 @@ func TestDCRManagement_NonGETMethodReturns405(t *testing.T) {
 			registrar.Handler().ServeHTTP(rr, req)
 
 			assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
-			assert.Equal(t, "GET", rr.Header().Get("Allow"))
+			assert.Equal(t, "GET, PUT", rr.Header().Get("Allow"))
 		})
 	}
+}
+
+// --- PUT — RFC 7592 §2.2 update tests ---
+//
+// Issue #169 ships full-replace semantics, registration_access_token rotation,
+// and rejection of token_endpoint_auth_method changes (out of scope here;
+// clients change auth method via DELETE + re-register).
+
+// TestUpdateRegistration_HappyPath_RotatesToken verifies that a successful PUT
+// replaces editable metadata and rotates the registration_access_token. The
+// old token MUST stop working after rotation — that's the security guarantee.
+func TestUpdateRegistration_HappyPath_RotatesToken(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar,
+		`{"client_name":"Pre Update","scope":"read"}`)
+	clientID := registered["client_id"].(string)
+	oldToken := registered["registration_access_token"].(string)
+
+	updated, err := registrar.UpdateRegistration(context.Background(), &admin.UpdateRegistrationRequest{
+		ClientID:    clientID,
+		AccessToken: oldToken,
+		Metadata: &admin.DCRRequest{
+			ClientID:   clientID,
+			ClientName: "Post Update",
+			Scope:      "read write",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated.Registration)
+	assert.Equal(t, "Post Update", updated.Registration.ClientName)
+	assert.Equal(t, "read write", updated.Registration.Scope)
+
+	newToken := updated.Registration.RegistrationAccessToken
+	require.NotEmpty(t, newToken, "PUT must return a registration_access_token")
+	assert.NotEqual(t, oldToken, newToken, "token must rotate on PUT (RFC 7592 §2.2)")
+
+	// Old token is now invalid.
+	_, err = registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
+		ClientID: clientID, AccessToken: oldToken,
+	})
+	assert.True(t, errors.Is(err, admin.ErrUnauthorized), "old token must not survive rotation")
+	// New token works.
+	gotAfter, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
+		ClientID: clientID, AccessToken: newToken,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Post Update", gotAfter.Registration.ClientName)
+}
+
+// TestUpdateRegistration_WrongTokenReturnsUnauthorized verifies that a caller
+// presenting a non-matching token cannot update the registration.
+func TestUpdateRegistration_WrongTokenReturnsUnauthorized(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"Wrong Token PUT"}`)
+	clientID := registered["client_id"].(string)
+
+	_, err := registrar.UpdateRegistration(context.Background(), &admin.UpdateRegistrationRequest{
+		ClientID:    clientID,
+		AccessToken: "definitely-wrong",
+		Metadata: &admin.DCRRequest{
+			ClientID:   clientID,
+			ClientName: "Hacked",
+		},
+	})
+	assert.True(t, errors.Is(err, admin.ErrUnauthorized))
+}
+
+// TestUpdateRegistration_UnknownClientReturnsUnauthorized verifies that
+// unknown client_ids look the same as wrong-token failures (no enumeration).
+func TestUpdateRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+
+	_, err := registrar.UpdateRegistration(context.Background(), &admin.UpdateRegistrationRequest{
+		ClientID:    "app_phantom",
+		AccessToken: "any",
+		Metadata: &admin.DCRRequest{
+			ClientID:   "app_phantom",
+			ClientName: "x",
+		},
+	})
+	assert.True(t, errors.Is(err, admin.ErrUnauthorized))
+}
+
+// TestUpdateRegistration_AuthMethodChangeRejected verifies that PUT cannot
+// switch token_endpoint_auth_method (e.g., HS256 client_secret_post →
+// private_key_jwt). Such a change requires re-keying and is out of scope for
+// #169; clients DELETE + re-register instead.
+func TestUpdateRegistration_AuthMethodChangeRejected(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"Auth Method Lock"}`)
+	clientID := registered["client_id"].(string)
+	token := registered["registration_access_token"].(string)
+
+	_, err := registrar.UpdateRegistration(context.Background(), &admin.UpdateRegistrationRequest{
+		ClientID:    clientID,
+		AccessToken: token,
+		Metadata: &admin.DCRRequest{
+			ClientID:                clientID,
+			ClientName:              "Auth Method Lock",
+			TokenEndpointAuthMethod: "private_key_jwt", // was client_secret_post
+		},
+	})
+	assert.True(t, errors.Is(err, admin.ErrInvalidClientMetadata))
+}
+
+// TestDCRManagement_PUT_HappyPath drives the full HTTP wrapper: success
+// returns 200 + the no-store cache headers + the rotated token in the body.
+func TestDCRManagement_PUT_HappyPath(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"PUT HP","scope":"read"}`)
+	clientID := registered["client_id"].(string)
+	token := registered["registration_access_token"].(string)
+
+	body := `{"client_id":"` + clientID + `","client_name":"PUT HP Updated","scope":"read write"}`
+	req := httptest.NewRequest(http.MethodPut, "/apps/dcr/"+clientID, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, "no-store", rr.Header().Get("Cache-Control"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "PUT HP Updated", got["client_name"])
+	assert.Equal(t, "read write", got["scope"])
+	newTok, _ := got["registration_access_token"].(string)
+	require.NotEmpty(t, newTok)
+	assert.NotEqual(t, token, newTok, "PUT response must include rotated token")
+}
+
+// TestDCRManagement_PUT_MissingBodyClientID verifies the RFC 7592 §2.2
+// requirement that the body MUST include client_id matching the URL. Wrapper
+// returns 400 before the manager is invoked.
+func TestDCRManagement_PUT_MissingBodyClientID(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"Missing CID"}`)
+	clientID := registered["client_id"].(string)
+	token := registered["registration_access_token"].(string)
+
+	body := `{"client_name":"No client_id field"}` // intentionally no client_id
+	req := httptest.NewRequest(http.MethodPut, "/apps/dcr/"+clientID, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+// TestDCRManagement_PUT_BodyClientIDMismatch verifies that a body with the
+// wrong client_id is rejected with 400, even when the auth token is valid.
+func TestDCRManagement_PUT_BodyClientIDMismatch(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"Mismatch"}`)
+	clientID := registered["client_id"].(string)
+	token := registered["registration_access_token"].(string)
+
+	body := `{"client_id":"app_other","client_name":"Mismatched"}`
+	req := httptest.NewRequest(http.MethodPut, "/apps/dcr/"+clientID, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+// TestDCRManagement_PUT_MalformedJSONReturns400 ensures unparsable bodies are
+// surfaced as 400, not 500.
+func TestDCRManagement_PUT_MalformedJSONReturns400(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"Malformed"}`)
+	clientID := registered["client_id"].(string)
+	token := registered["registration_access_token"].(string)
+
+	req := httptest.NewRequest(http.MethodPut, "/apps/dcr/"+clientID, strings.NewReader("{not-json"))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+// TestDCRManagement_PUT_WrongTokenReturns401 mirrors the GET wrong-token
+// behavior at the wire level — uniform 401 envelope, no leakage.
+func TestDCRManagement_PUT_WrongTokenReturns401(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"PUT Wrong Token"}`)
+	clientID := registered["client_id"].(string)
+
+	body := `{"client_id":"` + clientID + `","client_name":"Should fail"}`
+	req := httptest.NewRequest(http.MethodPut, "/apps/dcr/"+clientID, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer not-the-real-token")
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Contains(t, rr.Header().Get("WWW-Authenticate"), "Bearer")
 }
 
 // TestDCRManagement_GET_DoesNotShadowDCRRegister verifies the routing

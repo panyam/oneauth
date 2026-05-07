@@ -48,15 +48,26 @@ type DCRHandler struct {
 	IssuerBaseURL string
 }
 
-// DCRRequest is the RFC 7591 client registration request.
+// DCRRequest is the RFC 7591 client registration request, also reused as the
+// RFC 7592 §2.2 update request body.
+//
+// On RFC 7591 registration the ClientID field is unused — the server assigns
+// the value. On RFC 7592 PUT the client MUST include its existing client_id;
+// the HTTP wrapper validates that it matches the URL path before invoking
+// ClientRegistrationManager.UpdateRegistration.
+//
 // See: https://www.rfc-editor.org/rfc/rfc7591#section-2
+// See: https://www.rfc-editor.org/rfc/rfc7592#section-2.2
 type DCRRequest struct {
+	// ClientID is required for PUT (RFC 7592 §2.2), ignored for register.
+	ClientID string `json:"client_id,omitempty"`
+
 	// Client metadata
-	ClientName  string   `json:"client_name,omitempty"`
-	ClientURI   string   `json:"client_uri,omitempty"`
-	RedirectURIs []string `json:"redirect_uris,omitempty"`
-	GrantTypes  []string `json:"grant_types,omitempty"`
-	Scope       string   `json:"scope,omitempty"`
+	ClientName              string   `json:"client_name,omitempty"`
+	ClientURI               string   `json:"client_uri,omitempty"`
+	RedirectURIs            []string `json:"redirect_uris,omitempty"`
+	GrantTypes              []string `json:"grant_types,omitempty"`
+	Scope                   string   `json:"scope,omitempty"`
 
 	// Authentication method
 	TokenEndpointAuthMethod string `json:"token_endpoint_auth_method,omitempty"`

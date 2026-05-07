@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -136,11 +137,16 @@ func TestGetRegistration_Success(t *testing.T) {
 	defer server.Close()
 	serverURL = server.URL
 
-	resp, err := GetRegistration(server.URL, "rat-good", nil)
+	resp, err := GetRegistration(context.Background(), &GetRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "rat-good",
+	})
 	require.NoError(t, err)
-	assert.Equal(t, "client-1", resp.ClientID)
-	assert.Equal(t, "Example Client", resp.ClientName)
-	assert.Equal(t, []string{"https://app.example/cb"}, resp.RedirectURIs)
+	require.NotNil(t, resp.Registration)
+	got := resp.Registration
+	assert.Equal(t, "client-1", got.ClientID)
+	assert.Equal(t, "Example Client", got.ClientName)
+	assert.Equal(t, []string{"https://app.example/cb"}, got.RedirectURIs)
 }
 
 // TestGetRegistration_Unauthorized verifies that a 401 from the AS surfaces as
@@ -154,7 +160,10 @@ func TestGetRegistration_Unauthorized(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := GetRegistration(server.URL, "rat-bad", nil)
+	_, err := GetRegistration(context.Background(), &GetRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "rat-bad",
+	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrRegistrationUnauthorized), "expected ErrRegistrationUnauthorized, got %v", err)
 }
@@ -167,7 +176,10 @@ func TestGetRegistration_OtherErrors(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := GetRegistration(server.URL, "rat", nil)
+	_, err := GetRegistration(context.Background(), &GetRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "rat",
+	})
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, ErrRegistrationUnauthorized))
 	assert.Contains(t, err.Error(), "500")
@@ -177,11 +189,177 @@ func TestGetRegistration_OtherErrors(t *testing.T) {
 // or empty registration_access_token return validation errors before any network
 // I/O, so misuse fails fast.
 func TestGetRegistration_ValidatesArguments(t *testing.T) {
-	_, err := GetRegistration("", "rat", nil)
+	_, err := GetRegistration(context.Background(), &GetRegistrationRequest{
+		RegistrationAccessToken: "rat",
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "registration_client_uri")
 
-	_, err = GetRegistration("https://x", "", nil)
+	_, err = GetRegistration(context.Background(), &GetRegistrationRequest{
+		RegistrationClientURI: "https://x",
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "registration_access_token")
+}
+
+// --- UpdateRegistration tests (RFC 7592 §2.2) ---
+
+// TestUpdateRegistration_Success verifies the happy-path PUT round trip:
+// SDK auto-fills body client_id, server returns rotated token, SDK parses it.
+//
+// See: https://www.rfc-editor.org/rfc/rfc7592#section-2.2
+func TestUpdateRegistration_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPut, r.Method)
+		assert.Equal(t, "Bearer old-rat", r.Header.Get("Authorization"))
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+		var got ClientRegistrationRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		assert.Equal(t, "client-1", got.ClientID, "SDK must inline client_id in body")
+		assert.Equal(t, "Updated Name", got.ClientName)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ClientRegistrationResponse{
+			ClientID:                "client-1",
+			ClientName:              "Updated Name",
+			Scope:                   "read write",
+			RegistrationAccessToken: "new-rat", // rotated
+		})
+	}))
+	defer server.Close()
+
+	resp, err := UpdateRegistration(context.Background(), &UpdateRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "old-rat",
+		ClientID:                "client-1",
+		Metadata: ClientRegistrationRequest{
+			ClientName: "Updated Name",
+			Scope:      "read write",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.Registration)
+	assert.Equal(t, "Updated Name", resp.Registration.ClientName)
+	assert.Equal(t, "new-rat", resp.Registration.RegistrationAccessToken, "response must surface the rotated token")
+	assert.NotEqual(t, "old-rat", resp.Registration.RegistrationAccessToken)
+}
+
+// TestUpdateRegistration_PreservesExplicitClientID verifies that when the
+// caller already set req.ClientID the SDK does not overwrite it.
+func TestUpdateRegistration_PreservesExplicitClientID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var got ClientRegistrationRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		assert.Equal(t, "explicit-id", got.ClientID, "explicit ClientID must be preserved")
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ClientRegistrationResponse{
+			ClientID:                "explicit-id",
+			RegistrationAccessToken: "rotated",
+		})
+	}))
+	defer server.Close()
+
+	_, err := UpdateRegistration(context.Background(), &UpdateRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "rat",
+		ClientID:                "explicit-id",
+		Metadata: ClientRegistrationRequest{
+			ClientID:   "explicit-id",
+			ClientName: "x",
+		},
+	})
+	require.NoError(t, err)
+}
+
+// TestUpdateRegistration_Unauthorized verifies that 401 from the AS surfaces
+// as ErrRegistrationUnauthorized for branching on errors.Is. Reuses the same
+// sentinel as GetRegistration since the wire-level meaning is identical.
+func TestUpdateRegistration_Unauthorized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	_, err := UpdateRegistration(context.Background(), &UpdateRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "bad-rat",
+		ClientID:                "client-1",
+		Metadata:                ClientRegistrationRequest{ClientName: "x"},
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRegistrationUnauthorized))
+}
+
+// TestUpdateRegistration_BadRequest verifies that 400 from the AS surfaces
+// with the body for diagnostics (so callers can show RFC 7591 error_description).
+func TestUpdateRegistration_BadRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error":"invalid_client_metadata","error_description":"client_id mismatch"}`))
+	}))
+	defer server.Close()
+
+	_, err := UpdateRegistration(context.Background(), &UpdateRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "rat",
+		ClientID:                "client-1",
+		Metadata:                ClientRegistrationRequest{ClientName: "x"},
+	})
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, ErrRegistrationUnauthorized))
+	assert.Contains(t, err.Error(), "400")
+	assert.Contains(t, err.Error(), "client_id mismatch")
+}
+
+// TestUpdateRegistration_MissingTokenInResponse verifies that the SDK rejects
+// responses that omit a rotated token — RFC 7592 §2.2 says the AS SHOULD
+// rotate, and our sever does, so a missing token is a server bug worth
+// flagging rather than silently leaving the caller with the old token.
+func TestUpdateRegistration_MissingTokenInResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"client_id":   "client-1",
+			"client_name": "no rotated token",
+		})
+	}))
+	defer server.Close()
+
+	_, err := UpdateRegistration(context.Background(), &UpdateRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "rat",
+		ClientID:                "client-1",
+		Metadata:                ClientRegistrationRequest{ClientName: "x"},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "registration_access_token")
+}
+
+// TestUpdateRegistration_ValidatesArguments verifies that empty inputs fail
+// fast without making a network call.
+func TestUpdateRegistration_ValidatesArguments(t *testing.T) {
+	_, err := UpdateRegistration(context.Background(), &UpdateRegistrationRequest{
+		RegistrationAccessToken: "rat",
+		ClientID:                "id",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "registration_client_uri")
+
+	_, err = UpdateRegistration(context.Background(), &UpdateRegistrationRequest{
+		RegistrationClientURI: "https://x",
+		ClientID:              "id",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "registration_access_token")
+
+	_, err = UpdateRegistration(context.Background(), &UpdateRegistrationRequest{
+		RegistrationClientURI:   "https://x",
+		RegistrationAccessToken: "rat",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "clientID")
 }

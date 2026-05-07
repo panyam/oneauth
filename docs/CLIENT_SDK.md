@@ -312,19 +312,51 @@ resp, err := client.RegisterClient(asMetadata.RegistrationEndpoint, client.Clien
 
 Once registered, the client holds two extra fields — `RegistrationAccessToken` and `RegistrationClientURI`. They are the management credentials for *that specific registration*.
 
+The SDK follows the library-wide `(ctx, *Request) → (*Response, error)` convention so calls thread cancellation/deadlines through and stay shaped for future gRPC stubs.
+
 ```go
-got, err := client.GetRegistration(resp.RegistrationClientURI, resp.RegistrationAccessToken, nil)
+got, err := client.GetRegistration(ctx, &client.GetRegistrationRequest{
+    RegistrationClientURI:   resp.RegistrationClientURI,
+    RegistrationAccessToken: resp.RegistrationAccessToken,
+})
 if errors.Is(err, client.ErrRegistrationUnauthorized) {
     // Token rejected — the AS returned 401. The token may have been rotated
-    // (RFC 7592 §2.2 allows re-issue on PUT) or the client unregistered.
+    // (RFC 7592 §2.2 re-issues on PUT) or the client unregistered.
 }
+metadata := got.Registration // *ClientRegistrationResponse
 ```
 
-`GetRegistration` returns the current registration metadata. The response intentionally **does not** echo `client_secret`; clients that lose the secret rotate via PUT (issue 169, pending).
+`GetRegistration` returns the current registration metadata wrapped in a response struct. The metadata intentionally **does not** echo `client_secret`; clients that lose the secret rotate via PUT (below).
 
-### Update / Delete (planned)
+### Update your own registration (RFC 7592 §2.2)
 
-`UpdateRegistration` (PUT) and `DeleteRegistration` (DELETE) ship in issues 169 and 170. The shape will mirror `GetRegistration`.
+`UpdateRegistration` performs a **full replacement** of the registration metadata (not a PATCH-style merge — fields omitted from `Metadata` are cleared on the server). On success the AS rotates the `registration_access_token`; the new token surfaces on the response and the old one is invalid for any subsequent management call.
+
+```go
+resp, err := client.UpdateRegistration(ctx, &client.UpdateRegistrationRequest{
+    RegistrationClientURI:   regURI,
+    RegistrationAccessToken: oldToken,
+    ClientID:                clientID, // RFC 7592 §2.2 requires it; SDK auto-fills body
+    Metadata: client.ClientRegistrationRequest{
+        ClientName: "My Renamed Bot",
+        Scope:      "read write admin",
+        // ... other fields you want to KEEP must also be set; replacement is total
+    },
+})
+if err != nil {
+    if errors.Is(err, client.ErrRegistrationUnauthorized) {
+        // Old token already rotated, or the AS unregistered the client.
+    }
+    return err
+}
+newToken := resp.Registration.RegistrationAccessToken // persist before discarding oldToken
+```
+
+OneAuth rejects updates that change `token_endpoint_auth_method` (would require re-keying); clients that need to switch auth method DELETE and re-register.
+
+### Delete (planned)
+
+`DeleteRegistration` ships in issue 170 with the same shape.
 
 ## AuthTransport (Static Token)
 
