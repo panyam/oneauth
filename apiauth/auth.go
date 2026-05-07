@@ -79,6 +79,17 @@ type APIAuth struct {
 	// When nil, client_credentials requests return unsupported_grant_type.
 	ClientKeyStore keys.KeyLookup
 
+	// TrustedAssertionIssuers lists upstream IdPs whose JWT assertions
+	// the token endpoint will accept for the jwt-bearer grant
+	// (RFC 7523 §2.1) and the token-exchange grant with
+	// subject_token_type=urn:ietf:params:oauth:token-type:jwt
+	// (RFC 8693 §2.1.1). When empty, both grants return
+	// unsupported_grant_type.
+	//
+	// See JwtBearerGrantType, TokenExchangeGrantType, and
+	// TrustedAssertionIssuer for details.
+	TrustedAssertionIssuers []TrustedAssertionIssuer
+
 	// Rate limiting (optional)
 	RateLimiter core.RateLimiter
 
@@ -116,6 +127,14 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Scope:        r.FormValue("scope"),
 			ClientID:     r.FormValue("client_id"),
 			ClientSecret: r.FormValue("client_secret"),
+			// RFC 7523 §2.1 — jwt-bearer authorization grant
+			Assertion: r.FormValue("assertion"),
+			// RFC 8693 — token exchange
+			SubjectToken:       r.FormValue("subject_token"),
+			SubjectTokenType:   r.FormValue("subject_token_type"),
+			RequestedTokenType: r.FormValue("requested_token_type"),
+			Resource:           r.FormValue("resource"),
+			Audience:           r.FormValue("audience"),
 		}
 		// RFC 9396 §6.1: authorization_details is a JSON-encoded string in form params
 		if adStr := r.FormValue("authorization_details"); adStr != "" {
@@ -139,6 +158,10 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.handleRefreshTokenGrant(w, r, &req)
 	case "client_credentials":
 		a.handleClientCredentialsGrant(w, r, &req)
+	case JwtBearerGrantType:
+		a.handleJwtBearerGrant(w, r, &req)
+	case TokenExchangeGrantType:
+		a.handleTokenExchangeGrant(w, r, &req)
 	default:
 		a.errorResponse(w, "unsupported_grant_type", "Grant type not supported", http.StatusBadRequest)
 	}

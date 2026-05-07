@@ -41,6 +41,20 @@ type ASServerMetadata struct {
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
 	SubjectTypesSupported         []string `json:"subject_types_supported,omitempty"`
 
+	// AuthorizationResponseIssParameterSupported advertises RFC 9207
+	// support — when true, the AS includes an `iss` query parameter on
+	// every authorization response (both successful redirects with `code`
+	// and error redirects). Pointer semantics distinguish absence (omit
+	// from JSON) from explicit `false` (advertised as not supported).
+	//
+	// RFC 9207 §3:
+	//   https://www.rfc-editor.org/rfc/rfc9207#section-3
+	//
+	// Setting this true on an AS that does NOT actually emit `iss` in
+	// authorization responses is a spec violation — clients keying off
+	// the advertisement will fail to validate.
+	AuthorizationResponseIssParameterSupported *bool `json:"authorization_response_iss_parameter_supported,omitempty"`
+
 	// CacheMaxAge controls the Cache-Control max-age in seconds.
 	// Defaults to 3600 (1 hour). Not serialized to JSON.
 	CacheMaxAge int `json:"-"`
