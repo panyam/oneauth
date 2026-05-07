@@ -1,13 +1,18 @@
 package testutil_test
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -357,4 +362,143 @@ func registerTestApp(t *testing.T, srv *testutil.TestAuthServer, domain string) 
 	var result map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
 	return result["client_id"].(string), result["client_secret"].(string)
+}
+
+
+// TestWithGrantTypesSupported_Override verifies that the Option replaces
+// the default grant_types_supported in AS metadata.
+//
+// See: oneauth issue 188 (RFC 7523 §2.1 + RFC 8693 follow-up wiring)
+func TestWithGrantTypesSupported_Override(t *testing.T) {
+	srv := testutil.NewTestAuthServer(t, testutil.WithGrantTypesSupported([]string{
+		"client_credentials",
+		apiauth.JwtBearerGrantType,
+		apiauth.TokenExchangeGrantType,
+	}))
+
+	resp, err := http.Get(srv.URL() + "/.well-known/openid-configuration")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var meta map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&meta))
+
+	grants, ok := meta["grant_types_supported"].([]any)
+	require.True(t, ok, "grant_types_supported MUST be an array")
+	require.Len(t, grants, 3)
+	assert.Contains(t, grants, "client_credentials")
+	assert.Contains(t, grants, apiauth.JwtBearerGrantType)
+	assert.Contains(t, grants, apiauth.TokenExchangeGrantType)
+}
+
+// TestWithIssParameterSupported_True verifies that RFC 9207 advertisement
+// flips on with the Option (the panyam/mcpconformance Phase 3b
+// auth-iss-param-as-metadata-advertises-support check flips
+// SKIPPED → SUCCESS once a downstream fixture sets this).
+func TestWithIssParameterSupported_True(t *testing.T) {
+	srv := testutil.NewTestAuthServer(t, testutil.WithIssParameterSupported(true))
+
+	resp, err := http.Get(srv.URL() + "/.well-known/openid-configuration")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var meta map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&meta))
+
+	val, present := meta["authorization_response_iss_parameter_supported"]
+	require.True(t, present, "field MUST be present when Option set")
+	assert.Equal(t, true, val)
+}
+
+// TestWithIssParameterSupported_OmittedByDefault — without the Option
+// the field is absent (consistent with the AS not yet implementing
+// RFC 9207).
+func TestWithIssParameterSupported_OmittedByDefault(t *testing.T) {
+	srv := testutil.NewTestAuthServer(t)
+
+	resp, err := http.Get(srv.URL() + "/.well-known/openid-configuration")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var meta map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&meta))
+
+	_, present := meta["authorization_response_iss_parameter_supported"]
+	assert.False(t, present, "field MUST be absent without the Option")
+}
+
+// TestWithTrustedAssertionIssuers_AdvertisesGrants — when trusted
+// issuers are configured, the advertised grants automatically extend
+// to include jwt-bearer and token-exchange (so callers don't have to
+// remember to opt into both via separate Options).
+func TestWithTrustedAssertionIssuers_AdvertisesGrants(t *testing.T) {
+	idpKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	srv := testutil.NewTestAuthServer(t, testutil.WithTrustedAssertionIssuers([]apiauth.TrustedAssertionIssuer{{
+		Issuer:    "https://corp-idp.example.com",
+		PublicKey: &idpKey.PublicKey,
+	}}))
+
+	resp, err := http.Get(srv.URL() + "/.well-known/openid-configuration")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var meta map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&meta))
+
+	grants, ok := meta["grant_types_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, grants, "client_credentials",
+		"default grant retained alongside the new ones")
+	assert.Contains(t, grants, apiauth.JwtBearerGrantType)
+	assert.Contains(t, grants, apiauth.TokenExchangeGrantType)
+}
+
+// TestWithTrustedAssertionIssuers_HandlerActive — the trusted-issuer
+// registry wires through to APIAuth so jwt-bearer is actually accepted
+// at the token endpoint (not just advertised). Smoke-tests by minting
+// an upstream-IdP-style assertion and exchanging it.
+func TestWithTrustedAssertionIssuers_HandlerActive(t *testing.T) {
+	idpKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	idpIssuer := "https://corp-idp.example.com"
+
+	asAudience := "test-as"
+	srv := testutil.NewTestAuthServer(t,
+		testutil.WithAudience(asAudience),
+		testutil.WithTrustedAssertionIssuers([]apiauth.TrustedAssertionIssuer{{
+			Issuer:             idpIssuer,
+			PublicKey:          &idpKey.PublicKey,
+			Audiences:          []string{asAudience},
+			AcceptedAlgorithms: []string{"RS256"},
+		}}),
+	)
+
+	now := time.Now()
+	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"iss": idpIssuer,
+		"sub": "alice",
+		"aud": asAudience,
+		"exp": now.Add(5 * time.Minute).Unix(),
+		"iat": now.Unix(),
+		"nbf": now.Add(-1 * time.Second).Unix(),
+	})
+	signed, err := tok.SignedString(idpKey)
+	require.NoError(t, err)
+
+	form := url.Values{}
+	form.Set("grant_type", apiauth.JwtBearerGrantType)
+	form.Set("assertion", signed)
+	resp, err := http.Post(srv.URL()+"/api/token",
+		"application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	require.Equal(t, http.StatusOK, resp.StatusCode,
+		"jwt-bearer grant MUST be accepted; got %d: %s", resp.StatusCode, body)
+	var out map[string]any
+	require.NoError(t, json.Unmarshal(body, &out))
+	assert.NotEmpty(t, out["access_token"])
 }

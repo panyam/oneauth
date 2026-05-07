@@ -57,10 +57,13 @@ type TestAuthServer struct {
 
 // config holds TestAuthServer configuration set via functional options.
 type config struct {
-	adminKey string
-	issuer   string
-	audience string
-	scopes   []string
+	adminKey                string
+	issuer                  string
+	audience                string
+	scopes                  []string
+	grantTypesSupported     []string                         // overrides default when non-nil
+	issParameterSupported   *bool                            // RFC 9207 advertisement (nil = omit)
+	trustedAssertionIssuers []apiauth.TrustedAssertionIssuer // RFC 7523 §2.1 + RFC 8693
 }
 
 // Option configures a TestAuthServer.
@@ -88,6 +91,67 @@ func WithAudience(aud string) Option {
 // Default: ["read", "write", "admin"].
 func WithScopes(scopes []string) Option {
 	return func(c *config) { c.scopes = scopes }
+}
+
+// WithGrantTypesSupported overrides the `grant_types_supported` field
+// advertised in AS metadata (RFC 8414). Use this when enabling a grant
+// beyond the default (`client_credentials`) — e.g., advertising the
+// jwt-bearer (RFC 7523 §2.1) or token-exchange (RFC 8693) grants
+// alongside the default.
+//
+// The values supplied REPLACE the default. Callers that want to keep
+// `client_credentials` and add more must include it in the slice.
+//
+// Note: advertising a grant in metadata does NOT enable its handler at
+// the token endpoint. Pair this with WithTrustedAssertionIssuers to
+// actually serve jwt-bearer / token-exchange requests.
+func WithGrantTypesSupported(grants []string) Option {
+	return func(c *config) { c.grantTypesSupported = grants }
+}
+
+// WithIssParameterSupported sets the
+// `authorization_response_iss_parameter_supported` field in AS metadata
+// (RFC 9207 §3). Mitigates mix-up attacks against clients that interact
+// with multiple ASes by signaling that the AS includes an `iss`
+// parameter on every authorization response.
+//
+// Note: TestAuthServer does NOT currently implement an authorization
+// endpoint, so the *behavior* RFC 9207 §2 mandates (`iss=` in redirects)
+// is not yet driven by this flag — the flag affects only the metadata
+// advertisement. Setting it true on a real AS that does NOT actually
+// emit `iss` in authorization responses is a spec violation.
+func WithIssParameterSupported(supported bool) Option {
+	return func(c *config) { c.issParameterSupported = &supported }
+}
+
+// WithTrustedAssertionIssuers configures the AS to accept
+// jwt-bearer (RFC 7523 §2.1) and token-exchange (RFC 8693) grants from
+// the listed upstream IdPs. Each entry binds an issuer URL to a public
+// key (or KeyFunc) so the AS can verify assertion signatures.
+//
+// When the supplied slice is non-empty, this Option AUTOMATICALLY
+// extends the advertised `grant_types_supported` to include the two new
+// grant URIs (so callers don't need to remember the pair). Callers can
+// still pass WithGrantTypesSupported AFTER this option to fully replace
+// the advertised list — last-option-wins for the slice.
+//
+// See:
+//   - RFC 7523 §2.1: https://www.rfc-editor.org/rfc/rfc7523#section-2.1
+//   - RFC 8693:      https://www.rfc-editor.org/rfc/rfc8693
+func WithTrustedAssertionIssuers(issuers []apiauth.TrustedAssertionIssuer) Option {
+	return func(c *config) {
+		c.trustedAssertionIssuers = issuers
+		// Extend the advertised grants unless the caller already pinned
+		// a specific list. Append-don't-replace keeps client_credentials
+		// alongside the new grants by default.
+		if c.grantTypesSupported == nil {
+			c.grantTypesSupported = []string{
+				"client_credentials",
+				apiauth.JwtBearerGrantType,
+				apiauth.TokenExchangeGrantType,
+			}
+		}
+	}
 }
 
 // NewTestAuthServer creates and starts an in-process authorization server
@@ -138,12 +202,13 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	registrar := admin.NewAppRegistrar(ks, admin.NewAPIKeyAuth(cfg.adminKey))
 
 	apiAuth := &apiauth.APIAuth{
-		JWTSigningAlg:  "RS256",
-		JWTSigningKey:  privKey,
-		JWTVerifyKey:   &privKey.PublicKey,
-		JWTIssuer:      cfg.issuer,
-		JWTAudience:    cfg.audience,
-		ClientKeyStore: ks,
+		JWTSigningAlg:           "RS256",
+		JWTSigningKey:           privKey,
+		JWTVerifyKey:            &privKey.PublicKey,
+		JWTIssuer:               cfg.issuer,
+		JWTAudience:             cfg.audience,
+		ClientKeyStore:          ks,
+		TrustedAssertionIssuers: cfg.trustedAssertionIssuers,
 	}
 
 	introspection := apiauth.NewIntrospectionHandler(apiAuth, ks)
@@ -168,6 +233,10 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		issuer = baseURL
 		apiAuth.JWTIssuer = issuer
 	}
+	grants := cfg.grantTypesSupported
+	if grants == nil {
+		grants = []string{"client_credentials"}
+	}
 	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
 		Issuer:                        issuer,
 		TokenEndpoint:                 baseURL + "/api/token",
@@ -175,10 +244,11 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		IntrospectionEndpoint:         baseURL + "/oauth/introspect",
 		RegistrationEndpoint:          baseURL + "/apps/register",
 		ScopesSupported:               cfg.scopes,
-		GrantTypesSupported:           []string{"client_credentials"},
+		GrantTypesSupported:           grants,
 		ResponseTypesSupported:        []string{"token"},
 		TokenEndpointAuthMethods:      []string{"client_secret_post", "client_secret_basic"},
 		CodeChallengeMethodsSupported: []string{"S256"},
+		AuthorizationResponseIssParameterSupported: cfg.issParameterSupported,
 	})
 
 	return &TestAuthServer{
