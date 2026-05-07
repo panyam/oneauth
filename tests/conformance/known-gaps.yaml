@@ -17,4 +17,20 @@
 #   reason    — multi-line; what is missing and why this is filed instead of fixed
 #   expires   — ISO date; advisory only (consumed by the report, not the ratchet)
 
-[]
+- suite: introspection
+  id: TestIntrospectClientAuth/post_auth_accepted
+  status: expected-fail
+  issue: 188
+  owner: panyam
+  reason: |
+    apiauth/introspection.go:107 only reads `Authorization: Basic` for
+    client authentication. RFC 8414 §2 token_endpoint_auth_methods_supported
+    advertises both client_secret_basic AND client_secret_post for the
+    AS, but the introspection endpoint rejects (401) callers that send
+    credentials in the form body. Fix is to fall back to form-body
+    client_id/client_secret when Basic is absent.
+
+    NOTE: issue number 188 is a placeholder; replace with the real
+    tracking issue when this PR lands.
+  expires: 2026-08-07
+
