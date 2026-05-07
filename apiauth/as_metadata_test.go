@@ -16,6 +16,7 @@ package apiauth_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -148,6 +149,74 @@ func TestASMetadata_MethodNotAllowed(t *testing.T) {
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
 		assert.Equal(t, http.StatusMethodNotAllowed, rr.Code, "Method %s should be rejected", method)
+	}
+}
+
+// TestMountASMetadata_DualPath verifies that MountASMetadata registers
+// the same handler at both well-known paths and that the documents
+// returned at the two paths are byte-identical. RFC 8414 §3 requires
+// the AS metadata be available at /.well-known/oauth-authorization-server;
+// OIDC Discovery 1.0 §4 places the same document at
+// /.well-known/openid-configuration. Clients that only know one of the
+// two specs must be able to discover us at their preferred path.
+//
+// See:
+//   - RFC 8414 §3 (https://www.rfc-editor.org/rfc/rfc8414#section-3)
+func TestMountASMetadata_DualPath(t *testing.T) {
+	meta := &apiauth.ASServerMetadata{
+		Issuer:        "https://auth.example.com",
+		TokenEndpoint: "https://auth.example.com/api/token",
+		JWKSURI:       "https://auth.example.com/.well-known/jwks.json",
+	}
+
+	mux := http.NewServeMux()
+	apiauth.MountASMetadata(mux, meta)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	paths := []string{
+		"/.well-known/oauth-authorization-server",
+		"/.well-known/openid-configuration",
+	}
+
+	bodies := map[string][]byte{}
+	for _, p := range paths {
+		resp, err := http.Get(srv.URL + p)
+		require.NoError(t, err, "GET %s", p)
+		require.Equal(t, http.StatusOK, resp.StatusCode, "GET %s", p)
+		require.Equal(t, "application/json", resp.Header.Get("Content-Type"), "GET %s", p)
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		require.NoError(t, err)
+		bodies[p] = body
+	}
+
+	assert.Equal(t,
+		string(bodies["/.well-known/oauth-authorization-server"]),
+		string(bodies["/.well-known/openid-configuration"]),
+		"both well-known paths must serve byte-identical metadata")
+}
+
+// TestMountASMetadata_MethodNotAllowed verifies that non-GET requests
+// are rejected at both paths.
+func TestMountASMetadata_MethodNotAllowed(t *testing.T) {
+	mux := http.NewServeMux()
+	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
+		Issuer:        "https://auth.example.com",
+		TokenEndpoint: "https://auth.example.com/api/token",
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	for _, p := range []string{
+		"/.well-known/oauth-authorization-server",
+		"/.well-known/openid-configuration",
+	} {
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+p, nil)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode, "POST %s", p)
 	}
 }
 

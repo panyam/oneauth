@@ -7,9 +7,10 @@ import (
 )
 
 // ASServerMetadata describes an OAuth 2.0 Authorization Server per RFC 8414
-// and OpenID Connect Discovery 1.0 §4. The auth server serves this at
-// GET /.well-known/openid-configuration so OIDC-aware clients can
-// auto-discover endpoints.
+// and OpenID Connect Discovery 1.0 §4. RFC 8414 §3 mandates this metadata
+// be served at /.well-known/oauth-authorization-server; OIDC Discovery
+// places the same document at /.well-known/openid-configuration. Use
+// MountASMetadata to register both paths in one call.
 //
 // This is metadata-only — serving this does NOT make the server a full OIDC
 // provider. It simply advertises what endpoints exist (token, JWKS,
@@ -45,8 +46,10 @@ type ASServerMetadata struct {
 	CacheMaxAge int `json:"-"`
 }
 
-// NewASMetadataHandler returns an http.Handler that serves Authorization Server
-// metadata JSON at GET /.well-known/openid-configuration.
+// NewASMetadataHandler returns an http.Handler that serves Authorization
+// Server metadata JSON. The handler is path-agnostic — register it at
+// whichever well-known path you need, or use MountASMetadata to register
+// at both required paths at once.
 //
 // The handler:
 //   - Responds to GET only (405 for other methods)
@@ -77,4 +80,27 @@ func NewASMetadataHandler(meta *ASServerMetadata) http.Handler {
 		w.Header().Set("Cache-Control", cacheHeader)
 		w.Write(body)
 	})
+}
+
+// MountASMetadata registers AS metadata at both well-known paths required
+// by the OAuth/OIDC ecosystem:
+//
+//   - /.well-known/oauth-authorization-server (RFC 8414 §3, MUST)
+//   - /.well-known/openid-configuration       (OIDC Discovery 1.0 §4)
+//
+// Both paths serve the same handler, so the documents are byte-identical.
+// OAuth-only clients (which know about RFC 8414 but not OIDC Discovery)
+// and OIDC clients (which look up openid-configuration) can both
+// auto-discover the AS without falling back.
+//
+// Callers that want only one path can register NewASMetadataHandler
+// directly. This helper is the recommended default.
+//
+// See:
+//   - RFC 8414 §3 (https://www.rfc-editor.org/rfc/rfc8414#section-3)
+//   - OIDC Discovery 1.0 §4
+func MountASMetadata(mux *http.ServeMux, meta *ASServerMetadata) {
+	h := NewASMetadataHandler(meta)
+	mux.Handle("GET /.well-known/oauth-authorization-server", h)
+	mux.Handle("GET /.well-known/openid-configuration", h)
 }
