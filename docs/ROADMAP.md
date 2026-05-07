@@ -194,8 +194,8 @@ Splits issue 157 (parent) into vertical verb-by-verb slices. Each ticket ships a
 
 | # | Slice | Status |
 |---|-------|--------|
-| 168 | Foundation + GET — registration_access_token + registration_client_uri issuance, `ClientRegistrationManager` interface, `DCRManagementHandler`, `client.GetRegistration`, walkthrough step | In progress |
-| 169 | PUT — full-replace update + token re-issuance + `client.UpdateRegistration` + walkthrough step | Pending |
+| 168 | Foundation + GET — registration_access_token + registration_client_uri issuance, `ClientRegistrationManager` interface, `DCRManagementHandler`, `client.GetRegistration`, walkthrough step | Merged |
+| 169 | PUT — full-replace update + token re-issuance + `client.UpdateRegistration` + walkthrough steps; **manager interface and client SDK adopt the `(ctx, *Req) → (*Resp, error)` convention** (blueprint for 172 / 175) | In progress |
 | 170 | DELETE — registration removal + `client.DeleteRegistration` + walkthrough step | Pending |
 | 171 | Keycloak interop — full lifecycle test against Keycloak's RFC 7592 endpoints | Pending |
 

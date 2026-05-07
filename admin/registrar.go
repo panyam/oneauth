@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -124,44 +125,138 @@ func (h *AppRegistrar) SaveRegistration(reg *AppRegistration) error {
 }
 
 // GetRegistration implements ClientRegistrationManager. It returns the
-// RFC 7591 registration for clientID iff accessToken matches the stored
-// registration_access_token. Returns ErrUnauthorized for every failure mode
-// — wrong/missing token, unknown client_id, or a registration that lacks a
-// management token (e.g., a legacy /apps/register entry) — so the management
-// endpoint cannot be used to probe for valid client_ids.
+// RFC 7591 registration for req.ClientID iff req.AccessToken matches the
+// stored registration_access_token. Returns ErrUnauthorized for every
+// failure mode — wrong/missing token, unknown client_id, or a registration
+// that lacks a management token (e.g., a legacy /apps/register entry) — so
+// the management endpoint cannot be used to probe for valid client_ids.
 //
 // The returned DCRResponse intentionally omits client_secret. RFC 7592 §3
 // permits but does not require echoing the secret on read; re-emitting
 // symmetric credentials on every read enlarges the disclosure window if the
 // registration access token is ever logged or proxied. Clients that lose
 // the secret can rotate via PUT (#169).
-func (h *AppRegistrar) GetRegistration(clientID, accessToken string) (*DCRResponse, error) {
-	if clientID == "" || accessToken == "" {
+//
+// ctx is currently unused but threaded through for cancellation / deadline
+// propagation once stores grow async ops, and for parity with the rest of
+// the manager interface.
+func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistrationRequest) (*GetRegistrationResponse, error) {
+	if req == nil || req.ClientID == "" || req.AccessToken == "" {
 		return nil, ErrUnauthorized
 	}
-	reg, err := h.Store.GetApp(clientID)
+	reg, err := h.Store.GetApp(req.ClientID)
 	if err != nil || reg == nil {
 		return nil, ErrUnauthorized
 	}
 	if reg.RegistrationAccessToken == "" {
 		return nil, ErrUnauthorized
 	}
-	if subtle.ConstantTimeCompare([]byte(reg.RegistrationAccessToken), []byte(accessToken)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(reg.RegistrationAccessToken), []byte(req.AccessToken)) != 1 {
 		return nil, ErrUnauthorized
 	}
-	return &DCRResponse{
-		ClientID:                  reg.ClientID,
-		ClientIDIssuedAt:          reg.CreatedAt.Unix(),
-		ClientSecretExpiresAt:     0,
-		ClientName:                reg.ClientName,
-		ClientURI:                 reg.ClientURI,
-		RedirectURIs:              reg.RedirectURIs,
-		GrantTypes:                reg.GrantTypes,
-		TokenEndpointAuthMethod:   reg.TokenEndpointAuthMethod,
-		Scope:                     reg.Scope,
-		AuthorizationDetailsTypes: reg.AuthorizationDetailsTypes,
-		RegistrationAccessToken:   reg.RegistrationAccessToken,
-		RegistrationClientURI:     reg.RegistrationClientURI,
+	return &GetRegistrationResponse{
+		Registration: &DCRResponse{
+			ClientID:                  reg.ClientID,
+			ClientIDIssuedAt:          reg.CreatedAt.Unix(),
+			ClientSecretExpiresAt:     0,
+			ClientName:                reg.ClientName,
+			ClientURI:                 reg.ClientURI,
+			RedirectURIs:              reg.RedirectURIs,
+			GrantTypes:                reg.GrantTypes,
+			TokenEndpointAuthMethod:   reg.TokenEndpointAuthMethod,
+			Scope:                     reg.Scope,
+			AuthorizationDetailsTypes: reg.AuthorizationDetailsTypes,
+			RegistrationAccessToken:   reg.RegistrationAccessToken,
+			RegistrationClientURI:     reg.RegistrationClientURI,
+		},
+	}, nil
+}
+
+// UpdateRegistration implements ClientRegistrationManager (RFC 7592 §2.2).
+// It performs a full replacement of the editable metadata fields and rotates
+// the registration_access_token; the new token is returned in the response.
+// The old token becomes invalid as soon as SaveRegistration succeeds.
+//
+// Editable fields (overwritten from req.Metadata on success): ClientName,
+// ClientURI, RedirectURIs, GrantTypes, Scope, AuthorizationDetailsTypes,
+// ClientDomain (derived from ClientURI / ClientName, mirroring DCRHandler's
+// logic).
+//
+// Locked fields (return ErrInvalidClientMetadata on attempted change):
+//   - TokenEndpointAuthMethod — would require re-keying; out of scope for #169.
+// Locked fields (silently retained):
+//   - SigningAlg, ClientID, CreatedAt, RegistrationClientURI, the key material
+//     in KeyStore.
+//
+// req.Metadata is treated as RFC 7591 client metadata; req.Metadata.JWKS is
+// currently ignored (auth-method changes are rejected, so the JWKS cannot
+// usefully change either).
+//
+// ctx is currently unused but threaded through for cancellation / deadline
+// propagation once stores grow async ops, and for parity with the rest of
+// the manager interface.
+func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegistrationRequest) (*UpdateRegistrationResponse, error) {
+	if req == nil || req.ClientID == "" || req.AccessToken == "" || req.Metadata == nil {
+		return nil, ErrUnauthorized
+	}
+	reg, err := h.Store.GetApp(req.ClientID)
+	if err != nil || reg == nil {
+		return nil, ErrUnauthorized
+	}
+	if reg.RegistrationAccessToken == "" {
+		return nil, ErrUnauthorized
+	}
+	if subtle.ConstantTimeCompare([]byte(reg.RegistrationAccessToken), []byte(req.AccessToken)) != 1 {
+		return nil, ErrUnauthorized
+	}
+
+	// Authenticated — past this point, validation errors return
+	// ErrInvalidClientMetadata so the wrapper can map to 400 instead of 401.
+	// Auth method changes are out of scope for #169 (would require re-keying).
+	md := req.Metadata
+	if md.TokenEndpointAuthMethod != "" && md.TokenEndpointAuthMethod != reg.TokenEndpointAuthMethod {
+		return nil, ErrInvalidClientMetadata
+	}
+
+	newToken, err := generateRegistrationAccessToken()
+	if err != nil {
+		return nil, err
+	}
+
+	// Replace the editable metadata fields. ClientDomain mirrors the derivation
+	// in DCRHandler.ServeHTTP so callers see consistent behavior on register
+	// and update.
+	domain := md.ClientURI
+	if domain == "" {
+		domain = md.ClientName
+	}
+	reg.ClientName = md.ClientName
+	reg.ClientURI = md.ClientURI
+	reg.RedirectURIs = md.RedirectURIs
+	reg.GrantTypes = md.GrantTypes
+	reg.Scope = md.Scope
+	reg.AuthorizationDetailsTypes = md.AuthorizationDetailsTypes
+	reg.ClientDomain = domain
+	reg.RegistrationAccessToken = newToken
+
+	if err := h.SaveRegistration(reg); err != nil {
+		return nil, err
+	}
+	return &UpdateRegistrationResponse{
+		Registration: &DCRResponse{
+			ClientID:                  reg.ClientID,
+			ClientIDIssuedAt:          reg.CreatedAt.Unix(),
+			ClientSecretExpiresAt:     0,
+			ClientName:                reg.ClientName,
+			ClientURI:                 reg.ClientURI,
+			RedirectURIs:              reg.RedirectURIs,
+			GrantTypes:                reg.GrantTypes,
+			TokenEndpointAuthMethod:   reg.TokenEndpointAuthMethod,
+			Scope:                     reg.Scope,
+			AuthorizationDetailsTypes: reg.AuthorizationDetailsTypes,
+			RegistrationAccessToken:   reg.RegistrationAccessToken,
+			RegistrationClientURI:     reg.RegistrationClientURI,
+		},
 	}, nil
 }
 

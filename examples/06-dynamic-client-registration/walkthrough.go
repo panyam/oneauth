@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,6 +34,7 @@ func runDemo() {
 
 	var symClientID, symClientSecret string
 	var symRegToken, symRegURI string
+	var symRegTokenPrevious string // captured before PUT rotation so the next step can demo rejection
 	var asymClientID string
 
 	demo := demokit.New("06: Dynamic Client Registration").
@@ -153,16 +156,92 @@ func runDemo() {
 			if symRegToken == "" || symRegURI == "" {
 				return demokit.Errf("symmetric registration didn't issue management credentials")
 			}
-			got, err := client.GetRegistration(symRegURI, symRegToken, nil)
+			resp, err := client.GetRegistration(context.Background(), &client.GetRegistrationRequest{
+				RegistrationClientURI:   symRegURI,
+				RegistrationAccessToken: symRegToken,
+			})
 			if err != nil {
 				return demokit.Errf("GetRegistration: %v", err)
 			}
+			got := resp.Registration
 			fmt.Printf("    client_id:                 %s\n", got.ClientID)
 			fmt.Printf("    client_name:               %s\n", got.ClientName)
 			fmt.Printf("    scope:                     %s\n", got.Scope)
 			fmt.Printf("    grant_types:               %v\n", got.GrantTypes)
 			fmt.Printf("    registration_client_uri:   %s\n", got.RegistrationClientURI)
 			fmt.Printf("    client_secret in response: %v (intentionally omitted)\n", got.ClientSecret != "")
+			return nil
+		})
+
+	demo.Step("Update your scope (RFC 7592 §2.2)").
+		Ref(refs.RFC7592).
+		Arrow("App", "AS", "PUT {registration_client_uri}  Authorization: Bearer {registration_access_token}").
+		DashedArrow("AS", "App", "{registration metadata + NEW registration_access_token}").
+		Note("PUT is a full replacement (not PATCH-style merge): any field omitted from the body is cleared. The AS rotates the registration_access_token on success — the response includes a NEW token that supersedes the one passed in. The OneAuth server also rejects token_endpoint_auth_method changes (those require re-keying; clients DELETE + re-register instead).").
+		VerbatimLang("Reproduce on the wire", "bash", `curl -s -X PUT '<registration_client_uri>' \
+  -H 'Authorization: Bearer <registration_access_token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "client_id":"<from registration>",
+    "client_name":"My Example Bot",
+    "client_uri":"https://bot.example.com",
+    "grant_types":["client_credentials"],
+    "token_endpoint_auth_method":"client_secret_post",
+    "scope":"read write admin"
+  }' | jq`).
+		Run(func(ctx demokit.StepContext) *demokit.StepResult {
+			if symRegToken == "" || symRegURI == "" {
+				return demokit.Errf("symmetric registration didn't issue management credentials")
+			}
+			resp, err := client.UpdateRegistration(context.Background(), &client.UpdateRegistrationRequest{
+				RegistrationClientURI:   symRegURI,
+				RegistrationAccessToken: symRegToken,
+				ClientID:                symClientID,
+				Metadata: client.ClientRegistrationRequest{
+					ClientName:              "My Example Bot",
+					ClientURI:               "https://bot.example.com",
+					GrantTypes:              []string{"client_credentials"},
+					TokenEndpointAuthMethod: "client_secret_post",
+					Scope:                   "read write admin",
+				},
+			})
+			if err != nil {
+				return demokit.Errf("UpdateRegistration: %v", err)
+			}
+			updated := resp.Registration
+			fmt.Printf("    client_id:        %s\n", updated.ClientID)
+			fmt.Printf("    new scope:        %s\n", updated.Scope)
+			fmt.Printf("    token rotated:    %v (old != new)\n", updated.RegistrationAccessToken != symRegToken)
+			fmt.Printf("    new token (4):    %s...\n", updated.RegistrationAccessToken[:4])
+
+			// Persist the rotated token; remember the old one so the next step
+			// can demonstrate that it is now rejected.
+			symRegTokenPrevious = symRegToken
+			symRegToken = updated.RegistrationAccessToken
+			return nil
+		})
+
+	demo.Step("Old token is rejected after rotation").
+		Ref(refs.RFC7592).
+		Arrow("App", "AS", "GET {registration_client_uri}  Authorization: Bearer {OLD token}").
+		DashedArrow("AS", "App", "401 Unauthorized").
+		Note("After PUT rotates the token, attempting to reuse the *previous* registration_access_token must fail with 401 — even though the client_id is still valid. This is the security guarantee of rotation: a leaked-then-rotated token cannot be replayed.").
+		Run(func(ctx demokit.StepContext) *demokit.StepResult {
+			if symRegTokenPrevious == "" {
+				return demokit.Errf("previous step didn't capture the old token")
+			}
+			_, err := client.GetRegistration(context.Background(), &client.GetRegistrationRequest{
+				RegistrationClientURI:   symRegURI,
+				RegistrationAccessToken: symRegTokenPrevious,
+			})
+			if err == nil {
+				return demokit.Errf("expected old token to be rejected; it succeeded instead")
+			}
+			fmt.Printf("    old token (4): %s...\n", symRegTokenPrevious[:4])
+			fmt.Printf("    new token (4): %s...\n", symRegToken[:4])
+			fmt.Printf("    error from AS: %v\n", err)
+			fmt.Printf("    is ErrRegistrationUnauthorized: %v\n",
+				errors.Is(err, client.ErrRegistrationUnauthorized))
 			return nil
 		})
 
