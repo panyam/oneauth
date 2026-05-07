@@ -197,7 +197,17 @@ Splits issue 157 (parent) into vertical verb-by-verb slices. Each ticket ships a
 | 168 | Foundation + GET — registration_access_token + registration_client_uri issuance, `ClientRegistrationManager` interface, `DCRManagementHandler`, `client.GetRegistration`, walkthrough step | Merged |
 | 169 | PUT — full-replace update + token re-issuance + `client.UpdateRegistration` + walkthrough steps; **manager interface and client SDK adopt the `(ctx, *Req) → (*Resp, error)` convention** (blueprint for 172 / 175) | Merged |
 | 170 | DELETE — registration removal + KeyStore credential invalidation + `client.DeleteRegistration` + walkthrough step. Closes the verb trio. | Merged |
-| 171 | Keycloak interop — full lifecycle test against Keycloak's RFC 7592 endpoints; validates the wire format of 168/169/170 against a real-world AS | In progress |
+| 171 | Keycloak interop — full lifecycle test against Keycloak's RFC 7592 endpoints; validates the wire format of 168/169/170 against a real-world AS | Merged |
+
+## Convention Ports
+
+The `(ctx, *Req) → (*Resp, error)` convention adopted in 169 propagates to the rest of the library:
+
+| # | Surface | Status |
+|---|---------|--------|
+| 172 | Legacy `admin/` — `ClientRegistrar` interface for `DCRHandler.ServeHTTP` + legacy `/apps/register` + admin CRUD + secret rotation. HTTP handlers reduced to thin wrappers. Wire format unchanged. | In progress |
+| 175 | `apiauth/` — `TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` adopt the same shape | Pending |
+| 189 | Follow-up: remove `/apps/register` once a quota story for `MaxRooms` / `MaxMsgRate` is decided | Pending |
 
 ---
 

@@ -4,9 +4,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
@@ -103,15 +103,17 @@ type DCRResponse struct {
 	RegistrationClientURI   string `json:"registration_client_uri,omitempty"`
 }
 
-// ServeHTTP handles POST /register per RFC 7591.
+// ServeHTTP is the HTTP wrapper for ClientRegistrar.Register (RFC 7591 DCR).
+// All protocol logic lives behind the interface; this method just parses,
+// authenticates, calls the manager, and formats the response. See #172 for
+// the convention this follows (the same shape used by ClientRegistrationManager
+// in #168 / #169 / #170).
 func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// Authenticate caller — try Bearer token first, then X-Admin-Key
 	if h.Auth != nil {
 		if err := h.Auth.Authenticate(r); err != nil {
 			h.jsonError(w, "invalid_token", "Authentication required", http.StatusUnauthorized)
@@ -119,125 +121,46 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse DCR request
-	var req DCRRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var body DCRRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		h.jsonError(w, "invalid_client_metadata", "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
-
-	// Determine signing algorithm from auth method
-	signingAlg := "HS256" // default
-	if req.TokenEndpointAuthMethod == "private_key_jwt" {
-		// Asymmetric — need JWKS
-		if req.JWKS == nil || len(req.JWKS.Keys) == 0 {
-			h.jsonError(w, "invalid_client_metadata", "jwks required for private_key_jwt", http.StatusBadRequest)
-			return
+	// IssuerBaseURL falls back to the inbound request's scheme + host when
+	// no explicit value is configured on the handler — matches pre-refactor
+	// behavior (see DCRHandler.buildRegistrationClientURI).
+	issuerBase := h.IssuerBaseURL
+	if issuerBase == "" {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
 		}
-		// Use the first key's algorithm
-		signingAlg = req.JWKS.Keys[0].Alg
-		if signingAlg == "" {
-			signingAlg = "RS256" // default asymmetric
-		}
+		issuerBase = scheme + "://" + r.Host
 	}
 
-	// Generate client ID
-	clientID, err := generateDCRClientID()
-	if err != nil {
-		h.jsonError(w, "server_error", "Failed to generate client_id", http.StatusInternalServerError)
+	if h.Registrar == nil {
+		// Defensive — Handler() always wires a registrar. A nil here would
+		// be a programming error and the manager has no place to store
+		// registration metadata.
+		h.jsonError(w, "server_error", "Registrar not configured", http.StatusInternalServerError)
 		return
 	}
-
-	// Generate the RFC 7592 §3 management credentials. These are returned
-	// in the registration response and persisted on AppRegistration so the
-	// management endpoints (GET / PUT / DELETE /apps/dcr/{client_id}) can
-	// authenticate subsequent requests from this client.
-	regAccessToken, err := generateRegistrationAccessToken()
+	resp, err := h.Registrar.Register(r.Context(), &RegisterRequest{
+		Metadata:      &body,
+		IssuerBaseURL: issuerBase,
+	})
 	if err != nil {
-		h.jsonError(w, "server_error", "Failed to generate registration access token", http.StatusInternalServerError)
+		if errors.Is(err, ErrInvalidClientMetadata) {
+			h.jsonError(w, "invalid_client_metadata", err.Error(), http.StatusBadRequest)
+			return
+		}
+		h.jsonError(w, "server_error", err.Error(), http.StatusInternalServerError)
 		return
-	}
-	regClientURI := h.buildRegistrationClientURI(r, clientID)
-
-	resp := DCRResponse{
-		ClientID:                  clientID,
-		ClientIDIssuedAt:          time.Now().Unix(),
-		ClientSecretExpiresAt:     0, // never expires
-		ClientName:                req.ClientName,
-		ClientURI:                 req.ClientURI,
-		RedirectURIs:              req.RedirectURIs,
-		GrantTypes:                req.GrantTypes,
-		TokenEndpointAuthMethod:   req.TokenEndpointAuthMethod,
-		Scope:                     req.Scope,
-		AuthorizationDetailsTypes: req.AuthorizationDetailsTypes,
-		RegistrationAccessToken:   regAccessToken,
-		RegistrationClientURI:     regClientURI,
-	}
-
-	if utils.IsAsymmetricAlg(signingAlg) {
-		// Convert JWK to PEM and store
-		jwk := req.JWKS.Keys[0]
-		pubKey, _, err := utils.JWKToPublicKey(jwk)
-		if err != nil {
-			h.jsonError(w, "invalid_client_metadata", "Invalid JWK: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		pemBytes, err := utils.EncodePublicKeyPEM(pubKey)
-		if err != nil {
-			h.jsonError(w, "server_error", "Failed to encode public key", http.StatusInternalServerError)
-			return
-		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: pemBytes, Algorithm: signingAlg}); err != nil {
-			h.jsonError(w, "server_error", "Failed to store key", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		// Symmetric — generate secret
-		secret, err := generateDCRSecret()
-		if err != nil {
-			h.jsonError(w, "server_error", "Failed to generate secret", http.StatusInternalServerError)
-			return
-		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: signingAlg}); err != nil {
-			h.jsonError(w, "server_error", "Failed to store key", http.StatusInternalServerError)
-			return
-		}
-		resp.ClientSecret = secret
-		if resp.TokenEndpointAuthMethod == "" {
-			resp.TokenEndpointAuthMethod = "client_secret_post"
-		}
-	}
-
-	// Store metadata in AppRegistrar if available (persists to Store + updates cache).
-	if h.Registrar != nil {
-		domain := req.ClientURI
-		if domain == "" {
-			domain = req.ClientName
-		}
-		reg := &AppRegistration{
-			ClientID:                  clientID,
-			ClientDomain:              domain,
-			SigningAlg:                signingAlg,
-			AuthorizationDetailsTypes: req.AuthorizationDetailsTypes,
-			CreatedAt:                 time.Now(),
-			ClientName:                req.ClientName,
-			ClientURI:                 req.ClientURI,
-			RedirectURIs:              req.RedirectURIs,
-			GrantTypes:                req.GrantTypes,
-			Scope:                     req.Scope,
-			TokenEndpointAuthMethod:   req.TokenEndpointAuthMethod,
-			RegistrationAccessToken:   regAccessToken,
-			RegistrationClientURI:     regClientURI,
-		}
-		if err := h.Registrar.SaveRegistration(reg); err != nil {
-			h.jsonError(w, "server_error", "Failed to persist registration", http.StatusInternalServerError)
-			return
-		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp.Registration)
 }
 
 func (h *DCRHandler) jsonError(w http.ResponseWriter, errCode, description string, status int) {
@@ -277,18 +200,3 @@ func generateRegistrationAccessToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// buildRegistrationClientURI constructs the RFC 7592 §3 management URI for a
-// freshly registered client. It prefers the configured IssuerBaseURL (correct
-// behind reverse proxies); when that's empty, it falls back to scheme+Host
-// from the incoming request — fine for tests, unreliable in production.
-func (h *DCRHandler) buildRegistrationClientURI(r *http.Request, clientID string) string {
-	base := h.IssuerBaseURL
-	if base == "" {
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-		base = scheme + "://" + r.Host
-	}
-	return base + "/apps/dcr/" + clientID
-}

@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -107,6 +108,341 @@ func NewAppRegistrarWithStore(keyStore keys.KeyStorage, auth AdminAuth, store Ap
 		}
 	}
 	return r
+}
+
+// Register implements ClientRegistrar — RFC 7591 Dynamic Client Registration.
+// Generates a client_id, allocates either a symmetric secret or stores the
+// caller-supplied JWK public key, issues RFC 7592 §3 management credentials,
+// and persists the resulting AppRegistration. Returns an error mapped by
+// the wrapper:
+//
+//   - ErrInvalidClientMetadata: missing JWKS for private_key_jwt, or invalid JWK → HTTP 400
+//   - other errors (KeyStore failures, RNG failures): bubble up → HTTP 500
+//
+// ctx is currently unused but threaded through for cancellation / deadline
+// propagation once stores grow async ops.
+func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*RegisterResponse, error) {
+	if req == nil || req.Metadata == nil {
+		return nil, ErrInvalidClientMetadata
+	}
+	md := req.Metadata
+
+	// Determine signing algorithm from the requested auth method. Default
+	// HS256 (symmetric) when the client doesn't ask for private_key_jwt.
+	signingAlg := "HS256"
+	if md.TokenEndpointAuthMethod == "private_key_jwt" {
+		if md.JWKS == nil || len(md.JWKS.Keys) == 0 {
+			return nil, ErrInvalidClientMetadata
+		}
+		signingAlg = md.JWKS.Keys[0].Alg
+		if signingAlg == "" {
+			signingAlg = "RS256"
+		}
+	}
+
+	clientID, err := generateDCRClientID()
+	if err != nil {
+		return nil, fmt.Errorf("generate client_id: %w", err)
+	}
+
+	// RFC 7592 §3 management credentials — issued at registration time so
+	// the client can read / update / delete its own registration via
+	// /apps/dcr/{client_id} (#168 / #169 / #170).
+	regAccessToken, err := generateRegistrationAccessToken()
+	if err != nil {
+		return nil, fmt.Errorf("generate registration_access_token: %w", err)
+	}
+	regClientURI := req.IssuerBaseURL + "/apps/dcr/" + clientID
+
+	resp := &DCRResponse{
+		ClientID:                  clientID,
+		ClientIDIssuedAt:          time.Now().Unix(),
+		ClientSecretExpiresAt:     0, // never expires
+		ClientName:                md.ClientName,
+		ClientURI:                 md.ClientURI,
+		RedirectURIs:              md.RedirectURIs,
+		GrantTypes:                md.GrantTypes,
+		TokenEndpointAuthMethod:   md.TokenEndpointAuthMethod,
+		Scope:                     md.Scope,
+		AuthorizationDetailsTypes: md.AuthorizationDetailsTypes,
+		RegistrationAccessToken:   regAccessToken,
+		RegistrationClientURI:     regClientURI,
+	}
+
+	if utils.IsAsymmetricAlg(signingAlg) {
+		// Asymmetric: convert JWK → PEM and store.
+		jwk := md.JWKS.Keys[0]
+		pubKey, _, err := utils.JWKToPublicKey(jwk)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid JWK: %v", ErrInvalidClientMetadata, err)
+		}
+		pemBytes, err := utils.EncodePublicKeyPEM(pubKey)
+		if err != nil {
+			return nil, fmt.Errorf("encode public key: %w", err)
+		}
+		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: pemBytes, Algorithm: signingAlg}); err != nil {
+			return nil, fmt.Errorf("store key: %w", err)
+		}
+		// No client_secret in response for asymmetric.
+	} else {
+		secret, err := generateDCRSecret()
+		if err != nil {
+			return nil, fmt.Errorf("generate secret: %w", err)
+		}
+		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: signingAlg}); err != nil {
+			return nil, fmt.Errorf("store key: %w", err)
+		}
+		resp.ClientSecret = secret
+		if resp.TokenEndpointAuthMethod == "" {
+			resp.TokenEndpointAuthMethod = "client_secret_post"
+		}
+	}
+
+	// Persist registration metadata. ClientDomain mirrors DCRHandler's
+	// previous derivation so the wire format stays unchanged.
+	domain := md.ClientURI
+	if domain == "" {
+		domain = md.ClientName
+	}
+	reg := &AppRegistration{
+		ClientID:                  clientID,
+		ClientDomain:              domain,
+		SigningAlg:                signingAlg,
+		AuthorizationDetailsTypes: md.AuthorizationDetailsTypes,
+		CreatedAt:                 time.Now(),
+		ClientName:                md.ClientName,
+		ClientURI:                 md.ClientURI,
+		RedirectURIs:              md.RedirectURIs,
+		GrantTypes:                md.GrantTypes,
+		Scope:                     md.Scope,
+		TokenEndpointAuthMethod:   md.TokenEndpointAuthMethod,
+		RegistrationAccessToken:   regAccessToken,
+		RegistrationClientURI:     regClientURI,
+	}
+	if err := h.SaveRegistration(reg); err != nil {
+		return nil, fmt.Errorf("persist registration: %w", err)
+	}
+
+	return &RegisterResponse{Registration: resp}, nil
+}
+
+// RegisterLegacy implements ClientRegistrar — the proprietary /apps/register
+// path. Distinct from Register because the wire shape diverges and the
+// legacy endpoint carries OneAuth-specific quota fields (MaxRooms /
+// MaxMsgRate) that DCR has no place for.
+//
+// Eventual removal of this surface is tracked under issue #189.
+//
+// Errors:
+//   - ErrPublicKeyRequired: asymmetric alg requested without PublicKey → HTTP 400
+//   - ErrInvalidPublicKey: PublicKey fails PEM parse → HTTP 400
+//   - other errors (KeyStore failures, RNG failures): bubble up → HTTP 500
+func (h *AppRegistrar) RegisterLegacy(ctx context.Context, req *RegisterLegacyRequest) (*RegisterLegacyResponse, error) {
+	if req == nil {
+		return nil, ErrInvalidClientMetadata
+	}
+	signingAlg := req.SigningAlg
+	if signingAlg == "" {
+		signingAlg = "HS256"
+	}
+
+	clientID, err := generateClientID()
+	if err != nil {
+		return nil, fmt.Errorf("generate client_id: %w", err)
+	}
+
+	resp := &RegisterLegacyResponse{
+		ClientID:     clientID,
+		ClientDomain: req.ClientDomain,
+		SigningAlg:   signingAlg,
+		MaxRooms:     req.MaxRooms,
+		MaxMsgRate:   req.MaxMsgRate,
+	}
+
+	if utils.IsAsymmetricAlg(signingAlg) {
+		if req.PublicKey == "" {
+			return nil, fmt.Errorf("%w: %s", ErrPublicKeyRequired, signingAlg)
+		}
+		if _, err := utils.DecodeVerifyKey([]byte(req.PublicKey), signingAlg); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidPublicKey, err)
+		}
+		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(req.PublicKey), Algorithm: signingAlg}); err != nil {
+			return nil, fmt.Errorf("store key: %w", err)
+		}
+		// No client_secret in response for asymmetric.
+	} else {
+		secret, err := generateSecret()
+		if err != nil {
+			return nil, fmt.Errorf("generate secret: %w", err)
+		}
+		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: signingAlg}); err != nil {
+			return nil, fmt.Errorf("store key: %w", err)
+		}
+		resp.ClientSecret = secret
+	}
+
+	reg := &AppRegistration{
+		ClientID:     clientID,
+		ClientDomain: req.ClientDomain,
+		SigningAlg:   signingAlg,
+		MaxRooms:     req.MaxRooms,
+		MaxMsgRate:   req.MaxMsgRate,
+		CreatedAt:    time.Now(),
+	}
+	if err := h.SaveRegistration(reg); err != nil {
+		return nil, fmt.Errorf("persist registration: %w", err)
+	}
+	resp.CreatedAt = reg.CreatedAt
+	return resp, nil
+}
+
+// ListClients implements ClientRegistrar — admin read of every registered
+// app. Reads from the in-memory cache hydrated from AppRegistrationStore on
+// construction. Returned entries are clones; callers cannot mutate the
+// cache via this value.
+func (h *AppRegistrar) ListClients(ctx context.Context, req *ListClientsRequest) (*ListClientsResponse, error) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	apps := make([]*AppRegistration, 0, len(h.apps))
+	for _, reg := range h.apps {
+		clone := *reg
+		apps = append(apps, &clone)
+	}
+	return &ListClientsResponse{Apps: apps}, nil
+}
+
+// GetClient implements ClientRegistrar — admin read of a single registration.
+// Returns ErrAppNotFound if the client does not exist.
+func (h *AppRegistrar) GetClient(ctx context.Context, req *GetClientRequest) (*GetClientResponse, error) {
+	if req == nil || req.ClientID == "" {
+		return nil, ErrAppNotFound
+	}
+	h.mu.RLock()
+	reg, ok := h.apps[req.ClientID]
+	h.mu.RUnlock()
+	if !ok {
+		return nil, ErrAppNotFound
+	}
+	clone := *reg
+	return &GetClientResponse{Registration: &clone}, nil
+}
+
+// DeleteClient implements ClientRegistrar — admin delete. Removes the
+// registration from Store + in-memory cache and invalidates the KeyStore
+// entry. Returns ErrAppNotFound if the client does not exist.
+//
+// Distinct from ClientRegistrationManager.DeleteRegistration which
+// authenticates via the client's own registration_access_token. This admin
+// path is reachable only by AdminAuth-passing callers.
+func (h *AppRegistrar) DeleteClient(ctx context.Context, req *DeleteClientRequest) (*DeleteClientResponse, error) {
+	if req == nil || req.ClientID == "" {
+		return nil, ErrAppNotFound
+	}
+	h.mu.RLock()
+	_, ok := h.apps[req.ClientID]
+	h.mu.RUnlock()
+	if !ok {
+		return nil, ErrAppNotFound
+	}
+
+	// Persist the deletion before invalidating the cache or credentials —
+	// same ordering as DeleteRegistration so a store error leaves the
+	// registration intact and the call retryable.
+	if err := h.Store.DeleteApp(req.ClientID); err != nil && err != ErrAppNotFound {
+		return nil, fmt.Errorf("delete registration: %w", err)
+	}
+
+	h.mu.Lock()
+	delete(h.apps, req.ClientID)
+	h.mu.Unlock()
+
+	// KeyStore deletion is best-effort: a stranded key is unreachable
+	// once the registration is gone (same rationale as DeleteRegistration).
+	_ = h.KeyStore.DeleteKey(req.ClientID)
+
+	return &DeleteClientResponse{}, nil
+}
+
+// RotateSecret implements ClientRegistrar — rotates the signing key for
+// req.ClientID. For symmetric algs a fresh secret is generated and returned.
+// For asymmetric algs the caller MUST supply req.PublicKey (PEM); there is
+// no server-side keypair generation today.
+//
+// When KidStore is configured on AppRegistrar, the previous key material is
+// retained for req.GracePeriod (defaulting to AppRegistrar.DefaultGracePeriod
+// or 24h) so in-flight tokens stay verifiable. The returned PreviousKid /
+// GracePeriod fields are populated only when retention actually happened.
+//
+// Errors:
+//   - ErrAppNotFound: req.ClientID not registered
+//   - ErrPublicKeyRequired: asymmetric alg without PublicKey
+//   - ErrInvalidPublicKey: PublicKey fails PEM parse for the registered alg
+func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretRequest) (*RotateSecretResponse, error) {
+	if req == nil || req.ClientID == "" {
+		return nil, ErrAppNotFound
+	}
+	h.mu.RLock()
+	reg, ok := h.apps[req.ClientID]
+	h.mu.RUnlock()
+	if !ok {
+		return nil, ErrAppNotFound
+	}
+
+	gracePeriod := req.GracePeriod
+	if gracePeriod == 0 {
+		gracePeriod = h.DefaultGracePeriod
+	}
+	if gracePeriod == 0 {
+		gracePeriod = 24 * time.Hour
+	}
+
+	// Snapshot old key material before overwrite (for grace period retention).
+	var oldKey any
+	var oldAlg, oldKid string
+	if h.KidStore != nil {
+		if oldRec, err := h.KeyStore.GetKey(req.ClientID); err == nil {
+			oldKey = oldRec.Key
+			oldAlg = oldRec.Algorithm
+			oldKid = oldRec.Kid
+			if oldKid == "" && oldKey != nil {
+				oldKid, _ = utils.ComputeKid(oldKey, oldAlg)
+			}
+		}
+	}
+
+	resp := &RotateSecretResponse{ClientID: req.ClientID}
+
+	if utils.IsAsymmetricAlg(reg.SigningAlg) {
+		if req.PublicKey == "" {
+			return nil, fmt.Errorf("%w: %s", ErrPublicKeyRequired, reg.SigningAlg)
+		}
+		if _, err := utils.DecodeVerifyKey([]byte(req.PublicKey), reg.SigningAlg); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidPublicKey, err)
+		}
+		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: req.ClientID, Key: []byte(req.PublicKey), Algorithm: reg.SigningAlg}); err != nil {
+			return nil, fmt.Errorf("update key: %w", err)
+		}
+	} else {
+		newSecret, err := generateSecret()
+		if err != nil {
+			return nil, fmt.Errorf("generate secret: %w", err)
+		}
+		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: req.ClientID, Key: []byte(newSecret), Algorithm: reg.SigningAlg}); err != nil {
+			return nil, fmt.Errorf("update key: %w", err)
+		}
+		resp.ClientSecret = newSecret
+	}
+
+	if h.KidStore != nil && oldKey != nil && oldKid != "" {
+		h.KidStore.Add(oldKid, oldKey, oldAlg, req.ClientID, time.Now().Add(gracePeriod))
+		resp.PreviousKid = oldKid
+		resp.GracePeriod = gracePeriod
+	}
+
+	if newRec, err := h.KeyStore.GetKey(req.ClientID); err == nil && newRec.Kid != "" {
+		resp.Kid = newRec.Kid
+	}
+	return resp, nil
 }
 
 // SaveRegistration persists the registration to the store and updates the
@@ -365,111 +701,48 @@ func (h *AppRegistrar) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// handleRegister is the HTTP wrapper for ClientRegistrar.RegisterLegacy
+// (the proprietary /apps/register path). All registration logic lives behind
+// the interface; this method just parses, calls the manager, maps errors
+// to HTTP status codes, and formats the response.
 func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.jsonError(w, "method_not_allowed", "POST required", http.StatusMethodNotAllowed)
 		return
 	}
-
-	var req struct {
-		ClientDomain string  `json:"client_domain"`
-		SigningAlg   string  `json:"signing_alg"`
-		PublicKey    string  `json:"public_key"` // PEM-encoded public key (required for RS256/ES256)
-		MaxRooms     int     `json:"max_rooms"`
-		MaxMsgRate   float64 `json:"max_msg_rate"`
-	}
+	var req RegisterLegacyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.jsonError(w, "invalid_request", "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
-
-	if req.SigningAlg == "" {
-		req.SigningAlg = "HS256"
-	}
-
-	// Generate client ID
-	clientID, err := generateClientID()
+	resp, err := h.RegisterLegacy(r.Context(), &req)
 	if err != nil {
-		h.jsonError(w, "server_error", "Failed to generate client ID", http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, ErrPublicKeyRequired), errors.Is(err, ErrInvalidPublicKey), errors.Is(err, ErrInvalidClientMetadata):
+			h.jsonError(w, "invalid_request", err.Error(), http.StatusBadRequest)
+		default:
+			h.jsonError(w, "server_error", err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
-
-	resp := map[string]any{
-		"client_id":     clientID,
-		"client_domain": req.ClientDomain,
-		"signing_alg":   req.SigningAlg,
-		"max_rooms":     req.MaxRooms,
-		"max_msg_rate":  req.MaxMsgRate,
-	}
-
-	if utils.IsAsymmetricAlg(req.SigningAlg) {
-		// Asymmetric: require public_key PEM, no secret generated
-		if req.PublicKey == "" {
-			h.jsonError(w, "invalid_request", "public_key is required for "+req.SigningAlg, http.StatusBadRequest)
-			return
-		}
-		// Validate PEM parses to a valid public key of the right type
-		if _, err := utils.DecodeVerifyKey([]byte(req.PublicKey), req.SigningAlg); err != nil {
-			h.jsonError(w, "invalid_request", "Invalid public key: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		// Store PEM bytes
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(req.PublicKey), Algorithm: req.SigningAlg}); err != nil {
-			h.jsonError(w, "server_error", "Failed to store key", http.StatusInternalServerError)
-			return
-		}
-		// No client_secret in response for asymmetric
-	} else {
-		// Symmetric: generate secret
-		secret, err := generateSecret()
-		if err != nil {
-			h.jsonError(w, "server_error", "Failed to generate secret", http.StatusInternalServerError)
-			return
-		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: req.SigningAlg}); err != nil {
-			h.jsonError(w, "server_error", "Failed to store key", http.StatusInternalServerError)
-			return
-		}
-		resp["client_secret"] = secret
-	}
-
-	// Store registration metadata (persists to Store + updates cache).
-	reg := &AppRegistration{
-		ClientID:     clientID,
-		ClientDomain: req.ClientDomain,
-		SigningAlg:   req.SigningAlg,
-		MaxRooms:     req.MaxRooms,
-		MaxMsgRate:   req.MaxMsgRate,
-		CreatedAt:    time.Now(),
-	}
-	if err := h.SaveRegistration(reg); err != nil {
-		h.jsonError(w, "server_error", "Failed to persist registration", http.StatusInternalServerError)
-		return
-	}
-
-	resp["created_at"] = reg.CreatedAt
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(resp)
 }
 
+// handleListApps is the HTTP wrapper for ClientRegistrar.ListClients.
 func (h *AppRegistrar) handleListApps(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.jsonError(w, "method_not_allowed", "GET required", http.StatusMethodNotAllowed)
 		return
 	}
-
-	h.mu.RLock()
-	
-	apps := make([]*AppRegistration, 0, len(h.apps))
-	for _, reg := range h.apps {
-		apps = append(apps, reg)
+	resp, err := h.ListClients(r.Context(), &ListClientsRequest{})
+	if err != nil {
+		h.jsonError(w, "server_error", err.Error(), http.StatusInternalServerError)
+		return
 	}
-	h.mu.RUnlock()
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"apps": apps})
+	json.NewEncoder(w).Encode(map[string]any{"apps": resp.Apps})
 }
 
 func (h *AppRegistrar) handleAppByID(w http.ResponseWriter, r *http.Request) {
@@ -499,141 +772,93 @@ func (h *AppRegistrar) handleAppByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *AppRegistrar) handleGetApp(w http.ResponseWriter, _ *http.Request, clientID string) {
-	h.mu.RLock()
-	reg, ok := h.apps[clientID]
-	h.mu.RUnlock()
-
-	if !ok {
-		h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
+// handleGetApp is the HTTP wrapper for ClientRegistrar.GetClient.
+func (h *AppRegistrar) handleGetApp(w http.ResponseWriter, r *http.Request, clientID string) {
+	resp, err := h.GetClient(r.Context(), &GetClientRequest{ClientID: clientID})
+	if err != nil {
+		if errors.Is(err, ErrAppNotFound) {
+			h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
+			return
+		}
+		h.jsonError(w, "server_error", err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(reg)
+	json.NewEncoder(w).Encode(resp.Registration)
 }
 
-func (h *AppRegistrar) handleDeleteApp(w http.ResponseWriter, _ *http.Request, clientID string) {
-	h.mu.RLock()
-	_, ok := h.apps[clientID]
-	h.mu.RUnlock()
-	if !ok {
-		h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
+// handleDeleteApp is the HTTP wrapper for ClientRegistrar.DeleteClient.
+func (h *AppRegistrar) handleDeleteApp(w http.ResponseWriter, r *http.Request, clientID string) {
+	if _, err := h.DeleteClient(r.Context(), &DeleteClientRequest{ClientID: clientID}); err != nil {
+		if errors.Is(err, ErrAppNotFound) {
+			h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
+			return
+		}
+		h.jsonError(w, "server_error", err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	// Persist deletion first; if the store fails we must not invalidate the
-	// in-memory cache or the KeyStore — that would leave the app un-revokable
-	// on subsequent restarts (the registration would still hydrate from the
-	// store, but the key would be gone).
-	if err := h.Store.DeleteApp(clientID); err != nil && err != ErrAppNotFound {
-		h.jsonError(w, "server_error", "Failed to delete registration", http.StatusInternalServerError)
-		return
-	}
-
-	h.mu.Lock()
-	delete(h.apps, clientID)
-	h.mu.Unlock()
-
-	// Remove from KeyStore
-	h.KeyStore.DeleteKey(clientID)
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"deleted": true, "client_id": clientID})
 }
 
+// handleRotateSecret is the HTTP wrapper for ClientRegistrar.RotateSecret.
+// Parses the optional public_key + grace_period body, calls the manager,
+// and emits the proprietary response shape (which varies by algorithm and
+// whether KidStore retained the previous key).
 func (h *AppRegistrar) handleRotateSecret(w http.ResponseWriter, r *http.Request, clientID string) {
 	if r.Method != http.MethodPost {
 		h.jsonError(w, "method_not_allowed", "POST required", http.StatusMethodNotAllowed)
 		return
 	}
 
-	h.mu.RLock()
-	reg, ok := h.apps[clientID]
-	h.mu.RUnlock()
+	var body struct {
+		PublicKey   string `json:"public_key"`
+		GracePeriod string `json:"grace_period"` // e.g. "24h", "1h30m"
+	}
+	// Body is optional; symmetric rotations may omit it entirely.
+	json.NewDecoder(r.Body).Decode(&body)
 
-	if !ok {
-		h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
+	var grace time.Duration
+	if body.GracePeriod != "" {
+		if parsed, err := time.ParseDuration(body.GracePeriod); err == nil {
+			grace = parsed
+		}
+	}
+
+	resp, err := h.RotateSecret(r.Context(), &RotateSecretRequest{
+		ClientID:    clientID,
+		PublicKey:   body.PublicKey,
+		GracePeriod: grace,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrAppNotFound):
+			h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
+		case errors.Is(err, ErrPublicKeyRequired), errors.Is(err, ErrInvalidPublicKey):
+			h.jsonError(w, "invalid_request", err.Error(), http.StatusBadRequest)
+		default:
+			h.jsonError(w, "server_error", err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
-	// Parse optional grace period from request body
-	var reqBody struct {
-		PublicKey    string `json:"public_key"`
-		GracePeriod string `json:"grace_period"` // e.g. "24h", "1h30m"
+	// Build the proprietary response shape — manager returns a typed
+	// struct, but the wire format is a map so empty fields are silently
+	// omitted (preserves byte-identical output with the pre-refactor handler).
+	out := map[string]any{"client_id": resp.ClientID}
+	if resp.ClientSecret != "" {
+		out["client_secret"] = resp.ClientSecret
 	}
-	// We need to read the body for both symmetric and asymmetric
-	json.NewDecoder(r.Body).Decode(&reqBody)
-
-	gracePeriod := h.DefaultGracePeriod
-	if gracePeriod == 0 {
-		gracePeriod = 24 * time.Hour
+	if resp.Kid != "" {
+		out["kid"] = resp.Kid
 	}
-	if reqBody.GracePeriod != "" {
-		if parsed, err := time.ParseDuration(reqBody.GracePeriod); err == nil {
-			gracePeriod = parsed
-		}
-	}
-
-	// Snapshot old key material before overwrite (for grace period retention)
-	var oldKey any
-	var oldAlg string
-	var oldKid string
-	if h.KidStore != nil {
-		if oldRec, err := h.KeyStore.GetKey(clientID); err == nil {
-			oldKey = oldRec.Key
-			oldAlg = oldRec.Algorithm
-			oldKid = oldRec.Kid
-			if oldKid == "" && oldKey != nil {
-				oldKid, _ = utils.ComputeKid(oldKey, oldAlg)
-			}
-		}
-	}
-
-	resp := map[string]any{"client_id": clientID}
-
-	if utils.IsAsymmetricAlg(reg.SigningAlg) {
-		// Asymmetric: require new public_key in request body
-		if reqBody.PublicKey == "" {
-			h.jsonError(w, "invalid_request", "public_key is required for key rotation with "+reg.SigningAlg, http.StatusBadRequest)
-			return
-		}
-		if _, err := utils.DecodeVerifyKey([]byte(reqBody.PublicKey), reg.SigningAlg); err != nil {
-			h.jsonError(w, "invalid_request", "Invalid public key: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(reqBody.PublicKey), Algorithm: reg.SigningAlg}); err != nil {
-			h.jsonError(w, "server_error", "Failed to update key", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		// Symmetric: generate new secret
-		newSecret, err := generateSecret()
-		if err != nil {
-			h.jsonError(w, "server_error", "Failed to generate secret", http.StatusInternalServerError)
-			return
-		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(newSecret), Algorithm: reg.SigningAlg}); err != nil {
-			h.jsonError(w, "server_error", "Failed to update key", http.StatusInternalServerError)
-			return
-		}
-		resp["client_secret"] = newSecret
-	}
-
-	// Retain old key in KidStore for grace period
-	if h.KidStore != nil && oldKey != nil && oldKid != "" {
-		h.KidStore.Add(oldKid, oldKey, oldAlg, clientID, time.Now().Add(gracePeriod))
-		resp["previous_kid"] = oldKid
-		resp["grace_period"] = gracePeriod.String()
-	}
-
-	// Include new kid in response
-	if newRec, err := h.KeyStore.GetKey(clientID); err == nil && newRec.Kid != "" {
-		resp["kid"] = newRec.Kid
+	if resp.PreviousKid != "" {
+		out["previous_kid"] = resp.PreviousKid
+		out["grace_period"] = resp.GracePeriod.String()
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(out)
 }
 
 func (h *AppRegistrar) jsonError(w http.ResponseWriter, code, message string, status int) {
