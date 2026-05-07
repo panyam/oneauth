@@ -260,3 +260,44 @@ func TestMyKeyStore(t *testing.T) {
 All three built-in KeyStore implementations (FS, GORM, GAE) use this shared test suite. When implementing a custom KeyStorage, run these tests to verify compatibility.
 
 For how KeyLookup/KeyStorage is used in multi-tenant JWT validation, see [API_AUTH.md](API_AUTH.md#multi-tenant-jwt-validation-keystore).
+
+## AppRegistrationStore
+
+Persists app registration metadata for `AppRegistrar` and the DCR handler. Registrations are the source of truth for which `client_id`s exist and their RFC 7591/7592 metadata; without persistence, revoked apps come back on restart.
+
+```go
+type AppRegistrationStore interface {
+    SaveApp(app *AppRegistration) error
+    GetApp(clientID string) (*AppRegistration, error)
+    ListApps() ([]*AppRegistration, error)
+    DeleteApp(clientID string) error
+}
+```
+
+`AppRegistrar` keeps an in-memory cache hydrated from the store on construction; reads hit the cache, writes go through `SaveRegistration` which writes the store first and updates the cache.
+
+### Implementations
+
+| Backend | Status | Use case |
+|---------|--------|----------|
+| `admin.InMemoryAppStore` | Available | Tests, dev (registrations lost on restart) |
+| `stores/fs.FSAppStore` | Pending — issue 166 | Single-node, dev-friendly persistence |
+| `stores/gorm.GORMAppStore` | Pending — issue 167 | Production, multi-node (Postgres / MySQL / SQLite) |
+
+Construct with `admin.NewAppRegistrar(keyStore, auth)` for the default in-memory store, or `admin.NewAppRegistrarWithStore(keyStore, auth, store)` to plug in a persistent backend.
+
+### appstoretest Shared Test Suite
+
+The `appstoretest` package mirrors `keystoretest`: any `AppRegistrationStore` implementation can run the contract tests to verify correctness.
+
+```go
+import "github.com/panyam/oneauth/appstoretest"
+
+func TestMyAppStore(t *testing.T) {
+    appstoretest.RunAll(t, func(t *testing.T) admin.AppRegistrationStore {
+        return NewMyAppStore(...)
+    })
+}
+```
+
+The suite covers Save/Get/List/Delete contracts, overwrite, persistence (read-after-write), and a full-fields round-trip (catches serialization bugs in slice-typed columns like `RedirectURIs` and `GrantTypes`).

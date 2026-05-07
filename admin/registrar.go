@@ -15,6 +15,13 @@ import (
 )
 
 // AppRegistration holds metadata about a registered App.
+//
+// The DCR / RFC 7592 fields below (ClientName, ClientURI, RedirectURIs,
+// GrantTypes, Scope, TokenEndpointAuthMethod, RegistrationAccessToken,
+// RegistrationClientURI) are persisted starting in issue #165 so that
+// the schema is stable when issue #157 (RFC 7592 Management) populates
+// them. They may be empty for apps registered via the legacy
+// /apps/register endpoint.
 type AppRegistration struct {
 	ClientID                  string    `json:"client_id"`
 	ClientDomain              string    `json:"client_domain"`
@@ -24,11 +31,24 @@ type AppRegistration struct {
 	AuthorizationDetailsTypes []string  `json:"authorization_details_types,omitempty"` // RFC 9396
 	CreatedAt                 time.Time `json:"created_at"`
 	Revoked                   bool      `json:"revoked"`
+
+	// RFC 7591 / 7592 client metadata (populated by DCR; see #157).
+	ClientName              string   `json:"client_name,omitempty"`
+	ClientURI               string   `json:"client_uri,omitempty"`
+	RedirectURIs            []string `json:"redirect_uris,omitempty"`
+	GrantTypes              []string `json:"grant_types,omitempty"`
+	Scope                   string   `json:"scope,omitempty"`
+	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
+
+	// RFC 7592 management credentials. Issued when the management protocol
+	// is implemented (#168); empty for legacy registrations.
+	RegistrationAccessToken string `json:"registration_access_token,omitempty"`
+	RegistrationClientURI   string `json:"registration_client_uri,omitempty"`
 }
 
 // AppRegistrar is an embeddable HTTP handler for App registration CRUD.
 // Mount it on any admin service's mux to let apps register and obtain signing credentials.
-// Create with NewAppRegistrar().
+// Create with NewAppRegistrar() (in-memory store) or NewAppRegistrarWithStore.
 type AppRegistrar struct {
 	KeyStore keys.KeyStorage
 	Auth     AdminAuth
@@ -42,17 +62,64 @@ type AppRegistrar struct {
 	// when not specified in the request. Defaults to 24h.
 	DefaultGracePeriod time.Duration
 
+	// Store persists app registration metadata. It is the source of truth;
+	// the apps map below is a hot-path cache hydrated on construction and
+	// updated synchronously on every write.
+	Store AppRegistrationStore
+
 	mu   sync.RWMutex
 	apps map[string]*AppRegistration
 }
 
-// NewAppRegistrar creates an AppRegistrar with initialized internal state.
+// NewAppRegistrar creates an AppRegistrar backed by an in-memory store.
+// Equivalent to NewAppRegistrarWithStore(keyStore, auth, NewInMemoryAppStore()).
+//
+// For deployments that need registrations to survive restart, use
+// NewAppRegistrarWithStore with a persistent backend (FSAppStore, GORMAppStore).
 func NewAppRegistrar(keyStore keys.KeyStorage, auth AdminAuth) *AppRegistrar {
-	return &AppRegistrar{
+	return NewAppRegistrarWithStore(keyStore, auth, NewInMemoryAppStore())
+}
+
+// NewAppRegistrarWithStore creates an AppRegistrar backed by the given store.
+// Existing registrations in the store are loaded into the in-memory cache so
+// that subsequent reads (RLockApps, GET /apps) reflect the persisted state
+// immediately after construction.
+//
+// If store.ListApps returns an error during hydration, the AppRegistrar is
+// returned with an empty cache; subsequent writes proceed normally. (We do
+// not panic — a transient store error at startup should not crash the host
+// process. The error is intentionally swallowed here since there is no
+// caller-visible context to report it through; callers wanting strict
+// startup semantics should call store.ListApps themselves first.)
+func NewAppRegistrarWithStore(keyStore keys.KeyStorage, auth AdminAuth, store AppRegistrationStore) *AppRegistrar {
+	r := &AppRegistrar{
 		KeyStore: keyStore,
 		Auth:     auth,
+		Store:    store,
 		apps:     make(map[string]*AppRegistration),
 	}
+	if existing, err := store.ListApps(); err == nil {
+		for _, app := range existing {
+			clone := *app
+			r.apps[app.ClientID] = &clone
+		}
+	}
+	return r
+}
+
+// SaveRegistration persists the registration to the store and updates the
+// in-memory cache. Used by handleRegister, DCRHandler, and (in #157) the
+// RFC 7592 management endpoints. If the store write fails, the cache is
+// not updated and the error is returned.
+func (h *AppRegistrar) SaveRegistration(reg *AppRegistration) error {
+	if err := h.Store.SaveApp(reg); err != nil {
+		return err
+	}
+	h.mu.Lock()
+	clone := *reg
+	h.apps[reg.ClientID] = &clone
+	h.mu.Unlock()
+	return nil
 }
 
 // RLockApps calls fn with a read-locked view of all registered apps.
@@ -169,7 +236,7 @@ func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
 		resp["client_secret"] = secret
 	}
 
-	// Store registration metadata
+	// Store registration metadata (persists to Store + updates cache).
 	reg := &AppRegistration{
 		ClientID:     clientID,
 		ClientDomain: req.ClientDomain,
@@ -178,9 +245,10 @@ func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
 		MaxMsgRate:   req.MaxMsgRate,
 		CreatedAt:    time.Now(),
 	}
-	h.mu.Lock()
-	h.apps[clientID] = reg
-	h.mu.Unlock()
+	if err := h.SaveRegistration(reg); err != nil {
+		h.jsonError(w, "server_error", "Failed to persist registration", http.StatusInternalServerError)
+		return
+	}
 
 	resp["created_at"] = reg.CreatedAt
 
@@ -249,13 +317,24 @@ func (h *AppRegistrar) handleGetApp(w http.ResponseWriter, _ *http.Request, clie
 }
 
 func (h *AppRegistrar) handleDeleteApp(w http.ResponseWriter, _ *http.Request, clientID string) {
-	h.mu.Lock()
+	h.mu.RLock()
 	_, ok := h.apps[clientID]
+	h.mu.RUnlock()
 	if !ok {
-		h.mu.Unlock()
 		h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
 		return
 	}
+
+	// Persist deletion first; if the store fails we must not invalidate the
+	// in-memory cache or the KeyStore — that would leave the app un-revokable
+	// on subsequent restarts (the registration would still hydrate from the
+	// store, but the key would be gone).
+	if err := h.Store.DeleteApp(clientID); err != nil && err != ErrAppNotFound {
+		h.jsonError(w, "server_error", "Failed to delete registration", http.StatusInternalServerError)
+		return
+	}
+
+	h.mu.Lock()
 	delete(h.apps, clientID)
 	h.mu.Unlock()
 

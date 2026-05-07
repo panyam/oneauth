@@ -15,6 +15,7 @@
 - refresh-token-rotation: Refresh tokens with theft detection (family-based revocation)
 - csrf-protection: Double-submit cookie CSRF protection
 - multi-backend-storage: Store implementations for filesystem, GORM (PostgreSQL/MySQL), Google Datastore
+- pluggable-app-registry: AppRegistrationStore interface for persisting registered apps; in-memory backend ships now, FS / GORM backends pending (issues 166, 167)
 - http-middleware: Auth middleware for HTTP handlers with scope enforcement
 - user-identity-model: Three-layer User→Identity→Channel model
 - client-credentials-grant: Machine-to-machine auth (RFC 6749 §4.4)
