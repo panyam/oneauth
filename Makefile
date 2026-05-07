@@ -444,6 +444,24 @@ downkcl:
 kcllogs:
 	@docker logs -f $(KC_CONTAINER_NAME)
 
+# =============================================================================
+# Conformance ratchet — see docs/CONFORMANCE.md
+# =============================================================================
+# Runs every known conformance test (passing AND expected-fail) and diffs
+# the outcome against tests/conformance/known-gaps.yaml. Exits non-zero on
+# any drift: regression, ratchet-up, stale entry, or t.Skip().
+testconformance:
+	@cd tests/conformance && GOWORK=off go run ./cmd/runner -package ./...
+
+# Same suite plus a Markdown report at test-reports/conformance-<date>.md.
+# The report is for humans (gap surface, expires audit). CI gating still
+# comes from the ratchet exit code, not the report.
+testconformance-report:
+	@mkdir -p $(REPORT_DIR)
+	@cd tests/conformance && GOWORK=off go run ./cmd/runner \
+		-package ./... \
+		-report ../../$(REPORT_DIR)/conformance-$$(date +%Y-%m-%d).md
+
 # Run Keycloak interop tests (starts container if not running)
 testkcl:
 	@if ! docker ps --format '{{.Names}}' | grep -q '^$(KC_CONTAINER_NAME)$$'; then \

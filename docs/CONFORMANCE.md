@@ -18,7 +18,7 @@ Three invariants govern every suite under this strategy:
 
 1. **Every known test runs every time.** No `t.Skip()` for "not implemented yet". A test we deliberately don't pass is still executed; its expected result is "fail", recorded in a manifest.
 2. **CI fails on diff, not absolute count.** The runner asserts `actual_failures == expected_failures` for conformance and adversarial suites, and `actual_metrics ≤ baseline * margin` for load. Movement in either direction breaks the build.
-3. **Suppression has metadata.** Every entry in a `known-gaps` / `baseline` / `suppressions` file carries a tracking issue, an owner, a reason, and an `expires:` date. Quarterly review opens an issue listing entries older than 90 days.
+3. **Suppression has metadata.** Every entry in a `known-gaps` / `baseline` / `suppressions` file carries a tracking issue, an owner, a reason, and an `expires:` date. The ratchet itself is the strongest staleness signal — a gap silently shipped will already break CI as a "ratchet up" failure. For human review of long-lived gaps, `make testconformance-report` writes a Markdown summary to `test-reports/` sorted by `expires:` so old entries surface on demand. The `expires:` field is advisory: the gating runner does not fail on past dates.
 
 The result: when a feature PR lands and a previously-failing conformance test starts passing, CI breaks immediately ("you forgot to remove `oidc-discovery-required-fields` from `known-gaps.yaml`"). The author flips the entry, the test moves from "known gap" to "regression-protected", and the gap count drops by one. There is no scenario where a passing test silently gets credit it didn't earn, and no scenario where a regression on something we already supported gets dismissed.
 
@@ -26,8 +26,23 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 
 ### Manifest schemas
 
+`known-gaps.yaml` accepts two entry shapes, discriminated by which fields are populated. Go-native suites use `suite + id`; external suites (OIDF, MCP) use `suite + plan + test`. The runner validates the shape at startup.
+
 ```yaml
 # tests/conformance/known-gaps.yaml
+
+# Go-native suite (RFC fixtures we own)
+- suite: as_metadata                                  # package basename
+  id: TestDualPathParity/rfc8414_path_parity          # full Go test name incl. subtest
+  status: expected-fail                               # only legal value today
+  issue: 187
+  owner: panyam
+  reason: |
+    OneAuth AS only registers /.well-known/openid-configuration.
+    RFC 8414 §3 requires /.well-known/oauth-authorization-server too.
+  expires: 2026-08-07                                 # ISO date; advisory
+
+# External suite (when we adopt OIDF / MCP)
 - suite: oidf
   plan: dynamic-op-basic
   test: dcr-rejects-non-https-redirect-uri
@@ -36,7 +51,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
   owner: panyam
   reason: |
     DCR validator currently allows http:// redirect_uris in dev mode.
-    Plan: tighten in #999 once dev-mode opt-in flag is wired through.
+    Plan: tighten in 999 once dev-mode opt-in flag is wired through.
   expires: 2026-08-01
 ```
 
@@ -252,7 +267,7 @@ A relevant CVE/CWE alongside the RFC remains the convention.
 
 Order of work, lowest-friction first:
 
-1. **Stand up `tests/conformance/` directory** with `known-gaps.yaml` schema, runner contract, and one trivial test (e.g., RFC 8414 dual-path) to prove the ratchet mechanics. Single PR.
+1. **Stand up `tests/conformance/` directory** with `known-gaps.yaml` schema, runner contract, and one trivial test to prove the ratchet mechanics. RFC 8414 dual-path is a fitting seed precisely because the AS does not currently register `/.well-known/oauth-authorization-server` (cmd/oneauth-server/main.go and testutil/server.go only register the OIDC path) — so the test ships failing on day one and exercises the expected-fail arm of the ratchet for real. Single PR. Runner lives in a separate Go submodule (`tests/conformance/`) mirroring `tests/keycloak/` to keep YAML parser + Go test orchestration deps out of the core module's graph.
 2. **OIDF Config OP + Dynamic OP** as `make testoidf`. Highest ROI conformance — validates RFC 8414 / 7517 / 7591 with one suite.
 3. **MCP conformance** as `make testmcp`. RFC 9728 (only public test) + second take on RFC 7591.
 4. **gosec + semgrep + nuclei** as `make testsec`. Tier 1 scanners with `tests/security/suppressions.yaml`.
@@ -270,10 +285,10 @@ Each item is a tracking issue; sub-issues per test plan. Issues opened only afte
 
 These need a call before issues are opened:
 
-- **Where does the runner contract live?** Options: a small Go binary in `cmd/conformance-runner/`, or a Make target wrapping `go test` + a manifest-diff script. Leaning toward the former — easier to reuse from other repos.
-- **Do we publish self-written conformance fixtures as a separate Go module?** RFC 7662/7009/9396 fixtures could live at `github.com/panyam/oneauth-conformance` and be importable. Real public gap; modest extra maintenance cost.
-- **Self-hosted runner for load tests — cloud or workstation?** Tail-latency gating needs a stable machine. Cheapest path: a single dedicated cloud VM that GH Actions reserves via runner labels.
-- **Frequency of quarterly suppression review** — every 90 days as stated, or tied to release cadence?
+- ~~**Where does the runner contract live?**~~ **Resolved.** Small Go binary in a new `tests/conformance/` submodule (mirrors `tests/keycloak/`). Make targets wrap it (`testconformance` for gating, `testconformance-report` for the human review).
+- **Do we publish self-written conformance fixtures as a separate Go module?** Defer until the fixtures stabilize against ≥1 non-OneAuth target. Keep them inside `tests/conformance/` for now.
+- **Self-hosted runner for load tests — cloud or workstation?** Tail-latency gating needs a stable machine. Cheapest path: a single dedicated cloud VM that GH Actions reserves via runner labels. Doesn't gate item 1.
+- ~~**Frequency of quarterly suppression review**~~ **Resolved.** No cron. The `make testconformance-report` target is run on demand; the report is checked into `test-reports/`. The ratchet itself catches the most important staleness case (gap silently shipped) without any review.
 
 ---
 
