@@ -187,10 +187,11 @@ Pure-OAuth code pushed down from mcpkit/ext/auth (mcpkit#158) into oneauth for b
 - E2e test suite (`make e2e`)
 
 ### What this track complements
-- **NEXTSTEPS Phase 3** (OAuth for non-browser clients) — #54 supersedes vague Phase 3 items, #53 adds machine-to-machine
-- **NEXTSTEPS Redis Store** — introspection endpoint needs fast token lookup
-- **NEXTSTEPS Token Blacklist** — introspection must check blacklist
-- **Issue #20** (persist AppRegistrar state) — DCR wrapper benefits from persistent registrations
+- **OAuth for non-browser clients** — #54 (headless OAuth + PKCE) and #53 (client_credentials) cover CLI/agent and machine-to-machine flows
+- **Redis-backed distributed stores** (#115) — introspection endpoint benefits from fast token lookup
+- **Token blacklist** — introspection checks the blacklist
+- **Persist AppRegistrar state** (#20) — DCR wrapper benefits from persistent registrations
+- **Authlete-superset tracker** (#163) — meta-issue aggregating gap-closure work, see [docs/gaps/AUTHLETE_GAP_ANALYSIS.md](gaps/AUTHLETE_GAP_ANALYSIS.md)
 
 ### Positioning vs Keycloak
 OneAuth and Keycloak are **complementary, not competing:**

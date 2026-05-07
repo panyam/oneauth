@@ -109,7 +109,7 @@ uv run pytest tests/integration/test_05_browser_auth.py \
 
 ## Scenario: OAuth API Mode (Not Yet Implemented)
 
-**Status**: P0 blocker — see [NEXTSTEPS.md](NEXTSTEPS.md), Phase 3
+**Status**: Superseded by headless OAuth (#54) — `LoginWithBrowser` + loopback redirect now covers CLI/SPA/mobile via standard auth-code + PKCE. The narrative below is retained for context.
 
 ### The Problem
 
