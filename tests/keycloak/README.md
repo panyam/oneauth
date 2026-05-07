@@ -25,12 +25,14 @@ make downkcl    # Stop when done
 | Audience Array | Keycloak's `aud` claim (string or array) handled correctly (#52) |
 | Tampered Token Rejected | Modified Keycloak tokens fail signature verification |
 | Wrong Credentials Rejected | Keycloak rejects invalid client_secret |
+| RFC 7592 lifecycle (#171) | `client.GetRegistration` / `UpdateRegistration` / `DeleteRegistration` SDK helpers round-trip against Keycloak's `clients-registrations/openid-connect/{client_id}` endpoint, including registration_access_token rotation on PUT and rejection of the rotated-out token |
 
 ## Keycloak Realm Config
 
 `realm.json` is imported on container startup. It contains:
 
 - **Realm**: `oneauth-test` (RS256 signing)
+- **Anonymous DCR / RFC 7592 management**: enabled via a relaxed `Trusted Hosts` policy in the `components` block. `host-sending-registration-request-must-match` and `client-uris-must-match` are both `false` because Docker-on-macOS makes the request appear to come from a non-loopback IP, which would otherwise trip the default policy. **Test-only** — production deployments should use Initial Access Tokens.
 - **Clients**:
   - `test-confidential` — client_credentials + password grants (secret: `test-secret-for-confidential-client`)
   - `test-public` — PKCE-enabled public client
