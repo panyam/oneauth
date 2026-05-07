@@ -31,6 +31,7 @@ func runDemo() {
 	authServer.Config.Handler = newAuthServer(ks, authServer.URL)
 
 	var symClientID, symClientSecret string
+	var symRegToken, symRegURI string
 	var asymClientID string
 
 	demo := demokit.New("06: Dynamic Client Registration").
@@ -123,6 +124,45 @@ func runDemo() {
 
 			symClientID = dcrResp["client_id"].(string)
 			symClientSecret = dcrResp["client_secret"].(string)
+			symRegToken, _ = dcrResp["registration_access_token"].(string)
+			symRegURI, _ = dcrResp["registration_client_uri"].(string)
+			return nil
+		})
+
+	demo.Section("RFC 7592: managing your own registration",
+		"Notice the response above includes two extra fields:",
+		"",
+		"- `registration_access_token` — a Bearer token tied to **this specific client_id**",
+		"- `registration_client_uri` — the management endpoint for this registration",
+		"",
+		"These come from RFC 7592 (Dynamic Client Registration *Management*). Once a client",
+		"is registered, holding the access token lets the client read, update, or delete",
+		"its own registration without going through an admin — a self-service lifecycle.",
+		"",
+		"OneAuth issue 168 ships GET (read); 169 / 170 will add PUT (update) and DELETE.",
+	)
+
+	demo.Step("Fetch your own registration (RFC 7592 §2.1)").
+		Ref(refs.RFC7592).
+		Arrow("App", "AS", "GET {registration_client_uri}  Authorization: Bearer {registration_access_token}").
+		DashedArrow("AS", "App", "{registration metadata — without client_secret}").
+		Note("client.GetRegistration is a thin SDK wrapper. Note the response intentionally omits client_secret on read — re-emitting symmetric credentials on every fetch enlarges disclosure if the access token leaks. Clients that lose the secret will rotate via PUT (#169).").
+		VerbatimLang("Reproduce on the wire", "bash", `curl -s -X GET '<registration_client_uri>' \
+  -H 'Authorization: Bearer <registration_access_token>' | jq`).
+		Run(func(ctx demokit.StepContext) *demokit.StepResult {
+			if symRegToken == "" || symRegURI == "" {
+				return demokit.Errf("symmetric registration didn't issue management credentials")
+			}
+			got, err := client.GetRegistration(symRegURI, symRegToken, nil)
+			if err != nil {
+				return demokit.Errf("GetRegistration: %v", err)
+			}
+			fmt.Printf("    client_id:                 %s\n", got.ClientID)
+			fmt.Printf("    client_name:               %s\n", got.ClientName)
+			fmt.Printf("    scope:                     %s\n", got.Scope)
+			fmt.Printf("    grant_types:               %v\n", got.GrantTypes)
+			fmt.Printf("    registration_client_uri:   %s\n", got.RegistrationClientURI)
+			fmt.Printf("    client_secret in response: %v (intentionally omitted)\n", got.ClientSecret != "")
 			return nil
 		})
 

@@ -188,6 +188,17 @@ Splits issue 20 (Persist AppRegistrar state) into shippable backend chunks. The 
 
 After 167 lands, parent issue 20 can close. The chain unblocks the entire RFC 7592 track (issues 168 / 169 / 170 / 171) tracked under issue 157.
 
+## RFC 7592 — DCR Management
+
+Splits issue 157 (parent) into vertical verb-by-verb slices. Each ticket ships a server handler, a client SDK helper, tests, and a walkthrough step in `examples/06-dynamic-client-registration/`. The `ClientRegistrationManager` interface introduced in 168 is also the blueprint for issue 172 (transport-agnostic refactor of legacy admin/ surface).
+
+| # | Slice | Status |
+|---|-------|--------|
+| 168 | Foundation + GET — registration_access_token + registration_client_uri issuance, `ClientRegistrationManager` interface, `DCRManagementHandler`, `client.GetRegistration`, walkthrough step | In progress |
+| 169 | PUT — full-replace update + token re-issuance + `client.UpdateRegistration` + walkthrough step | Pending |
+| 170 | DELETE — registration removal + `client.DeleteRegistration` + walkthrough step | Pending |
+| 171 | Keycloak interop — full lifecycle test against Keycloak's RFC 7592 endpoints | Pending |
+
 ---
 
 ## Relationship to Existing Work

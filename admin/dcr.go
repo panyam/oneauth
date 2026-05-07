@@ -19,7 +19,12 @@ import (
 // Automatically mounted by AppRegistrar.Handler() at POST /apps/dcr.
 // Existing /apps/* endpoints continue working unchanged.
 //
+// On successful registration the response includes a registration access
+// token + management URI (RFC 7592 §3) which the client uses to read,
+// update, or delete its own registration via /apps/dcr/{client_id}.
+//
 // See: https://www.rfc-editor.org/rfc/rfc7591
+// See: https://www.rfc-editor.org/rfc/rfc7592
 type DCRHandler struct {
 	// KeyStore stores client credentials (same KeyStore as AppRegistrar).
 	KeyStore keys.KeyStorage
@@ -33,6 +38,14 @@ type DCRHandler struct {
 	// Registrar is the underlying AppRegistrar for metadata storage.
 	// If nil, client metadata is not persisted (only KeyStore is used).
 	Registrar *AppRegistrar
+
+	// IssuerBaseURL is the public base URL used to construct
+	// registration_client_uri values returned in DCR responses
+	// (e.g. "https://auth.example.com"). When empty, the URI is
+	// built from the incoming request's scheme + Host header — fine
+	// for tests but unreliable behind proxies, so production
+	// deployments should set this explicitly.
+	IssuerBaseURL string
 }
 
 // DCRRequest is the RFC 7591 client registration request.
@@ -55,20 +68,28 @@ type DCRRequest struct {
 	JWKS *utils.JWKSet `json:"jwks,omitempty"`
 }
 
-// DCRResponse is the RFC 7591 client registration response.
+// DCRResponse is the RFC 7591 client registration response, extended with the
+// RFC 7592 §3 management credentials (registration_access_token +
+// registration_client_uri) so that registered clients can subsequently call
+// /apps/dcr/{client_id} to read, update, or delete their own registration.
 // See: https://www.rfc-editor.org/rfc/rfc7591#section-3.2.1
+// See: https://www.rfc-editor.org/rfc/rfc7592#section-3
 type DCRResponse struct {
-	ClientID                string   `json:"client_id"`
-	ClientSecret            string   `json:"client_secret,omitempty"`
-	ClientIDIssuedAt        int64    `json:"client_id_issued_at"`
-	ClientSecretExpiresAt   int64    `json:"client_secret_expires_at"`
-	ClientName              string   `json:"client_name,omitempty"`
-	ClientURI               string   `json:"client_uri,omitempty"`
-	RedirectURIs            []string `json:"redirect_uris,omitempty"`
+	ClientID                  string   `json:"client_id"`
+	ClientSecret              string   `json:"client_secret,omitempty"`
+	ClientIDIssuedAt          int64    `json:"client_id_issued_at"`
+	ClientSecretExpiresAt     int64    `json:"client_secret_expires_at"`
+	ClientName                string   `json:"client_name,omitempty"`
+	ClientURI                 string   `json:"client_uri,omitempty"`
+	RedirectURIs              []string `json:"redirect_uris,omitempty"`
 	GrantTypes                []string `json:"grant_types,omitempty"`
 	TokenEndpointAuthMethod   string   `json:"token_endpoint_auth_method,omitempty"`
 	Scope                     string   `json:"scope,omitempty"`
 	AuthorizationDetailsTypes []string `json:"authorization_details_types,omitempty"` // RFC 9396
+
+	// RFC 7592 §3 — management credentials.
+	RegistrationAccessToken string `json:"registration_access_token,omitempty"`
+	RegistrationClientURI   string `json:"registration_client_uri,omitempty"`
 }
 
 // ServeHTTP handles POST /register per RFC 7591.
@@ -116,6 +137,17 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate the RFC 7592 §3 management credentials. These are returned
+	// in the registration response and persisted on AppRegistration so the
+	// management endpoints (GET / PUT / DELETE /apps/dcr/{client_id}) can
+	// authenticate subsequent requests from this client.
+	regAccessToken, err := generateRegistrationAccessToken()
+	if err != nil {
+		h.jsonError(w, "server_error", "Failed to generate registration access token", http.StatusInternalServerError)
+		return
+	}
+	regClientURI := h.buildRegistrationClientURI(r, clientID)
+
 	resp := DCRResponse{
 		ClientID:                  clientID,
 		ClientIDIssuedAt:          time.Now().Unix(),
@@ -127,6 +159,8 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		TokenEndpointAuthMethod:   req.TokenEndpointAuthMethod,
 		Scope:                     req.Scope,
 		AuthorizationDetailsTypes: req.AuthorizationDetailsTypes,
+		RegistrationAccessToken:   regAccessToken,
+		RegistrationClientURI:     regClientURI,
 	}
 
 	if utils.IsAsymmetricAlg(signingAlg) {
@@ -181,6 +215,8 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			GrantTypes:                req.GrantTypes,
 			Scope:                     req.Scope,
 			TokenEndpointAuthMethod:   req.TokenEndpointAuthMethod,
+			RegistrationAccessToken:   regAccessToken,
+			RegistrationClientURI:     regClientURI,
 		}
 		if err := h.Registrar.SaveRegistration(reg); err != nil {
 			h.jsonError(w, "server_error", "Failed to persist registration", http.StatusInternalServerError)
@@ -216,4 +252,32 @@ func generateDCRSecret() (string, error) {
 		return "", fmt.Errorf("failed to generate secret: %w", err)
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// generateRegistrationAccessToken returns a 32-byte (256-bit) hex-encoded random
+// token used as the RFC 7592 management credential for a DCR-registered client.
+// The token is stored on AppRegistration.RegistrationAccessToken and validated
+// on every /apps/dcr/{client_id} request via DCRManagementHandler.
+func generateRegistrationAccessToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate registration access token: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// buildRegistrationClientURI constructs the RFC 7592 §3 management URI for a
+// freshly registered client. It prefers the configured IssuerBaseURL (correct
+// behind reverse proxies); when that's empty, it falls back to scheme+Host
+// from the incoming request — fine for tests, unreliable in production.
+func (h *DCRHandler) buildRegistrationClientURI(r *http.Request, clientID string) string {
+	base := h.IssuerBaseURL
+	if base == "" {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		base = scheme + "://" + r.Host
+	}
+	return base + "/apps/dcr/" + clientID
 }
