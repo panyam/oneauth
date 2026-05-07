@@ -97,7 +97,10 @@ tokenStore := fs.NewFSTokenStore(storagePath)
 usernameStore := fs.NewFSUsernameStore(storagePath)
 refreshTokenStore := fs.NewFSRefreshTokenStore(storagePath)
 apiKeyStore := fs.NewFSAPIKeyStore(storagePath)
+appStore := fs.NewFSAppStore(storagePath) // RFC 7591 / 7592 client registrations (issue 166)
 ```
+
+The `FSAppStore` writes one JSON file per registration under `{storagePath}/apps/{client_id}.json`, with atomic writes (temp file + rename), `safeName` path-traversal defense, and lazy directory creation. Corrupt files surface as parse errors from `GetApp` (so operators can detect data integrity issues) but are silently skipped by `ListApps` (so admin tooling stays usable when one file is hand-edited badly).
 
 ### GORM (SQL Databases)
 
@@ -281,7 +284,7 @@ type AppRegistrationStore interface {
 | Backend | Status | Use case |
 |---------|--------|----------|
 | `admin.InMemoryAppStore` | Available | Tests, dev (registrations lost on restart) |
-| `stores/fs.FSAppStore` | Pending — issue 166 | Single-node, dev-friendly persistence |
+| `stores/fs.FSAppStore` | Available (issue 166) | Single-node, dev-friendly persistence |
 | `stores/gorm.GORMAppStore` | Pending — issue 167 | Production, multi-node (Postgres / MySQL / SQLite) |
 
 Construct with `admin.NewAppRegistrar(keyStore, auth)` for the default in-memory store, or `admin.NewAppRegistrarWithStore(keyStore, auth, store)` to plug in a persistent backend.
