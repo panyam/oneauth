@@ -139,7 +139,7 @@ type TokenPair struct {
 
 // TokenRequest represents a request to the token endpoint
 type TokenRequest struct {
-	GrantType            string                `json:"grant_type"`                                  // "password", "refresh_token", "client_credentials"
+	GrantType            string                `json:"grant_type"`                                  // "password", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:jwt-bearer", "urn:ietf:params:oauth:grant-type:token-exchange"
 	Username             string                `json:"username,omitempty"`                          // For password grant
 	Password             string                `json:"password,omitempty"`                          // For password grant
 	RefreshToken         string                `json:"refresh_token,omitempty"`                     // For refresh_token grant
@@ -147,6 +147,23 @@ type TokenRequest struct {
 	ClientID             string                `json:"client_id,omitempty"`                         // Client identifier (for client_credentials, optional for others)
 	ClientSecret         string                `json:"client_secret,omitempty"`                     // Client secret (for client_credentials via client_secret_post)
 	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"`             // RFC 9396
+
+	// Assertion is the signed JWT for grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer
+	// (RFC 7523 §2.1). The AS validates the assertion against a configured
+	// trusted-issuer registry and issues an access token in exchange.
+	Assertion string `json:"assertion,omitempty"`
+
+	// SubjectToken / SubjectTokenType / RequestedTokenType / Resource / Audience
+	// support grant_type=urn:ietf:params:oauth:grant-type:token-exchange (RFC 8693).
+	// SubjectToken is the credential representing the party on whose behalf
+	// the request is made; SubjectTokenType identifies its kind (e.g.,
+	// urn:ietf:params:oauth:token-type:jwt). RequestedTokenType (optional)
+	// identifies the desired output token kind; defaults to access_token.
+	SubjectToken       string `json:"subject_token,omitempty"`
+	SubjectTokenType   string `json:"subject_token_type,omitempty"`
+	RequestedTokenType string `json:"requested_token_type,omitempty"`
+	Resource           string `json:"resource,omitempty"`
+	Audience           string `json:"audience,omitempty"`
 }
 
 // TokenError represents an OAuth 2.0 compliant error response
