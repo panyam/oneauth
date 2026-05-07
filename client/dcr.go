@@ -218,6 +218,19 @@ type UpdateRegistrationResponse struct {
 	Registration *ClientRegistrationResponse
 }
 
+// DeleteRegistrationRequest is the input to DeleteRegistration.
+type DeleteRegistrationRequest struct {
+	RegistrationClientURI   string
+	RegistrationAccessToken string
+	// HTTPClient — see GetRegistrationRequest for rationale.
+	HTTPClient *http.Client
+}
+
+// DeleteRegistrationResponse is intentionally empty today: the AS returns
+// 204 No Content with no body. Wrapped struct preserves the convention's
+// (ctx, *Req) → (*Resp, error) shape and gives forward-compat headroom.
+type DeleteRegistrationResponse struct{}
+
 // UpdateRegistration performs an RFC 7592 §2.2 full-replace update.
 //
 // On success the AS rotates the registration_access_token; the new token
@@ -297,4 +310,52 @@ func UpdateRegistration(ctx context.Context, req *UpdateRegistrationRequest) (*U
 		return nil, fmt.Errorf("UpdateRegistration response missing registration_access_token")
 	}
 	return &UpdateRegistrationResponse{Registration: &result}, nil
+}
+
+// DeleteRegistration performs an RFC 7592 §2.3 deletion. After it returns
+// successfully the AS has removed the registration and invalidated the
+// signing credentials, so any tokens already issued under this client_id
+// will fail subsequent validation.
+//
+// Maps server responses:
+//   - 204 No Content → nil error + empty response struct
+//   - 401 → ErrRegistrationUnauthorized
+//   - others → generic error including status + body
+//
+// See: https://www.rfc-editor.org/rfc/rfc7592#section-2.3
+func DeleteRegistration(ctx context.Context, req *DeleteRegistrationRequest) (*DeleteRegistrationResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if req.RegistrationClientURI == "" {
+		return nil, fmt.Errorf("registration_client_uri is required")
+	}
+	if req.RegistrationAccessToken == "" {
+		return nil, fmt.Errorf("registration_access_token is required")
+	}
+	httpClient := req.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, req.RegistrationClientURI, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build DeleteRegistration request: %w", err)
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+req.RegistrationAccessToken)
+
+	resp, err := httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("DeleteRegistration DELETE: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNoContent {
+		return &DeleteRegistrationResponse{}, nil
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, ErrRegistrationUnauthorized
+	}
+	body, _ := io.ReadAll(resp.Body)
+	return nil, fmt.Errorf("DeleteRegistration returned %d: %s", resp.StatusCode, string(body))
 }

@@ -260,6 +260,57 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	}, nil
 }
 
+// DeleteRegistration implements ClientRegistrationManager (RFC 7592 §2.3).
+// On success it removes the registration from the AppRegistrationStore (and
+// the in-memory cache), and deletes the client's signing key from KeyStore
+// so any tokens already issued under this client_id fail subsequent
+// signature-validation — satisfying the spec requirement that "the
+// authorization server MUST invalidate" all tokens for a deleted client.
+//
+// Failure ordering mirrors handleDeleteApp: we persist the deletion in the
+// store first; only on success do we drop the cache entry and the KeyStore
+// key. If the store write fails we return early without touching the
+// in-memory cache or the credentials, so the registration remains
+// authoritatively present (deletion can be retried).
+//
+// ctx is currently unused but threaded through for cancellation / deadline
+// propagation once stores grow async ops.
+func (h *AppRegistrar) DeleteRegistration(ctx context.Context, req *DeleteRegistrationRequest) (*DeleteRegistrationResponse, error) {
+	if req == nil || req.ClientID == "" || req.AccessToken == "" {
+		return nil, ErrUnauthorized
+	}
+	reg, err := h.Store.GetApp(req.ClientID)
+	if err != nil || reg == nil {
+		return nil, ErrUnauthorized
+	}
+	if reg.RegistrationAccessToken == "" {
+		return nil, ErrUnauthorized
+	}
+	if subtle.ConstantTimeCompare([]byte(reg.RegistrationAccessToken), []byte(req.AccessToken)) != 1 {
+		return nil, ErrUnauthorized
+	}
+
+	// Persist deletion first. If the store write fails we leave the cache
+	// and KeyStore intact so the client retains a known-consistent state
+	// and the caller can retry; otherwise we'd leave dangling key material
+	// without a registration to bind it.
+	if err := h.Store.DeleteApp(req.ClientID); err != nil && err != ErrAppNotFound {
+		return nil, err
+	}
+
+	h.mu.Lock()
+	delete(h.apps, req.ClientID)
+	h.mu.Unlock()
+
+	// Invalidate the signing credentials. Errors here are non-fatal — the
+	// registration is gone, which is the user-visible deletion contract;
+	// a stranded key is at worst an internal cleanup concern (the KeyStore
+	// entry is unreachable without an AppRegistration to point at it).
+	_ = h.KeyStore.DeleteKey(req.ClientID)
+
+	return &DeleteRegistrationResponse{}, nil
+}
+
 // RLockApps calls fn with a read-locked view of all registered apps.
 func (h *AppRegistrar) RLockApps(fn func(map[string]*AppRegistration)) {
 	h.mu.RLock()

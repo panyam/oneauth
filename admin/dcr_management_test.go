@@ -223,16 +223,15 @@ func TestDCRManagement_GET_UnknownClient_Returns401NotFound(t *testing.T) {
 	assert.NotEqual(t, http.StatusNotFound, rr.Code)
 }
 
-// TestDCRManagement_UnsupportedMethodReturns405 verifies that methods we
-// don't yet support (DELETE — pending #170 — and arbitrary verbs like POST)
-// return 405 with an Allow header advertising the currently supported set.
-// This list shrinks as #170 lands.
+// TestDCRManagement_UnsupportedMethodReturns405 verifies that arbitrary verbs
+// (POST, PATCH, etc.) return 405 with an Allow header advertising the supported
+// set. After #170 the supported set is {GET, PUT, DELETE}.
 func TestDCRManagement_UnsupportedMethodReturns405(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	registered := registerDCRClient(t, registrar, `{"client_name":"405 Test"}`)
 
-	for _, method := range []string{http.MethodDelete, http.MethodPost} {
+	for _, method := range []string{http.MethodPost, http.MethodPatch} {
 		t.Run(method, func(t *testing.T) {
 			req := httptest.NewRequest(method, "/apps/dcr/"+registered["client_id"].(string), nil)
 			req.Header.Set("Authorization", "Bearer "+registered["registration_access_token"].(string))
@@ -240,7 +239,7 @@ func TestDCRManagement_UnsupportedMethodReturns405(t *testing.T) {
 			registrar.Handler().ServeHTTP(rr, req)
 
 			assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
-			assert.Equal(t, "GET, PUT", rr.Header().Get("Allow"))
+			assert.Equal(t, "GET, PUT, DELETE", rr.Header().Get("Allow"))
 		})
 	}
 }
@@ -450,6 +449,165 @@ func TestDCRManagement_PUT_WrongTokenReturns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	assert.Contains(t, rr.Header().Get("WWW-Authenticate"), "Bearer")
+}
+
+// --- DELETE — RFC 7592 §2.3 tests ---
+//
+// Issue #170 ships full deletion semantics: registration removed, signing
+// credentials invalidated so already-issued tokens fail subsequent validation.
+
+// TestDeleteRegistration_HappyPath verifies the canonical delete flow: the
+// registration is gone from the store, the signing key is gone from KeyStore,
+// and any subsequent management call (with the same token) returns
+// ErrUnauthorized — there is no special "already deleted" signal, by design.
+func TestDeleteRegistration_HappyPath(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"Delete Me"}`)
+	clientID := registered["client_id"].(string)
+	token := registered["registration_access_token"].(string)
+
+	resp, err := registrar.DeleteRegistration(context.Background(), &admin.DeleteRegistrationRequest{
+		ClientID:    clientID,
+		AccessToken: token,
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+
+	// Registration is gone — subsequent GETs cannot tell you anything.
+	_, err = registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
+		ClientID: clientID, AccessToken: token,
+	})
+	assert.True(t, errors.Is(err, admin.ErrUnauthorized), "post-delete GET must return ErrUnauthorized")
+
+	// Signing key is gone — tokens issued under this client_id can no longer
+	// be re-validated against the AS.
+	if _, err := ks.GetKey(clientID); err != keys.ErrKeyNotFound {
+		t.Errorf("expected ErrKeyNotFound after delete, got %v", err)
+	}
+}
+
+// TestDeleteRegistration_WrongTokenReturnsUnauthorized verifies that a caller
+// presenting a non-matching token cannot delete the registration. The
+// registration must remain intact afterwards.
+func TestDeleteRegistration_WrongTokenReturnsUnauthorized(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"Wrong Token DELETE"}`)
+	clientID := registered["client_id"].(string)
+	token := registered["registration_access_token"].(string)
+
+	_, err := registrar.DeleteRegistration(context.Background(), &admin.DeleteRegistrationRequest{
+		ClientID:    clientID,
+		AccessToken: "definitely-not-the-token",
+	})
+	assert.True(t, errors.Is(err, admin.ErrUnauthorized))
+
+	// Registration must still be readable with the legitimate token.
+	resp, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
+		ClientID: clientID, AccessToken: token,
+	})
+	require.NoError(t, err, "registration must survive a failed delete")
+	assert.Equal(t, clientID, resp.Registration.ClientID)
+}
+
+// TestDeleteRegistration_UnknownClientReturnsUnauthorized verifies the
+// no-enumeration property: deleting an unknown client_id returns
+// ErrUnauthorized, not a "not found" signal.
+func TestDeleteRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+
+	_, err := registrar.DeleteRegistration(context.Background(), &admin.DeleteRegistrationRequest{
+		ClientID:    "app_does_not_exist",
+		AccessToken: "any",
+	})
+	assert.True(t, errors.Is(err, admin.ErrUnauthorized))
+}
+
+// TestDeleteRegistration_LegacyRegistrationCannotBeDeleted verifies that
+// apps registered through the legacy /apps/register endpoint (no
+// registration_access_token issued) are not deletable through the management
+// interface — only DCR-registered clients participate in RFC 7592.
+func TestDeleteRegistration_LegacyRegistrationCannotBeDeleted(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+
+	body := `{"client_domain":"legacy.example","signing_alg":"HS256"}`
+	req := httptest.NewRequest(http.MethodPost, "/apps/register", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+	require.Equal(t, http.StatusCreated, rr.Code)
+	var legacy map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &legacy))
+
+	_, err := registrar.DeleteRegistration(context.Background(), &admin.DeleteRegistrationRequest{
+		ClientID:    legacy["client_id"].(string),
+		AccessToken: "any-token",
+	})
+	assert.True(t, errors.Is(err, admin.ErrUnauthorized))
+}
+
+// TestDCRManagement_DELETE_HappyPath verifies the wire-level behavior: 204
+// No Content with the no-store cache headers required for token-bearing
+// endpoints, and an empty response body.
+func TestDCRManagement_DELETE_HappyPath(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"DELETE HP"}`)
+	clientID := registered["client_id"].(string)
+	token := registered["registration_access_token"].(string)
+
+	req := httptest.NewRequest(http.MethodDelete, "/apps/dcr/"+clientID, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNoContent, rr.Code)
+	assert.Equal(t, "no-store", rr.Header().Get("Cache-Control"))
+	assert.Empty(t, rr.Body.String(), "204 response must have an empty body")
+}
+
+// TestDCRManagement_DELETE_WrongToken returns 401 when the Bearer value does
+// not match the stored registration_access_token.
+func TestDCRManagement_DELETE_WrongToken(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"DELETE Wrong Token"}`)
+
+	req := httptest.NewRequest(http.MethodDelete, "/apps/dcr/"+registered["client_id"].(string), nil)
+	req.Header.Set("Authorization", "Bearer not-the-real-token")
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// TestDCRManagement_DELETE_MissingAuthHeader returns 401 with no auth header.
+func TestDCRManagement_DELETE_MissingAuthHeader(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registered := registerDCRClient(t, registrar, `{"client_name":"DELETE No Auth"}`)
+
+	req := httptest.NewRequest(http.MethodDelete, "/apps/dcr/"+registered["client_id"].(string), nil)
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// TestDCRManagement_DELETE_UnknownClient returns 401 (not 404) — same
+// no-enumeration guard as GET / PUT.
+func TestDCRManagement_DELETE_UnknownClient(t *testing.T) {
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+
+	req := httptest.NewRequest(http.MethodDelete, "/apps/dcr/app_phantom", nil)
+	req.Header.Set("Authorization", "Bearer something")
+	rr := httptest.NewRecorder()
+	registrar.Handler().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
 // TestDCRManagement_GET_DoesNotShadowDCRRegister verifies the routing

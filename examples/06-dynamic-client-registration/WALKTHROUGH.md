@@ -9,6 +9,7 @@ Non-UI | No infrastructure needed | Builds on Example 04
 - **Update your scope (RFC 7592 §2.2)** — PUT is a full replacement (not PATCH-style merge): any field omitted from the body is cleared. The AS rotates the registration_access_token on success — the response includes a NEW token that supersedes the one passed in. The OneAuth server also rejects token_endpoint_auth_method changes (those require re-keying; clients DELETE + re-register instead).
 - **Old token is rejected after rotation** — After PUT rotates the token, attempting to reuse the *previous* registration_access_token must fail with 401 — even though the client_id is still valid. This is the security guarantee of rotation: a leaked-then-rotated token cannot be replayed.
 - **Get a token with the DCR-registered client** — The dynamically registered client works exactly like a manually registered one — the AS doesn't distinguish between registration methods.
+- **Delete the registration (RFC 7592 §2.3)** — DELETE removes the registration AND invalidates the signing credentials. After this, the client_secret captured at registration can no longer mint access tokens — the AS has dropped the signing key. RFC 7592 §2.3 requires the AS to MUST invalidate already-issued tokens; OneAuth does this by deleting the KeyStore entry so the JWT signature check fails.
 - **Register an asymmetric client (private_key_jwt with JWKS)** — For asymmetric auth, the client sends its public key as a JWK set. No secret is returned — the client authenticates with signed JWTs using its private key.
 - **Register via Keycloak DCR (optional)** — Same DCR request format against Keycloak. KC returns additional fields like registration_access_token for client management. If KC isn't running, this step is skipped.
 
@@ -39,11 +40,15 @@ sequenceDiagram
     App->>AS: POST /api/token {client_id, client_secret from DCR}
     AS-->>App: {access_token}
 
-    Note over App,AS: Step 6: Register an asymmetric client (private_key_jwt with JWKS)
+    Note over App,AS: Step 6: Delete the registration (RFC 7592 §2.3)
+    App->>AS: DELETE {registration_client_uri}  Authorization: Bearer {registration_access_token}
+    AS-->>App: 204 No Content
+
+    Note over App,AS: Step 7: Register an asymmetric client (private_key_jwt with JWKS)
     App->>AS: POST /apps/dcr {auth_method: private_key_jwt, jwks: {keys: [...]}}
     AS-->>App: {client_id} (no client_secret — asymmetric!)
 
-    Note over App,AS: Step 7: Register via Keycloak DCR (optional)
+    Note over App,AS: Step 8: Register via Keycloak DCR (optional)
     App->>AS: POST {KC registration_endpoint} {client_name, grant_types}
     AS-->>App: {client_id, client_secret, registration_access_token}
 ```
@@ -181,7 +186,20 @@ curl -s -X POST http://localhost:8081/api/token \
   -d 'scope=read' | jq
 ```
 
-### Step 6: Register an asymmetric client (private_key_jwt with JWKS)
+### Step 6: Delete the registration (RFC 7592 §2.3)
+
+> **References:** [RFC 7592 — Dynamic Client Registration Management](https://www.rfc-editor.org/rfc/rfc7592)
+
+DELETE removes the registration AND invalidates the signing credentials. After this, the client_secret captured at registration can no longer mint access tokens — the AS has dropped the signing key. RFC 7592 §2.3 requires the AS to MUST invalidate already-issued tokens; OneAuth does this by deleting the KeyStore entry so the JWT signature check fails.
+
+#### Reproduce on the wire
+
+```bash
+curl -s -X DELETE '<registration_client_uri>' \
+  -H 'Authorization: Bearer <registration_access_token>' -i
+```
+
+### Step 7: Register an asymmetric client (private_key_jwt with JWKS)
 
 > **References:** [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591), [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 
@@ -212,7 +230,7 @@ curl -s -X POST http://localhost:8081/apps/dcr \
 | **Key in JWKS** | Not in JWKS (secret) | Public key served in JWKS |
 | **Best for** | Simple integrations | High-security, multi-service |
 
-### Step 7: Register via Keycloak DCR (optional)
+### Step 8: Register via Keycloak DCR (optional)
 
 > **References:** [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591)
 
@@ -226,10 +244,10 @@ configuration — all wrapped in a simple `TokenSource` interface.
 
 ## References
 
-- [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 - [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 - [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591)
 - [RFC 7592 — Dynamic Client Registration Management](https://www.rfc-editor.org/rfc/rfc7592)
+- [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 
 ## Run it
 

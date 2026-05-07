@@ -354,9 +354,25 @@ newToken := resp.Registration.RegistrationAccessToken // persist before discardi
 
 OneAuth rejects updates that change `token_endpoint_auth_method` (would require re-keying); clients that need to switch auth method DELETE and re-register.
 
-### Delete (planned)
+### Delete your registration (RFC 7592 §2.3)
 
-`DeleteRegistration` ships in issue 170 with the same shape.
+`DeleteRegistration` removes the registration AND invalidates the signing credentials. After it returns successfully, the `client_secret` (or asymmetric key) captured at registration can no longer mint access tokens.
+
+```go
+_, err := client.DeleteRegistration(ctx, &client.DeleteRegistrationRequest{
+    RegistrationClientURI:   regURI,
+    RegistrationAccessToken: regToken,
+})
+if err != nil {
+    if errors.Is(err, client.ErrRegistrationUnauthorized) {
+        // Token rejected — already deleted, or never had management rights
+    }
+    return err
+}
+// 204 No Content. Empty response struct; nothing to inspect.
+```
+
+The response struct is intentionally empty today (the wire response is 204 No Content); it exists to keep the `(ctx, *Req) → (*Resp, error)` shape and gives forward-compat headroom.
 
 ## AuthTransport (Static Token)
 

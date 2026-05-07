@@ -23,8 +23,8 @@ import (
 // shape — that's the point of standardizing on a single ctx parameter
 // rather than expanding the parameter list ad hoc.
 //
-// #168 ships GetRegistration. #169 ships UpdateRegistration. DeleteRegistration
-// arrives in #170.
+// #168 ships GetRegistration. #169 ships UpdateRegistration. #170 ships
+// DeleteRegistration — completing the verb trio.
 type ClientRegistrationManager interface {
 	// GetRegistration returns the registration for req.ClientID iff
 	// req.AccessToken matches its stored registration_access_token. Any
@@ -47,6 +47,19 @@ type ClientRegistrationManager interface {
 	// ErrInvalidClientMetadata. Clients that need to change auth method
 	// DELETE and re-register.
 	UpdateRegistration(ctx context.Context, req *UpdateRegistrationRequest) (*UpdateRegistrationResponse, error)
+
+	// DeleteRegistration removes the registration for req.ClientID iff
+	// req.AccessToken matches the stored registration_access_token, and
+	// invalidates the client's signing credentials so already-issued tokens
+	// fail subsequent validation (RFC 7592 §2.3 — "the authorization server
+	// MUST invalidate" all tokens for the deleted client). The same uniform
+	// ErrUnauthorized envelope as the other methods covers every auth failure.
+	//
+	// Idempotency is intentional but limited: a second DELETE on the same
+	// client_id returns ErrUnauthorized (the registration is gone, so the
+	// token check fails at lookup) rather than a special "already deleted"
+	// error — preserves the no-enumeration guard.
+	DeleteRegistration(ctx context.Context, req *DeleteRegistrationRequest) (*DeleteRegistrationResponse, error)
 }
 
 // GetRegistrationRequest is the input to ClientRegistrationManager.GetRegistration.
@@ -91,6 +104,23 @@ type UpdateRegistrationRequest struct {
 type UpdateRegistrationResponse struct {
 	Registration *DCRResponse
 }
+
+// DeleteRegistrationRequest is the input to ClientRegistrationManager.DeleteRegistration.
+type DeleteRegistrationRequest struct {
+	// ClientID identifies the registration to remove.
+	ClientID string
+
+	// AccessToken is the registration_access_token currently on the
+	// registration — must match for the deletion to be authorized.
+	AccessToken string
+}
+
+// DeleteRegistrationResponse is intentionally empty today: RFC 7592 §2.3
+// returns 204 No Content with no body. The struct exists so future
+// forward-compat fields (e.g., a deletion confirmation token) can be added
+// without changing the method signature — same rationale as the other
+// response types.
+type DeleteRegistrationResponse struct{}
 
 // ErrUnauthorized is the single failure mode returned by ClientRegistrationManager
 // for any authentication problem on the management protocol. The uniform error

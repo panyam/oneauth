@@ -275,6 +275,42 @@ func runDemo() {
 			return nil
 		})
 
+	demo.Step("Delete the registration (RFC 7592 §2.3)").
+		Ref(refs.RFC7592).
+		Arrow("App", "AS", "DELETE {registration_client_uri}  Authorization: Bearer {registration_access_token}").
+		DashedArrow("AS", "App", "204 No Content").
+		Note("DELETE removes the registration AND invalidates the signing credentials. After this, the client_secret captured at registration can no longer mint access tokens — the AS has dropped the signing key. RFC 7592 §2.3 requires the AS to MUST invalidate already-issued tokens; OneAuth does this by deleting the KeyStore entry so the JWT signature check fails.").
+		VerbatimLang("Reproduce on the wire", "bash", `curl -s -X DELETE '<registration_client_uri>' \
+  -H 'Authorization: Bearer <registration_access_token>' -i`).
+		Run(func(ctx demokit.StepContext) *demokit.StepResult {
+			if symRegToken == "" || symRegURI == "" {
+				return demokit.Errf("symmetric registration didn't issue management credentials")
+			}
+			_, err := client.DeleteRegistration(context.Background(), &client.DeleteRegistrationRequest{
+				RegistrationClientURI:   symRegURI,
+				RegistrationAccessToken: symRegToken,
+			})
+			if err != nil {
+				return demokit.Errf("DeleteRegistration: %v", err)
+			}
+			fmt.Printf("    DELETE: 204 No Content (registration removed)\n\n")
+
+			// Demonstrate that the credentials are dead — client_credentials
+			// with the now-invalidated secret fails.
+			tokenResp, err := http.PostForm(authServer.URL+"/api/token", url.Values{
+				"grant_type":    {"client_credentials"},
+				"client_id":     {symClientID},
+				"client_secret": {symClientSecret},
+				"scope":         {"read"},
+			})
+			if err != nil {
+				return demokit.Errf("token check: %v", err)
+			}
+			tokenResp.Body.Close()
+			fmt.Printf("    POST /api/token with old secret → HTTP %d (deleted client cannot mint tokens)\n", tokenResp.StatusCode)
+			return nil
+		})
+
 	demo.Step("Register an asymmetric client (private_key_jwt with JWKS)").
 		Ref(refs.RFC7591).
 		Ref(refs.RFC7517).

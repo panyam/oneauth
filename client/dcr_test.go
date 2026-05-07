@@ -339,6 +339,77 @@ func TestUpdateRegistration_MissingTokenInResponse(t *testing.T) {
 	assert.Contains(t, err.Error(), "registration_access_token")
 }
 
+// --- DeleteRegistration tests (RFC 7592 §2.3) ---
+
+// TestDeleteRegistration_Success verifies the happy-path 204 round trip:
+// SDK sends DELETE with Bearer auth, AS replies 204, SDK returns an empty
+// response struct.
+func TestDeleteRegistration_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodDelete, r.Method)
+		assert.Equal(t, "Bearer rat-good", r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	resp, err := DeleteRegistration(context.Background(), &DeleteRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "rat-good",
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+}
+
+// TestDeleteRegistration_Unauthorized verifies that 401 surfaces as
+// ErrRegistrationUnauthorized — same sentinel as Get/Update since the
+// wire-level meaning (server rejected the access token) is identical.
+func TestDeleteRegistration_Unauthorized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	_, err := DeleteRegistration(context.Background(), &DeleteRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "rat-bad",
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRegistrationUnauthorized))
+}
+
+// TestDeleteRegistration_OtherErrors verifies that non-204/401 responses
+// surface the status + body for diagnostics.
+func TestDeleteRegistration_OtherErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	_, err := DeleteRegistration(context.Background(), &DeleteRegistrationRequest{
+		RegistrationClientURI:   server.URL,
+		RegistrationAccessToken: "rat",
+	})
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, ErrRegistrationUnauthorized))
+	assert.Contains(t, err.Error(), "500")
+}
+
+// TestDeleteRegistration_ValidatesArguments verifies that empty inputs fail
+// fast without making a network call.
+func TestDeleteRegistration_ValidatesArguments(t *testing.T) {
+	_, err := DeleteRegistration(context.Background(), &DeleteRegistrationRequest{
+		RegistrationAccessToken: "rat",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "registration_client_uri")
+
+	_, err = DeleteRegistration(context.Background(), &DeleteRegistrationRequest{
+		RegistrationClientURI: "https://x",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "registration_access_token")
+}
+
 // TestUpdateRegistration_ValidatesArguments verifies that empty inputs fail
 // fast without making a network call.
 func TestUpdateRegistration_ValidatesArguments(t *testing.T) {
