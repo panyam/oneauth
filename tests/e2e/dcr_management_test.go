@@ -12,6 +12,8 @@ package e2e_test
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/panyam/oneauth/client"
@@ -186,4 +188,70 @@ func TestE2E_DCRManagement_PUT_BodyMismatchReturns400(t *testing.T) {
 	assert.Contains(t, err.Error(), "400")
 
 	c.Delete("/apps/" + clientID)
+}
+
+// TestE2E_DCRManagement_DeleteRegistration drives the full RFC 7592 §2.3
+// lifecycle against the real auth server: register → DELETE → verify the
+// management endpoint stops returning the registration AND the deleted
+// client's secret can no longer mint access tokens. Together these prove
+// that "the authorization server MUST invalidate" the deleted client end
+// to end.
+func TestE2E_DCRManagement_DeleteRegistration(t *testing.T) {
+	env := NewTestEnv(t)
+	c := NewTestClient(env)
+
+	resp := c.PostJSON("/apps/dcr", map[string]any{
+		"client_name": "DELETE E2E",
+		"grant_types": []string{"client_credentials"},
+	})
+	require.Equal(t, 201, resp.StatusCode)
+	dcr := ReadJSON(resp)
+	clientID, _ := dcr["client_id"].(string)
+	clientSecret, _ := dcr["client_secret"].(string)
+	regToken, _ := dcr["registration_access_token"].(string)
+	regURI, _ := dcr["registration_client_uri"].(string)
+
+	require.NotEmpty(t, clientSecret, "DCR must issue a client_secret for symmetric registrations")
+
+	tokenURL := env.BaseURL() + "/api/token"
+	credForm := url.Values{
+		"grant_type":    {"client_credentials"},
+		"client_id":     {clientID},
+		"client_secret": {clientSecret},
+		"scope":         {"read"},
+	}
+
+	// Sanity: the freshly-registered client can mint an access token via
+	// client_credentials. Confirms the precondition for the post-delete
+	// invalidation check below.
+	tokResp, err := http.PostForm(tokenURL, credForm)
+	require.NoError(t, err)
+	require.Equal(t, 200, tokResp.StatusCode, "client_credentials must succeed BEFORE delete")
+	tokResp.Body.Close()
+
+	// DELETE the registration via the SDK.
+	delResp, err := client.DeleteRegistration(context.Background(), &client.DeleteRegistrationRequest{
+		RegistrationClientURI:   regURI,
+		RegistrationAccessToken: regToken,
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, delResp)
+
+	// Management calls with the same token now return 401 (the registration
+	// is gone — uniform unauthorized envelope, no enumeration leakage).
+	_, err = client.GetRegistration(context.Background(), &client.GetRegistrationRequest{
+		RegistrationClientURI:   regURI,
+		RegistrationAccessToken: regToken,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, client.ErrRegistrationUnauthorized)
+
+	// And the credentials are dead: client_credentials with the previously
+	// valid client_id+secret pair must now fail (the signing key is gone
+	// from KeyStore — RFC 7592 §2.3 invalidation).
+	tokResp2, err := http.PostForm(tokenURL, credForm)
+	require.NoError(t, err)
+	defer tokResp2.Body.Close()
+	assert.NotEqual(t, 200, tokResp2.StatusCode,
+		"deleted client must not be able to mint access tokens (RFC 7592 §2.3)")
 }

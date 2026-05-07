@@ -13,8 +13,9 @@ import (
 // authorization decisions live behind the interface so the same logic is
 // usable from gRPC, in-process callers, and tests without HTTP machinery.
 //
-// #168 ships GET; #169 ships PUT; #170 adds DELETE. Until DELETE lands
-// it returns 405 with an Allow header advertising the supported methods.
+// #168 ships GET; #169 ships PUT; #170 ships DELETE — completing the verb
+// trio. Other HTTP methods return 405 with an Allow header advertising the
+// supported set.
 //
 // See: https://www.rfc-editor.org/rfc/rfc7592
 type DCRManagementHandler struct {
@@ -24,7 +25,7 @@ type DCRManagementHandler struct {
 
 // allowedMethods is the value of the Allow header on 405 responses. Updated
 // when new verbs come online so a single string captures the supported set.
-const allowedMethods = "GET, PUT"
+const allowedMethods = "GET, PUT, DELETE"
 
 // ServeHTTP routes /apps/dcr/{client_id} requests by HTTP method.
 func (h *DCRManagementHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -39,12 +40,34 @@ func (h *DCRManagementHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		h.handleGet(w, r, clientID)
 	case http.MethodPut:
 		h.handlePut(w, r, clientID)
+	case http.MethodDelete:
+		h.handleDelete(w, r, clientID)
 	default:
 		// 405 does not depend on client_id or auth, so it leaks no per-client
 		// information. The Allow header advertises what's currently supported.
 		w.Header().Set("Allow", allowedMethods)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (h *DCRManagementHandler) handleDelete(w http.ResponseWriter, r *http.Request, clientID string) {
+	token := bearerToken(r.Header.Get("Authorization"))
+	_, err := h.Manager.DeleteRegistration(r.Context(), &DeleteRegistrationRequest{
+		ClientID:    clientID,
+		AccessToken: token,
+	})
+	if errors.Is(err, ErrUnauthorized) {
+		dcrUnauthorized(w, "invalid_token", "Invalid registration access token")
+		return
+	}
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	// RFC 7592 §2.3: 204 No Content with no body.
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *DCRManagementHandler) handlePut(w http.ResponseWriter, r *http.Request, clientID string) {
