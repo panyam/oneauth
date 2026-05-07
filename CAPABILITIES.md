@@ -32,7 +32,7 @@
 - security-headers: HSTS, CSP, X-Frame-Options middleware
 - rich-authorization-requests: RFC 9396 authorization_details on token endpoint, introspection, middleware enforcement
 - token-revocation: RFC 7009 endpoint for access and refresh token revocation
-- transport-agnostic-core: OneAuth struct with composed interfaces (TokenIssuer, TokenValidator, TokenIntrospector, TokenRevoker) — usable without HTTP
+- transport-agnostic-core: OneAuth struct with composed interfaces (TokenIssuer, TokenValidator, TokenIntrospector, TokenRevoker) — usable without HTTP. The `admin/` surface — `ClientRegistrationManager` (RFC 7592 self-service, issues 168/169/170) and `ClientRegistrar` (admin CRUD: register, list, get, delete, rotate; issue 172) — is also transport-agnostic; HTTP handlers are thin wrappers. apiauth port to the same convention is tracked in 175.
 - lifecycle-hooks: Grouped callbacks (TokenHooks, AuthHooks, ClientHooks, SecurityHooks) for audit, alerting, integration
 - interactive-examples: 10 progressive examples on demokit v0.0.16 — split into `main.go` (server with `--serve` real-port mode) + `walkthrough.go` (client demo). Slim `README.md` + generated `WALKTHROUGH.md` (mermaid + steps + copy-paste curl reproductions). Default `make demo` uses the TUI renderer.
 - client-sdk: AuthClient with credential store, auto-refresh, browser login
