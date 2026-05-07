@@ -5,6 +5,11 @@
 // non-zero on any diff. See tests/conformance/README.md and
 // docs/CONFORMANCE.md §1 for the model.
 //
+// Reports: every run writes a Markdown summary by default. The path is
+// derived from the -package pattern so a full run and a scoped run
+// produce distinct files (e.g., conformance.md vs conformance-as_metadata.md).
+// Use -report to override the path explicitly, or -no-report to skip.
+//
 // Exit codes:
 //
 //	0 — manifest matches reality
@@ -29,7 +34,9 @@ import (
 func main() {
 	manifestPath := flag.String("manifest", "known-gaps.yaml", "path to known-gaps manifest")
 	pkg := flag.String("package", "./...", "Go package pattern to test (excludes ./cmd/...)")
-	report := flag.String("report", "", "if set, write a Markdown report to this path")
+	reportDir := flag.String("report-dir", "", "directory for reports (default: <workspace>/test-reports)")
+	report := flag.String("report", "", "explicit report path (overrides -report-dir)")
+	noReport := flag.Bool("no-report", false, "skip writing a report")
 	flag.Parse()
 
 	manifest, err := LoadManifest(*manifestPath)
@@ -49,16 +56,93 @@ func main() {
 	out := FormatIssues(issues)
 	fmt.Fprint(os.Stderr, out)
 
-	if *report != "" {
-		if err := writeReport(*report, results, manifest, issues); err != nil {
+	reportPath := resolveReportPath(*pkg, *reportDir, *report, *noReport)
+	if reportPath != "" {
+		if err := os.MkdirAll(filepath.Dir(reportPath), 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "report dir error: %v\n", err)
+			os.Exit(3)
+		}
+		if err := writeReport(reportPath, *pkg, results, manifest, issues); err != nil {
 			fmt.Fprintf(os.Stderr, "report error: %v\n", err)
 			os.Exit(3)
 		}
-		fmt.Fprintf(os.Stderr, "report written: %s\n", *report)
+		fmt.Fprintf(os.Stderr, "report written: %s\n", reportPath)
 	}
 
 	if len(issues) > 0 {
 		os.Exit(1)
+	}
+}
+
+// resolveReportPath picks the report file based on flags, returning ""
+// when no report should be written (i.e., -no-report).
+//
+// Precedence: -no-report > -report > derived from -report-dir + -package.
+// When -report-dir is unset, defaults to <workspace>/test-reports where
+// <workspace> is the nearest ancestor containing go.work; falls back to
+// ./test-reports relative to CWD if no workspace is found.
+func resolveReportPath(pkg, reportDir, reportFile string, noReport bool) string {
+	if noReport {
+		return ""
+	}
+	if reportFile != "" {
+		return reportFile
+	}
+	if reportDir == "" {
+		if root := findWorkspaceRoot(); root != "" {
+			reportDir = filepath.Join(root, "test-reports")
+		} else {
+			reportDir = "test-reports"
+		}
+	}
+	return filepath.Join(reportDir, reportFilename(pkg))
+}
+
+// reportFilename derives the report basename from a Go package pattern.
+// "./..." (full run) → "conformance.md"; "./<suite>/..." or "./<suite>" →
+// "conformance-<suite>.md". Anything more complex (multi-pattern, nested
+// path, glob) falls back to "conformance.md".
+func reportFilename(pkg string) string {
+	if scope := scopeFromPackage(pkg); scope != "" {
+		return "conformance-" + scope + ".md"
+	}
+	return "conformance.md"
+}
+
+// scopeFromPackage extracts a single suite name when the pattern targets
+// one specific subdirectory. Returns "" for full runs ("./...") or
+// patterns the runner doesn't try to interpret (multi-pattern, nested,
+// or absolute paths) — caller treats "" as "full".
+func scopeFromPackage(pattern string) string {
+	p := strings.TrimPrefix(pattern, "./")
+	p = strings.TrimSuffix(p, "/...")
+	p = strings.TrimSuffix(p, "/")
+	if p == "" || p == "..." {
+		return ""
+	}
+	if strings.ContainsAny(p, "/,") {
+		return ""
+	}
+	return p
+}
+
+// findWorkspaceRoot walks up from CWD looking for go.work. Returns ""
+// if not found. The runner's submodule sits at <root>/tests/conformance,
+// so the walk-up from any subdir reliably lands on the workspace root.
+func findWorkspaceRoot() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		if fi, err := os.Stat(filepath.Join(dir, "go.work")); err == nil && !fi.IsDir() {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
 	}
 }
 
