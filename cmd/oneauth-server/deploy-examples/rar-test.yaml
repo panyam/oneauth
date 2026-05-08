@@ -16,6 +16,11 @@
 server:
   port: ${RAR_ISSUER_PORT:-8181}
   host: 0.0.0.0
+  # Public-facing URL used as the OIDC `iss` claim and `issuer` in AS metadata.
+  # Without this, host: 0.0.0.0 leaks into iss as "http://0.0.0.0:8181",
+  # which then fails iss-claim validation in tests that connect via localhost.
+  # See issue 184.
+  public_url: ${RAR_ISSUER_PUBLIC_URL:-http://localhost:8181}
 
 keystore:
   type: memory

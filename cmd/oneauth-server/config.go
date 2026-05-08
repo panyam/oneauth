@@ -13,10 +13,20 @@ import (
 type Config struct {
 	Server     ServerConfig     `yaml:"server"`
 	KeyStore   KeyStoreConfig   `yaml:"keystore"`
+	AppStore   AppStoreConfig   `yaml:"app_store"`
 	UserStores UserStoresConfig `yaml:"user_stores"`
 	JWT        JWTConfig        `yaml:"jwt"`
 	AdminAuth  AdminAuthConfig  `yaml:"admin_auth"`
 	TLS        TLSConfig        `yaml:"tls"`
+}
+
+// AppStoreConfig configures the AppRegistrationStore backing AppRegistrar
+// (issue 167 — closes parent 20). Mirrors KeyStoreConfig so deployments
+// see consistent shape.
+type AppStoreConfig struct {
+	Type string     `yaml:"type"` // memory, fs, gorm (defaults to memory)
+	FS   FSConfig   `yaml:"fs"`
+	GORM GORMConfig `yaml:"gorm"`
 }
 
 // UserStoresConfig configures persistent stores for users, identities, channels, tokens.
@@ -36,6 +46,14 @@ type JWTConfig struct {
 type ServerConfig struct {
 	Port string `yaml:"port"`
 	Host string `yaml:"host"`
+	// PublicURL is the externally-visible base URL clients use to reach
+	// this server (e.g., "http://localhost:8181" or "https://auth.example").
+	// Used for the OIDC `iss` claim and the RFC 8414 metadata document.
+	// When empty, falls back to scheme://host:port — fine for dev where
+	// host is loopback, but unreliable when host is 0.0.0.0 (bind-all),
+	// behind a reverse proxy, or otherwise differs from the public URL.
+	// See issue 184.
+	PublicURL string `yaml:"public_url"`
 }
 
 type KeyStoreConfig struct {
@@ -123,6 +141,9 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.KeyStore.Type == "" {
 		cfg.KeyStore.Type = "memory"
 	}
+	if cfg.AppStore.Type == "" {
+		cfg.AppStore.Type = "memory"
+	}
 	if cfg.AdminAuth.Type == "" {
 		cfg.AdminAuth.Type = "none"
 	}
@@ -160,6 +181,16 @@ func configFromEnv() Config {
 			GAE: GAEConfig{
 				Project:   os.Getenv("GCP_PROJECT"),
 				Namespace: os.Getenv("GAE_NAMESPACE"),
+			},
+		},
+		AppStore: AppStoreConfig{
+			Type: os.Getenv("APP_STORE_TYPE"),
+			FS: FSConfig{
+				Path: os.Getenv("APP_STORE_PATH"),
+			},
+			GORM: GORMConfig{
+				Driver: os.Getenv("APP_STORE_GORM_DRIVER"),
+				DSN:    os.Getenv("APP_STORE_DATABASE_URL"),
 			},
 		},
 		AdminAuth: AdminAuthConfig{

@@ -76,8 +76,12 @@ func main() {
 		log.Fatalf("Failed to create user stores: %v", err)
 	}
 
-	// Build AppRegistrar
-	registrar := admin.NewAppRegistrar(keyStore, adminAuth)
+	// Build AppRegistrar with the configured AppRegistrationStore (issue 167).
+	appStore, err := buildAppStore(cfg, db)
+	if err != nil {
+		log.Fatalf("Failed to create AppStore: %v", err)
+	}
+	registrar := admin.NewAppRegistrarWithStore(keyStore, adminAuth, appStore)
 
 	// Build LocalAuth
 	localAuth := &localauth.LocalAuth{
@@ -257,10 +261,21 @@ func main() {
 	jwksHandler := &keys.JWKSHandler{KeyStore: keyStore}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
 
-	// AS Metadata / OIDC Discovery (RFC 8414)
-	baseURL := fmt.Sprintf("http://%s:%s", cfg.Server.Host, cfg.Server.Port)
-	if cfg.TLS.Enabled {
-		baseURL = fmt.Sprintf("https://%s:%s", cfg.Server.Host, cfg.Server.Port)
+	// AS Metadata / OIDC Discovery (RFC 8414).
+	//
+	// Issuer is the canonical externally-visible URL — used as the OIDC `iss`
+	// claim on every minted token AND as the `issuer` in discovery metadata.
+	// When cfg.Server.PublicURL is set, use it verbatim (correct behind
+	// reverse proxies and when bind host is 0.0.0.0). Otherwise fall back to
+	// scheme://host:port — works for loopback dev but breaks for 0.0.0.0
+	// because clients connect via localhost / a routable address. See 184.
+	baseURL := cfg.Server.PublicURL
+	if baseURL == "" {
+		scheme := "http"
+		if cfg.TLS.Enabled {
+			scheme = "https"
+		}
+		baseURL = fmt.Sprintf("%s://%s:%s", scheme, cfg.Server.Host, cfg.Server.Port)
 	}
 	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
 		Issuer:                             baseURL,
@@ -417,6 +432,46 @@ func buildKeyStore(cfg *Config) (keys.KeyStorage, *gorm.DB, error) {
 	}
 
 	return store, db, nil
+}
+
+// buildAppStore builds the admin.AppRegistrationStore that AppRegistrar uses
+// to persist client registrations across restarts (issue 167; closes parent
+// 20). Mirrors buildKeyStore: memory for tests/dev, fs for single-node, gorm
+// for production multi-node. Reuses an existing GORM DB connection passed
+// from buildKeyStore when both are configured for the same database; opens
+// a fresh one otherwise.
+func buildAppStore(cfg *Config, sharedDB *gorm.DB) (admin.AppRegistrationStore, error) {
+	switch cfg.AppStore.Type {
+	case "memory":
+		log.Println("Using in-memory AppStore (registrations lost on restart)")
+		return admin.NewInMemoryAppStore(), nil
+
+	case "fs":
+		log.Printf("Using filesystem AppStore at %s", cfg.AppStore.FS.Path)
+		return fsstore.NewFSAppStore(cfg.AppStore.FS.Path), nil
+
+	case "gorm":
+		// Reuse the keystore's DB connection if config matches, otherwise
+		// open a fresh one. Reuse keeps the connection pool small for
+		// deployments using one DB for both stores; separate is the
+		// honest fallback when the configs differ.
+		db := sharedDB
+		if db == nil || cfg.KeyStore.GORM.DSN != cfg.AppStore.GORM.DSN || cfg.KeyStore.GORM.Driver != cfg.AppStore.GORM.Driver {
+			fresh, err := openGORM(cfg.AppStore.GORM)
+			if err != nil {
+				return nil, err
+			}
+			db = fresh
+		}
+		if err := gormstore.AutoMigrate(db); err != nil {
+			return nil, err
+		}
+		log.Printf("Using GORM AppStore (driver=%s)", cfg.AppStore.GORM.Driver)
+		return gormstore.NewAppStore(db), nil
+
+	default:
+		return nil, fmt.Errorf("unknown app_store type: %s", cfg.AppStore.Type)
+	}
 }
 
 func openGORM(cfg GORMConfig) (*gorm.DB, error) {
