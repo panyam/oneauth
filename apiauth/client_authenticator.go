@@ -1,6 +1,9 @@
 package apiauth
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -22,20 +25,23 @@ func NewClientAuthenticator(kl keys.KeyLookup) ClientAuthenticator {
 }
 
 // AuthenticateClient verifies client_id + client_secret.
-func (a *clientAuthenticator) AuthenticateClient(clientID, clientSecret string) error {
-	if a.keyLookup == nil {
-		return errInvalidClient
+func (a *clientAuthenticator) AuthenticateClient(ctx context.Context, req *AuthenticateClientRequest) (*AuthenticateClientResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("AuthenticateClientRequest is required")
 	}
-	rec, err := a.keyLookup.GetKey(clientID)
+	if a.keyLookup == nil {
+		return nil, errInvalidClient
+	}
+	rec, err := a.keyLookup.GetKey(req.ClientID)
 	if err != nil || rec == nil {
-		return errInvalidClient
+		return nil, errInvalidClient
 	}
 	storedKey, ok := rec.Key.([]byte)
 	if !ok {
-		return errInvalidClient
+		return nil, errInvalidClient
 	}
-	if !constantTimeEqual(string(storedKey), clientSecret) {
-		return errInvalidClient
+	if !constantTimeEqual(string(storedKey), req.ClientSecret) {
+		return nil, errInvalidClient
 	}
-	return nil
+	return &AuthenticateClientResponse{}, nil
 }

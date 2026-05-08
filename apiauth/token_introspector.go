@@ -1,6 +1,8 @@
 package apiauth
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -19,11 +21,16 @@ func NewTokenIntrospector(v TokenValidator) TokenIntrospector {
 
 // Introspect checks a token and returns the result per RFC 7662.
 // Returns {Active: false} for any invalid token — never reveals why.
-func (ti *tokenIntrospector) Introspect(tokenString string) (*IntrospectionResult, error) {
-	info, err := ti.validator.ValidateToken(tokenString)
-	if err != nil {
-		return &IntrospectionResult{Active: false}, nil
+func (ti *tokenIntrospector) Introspect(ctx context.Context, req *IntrospectRequest) (*IntrospectResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("IntrospectRequest is required")
 	}
+	tokenString := req.Token
+	resp, err := ti.validator.ValidateToken(ctx, &ValidateTokenRequest{Token: tokenString})
+	if err != nil {
+		return &IntrospectResponse{Result: &IntrospectionResult{Active: false}}, nil
+	}
+	info := resp.Info
 
 	// Parse raw claims for the full introspection response
 	// (ValidateToken strips standard claims from custom, but introspection
@@ -63,7 +70,7 @@ func (ti *tokenIntrospector) Introspect(tokenString string) (*IntrospectionResul
 		}
 	}
 
-	return result, nil
+	return &IntrospectResponse{Result: result}, nil
 }
 
 // parseRawJWTClaims extracts all claims from a JWT without validation.

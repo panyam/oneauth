@@ -1,6 +1,8 @@
 package apiauth
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -34,21 +36,24 @@ func NewTokenRevoker(cfg TokenRevokerConfig) TokenRevoker {
 
 // Revoke invalidates a token. Tries refresh token first if no hint or
 // hint is "refresh_token", then tries access token blacklisting.
-func (r *tokenRevoker) Revoke(token, tokenTypeHint string) error {
-	switch tokenTypeHint {
+func (r *tokenRevoker) Revoke(ctx context.Context, req *RevokeRequest) (*RevokeResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RevokeRequest is required")
+	}
+	switch req.TokenTypeHint {
 	case "refresh_token":
-		r.revokeRefreshToken(token)
+		r.revokeRefreshToken(req.Token)
 	case "access_token":
-		r.revokeAccessToken(token)
+		r.revokeAccessToken(req.Token)
 	default:
 		// No hint — try refresh first (cheaper lookup), then access
-		if !r.revokeRefreshToken(token) {
-			r.revokeAccessToken(token)
+		if !r.revokeRefreshToken(req.Token) {
+			r.revokeAccessToken(req.Token)
 		}
 	}
 
-	r.hooks.fireOnRevoked(token, tokenTypeHint)
-	return nil
+	r.hooks.fireOnRevoked(req.Token, req.TokenTypeHint)
+	return &RevokeResponse{}, nil
 }
 
 // revokeRefreshToken attempts to revoke a refresh token. Returns true if

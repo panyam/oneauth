@@ -7,6 +7,7 @@ package apiauth_test
 // See: https://github.com/panyam/oneauth/issues/110
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -31,17 +32,19 @@ func TestOneAuth_RefreshGrant(t *testing.T) {
 	rt, err := oa.RefreshStore.CreateRefreshToken("refresh-user", "test-client", nil, []string{"read", "write"})
 	require.NoError(t, err)
 
-	resp, err := oa.Issuer.RefreshGrant(rt.Token)
+	resp, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: rt.Token})
 	require.NoError(t, err)
-	assert.NotEmpty(t, resp.AccessToken)
-	assert.NotEmpty(t, resp.RefreshToken, "should get a new refresh token")
-	assert.NotEqual(t, rt.Token, resp.RefreshToken, "new refresh token should differ from old")
-	assert.Equal(t, "Bearer", resp.TokenType)
-	assert.Equal(t, "read write", resp.Scope)
+	require.NotNil(t, resp.Tokens)
+	tp := resp.Tokens
+	assert.NotEmpty(t, tp.AccessToken)
+	assert.NotEmpty(t, tp.RefreshToken, "should get a new refresh token")
+	assert.NotEqual(t, rt.Token, tp.RefreshToken, "new refresh token should differ from old")
+	assert.Equal(t, "Bearer", tp.TokenType)
+	assert.Equal(t, "read write", tp.Scope)
 
-	info, err := oa.Validator.ValidateToken(resp.AccessToken)
+	vresp, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tp.AccessToken})
 	require.NoError(t, err)
-	assert.Equal(t, "refresh-user", info.UserID)
+	assert.Equal(t, "refresh-user", vresp.Info.UserID)
 }
 
 // TestOneAuth_RefreshGrant_RevokedToken verifies that refreshing a revoked
@@ -54,7 +57,7 @@ func TestOneAuth_RefreshGrant_RevokedToken(t *testing.T) {
 	rt, _ := oa.RefreshStore.CreateRefreshToken("user-theft", "test-client", nil, []string{"read"})
 	oa.RefreshStore.RevokeRefreshToken(rt.Token)
 
-	_, err := oa.Issuer.RefreshGrant(rt.Token)
+	_, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: rt.Token})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "token reuse")
 }
@@ -64,7 +67,7 @@ func TestOneAuth_RefreshGrant_RevokedToken(t *testing.T) {
 func TestOneAuth_RefreshGrant_InvalidToken(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	_, err := oa.Issuer.RefreshGrant("not-a-real-refresh-token")
+	_, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: "not-a-real-refresh-token"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid_grant")
 }
@@ -105,7 +108,7 @@ func newTestOneAuthWithPasswordGrant(t *testing.T) *apiauth.OneAuth {
 func TestOneAuth_PasswordGrant(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
-	result, err := oa.Issuer.PasswordGrant(apiauth.PasswordGrantRequest{
+	result, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "correct-password",
 		Scopes:   []string{"read"},
@@ -116,9 +119,9 @@ func TestOneAuth_PasswordGrant(t *testing.T) {
 	assert.True(t, result.ExpiresIn > 0)
 	assert.Equal(t, []string{"read"}, result.GrantedScopes)
 
-	info, err := oa.Validator.ValidateToken(result.AccessToken)
+	vresp, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: result.AccessToken})
 	require.NoError(t, err)
-	assert.Equal(t, "user-alice", info.UserID)
+	assert.Equal(t, "user-alice", vresp.Info.UserID)
 }
 
 // TestOneAuth_PasswordGrant_BadPassword verifies that wrong credentials
@@ -128,7 +131,7 @@ func TestOneAuth_PasswordGrant(t *testing.T) {
 func TestOneAuth_PasswordGrant_BadPassword(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
-	_, err := oa.Issuer.PasswordGrant(apiauth.PasswordGrantRequest{
+	_, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "wrong-password",
 	})
@@ -141,7 +144,7 @@ func TestOneAuth_PasswordGrant_BadPassword(t *testing.T) {
 func TestOneAuth_PasswordGrant_ScopeIntersection(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
-	result, err := oa.Issuer.PasswordGrant(apiauth.PasswordGrantRequest{
+	result, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "correct-password",
 		Scopes:   []string{"read", "admin"},
@@ -155,7 +158,7 @@ func TestOneAuth_PasswordGrant_ScopeIntersection(t *testing.T) {
 func TestOneAuth_PasswordGrant_DefaultScopes(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
-	result, err := oa.Issuer.PasswordGrant(apiauth.PasswordGrantRequest{
+	result, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "correct-password",
 	})
@@ -170,7 +173,7 @@ func TestOneAuth_PasswordGrant_CallerCreatesRefreshToken(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
 	// Step 1: Password grant (core — no device info)
-	result, err := oa.Issuer.PasswordGrant(apiauth.PasswordGrantRequest{
+	result, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "correct-password",
 		Scopes:   []string{"read", "write"},
@@ -187,7 +190,7 @@ func TestOneAuth_PasswordGrant_CallerCreatesRefreshToken(t *testing.T) {
 	assert.NotEmpty(t, rt.Token)
 
 	// Step 3: Later, refresh the token via core
-	refreshResult, err := oa.Issuer.RefreshGrant(rt.Token)
+	refreshResult, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: rt.Token})
 	require.NoError(t, err)
-	assert.NotEmpty(t, refreshResult.AccessToken)
+	assert.NotEmpty(t, refreshResult.Tokens.AccessToken)
 }

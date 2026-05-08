@@ -58,7 +58,10 @@ func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.errorResponse(w, "invalid_client", "Authentication required", http.StatusUnauthorized)
 		return
 	}
-	if err := h.Authenticator.AuthenticateClient(clientID, clientSecret); err != nil {
+	if _, err := h.Authenticator.AuthenticateClient(r.Context(), &AuthenticateClientRequest{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	}); err != nil {
 		w.Header().Set("WWW-Authenticate", `Basic realm="revocation"`)
 		h.errorResponse(w, "invalid_client", "Invalid client credentials", http.StatusUnauthorized)
 		return
@@ -73,7 +76,7 @@ func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hint := r.FormValue("token_type_hint")
 
 	// Delegate to transport-independent revoker
-	h.Revoker.Revoke(token, hint)
+	h.Revoker.Revoke(r.Context(), &RevokeRequest{Token: token, TokenTypeHint: hint})
 
 	// RFC 7009 §2.2: always 200 OK
 	h.okResponse(w)

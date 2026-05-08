@@ -7,6 +7,7 @@ package apiauth_test
 // See: https://github.com/panyam/oneauth/issues/110
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -60,10 +61,12 @@ func newTestOneAuth(t *testing.T) *apiauth.OneAuth {
 func TestOneAuth_CreateAccessToken(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	token, expiresIn, err := oa.Issuer.CreateAccessToken("alice", []string{"read", "write"}, nil)
+	tok, err := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "alice", Scopes: []string{"read", "write"},
+	})
 	require.NoError(t, err)
-	assert.NotEmpty(t, token)
-	assert.True(t, expiresIn > 0)
+	assert.NotEmpty(t, tok.Token)
+	assert.True(t, tok.ExpiresIn > 0)
 }
 
 // TestOneAuth_ValidateToken verifies that tokens can be validated
@@ -73,11 +76,14 @@ func TestOneAuth_CreateAccessToken(t *testing.T) {
 func TestOneAuth_ValidateToken(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	token, _, err := oa.Issuer.CreateAccessToken("bob", []string{"read"}, nil)
+	tok, err := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "bob", Scopes: []string{"read"},
+	})
 	require.NoError(t, err)
 
-	info, err := oa.Validator.ValidateToken(token)
+	vresp, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tok.Token})
 	require.NoError(t, err)
+	info := vresp.Info
 	assert.Equal(t, "bob", info.UserID)
 	assert.Equal(t, []string{"read"}, info.Scopes)
 	assert.Equal(t, "jwt", info.AuthType)
@@ -93,11 +99,14 @@ func TestOneAuth_ValidateToken_WithRAR(t *testing.T) {
 	details := []core.AuthorizationDetail{
 		{Type: "payment_initiation", Actions: []string{"initiate"}},
 	}
-	token, _, err := oa.Issuer.CreateAccessToken("alice", []string{"payments"}, details)
+	tok, err := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "alice", Scopes: []string{"payments"}, AuthorizationDetails: details,
+	})
 	require.NoError(t, err)
 
-	info, err := oa.Validator.ValidateToken(token)
+	vresp, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tok.Token})
 	require.NoError(t, err)
+	info := vresp.Info
 	require.Len(t, info.AuthorizationDetails, 1)
 	assert.Equal(t, "payment_initiation", info.AuthorizationDetails[0].Type)
 }
@@ -109,10 +118,13 @@ func TestOneAuth_ValidateToken_WithRAR(t *testing.T) {
 func TestOneAuth_Introspect(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	token, _, _ := oa.Issuer.CreateAccessToken("charlie", []string{"read"}, nil)
+	tok, _ := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "charlie", Scopes: []string{"read"},
+	})
 
-	result, err := oa.Introspector.Introspect(token)
+	resp, err := oa.Introspector.Introspect(context.Background(), &apiauth.IntrospectRequest{Token: tok.Token})
 	require.NoError(t, err)
+	result := resp.Result
 	assert.True(t, result.Active)
 	assert.Equal(t, "charlie", result.Sub)
 	assert.Contains(t, result.Scope, "read")
@@ -125,9 +137,9 @@ func TestOneAuth_Introspect(t *testing.T) {
 func TestOneAuth_Introspect_Invalid(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	result, err := oa.Introspector.Introspect("garbage-token")
+	resp, err := oa.Introspector.Introspect(context.Background(), &apiauth.IntrospectRequest{Token: "garbage-token"})
 	require.NoError(t, err)
-	assert.False(t, result.Active)
+	assert.False(t, resp.Result.Active)
 }
 
 // TestOneAuth_Revoke_AccessToken verifies that revoking an access token
@@ -137,22 +149,25 @@ func TestOneAuth_Introspect_Invalid(t *testing.T) {
 func TestOneAuth_Revoke_AccessToken(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	token, _, _ := oa.Issuer.CreateAccessToken("dave", []string{"read"}, nil)
+	tok, _ := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "dave", Scopes: []string{"read"},
+	})
+	token := tok.Token
 
 	// Valid before revocation
-	result, _ := oa.Introspector.Introspect(token)
-	assert.True(t, result.Active)
+	iresp, _ := oa.Introspector.Introspect(context.Background(), &apiauth.IntrospectRequest{Token: token})
+	assert.True(t, iresp.Result.Active)
 
 	// Revoke
-	err := oa.Revoker.Revoke(token, "access_token")
+	_, err := oa.Revoker.Revoke(context.Background(), &apiauth.RevokeRequest{Token: token, TokenTypeHint: "access_token"})
 	require.NoError(t, err)
 
 	// Invalid after revocation
-	result, _ = oa.Introspector.Introspect(token)
-	assert.False(t, result.Active)
+	iresp, _ = oa.Introspector.Introspect(context.Background(), &apiauth.IntrospectRequest{Token: token})
+	assert.False(t, iresp.Result.Active)
 
 	// Validation also fails
-	_, err = oa.Validator.ValidateToken(token)
+	_, err = oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	assert.Error(t, err)
 }
 
@@ -166,7 +181,7 @@ func TestOneAuth_Revoke_RefreshToken(t *testing.T) {
 	rt, err := oa.RefreshStore.CreateRefreshToken("eve", "test-client", nil, []string{"read"})
 	require.NoError(t, err)
 
-	err = oa.Revoker.Revoke(rt.Token, "refresh_token")
+	_, err = oa.Revoker.Revoke(context.Background(), &apiauth.RevokeRequest{Token: rt.Token, TokenTypeHint: "refresh_token"})
 	require.NoError(t, err)
 
 	got, _ := oa.RefreshStore.GetRefreshToken(rt.Token)
@@ -180,18 +195,21 @@ func TestOneAuth_Revoke_RefreshToken(t *testing.T) {
 func TestOneAuth_ClientCredentials(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	resp, err := oa.Issuer.ClientCredentials(
-		"test-client", "test-client-secret-32chars-min!!",
-		[]string{"read", "write"}, nil)
+	resp, err := oa.Issuer.ClientCredentials(context.Background(), &apiauth.ClientCredentialsRequest{
+		ClientID:     "test-client",
+		ClientSecret: "test-client-secret-32chars-min!!",
+		Scopes:       []string{"read", "write"},
+	})
 	require.NoError(t, err)
-	assert.NotEmpty(t, resp.AccessToken)
-	assert.Equal(t, "Bearer", resp.TokenType)
-	assert.Equal(t, "read write", resp.Scope)
+	tp := resp.Tokens
+	assert.NotEmpty(t, tp.AccessToken)
+	assert.Equal(t, "Bearer", tp.TokenType)
+	assert.Equal(t, "read write", tp.Scope)
 
 	// Token should be valid
-	info, err := oa.Validator.ValidateToken(resp.AccessToken)
+	vresp, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tp.AccessToken})
 	require.NoError(t, err)
-	assert.Equal(t, "test-client", info.UserID) // sub = client_id for CC
+	assert.Equal(t, "test-client", vresp.Info.UserID) // sub = client_id for CC
 }
 
 // TestOneAuth_ClientCredentials_BadSecret verifies that bad credentials
@@ -201,7 +219,10 @@ func TestOneAuth_ClientCredentials(t *testing.T) {
 func TestOneAuth_ClientCredentials_BadSecret(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	_, err := oa.Issuer.ClientCredentials("test-client", "wrong-secret", nil, nil)
+	_, err := oa.Issuer.ClientCredentials(context.Background(), &apiauth.ClientCredentialsRequest{
+		ClientID:     "test-client",
+		ClientSecret: "wrong-secret",
+	})
 	assert.Error(t, err)
 }
 
@@ -209,11 +230,17 @@ func TestOneAuth_ClientCredentials_BadSecret(t *testing.T) {
 func TestOneAuth_CheckScopes(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	token, _, _ := oa.Issuer.CreateAccessToken("frank", []string{"read"}, nil)
+	tok, _ := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "frank", Scopes: []string{"read"},
+	})
+	token := tok.Token
 
-	assert.NoError(t, oa.Validator.CheckScopes(token, []string{"read"}))
-	assert.Error(t, oa.Validator.CheckScopes(token, []string{"write"}))
-	assert.Error(t, oa.Validator.CheckScopes(token, []string{"read", "write"}))
+	_, err := oa.Validator.CheckScopes(context.Background(), &apiauth.CheckScopesRequest{Token: token, RequiredScopes: []string{"read"}})
+	assert.NoError(t, err)
+	_, err = oa.Validator.CheckScopes(context.Background(), &apiauth.CheckScopesRequest{Token: token, RequiredScopes: []string{"write"}})
+	assert.Error(t, err)
+	_, err = oa.Validator.CheckScopes(context.Background(), &apiauth.CheckScopesRequest{Token: token, RequiredScopes: []string{"read", "write"}})
+	assert.Error(t, err)
 }
 
 // TestOneAuth_CheckAuthorizationDetails verifies RAR enforcement via library calls.
@@ -225,10 +252,15 @@ func TestOneAuth_CheckAuthorizationDetails(t *testing.T) {
 	details := []core.AuthorizationDetail{
 		{Type: "payment_initiation", Actions: []string{"initiate"}},
 	}
-	token, _, _ := oa.Issuer.CreateAccessToken("grace", []string{"payments"}, details)
+	tok, _ := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "grace", Scopes: []string{"payments"}, AuthorizationDetails: details,
+	})
+	token := tok.Token
 
-	assert.NoError(t, oa.Validator.CheckAuthorizationDetails(token, []string{"payment_initiation"}))
-	assert.Error(t, oa.Validator.CheckAuthorizationDetails(token, []string{"account_information"}))
+	_, err := oa.Validator.CheckAuthorizationDetails(context.Background(), &apiauth.CheckAuthorizationDetailsRequest{Token: token, RequiredTypes: []string{"payment_initiation"}})
+	assert.NoError(t, err)
+	_, err = oa.Validator.CheckAuthorizationDetails(context.Background(), &apiauth.CheckAuthorizationDetailsRequest{Token: token, RequiredTypes: []string{"account_information"}})
+	assert.Error(t, err)
 }
 
 // TestOneAuth_Hooks_OnIssued verifies that the OnIssued hook fires
@@ -253,7 +285,9 @@ func TestOneAuth_Hooks_OnIssued(t *testing.T) {
 		},
 	})
 
-	oa.Issuer.CreateAccessToken("hook-user", []string{"read"}, nil)
+	oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "hook-user", Scopes: []string{"read"},
+	})
 	assert.Equal(t, "hook-user", firedSubject)
 	assert.Equal(t, "direct", firedGrant)
 }
@@ -277,8 +311,10 @@ func TestOneAuth_Hooks_OnRevoked(t *testing.T) {
 		},
 	})
 
-	token, _, _ := oa.Issuer.CreateAccessToken("user-1", []string{"read"}, nil)
-	oa.Revoker.Revoke(token, "access_token")
+	tok, _ := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "user-1", Scopes: []string{"read"},
+	})
+	oa.Revoker.Revoke(context.Background(), &apiauth.RevokeRequest{Token: tok.Token, TokenTypeHint: "access_token"})
 	assert.Equal(t, "access_token", firedHint)
 }
 
@@ -303,11 +339,14 @@ func TestOneAuth_Hooks_OnBlacklistHit(t *testing.T) {
 		},
 	})
 
-	token, _, _ := oa.Issuer.CreateAccessToken("user-2", []string{"read"}, nil)
-	oa.Revoker.Revoke(token, "access_token")
+	tok, _ := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "user-2", Scopes: []string{"read"},
+	})
+	token := tok.Token
+	oa.Revoker.Revoke(context.Background(), &apiauth.RevokeRequest{Token: token, TokenTypeHint: "access_token"})
 
 	// Try to validate the revoked token — should trigger blacklist hit hook
-	_, err := oa.Validator.ValidateToken(token)
+	_, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	assert.Error(t, err)
 	assert.NotEmpty(t, firedJTI, "OnBlacklistHit should have fired")
 }
@@ -322,7 +361,10 @@ func TestOneAuth_IntrospectionHTTPHandler(t *testing.T) {
 	oa := newTestOneAuth(t)
 	handler := oa.IntrospectionHTTPHandler()
 
-	token, _, _ := oa.Issuer.CreateAccessToken("http-user", []string{"read"}, nil)
+	tok, _ := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "http-user", Scopes: []string{"read"},
+	})
+	token := tok.Token
 
 	// Introspect via HTTP
 	rr := postIntrospect(t, handler, token, "test-client", "test-client-secret-32chars-min!!")
@@ -338,7 +380,10 @@ func TestOneAuth_RevocationHTTPHandler(t *testing.T) {
 	revHandler := oa.RevocationHTTPHandler()
 	introHandler := oa.IntrospectionHTTPHandler()
 
-	token, _, _ := oa.Issuer.CreateAccessToken("revoke-http", []string{"read"}, nil)
+	tok, _ := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "revoke-http", Scopes: []string{"read"},
+	})
+	token := tok.Token
 
 	// Revoke via HTTP
 	form := url.Values{"token": {token}, "token_type_hint": {"access_token"}}
@@ -360,7 +405,10 @@ func TestOneAuth_HTTPMiddleware(t *testing.T) {
 	oa := newTestOneAuth(t)
 	mw := oa.HTTPMiddleware()
 
-	token, _, _ := oa.Issuer.CreateAccessToken("mw-user", []string{"read"}, nil)
+	tok, _ := oa.Issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "mw-user", Scopes: []string{"read"},
+	})
+	token := tok.Token
 
 	handler := mw.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID := apiauth.GetUserIDFromAPIContext(r.Context())
@@ -380,7 +428,10 @@ func TestOneAuth_HTTPMiddleware(t *testing.T) {
 func TestOneAuth_AuthenticateClient(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	assert.NoError(t, oa.Authenticator.AuthenticateClient("test-client", "test-client-secret-32chars-min!!"))
-	assert.Error(t, oa.Authenticator.AuthenticateClient("test-client", "wrong"))
-	assert.Error(t, oa.Authenticator.AuthenticateClient("unknown", "secret"))
+	_, err := oa.Authenticator.AuthenticateClient(context.Background(), &apiauth.AuthenticateClientRequest{ClientID: "test-client", ClientSecret: "test-client-secret-32chars-min!!"})
+	assert.NoError(t, err)
+	_, err = oa.Authenticator.AuthenticateClient(context.Background(), &apiauth.AuthenticateClientRequest{ClientID: "test-client", ClientSecret: "wrong"})
+	assert.Error(t, err)
+	_, err = oa.Authenticator.AuthenticateClient(context.Background(), &apiauth.AuthenticateClientRequest{ClientID: "unknown", ClientSecret: "secret"})
+	assert.Error(t, err)
 }
