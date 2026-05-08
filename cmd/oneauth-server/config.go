@@ -38,9 +38,28 @@ type UserStoresConfig struct {
 
 // JWTConfig configures JWT signing for browser sessions and API tokens.
 type JWTConfig struct {
-	SecretKey                string   `yaml:"secret_key"`                 // Secret key for signing JWTs
-	Issuer                   string   `yaml:"issuer"`                     // JWT issuer claim
+	SecretKey                 string   `yaml:"secret_key"`                  // Secret key for signing JWTs (HS256 mode only)
+	Issuer                    string   `yaml:"issuer"`                      // JWT issuer claim
 	AuthorizationDetailsTypes []string `yaml:"authorization_details_types"` // RFC 9396 supported types (advertised in AS metadata)
+
+	// SigningAlg controls how access tokens are signed. Defaults to HS256
+	// (uses SecretKey). Set to "RS256" / "ES256" for asymmetric signing —
+	// the public half is exposed via JWKS so remote resource servers can
+	// validate without a shared secret. See issue 184.
+	SigningAlg string `yaml:"signing_alg"`
+
+	// PrivateKeyPath is the path to a PEM-encoded private key (RSA / EC)
+	// used for asymmetric signing. Required for RS256/ES256 in production.
+	PrivateKeyPath string `yaml:"private_key_path"`
+
+	// EphemeralSigningKey, when true with SigningAlg=RS256/ES256, generates
+	// a fresh keypair on each startup. Tokens issued under one instance are
+	// invalid after a restart (kid changes, JWKS rotates). This is a
+	// **test / dev only** convenience — production deployments must set
+	// PrivateKeyPath. The flag is explicit (rather than implicit fallback)
+	// so misconfiguration fails loudly: "set private_key_path or
+	// ephemeral_signing_key".
+	EphemeralSigningKey bool `yaml:"ephemeral_signing_key"`
 }
 
 type ServerConfig struct {

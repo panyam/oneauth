@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -22,6 +23,7 @@ import (
 	"github.com/panyam/oneauth/httpauth"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/localauth"
+	"github.com/panyam/oneauth/utils"
 	"golang.org/x/oauth2"
 	fsstore "github.com/panyam/oneauth/stores/fs"
 	gaestore "github.com/panyam/oneauth/stores/gae"
@@ -29,6 +31,12 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+// issuerClientID is the keystore client_id under which the asymmetric issuer
+// signing key is registered when JWT.SigningAlg is RS256/ES256. The JWKS
+// handler iterates all asymmetric keys in the keystore — this constant gives
+// the issuer's identity a stable, recognizable name in admin tooling.
+const issuerClientID = "oneauth-issuer"
 
 //go:embed templates/*.html
 var templateFS embed.FS
@@ -110,7 +118,7 @@ func main() {
 	// Token blacklist for immediate access token revocation
 	blacklist := core.NewInMemoryBlacklist()
 
-	// Build APIAuth (for API token endpoint)
+	// Build APIAuth (for API token endpoint).
 	apiAuth := &apiauth.APIAuth{
 		RefreshTokenStore:   stores.refreshTokenStore,
 		JWTSecretKey:        cfg.JWT.SecretKey,
@@ -118,6 +126,37 @@ func main() {
 		ValidateCredentials: localAuth.ValidateCredentials,
 		Blacklist:           blacklist,
 		ClientKeyStore:      keyStore, // enables client_credentials grant
+	}
+
+	// Wire asymmetric signing if configured (issue 184). The public half is
+	// registered in the keystore under a stable client_id so the JWKS handler
+	// exposes it — remote resource servers can then validate tokens without
+	// any shared secret.
+	if alg := cfg.JWT.SigningAlg; alg == "RS256" || alg == "ES256" {
+		priv, pubPEM, err := loadOrGenerateSigningKey(cfg.JWT, alg)
+		if err != nil {
+			log.Fatalf("Failed to load/generate %s signing key: %v", alg, err)
+		}
+		apiAuth.JWTSigningAlg = alg
+		apiAuth.JWTSigningKey = priv
+		// JWTVerifyKey is the parsed public key. utils.DecodeVerifyKey
+		// accepts the same PEM bytes the keystore stores, so we round-trip.
+		pubKey, err := utils.DecodeVerifyKey(pubPEM, alg)
+		if err != nil {
+			log.Fatalf("Failed to parse issuer public key: %v", err)
+		}
+		apiAuth.JWTVerifyKey = pubKey
+
+		// Register the public key in the keystore so JWKS exposes it.
+		// kid is auto-derived from the key material by the keystore.
+		if err := keyStore.PutKey(&keys.KeyRecord{
+			ClientID:  issuerClientID,
+			Key:       pubPEM,
+			Algorithm: alg,
+		}); err != nil {
+			log.Fatalf("Failed to register issuer public key: %v", err)
+		}
+		log.Printf("Asymmetric token signing enabled (alg=%s, public key registered as %q for JWKS)", alg, issuerClientID)
 	}
 
 	// CSRF middleware for browser form endpoints
@@ -440,6 +479,59 @@ func buildKeyStore(cfg *Config) (keys.KeyStorage, *gorm.DB, error) {
 // for production multi-node. Reuses an existing GORM DB connection passed
 // from buildKeyStore when both are configured for the same database; opens
 // a fresh one otherwise.
+// loadOrGenerateSigningKey resolves the asymmetric issuer signing key per
+// JWT config. Returns the parsed private key (for token signing) and the
+// PEM-encoded public key (for keystore registration → JWKS exposure).
+//
+// Resolution rules:
+//   - PrivateKeyPath set → load from file (production path).
+//   - PrivateKeyPath empty + EphemeralSigningKey true → generate a fresh
+//     RSA-2048 keypair (test/dev convenience). Logs prominent warning that
+//     tokens will be invalidated on every restart.
+//   - Both empty → error. Misconfiguration must fail loudly so production
+//     deployments don't silently get ephemeral keys.
+//
+// ES256 is accepted as alg but currently only RSA generation is implemented
+// for the ephemeral path; ES256 deployments must supply PrivateKeyPath.
+func loadOrGenerateSigningKey(cfg JWTConfig, alg string) (priv crypto.PrivateKey, pubPEM []byte, err error) {
+	if cfg.PrivateKeyPath != "" {
+		data, err := os.ReadFile(cfg.PrivateKeyPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("read %s: %w", cfg.PrivateKeyPath, err)
+		}
+		priv, err = utils.ParsePrivateKeyPEM(data)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse private key: %w", err)
+		}
+		signer, ok := priv.(crypto.Signer)
+		if !ok {
+			return nil, nil, fmt.Errorf("private key does not implement crypto.Signer")
+		}
+		pubPEM, err = utils.EncodePublicKeyPEM(signer.Public())
+		if err != nil {
+			return nil, nil, fmt.Errorf("encode public key: %w", err)
+		}
+		log.Printf("Loaded %s signing key from %s", alg, cfg.PrivateKeyPath)
+		return priv, pubPEM, nil
+	}
+	if !cfg.EphemeralSigningKey {
+		return nil, nil, fmt.Errorf("jwt.signing_alg=%s requires either jwt.private_key_path or jwt.ephemeral_signing_key=true", alg)
+	}
+	// Test/dev path: ephemeral RSA keypair. Loud warning — tokens go
+	// stale on restart, JWKS rotates.
+	log.Printf("WARNING: jwt.ephemeral_signing_key=true — generating fresh RSA-2048 keypair. " +
+		"Tokens issued by this instance will be INVALID after restart. Use jwt.private_key_path in production.")
+	privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate RSA keypair: %w", err)
+	}
+	priv, err = utils.ParsePrivateKeyPEM(privPEM)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse generated private key: %w", err)
+	}
+	return priv, pubPEM, nil
+}
+
 func buildAppStore(cfg *Config, sharedDB *gorm.DB) (admin.AppRegistrationStore, error) {
 	switch cfg.AppStore.Type {
 	case "memory":

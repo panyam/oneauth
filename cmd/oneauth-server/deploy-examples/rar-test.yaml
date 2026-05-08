@@ -29,6 +29,17 @@ user_stores:
   type: memory
 
 jwt:
+  # Sign tokens with RS256 so the public half can be exposed via JWKS,
+  # enabling remote resource servers to validate without a shared secret
+  # (issue 184). secret_key stays defined for legacy code paths
+  # (browser-session cookies still HS256 today) but tokens minted by the
+  # /api/token endpoint use the RS256 keypair below.
+  signing_alg: RS256
+  # Test-only: generate a fresh RSA-2048 keypair on every startup. Tokens
+  # become invalid after restart, JWKS rotates. Production deployments must
+  # set jwt.private_key_path to a stable PEM file instead. The flag is
+  # explicit so misconfiguration in prod fails loudly.
+  ephemeral_signing_key: true
   secret_key: ${JWT_SECRET_KEY:-rar-test-secret-change-in-prod!!!!}
   issuer: ${JWT_ISSUER:-http://localhost:8181}
   authorization_details_types:
