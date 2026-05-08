@@ -16,6 +16,7 @@
 - csrf-protection: Double-submit cookie CSRF protection
 - multi-backend-storage: Store implementations for filesystem, GORM (PostgreSQL/MySQL), Google Datastore
 - pluggable-app-registry: AppRegistrationStore interface for persisting registered apps. In-memory (issue 165), filesystem (issue 166), and GORM SQL (issue 167) backends all ship. Reference server (cmd/oneauth-server) exposes the choice via `app_store.type`. Closes parent issue 20.
+- asymmetric-issuer-signing: Reference server supports RS256/ES256 token signing (`jwt.signing_alg`). Public half is registered in the keystore so JWKS exposes it for remote resource servers to validate without a shared secret. Production deployments set `jwt.private_key_path`; tests/dev opt into ephemeral keys via explicit `jwt.ephemeral_signing_key: true` so misconfiguration fails loudly. Closes issue 184.
 - dcr-management-rfc7592: Full RFC 7592 verb trio at /apps/dcr/{client_id} — GET (issue 168), PUT with registration_access_token rotation (issue 169), DELETE with credential invalidation (issue 170), Keycloak lifecycle interop (issue 171). Clients receive registration_access_token + registration_client_uri at registration time. Backed by a transport-agnostic ClientRegistrationManager interface (admin/client_management.go) following the (ctx, *Req) → (*Resp, error) convention adopted across the library.
 - http-middleware: Auth middleware for HTTP handlers with scope enforcement
 - user-identity-model: Three-layer User→Identity→Channel model
