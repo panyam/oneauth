@@ -176,21 +176,19 @@ Pure-OAuth code pushed down from mcpkit/ext/auth (mcpkit#158) into oneauth for b
 
 ---
 
-## App Registrar Persistence
+## App Registrar Persistence ✅ COMPLETE
 
-Splits issue 20 (Persist AppRegistrar state) into shippable backend chunks. The schema additions for issue 157 (RFC 7592 management) are baked in upfront so subsequent tickets do not churn the table layout.
+Closed parent issue 20 (Persist AppRegistrar state) via three shippable chunks. Schema additions for the RFC 7592 management track were baked in upfront so subsequent tickets did not churn the table layout.
 
 | # | Scope | Status |
 |---|-------|--------|
 | 165 | `AppRegistrationStore` interface + `InMemoryAppStore` + AppRegistrar refactor (cache + write-through) + `appstoretest` contract suite + e2e simulated-restart test | Merged |
 | 166 | `FSAppStore` (filesystem backend) — file-per-app, atomic writes, safeName traversal defense, partial recovery on corrupt files | Merged |
-| 167 | `GORMAppStore` (multi-node persistence — Postgres/MySQL/SQLite) + `app_store` config block in `cmd/oneauth-server`. Closes parent issue 20. | In progress |
+| 167 | `GORMAppStore` (multi-node — Postgres/MySQL/SQLite) + `app_store` config block in `cmd/oneauth-server`. **Closed parent #20.** | Merged |
 
-After 167 lands, parent issue 20 can close. The chain unblocks the entire RFC 7592 track (issues 168 / 169 / 170 / 171) tracked under issue 157.
+## RFC 7592 — DCR Management ✅ COMPLETE
 
-## RFC 7592 — DCR Management
-
-Splits issue 157 (parent) into vertical verb-by-verb slices. Each ticket ships a server handler, a client SDK helper, tests, and a walkthrough step in `examples/06-dynamic-client-registration/`. The `ClientRegistrationManager` interface introduced in 168 is also the blueprint for issue 172 (transport-agnostic refactor of legacy admin/ surface).
+Closed parent issue 157 via four vertical verb-by-verb slices. Each ticket shipped a server handler, a client SDK helper, tests, and a walkthrough step in `examples/06-dynamic-client-registration/`. The `ClientRegistrationManager` interface introduced in 168 is the blueprint for the convention-port track below.
 
 | # | Slice | Status |
 |---|-------|--------|
@@ -199,15 +197,22 @@ Splits issue 157 (parent) into vertical verb-by-verb slices. Each ticket ships a
 | 170 | DELETE — registration removal + KeyStore credential invalidation + `client.DeleteRegistration` + walkthrough step. Closes the verb trio. | Merged |
 | 171 | Keycloak interop — full lifecycle test against Keycloak's RFC 7592 endpoints; validates the wire format of 168/169/170 against a real-world AS | Merged |
 
-## Convention Ports
+## Convention Ports ✅ COMPLETE
 
-The `(ctx, *Req) → (*Resp, error)` convention adopted in 169 propagates to the rest of the library:
+The `(ctx context.Context, *XRequest) → (*XResponse, error)` convention adopted in 169 has propagated through the library. Every transport-agnostic interface in `apiauth/` and `admin/` now follows the gRPC-shape signature.
 
 | # | Surface | Status |
 |---|---------|--------|
-| 172 | Legacy `admin/` — `ClientRegistrar` interface for `DCRHandler.ServeHTTP` + legacy `/apps/register` + admin CRUD + secret rotation. HTTP handlers reduced to thin wrappers. Wire format unchanged. | In progress |
-| 175 | `apiauth/` — `TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator` adopt the same shape; HTTP handlers (auth.go, introspection.go, revocation.go) reduced to thin wrappers; wire format unchanged | In progress |
-| 189 | Follow-up: remove `/apps/register` once a quota story for `MaxRooms` / `MaxMsgRate` is decided | Pending |
+| 172 | Legacy `admin/` — `ClientRegistrar` interface for register / list / get / delete / rotate. HTTP handlers reduced to thin wrappers. Wire format unchanged. | Merged |
+| 175 | `apiauth/` — `TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator`. HTTP handlers (auth.go, introspection.go, revocation.go) reduced to thin wrappers. Wire format unchanged. | Merged |
+| 189 | **Pending** — remove `/apps/register` once a quota story for `MaxRooms` / `MaxMsgRate` is decided. Blocked on the design call, not implementation. | Pending |
+
+## Reference Server (cmd/oneauth-server)
+
+| # | Item | Status |
+|---|------|--------|
+| 184 | Issuer URL fix (drop iss=0.0.0.0 leak) + RS256 token signing mode (`jwt.signing_alg: RS256`) so JWKS-based remote validation works. Test/dev opts into ephemeral keys via explicit `jwt.ephemeral_signing_key: true`; production sets `jwt.private_key_path`. | Merged |
+| 194 | **Meta-tracker** — promote `cmd/oneauth-server` from POC to production-grade reference deployment. Catalogs feature gaps (admin UI, MFA, full /authorize, multi-tenant, WebAuthn, etc.) and what's *intentionally* not on the roadmap. Living document; not a single PR. | Open |
 
 ---
 
