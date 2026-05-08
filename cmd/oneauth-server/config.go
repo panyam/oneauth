@@ -46,6 +46,14 @@ type JWTConfig struct {
 type ServerConfig struct {
 	Port string `yaml:"port"`
 	Host string `yaml:"host"`
+	// PublicURL is the externally-visible base URL clients use to reach
+	// this server (e.g., "http://localhost:8181" or "https://auth.example").
+	// Used for the OIDC `iss` claim and the RFC 8414 metadata document.
+	// When empty, falls back to scheme://host:port — fine for dev where
+	// host is loopback, but unreliable when host is 0.0.0.0 (bind-all),
+	// behind a reverse proxy, or otherwise differs from the public URL.
+	// See issue 184.
+	PublicURL string `yaml:"public_url"`
 }
 
 type KeyStoreConfig struct {

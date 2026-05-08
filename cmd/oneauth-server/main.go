@@ -261,10 +261,21 @@ func main() {
 	jwksHandler := &keys.JWKSHandler{KeyStore: keyStore}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
 
-	// AS Metadata / OIDC Discovery (RFC 8414)
-	baseURL := fmt.Sprintf("http://%s:%s", cfg.Server.Host, cfg.Server.Port)
-	if cfg.TLS.Enabled {
-		baseURL = fmt.Sprintf("https://%s:%s", cfg.Server.Host, cfg.Server.Port)
+	// AS Metadata / OIDC Discovery (RFC 8414).
+	//
+	// Issuer is the canonical externally-visible URL — used as the OIDC `iss`
+	// claim on every minted token AND as the `issuer` in discovery metadata.
+	// When cfg.Server.PublicURL is set, use it verbatim (correct behind
+	// reverse proxies and when bind host is 0.0.0.0). Otherwise fall back to
+	// scheme://host:port — works for loopback dev but breaks for 0.0.0.0
+	// because clients connect via localhost / a routable address. See 184.
+	baseURL := cfg.Server.PublicURL
+	if baseURL == "" {
+		scheme := "http"
+		if cfg.TLS.Enabled {
+			scheme = "https"
+		}
+		baseURL = fmt.Sprintf("%s://%s:%s", scheme, cfg.Server.Host, cfg.Server.Port)
 	}
 	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
 		Issuer:                             baseURL,
