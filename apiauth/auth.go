@@ -1235,10 +1235,11 @@ func (m *APIMiddleware) getValidator() TokenValidator {
 // validateJWT validates a JWT access token using the TokenValidator.
 func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
 	if v := m.getValidator(); v != nil {
-		info, verr := v.ValidateToken(tokenString)
+		resp, verr := v.ValidateToken(context.Background(), &ValidateTokenRequest{Token: tokenString})
 		if verr != nil {
 			return "", nil, "", nil, verr
 		}
+		info := resp.Info
 		customClaims = info.CustomClaims
 		if customClaims == nil {
 			customClaims = make(map[string]any)

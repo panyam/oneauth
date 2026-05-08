@@ -1,7 +1,9 @@
 package apiauth
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/panyam/oneauth/keys"
@@ -43,10 +45,14 @@ type apiauthIntrospector struct {
 	auth *APIAuth
 }
 
-func (ai *apiauthIntrospector) Introspect(tokenString string) (*IntrospectionResult, error) {
+func (ai *apiauthIntrospector) Introspect(ctx context.Context, req *IntrospectRequest) (*IntrospectResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("IntrospectRequest is required")
+	}
+	tokenString := req.Token
 	userID, scopes, _, err := ai.auth.ValidateAccessTokenFull(tokenString)
 	if err != nil {
-		return &IntrospectionResult{Active: false}, nil
+		return &IntrospectResponse{Result: &IntrospectionResult{Active: false}}, nil
 	}
 
 	rawClaims := parseRawJWTClaims(tokenString)
@@ -82,7 +88,7 @@ func (ai *apiauthIntrospector) Introspect(tokenString string) (*IntrospectionRes
 		}
 	}
 
-	return result, nil
+	return &IntrospectResponse{Result: result}, nil
 }
 
 func joinScopes(scopes []string) string {
@@ -110,7 +116,10 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if err := h.Authenticator.AuthenticateClient(clientID, clientSecret); err != nil {
+	if _, err := h.Authenticator.AuthenticateClient(r.Context(), &AuthenticateClientRequest{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	}); err != nil {
 		w.Header().Set("WWW-Authenticate", `Basic realm="introspection"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -128,12 +137,13 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Delegate to transport-independent introspector
-	result, err := h.Introspector.Introspect(token)
-	if err != nil || !result.Active {
+	introspectResp, err := h.Introspector.Introspect(r.Context(), &IntrospectRequest{Token: token})
+	if err != nil || introspectResp == nil || !introspectResp.Result.Active {
 		// RFC 7662: invalid tokens get {"active": false}, never an error
 		h.jsonResponse(w, http.StatusOK, map[string]any{"active": false})
 		return
 	}
+	result := introspectResp.Result
 
 	// Build response from IntrospectionResult
 	resp := map[string]any{

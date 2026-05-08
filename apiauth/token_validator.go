@@ -1,6 +1,7 @@
 package apiauth
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -42,8 +43,14 @@ func NewJWTValidator(cfg JWTValidatorConfig) TokenValidator {
 	}
 }
 
-// ValidateToken parses and validates a JWT, returning the extracted claims.
-func (v *jwtValidator) ValidateToken(tokenString string) (*TokenInfo, error) {
+// ValidateToken parses and validates a JWT, returning the extracted claims
+// wrapped in a ValidateTokenResponse per the (ctx, *Req) → (*Resp, error)
+// convention adopted in 175.
+func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequest) (*ValidateTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ValidateTokenRequest is required")
+	}
+	tokenString := req.Token
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		return v.resolveKey(token)
 	})
@@ -125,44 +132,51 @@ func (v *jwtValidator) ValidateToken(tokenString string) (*TokenInfo, error) {
 		}
 	}
 
-	return &TokenInfo{
+	return &ValidateTokenResponse{Info: &TokenInfo{
 		UserID:               userID,
 		Scopes:               scopes,
 		AuthorizationDetails: authzDetails,
 		CustomClaims:         customClaims,
 		AuthType:             "jwt",
-	}, nil
+	}}, nil
 }
 
 // CheckScopes validates a token and verifies it contains all required scopes.
-func (v *jwtValidator) CheckScopes(token string, required []string) error {
-	info, err := v.ValidateToken(token)
+func (v *jwtValidator) CheckScopes(ctx context.Context, req *CheckScopesRequest) (*CheckScopesResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CheckScopesRequest is required")
+	}
+	resp, err := v.ValidateToken(ctx, &ValidateTokenRequest{Token: req.Token})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if !core.ContainsAllScopes(info.Scopes, required) {
-		return fmt.Errorf("insufficient scope: requires %v, has %v", required, info.Scopes)
+	if !core.ContainsAllScopes(resp.Info.Scopes, req.RequiredScopes) {
+		return nil, fmt.Errorf("insufficient scope: requires %v, has %v", req.RequiredScopes, resp.Info.Scopes)
 	}
-	return nil
+	return &CheckScopesResponse{}, nil
 }
 
 // CheckAuthorizationDetails validates a token and verifies it contains
 // authorization_details entries for all required types.
-func (v *jwtValidator) CheckAuthorizationDetails(token string, requiredTypes []string) error {
-	info, err := v.ValidateToken(token)
-	if err != nil {
-		return err
+func (v *jwtValidator) CheckAuthorizationDetails(ctx context.Context, req *CheckAuthorizationDetailsRequest) (*CheckAuthorizationDetailsResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CheckAuthorizationDetailsRequest is required")
 	}
+	resp, err := v.ValidateToken(ctx, &ValidateTokenRequest{Token: req.Token})
+	if err != nil {
+		return nil, err
+	}
+	info := resp.Info
 	grantedTypes := make(map[string]bool)
 	for _, ad := range info.AuthorizationDetails {
 		grantedTypes[ad.Type] = true
 	}
-	for _, reqType := range requiredTypes {
+	for _, reqType := range req.RequiredTypes {
 		if !grantedTypes[reqType] {
-			return fmt.Errorf("missing required authorization_details type: %s", reqType)
+			return nil, fmt.Errorf("missing required authorization_details type: %s", reqType)
 		}
 	}
-	return nil
+	return &CheckAuthorizationDetailsResponse{}, nil
 }
 
 // resolveKey finds the appropriate signing key for a JWT token.
@@ -256,14 +270,20 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 	}
 }
 
-// CreateAccessToken mints a signed JWT.
-func (i *jwtIssuer) CreateAccessToken(subject string, scopes []string, details []core.AuthorizationDetail) (string, int64, error) {
+// CreateAccessToken mints a signed JWT. Convention shape per 175.
+func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessTokenRequest) (*CreateAccessTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CreateAccessTokenRequest is required")
+	}
+	subject := req.Subject
+	scopes := req.Scopes
+	details := req.AuthorizationDetails
 	now := time.Now()
 	expiresAt := now.Add(i.accessExpiry)
 
 	jti, err := core.GenerateSecureToken()
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to generate jti: %w", err)
+		return nil, fmt.Errorf("failed to generate jti: %w", err)
 	}
 
 	claims := jwt.MapClaims{
@@ -290,7 +310,7 @@ func (i *jwtIssuer) CreateAccessToken(subject string, scopes []string, details [
 		if _, ok := i.signingKey.([]byte); ok {
 			signingMethod = jwt.SigningMethodHS256
 		} else {
-			return "", 0, fmt.Errorf("invalid signing algorithm: %w", err)
+			return nil, fmt.Errorf("invalid signing algorithm: %w", err)
 		}
 	}
 
@@ -301,21 +321,24 @@ func (i *jwtIssuer) CreateAccessToken(subject string, scopes []string, details [
 
 	tokenString, err := token.SignedString(i.signingKey)
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to sign token: %w", err)
+		return nil, fmt.Errorf("failed to sign token: %w", err)
 	}
 
 	i.hooks.fireOnIssued(subject, "direct")
-	return tokenString, int64(i.accessExpiry.Seconds()), nil
+	return &CreateAccessTokenResponse{Token: tokenString, ExpiresIn: int64(i.accessExpiry.Seconds())}, nil
 }
 
 // ClientCredentials performs the client_credentials grant.
-func (i *jwtIssuer) ClientCredentials(clientID, clientSecret string, scopes []string, details []core.AuthorizationDetail) (*core.TokenPair, error) {
+func (i *jwtIssuer) ClientCredentials(ctx context.Context, req *ClientCredentialsRequest) (*ClientCredentialsResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ClientCredentialsRequest is required")
+	}
 	if i.clientKeyLookup == nil {
 		return nil, fmt.Errorf("client_credentials not configured")
 	}
 
 	// Authenticate client
-	rec, err := i.clientKeyLookup.GetKey(clientID)
+	rec, err := i.clientKeyLookup.GetKey(req.ClientID)
 	if err != nil || rec == nil {
 		return nil, fmt.Errorf("invalid_client: unknown client")
 	}
@@ -323,43 +346,49 @@ func (i *jwtIssuer) ClientCredentials(clientID, clientSecret string, scopes []st
 	if !ok {
 		return nil, fmt.Errorf("invalid_client: client does not support secret authentication")
 	}
-	if !constantTimeEqual(string(storedKey), clientSecret) {
+	if !constantTimeEqual(string(storedKey), req.ClientSecret) {
 		return nil, fmt.Errorf("invalid_client: invalid credentials")
 	}
 
 	// Validate authorization_details
-	if err := core.ValidateAll(details); err != nil {
+	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
 		return nil, err
 	}
 
 	// Create token
-	tokenStr, expiresIn, err := i.CreateAccessToken(clientID, scopes, details)
+	tok, err := i.CreateAccessToken(ctx, &CreateAccessTokenRequest{
+		Subject:              req.ClientID,
+		Scopes:               req.Scopes,
+		AuthorizationDetails: req.AuthorizationDetails,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	i.hooks.fireOnIssued(clientID, "client_credentials")
+	i.hooks.fireOnIssued(req.ClientID, "client_credentials")
 
-	resp := &core.TokenPair{
-		AccessToken:          tokenStr,
+	return &ClientCredentialsResponse{Tokens: &core.TokenPair{
+		AccessToken:          tok.Token,
 		TokenType:            "Bearer",
-		ExpiresIn:            expiresIn,
-		Scope:                strings.Join(scopes, " "),
-		AuthorizationDetails: details,
-	}
-	return resp, nil
+		ExpiresIn:            tok.ExpiresIn,
+		Scope:                strings.Join(req.Scopes, " "),
+		AuthorizationDetails: req.AuthorizationDetails,
+	}}, nil
 }
 
 // RefreshGrant rotates a refresh token and returns new access + refresh tokens.
 // Handles theft detection: if the old token was already revoked, revokes the
 // entire token family (all sessions from that initial login).
-func (i *jwtIssuer) RefreshGrant(refreshToken string) (*core.TokenPair, error) {
+func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) (*RefreshGrantResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RefreshGrantRequest is required")
+	}
 	if i.refreshStore == nil {
 		return nil, fmt.Errorf("refresh_token grant not configured")
 	}
 
 	// Get and validate the refresh token
-	rt, err := i.refreshStore.GetRefreshToken(refreshToken)
+	rt, err := i.refreshStore.GetRefreshToken(req.RefreshToken)
 	if err != nil {
 		if err == core.ErrTokenNotFound {
 			return nil, fmt.Errorf("invalid_grant: invalid refresh token")
@@ -377,7 +406,7 @@ func (i *jwtIssuer) RefreshGrant(refreshToken string) (*core.TokenPair, error) {
 	}
 
 	// Rotate: invalidate old, create new in same family
-	newRT, err := i.refreshStore.RotateRefreshToken(refreshToken)
+	newRT, err := i.refreshStore.RotateRefreshToken(req.RefreshToken)
 	if err != nil {
 		if err == core.ErrTokenReused {
 			i.refreshStore.RevokeTokenFamily(rt.Family)
@@ -387,27 +416,34 @@ func (i *jwtIssuer) RefreshGrant(refreshToken string) (*core.TokenPair, error) {
 	}
 
 	// Create new access token (carry forward scopes + authorization_details)
-	tokenStr, expiresIn, err := i.CreateAccessToken(rt.UserID, rt.Scopes, rt.AuthorizationDetails)
+	tok, err := i.CreateAccessToken(ctx, &CreateAccessTokenRequest{
+		Subject:              rt.UserID,
+		Scopes:               rt.Scopes,
+		AuthorizationDetails: rt.AuthorizationDetails,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("server_error: %w", err)
 	}
 
 	i.hooks.fireOnIssued(rt.UserID, "refresh_token")
 
-	return &core.TokenPair{
-		AccessToken:          tokenStr,
+	return &RefreshGrantResponse{Tokens: &core.TokenPair{
+		AccessToken:          tok.Token,
 		TokenType:            "Bearer",
-		ExpiresIn:            expiresIn,
+		ExpiresIn:            tok.ExpiresIn,
 		RefreshToken:         newRT.Token,
 		Scope:                strings.Join(rt.Scopes, " "),
 		AuthorizationDetails: rt.AuthorizationDetails,
-	}, nil
+	}}, nil
 }
 
 // PasswordGrant authenticates a user and returns an access token.
 // Does NOT create a refresh token — the caller handles that with
 // transport-specific metadata (device info, IP, etc.).
-func (i *jwtIssuer) PasswordGrant(req PasswordGrantRequest) (*PasswordGrantResult, error) {
+func (i *jwtIssuer) PasswordGrant(ctx context.Context, req *PasswordGrantRequest) (*PasswordGrantResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("PasswordGrantRequest is required")
+	}
 	if i.validateCredentials == nil {
 		return nil, fmt.Errorf("server_error: password grant not configured")
 	}
@@ -442,17 +478,21 @@ func (i *jwtIssuer) PasswordGrant(req PasswordGrantRequest) (*PasswordGrantResul
 	}
 
 	// Create access token
-	tokenStr, expiresIn, err := i.CreateAccessToken(user.Id(), grantedScopes, req.AuthorizationDetails)
+	tok, err := i.CreateAccessToken(ctx, &CreateAccessTokenRequest{
+		Subject:              user.Id(),
+		Scopes:               grantedScopes,
+		AuthorizationDetails: req.AuthorizationDetails,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("server_error: %w", err)
 	}
 
 	i.hooks.fireOnIssued(user.Id(), "password")
 
-	return &PasswordGrantResult{
+	return &PasswordGrantResponse{
 		UserID:               user.Id(),
-		AccessToken:          tokenStr,
-		ExpiresIn:            expiresIn,
+		AccessToken:          tok.Token,
+		ExpiresIn:            tok.ExpiresIn,
 		GrantedScopes:        grantedScopes,
 		AuthorizationDetails: req.AuthorizationDetails,
 	}, nil

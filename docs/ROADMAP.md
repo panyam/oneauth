@@ -206,7 +206,7 @@ The `(ctx, *Req) → (*Resp, error)` convention adopted in 169 propagates to the
 | # | Surface | Status |
 |---|---------|--------|
 | 172 | Legacy `admin/` — `ClientRegistrar` interface for `DCRHandler.ServeHTTP` + legacy `/apps/register` + admin CRUD + secret rotation. HTTP handlers reduced to thin wrappers. Wire format unchanged. | In progress |
-| 175 | `apiauth/` — `TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` adopt the same shape | Pending |
+| 175 | `apiauth/` — `TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator` adopt the same shape; HTTP handlers (auth.go, introspection.go, revocation.go) reduced to thin wrappers; wire format unchanged | In progress |
 | 189 | Follow-up: remove `/apps/register` once a quota story for `MaxRooms` / `MaxMsgRate` is decided | Pending |
 
 ---
