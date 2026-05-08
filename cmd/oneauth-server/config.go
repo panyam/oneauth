@@ -13,10 +13,20 @@ import (
 type Config struct {
 	Server     ServerConfig     `yaml:"server"`
 	KeyStore   KeyStoreConfig   `yaml:"keystore"`
+	AppStore   AppStoreConfig   `yaml:"app_store"`
 	UserStores UserStoresConfig `yaml:"user_stores"`
 	JWT        JWTConfig        `yaml:"jwt"`
 	AdminAuth  AdminAuthConfig  `yaml:"admin_auth"`
 	TLS        TLSConfig        `yaml:"tls"`
+}
+
+// AppStoreConfig configures the AppRegistrationStore backing AppRegistrar
+// (issue 167 — closes parent 20). Mirrors KeyStoreConfig so deployments
+// see consistent shape.
+type AppStoreConfig struct {
+	Type string     `yaml:"type"` // memory, fs, gorm (defaults to memory)
+	FS   FSConfig   `yaml:"fs"`
+	GORM GORMConfig `yaml:"gorm"`
 }
 
 // UserStoresConfig configures persistent stores for users, identities, channels, tokens.
@@ -123,6 +133,9 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.KeyStore.Type == "" {
 		cfg.KeyStore.Type = "memory"
 	}
+	if cfg.AppStore.Type == "" {
+		cfg.AppStore.Type = "memory"
+	}
 	if cfg.AdminAuth.Type == "" {
 		cfg.AdminAuth.Type = "none"
 	}
@@ -160,6 +173,16 @@ func configFromEnv() Config {
 			GAE: GAEConfig{
 				Project:   os.Getenv("GCP_PROJECT"),
 				Namespace: os.Getenv("GAE_NAMESPACE"),
+			},
+		},
+		AppStore: AppStoreConfig{
+			Type: os.Getenv("APP_STORE_TYPE"),
+			FS: FSConfig{
+				Path: os.Getenv("APP_STORE_PATH"),
+			},
+			GORM: GORMConfig{
+				Driver: os.Getenv("APP_STORE_GORM_DRIVER"),
+				DSN:    os.Getenv("APP_STORE_DATABASE_URL"),
 			},
 		},
 		AdminAuth: AdminAuthConfig{

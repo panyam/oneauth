@@ -285,9 +285,21 @@ type AppRegistrationStore interface {
 |---------|--------|----------|
 | `admin.InMemoryAppStore` | Available | Tests, dev (registrations lost on restart) |
 | `stores/fs.FSAppStore` | Available (issue 166) | Single-node, dev-friendly persistence |
-| `stores/gorm.GORMAppStore` | Pending — issue 167 | Production, multi-node (Postgres / MySQL / SQLite) |
+| `stores/gorm.GORMAppStore` | Available (issue 167) | Production, multi-node (Postgres / MySQL / SQLite) |
 
-Construct with `admin.NewAppRegistrar(keyStore, auth)` for the default in-memory store, or `admin.NewAppRegistrarWithStore(keyStore, auth, store)` to plug in a persistent backend.
+Construct with `admin.NewAppRegistrar(keyStore, auth)` for the default in-memory store, or `admin.NewAppRegistrarWithStore(keyStore, auth, store)` to plug in a persistent backend. The `cmd/oneauth-server` reference deployment exposes the choice via `app_store.type` (`memory` | `fs` | `gorm`) — see config schema below.
+
+```yaml
+app_store:
+  type: gorm  # memory | fs | gorm
+  fs:
+    path: ${DATA_DIR}/apps
+  gorm:
+    driver: postgres
+    dsn: ${DATABASE_URL}
+```
+
+When the `app_store.gorm` config matches the `keystore.gorm` config (same driver + DSN), `cmd/oneauth-server` reuses the same connection pool. They open separate pools otherwise. The shared `appstoretest` contract suite runs against in-memory SQLite by default and against PostgreSQL when `ONEAUTH_TEST_PGDB` is set.
 
 ### appstoretest Shared Test Suite
 
