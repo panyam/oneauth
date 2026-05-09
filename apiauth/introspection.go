@@ -23,6 +23,15 @@ type IntrospectionHandler struct {
 
 	// Authenticator verifies the caller's client credentials.
 	Authenticator ClientAuthenticator
+
+	// AcceptedAudiences are the URLs the AS will accept as the
+	// `aud` claim of a private_key_jwt / client_secret_jwt client
+	// assertion (OIDC Core §9). Typically the introspection endpoint
+	// URL plus the AS issuer URL. When empty the URL of the request
+	// is used as a fallback, which works for single-host deployments
+	// but breaks behind proxies that rewrite the path — populate
+	// explicitly in production.
+	AcceptedAudiences []string
 }
 
 // NewIntrospectionHandler creates an IntrospectionHandler from an APIAuth
@@ -109,27 +118,29 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Authenticate the caller (resource server) via Basic auth
-	clientID, clientSecret, ok := r.BasicAuth()
-	if !ok || clientID == "" {
+	// Parse form before extracting credentials — client_secret_post
+	// and private_key_jwt both live in the form body.
+	if err := r.ParseForm(); err != nil {
+		h.jsonResponse(w, http.StatusBadRequest, map[string]any{"error": "invalid_request"})
+		return
+	}
+
+	creds, ok := extractClientCredentials(r, nil)
+	if !ok {
 		w.Header().Set("WWW-Authenticate", `Basic realm="introspection"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if _, err := h.Authenticator.AuthenticateClient(r.Context(), &AuthenticateClientRequest{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-	}); err != nil {
+	creds.Audiences = h.AcceptedAudiences
+	if len(creds.Audiences) == 0 {
+		creds.Audiences = []string{derivedAudience(r)}
+	}
+	if _, err := h.Authenticator.AuthenticateClient(r.Context(), creds); err != nil {
 		w.Header().Set("WWW-Authenticate", `Basic realm="introspection"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// Parse form body
-	if err := r.ParseForm(); err != nil {
-		h.jsonResponse(w, http.StatusBadRequest, map[string]any{"error": "invalid_request"})
-		return
-	}
 	token := r.FormValue("token")
 	if token == "" {
 		h.jsonResponse(w, http.StatusBadRequest, map[string]any{"error": "invalid_request", "error_description": "token parameter is required"})

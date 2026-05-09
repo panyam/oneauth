@@ -31,8 +31,9 @@ type ASMetadata struct {
 	ScopesSupported               []string `json:"scopes_supported,omitempty"`
 	ResponseTypesSupported        []string `json:"response_types_supported,omitempty"`
 	GrantTypesSupported           []string `json:"grant_types_supported,omitempty"`
-	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
-	TokenEndpointAuthMethods      []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+	CodeChallengeMethodsSupported              []string `json:"code_challenge_methods_supported,omitempty"`
+	TokenEndpointAuthMethods                   []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
 }
 
 // DiscoveryOption configures the discovery request.

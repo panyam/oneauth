@@ -246,8 +246,9 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		ScopesSupported:               cfg.scopes,
 		GrantTypesSupported:           grants,
 		ResponseTypesSupported:        []string{"token"},
-		TokenEndpointAuthMethods:      []string{"client_secret_post", "client_secret_basic"},
-		CodeChallengeMethodsSupported: []string{"S256"},
+		TokenEndpointAuthMethods:                   []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
+		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256"},
+		CodeChallengeMethodsSupported:              []string{"S256"},
 		AuthorizationResponseIssParameterSupported: cfg.issParameterSupported,
 	})
 

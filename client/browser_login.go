@@ -85,6 +85,14 @@ type BrowserLoginConfig struct {
 	// See: https://www.rfc-editor.org/rfc/rfc6749#section-2.3
 	// See: https://github.com/panyam/oneauth/issues/74
 	TokenEndpointAuthMethods []string
+
+	// ClientAssertion, when non-nil, switches the code-exchange step to
+	// private_key_jwt client authentication (RFC 7521 §4.2 / RFC 7523
+	// §2.2 / OIDC Core §9). The client signs a fresh JWT with the
+	// configured private key and presents it as `client_assertion`
+	// instead of using ClientSecret. Mutually exclusive with
+	// ClientSecret — when both are set, ClientAssertion wins.
+	ClientAssertion *ClientAssertionConfig
 }
 
 // callbackResult holds the result received on the loopback redirect.
@@ -211,8 +219,15 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		return nil, fmt.Errorf("token_endpoint not found")
 	}
 
-	// Negotiate token endpoint auth method (#72)
-	authMethod := SelectAuthMethod(cfg.ClientSecret, asMethods)
+	// Negotiate token endpoint auth method (#72). private_key_jwt
+	// (#158) is opt-in via cfg.ClientAssertion — when set, we skip the
+	// secret-based negotiation entirely.
+	var authMethod TokenEndpointAuthMethod
+	if cfg.ClientAssertion != nil {
+		authMethod = AuthMethodPrivateKeyJWT
+	} else {
+		authMethod = SelectAuthMethod(cfg.ClientSecret, asMethods)
+	}
 
 	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, cfg.Scopes, cfg.Resource)
 
@@ -255,7 +270,18 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		httpClient = http.DefaultClient
 	}
 
-	cred, err := c.exchangeCode(httpClient, tokenEndpoint, result.Code, verifier, redirectURI, cfg.ClientID, cfg.ClientSecret, cfg.Resource, authMethod)
+	cred, err := c.exchangeCode(exchangeCodeParams{
+		HTTPClient:    httpClient,
+		TokenEndpoint: tokenEndpoint,
+		Code:          result.Code,
+		Verifier:      verifier,
+		RedirectURI:   redirectURI,
+		ClientID:      cfg.ClientID,
+		ClientSecret:  cfg.ClientSecret,
+		Resource:      cfg.Resource,
+		AuthMethod:    authMethod,
+		Assertion:     cfg.ClientAssertion,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("token exchange failed: %w", err)
 	}
@@ -279,32 +305,62 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 //
 // See: https://www.rfc-editor.org/rfc/rfc6749#section-4.1.3
 // See: https://github.com/panyam/oneauth/issues/72
-func (c *AuthClient) exchangeCode(httpClient *http.Client, tokenEndpoint, code, verifier, redirectURI, clientID, clientSecret, resource string, authMethod TokenEndpointAuthMethod) (*ServerCredential, error) {
+// exchangeCodeParams bundles the inputs to the authorization-code →
+// token exchange. Grouped into a struct because the positional
+// signature was getting too long to read; new fields are added here
+// rather than appended to the call.
+type exchangeCodeParams struct {
+	HTTPClient    *http.Client
+	TokenEndpoint string
+	Code          string
+	Verifier      string
+	RedirectURI   string
+	ClientID      string
+	ClientSecret  string
+	Resource      string
+	AuthMethod    TokenEndpointAuthMethod
+	// Assertion is required when AuthMethod == AuthMethodPrivateKeyJWT
+	// and ignored otherwise.
+	Assertion *ClientAssertionConfig
+}
+
+func (c *AuthClient) exchangeCode(p exchangeCodeParams) (*ServerCredential, error) {
 	data := url.Values{
 		"grant_type":    {"authorization_code"},
-		"code":          {code},
-		"code_verifier": {verifier},
-		"redirect_uri":  {redirectURI},
+		"code":          {p.Code},
+		"code_verifier": {p.Verifier},
+		"redirect_uri":  {p.RedirectURI},
 	}
-	if resource != "" {
-		data.Set("resource", resource)
+	if p.Resource != "" {
+		data.Set("resource", p.Resource)
 	}
 
-	// Apply client authentication to form data
-	applyAuthToForm(authMethod, clientID, clientSecret, data)
+	// Apply client authentication to form data per the negotiated method.
+	if p.AuthMethod == AuthMethodPrivateKeyJWT {
+		if p.Assertion == nil {
+			return nil, fmt.Errorf("authMethod=private_key_jwt but no ClientAssertion config provided")
+		}
+		assertion, err := MintClientAssertion(p.ClientID, p.TokenEndpoint, *p.Assertion)
+		if err != nil {
+			return nil, fmt.Errorf("mint client_assertion: %w", err)
+		}
+		applyAssertionToForm(p.ClientID, assertion, data)
+	} else {
+		applyAuthToForm(p.AuthMethod, p.ClientID, p.ClientSecret, data)
+	}
 
-	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest("POST", p.TokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// For Basic auth, set the Authorization header
-	if authMethod == AuthMethodClientSecretBasic {
-		req.SetBasicAuth(clientID, clientSecret)
+	if p.AuthMethod == AuthMethodClientSecretBasic {
+		req.SetBasicAuth(p.ClientID, p.ClientSecret)
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := p.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

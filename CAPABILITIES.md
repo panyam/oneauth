@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-0.0.77
+0.0.83
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
@@ -21,6 +21,7 @@
 - http-middleware: Auth middleware for HTTP handlers with scope enforcement
 - user-identity-model: Three-layer User→Identity→Channel model
 - client-credentials-grant: Machine-to-machine auth (RFC 6749 §4.4)
+- private-key-jwt-client-auth: RFC 7521 §4.2 + RFC 7523 §2.2 + OIDC Core §9 token-endpoint client authentication via signed JWT (`client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`). Server-side `ClientAuthenticator` validates iss == sub == client_id, audience, lifetime ≤ 5min, replay-protection via pluggable `JTIStore`, alg-confusion lock against the alg registered for the client. Token + introspection + revocation handlers all accept the assertion via a shared `extractClientCredentials` helper. Client SDK ships `MintClientAssertion`, `ClientCredentialsTokenWithAssertion`, and `BrowserLoginConfig.ClientAssertion`. AS metadata advertises `private_key_jwt` in `token_endpoint_auth_methods_supported` and the new `token_endpoint_auth_signing_alg_values_supported`. Closes issue 158.
 - token-introspection: RFC 7662 endpoint for centralized token validation
 - as-discovery-server: RFC 8414 / OIDC Discovery metadata endpoint
 - as-discovery-client: Client-side AS metadata discovery with fallback chain

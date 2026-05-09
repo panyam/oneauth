@@ -293,6 +293,50 @@ func (c *AuthClient) ClientCredentialsToken(clientID, clientSecret string, scope
 	return cred, nil
 }
 
+// ClientCredentialsTokenWithAssertion is the private_key_jwt variant of
+// ClientCredentialsToken (RFC 6749 §4.4 with RFC 7521 §4.2 / RFC 7523
+// §2.2 client authentication). The client signs a fresh JWT for every
+// request and presents it as `client_assertion` instead of a shared
+// secret. Use this when the AS has registered the client's public key
+// (typically via DCR with token_endpoint_auth_method=private_key_jwt).
+//
+// The audience claim of the assertion is the discovered token endpoint
+// URL when AS metadata is cached; otherwise the configured token
+// endpoint. Per OIDC Core §9, the AS SHOULD accept this value as an
+// audience identifier — OneAuth's server-side authenticator accepts
+// either the token endpoint URL or the AS issuer.
+//
+// See: https://www.rfc-editor.org/rfc/rfc7523#section-2.2
+// See: https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
+func (c *AuthClient) ClientCredentialsTokenWithAssertion(clientID string, cfg ClientAssertionConfig, scopes []string) (*ServerCredential, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	tokenEndpoint := c.serverURL + c.tokenEndpoint
+	if c.cachedASMeta != nil && c.cachedASMeta.TokenEndpoint != "" {
+		tokenEndpoint = c.cachedASMeta.TokenEndpoint
+	}
+
+	data := url.Values{
+		"grant_type": {"client_credentials"},
+	}
+	if len(scopes) > 0 {
+		data.Set("scope", strings.Join(scopes, " "))
+	}
+
+	cred, err := c.requestTokenFormWithAssertion(tokenEndpoint, data, clientID, tokenEndpoint, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.store.SetCredential(c.serverURL, cred); err != nil {
+		return nil, fmt.Errorf("failed to store credential: %w", err)
+	}
+	if err := c.store.Save(); err != nil {
+		return nil, fmt.Errorf("failed to save credentials: %w", err)
+	}
+	return cred, nil
+}
+
 // Logout removes the credential for this server
 func (c *AuthClient) Logout() error {
 	c.mu.Lock()
@@ -386,6 +430,32 @@ func (c *AuthClient) requestTokenForm(tokenEndpoint string, data url.Values, aut
 	if authMethod == AuthMethodClientSecretBasic {
 		req.SetBasicAuth(clientID, clientSecret)
 	}
+	return c.executeTokenRequest(req)
+}
+
+// requestTokenFormWithAssertion is the private_key_jwt counterpart of
+// requestTokenForm. The audience is typically the token endpoint URL
+// (per OIDC Core §9); pass it explicitly so this works with non-default
+// deployments.
+func (c *AuthClient) requestTokenFormWithAssertion(tokenEndpoint string, data url.Values, clientID, audience string, cfg ClientAssertionConfig) (*ServerCredential, error) {
+	assertion, err := MintClientAssertion(clientID, audience, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("mint client_assertion: %w", err)
+	}
+	applyAssertionToForm(clientID, assertion, data)
+
+	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return c.executeTokenRequest(req)
+}
+
+// executeTokenRequest dispatches a fully-prepared token request and
+// decodes the OAuth response into a ServerCredential. Shared by
+// requestTokenForm and requestTokenFormWithAssertion.
+func (c *AuthClient) executeTokenRequest(req *http.Request) (*ServerCredential, error) {
 
 	// Use base transport directly to avoid auth loop
 	httpClient := &http.Client{Transport: c.baseTransport}

@@ -17,12 +17,15 @@ The `OneAuth` struct composes focused interfaces for all auth operations without
 - **token_validator.go** — `jwtValidator` + `jwtIssuer` implementations
 - **token_introspector.go** — `tokenIntrospector` (delegates to `TokenValidator`)
 - **token_revoker.go** — `tokenRevoker` (blacklist + refresh store)
-- **client_authenticator.go** — `clientAuthenticator` (constant-time secret comparison)
+- **client_authenticator.go** — `clientAuthenticator` (`client_secret_*` constant-time comparison + RFC 7521 §4.2 / RFC 7523 §2.2 / OIDC Core §9 `private_key_jwt` assertion validation: signature against registered client public key, alg-confusion lock via `WithValidMethods`, iss == sub == client_id, audience match, exp + lifetime cap, jti replay-block via `JTIStore`)
+- **jti_store.go** — `JTIStore` interface + `inMemoryJTIStore` (TTL-based, lazy GC). Pluggable for distributed deployments.
+- **client_credentials.go** — `extractClientCredentials` (Basic / form-body / assertion channels) shared by token + introspection + revocation handlers; `derivedAudience` fallback URL when handler `AcceptedAudiences` is empty.
 - **oneauth.go** — `OneAuth` composite, `NewOneAuth()` constructor, HTTP convenience methods (`IntrospectionHTTPHandler`, `RevocationHTTPHandler`, `HTTPMiddleware`)
 
 HTTP handlers (`IntrospectionHandler`, `RevocationHandler`) delegate to core interfaces. `APIMiddleware` delegates to `TokenValidator` when `KeyStore` is set.
 
 ## Recent Changes
+- **`private_key_jwt` client auth (#158)** — `ClientAuthenticator` now accepts RFC 7523 §2.2 / OIDC Core §9 signed-JWT client authentication. Token + introspection + revocation handlers all route through a shared `extractClientCredentials` helper covering `client_secret_basic` / `client_secret_post` / `private_key_jwt`. AS metadata advertises `private_key_jwt` and the new `token_endpoint_auth_signing_alg_values_supported` field. Closes the previously expected-fail `introspection/post_auth_accepted` ratchet entry as a side effect.
 - **Token revocation** — `RevocationHandler` at `POST /oauth/revoke` (RFC 7009). Always returns 200. Supports `token_type_hint`.
 - **RFC 9396 Rich Authorization Requests** — `authorization_details` on token requests, JWT claims, introspection, middleware enforcement via `RequireAuthorizationDetails`.
 - **client_credentials grant** — `APIAuth.ClientKeyStore` enables machine-to-machine auth via `grant_type=client_credentials` (RFC 6749 §4.4).

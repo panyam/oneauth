@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -79,6 +80,31 @@ type APIAuth struct {
 	// When nil, client_credentials requests return unsupported_grant_type.
 	ClientKeyStore keys.KeyLookup
 
+	// ClientAuthenticator authenticates clients at the token endpoint
+	// (and is also used by the introspection / revocation handlers).
+	// When set, all client authentication on the token endpoint
+	// (client_secret_basic, client_secret_post, private_key_jwt) goes
+	// through this interface — supporting the assertion-based methods
+	// is the entire point of plumbing it here. When nil, the token
+	// endpoint falls back to the legacy inline lookup against
+	// ClientKeyStore (secret-based methods only).
+	ClientAuthenticator ClientAuthenticator
+
+	// AcceptedAudiences are the URLs the AS will accept as the `aud`
+	// claim of a private_key_jwt / client_secret_jwt client assertion
+	// at the token endpoint (OIDC Core §9). Typically the token
+	// endpoint URL plus the AS issuer URL. When empty, the URL of the
+	// request is used as a fallback (single-host deployments only).
+	AcceptedAudiences []string
+
+	// lazyAuthenticator caches the authenticator built from
+	// ClientKeyStore when ClientAuthenticator was not wired
+	// explicitly. The cache is critical: a fresh authenticator per
+	// request means a fresh in-memory JTIStore, which would defeat
+	// replay protection for private_key_jwt assertions.
+	lazyAuthenticator     ClientAuthenticator
+	lazyAuthenticatorOnce sync.Once
+
 	// TrustedAssertionIssuers lists upstream IdPs whose JWT assertions
 	// the token endpoint will accept for the jwt-bearer grant
 	// (RFC 7523 §2.1) and the token-exchange grant with
@@ -127,6 +153,10 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Scope:        r.FormValue("scope"),
 			ClientID:     r.FormValue("client_id"),
 			ClientSecret: r.FormValue("client_secret"),
+			// RFC 7521 §4.2 / RFC 7523 §2.2 — client authentication
+			// via signed JWT (private_key_jwt / client_secret_jwt).
+			ClientAssertionType: r.FormValue("client_assertion_type"),
+			ClientAssertion:     r.FormValue("client_assertion"),
 			// RFC 7523 §2.1 — jwt-bearer authorization grant
 			Assertion: r.FormValue("assertion"),
 			// RFC 8693 — token exchange
@@ -314,49 +344,32 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 }
 
 // handleClientCredentialsGrant handles the client_credentials grant type (RFC 6749 §4.4).
-// Machine-to-machine authentication: the client authenticates with client_id + client_secret
-// and receives an access token with sub=client_id. No user context, no refresh token.
+// Machine-to-machine authentication: the client authenticates with one of
+// the registered token-endpoint auth methods and receives an access token
+// with sub=client_id. No user context, no refresh token.
 //
-// Client authentication methods:
-//   - client_secret_post: client_id + client_secret in the JSON request body
+// Client authentication methods (selected automatically by which credentials
+// are present on the request):
 //   - client_secret_basic: HTTP Basic auth with client_id:client_secret
+//   - client_secret_post:  client_id + client_secret in the form body
+//   - private_key_jwt:     client_assertion_type + client_assertion (RFC 7523 §2.2)
 func (a *APIAuth) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
-	if a.ClientKeyStore == nil {
+	if a.ClientKeyStore == nil && a.ClientAuthenticator == nil {
 		a.errorResponse(w, "unsupported_grant_type", "client_credentials not configured", http.StatusBadRequest)
 		return
 	}
 
-	// Extract client credentials: try Basic auth first, then request body
-	clientID := req.ClientID
-	clientSecret := req.ClientSecret
-	if basicUser, basicPass, ok := r.BasicAuth(); ok {
-		clientID = basicUser
-		clientSecret = basicPass
-	}
-
-	if clientID == "" {
-		a.errorResponse(w, "invalid_request", "client_id is required", http.StatusBadRequest)
-		return
-	}
-	if clientSecret == "" {
-		a.errorResponse(w, "invalid_request", "client_secret is required", http.StatusBadRequest)
-		return
-	}
-
-	// Look up client in KeyStore
-	rec, err := a.ClientKeyStore.GetKey(clientID)
-	if err != nil || rec == nil {
-		a.errorResponse(w, "invalid_client", "Unknown client", http.StatusUnauthorized)
-		return
-	}
-
-	// Verify client secret (constant-time comparison for HS256)
-	storedKey, ok := rec.Key.([]byte)
-	if !ok {
-		a.errorResponse(w, "invalid_client", "Client does not support secret authentication", http.StatusUnauthorized)
-		return
-	}
-	if !constantTimeEqual(string(storedKey), clientSecret) {
+	clientID, err := a.authenticateTokenEndpointClient(r, req)
+	if err != nil {
+		log.Printf("client_credentials auth failed: %v", err)
+		// errMissingClientCredentials → 400 invalid_request
+		// (RFC 6749 §5.2 — missing required parameter).
+		// All other auth failures (bad secret, bad assertion,
+		// unknown client) → 401 invalid_client.
+		if errors.Is(err, errMissingClientCredentials) {
+			a.errorResponse(w, "invalid_request", err.Error(), http.StatusBadRequest)
+			return
+		}
 		a.errorResponse(w, "invalid_client", "Invalid client credentials", http.StatusUnauthorized)
 		return
 	}
@@ -383,6 +396,46 @@ func (a *APIAuth) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Re
 
 	// Return access token only — no refresh token for client_credentials
 	a.tokenResponse(w, accessToken, expiresIn, "", scopes, req.AuthorizationDetails)
+}
+
+// authenticateTokenEndpointClient runs whichever auth method the request
+// carries. Routes through ClientAuthenticator when set (the only path
+// that supports private_key_jwt); falls back to inline secret-only
+// lookup against ClientKeyStore for backward compatibility with
+// callers that don't wire an authenticator.
+func (a *APIAuth) authenticateTokenEndpointClient(r *http.Request, req *core.TokenRequest) (string, error) {
+	auth := a.ClientAuthenticator
+	if auth == nil && a.ClientKeyStore != nil {
+		// Lazily build (and cache) an authenticator over ClientKeyStore
+		// so legacy callers automatically gain private_key_jwt support
+		// once they register asymmetric-keyed clients. Caching is
+		// required for jti replay protection — a fresh authenticator
+		// per request means a fresh JTIStore.
+		a.lazyAuthenticatorOnce.Do(func() {
+			a.lazyAuthenticator = NewClientAuthenticator(a.ClientKeyStore)
+		})
+		auth = a.lazyAuthenticator
+	}
+	if auth == nil {
+		return "", fmt.Errorf("no client authenticator configured")
+	}
+
+	creds, ok := extractClientCredentials(r, req)
+	if !ok {
+		return "", errMissingClientCredentials
+	}
+	creds.Audiences = a.AcceptedAudiences
+	if len(creds.Audiences) == 0 {
+		creds.Audiences = []string{derivedAudience(r)}
+	}
+	resp, err := auth.AuthenticateClient(r.Context(), creds)
+	if err != nil {
+		return "", err
+	}
+	if resp == nil || resp.ClientID == "" {
+		return "", fmt.Errorf("authenticator returned empty ClientID")
+	}
+	return resp.ClientID, nil
 }
 
 // constantTimeEqual performs a constant-time string comparison to prevent
