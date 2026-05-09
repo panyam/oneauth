@@ -1,0 +1,11 @@
+[FAILURE] OIDCCCheckDiscEndpointResponseTypesSupported: The server must support at least one of the response types defined in OpenID Connect.
+[FAILURE] CheckDiscEndpointDiscoveryUrl: Expected https protocol for server.discoveryUrl
+[FAILURE] OIDCCCheckDiscEndpointIdTokenSigningAlgValuesSupported: id_token_signing_alg_values_supported: not found
+[FAILURE] CheckDiscEndpointAuthorizationEndpoint: authorization_endpoint: URL not found
+[FAILURE] CheckDiscEndpointTokenEndpoint: Expected https protocol for token_endpoint
+[WARNING] CheckDiscEndpointUserinfoEndpoint: Skipped evaluation due to missing required element: server userinfo_endpoint
+[FAILURE] CheckDiscEndpointRegistrationEndpoint: Expected https protocol for registration_endpoint
+[FAILURE] CheckJwksUri: Expected https protocol for jwks_uri
+[WARNING] OIDCCCheckDiscEndpointClaimsSupported: claims_supported: not found
+[WARNING] CheckDiscEndpointScopesSupportedContainsOpenId: Skipped evaluation due to missing required element: server scopes_supported
+[FAILURE] CheckDiscEndpointAllEndpointsAreHttps: Expected https protocol for token_endpoint

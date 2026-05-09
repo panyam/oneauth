@@ -1,0 +1,167 @@
+[
+    {
+        "_id": "hsVGs8saQrkgd9m-kNFeSi81rOSVQ8euCabzFLkQVA6zjKEj",
+        "msg": "Test instance hsVGs8saQrkgd9m created",
+        "result": "INFO",
+        "baseUrl": "https://localhost.emobix.co.uk:8443/test/a/oneauth-basic-baseline",
+        "variant": {
+            "client_auth_type": "client_secret_basic",
+            "response_type": "code",
+            "server_metadata": "discovery",
+            "client_registration": "static_client",
+            "response_mode": "default"
+        },
+        "alias": "oneauth-basic-baseline",
+        "description": "OneAuth basic OP baseline",
+        "planId": "1eFfMU3cEDisa",
+        "config": {
+            "alias": "oneauth-basic-baseline",
+            "description": "OneAuth basic OP baseline",
+            "server": {
+                "discoveryUrl": "http://host.docker.internal:8888/.well-known/openid-configuration"
+            },
+            "client": {
+                "client_id": "oneauth-test-client",
+                "client_secret": "oneauth-test-secret",
+                "scope": "openid profile email"
+            }
+        },
+        "baseMtlsUrl": "https://localhost:8444/test-mtls/a/oneauth-basic-baseline",
+        "testName": "oidcc-server",
+        "testId": "hsVGs8saQrkgd9m",
+        "src": "TEST-RUNNER",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361356590
+    },
+    {
+        "_id": "hsVGs8saQrkgd9m-Le0xYhakFeInLC9SAXQ1OhmddfgwX24H",
+        "msg": "Created redirect URI",
+        "result": "SUCCESS",
+        "redirect_uri": "https://localhost.emobix.co.uk:8443/test/a/oneauth-basic-baseline/callback",
+        "testId": "hsVGs8saQrkgd9m",
+        "src": "CreateRedirectUri",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361356597
+    },
+    {
+        "_id": "hsVGs8saQrkgd9m-parGfMxLlr7r5eGkJ6EYvzsRixQyHpJr",
+        "request_uri": "http://host.docker.internal:8888/.well-known/openid-configuration",
+        "request_method": "GET",
+        "request_headers": {
+            "Accept": "text/plain, application/json, application/yaml, application/*+json, */*",
+            "Content-Length": "0"
+        },
+        "request_body": "",
+        "msg": "HTTP request",
+        "http": "request",
+        "testId": "hsVGs8saQrkgd9m",
+        "src": "GetDynamicServerConfiguration",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361356616
+    },
+    {
+        "_id": "hsVGs8saQrkgd9m-VzGRrCKQYQgQq3Wko3AFnEOU5Upkbn3z",
+        "response_status_code": "200 OK",
+        "response_status_text": "OK",
+        "response_headers": {
+            "cache-control": "public, max-age=3600",
+            "content-security-policy": "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'",
+            "content-type": "application/json",
+            "cross-origin-embedder-policy": "credentialless",
+            "cross-origin-opener-policy": "same-origin",
+            "cross-origin-resource-policy": "same-origin",
+            "permissions-policy": "camera=(), microphone=(), geolocation=()",
+            "referrer-policy": "strict-origin-when-cross-origin",
+            "strict-transport-security": "max-age=31536000; includeSubDomains",
+            "x-content-type-options": "nosniff",
+            "x-frame-options": "DENY",
+            "date": "Sat, 09 May 2026 21:15:56 GMT",
+            "content-length": "759"
+        },
+        "response_body": "{\"issuer\":\"http://host.docker.internal:8888\",\"token_endpoint\":\"http://host.docker.internal:8888/api/token\",\"jwks_uri\":\"http://host.docker.internal:8888/.well-known/jwks.json\",\"introspection_endpoint\":\"http://host.docker.internal:8888/oauth/introspect\",\"revocation_endpoint\":\"http://host.docker.internal:8888/oauth/revoke\",\"registration_endpoint\":\"http://host.docker.internal:8888/apps/register\",\"response_types_supported\":[\"token\"],\"grant_types_supported\":[\"password\",\"refresh_token\",\"client_credentials\"],\"token_endpoint_auth_methods_supported\":[\"client_secret_post\",\"client_secret_basic\",\"private_key_jwt\"],\"token_endpoint_auth_signing_alg_values_supported\":[\"RS256\",\"ES256\"],\"code_challenge_methods_supported\":[\"S256\"],\"subject_types_supported\":[\"public\"]}",
+        "msg": "HTTP response",
+        "http": "response",
+        "testId": "hsVGs8saQrkgd9m",
+        "src": "GetDynamicServerConfiguration",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361356627
+    },
+    {
+        "_id": "hsVGs8saQrkgd9m-GfD7Uw762slkB2L7re86UFRvx67R66vQ",
+        "issuer": "http://host.docker.internal:8888",
+        "token_endpoint": "http://host.docker.internal:8888/api/token",
+        "jwks_uri": "http://host.docker.internal:8888/.well-known/jwks.json",
+        "introspection_endpoint": "http://host.docker.internal:8888/oauth/introspect",
+        "revocation_endpoint": "http://host.docker.internal:8888/oauth/revoke",
+        "registration_endpoint": "http://host.docker.internal:8888/apps/register",
+        "response_types_supported": [
+            "token"
+        ],
+        "grant_types_supported": [
+            "password",
+            "refresh_token",
+            "client_credentials"
+        ],
+        "token_endpoint_auth_methods_supported": [
+            "client_secret_post",
+            "client_secret_basic",
+            "private_key_jwt"
+        ],
+        "token_endpoint_auth_signing_alg_values_supported": [
+            "RS256",
+            "ES256"
+        ],
+        "code_challenge_methods_supported": [
+            "S256"
+        ],
+        "subject_types_supported": [
+            "public"
+        ],
+        "msg": "Successfully parsed server configuration",
+        "result": "SUCCESS",
+        "testId": "hsVGs8saQrkgd9m",
+        "src": "GetDynamicServerConfiguration",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361356633
+    },
+    {
+        "_id": "hsVGs8saQrkgd9m-Yl4Lkvp7vgM0K9VGFnCPPIsIQjtLsMTd",
+        "msg": "Couldn't find required component",
+        "result": "FAILURE",
+        "required": "authorization_endpoint",
+        "testId": "hsVGs8saQrkgd9m",
+        "src": "CheckServerConfiguration",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361356636
+    },
+    {
+        "_id": "hsVGs8saQrkgd9m-AxREVDRs4NntSldMegatvp1BKUKm5kUr",
+        "msg": "Test was interrupted before it could complete. The failure 'CheckServerConfiguration: Couldn't find required component' means the test cannot continue.",
+        "result": "INTERRUPTED",
+        "testId": "hsVGs8saQrkgd9m",
+        "src": "oidcc-server",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361356641
+    }
+]

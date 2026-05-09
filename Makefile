@@ -445,6 +445,46 @@ kcllogs:
 	@docker logs -f $(KC_CONTAINER_NAME)
 
 # =============================================================================
+# OIDF conformance harness (issue 197)
+# =============================================================================
+# Stands up the OpenID Foundation conformance suite (Java app + MongoDB +
+# nginx) against the local cmd/oneauth-server, captures baseline results.
+# This is *not* part of the conformance ratchet yet — Phase 1 is a
+# manually-run baseline so we can see, in concrete terms, which OIDF
+# certification tests pass against OneAuth today and which require
+# work (notably 116 — full OIDC /authorize endpoint).
+#
+# UI: https://localhost.emobix.co.uk:8443/  (hostname resolves publicly to 127.0.0.1)
+
+OIDF_COMPOSE := tests/oidf-conformance/docker-compose-prebuilt.yml
+OIDF_AS_CONFIG := tests/oidf-conformance/oneauth-server.yaml
+
+upoidf:
+	@echo "Starting OIDF conformance suite (mongo + nginx + server)..."
+	@docker compose -f $(OIDF_COMPOSE) up -d
+	@echo "Waiting for harness UI..."
+	@until curl -ksf -o /dev/null https://localhost.emobix.co.uk:8443/; do sleep 2; done
+	@echo ""
+	@echo "OIDF conformance suite is running!"
+	@echo "  UI:     https://localhost.emobix.co.uk:8443/"
+	@echo "  Stop:   make downoidf"
+	@echo ""
+	@echo "Next: in another shell, run 'make upoidf-as' to start oneauth-server"
+	@echo "      reachable at http://host.docker.internal:8888 from the harness."
+
+downoidf:
+	@echo "Stopping OIDF conformance stack..."
+	@docker compose -f $(OIDF_COMPOSE) down
+	@echo "MongoDB data persists in tests/oidf-conformance/mongo/ — delete that dir for a clean slate."
+
+upoidf-as:
+	@echo "Starting cmd/oneauth-server on :8888 with OIDF baseline config..."
+	@go run ./cmd/oneauth-server --config $(OIDF_AS_CONFIG)
+
+oidflogs:
+	@docker compose -f $(OIDF_COMPOSE) logs -f --tail=100 server
+
+# =============================================================================
 # Conformance ratchet — see docs/CONFORMANCE.md
 # =============================================================================
 # Runs every known conformance test (passing AND expected-fail) and diffs
@@ -688,7 +728,7 @@ audit: vulncheck secrets
 .PHONY: test test-hard testall test-report e2e audit \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
-	upkcl downkcl kcllogs testkcl uprar downrar deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
 	deps norep rep tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all
