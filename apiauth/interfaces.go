@@ -211,22 +211,73 @@ type RevokeResponse struct{}
 // ClientAuthenticator — verifies client credentials.
 // ----------------------------------------------------------------------------
 
-// ClientAuthenticator verifies client_id + client_secret. Used by transport
-// bindings to authenticate callers of protected endpoints (introspection,
-// revocation, DCR).
+// ClientAuthenticator verifies client credentials. Used by transport
+// bindings to authenticate callers of protected endpoints (token,
+// introspection, revocation, DCR).
+//
+// Supported authentication methods (RFC 6749 §2.3.1, OIDC Core §9):
+//   - client_secret_basic / client_secret_post: ClientID + ClientSecret
+//   - private_key_jwt (RFC 7521 §3 + RFC 7523 §2.2): ClientAssertionType +
+//     ClientAssertion. The implementation routes by which fields are set.
 type ClientAuthenticator interface {
-	// AuthenticateClient verifies the client_id and client_secret.
+	// AuthenticateClient verifies the supplied credentials. Returns the
+	// authenticated client_id and the auth method used on success.
 	AuthenticateClient(ctx context.Context, req *AuthenticateClientRequest) (*AuthenticateClientResponse, error)
 }
 
 // AuthenticateClientRequest is the input to ClientAuthenticator.AuthenticateClient.
+//
+// Callers populate either the secret pair (ClientID + ClientSecret) or
+// the assertion pair (ClientAssertionType + ClientAssertion). When both
+// are populated the implementation prefers the assertion (it is the
+// stronger credential per RFC 6749 §2.3.1).
 type AuthenticateClientRequest struct {
-	ClientID     string
+	// ClientID is the OAuth client identifier. For private_key_jwt this
+	// may be empty; the authenticator extracts it from the assertion's
+	// `iss` / `sub` claims.
+	ClientID string
+
+	// ClientSecret is the shared secret for client_secret_basic /
+	// client_secret_post. Empty when authenticating via assertion.
 	ClientSecret string
+
+	// ClientAssertionType is the OAuth assertion type URN. For
+	// private_key_jwt this MUST be
+	// "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+	// (RFC 7521 §4.2). Empty when authenticating via secret.
+	ClientAssertionType string
+
+	// ClientAssertion is the signed JWT bearing the client's identity
+	// (RFC 7523 §2.2 / OIDC Core §9). Validated against the client's
+	// registered public key. Empty when authenticating via secret.
+	ClientAssertion string
+
+	// Audiences is the set of URLs the AS will accept as the assertion's
+	// `aud` claim — typically the token endpoint URL AND the AS issuer
+	// URL. Per OIDC Core §9 the audience SHOULD be the token endpoint
+	// URL, but real-world clients (Auth0, Keycloak, Authlete) send one
+	// or the other; accept both for interop. The assertion's `aud`
+	// MUST match at least one entry. Required when ClientAssertion is
+	// set.
+	Audiences []string
 }
 
-// AuthenticateClientResponse — empty (success/failure via error). Wrapped per convention.
-type AuthenticateClientResponse struct{}
+// AuthenticateClientResponse reports the authenticated client and the
+// auth method that succeeded. The method is informational (telemetry,
+// logging) — handlers that only need success/failure can ignore it.
+type AuthenticateClientResponse struct {
+	// ClientID is the authenticated client identifier. Equals the
+	// request ClientID for the secret path; extracted from the
+	// assertion `iss` / `sub` for the assertion path.
+	ClientID string
+
+	// Method names the auth method that succeeded — one of
+	// "client_secret_basic", "client_secret_post", "private_key_jwt".
+	// Transport bindings populate Method on the way in (basic vs post)
+	// when they know which channel carried the secret; the assertion
+	// path always sets it to "private_key_jwt".
+	Method string
+}
 
 // ----------------------------------------------------------------------------
 // Result types (returned by interface methods, exported for wire compat)

@@ -31,13 +31,15 @@ import (
 // OIDCConfig holds discovered OIDC / OAuth Authorization Server endpoints.
 // See: https://www.rfc-editor.org/rfc/rfc8414#section-2
 type OIDCConfig struct {
-	Issuer                string   `json:"issuer"`
-	TokenEndpoint         string   `json:"token_endpoint"`
-	JWKSURI               string   `json:"jwks_uri"`
-	AuthorizationEndpoint string   `json:"authorization_endpoint,omitempty"`
-	IntrospectionEndpoint string   `json:"introspection_endpoint,omitempty"`
-	RegistrationEndpoint  string   `json:"registration_endpoint,omitempty"`
-	ScopesSupported       []string `json:"scopes_supported,omitempty"`
+	Issuer                                     string   `json:"issuer"`
+	TokenEndpoint                              string   `json:"token_endpoint"`
+	JWKSURI                                    string   `json:"jwks_uri"`
+	AuthorizationEndpoint                      string   `json:"authorization_endpoint,omitempty"`
+	IntrospectionEndpoint                      string   `json:"introspection_endpoint,omitempty"`
+	RegistrationEndpoint                       string   `json:"registration_endpoint,omitempty"`
+	ScopesSupported                            []string `json:"scopes_supported,omitempty"`
+	TokenEndpointAuthMethodsSupported          []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
 }
 
 // TokenResponse holds the token endpoint response fields.

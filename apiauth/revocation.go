@@ -18,6 +18,12 @@ type RevocationHandler struct {
 
 	// Authenticator verifies the caller's client credentials.
 	Authenticator ClientAuthenticator
+
+	// AcceptedAudiences are the URLs the AS will accept as the
+	// `aud` claim of a private_key_jwt / client_secret_jwt client
+	// assertion (OIDC Core §9). When empty the URL of the request
+	// is used as a fallback.
+	AcceptedAudiences []string
 }
 
 // NewRevocationHandler creates a RevocationHandler from an APIAuth and
@@ -47,21 +53,17 @@ func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Authenticate the caller — try Basic auth first, then form params
-	clientID, clientSecret, hasBasic := r.BasicAuth()
-	if !hasBasic {
-		clientID = r.FormValue("client_id")
-		clientSecret = r.FormValue("client_secret")
-	}
-	if clientID == "" {
+	creds, ok := extractClientCredentials(r, nil)
+	if !ok {
 		w.Header().Set("WWW-Authenticate", `Basic realm="revocation"`)
 		h.errorResponse(w, "invalid_client", "Authentication required", http.StatusUnauthorized)
 		return
 	}
-	if _, err := h.Authenticator.AuthenticateClient(r.Context(), &AuthenticateClientRequest{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-	}); err != nil {
+	creds.Audiences = h.AcceptedAudiences
+	if len(creds.Audiences) == 0 {
+		creds.Audiences = []string{derivedAudience(r)}
+	}
+	if _, err := h.Authenticator.AuthenticateClient(r.Context(), creds); err != nil {
 		w.Header().Set("WWW-Authenticate", `Basic realm="revocation"`)
 		h.errorResponse(w, "invalid_client", "Invalid client credentials", http.StatusUnauthorized)
 		return

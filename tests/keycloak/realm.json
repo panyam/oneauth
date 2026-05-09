@@ -66,6 +66,20 @@
       "protocol": "openid-connect",
       "defaultClientScopes": ["openid"],
       "attributes": {}
+    },
+    {
+      "clientId": "test-pkjwt",
+      "enabled": true,
+      "clientAuthenticatorType": "client-jwt",
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["openid"],
+      "attributes": {
+        "use.jwks.url": "false",
+        "jwt.credential.public.key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA23O2vHfACAsiRBabjf4nDcwUKf57K20uoforIeG26vTBdAeS7HFJaQnzQpEerzHry3r8mgXmnq7QZgIUmHBZzy8wdrfsHd3aZ7c4G+8pg3yGu/C4oGyj+khdfAcrqtGDecjWSvkbUxcbUrpayRE9M2GyYflPIm1JP6qP6i3Jf0Q+jvCeJN/m/pNBwbMGCCy/KnDBf8K+y2rE30FteEVmGa4diiUtpZ9WXKgUKtplFvzadCLZG0nDgD+lUvRBtK9WaLUxHxVMgLhQ9BdLKPIkqkPR3BIGRxSGpaKLH9kPAXp+F9P1NRB3udOTXHfN0W+QRwJIT9ObZAbHZZPuuhVLZwIDAQAB",
+        "token.endpoint.auth.signing.alg": "RS256"
+      }
     }
   ],
   "clientScopes": [

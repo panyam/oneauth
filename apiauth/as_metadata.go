@@ -38,6 +38,15 @@ type ASServerMetadata struct {
 	ResponseTypesSupported        []string `json:"response_types_supported,omitempty"`
 	GrantTypesSupported           []string `json:"grant_types_supported,omitempty"`
 	TokenEndpointAuthMethods      []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+
+	// TokenEndpointAuthSigningAlgValuesSupported lists the JWT alg
+	// values the AS accepts on a private_key_jwt or client_secret_jwt
+	// `client_assertion`. Per OIDC Discovery 1.0 §3 / RFC 8414 §2 this
+	// list is REQUIRED whenever TokenEndpointAuthMethods includes
+	// "private_key_jwt" or "client_secret_jwt"; "none" MUST NOT
+	// appear. Typical values: "RS256", "ES256".
+	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
+
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
 	SubjectTypesSupported         []string `json:"subject_types_supported,omitempty"`
 

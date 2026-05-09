@@ -161,6 +161,17 @@ type TokenRequest struct {
 	// trusted-issuer registry and issues an access token in exchange.
 	Assertion string `json:"assertion,omitempty"`
 
+	// ClientAssertionType + ClientAssertion authenticate the *client*
+	// itself — distinct from Assertion (which authenticates the
+	// resource owner via the jwt-bearer grant). Per RFC 7521 §4.2 +
+	// RFC 7523 §2.2 + OIDC Core §9, ClientAssertionType MUST be
+	// "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" and
+	// ClientAssertion is a signed JWT with iss == sub == client_id.
+	// Used by the private_key_jwt and client_secret_jwt token-endpoint
+	// authentication methods.
+	ClientAssertionType string `json:"client_assertion_type,omitempty"`
+	ClientAssertion     string `json:"client_assertion,omitempty"`
+
 	// SubjectToken / SubjectTokenType / RequestedTokenType / Resource / Audience
 	// support grant_type=urn:ietf:params:oauth:grant-type:token-exchange (RFC 8693).
 	// SubjectToken is the credential representing the party on whose behalf
