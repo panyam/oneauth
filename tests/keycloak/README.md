@@ -37,6 +37,7 @@ make downkcl    # Stop when done
   - `test-confidential` — client_credentials + password grants (secret: `test-secret-for-confidential-client`)
   - `test-public` — PKCE-enabled public client
   - `test-audience` — for audience validation tests
+  - `test-pkjwt` — `client-jwt` (private_key_jwt) for #158 interop. Public key is checked into `realm.json`; matching private key lives in `testdata/client-jwt.private.pem`. **Test-only fixture — never use this key in production.** Secret-scanner false positive: allowlist this path.
 - **User**: `testuser` / `testpassword`
 - **Scopes**: `relay-connect`, `relay-publish`, `read`, `write`
 
