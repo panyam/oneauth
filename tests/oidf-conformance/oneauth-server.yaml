@@ -1,0 +1,32 @@
+# cmd/oneauth-server config for the OIDF conformance harness baseline.
+#
+# The harness runs in Docker and reaches the host via host.docker.internal.
+# We bind to all interfaces and set both server.public_url and jwt.issuer
+# to the same host.docker.internal hostname so:
+#   - Discovery / JWKS / token URLs the harness *fetches* point at
+#     host.docker.internal (resolvable from inside the container).
+#   - Tokens we *issue* carry iss=host.docker.internal, which is what
+#     the harness expects to see when validating responses.
+#
+# RS256 with an ephemeral key so JWKS exposes the verifying half — the
+# harness must be able to validate tokens via JWKS to call any plan
+# successful (HS256 secrets are correctly omitted from JWKS).
+
+server:
+  port: 8888
+  host: 0.0.0.0
+  public_url: http://host.docker.internal:8888
+
+keystore:
+  type: memory
+
+user_stores:
+  type: memory
+
+jwt:
+  issuer: http://host.docker.internal:8888
+  signing_alg: RS256
+  ephemeral_signing_key: true
+
+admin_auth:
+  type: none

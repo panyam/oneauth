@@ -1,0 +1,3 @@
+# MongoDB data dir created by docker-compose-prebuilt.yml at runtime.
+# Each fresh `docker compose up` repopulates it; not a build artifact.
+mongo/

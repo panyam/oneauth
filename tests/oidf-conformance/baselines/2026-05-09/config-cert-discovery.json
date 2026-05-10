@@ -1,0 +1,669 @@
+[
+    {
+        "_id": "OWBrfENvv6YAIJy-OkhAF4R9AdvN1DGZtXBtBFp5hoT7eNRN",
+        "msg": "Test instance OWBrfENvv6YAIJy created",
+        "result": "INFO",
+        "baseUrl": "https://localhost.emobix.co.uk:8443/test/a/oneauth-config-baseline",
+        "variant": {
+            "server_metadata": "discovery",
+            "client_registration": "static_client"
+        },
+        "alias": "oneauth-config-baseline",
+        "description": "OneAuth config certification baseline",
+        "planId": "kDlvvBbf3KYG2",
+        "config": {
+            "alias": "oneauth-config-baseline",
+            "description": "OneAuth config certification baseline",
+            "server": {
+                "discoveryUrl": "http://host.docker.internal:8888/.well-known/openid-configuration"
+            }
+        },
+        "baseMtlsUrl": "https://localhost:8444/test-mtls/a/oneauth-config-baseline",
+        "testName": "oidcc-discovery-endpoint-verification",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "TEST-RUNNER",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183251
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-DSJbp77xDhpRt5wNaS7HYmGDXgIbELAF",
+        "request_uri": "http://host.docker.internal:8888/.well-known/openid-configuration",
+        "request_method": "GET",
+        "request_headers": {
+            "Accept": "text/plain, application/json, application/yaml, application/*+json, */*",
+            "Content-Length": "0"
+        },
+        "request_body": "",
+        "msg": "HTTP request",
+        "http": "request",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "GetDynamicServerConfiguration",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183570
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-RcDT5UeSqT8ykT1mdUav6AkdWefYJ3vf",
+        "response_status_code": "200 OK",
+        "response_status_text": "OK",
+        "response_headers": {
+            "cache-control": "public, max-age=3600",
+            "content-security-policy": "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'",
+            "content-type": "application/json",
+            "cross-origin-embedder-policy": "credentialless",
+            "cross-origin-opener-policy": "same-origin",
+            "cross-origin-resource-policy": "same-origin",
+            "permissions-policy": "camera=(), microphone=(), geolocation=()",
+            "referrer-policy": "strict-origin-when-cross-origin",
+            "strict-transport-security": "max-age=31536000; includeSubDomains",
+            "x-content-type-options": "nosniff",
+            "x-frame-options": "DENY",
+            "date": "Sat, 09 May 2026 21:13:03 GMT",
+            "content-length": "759"
+        },
+        "response_body": "{\"issuer\":\"http://host.docker.internal:8888\",\"token_endpoint\":\"http://host.docker.internal:8888/api/token\",\"jwks_uri\":\"http://host.docker.internal:8888/.well-known/jwks.json\",\"introspection_endpoint\":\"http://host.docker.internal:8888/oauth/introspect\",\"revocation_endpoint\":\"http://host.docker.internal:8888/oauth/revoke\",\"registration_endpoint\":\"http://host.docker.internal:8888/apps/register\",\"response_types_supported\":[\"token\"],\"grant_types_supported\":[\"password\",\"refresh_token\",\"client_credentials\"],\"token_endpoint_auth_methods_supported\":[\"client_secret_post\",\"client_secret_basic\",\"private_key_jwt\"],\"token_endpoint_auth_signing_alg_values_supported\":[\"RS256\",\"ES256\"],\"code_challenge_methods_supported\":[\"S256\"],\"subject_types_supported\":[\"public\"]}",
+        "msg": "HTTP response",
+        "http": "response",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "GetDynamicServerConfiguration",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183722
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-1GBqbc40InguyLHvfccaLLGhZNmWPUSd",
+        "issuer": "http://host.docker.internal:8888",
+        "token_endpoint": "http://host.docker.internal:8888/api/token",
+        "jwks_uri": "http://host.docker.internal:8888/.well-known/jwks.json",
+        "introspection_endpoint": "http://host.docker.internal:8888/oauth/introspect",
+        "revocation_endpoint": "http://host.docker.internal:8888/oauth/revoke",
+        "registration_endpoint": "http://host.docker.internal:8888/apps/register",
+        "response_types_supported": [
+            "token"
+        ],
+        "grant_types_supported": [
+            "password",
+            "refresh_token",
+            "client_credentials"
+        ],
+        "token_endpoint_auth_methods_supported": [
+            "client_secret_post",
+            "client_secret_basic",
+            "private_key_jwt"
+        ],
+        "token_endpoint_auth_signing_alg_values_supported": [
+            "RS256",
+            "ES256"
+        ],
+        "code_challenge_methods_supported": [
+            "S256"
+        ],
+        "subject_types_supported": [
+            "public"
+        ],
+        "msg": "Successfully parsed server configuration",
+        "result": "SUCCESS",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "GetDynamicServerConfiguration",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183735
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-IJHBHy56giTb5LU871wA0HdMpFXCSIz5",
+        "msg": "discovery_endpoint_response returned http 200 as expected",
+        "result": "SUCCESS",
+        "requirements": [
+            "OIDCD-4"
+        ],
+        "http_status": 200,
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "EnsureDiscoveryEndpointResponseStatusCodeIs200",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183739
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-ehEw916hwiHf8Gocok0lHXxy1SXGSLHZ",
+        "msg": "discovery_endpoint_response Content-Type: header is application/json",
+        "result": "SUCCESS",
+        "requirements": [
+            "OIDCD-4"
+        ],
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscoveryEndpointReturnedJsonContentType",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183746
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-vLFNBUQh3TcddiqRW75yb0g4ctba7Wko",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "oidcc-discovery-endpoint-verification",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183751,
+        "msg": "Setup Done"
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-DajEbIj7cVr3v7arTjqWZc1gWEibo00g",
+        "discovery_metadata_key": "response_types_supported",
+        "expected_at_least_one_of": [
+            "code",
+            "code id_token",
+            "id_token",
+            "token id_token",
+            "code id_token token",
+            "code token"
+        ],
+        "msg": "The server must support at least one of the response types defined in OpenID Connect.",
+        "result": "FAILURE",
+        "actual": [
+            "token"
+        ],
+        "requirements": [
+            "OIDCD-3",
+            "OIDCC-3"
+        ],
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "OIDCCCheckDiscEndpointResponseTypesSupported",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183763
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-e21maID5EaLRI3u27UqYYS6SsLbQYFpl",
+        "msg": "Expected https protocol for server.discoveryUrl",
+        "result": "FAILURE",
+        "actual": "http",
+        "expected": "https",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointDiscoveryUrl",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183772
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-yzSxGZXazj45Vf0TLEhR769B0Murf8E8",
+        "msg": "issuer is consistent with the discovery endpoint",
+        "result": "SUCCESS",
+        "requirements": [
+            "OIDCD-4.3",
+            "OIDCD-7.2"
+        ],
+        "issuer": "http://host.docker.internal:8888",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointIssuer",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183777
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-MTlkOUgD7nvubKpqnLH6c2eAIAtvkrDn",
+        "msg": "Contents of 'subject_types_supported' in discovery document matches expectations.",
+        "result": "SUCCESS",
+        "actual": [
+            "public"
+        ],
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "expected": [
+            "public",
+            "pairwise"
+        ],
+        "minimum_matches_required": 1,
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointSubjectTypesSupported",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183781
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-5sw3zIj0r1BX6TzPkFLBmLZ39HL8L7Tx",
+        "discovery_metadata_key": "id_token_signing_alg_values_supported",
+        "expected_at_least_one_of": [
+            "RS256"
+        ],
+        "msg": "id_token_signing_alg_values_supported: not found",
+        "result": "FAILURE",
+        "actual": null,
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "OIDCCCheckDiscEndpointIdTokenSigningAlgValuesSupported",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183784
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-dS52QdyQOKJ7slk1LfpCjraZHGqCChao",
+        "msg": "Skipped evaluation due to missing required element: server userinfo_signing_alg_values_supported",
+        "result": "INFO",
+        "path": "userinfo_signing_alg_values_supported",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "mapped": null,
+        "object": "server",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "OIDCCCheckDiscEndpointUserinfoSigningAlgValuesSupported",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183790
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-4bX6ZXjGt98FDKgb3uF9NtVpvMg2CeXQ",
+        "msg": "authorization_endpoint: URL not found",
+        "result": "FAILURE",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointAuthorizationEndpoint",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183794
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-aK5GI4y5K7s8oK9djRH3mLkRa3J9ecDx",
+        "msg": "Expected https protocol for token_endpoint",
+        "result": "FAILURE",
+        "actual": "http://host.docker.internal:8888/api/token",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "required": "https",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointTokenEndpoint",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183801
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-ZEPQyff8o9cc1Sh8E7vpLTUqCnNCEwyZ",
+        "msg": "Skipped evaluation due to missing required element: server userinfo_endpoint",
+        "result": "WARNING",
+        "path": "userinfo_endpoint",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "mapped": null,
+        "object": "server",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointUserinfoEndpoint",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183807
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-Jw82eHHfEmjqnI1vBoTpSOJBUezLAwj1",
+        "msg": "Expected https protocol for registration_endpoint",
+        "result": "FAILURE",
+        "actual": "http://host.docker.internal:8888/apps/register",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "required": "https",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointRegistrationEndpoint",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183809
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-ZpAWgLn8oca5eo0fPEUKO8sKCSluPdHT",
+        "msg": "Expected https protocol for jwks_uri",
+        "result": "FAILURE",
+        "actual": "http://host.docker.internal:8888/.well-known/jwks.json",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "required": "https",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckJwksUri",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183814
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-Yu4kmTM6cd9BIF40zhDshb6s69iWcslx",
+        "msg": "Fetching server key",
+        "jwks_uri": "http://host.docker.internal:8888/.well-known/jwks.json",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "FetchServerKeys",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183821
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-gmwJdwazhT2p7layyvfoRHhsJphovaGH",
+        "request_uri": "http://host.docker.internal:8888/.well-known/jwks.json",
+        "request_method": "GET",
+        "request_headers": {
+            "Accept": "text/plain, application/json, application/yaml, application/*+json, */*",
+            "Content-Length": "0"
+        },
+        "request_body": "",
+        "msg": "HTTP request",
+        "http": "request",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "FetchServerKeys",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183841
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-eOkPdpJKesB8grvBPWyWwWO8Wf418KWf",
+        "response_status_code": "200 OK",
+        "response_status_text": "OK",
+        "response_headers": {
+            "cache-control": "public, max-age=3600",
+            "content-security-policy": "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'",
+            "content-type": "application/json",
+            "cross-origin-embedder-policy": "credentialless",
+            "cross-origin-opener-policy": "same-origin",
+            "cross-origin-resource-policy": "same-origin",
+            "etag": "\"cfb524d55f6989e850b832942bc38542\"",
+            "permissions-policy": "camera=(), microphone=(), geolocation=()",
+            "referrer-policy": "strict-origin-when-cross-origin",
+            "strict-transport-security": "max-age=31536000; includeSubDomains",
+            "x-content-type-options": "nosniff",
+            "x-frame-options": "DENY",
+            "date": "Sat, 09 May 2026 21:13:03 GMT",
+            "content-length": "483"
+        },
+        "response_body": "{\"keys\":[{\"kty\":\"RSA\",\"kid\":\"3x62sdJnu2lnpZND-hQAoe19s3Ku354stSTKH9d-hBA\",\"alg\":\"RS256\",\"use\":\"sig\",\"key_ops\":[\"verify\"],\"n\":\"v3nu1A2Nrf57gzacpOIOymbVLjWNPA2hQecFbCWIQURU67TupiCccyTZawGbPxhCp3vznHeGmefT3ZitA7cJJuutdAMTQFk55RggjqfJrmHaBy8DG1liXCtHSONWIOqwLOXTvnbCBXrFZs00Gy6NtJZ-dVeNT3pweE_QcZFWUX6A1SCMbtoicjuYo82cvsRgxsLrFAFOz8mEZoV5gZdDd4d3Sa7ZVYDuTbPpaE06lvfS6pQ8lZzZ3-meytWTylCnJFjAR23zz_CLE5OJq4UdC6Akc6CQFBKHnerJCPFMEKJltJhD1X2obCs3APwHjGq1bBR7HcoEngkasWzmyK3PCw\",\"e\":\"AQAB\"}]}",
+        "msg": "HTTP response",
+        "http": "response",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "FetchServerKeys",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183850
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-il48GV5yCVe1MymeV348ie7SHat3IOkW",
+        "msg": "Found JWK set string",
+        "jwk_string": "{\"keys\":[{\"kty\":\"RSA\",\"kid\":\"3x62sdJnu2lnpZND-hQAoe19s3Ku354stSTKH9d-hBA\",\"alg\":\"RS256\",\"use\":\"sig\",\"key_ops\":[\"verify\"],\"n\":\"v3nu1A2Nrf57gzacpOIOymbVLjWNPA2hQecFbCWIQURU67TupiCccyTZawGbPxhCp3vznHeGmefT3ZitA7cJJuutdAMTQFk55RggjqfJrmHaBy8DG1liXCtHSONWIOqwLOXTvnbCBXrFZs00Gy6NtJZ-dVeNT3pweE_QcZFWUX6A1SCMbtoicjuYo82cvsRgxsLrFAFOz8mEZoV5gZdDd4d3Sa7ZVYDuTbPpaE06lvfS6pQ8lZzZ3-meytWTylCnJFjAR23zz_CLE5OJq4UdC6Akc6CQFBKHnerJCPFMEKJltJhD1X2obCs3APwHjGq1bBR7HcoEngkasWzmyK3PCw\",\"e\":\"AQAB\"}]}",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "FetchServerKeys",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183853
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-qjQ8C8O8jVV76fSee0izl3BaciELUwQH",
+        "msg": "Found server JWK set",
+        "result": "SUCCESS",
+        "server_jwks": {
+            "keys": [
+                {
+                    "kty": "RSA",
+                    "kid": "3x62sdJnu2lnpZND-hQAoe19s3Ku354stSTKH9d-hBA",
+                    "alg": "RS256",
+                    "use": "sig",
+                    "key_ops": [
+                        "verify"
+                    ],
+                    "n": "v3nu1A2Nrf57gzacpOIOymbVLjWNPA2hQecFbCWIQURU67TupiCccyTZawGbPxhCp3vznHeGmefT3ZitA7cJJuutdAMTQFk55RggjqfJrmHaBy8DG1liXCtHSONWIOqwLOXTvnbCBXrFZs00Gy6NtJZ-dVeNT3pweE_QcZFWUX6A1SCMbtoicjuYo82cvsRgxsLrFAFOz8mEZoV5gZdDd4d3Sa7ZVYDuTbPpaE06lvfS6pQ8lZzZ3-meytWTylCnJFjAR23zz_CLE5OJq4UdC6Akc6CQFBKHnerJCPFMEKJltJhD1X2obCs3APwHjGq1bBR7HcoEngkasWzmyK3PCw",
+                    "e": "AQAB"
+                }
+            ]
+        },
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "FetchServerKeys",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183856
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-lE1lD2LEZICryKrO6a5eTsZez5suLq69",
+        "msg": "Valid server JWKs: keys are valid JSON, contain the required fields and are correctly encoded using unpadded base64url",
+        "result": "SUCCESS",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "ValidateServerJWKs",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183875
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-v08fB6AgRUGF9fESlaDr9VfxOLAy9quu",
+        "msg": "Jwks does not contain any private or symmetric keys",
+        "result": "SUCCESS",
+        "requirements": [
+            "RFC7518-6.3.2.1"
+        ],
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "EnsureServerJwksDoesNotContainPrivateOrSymmetricKeys",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183882
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-xbI0PzrRIePVhcfYdNuIQS7buJzpRi30",
+        "discovery_metadata_key": "request_parameter_supported",
+        "msg": "'request_parameter_supported' should be 'true', but is absent and the default value is 'false'.",
+        "result": "INFO",
+        "actual": null,
+        "expected": true,
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointRequestParameterSupported",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183889
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-wF88iWpt8Kg3MiWxBvtNrILfP8BZ4VgO",
+        "msg": "request_uri_parameter_supported has correct value",
+        "result": "SUCCESS",
+        "request_uri_parameter_supported": null,
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointRequestUriParameterSupported",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183894
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-exTcNGWYfBZoLqkQpiIttUM489OCfsN3",
+        "msg": "Skipped evaluation due to missing required element: server request_object_signing_alg_values_supported",
+        "result": "INFO",
+        "path": "request_object_signing_alg_values_supported",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "mapped": null,
+        "object": "server",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointRequestObjectSigningAlgValuesSupportedIncludesRS256",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183896
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-Nd5ZblIxmYsIIC1FgbpZcIr4kOCis5xQ",
+        "discovery_metadata_key": "claims_parameter_supported",
+        "msg": "'claims_parameter_supported' should be 'true', but is absent and the default value is 'false'.",
+        "result": "INFO",
+        "actual": null,
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "expected": true,
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointClaimsParameterSupported",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183900
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-bHdnl7cqh6NT4bXDFPC1yMBlv5IO1qHC",
+        "discovery_metadata_key": "claims_supported",
+        "msg": "claims_supported: not found",
+        "result": "WARNING",
+        "actual": null,
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "expected": [],
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "OIDCCCheckDiscEndpointClaimsSupported",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183904
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-pmMWqUilxwMoiGpJkTi5jTO6SKOW2OjE",
+        "msg": "grant_types_supported is a non-empty array.",
+        "result": "SUCCESS",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "grant_types_supported": [
+            "password",
+            "refresh_token",
+            "client_credentials"
+        ],
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "OIDCCCheckDiscEndpointGrantTypesSupported",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183906
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-lW2S4Xprp9VHNf22ok8w5a6WaC2oBluT",
+        "msg": "Skipped evaluation due to missing required element: server scopes_supported",
+        "result": "WARNING",
+        "path": "scopes_supported",
+        "requirements": [
+            "OIDCD-3"
+        ],
+        "mapped": null,
+        "object": "server",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointScopesSupportedContainsOpenId",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183909
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-NB0QHZJ52LKREy56cFI0upDd0WbIBygc",
+        "msg": "Expected https protocol for token_endpoint",
+        "result": "FAILURE",
+        "actual": "http://host.docker.internal:8888/api/token",
+        "required": "https",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "CheckDiscEndpointAllEndpointsAreHttps",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183913
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-WFJwr6HAhPvLjPL3EDlQhhIsBIXINwjf",
+        "msg": "Contents of 'code_challenge_methods_supported' in discovery document matches expectations.",
+        "result": "SUCCESS",
+        "actual": [
+            "S256"
+        ],
+        "requirements": [
+            "RFC7636-4.3",
+            "RFC8414-2"
+        ],
+        "expected": [
+            "S256",
+            "plain"
+        ],
+        "minimum_matches_required": 1,
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "EnsureServerConfigurationCodeChallengeMethodsSupportedIsAnArray",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183918
+    },
+    {
+        "_id": "OWBrfENvv6YAIJy-YTKC5hS3JFv0oTXa9OxXtqOjFHb9ToSt",
+        "msg": "Test has run to completion",
+        "result": "FINISHED",
+        "testmodule_result": "FAILED",
+        "testId": "OWBrfENvv6YAIJy",
+        "src": "oidcc-discovery-endpoint-verification",
+        "testOwner": {
+            "sub": "developer",
+            "iss": "https://developer.com"
+        },
+        "time": 1778361183932
+    }
+]
