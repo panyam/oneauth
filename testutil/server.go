@@ -61,6 +61,7 @@ type config struct {
 	issuer                  string
 	audience                string
 	scopes                  []string
+	claimsSupported         []string                         // OIDC Discovery 1.0 §3 advertisement
 	grantTypesSupported     []string                         // overrides default when non-nil
 	issParameterSupported   *bool                            // RFC 9207 advertisement (nil = omit)
 	trustedAssertionIssuers []apiauth.TrustedAssertionIssuer // RFC 7523 §2.1 + RFC 8693
@@ -91,6 +92,13 @@ func WithAudience(aud string) Option {
 // Default: ["read", "write", "admin"].
 func WithScopes(scopes []string) Option {
 	return func(c *config) { c.scopes = scopes }
+}
+
+// WithClaimsSupported sets the `claims_supported` field in AS metadata
+// (OIDC Discovery 1.0 §3). Default: the claims OneAuth's bearer tokens
+// already emit (sub, iss, aud, exp, iat, jti, scope, client_id).
+func WithClaimsSupported(claims []string) Option {
+	return func(c *config) { c.claimsSupported = claims }
 }
 
 // WithGrantTypesSupported overrides the `grant_types_supported` field
@@ -168,9 +176,10 @@ func WithTrustedAssertionIssuers(issuers []apiauth.TrustedAssertionIssuer) Optio
 // For test code, prefer NewTestAuthServer which auto-registers cleanup.
 func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	cfg := config{
-		adminKey: defaultAdminKey,
-		issuer:   defaultIssuer,
-		scopes:   []string{"read", "write", "admin"},
+		adminKey:        defaultAdminKey,
+		issuer:          defaultIssuer,
+		scopes:          []string{"read", "write", "admin"},
+		claimsSupported: []string{"sub", "iss", "aud", "exp", "iat", "jti", "scope", "client_id"},
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -244,6 +253,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		IntrospectionEndpoint:         baseURL + "/oauth/introspect",
 		RegistrationEndpoint:          baseURL + "/apps/register",
 		ScopesSupported:               cfg.scopes,
+		ClaimsSupported:               cfg.claimsSupported,
 		GrantTypesSupported:           grants,
 		ResponseTypesSupported:        []string{"token"},
 		TokenEndpointAuthMethods:                   []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},

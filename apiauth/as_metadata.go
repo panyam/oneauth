@@ -35,6 +35,17 @@ type ASServerMetadata struct {
 	// Supported features
 	AuthorizationDetailsTypesSupported []string `json:"authorization_details_types_supported,omitempty"` // RFC 9396
 	ScopesSupported                    []string `json:"scopes_supported,omitempty"`
+
+	// ClaimsSupported lists the claim names this AS may include in
+	// issued tokens (and, once a userinfo endpoint exists, the userinfo
+	// response). OIDC Discovery 1.0 §3 declares this RECOMMENDED; the
+	// OpenID Foundation conformance suite emits a warning when the list
+	// is absent. Advertise only claims the AS actually emits — listing
+	// claims the AS does not produce misleads relying parties.
+	//
+	// See: OpenID Connect Discovery 1.0 §3
+	ClaimsSupported []string `json:"claims_supported,omitempty"`
+
 	ResponseTypesSupported        []string `json:"response_types_supported,omitempty"`
 	GrantTypesSupported           []string `json:"grant_types_supported,omitempty"`
 	TokenEndpointAuthMethods      []string `json:"token_endpoint_auth_methods_supported,omitempty"`

@@ -25,6 +25,7 @@ The `OneAuth` struct composes focused interfaces for all auth operations without
 HTTP handlers (`IntrospectionHandler`, `RevocationHandler`) delegate to core interfaces. `APIMiddleware` delegates to `TokenValidator` when `KeyStore` is set.
 
 ## Recent Changes
+- **AS metadata `claims_supported` (issue 200)** — `ASServerMetadata` exposes a new `ClaimsSupported []string` field (OIDC Discovery 1.0 §3). The reference deployments (`cmd/oneauth-server`, `testutil`) now populate `scopes_supported` + `claims_supported` by default, clearing two warnings from the OIDF discovery test (`oidcc-discovery-endpoint-verification`).
 - **`private_key_jwt` client auth (#158)** — `ClientAuthenticator` now accepts RFC 7523 §2.2 / OIDC Core §9 signed-JWT client authentication. Token + introspection + revocation handlers all route through a shared `extractClientCredentials` helper covering `client_secret_basic` / `client_secret_post` / `private_key_jwt`. AS metadata advertises `private_key_jwt` and the new `token_endpoint_auth_signing_alg_values_supported` field. Closes the previously expected-fail `introspection/post_auth_accepted` ratchet entry as a side effect.
 - **Token revocation** — `RevocationHandler` at `POST /oauth/revoke` (RFC 7009). Always returns 200. Supports `token_type_hint`.
 - **RFC 9396 Rich Authorization Requests** — `authorization_details` on token requests, JWT claims, introspection, middleware enforcement via `RequireAuthorizationDetails`.

@@ -312,6 +312,53 @@ func TestWithScopes_Option(t *testing.T) {
 	assert.Equal(t, "email", scopes[2])
 }
 
+// TestDiscoveryAdvertisesScopesAndClaims verifies the issue 200 acceptance
+// criterion: the default TestAuthServer's discovery document advertises
+// non-empty scopes_supported AND claims_supported. Both fields are required
+// by the OpenID Foundation conformance suite (oidcc-discovery-endpoint-
+// verification — CheckDiscEndpointScopesSupportedContainsOpenId,
+// CheckDiscEndpointClaimsSupported).
+//
+// See: OpenID Connect Discovery 1.0 §3
+func TestDiscoveryAdvertisesScopesAndClaims(t *testing.T) {
+	srv := testutil.NewTestAuthServer(t)
+
+	resp, err := http.Get(srv.URL() + "/.well-known/openid-configuration")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var meta map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&meta))
+
+	scopes, ok := meta["scopes_supported"].([]any)
+	require.True(t, ok, "scopes_supported must be present")
+	assert.NotEmpty(t, scopes)
+
+	claims, ok := meta["claims_supported"].([]any)
+	require.True(t, ok, "claims_supported must be present")
+	assert.NotEmpty(t, claims)
+	assert.Contains(t, claims, "sub", "claims_supported should include sub")
+}
+
+// TestWithClaimsSupported_Option verifies that WithClaimsSupported overrides
+// the default `claims_supported` advertised in AS discovery metadata.
+//
+// See: OpenID Connect Discovery 1.0 §3
+func TestWithClaimsSupported_Option(t *testing.T) {
+	srv := testutil.NewTestAuthServer(t, testutil.WithClaimsSupported([]string{"sub", "email"}))
+
+	resp, err := http.Get(srv.URL() + "/.well-known/openid-configuration")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var meta map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&meta))
+
+	claims, ok := meta["claims_supported"].([]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"sub", "email"}, claims)
+}
+
 // TestWithAdminKey_Option verifies that WithAdminKey configures the admin
 // API key required for app registration. Requests with the wrong key
 // should be rejected.

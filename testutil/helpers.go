@@ -38,6 +38,7 @@ type OIDCConfig struct {
 	IntrospectionEndpoint                      string   `json:"introspection_endpoint,omitempty"`
 	RegistrationEndpoint                       string   `json:"registration_endpoint,omitempty"`
 	ScopesSupported                            []string `json:"scopes_supported,omitempty"`
+	ClaimsSupported                            []string `json:"claims_supported,omitempty"`
 	TokenEndpointAuthMethodsSupported          []string `json:"token_endpoint_auth_methods_supported,omitempty"`
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
 }
