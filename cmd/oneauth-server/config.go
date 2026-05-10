@@ -42,6 +42,17 @@ type JWTConfig struct {
 	Issuer                    string   `yaml:"issuer"`                      // JWT issuer claim
 	AuthorizationDetailsTypes []string `yaml:"authorization_details_types"` // RFC 9396 supported types (advertised in AS metadata)
 
+	// ScopesSupported populates the `scopes_supported` field in AS
+	// metadata (RFC 8414 §2 / OIDC Discovery 1.0 §3). Empty falls back
+	// to a default that satisfies the OIDF discovery check
+	// CheckDiscEndpointScopesSupportedContainsOpenId.
+	ScopesSupported []string `yaml:"scopes_supported"`
+
+	// ClaimsSupported populates the `claims_supported` field in AS
+	// metadata (OIDC Discovery 1.0 §3). Empty falls back to the
+	// claims this AS actually emits in bearer tokens.
+	ClaimsSupported []string `yaml:"claims_supported"`
+
 	// SigningAlg controls how access tokens are signed. Defaults to HS256
 	// (uses SecretKey). Set to "RS256" / "ES256" for asymmetric signing —
 	// the public half is exposed via JWKS so remote resource servers can
@@ -175,8 +186,30 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.JWT.Issuer == "" {
 		cfg.JWT.Issuer = "oneauth"
 	}
+	if len(cfg.JWT.ScopesSupported) == 0 {
+		cfg.JWT.ScopesSupported = defaultScopesSupported()
+	}
+	if len(cfg.JWT.ClaimsSupported) == 0 {
+		cfg.JWT.ClaimsSupported = defaultClaimsSupported()
+	}
 
 	return &cfg, nil
+}
+
+// defaultScopesSupported returns the default `scopes_supported` advertised
+// in AS metadata when the deployment does not override the list. Includes
+// `openid` so the OIDF discovery check
+// CheckDiscEndpointScopesSupportedContainsOpenId passes; the rest are the
+// scopes the reference deployment exercises in examples and tests.
+func defaultScopesSupported() []string {
+	return []string{"openid", "profile", "email", "read", "write", "offline"}
+}
+
+// defaultClaimsSupported returns the default `claims_supported` advertised
+// in AS metadata. Conservative — only the claims OneAuth's bearer tokens
+// already emit. Expand once a userinfo endpoint lands (issue 116).
+func defaultClaimsSupported() []string {
+	return []string{"sub", "iss", "aud", "exp", "iat", "jti", "scope", "client_id"}
 }
 
 // configFromEnv builds a Config purely from environment variables.

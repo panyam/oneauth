@@ -329,6 +329,8 @@ func main() {
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256"},
 		CodeChallengeMethodsSupported:              []string{"S256"},
 		SubjectTypesSupported:              []string{"public"},
+		ScopesSupported:                    cfg.JWT.ScopesSupported,
+		ClaimsSupported:                    cfg.JWT.ClaimsSupported,
 		AuthorizationDetailsTypesSupported: cfg.JWT.AuthorizationDetailsTypes,
 	})
 

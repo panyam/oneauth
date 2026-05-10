@@ -94,6 +94,31 @@ func TestASMetadata_OmitsEmptyFields(t *testing.T) {
 	assert.NotContains(t, body, "introspection_endpoint")
 	assert.NotContains(t, body, "registration_endpoint")
 	assert.NotContains(t, body, "scopes_supported")
+	assert.NotContains(t, body, "claims_supported")
+}
+
+// TestASMetadata_ClaimsSupported verifies that claims_supported is
+// serialized when set. OIDC Discovery 1.0 §3 declares this RECOMMENDED
+// and the OpenID Foundation conformance suite emits a warning when the
+// field is absent (oidcc-discovery-endpoint-verification —
+// CheckDiscEndpointClaimsSupported).
+//
+// See: OpenID Connect Discovery 1.0 §3
+func TestASMetadata_ClaimsSupported(t *testing.T) {
+	meta := &apiauth.ASServerMetadata{
+		Issuer:          "https://auth.example.com",
+		TokenEndpoint:   "https://auth.example.com/api/token",
+		ClaimsSupported: []string{"sub", "iss", "aud", "exp", "iat", "jti"},
+	}
+
+	handler := apiauth.NewASMetadataHandler(meta)
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, []any{"sub", "iss", "aud", "exp", "iat", "jti"}, body["claims_supported"])
 }
 
 // TestASMetadata_CacheControl verifies that the response includes
