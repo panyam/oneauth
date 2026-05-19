@@ -19,7 +19,28 @@ func (r *kidRecord) isExpired() bool {
 	return !r.ExpiresAt.IsZero() && time.Now().After(r.ExpiresAt)
 }
 
-// KidStore is an in-memory KeyLookup that tracks kid→key mappings,
+// KidStorage is the write side of a kid-indexed key store. It extends the
+// read-only KeyLookup with the grace-period operations KidStore provides,
+// so retired keys can be persisted across process restarts by backends in
+// stores/ (FS, GORM, GAE) rather than living only in process memory.
+//
+// Unlike KeyStorage, KidStorage is keyed by kid (not clientID): GetKey by
+// clientID always returns ErrKeyNotFound — only GetKeyByKid is meaningful.
+type KidStorage interface {
+	KeyLookup
+
+	// Add registers a kid→key mapping. If expiresAt is zero, the key has
+	// no expiry. Re-adding an existing kid overwrites it.
+	Add(kid string, key any, algorithm string, clientID string, expiresAt time.Time) error
+
+	// Remove deletes a kid entry. Removing an absent kid is not an error.
+	Remove(kid string) error
+
+	// CleanExpired removes all entries whose expiry has passed.
+	CleanExpired() error
+}
+
+// KidStore is an in-memory KidStorage that tracks kid→key mappings,
 // including grace-period entries retained during key rotation.
 //
 // Usage during rotation:
@@ -31,6 +52,8 @@ type KidStore struct {
 	records map[string]*kidRecord // kid -> record
 }
 
+var _ KidStorage = (*KidStore)(nil)
+
 // NewKidStore creates a new empty KidStore.
 func NewKidStore() *KidStore {
 	return &KidStore{
@@ -39,7 +62,7 @@ func NewKidStore() *KidStore {
 }
 
 // Add registers a kid→key mapping. If expiresAt is zero, the key has no expiry.
-func (s *KidStore) Add(kid string, key any, algorithm string, clientID string, expiresAt time.Time) {
+func (s *KidStore) Add(kid string, key any, algorithm string, clientID string, expiresAt time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.records[kid] = &kidRecord{
@@ -48,13 +71,15 @@ func (s *KidStore) Add(kid string, key any, algorithm string, clientID string, e
 		ClientID:  clientID,
 		ExpiresAt: expiresAt,
 	}
+	return nil
 }
 
-// Remove deletes a kid entry.
-func (s *KidStore) Remove(kid string) {
+// Remove deletes a kid entry. Removing an absent kid is not an error.
+func (s *KidStore) Remove(kid string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.records, kid)
+	return nil
 }
 
 // GetKey always returns ErrKeyNotFound — KidStore only supports kid-based lookup.
@@ -81,7 +106,7 @@ func (s *KidStore) GetKeyByKid(kid string) (*KeyRecord, error) {
 }
 
 // CleanExpired removes all expired entries.
-func (s *KidStore) CleanExpired() {
+func (s *KidStore) CleanExpired() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for kid, rec := range s.records {
@@ -89,6 +114,7 @@ func (s *KidStore) CleanExpired() {
 			delete(s.records, kid)
 		}
 	}
+	return nil
 }
 
 // Len returns the number of entries (including expired ones not yet cleaned).
