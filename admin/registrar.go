@@ -59,7 +59,10 @@ type AppRegistrar struct {
 	// KidStore retains old keys during rotation grace periods so that
 	// in-flight tokens signed with the previous key remain verifiable.
 	// If nil, rotation replaces the key immediately with no grace period.
-	KidStore *keys.KidStore
+	// Typed as the KidStorage interface so deployments can plug in a
+	// persistent backend (FS/GORM/GAE) without losing in-memory KidStore
+	// compatibility (*KidStore satisfies KidStorage).
+	KidStore keys.KidStorage
 
 	// DefaultGracePeriod is the default grace period for key rotation
 	// when not specified in the request. Defaults to 24h.
@@ -434,7 +437,12 @@ func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretReques
 	}
 
 	if h.KidStore != nil && oldKey != nil && oldKid != "" {
-		h.KidStore.Add(oldKid, oldKey, oldAlg, req.ClientID, time.Now().Add(gracePeriod))
+		// Surface persistence failures: silently dropping the old kid
+		// would advertise a grace period that didn't actually persist,
+		// rejecting in-flight tokens. Fail the rotation instead.
+		if err := h.KidStore.Add(oldKid, oldKey, oldAlg, req.ClientID, time.Now().Add(gracePeriod)); err != nil {
+			return nil, fmt.Errorf("retain previous key: %w", err)
+		}
 		resp.PreviousKid = oldKid
 		resp.GracePeriod = gracePeriod
 	}

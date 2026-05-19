@@ -5,7 +5,7 @@ JWT signing key management: storage interfaces, in-memory and encrypted backends
 ## Contents
 - **keystore.go** — `KeyRecord`, `KeyLookup`, `KeyStorage` interfaces, `InMemoryKeyStore`, error vars
 - **encrypted.go** — `EncryptedKeyStorage` decorator (AES-256-GCM at rest for HMAC secrets)
-- **kid.go** — `KidStore` (grace-period key retention), `CompositeKeyLookup`
+- **kid.go** — `KidStorage` interface, `KidStore` (in-memory grace-period key retention), `CompositeKeyLookup`. Persistent `KidStorage` backends live in `stores/{fs,gorm,gae}`.
 - **jwks_handler.go** — `JWKSHandler` (serves `/.well-known/jwks.json`)
 - **jwks_keystore.go** — `JWKSKeyStore` (fetches remote JWKS), option functions
 
