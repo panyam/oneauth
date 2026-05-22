@@ -1,5 +1,3 @@
-// Package client provides client-side authentication utilities for oneauth.
-// It includes credential storage, automatic token refresh, and HTTP client helpers.
 package client
 
 import (

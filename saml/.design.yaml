@@ -1,0 +1,33 @@
+package: saml
+purpose: POC SAML 2.0 SP integration wrapping crewjam/saml behind redirect-style login/logout/ACS handlers that hand off authenticated users via an OAuth2-token-shaped callback.
+language: go
+doc_file: doc.go
+diagrams_file: diagrams.md
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: HandleUserFunc
+    kind: type (func)
+    role: Callback signature invoked after successful SAML authentication to deliver user info to the host app.
+    why: Deliberately OAuth2-shaped (token + userInfo) so SAML masquerades as an OAuth provider for a unified login surface; the token is a fake placeholder, not a real OAuth grant.
+  - name: RegisterSamlAuth
+    kind: func
+    role: Loads SP keypair + IdP metadata, builds the samlsp.Middleware, and registers /saml/login, /saml/logout, /saml/acs, and /saml/ routes on the given mux.Router.
+    why: Wires redirect-based login (not RequireAccount middleware) so a top-level /login page can offer SAML alongside other auth methods; reads all config from env vars and hardcoded cert/key file paths (POC, marked for configmap migration).
+  - name: SAML_ISSUER
+    kind: var (string)
+    role: IdP issuer identifier, sourced from SAML_ISSUER env var; passed as the provider name to HandleUserFunc.
+    why: Package-level env-driven config; trimmed at init time so a restart is needed to change it.
+  - name: SAML_CALLBACK_URL
+    kind: var (string)
+    role: Configured callback URL from SAML_CALLBACK_URL env var.
+    why: Env-driven config read once at package init.
+  - name: SAML_LOGIN_URL
+    kind: var (string)
+    role: IdP SSO endpoint used as the destination for AuthN requests, from SAML_LOGIN_URL env var.
+    why: Passed directly to MakeAuthenticationRequest rather than derived from IdP metadata.
+  - name: SAML_METADATA_URL
+    kind: var (string)
+    role: IdP metadata URL fetched at registration time to configure the SP, from SAML_METADATA_URL env var.
+    why: Fetched over the network during RegisterSamlAuth, so registration fails if the IdP is unreachable.
+depends_on: []

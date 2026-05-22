@@ -1,0 +1,117 @@
+package: gorm
+purpose: GORM/SQL-backed implementations of every oneauth store interface (users, identities, channels, tokens, refresh tokens, API keys, usernames, signing keys, kid keys, app registrations) plus AutoMigrate, usable on any GORM driver.
+language: go
+doc_file: doc.go
+diagrams_file: diagrams.md
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: AutoMigrate
+    kind: func
+    role: Runs db.AutoMigrate for all ten oneauth GORM models in one call.
+    why: Single migration entrypoint; callers MUST run it (or equivalent) before any store is used.
+  - name: JSONMap
+    kind: type
+    role: map[string]any with driver.Valuer/Scanner that JSON-encodes into a single column.
+    why: Custom Value/Scan so jsonb columns round-trip portably; Scan silently no-ops on non-[]byte input.
+  - name: StringSlice
+    kind: type
+    role: []string with Valuer/Scanner that JSON-encodes into one column.
+    why: Avoids a join table for scope lists; portable across SQLite/MySQL/Postgres.
+  - name: AuthorizationDetailsJSON
+    kind: type
+    role: []core.AuthorizationDetail with Valuer/Scanner for RFC 9396 details as jsonb.
+    why: Stores rich authorization details inline on the refresh token row.
+  - name: UserModel
+    kind: struct
+    role: GORM model for the users table (ID, IsActive, Profile, Version).
+    why: Profile uses JSONMap; Version present for future optimistic locking.
+  - name: IdentityModel
+    kind: struct
+    role: GORM model for identities, keyed by (Type, Value) composite primary key.
+    why: ToIdentity/IdentityToModel bridge to core.Identity; composite PK enforces one row per type+value.
+  - name: ChannelModel
+    kind: struct
+    role: GORM model for auth channels, keyed by (Provider, IdentityKey).
+    why: Credentials and Profile are JSONMap; ExpiresAt tracks channel-auth expiry.
+  - name: AuthTokenModel
+    kind: struct
+    role: GORM model for verification/reset tokens, keyed by raw Token.
+    why: Token is the primary key in plaintext — these are short-lived single-use tokens, unlike refresh tokens.
+  - name: RefreshTokenModel
+    kind: struct
+    role: GORM model for refresh tokens, keyed by TokenHash; Token field is gorm-ignored.
+    why: Only the SHA-256 hash is persisted; raw Token (`gorm:"-"`) lives in memory only.
+  - name: APIKeyModel
+    kind: struct
+    role: GORM model for API keys, keyed by KeyID, storing a bcrypt KeyHash.
+    why: Secret is never stored; only the bcrypt hash, validated at lookup time.
+  - name: UsernameModel
+    kind: struct
+    role: GORM model mapping NormalizedUsername (PK) to UserID with a Version column.
+    why: Lowercase normalized PK gives case-insensitive uniqueness; Version drives optimistic concurrency.
+  - name: GORMUser
+    kind: struct
+    role: core.User adapter wrapping a *UserModel.
+    why: Exposes Id()/Profile() without leaking the GORM model to callers.
+  - name: UserStore
+    kind: struct
+    role: core.UserStore impl (CreateUser, GetUserById, SaveUser).
+    why: GetUserById maps gorm.ErrRecordNotFound to a descriptive error.
+  - name: IdentityStore
+    kind: struct
+    role: core.IdentityStore impl with get-or-create, verify, and user-reassign.
+    why: GetIdentity optionally inserts a placeholder (empty UserID) row when createIfMissing.
+  - name: ChannelStore
+    kind: struct
+    role: core.ChannelStore impl with get-or-create by (provider, identityKey).
+    why: Initializes empty JSONMaps on creation to avoid nil-map writes.
+  - name: TokenStore
+    kind: struct
+    role: core.TokenStore impl for verification/reset tokens.
+    why: GetToken lazily deletes the row when expired, returning "token expired".
+  - name: RefreshTokenStore
+    kind: struct
+    role: core.RefreshTokenStore impl with rotation, family/user revoke, cleanup.
+    why: Hashes tokens with SHA-256; RotateRefreshToken runs inside a transaction with reuse detection.
+  - name: APIKeyStore
+    kind: struct
+    role: core.APIKeyStore impl issuing oa_<keyid>_<secret> keys with bcrypt validation.
+    why: ValidateAPIKey hand-parses the three-part key and bcrypt-compares; never returns the hash to callers.
+  - name: UsernameStore
+    kind: struct
+    role: core.UsernameStore impl with optimistic-concurrency reserve/change/release.
+    why: Uses WHERE version=? guards and RowsAffected==0 to detect concurrent edits; best-effort rollback in ChangeUsername.
+  - name: SigningKeyModel
+    kind: struct
+    role: GORM model for per-client signing keys, keyed by ClientID with a unique Kid index.
+    why: Kid computed via utils.ComputeKid when absent.
+  - name: KeyStore
+    kind: struct
+    role: keys.KeyStorage impl (PutKey, GetKey, GetKeyByKid, ListKeyIDs) plus legacy aliases.
+    why: Backward-compat aliases (RegisterKey/GetVerifyKey/etc.) delegate to the canonical methods.
+  - name: KidKeyModel
+    kind: struct
+    role: GORM model for kid->key grace entries, keyed by Kid with nullable ExpiresAt.
+    why: ExpiresAt is *time.Time so nil means "never expires", dodging SQL 0001-01-01 zero-date quirks.
+  - name: KidStore
+    kind: struct
+    role: keys.KidStorage impl (Add upsert, Remove, GetKeyByKid, CleanExpired).
+    why: GetKey always returns ErrKeyNotFound (kid-indexed only); reads filter expired entries to match in-memory semantics.
+  - name: AppRegistrationModel
+    kind: struct
+    role: GORM model for app/client registrations (RFC 7591/7592 + RFC 9396 fields).
+    why: Slice fields use gorm:"serializer:json" to avoid DB-specific JSONB quirks; persists RFC 7592 management credentials across restarts.
+  - name: AppStore
+    kind: struct
+    role: admin.AppRegistrationStore impl (SaveApp, GetApp, ListApps, DeleteApp).
+    why: Error semantics (ErrAppNotFound, ClientID-required) mirror InMemoryAppStore so the shared contract suite passes uniformly.
+depends_on:
+  - path: ../../core
+    entities: [User, UserStore, Identity, IdentityStore, Channel, ChannelStore, TokenStore, AuthToken, TokenType, RefreshTokenStore, RefreshToken, APIKeyStore, APIKey, UsernameStore, AuthorizationDetail, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret]
+  - path: ../../keys
+    entities: [KeyStorage, KidStorage, KeyRecord]
+  - path: ../../admin
+    entities: [AppRegistrationStore, AppRegistration, ErrAppNotFound]
+  - path: ../../utils
+    entities: [ComputeKid]

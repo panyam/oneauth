@@ -1,0 +1,54 @@
+package: appstoretest
+purpose: Shared contract test suite that every AppRegistrationStore backend (inmem, fs, gorm) runs against its own factory to prove uniform behavior.
+language: go
+doc_file: doc.go
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: Factory
+    kind: type
+    role: Function type a backend supplies that returns a fresh AppRegistrationStore per test.
+    why: Inverts construction so the shared suite stays storage-agnostic and each backend controls its own setup/teardown.
+  - name: RunAll
+    kind: func
+    role: Entry point that runs the complete suite of contract subtests against one factory.
+    why: Single call site keeps every backend's coverage in lock-step; adding a case here forces all backends to satisfy it.
+  - name: TestSaveAndGet
+    kind: func
+    role: Asserts SaveApp then GetApp returns the saved registration.
+    why: Baseline read-after-write contract every backend must honor.
+  - name: TestNotFound
+    kind: func
+    role: Asserts GetApp on a missing client_id returns admin.ErrAppNotFound.
+    why: Pins the sentinel-error contract so callers can branch on a typed miss.
+  - name: TestDeleteApp
+    kind: func
+    role: Asserts DeleteApp removes a registration and later GetApp returns ErrAppNotFound.
+    why: Confirms deletion is observable, not just a no-op flag.
+  - name: TestDeleteNonexistent
+    kind: func
+    role: Asserts deleting a missing client_id returns ErrAppNotFound.
+    why: Aligns delete-miss semantics with KeyStorage.DeleteKey so backends agree on the error.
+  - name: TestOverwriteApp
+    kind: func
+    role: Asserts re-saving an existing client_id replaces stored metadata.
+    why: Locks down upsert (not append/conflict) semantics for SaveApp.
+  - name: TestListApps
+    kind: func
+    role: Asserts ListApps returns every saved registration.
+    why: Verifies enumeration completeness independent of insertion order.
+  - name: TestListAppsEmpty
+    kind: func
+    role: Asserts ListApps on a fresh store returns an empty slice, not an error.
+    why: Distinguishes "no apps" from a failure so callers need not special-case empty.
+  - name: TestPersistence
+    kind: func
+    role: Asserts a saved registration is visible to a subsequent read on the same handle.
+    why: Catches write-buffering bugs in persistent backends (FS, GORM); trivially true for InMem.
+  - name: TestAllFieldsRoundTrip
+    kind: func
+    role: Asserts every AppRegistration field survives a SaveApp/GetApp round-trip.
+    why: Catches backend serialization gaps such as GORM failing to JSON-encode slice fields.
+depends_on:
+  - path: ../admin
+    entities: [AppRegistration, AppRegistrationStore, ErrAppNotFound]

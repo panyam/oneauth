@@ -1,0 +1,104 @@
+package: fs
+purpose: Filesystem-backed (JSON-file-per-record) implementations of OneAuth's KeyStore, KidStore, AppRegistrationStore, User/Username/Identity/Channel/Token/RefreshToken/APIKey store interfaces, intended for single-process dev and small deployments.
+language: go
+doc_file: doc.go
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: FSKeyStore
+    kind: struct
+    role: keys.KeyStorage impl, one signing-key JSON file per clientID under signing_keys/.
+    why: Keys must be []byte; non-byte keys return ErrAlgorithmMismatch. GetKeyByKid scans all files since the on-disk layout is clientID-indexed.
+  - name: NewFSKeyStore
+    kind: func
+    role: Constructs an FSKeyStore rooted at storagePath.
+    why: Dir created lazily on first PutKey, not at construction.
+  - name: FSKidStore
+    kind: struct
+    role: keys.KidStorage impl, one kid-indexed JSON file per kid under kid_keys/ carrying a grace-period expiry.
+    why: Mirrors FSKeyStore but keyed by kid; GetKey(clientID) always returns ErrKeyNotFound by design (kid-only lookup), matching the in-memory KidStore.
+  - name: NewFSKidStore
+    kind: func
+    role: Constructs an FSKidStore rooted at storagePath.
+    why: Expired entries (non-zero expires_at past now) are filtered on read and purged by CleanExpired.
+  - name: FSAppStore
+    kind: struct
+    role: admin.AppRegistrationStore impl, one AppRegistration JSON file per client_id under apps/.
+    why: GetApp distinguishes corrupt-file (parse error) from absent (ErrAppNotFound); ListApps silently skips corrupt files so one bad file can't lock out admin tooling.
+  - name: NewFSAppStore
+    kind: func
+    role: Constructs an FSAppStore rooted at storagePath.
+    why: Single-process only; multi-process needs real transactions (GORMAppStore, #167).
+  - name: FSUserStore
+    kind: struct
+    role: core UserStore impl, one user JSON file per userId under users/.
+    why: SaveUser converts foreign core.User impls to FSUser, best-effort preserving created_at from the profile map.
+  - name: FSUser
+    kind: struct
+    role: core.User implementation persisted as JSON (id, active flag, profile, timestamps).
+    why: Profile is an open map[string]any so arbitrary user attributes survive round-trips.
+  - name: NewFSUserStore
+    kind: func
+    role: Constructs an FSUserStore rooted at storagePath.
+    why: No mutex; relies on atomic writes plus single-process assumption.
+  - name: FSUsernameStore
+    kind: struct
+    role: UsernameStore impl enforcing username uniqueness via one file per normalized (lowercase) username under usernames/.
+    why: Optimistic-concurrency Version field; ChangeUsername is not cross-file atomic and best-effort restores the old name on failure.
+  - name: FSUsername
+    kind: struct
+    role: Username reservation record (normalized + original case, userID, version, timestamps).
+    why: Stores both lowercase (for lookup filename/key) and original case for display.
+  - name: NewFSUsernameStore
+    kind: func
+    role: Constructs an FSUsernameStore rooted at storagePath.
+    why: Concurrent same-username reservations resolve last-write-wins.
+  - name: FSIdentityStore
+    kind: struct
+    role: IdentityStore impl, one identity JSON file per type+value key under identities/.
+    why: GetUserIdentities and similar reverse lookups scan the whole dir; uses filepath.Base (not safeName) for path safety.
+  - name: NewFSIdentityStore
+    kind: func
+    role: Constructs an FSIdentityStore rooted at storagePath.
+    why: createIfMissing creates an unassigned (empty UserID, unverified) identity on first touch.
+  - name: FSChannelStore
+    kind: struct
+    role: ChannelStore impl, one channel JSON file per provider+identityKey under channels/.
+    why: SaveChannel auto-bumps Version and CreatedAt/UpdatedAt; reverse lookup by identityKey scans the dir.
+  - name: NewFSChannelStore
+    kind: func
+    role: Constructs an FSChannelStore rooted at storagePath.
+    why: createIfMissing seeds empty credentials/profile maps.
+  - name: FSTokenStore
+    kind: struct
+    role: Verification/reset token store, one AuthToken JSON file per token value under tokens/.
+    why: GetToken auto-deletes and rejects expired tokens; filename is the token itself (safeName-sanitized).
+  - name: NewFSTokenStore
+    kind: func
+    role: Constructs an FSTokenStore rooted at storagePath.
+    why: DeleteUserTokens scans the dir filtering by userID+type.
+  - name: FSRefreshTokenStore
+    kind: struct
+    role: RefreshToken store with rotation/family theft-detection, one file per token under refresh_tokens/.
+    why: Filename is the SHA256 hash of the token (not the raw value) so the secret never appears in a path; RotateRefreshToken returns ErrTokenReused when an already-revoked token is replayed.
+  - name: NewFSRefreshTokenStore
+    kind: func
+    role: Constructs an FSRefreshTokenStore rooted at storagePath.
+    why: Uses RWMutex plus getTokenUnsafe/forEachToken internals so multi-token sweeps hold a single lock.
+  - name: FSAPIKeyStore
+    kind: struct
+    role: APIKey store, one file per keyID under api_keys/, secret bcrypt-hashed.
+    why: ValidateAPIKey parses the "oa_keyid_secret" triple and bcrypt-compares; listings clear KeyHash before returning.
+  - name: NewFSAPIKeyStore
+    kind: func
+    role: Constructs an FSAPIKeyStore rooted at storagePath.
+    why: CreateAPIKey returns the full key once only; only the bcrypt hash is persisted.
+depends_on:
+  - path: ../../core
+    entities: [User, Identity, Channel, IdentityKey, AuthToken, RefreshToken, APIKey, TokenType, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret]
+  - path: ../../keys
+    entities: [KeyRecord, KeyStorage, KidStorage]
+  - path: ../../admin
+    entities: [AppRegistration, AppRegistrationStore]
+  - path: ../../utils
+    entities: [ComputeKid]

@@ -1,21 +1,3 @@
-// Package testutil provides reusable test infrastructure for oneauth
-// integration tests. It is intended to be imported by downstream projects
-// (mcpkit, relay, etc.) as well as oneauth's own test suites.
-//
-// Two categories of helpers:
-//
-//  1. TestAuthServer — an in-process authorization server with RSA keys,
-//     JWKS, token endpoint, and AS metadata (RFC 8414).
-//
-//  2. Shared OAuth helpers — standalone functions that work against any
-//     RFC-compliant OAuth server (TestAuthServer, Keycloak, Auth0, etc.).
-//
-// Note: The client/ package has production-grade equivalents (client.DiscoverAS,
-// client.AuthClient.ClientCredentialsToken) with proper error handling, retries,
-// and credential storage. These testutil helpers are intentionally simpler:
-// they take *testing.T, call t.Fatal on error, and return plain structs for
-// test ergonomics. They also include test-only functions (ParseJWTClaims,
-// GetPasswordToken) that have no production equivalent.
 package testutil
 
 import (

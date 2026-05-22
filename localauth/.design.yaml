@@ -1,0 +1,95 @@
+package: localauth
+purpose: HTTP handlers and store-backed callbacks for local username/password authentication — signup, login, email verification, password reset, and credential linking onto OAuth users.
+language: go
+doc_file: doc.go
+diagrams_file: diagrams.md
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: LocalAuth
+    kind: struct
+    role: Config-as-struct holder wiring credential validators, stores, email sender, policy, and error handlers into local auth HTTP handlers.
+    why: All behavior is driven by which optional fields are set; nil fields disable features (e.g. no TokenStore disables reset) rather than erroring at construction.
+  - name: LocalAuth.ServeHTTP
+    kind: method
+    role: Handles POST login — parses form, rate-limits, checks lockout, validates credentials, fires HandleUser on success.
+    why: Rate-limit and lockout checks run before credential validation to avoid leaking timing/state; key is IP:username.
+  - name: LocalAuth.HandleSignup
+    kind: method
+    role: Processes registration — parses form, validates against policy/legacy validator, enforces username uniqueness, creates user, optionally sends verification email, auto-logs-in.
+    why: Auto-login is skipped only when RequireEmailVerification AND an EmailSender are both set; string-matches CreateUser errors to map to ErrCodeEmailExists.
+  - name: LocalAuth.HandleVerifyEmail
+    kind: method
+    role: Verifies an email-verification token from the ?token query param via the VerifyEmail callback.
+    why: Only token plumbing lives here; actual identity-marking is delegated to the configured VerifyEmail func.
+  - name: LocalAuth.HandleForgotPasswordForm
+    kind: method
+    role: GET handler that either redirects to ForgotPasswordURL or renders a minimal built-in HTML form.
+    why: Dual-mode (redirect vs built-in form) lets apps own the UI without forcing it.
+  - name: LocalAuth.HandleForgotPassword
+    kind: method
+    role: POST handler that mints a password-reset token and emails a reset link, always returning success.
+    why: Always reports success even if email is unknown or token creation fails, to prevent account enumeration.
+  - name: LocalAuth.HandleResetPasswordForm
+    kind: method
+    role: GET handler that redirects to ResetPasswordURL or renders a built-in reset form with the token embedded.
+    why: Embeds token via html/template escaping to prevent reflected XSS (G705).
+  - name: LocalAuth.HandleResetPassword
+    kind: method
+    role: POST handler that validates the reset token + type, enforces min length, updates the password, and deletes the one-time token.
+    why: Enforces an inline 8-char minimum independent of SignupPolicy; deletes token after use so links can't be replayed.
+  - name: LocalAuth.HandleLinkCredentials
+    kind: method
+    role: Returns a protected-route handler that adds a local password (and optional username) to an existing logged-in OAuth-only user.
+    why: Requires a caller-supplied GetLoggedInUserFunc; maps "already exist" errors to 409 Conflict.
+  - name: VerifyEmailFunc
+    kind: type
+    role: func(token string) error — callback that verifies an email by token.
+    why: Decouples LocalAuth from store wiring; constructed by NewVerifyEmailFunc.
+  - name: UpdatePasswordFunc
+    kind: type
+    role: func(email, newPassword string) error — callback that updates a user's password.
+    why: Decouples LocalAuth from store wiring; constructed by NewUpdatePasswordFunc.
+  - name: GetLoggedInUserFunc
+    kind: type
+    role: func(r *http.Request) (userID string, err error) — app-supplied resolver for the current session user.
+    why: LinkCredentials needs the logged-in user but localauth has no session model; the app owns session/JWT decoding.
+  - name: LinkCredentialsConfig
+    kind: struct
+    role: Bundles UserStore, IdentityStore, ChannelStore, and optional UsernameStore for HandleLinkCredentials.
+    why: Converted internally to EnsureAuthUserConfig so the link path reuses the same store helpers.
+  - name: EnsureAuthUserConfig
+    kind: struct
+    role: Store bundle (User/Identity/Channel + optional Username) shared by the ensure-user and credential-linking helpers.
+    why: Single config type lets OAuth login, local signup, and linking share channel-aware user creation logic.
+  - name: NewCreateUserFunc
+    kind: func
+    role: Builds a core.CreateUserFunc that creates User + (unverified) Identity + local Channel with a bcrypt password hash.
+    why: Rejects signup if the email/phone identity already exists; email or phone is required as the primary identity.
+  - name: NewCredentialsValidator
+    kind: func
+    role: Builds a core.CredentialsValidator for email/phone login that verifies bcrypt password against the local channel.
+    why: Runs bcrypt against a dummy hash on missing user to defeat the CWE-208 timing oracle; username login is unsupported here.
+  - name: NewCredentialsValidatorWithUsername
+    kind: func
+    role: Like NewCredentialsValidator but also resolves username logins via UsernameStore to the user's email identity.
+    why: Falls back to email/phone lookup for non-username inputs; does NOT include the dummy-hash timing defense.
+  - name: NewVerifyEmailFunc
+    kind: func
+    role: Builds a VerifyEmailFunc that validates the token type, marks the email identity verified, and deletes the token.
+    why: Token deletion failure is logged but non-fatal so verification still succeeds.
+  - name: NewUpdatePasswordFunc
+    kind: func
+    role: Builds an UpdatePasswordFunc that rehashes and stores a new password, creating a local channel if none exists.
+    why: Auto-creates a local channel so OAuth-only users can set a password via the reset flow.
+  - name: NewEnsureAuthUserFunc
+    kind: func
+    role: Builds the AuthUserStore.EnsureAuthUser logic — links a new channel to an existing email-matched user or creates a fresh user/identity/channel.
+    why: Email is the linking key across providers; OAuth identities are created verified, local ones unverified.
+  - name: LinkLocalCredentials
+    kind: func
+    role: Adds a local password channel to an existing user, reserves username, and appends "local" to profile["channels"].
+    why: Verifies the email belongs to the userID and rejects if a local channel already exists, preventing hijack.
+depends_on:
+  - path: ../core
+    entities: [User, BasicUser, Identity, Channel, IdentityKey, HandleUserFunc, UserStore, IdentityStore, ChannelStore, UsernameStore, TokenStore, TokenType, SignupPolicy, "DefaultSignupPolicy / PolicyUsernameRequired / PolicyEmailOnly / PolicyFlexible", Credentials, AuthError, AuthErrorHandler, "SignupValidator / CredentialsValidator / CreateUserFunc / GetUserScopesFunc", DetectUsernameType, RateLimiter, InMemoryRateLimiter, AccountLockout, SendEmail]

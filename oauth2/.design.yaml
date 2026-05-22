@@ -1,0 +1,97 @@
+package: oauth2
+purpose: Self-contained OAuth2 social-login providers (Google, GitHub) with a shared base, PKCE support, and state-cookie CSRF protection, delivering the authenticated user to a host-supplied HandleUserFunc.
+language: go
+doc_file: doc.go
+diagrams_file: diagrams.md
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: HandleUserFunc
+    kind: type (func)
+    role: Callback the host supplies to receive (authtype, provider, token, userInfo, w, r) once a provider login succeeds.
+    why: Decouples the package from any session/user-store; the package never persists users itself.
+  - name: BaseOAuth2
+    kind: struct
+    role: Shared provider state (client creds, callback URL, oauth2.Config, mux) plus the auth-initiation redirect handler.
+    why: Embedded by each concrete provider; PKCE is on by default (zero value) per OAuth 2.1, DisablePKCE only for non-supporting providers and logs a warning.
+  - name: NewBaseOAuth2
+    kind: func
+    role: Builds a BaseOAuth2, falling back to OAUTH2_* env vars for empty creds and wiring the redirect handler at "/".
+    why: Env fallback lets deployments configure without code; called by each provider constructor.
+  - name: BaseOAuth2.Handler
+    kind: method
+    role: Returns the provider's *http.ServeMux for mounting under a route prefix.
+    why: Host mounts this to expose both the "/" redirect and the provider's "/callback/" route.
+  - name: BaseOAuth2.SetHTTPClient
+    kind: method
+    role: Injects an *http.Client used for user-info requests (and via ExchangeContext, token exchange).
+    why: Primarily for tests pointing at mock servers; nil defaults to http.DefaultClient.
+  - name: BaseOAuth2.SetOAuthEndpoint
+    kind: method
+    role: Overrides the oauth2.Endpoint (auth/token URLs).
+    why: Test seam to redirect token exchange to a mock OAuth server.
+  - name: BaseOAuth2.ExchangeContext
+    kind: method
+    role: Returns a context carrying the injected HTTP client via the oauth2.HTTPClient context key.
+    why: golang.org/x/oauth2 reads the client off the context, not the struct, so exchange must use this.
+  - name: GoogleOAuth2
+    kind: struct
+    role: Google provider; embeds BaseOAuth2, sets Google endpoint/scopes and a callback handler that fetches userinfo.
+    why: getUserData passes the access token as a query param (Google-specific user-info convention).
+  - name: NewGoogleOAuth2
+    kind: func
+    role: Constructs the Google provider with email/profile scopes and registers "/callback/".
+    why: Uses OAUTH2_GOOGLE_* env fallbacks distinct from the generic OAUTH2_* ones.
+  - name: GithubOAuth2
+    kind: struct
+    role: GitHub provider; embeds BaseOAuth2, sets GitHub endpoint/scopes and a callback handler that fetches userinfo.
+    why: getUserData sends a Bearer header (GitHub convention) rather than a query param like Google.
+  - name: NewGithubOAuth2
+    kind: func
+    role: Constructs the GitHub provider with read:user/user:email scopes and registers "/callback/".
+    why: Uses OAUTH2_GITHUB_* env fallbacks.
+  - name: OauthRedirectorWithPKCE
+    kind: func
+    role: Builds the auth-initiation handler that sets state + PKCE cookies and redirects to the provider's auth URL with S256 challenge.
+    why: Default initiation path; stores callbackURL cookie so the app knows where to land post-login.
+  - name: OauthRedirectorNoPKCE
+    kind: func
+    role: Same initiation but without PKCE params/cookie, for providers lacking PKCE support.
+    why: Selected when DisablePKCE is set; intentionally weaker, used only when a provider rejects PKCE.
+  - name: OauthRedirector
+    kind: func
+    role: Convenience wrapper that calls OauthRedirectorWithPKCE with secure=false.
+    why: Back-compat default entry point.
+  - name: GenerateCodeVerifier
+    kind: func
+    role: Produces a 32-byte crypto-random base64url verifier (43 chars) per RFC 7636 §4.1.
+    why: 32 bytes is the RFC-minimum length after encoding.
+  - name: ComputeCodeChallenge
+    kind: func
+    role: Returns BASE64URL(SHA256(verifier)) — the S256 challenge per RFC 7636 §4.2.
+    why: Sent on the auth request; verifier proves possession at exchange time.
+  - name: SetPKCECookie
+    kind: func
+    role: Stores the verifier in an HttpOnly (optionally Secure) Lax cookie for the OAuth round-trip.
+    why: HttpOnly keeps the verifier away from JS; 10-min TTL bounds the flow window.
+  - name: GetPKCEVerifier
+    kind: func
+    role: Reads the verifier cookie from the callback request, returning "" if absent.
+    why: Empty result triggers a "verifier missing/expired" 400 in the callback handlers.
+  - name: ClearPKCECookie
+    kind: func
+    role: Expires the PKCE verifier cookie after exchange.
+    why: Single-use hygiene; verifier should not survive the flow.
+  - name: PKCECookieName
+    kind: const
+    role: Cookie name ("pkce_verifier") for the stored verifier.
+    why: Shared between set/get/clear helpers.
+  - name: PKCECookieTTL
+    kind: const
+    role: Verifier cookie lifetime (10 minutes).
+    why: Covers the OAuth round-trip without lingering.
+  - name: CodeVerifierLength
+    kind: const
+    role: Verifier byte length (32) before base64 encoding.
+    why: Yields the RFC-minimum 43-char verifier.
+depends_on: []

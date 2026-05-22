@@ -1,0 +1,79 @@
+package: gae
+purpose: Google Cloud Datastore-backed implementations of oneauth's KeyStorage, KidStorage, and the core user/identity/channel/token/API-key/username store interfaces, with namespace-based multi-tenancy.
+language: go
+doc_file: doc.go
+diagrams_file: diagrams.md
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: GAEKeyStore
+    kind: struct
+    role: keys.KeyStorage over Datastore; stores per-client signing keys keyed by ClientID.
+    why: GetKeyByKid runs a kid-equality query (kid is indexed) since the entity key is ClientID, not kid.
+  - name: NewKeyStore
+    kind: func
+    role: Constructs a GAEKeyStore for a client and namespace with a background context.
+    why: ctx is stored on the struct (pre-issue-110 pattern); use WithContext to override per call.
+  - name: SigningKeyEntity
+    kind: struct
+    role: Datastore entity for a per-client signing key (key bytes, algorithm, kid).
+    why: KeyBytes is noindex; kid is indexed to support reverse lookup by kid.
+  - name: GAEKidStore
+    kind: struct
+    role: keys.KidStorage over Datastore; stores kid->key grace entries keyed by kid itself.
+    why: GetKey always returns ErrKeyNotFound — this store is kid-indexed, not client-indexed.
+  - name: NewKidStore
+    kind: func
+    role: Constructs a GAEKidStore for a namespace with a background context.
+    why: Asserts keys.KidStorage compliance via a compile-time var check.
+  - name: KidKeyEntity
+    kind: struct
+    role: Datastore entity for a kid grace entry (key bytes, algorithm, clientID, expiry).
+    why: ExpiresAt is noindex; CleanExpired scans + filters in Go because Datastore can't combine not-zero and less-than filters.
+  - name: KidStore.CleanExpired
+    kind: method
+    role: Scans all kid entries and bulk-deletes any past their expiry.
+    why: Full-scan-and-filter is acceptable because kid stores are small.
+  - name: UserStore
+    kind: struct
+    role: core.UserStore over Datastore; user accounts with JSON profile blobs.
+    why: SaveUser does a read-before-write to preserve CreatedAt across updates.
+  - name: GAEUser
+    kind: struct
+    role: core.User implementation carrying UserID, active flag, and profile map.
+    why: SaveUser type-asserts to *GAEUser to recover the active flag, else defaults active=true.
+  - name: IdentityStore
+    kind: struct
+    role: core.IdentityStore over Datastore; identities keyed by "type:value".
+    why: SetUserForIdentity and MarkIdentityVerified use transactions to bump Version atomically.
+  - name: ChannelStore
+    kind: struct
+    role: core.ChannelStore over Datastore; auth channels keyed by "provider:identityKey".
+    why: SaveChannel reads existing to preserve CreatedAt and monotonically increment Version.
+  - name: TokenStore
+    kind: struct
+    role: core.TokenStore over Datastore; verification/reset AuthTokens keyed by the token string.
+    why: GetToken self-deletes expired tokens before returning a "token expired" error.
+  - name: RefreshTokenStore
+    kind: struct
+    role: core.RefreshTokenStore over Datastore; rotation, family revocation, cleanup.
+    why: Tokens are keyed by SHA-256 hash, never the raw value; rotation runs in a transaction.
+  - name: RefreshTokenStore.RotateRefreshToken
+    kind: method
+    role: Atomically revokes the old token and mints the next-generation token in the same family.
+    why: Detecting an already-revoked token signals reuse; the whole family is then revoked outside the txn.
+  - name: APIKeyStore
+    kind: struct
+    role: core.APIKeyStore over Datastore; bcrypt-hashed API keys keyed by KeyID.
+    why: ValidateAPIKey parses the "oa_keyid_secret" format and bcrypt-compares; hash never returned in listings.
+  - name: UsernameStore
+    kind: struct
+    role: core.UsernameStore over Datastore; case-insensitive username->userID reservations.
+    why: Keyed by lowercased username; ReserveUsername/ChangeUsername use transactions for atomic uniqueness.
+depends_on:
+  - path: ../../core
+    entities: [User, Identity, Channel, UserStore, IdentityStore, ChannelStore, RefreshTokenStore, APIKeyStore, UsernameStore, TokenStore, AuthToken, RefreshToken, APIKey, TokenType, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret, AuthorizationDetail]
+  - path: ../../keys
+    entities: [KeyRecord, KeyStorage, KidStorage]
+  - path: ../../utils
+    entities: [ComputeKid]

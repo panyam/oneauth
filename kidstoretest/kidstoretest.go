@@ -1,6 +1,3 @@
-// Package kidstoretest provides shared test suites for all KidStorage
-// implementations. Each backend (in-memory KidStore, FS, GORM, GAE) calls
-// these tests with its own factory function, mirroring keystoretest.
 package kidstoretest
 
 import (

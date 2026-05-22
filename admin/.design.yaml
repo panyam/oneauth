@@ -1,0 +1,95 @@
+package: admin
+purpose: Owns OneAuth's client-administration surface — RFC 7591 DCR, RFC 7592 management, the proprietary /apps registry, admin CRUD, key rotation with grace periods, and resource-token minting — behind gRPC-shaped interfaces with thin HTTP wrappers.
+language: go
+doc_file: doc.go
+diagrams_file: diagrams.md
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: ClientRegistrar
+    kind: interface
+    role: Transport-agnostic ADMIN client surface — Register/RegisterLegacy/ListClients/GetClient/DeleteClient/RotateSecret.
+    why: Post-auth interface; expresses what admin ops exist, not who may invoke them (wrapper enforces AdminAuth).
+  - name: ClientRegistrationManager
+    kind: interface
+    role: Transport-agnostic SELF-SERVICE management surface (RFC 7592) — Get/Update/DeleteRegistration authed by registration_access_token.
+    why: Same domain as ClientRegistrar but different security model (client acts on its own registration), hence two interfaces.
+  - name: AppRegistrar
+    kind: struct
+    role: Embeddable HTTP handler + concrete impl of both ClientRegistrar and ClientRegistrationManager; backed by AppRegistrationStore + KeyStore + optional KidStore.
+    why: Holds a hot-path in-memory apps cache hydrated from Store on construction and updated synchronously on every write.
+  - name: AppRegistration
+    kind: struct
+    role: Persisted registration metadata — client_id, signing alg, quota, RFC 7591/7592 fields, registration_access_token.
+    why: DCR/7592 fields added in #165 so schema is stable before #157 populates them; empty for legacy /apps/register entries.
+  - name: AppRegistrationStore
+    kind: interface
+    role: Persistence boundary for registrations — SaveApp/GetApp/ListApps/DeleteApp.
+    why: Source of truth; AppRegistrar caches it in memory. Backends live in stores/fs and stores/gorm (#166/#167).
+  - name: InMemoryAppStore
+    kind: struct
+    role: Process-local AppRegistrationStore for tests/dev; state lost on restart.
+    why: Clones on every read/write so callers cannot mutate stored values through returned pointers.
+  - name: DCRHandler
+    kind: struct
+    role: HTTP transport adapter for RFC 7591 registration; parses, authenticates, delegates to AppRegistrar.Register.
+    why: Falls back to request scheme+Host for registration_client_uri when IssuerBaseURL unset — unreliable behind proxies, set explicitly in prod.
+  - name: DCRManagementHandler
+    kind: struct
+    role: HTTP transport adapter for RFC 7592 GET/PUT/DELETE on /apps/dcr/{client_id}; delegates to a ClientRegistrationManager.
+    why: 405 path leaks no per-client info; all auth/protocol decisions live behind the interface for gRPC/in-process reuse.
+  - name: DCRRequest
+    kind: struct
+    role: RFC 7591 registration body, reused as the RFC 7592 §2.2 update body.
+    why: ClientID ignored on register (server assigns) but required+matched-to-path on PUT.
+  - name: DCRResponse
+    kind: struct
+    role: RFC 7591 response extended with RFC 7592 §3 management credentials (registration_access_token, registration_client_uri).
+    why: GetRegistration intentionally omits client_secret to limit the disclosure window if the access token is logged/proxied.
+  - name: AdminAuth
+    kind: interface
+    role: Authenticates admin requests; Authenticate(r) returns nil if allowed.
+    why: Single seam so NoAuth/APIKeyAuth/custom impls drop in; ClientRegistrar methods stay unauthenticated by design.
+  - name: NoAuth
+    kind: struct
+    role: AdminAuth that allows everything.
+    why: Development/testing only — never wire in production.
+  - name: APIKeyAuth
+    kind: struct
+    role: AdminAuth validating the X-Admin-Key header against a shared key.
+    why: Uses crypto/subtle.ConstantTimeCompare to avoid timing leaks on the key.
+  - name: MintResourceToken
+    kind: func
+    role: Mints a 15-min resource-scoped HS256 JWT for a user on behalf of a registered app using the app's shared secret.
+    why: Backwards-compatible wrapper over MintResourceTokenWithKey ([]byte secret path).
+  - name: MintResourceTokenWithKey
+    kind: func
+    role: Mints a resource JWT, auto-detecting alg from key type ([]byte→HS256, *rsa→RS256, *ecdsa→ES256), embedding scopes/quota/authorization_details.
+    why: Sets a kid header from utils.ComputeKid so resource servers can select the verification key.
+  - name: AppQuota
+    kind: struct
+    role: Per-app MaxRooms/MaxMsgRate limits embedded as custom JWT claims.
+    why: OneAuth-specific quota that RFC 7591 cannot express; carried on legacy registrations and minted tokens.
+  - name: RegisterRequest / RegisterResponse
+    kind: struct
+    role: Wire-agnostic in/out for ClientRegistrar.Register (DCRRequest metadata + IssuerBaseURL → DCRResponse).
+    why: Wrapped per the gRPC-shape convention so future fields don't change the method signature.
+  - name: RegisterLegacyRequest / RegisterLegacyResponse
+    kind: struct
+    role: In/out for the proprietary /apps/register path carrying ClientDomain + quota + raw PEM PublicKey.
+    why: Distinct from Register because wire shapes diverge (quota fields); endpoint removal tracked under #189.
+  - name: RotateSecretRequest / RotateSecretResponse
+    kind: struct
+    role: In/out for RotateSecret — new PublicKey (asymmetric), GracePeriod, returns ClientSecret/Kid/PreviousKid.
+    why: Grace-period fields populated only when KidStore actually retained the old key.
+  - name: ErrAppNotFound / ErrUnauthorized / ErrInvalidClientMetadata / ErrInvalidPublicKey / ErrPublicKeyRequired / ErrAdminUnauthorized / ErrAdminForbidden
+    kind: var
+    role: Sentinel errors that wrappers map to HTTP status codes.
+    why: ErrUnauthorized is the single uniform 7592 failure so /apps/dcr/{id} can't be probed for valid client_ids.
+depends_on:
+  - path: ../core
+    entities: [AuthorizationDetail]
+  - path: ../keys
+    entities: [KeyRecord, KeyStorage, KidStorage]
+  - path: ../utils
+    entities: [ComputeKid, DecodeVerifyKey, EncodePublicKeyPEM, IsAsymmetricAlg, JWKSet, JWKToPublicKey]

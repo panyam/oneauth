@@ -1,0 +1,72 @@
+package: keystoretest
+purpose: Shared contract test suite that every KeyStore backend (inmem, gorm, fs, gae) runs against its own factory.
+language: go
+doc_file: doc.go
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: Factory
+    kind: type
+    role: Function type each backend supplies to mint a fresh keys.KeyStorage per test.
+    why: Indirection lets one suite drive every backend without importing or knowing any concrete store.
+  - name: RunAll
+    kind: function
+    role: Single entry point that runs the full contract suite as named subtests against a factory.
+    why: Backends call one function so adding a contract case extends every backend's coverage at once.
+  - name: TestRegisterAndGet
+    kind: function
+    role: Asserts PutKey then GetKey round-trips key bytes and algorithm for HS256.
+    why: Pins the basic store/retrieve invariant all backends must honor identically.
+  - name: TestNotFound
+    kind: function
+    role: Asserts GetKey on an unknown client returns keys.ErrKeyNotFound.
+    why: Forces every backend to surface the same sentinel error, not a generic miss.
+  - name: TestMultipleHosts
+    kind: function
+    role: Asserts distinct clients keep isolated key material.
+    why: Guards against backends collapsing or aliasing keys across tenants.
+  - name: TestDeleteKey
+    kind: function
+    role: Asserts DeleteKey removes a key so subsequent GetKey returns ErrKeyNotFound.
+    why: Confirms deletion is observable across all storage models.
+  - name: TestDeleteNonexistent
+    kind: function
+    role: Asserts deleting an absent key returns keys.ErrKeyNotFound.
+    why: Locks idempotent-delete semantics to the same sentinel rather than nil or a custom error.
+  - name: TestOverwriteKey
+    kind: function
+    role: Asserts a second PutKey on the same client replaces both key bytes and algorithm.
+    why: Pins upsert semantics so backends do not append or reject duplicate clients.
+  - name: TestListKeys
+    kind: function
+    role: Asserts ListKeyIDs returns exactly the registered client IDs.
+    why: Guarantees enumeration completeness regardless of underlying index.
+  - name: TestListKeysEmpty
+    kind: function
+    role: Asserts ListKeyIDs on an empty store returns an empty slice without error.
+    why: Forbids backends from returning nil-as-error or a synthetic placeholder on empty.
+  - name: TestPersistence
+    kind: function
+    role: Asserts a key written via the factory store is readable back from it.
+    why: Codifies the factory contract that returned stores share their underlying storage.
+  - name: TestKidResolverBasic
+    kind: function
+    role: Asserts GetKeyByKid resolves an HS256 key by its computed kid and rejects unknown kids with ErrKidNotFound.
+    why: Ensures kid indexing matches utils.ComputeKid across backends so JWKS/verify paths agree.
+  - name: TestKidResolverAsymmetric
+    kind: function
+    role: Asserts ComputeKid on stored RSA PEM bytes equals ComputeKid on the parsed key, and GetKeyByKid resolves it.
+    why: Pins that PEM-byte storage and parsed-key kid computation produce the same thumbprint.
+  - name: TestGetCurrentKid
+    kind: function
+    role: Asserts GetKey populates KeyRecord.Kid matching the computed kid.
+    why: Confirms backends stamp the kid on read so callers never recompute it inconsistently.
+  - name: TestRegisterAndGetAsymmetricKey
+    kind: function
+    role: Asserts an RS256 public-key PEM round-trips and DecodeVerifyKey parses it into *rsa.PublicKey.
+    why: Verifies asymmetric material survives storage as opaque bytes and stays decodable.
+depends_on:
+  - path: ../keys
+    entities: [KeyRecord, KeyStorage]
+  - path: ../utils
+    entities: [ComputeKid, DecodeVerifyKey, GenerateRSAKeyPair]

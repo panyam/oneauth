@@ -1,0 +1,123 @@
+package: httpauth
+purpose: Session-based HTTP auth glue plus standalone middleware for CSRF, security headers, and request body limits.
+language: go
+doc_file: doc.go
+diagrams_file: diagrams.md
+last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
+last_rebuilt_at: 2026-05-22T18:29:59Z
+entities:
+  - name: OneAuth
+    kind: struct
+    role: Top-level session-auth coordinator owning the mux, scs session manager, JWT minting/verification, and login/logout cookie lifecycle.
+    why: Defaults to a hardcoded JWT secret if neither field nor ONEAUTH_JWT_SECRET_KEY is set — fine for tests, unsafe in prod.
+  - name: AuthUserStore
+    kind: interface
+    role: Composite store (UserStore + IdentityStore + ChannelStore) with EnsureAuthUser as the OAuth/local creation entry point.
+    why: Composed rather than a god interface so impls only satisfy what they back; EnsureAuthUser orchestrates cross-store creation.
+  - name: New
+    kind: func
+    role: Constructs a OneAuth with the given app name and applies EnsureDefaults.
+    why: Single entry point so callers never see a half-initialized struct.
+  - name: OneAuth.EnsureDefaults
+    kind: method
+    role: Fills app name, session timeout, JWT issuer/secret, cookie name, and wires verifyJWT as the default token verifier.
+    why: Idempotent; called repeatedly from handlers so any field set after New still gets backfilled.
+  - name: OneAuth.Handler
+    kind: method
+    role: Returns the configured ServeMux after route setup.
+    why: Lazily builds routes so the logout handler exists even if AddAuth was never called.
+  - name: OneAuth.AddAuth
+    kind: method
+    role: Mounts an auth provider handler under a prefix with subtree matching plus a 308 redirect from the bare prefix.
+    why: Uses 308 (not 301) to preserve POST method; reads r.RequestURI to recover the path lost by parent StripPrefix.
+  - name: OneAuth.SaveUserAndRedirect
+    kind: method
+    role: OAuth callback sink — ensures the user via the store, sets login cookies, and redirects to the saved oauthCallbackURL.
+    why: Prefixes relative callback URLs with OAUTH2_BASE_URL and clears the callback cookie so it is single-use.
+  - name: OneAuth.HandleLinkOAuthCallback
+    kind: method
+    role: Links an OAuth provider to an existing local user after verifying the OAuth email matches the account email.
+    why: Email-match check is the security boundary preventing account hijacking via a mismatched provider email.
+  - name: OneAuth.StartLinkOAuth
+    kind: method
+    role: Stashes the user ID in session under linkingUserID to flag a subsequent callback as a linking flow.
+    why: Paired with GetLinkingUserID to thread linking intent through the redirect round-trip.
+  - name: OneAuth.GetLinkingUserID
+    kind: method
+    role: Pops (reads and clears) the linkingUserID session value.
+    why: Pop semantics ensure linking mode is consumed exactly once.
+  - name: LinkOAuthConfig
+    kind: struct
+    role: Bundles the three stores needed by HandleLinkOAuthCallback.
+    why: Passed per-call rather than held on OneAuth so linking can use a different store set than login.
+  - name: Middleware
+    kind: struct
+    role: Request-scoped user resolver reading user ID from context, session, or Authorization header/cookie via a pluggable VerifyToken.
+    why: VerifyToken is injected to keep JWT specifics out of the middleware (decoupling TODO noted in source).
+  - name: Middleware.EnsureReasonableDefaults
+    kind: method
+    role: Backfills param/header names to sensible defaults before use.
+    why: Lets a zero-value Middleware work without explicit config.
+  - name: Middleware.GetLoggedInUserId
+    kind: method
+    role: Resolves the current user ID, checking context, then SessionGetter, then bearer tokens/cookies.
+    why: Truncates token to 20 chars in warn logs to avoid leaking full credentials.
+  - name: Middleware.ExtractUser
+    kind: method
+    role: Middleware that loads the user ID into request context without enforcing presence.
+    why: Non-redirecting variant for pages that work for both anonymous and logged-in users.
+  - name: Middleware.EnsureUser
+    kind: method
+    role: Middleware that requires a logged-in user, redirecting (302) to login or returning 401.
+    why: Redirect only fires if GetRedirURL is set, else falls back to a hard 401.
+  - name: CSRFMiddleware
+    kind: struct
+    role: Double-submit-cookie CSRF protector with configurable cookie/field/header names and exemption.
+    why: Cookie is intentionally non-HttpOnly so JS can echo it in an AJAX header; bearer requests exempt by default.
+  - name: CSRFMiddleware.Protect
+    kind: method
+    role: Middleware enforcing CSRF — issues a token cookie on safe methods, validates a matching token on unsafe methods.
+    why: Validation uses constant-time compare to resist token-guessing timing attacks.
+  - name: CSRFToken
+    kind: func
+    role: Extracts the CSRF token from request context.
+    why: Returns empty string when middleware is inactive rather than panicking.
+  - name: CSRFTemplateField
+    kind: func
+    role: Renders a hidden HTML input carrying the CSRF token for form templates.
+    why: HTML-escapes the token value to prevent injection into the rendered form.
+  - name: LimitBody
+    kind: func
+    role: Middleware rejecting oversized request bodies with 413, also wrapping body in MaxBytesReader.
+    why: Upfront ContentLength check plus MaxBytesReader covers chunked transfers where ContentLength is -1 (CWE-400).
+  - name: LimitBodyReader
+    kind: func
+    role: In-handler helper wrapping the body with MaxBytesReader without upfront rejection.
+    why: For handlers that want lazy enforcement on read rather than middleware.
+  - name: IsBodyTooLargeError
+    kind: func
+    role: Detects whether an error came from exceeding a MaxBytesReader limit.
+    why: Checks *http.MaxBytesError plus io.ErrUnexpectedEOF fallback across Go versions.
+  - name: DefaultMaxBodySize
+    kind: const
+    role: Default 1MB body size cap.
+    why: Sane ceiling for JSON auth payloads.
+  - name: SecurityHeaders
+    kind: func
+    role: Middleware applying default OWASP security headers to every response.
+    why: Thin wrapper over SecurityHeadersWithConfig(DefaultSecurityHeadersConfig).
+  - name: SecurityHeadersConfig
+    kind: struct
+    role: Per-header configuration; empty string disables an individual header.
+    why: Each header is opt-out via "" (or 0 for HSTS) so callers can relax CSP without forking the middleware.
+  - name: DefaultSecurityHeadersConfig
+    kind: func
+    role: Returns the secure-by-default header set (HSTS, CSP, frame, COOP/COEP/CORP, etc.).
+    why: Centralizes the recommended baseline.
+  - name: SecurityHeadersWithConfig
+    kind: func
+    role: Middleware applying a caller-supplied header configuration.
+    why: Skips any header left empty so disabling is explicit and per-field.
+depends_on:
+  - path: ../core
+    entities: [User, BasicUser, Channel, ChannelStore, IdentityKey, IdentityStore, UserStore]

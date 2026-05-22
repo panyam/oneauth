@@ -1,4 +1,3 @@
-// Package fs provides a file system-based credential store for oneauth client.
 package fs
 
 import (

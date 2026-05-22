@@ -1,5 +1,3 @@
-// Package grpc provides authentication context utilities for passing
-// user information between HTTP handlers and gRPC services via metadata.
 package grpc
 
 import (
