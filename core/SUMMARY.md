@@ -14,8 +14,7 @@ Foundation types and interfaces for the OneAuth authentication framework. Every 
 ## Recent Additions
 - **authorization_details.go** — `AuthorizationDetail` struct (RFC 9396), custom JSON marshal/unmarshal with extension flattening, `ValidateAll()`, `FilterByType()`, `ErrInvalidAuthorizationDetails`
 - **blacklist.go** — `TokenBlacklist` interface and `InMemoryBlacklist` for jti-based JWT revocation
-- **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket)
-- **lockout.go** — `AccountLockout` struct for tracking failed login attempts and temporary account lockouts
+- **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket); also `AccountLockout` for tracking failed login attempts and temporary account lockouts
 
 ## Dependencies
 Standard library + `golang.org/x/oauth2` (for `HandleUserFunc`'s `*oauth2.Token` parameter).
