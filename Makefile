@@ -589,6 +589,23 @@ docs:
 	@echo "(Install with: go install golang.org/x/pkgsite/cmd/pkgsite@latest)"
 	pkgsite -http=localhost:6060
 
+# Regression guard: pkgsite / pkg.go.dev render HTML comments as literal
+# text in rendered package docs. /design-rebuild-go must never emit `<!--`
+# into doc.go — this target fails the build if any leakage is found.
+docs-check:
+	@echo "[docs-check] Scanning doc.go files for HTML-comment leakage..."
+	@leaked=$$(find . -name doc.go \( -path './vendor' -prune -o -path './.git' -prune -o -print \) | xargs grep -l '<!--' 2>/dev/null); \
+	if [ -n "$$leaked" ]; then \
+		echo "FAIL: the following doc.go files contain '<!--' (pkgsite will render as literal text):"; \
+		echo "$$leaked" | sed 's/^/  /'; \
+		exit 1; \
+	fi
+	@echo "[docs-check] OK — no HTML comments in any doc.go"
+
+# Convenience alias so `make doc` works in addition to `make docs`.
+.PHONY: doc
+doc: docs
+
 # =============================================================================
 # Setup
 # =============================================================================
