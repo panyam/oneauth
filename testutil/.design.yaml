@@ -1,122 +1,123 @@
 package: testutil
-purpose: Reusable in-process authorization server and standalone OAuth/JWT test helpers for oneauth and downstream integration tests.
+purpose: In-process OAuth authorization server plus standalone OAuth/JWT helpers for oneauth integration tests.
 language: go
 doc_file: doc.go
-last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
-last_rebuilt_at: 2026-05-22T18:29:59Z
+diagrams_file: diagrams.md
+last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
+last_rebuilt_at: 2026-05-23T00:00:00Z
 entities:
   - name: TestAuthServer
     kind: struct
-    role: In-process httptest-backed OAuth AS with RSA keys, JWKS, token, introspection, registration, and AS-metadata endpoints.
-    why: Lets tests and downstream projects exercise real oneauth handlers without standing up an external IdP.
+    role: In-process httptest-backed OAuth AS with RSA keys, JWKS, token, introspection, AS metadata, and app registration endpoints.
+    why: Centerpiece of the package; gives downstream test suites a real oneauth stack on a random port.
   - name: NewTestAuthServer
     kind: func
-    role: Creates and starts a TestAuthServer wired to *testing.T with auto-cleanup.
-    why: Registers t.Cleanup so callers never manage shutdown; preferred entry point for tests.
+    role: Builds a TestAuthServer bound to *testing.T with automatic t.Cleanup shutdown.
+    why: Preferred entry point for tests; removes the need for manual Close calls.
   - name: NewAuthServer
     kind: func
-    role: Creates and starts a TestAuthServer without *testing.T; caller must Close.
-    why: Enables use in standalone examples/benchmarks where no test harness exists.
+    role: Builds a TestAuthServer without *testing.T; caller must Close.
+    why: Lets examples, benchmarks, and non-test code reuse the same server.
   - name: Option
     kind: type
-    role: Functional option type configuring a TestAuthServer.
-    why: Keeps NewAuthServer signature stable while allowing optional knobs.
+    role: Functional option type for configuring a TestAuthServer.
+    why: Keeps NewAuthServer's signature stable as new knobs are added.
   - name: WithAdminKey
     kind: func
-    role: Sets the admin API key guarding the /apps registration endpoints.
-    why: Defaults to "testutil-admin-key" so most tests need no override.
+    role: Sets the admin API key guarding /apps endpoints.
+    why: Overrides the default "testutil-admin-key" when a test asserts a specific key.
   - name: WithIssuer
     kind: func
-    role: Sets the JWT issuer claim and AS-metadata issuer.
-    why: Sentinel default "testutil-issuer" is replaced with the live server URL after start.
+    role: Sets the JWT issuer and AS-metadata issuer.
+    why: Default sentinel is replaced with the live server URL after start; override pins a value.
   - name: WithAudience
     kind: func
     role: Sets the JWT audience claim on minted tokens.
-    why: Empty default means no audience restriction unless the test opts in.
+    why: Empty default leaves tokens unrestricted; tests asserting audience must opt in.
   - name: WithScopes
     kind: func
-    role: Sets scopes_supported in AS metadata.
-    why: Advertisement only; does not constrain what tokens can be minted with.
+    role: Sets scopes_supported in AS metadata (advertisement only).
+    why: Lets tests advertise custom scopes without changing server behavior.
   - name: WithClaimsSupported
     kind: func
-    role: Sets claims_supported in AS metadata (OIDC Discovery 1.0 §3).
-    why: Defaults to the claim set oneauth bearer tokens actually emit.
+    role: Sets claims_supported in AS metadata.
+    why: Default lists the claims oneauth tokens actually emit; override only when asserting other claims.
   - name: WithGrantTypesSupported
     kind: func
-    role: Replaces the advertised grant_types_supported list (RFC 8414).
-    why: Advertising a grant does NOT enable its handler; must pair with WithTrustedAssertionIssuers to serve it.
+    role: Replaces the advertised grant_types_supported list.
+    why: Advertising a grant does NOT enable its handler; pair with WithTrustedAssertionIssuers to actually serve it.
   - name: WithIssParameterSupported
     kind: func
-    role: Sets authorization_response_iss_parameter_supported in AS metadata (RFC 9207).
-    why: Affects metadata only; no authorization endpoint exists so the iss= behavior is not actually driven.
+    role: Sets the RFC 9207 iss-parameter flag in AS metadata.
+    why: Metadata-only; no authorization endpoint drives the actual behavior yet.
   - name: WithTrustedAssertionIssuers
     kind: func
-    role: Configures trusted upstream IdPs for jwt-bearer (RFC 7523) and token-exchange (RFC 8693) grants.
-    why: Non-empty slice auto-extends advertised grants; a later WithGrantTypesSupported still wins (last-option-wins).
+    role: Enables jwt-bearer (RFC 7523) and token-exchange (RFC 8693) grants and auto-extends advertised grants.
+    why: Only Option that turns advertisement into real behavior; later WithGrantTypesSupported can still override.
   - name: MintToken
     kind: method
-    role: Mints a standard RS256 access JWT (sub/iss/type/scopes/iat/exp/jti) bypassing the HTTP token endpoint.
-    why: Fast path with no network round-trip; kid header matches the JWKS-published key.
+    role: Mints a standard RS256 access JWT directly, bypassing the HTTP token endpoint.
+    why: Fast path with no network round-trip; kid header matches JWKS for verification.
   - name: MintTokenWithClaims
     kind: method
-    role: Mints an RS256 JWT from an arbitrary claims map with iss/iat/exp defaults the caller can override.
-    why: Enables negative tests (wrong issuer, expired, missing claims) while keeping kid valid.
+    role: Mints an RS256 JWT from an arbitrary claims map with overridable iss/iat/exp defaults.
+    why: Enables negative tests (wrong issuer, expired, missing claims).
   - name: MintTokenForSubject
     kind: method
-    role: Convenience minting of a token for a subject and scopes via MintTokenWithClaims.
-    why: Targets standalone (non-*testing.T) example code paths.
+    role: Convenience minting for a subject and scopes; no *testing.T needed.
+    why: Aimed at non-test example code that still wants a signed token.
   - name: URL
     kind: method
     role: Returns the server base URL.
-    why: httptest assigns a random port at start, so the URL is only known after construction.
+    why: Only known after the random httptest port binds.
   - name: JWKSURL
     kind: method
     role: Returns the JWKS endpoint URL.
-    why: Saves callers from hardcoding the well-known path.
+    why: Lets tests point JWKS-aware clients at the live server.
   - name: TokenEndpoint
     kind: method
     role: Returns the token endpoint URL.
-    why: Saves callers from hardcoding /api/token.
+    why: Lets tests POST grants directly when bypassing discovery.
   - name: AdminKey
     kind: method
     role: Returns the configured admin API key.
-    why: Tests need it to authenticate against the /apps endpoints.
+    why: Tests need it to call /apps endpoints.
   - name: Issuer
     kind: method
     role: Returns the resolved JWT issuer.
-    why: Reflects the post-start value (server URL) when the default sentinel was used.
+    why: Reads the server URL when the default sentinel was used.
   - name: Close
     kind: method
-    role: Stops the underlying httptest server.
-    why: Nil-safe; called automatically by NewTestAuthServer's cleanup.
+    role: Stops the underlying httptest server; nil-safe.
+    why: Called automatically via t.Cleanup when NewTestAuthServer is used.
   - name: OIDCConfig
     kind: struct
     role: Parsed OAuth/OIDC AS metadata document (RFC 8414).
-    why: Decode target for DiscoverOIDC.
+    why: Decode target for DiscoverOIDC and a typed view onto the discovery doc.
   - name: TokenResponse
     kind: struct
     role: Parsed OAuth token endpoint response (RFC 6749 §5.1).
-    why: Common return type for the token-fetch helpers.
+    why: Common return type for the grant helpers.
   - name: DiscoverOIDC
     kind: func
     role: Fetches and parses the .well-known/openid-configuration document.
-    why: Calls t.Fatal on error for test ergonomics; works against any compliant AS.
+    why: Works against any compliant AS; fails via t.Fatal for test ergonomics.
   - name: GetClientCredentialsToken
     kind: func
     role: Acquires a token via the client_credentials grant (RFC 6749 §4.4).
-    why: Thin wrapper over PostTokenEndpoint; works against any compliant token endpoint.
+    why: Thin wrapper that delegates to PostTokenEndpoint with the right form fields.
   - name: GetPasswordToken
     kind: func
     role: Acquires a token via the resource owner password grant (RFC 6749 §4.3).
-    why: Test-only convenience with no production equivalent in client/.
+    why: Test-only helper with no production equivalent.
   - name: PostTokenEndpoint
     kind: func
     role: Sends a form POST to a token endpoint and decodes the JSON TokenResponse.
-    why: Shared core that the convenience grant helpers delegate to.
+    why: Shared core that the grant helpers delegate to; reusable for custom grants.
   - name: FetchJWKS
     kind: func
-    role: Fetches raw JWKS JSON as a map (RFC 7517).
-    why: Returns untyped map for flexible assertion in tests.
+    role: Fetches raw JWKS JSON as an untyped map (RFC 7517).
+    why: Lets tests inspect the JWKS without pulling in a JWK library.
   - name: ParseJWTClaims
     kind: func
     role: Base64url-decodes a JWT payload without verifying the signature.
@@ -133,7 +134,7 @@ depends_on:
   - path: ../admin
     entities: [AppRegistrar, APIKeyAuth]
   - path: ../apiauth
-    entities: [APIAuth, TrustedAssertionIssuer, JwtBearerGrantType, TokenExchangeGrantType, IntrospectionHandler, ASServerMetadata]
+    entities: [APIAuth, TrustedAssertionIssuer, JwtBearerGrantType, TokenExchangeGrantType, IntrospectionHandler, ASServerMetadata, MountASMetadata]
   - path: ../httpauth
     entities: [LimitBody, DefaultMaxBodySize]
   - path: ../utils

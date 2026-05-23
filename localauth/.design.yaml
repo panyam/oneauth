@@ -3,8 +3,8 @@ purpose: HTTP handlers and store-backed callbacks for local username/password au
 language: go
 doc_file: doc.go
 diagrams_file: diagrams.md
-last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
-last_rebuilt_at: 2026-05-22T18:29:59Z
+last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
+last_rebuilt_at: 2026-05-23T00:00:00Z
 entities:
   - name: LocalAuth
     kind: struct
@@ -92,4 +92,4 @@ entities:
     why: Verifies the email belongs to the userID and rejects if a local channel already exists, preventing hijack.
 depends_on:
   - path: ../core
-    entities: [User, BasicUser, Identity, Channel, IdentityKey, HandleUserFunc, UserStore, IdentityStore, ChannelStore, UsernameStore, TokenStore, TokenType, SignupPolicy, "DefaultSignupPolicy / PolicyUsernameRequired / PolicyEmailOnly / PolicyFlexible", Credentials, AuthError, AuthErrorHandler, "SignupValidator / CredentialsValidator / CreateUserFunc / GetUserScopesFunc", DetectUsernameType, RateLimiter, InMemoryRateLimiter, AccountLockout, SendEmail]
+    entities: [User, BasicUser, Identity, Channel, IdentityKey, HandleUserFunc, UserStore, IdentityStore, ChannelStore, UsernameStore, TokenStore, TokenType, SignupPolicy, Credentials, AuthError, AuthErrorHandler, DetectUsernameType, RateLimiter, AccountLockout, SendEmail]

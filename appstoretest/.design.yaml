@@ -1,18 +1,18 @@
 package: appstoretest
-purpose: Shared contract test suite that every AppRegistrationStore backend (inmem, fs, gorm) runs against its own factory to prove uniform behavior.
+purpose: Shared contract test suite that every AppRegistrationStore backend runs against its own factory to prove uniform behavior.
 language: go
 doc_file: doc.go
-last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
-last_rebuilt_at: 2026-05-22T18:29:59Z
+last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
+last_rebuilt_at: 2026-05-23T00:00:00Z
 entities:
   - name: Factory
     kind: type
     role: Function type a backend supplies that returns a fresh AppRegistrationStore per test.
-    why: Inverts construction so the shared suite stays storage-agnostic and each backend controls its own setup/teardown.
+    why: Inverts construction so the suite stays storage-agnostic and each backend controls setup/teardown.
   - name: RunAll
     kind: func
     role: Entry point that runs the complete suite of contract subtests against one factory.
-    why: Single call site keeps every backend's coverage in lock-step; adding a case here forces all backends to satisfy it.
+    why: Single call site keeps every backend's coverage in lock-step.
   - name: TestSaveAndGet
     kind: func
     role: Asserts SaveApp then GetApp returns the saved registration.
@@ -23,7 +23,7 @@ entities:
     why: Pins the sentinel-error contract so callers can branch on a typed miss.
   - name: TestDeleteApp
     kind: func
-    role: Asserts DeleteApp removes a registration and later GetApp returns ErrAppNotFound.
+    role: Asserts DeleteApp removes a registration and a later GetApp returns ErrAppNotFound.
     why: Confirms deletion is observable, not just a no-op flag.
   - name: TestDeleteNonexistent
     kind: func

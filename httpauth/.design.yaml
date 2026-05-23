@@ -3,8 +3,8 @@ purpose: Session-based HTTP auth glue plus standalone middleware for CSRF, secur
 language: go
 doc_file: doc.go
 diagrams_file: diagrams.md
-last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
-last_rebuilt_at: 2026-05-22T18:29:59Z
+last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
+last_rebuilt_at: 2026-05-23T00:00:00Z
 entities:
   - name: OneAuth
     kind: struct

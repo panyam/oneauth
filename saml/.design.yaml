@@ -1,33 +1,53 @@
 package: saml
-purpose: POC SAML 2.0 SP integration wrapping crewjam/saml behind redirect-style login/logout/ACS handlers that hand off authenticated users via an OAuth2-token-shaped callback.
+purpose: Registers SAML 2.0 SSO HTTP routes (login, ACS, logout) on a gorilla/mux router, wrapping crewjam/saml to fit oneauth's redirect-based multi-provider login flow.
 language: go
 doc_file: doc.go
 diagrams_file: diagrams.md
-last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
-last_rebuilt_at: 2026-05-22T18:29:59Z
+last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
+last_rebuilt_at: 2026-05-23T00:00:00Z
 entities:
-  - name: HandleUserFunc
-    kind: type (func)
-    role: Callback signature invoked after successful SAML authentication to deliver user info to the host app.
-    why: Deliberately OAuth2-shaped (token + userInfo) so SAML masquerades as an OAuth provider for a unified login surface; the token is a fake placeholder, not a real OAuth grant.
   - name: RegisterSamlAuth
     kind: func
-    role: Loads SP keypair + IdP metadata, builds the samlsp.Middleware, and registers /saml/login, /saml/logout, /saml/acs, and /saml/ routes on the given mux.Router.
-    why: Wires redirect-based login (not RequireAccount middleware) so a top-level /login page can offer SAML alongside other auth methods; reads all config from env vars and hardcoded cert/key file paths (POC, marked for configmap migration).
+    role: Loads the SP keypair and IdP metadata, builds a samlsp.Middleware, and mounts /saml/login, /saml/acs, /saml/logout, and /saml/ on the supplied router.
+    why: Single entry point applications call to wire SAML into their oneauth-style auth router; the custom /saml/login handler exists so SAML is one option on a multi-provider /login page rather than gated by RequireAccount middleware.
+  - name: HandleUserFunc
+    kind: type
+    role: Callback signature invoked after a successful ACS assertion, receiving a synthesized oauth2.Token and the extracted user attributes.
+    why: Lets the host application persist the SAML user through the same code path it uses for OAuth providers, by masking the SAML assertion as an oauth2.Token.
+  - name: logout
+    kind: func
+    role: Builds a SAML SLO redirect, deletes the local session, and sends the browser to the IdP logout URL.
+    why: Implements /saml/logout so callers can trigger single logout without exposing crewjam internals.
+  - name: samlMiddleware
+    kind: var
+    role: Package-level *samlsp.Middleware shared by the login, ACS, and logout handlers.
+    why: The handlers are closures registered on the router but need a common ServiceProvider, Session store, and RequestTracker; keeping it package-scoped avoids threading it through every HandlerFunc.
   - name: SAML_ISSUER
-    kind: var (string)
-    role: IdP issuer identifier, sourced from SAML_ISSUER env var; passed as the provider name to HandleUserFunc.
-    why: Package-level env-driven config; trimmed at init time so a restart is needed to change it.
+    kind: var
+    role: Issuer string passed back to the user callback as the provider name; sourced from the SAML_ISSUER env var.
+    why: Identifies which IdP authenticated the user when the host app stores or audits credentials.
   - name: SAML_CALLBACK_URL
-    kind: var (string)
-    role: Configured callback URL from SAML_CALLBACK_URL env var.
-    why: Env-driven config read once at package init.
+    kind: var
+    role: Configured callback URL from the SAML_CALLBACK_URL env var.
+    why: Held for future use by callers configuring the SP; the active callback comes from the RegisterSamlAuth argument today.
   - name: SAML_LOGIN_URL
-    kind: var (string)
-    role: IdP SSO endpoint used as the destination for AuthN requests, from SAML_LOGIN_URL env var.
-    why: Passed directly to MakeAuthenticationRequest rather than derived from IdP metadata.
+    kind: var
+    role: IdP SSO endpoint from the SAML_LOGIN_URL env var, used as the destination of MakeAuthenticationRequest.
+    why: Tells the SP where to redirect the browser to start SP-initiated SSO.
   - name: SAML_METADATA_URL
-    kind: var (string)
-    role: IdP metadata URL fetched at registration time to configure the SP, from SAML_METADATA_URL env var.
-    why: Fetched over the network during RegisterSamlAuth, so registration fails if the IdP is unreachable.
-depends_on: []
+    kind: var
+    role: IdP metadata URL from the SAML_METADATA_URL env var, fetched once at registration to seed the SP.
+    why: Provides the IdP's signing certs and endpoint bindings without requiring them to be checked in.
+  - name: SAML_CERT_FILE
+    kind: const
+    role: Filesystem path to the SP's X.509 certificate (saml_service.cert).
+    why: Loaded with the private key to sign AuthnRequests and decrypt assertions; marked TODO for migration to configmap.
+  - name: SAML_KEY_FILE
+    kind: const
+    role: Filesystem path to the SP's RSA private key (saml_service.key).
+    why: Paired with SAML_CERT_FILE to form the SP keypair; marked TODO for migration to configmap.
+depends_on:
+  - github.com/crewjam/saml
+  - github.com/crewjam/saml/samlsp
+  - github.com/gorilla/mux
+  - golang.org/x/oauth2

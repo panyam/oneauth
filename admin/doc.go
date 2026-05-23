@@ -3,7 +3,6 @@
 // proprietary /apps registry, admin-side CRUD, signing-key rotation with
 // grace periods, and resource-token minting.
 //
-// <!-- design:start -->
 // The package is built around the gRPC-shape convention used across OneAuth:
 // every transport-agnostic operation is a MethodName(ctx, *Req) (*Resp, error)
 // method on an interface, and HTTP handlers are thin wrappers that parse,
@@ -23,12 +22,12 @@
 // concern: MintResourceToken / MintResourceTokenWithKey produce short-lived
 // resource-scoped JWTs (auto-selecting HS256 / RS256 / ES256 from the key
 // type) carrying scopes, per-app quota, and RFC 9396 authorization details.
-// The package deliberately does NOT own end-user login, token issuance for the
-// OAuth grants, or introspection/revocation — those live in localauth and
-// apiauth. It also does not implement persistent stores; FS/GORM/GAE backends
-// for AppRegistrationStore live under stores/.
+// The package deliberately does NOT own end-user login, token issuance for
+// the OAuth grants, or introspection/revocation — those live in localauth
+// and apiauth. It also does not implement persistent stores; FS/GORM/GAE
+// backends for AppRegistrationStore live under stores/.
 //
-// # ENTITIES
+// ENTITIES
 //
 // ClientRegistrar — Transport-agnostic ADMIN client surface (Register,
 // RegisterLegacy, ListClients, GetClient, DeleteClient, RotateSecret). Methods
@@ -42,12 +41,60 @@
 //
 // AppRegistrar — Embeddable http.Handler and concrete implementation of both
 // interfaces. Backed by AppRegistrationStore + keys.KeyStorage + optional
-// keys.KidStorage; serves reads from an in-memory apps cache hydrated from the
-// store on construction. Handler() wires /apps/register, /apps/dcr,
-// /apps/dcr/{client_id}, and the /apps CRUD routes.
+// keys.KidStorage; serves reads from an in-memory apps cache hydrated from
+// the store on construction.
+//
+// AppRegistrar.Register — RFC 7591 DCR. Assigns client_id, allocates a
+// symmetric secret or stores a caller-supplied JWK, issues RFC 7592 §3
+// management credentials. ErrInvalidClientMetadata maps to HTTP 400;
+// other errors bubble up as HTTP 500.
+//
+// AppRegistrar.RegisterLegacy — Proprietary /apps/register path carrying
+// OneAuth-specific MaxRooms / MaxMsgRate quota fields DCR cannot express.
+// Eventual removal tracked under issue #189.
+//
+// AppRegistrar.ListClients — Admin read of every registration. Returned
+// entries are clones so callers cannot mutate the cache.
+//
+// AppRegistrar.GetClient — Admin read of a single registration. Reachable
+// only by AdminAuth-passing callers; distinct from
+// ClientRegistrationManager.GetRegistration.
+//
+// AppRegistrar.DeleteClient — Admin delete. Persists the store deletion
+// before invalidating cache / credentials so a store error leaves the
+// registration intact and the call retryable.
+//
+// AppRegistrar.RotateSecret — Rotates the signing key (new secret for
+// symmetric algs, caller-supplied PEM for asymmetric). When KidStore is
+// configured the previous key is retained for the grace period; a retention
+// persistence failure fails the whole rotation.
+//
+// AppRegistrar.GetRegistration — RFC 7592 read. Returns the uniform
+// ErrUnauthorized for every auth failure mode so the endpoint cannot be
+// probed for valid client_ids; client_secret is omitted from the response.
+//
+// AppRegistrar.UpdateRegistration — RFC 7592 §2.2 full-replacement update.
+// Rotates the registration_access_token and returns the new value;
+// TokenEndpointAuthMethod is a locked field and changes return
+// ErrInvalidClientMetadata.
+//
+// AppRegistrar.DeleteRegistration — RFC 7592 §2.3 self-service delete.
+// Removes the registration and deletes the signing key so already-issued
+// tokens fail signature validation; store deletion happens first.
+//
+// AppRegistrar.SaveRegistration — Persists to Store then updates the cache.
+// Cache update is gated on store success so the cache cannot drift ahead of
+// durable state.
+//
+// AppRegistrar.RLockApps — Calls fn with a read-locked view of the
+// in-memory apps map without exposing the lock externally.
+//
+// AppRegistrar.Handler — http.Handler wiring /apps/register, /apps/dcr,
+// /apps/dcr/{client_id}, and the /apps CRUD + rotate routes. Relies on
+// ServeMux longest-prefix matching so /apps/dcr/ wins over /apps/.
 //
 // AppRegistration — Persisted registration metadata: client_id, signing alg,
-// quota, the RFC 7591/7592 client-metadata fields, and the
+// quota, RFC 7591 / 7592 client-metadata fields, and the
 // registration_access_token. May be partly empty for legacy /apps/register
 // entries.
 //
@@ -65,41 +112,56 @@
 // behind proxies).
 //
 // DCRManagementHandler — HTTP adapter for RFC 7592 GET/PUT/DELETE on
-// /apps/dcr/{client_id}. Delegates to a ClientRegistrationManager; unsupported
-// methods return 405 with an Allow header and leak no per-client information.
+// /apps/dcr/{client_id}. Delegates to a ClientRegistrationManager;
+// unsupported methods return 405 with an Allow header and leak no
+// per-client information.
 //
-// DCRRequest — RFC 7591 registration body, reused as the RFC 7592 §2.2 update
-// body. ClientID is ignored on register (server assigns) but required and
-// matched against the URL path on PUT.
+// DCRRequest — RFC 7591 registration body, reused as the RFC 7592 §2.2
+// update body. ClientID is ignored on register (server assigns) but
+// required and matched against the URL path on PUT.
 //
 // DCRResponse — RFC 7591 response extended with the RFC 7592 §3 management
 // credentials. Reads via GetRegistration omit client_secret to limit the
 // disclosure window if the access token is logged or proxied.
 //
-// AdminAuth — Authentication seam for admin requests; Authenticate(r) returns
-// nil when allowed. NoAuth allows everything (dev/test only). APIKeyAuth
-// validates the X-Admin-Key header with a constant-time compare.
+// AdminAuth — Authentication seam for admin requests; Authenticate(r)
+// returns nil when allowed. NoAuth allows everything (dev/test only).
+// APIKeyAuth validates the X-Admin-Key header with a constant-time compare.
 //
-// MintResourceToken / MintResourceTokenWithKey — Mint short-lived (15-minute)
-// resource-scoped JWTs for a user on behalf of a registered app. The WithKey
-// form auto-detects the signing algorithm from the key type and sets a kid
-// header so resource servers can select the verification key. AppQuota carries
-// OneAuth-specific MaxRooms / MaxMsgRate as custom claims.
+// AppQuota — OneAuth-specific MaxRooms / MaxMsgRate carried as custom
+// claims in minted resource tokens so downstream services do not need a
+// second lookup.
 //
-// RegisterRequest/RegisterResponse, RegisterLegacyRequest/RegisterLegacyResponse,
-// RotateSecretRequest/RotateSecretResponse and the Get/Update/Delete
-// registration request and response types — the wire-agnostic envelopes for
-// the interface methods, wrapped per the convention so future fields don't
-// break method signatures. The Err* sentinels (ErrAppNotFound,
-// ErrUnauthorized, ErrInvalidClientMetadata, ErrInvalidPublicKey,
-// ErrPublicKeyRequired, ErrAdminUnauthorized, ErrAdminForbidden) are mapped to
-// HTTP status codes by the wrappers; ErrUnauthorized is deliberately uniform
-// across all RFC 7592 failures so the endpoint cannot be probed for valid
-// client_ids.
+// MintResourceToken / MintResourceTokenWithKey — Mint short-lived
+// (15-minute) resource-scoped JWTs for a user on behalf of a registered app.
+// The WithKey form auto-detects the signing algorithm from the key type and
+// sets a kid header so resource servers can select the verification key.
 //
-// # FLOWS
+// RegisterRequest / RegisterResponse, RegisterLegacyRequest /
+// RegisterLegacyResponse, ListClientsRequest / ListClientsResponse,
+// GetClientRequest / GetClientResponse, DeleteClientRequest /
+// DeleteClientResponse, RotateSecretRequest / RotateSecretResponse,
+// GetRegistrationRequest / GetRegistrationResponse,
+// UpdateRegistrationRequest / UpdateRegistrationResponse,
+// DeleteRegistrationRequest / DeleteRegistrationResponse — wire-agnostic
+// envelopes for the interface methods, wrapped per the gRPC-shape convention
+// so future fields do not break method signatures.
 //
-// See diagrams.md for the RFC 7591 registration flow, the RFC 7592 management
-// (read/update/delete) flow, and secret rotation with grace-period retention.
-// <!-- design:end -->
+// ErrAppNotFound, ErrUnauthorized, ErrInvalidClientMetadata,
+// ErrInvalidPublicKey, ErrPublicKeyRequired, ErrAdminUnauthorized,
+// ErrAdminForbidden — sentinel errors mapped to HTTP status codes by the
+// wrappers. ErrUnauthorized is deliberately uniform across all RFC 7592
+// failures so the endpoint cannot be probed for valid client_ids.
+//
+// NewInMemoryAppStore, NewAppRegistrar, NewAppRegistrarWithStore,
+// NewNoAuth, NewAPIKeyAuth — constructors. NewAppRegistrarWithStore
+// hydrates the in-memory cache from store.ListApps; a transient startup
+// error is swallowed (empty cache) so a flaky store does not crash the
+// host process.
+//
+// FLOWS
+//
+// See diagrams.md for sequence diagrams of: RFC 7591 Dynamic Client
+// Registration, RFC 7592 management (read / update / delete), and
+// secret/key rotation with grace-period retention.
 package admin

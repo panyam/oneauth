@@ -1,42 +1,51 @@
 package: fs
-purpose: A filesystem-backed credential store that persists oneauth client server credentials as a single JSON file keyed by normalized server URL.
+purpose: Filesystem-backed credential store that persists oneauth client server credentials as a single JSON file keyed by normalized server URL.
 language: go
 doc_file: doc.go
-last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
-last_rebuilt_at: 2026-05-22T18:29:59Z
+diagrams_file: diagrams.md
+last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
+last_rebuilt_at: 2026-05-23T00:00:00Z
 entities:
   - name: FSCredentialStore
     kind: struct
     role: In-memory map of server credentials backed by a JSON file, guarded by a RWMutex.
-    why: Mutations only touch memory and set a modified flag; nothing hits disk until Save is called explicitly.
+    why: Mutations stay in memory until Save, so callers control when secrets touch disk.
+  - name: credentialFile
+    kind: struct
+    role: On-disk JSON shape wrapping the servers map under a "servers" key.
+    why: Gives the file a single top-level object so the format can grow without breaking older readers.
   - name: NewFSCredentialStore
-    kind: func
-    role: Constructs a store, defaulting path to ~/.config/<appName>/credentials.json and eagerly loading any existing file.
-    why: A missing file is not an error (os.IsNotExist is tolerated), so first-run callers get an empty usable store.
+    kind: function
+    role: Constructs a store, defaulting the path to ~/.config/<appName>/credentials.json and eagerly loading any existing file.
+    why: A missing file is not an error so first-run callers get an empty but usable store.
+  - name: normalizeURL
+    kind: function
+    role: Reduces a server URL to scheme://host, defaulting a missing scheme to https.
+    why: Variant URLs (trailing slashes, paths, queries) must collapse onto one credential entry.
   - name: FSCredentialStore.GetCredential
     kind: method
     role: Looks up a credential by normalized server URL.
-    why: Returns (nil, nil) on a miss rather than an error, so callers must nil-check the credential, not just err.
+    why: Returns (nil, nil) on a miss so callers must nil-check rather than relying on an error.
   - name: FSCredentialStore.SetCredential
     kind: method
     role: Stores a credential under its normalized URL key and marks the store dirty.
-    why: Does not write to disk; pairs with Save to batch persistence.
+    why: Defers the file write to Save so callers can batch updates.
   - name: FSCredentialStore.RemoveCredential
     kind: method
     role: Deletes a credential by normalized URL key and marks the store dirty.
-    why: Like Set, defers actual file rewrite to Save.
+    why: Defers the file rewrite to Save, matching SetCredential's batching model.
   - name: FSCredentialStore.ListServers
     kind: method
-    role: Returns all normalized server URL keys currently held.
-    why: Returns the normalized form (scheme://host), not the original input strings.
+    role: Returns all normalized server URL keys currently in the store.
+    why: Callers see the canonical scheme://host form, not the original input strings.
   - name: FSCredentialStore.Save
     kind: method
-    role: Persists the map to disk as indented JSON if modified, creating the dir 0700 and file 0600.
-    why: No-ops when nothing changed; restrictive perms because the file holds secrets.
+    role: Persists the map to disk as indented JSON when modified.
+    why: Creates the directory 0700 and file 0600 because the contents are secrets; no-ops when unchanged.
   - name: FSCredentialStore.Path
     kind: method
     role: Returns the resolved path to the credentials file.
-    why: Lets callers report or locate the file after default-path resolution.
+    why: After default-path resolution callers often need the actual location for logging or display.
 depends_on:
   - path: ../..
     entities: [ServerCredential]

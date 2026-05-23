@@ -1,75 +1,131 @@
 package: gae
-purpose: Google Cloud Datastore-backed implementations of oneauth's KeyStorage, KidStorage, and the core user/identity/channel/token/API-key/username store interfaces, with namespace-based multi-tenancy.
+purpose: Google Cloud Datastore-backed implementations of oneauth's key, kid, user, identity, channel, auth-token, refresh-token, API-key, and username store interfaces.
 language: go
 doc_file: doc.go
 diagrams_file: diagrams.md
-last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
-last_rebuilt_at: 2026-05-22T18:29:59Z
+last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
+last_rebuilt_at: 2026-05-23T00:00:00Z
 entities:
   - name: GAEKeyStore
     kind: struct
-    role: keys.KeyStorage over Datastore; stores per-client signing keys keyed by ClientID.
-    why: GetKeyByKid runs a kid-equality query (kid is indexed) since the entity key is ClientID, not kid.
+    role: keys.KeyStorage over Datastore for per-client signing keys.
+    why: Keyed by ClientID with kid indexed so GetKeyByKid can reverse-lookup.
   - name: NewKeyStore
     kind: func
-    role: Constructs a GAEKeyStore for a client and namespace with a background context.
-    why: ctx is stored on the struct (pre-issue-110 pattern); use WithContext to override per call.
+    role: Constructs a GAEKeyStore for a namespace with a background ctx.
+    why: ctx is stored on the struct (pre-issue-110 pattern); use WithContext to scope per call.
   - name: SigningKeyEntity
     kind: struct
-    role: Datastore entity for a per-client signing key (key bytes, algorithm, kid).
-    why: KeyBytes is noindex; kid is indexed to support reverse lookup by kid.
+    role: Datastore entity for a per-client signing key.
+    why: KeyBytes is noindex; kid is indexed to support reverse-lookup queries.
   - name: GAEKidStore
     kind: struct
-    role: keys.KidStorage over Datastore; stores kid->key grace entries keyed by kid itself.
-    why: GetKey always returns ErrKeyNotFound — this store is kid-indexed, not client-indexed.
+    role: keys.KidStorage over Datastore for kid->key grace entries.
+    why: Keyed by the kid itself; GetKey (client-indexed) always returns ErrKeyNotFound.
   - name: NewKidStore
     kind: func
-    role: Constructs a GAEKidStore for a namespace with a background context.
-    why: Asserts keys.KidStorage compliance via a compile-time var check.
+    role: Constructs a GAEKidStore for a namespace with a background ctx.
+    why: A var _ assertion guarantees keys.KidStorage conformance at build time.
   - name: KidKeyEntity
     kind: struct
-    role: Datastore entity for a kid grace entry (key bytes, algorithm, clientID, expiry).
-    why: ExpiresAt is noindex; CleanExpired scans + filters in Go because Datastore can't combine not-zero and less-than filters.
-  - name: KidStore.CleanExpired
-    kind: method
-    role: Scans all kid entries and bulk-deletes any past their expiry.
-    why: Full-scan-and-filter is acceptable because kid stores are small.
+    role: Datastore entity for a kid grace entry.
+    why: ExpiresAt is noindex; CleanExpired scans and filters in Go because Datastore can't combine not-zero and less-than filters.
   - name: UserStore
     kind: struct
-    role: core.UserStore over Datastore; user accounts with JSON profile blobs.
-    why: SaveUser does a read-before-write to preserve CreatedAt across updates.
+    role: core.UserStore over Datastore for user accounts with JSON profile blobs.
+    why: SaveUser reads-before-writes to preserve CreatedAt across updates.
   - name: GAEUser
     kind: struct
-    role: core.User implementation carrying UserID, active flag, and profile map.
-    why: SaveUser type-asserts to *GAEUser to recover the active flag, else defaults active=true.
+    role: core.User implementation carrying ID, active flag, and profile map.
+    why: SaveUser type-asserts to *GAEUser to recover the active flag; defaults to active=true otherwise.
   - name: IdentityStore
     kind: struct
-    role: core.IdentityStore over Datastore; identities keyed by "type:value".
-    why: SetUserForIdentity and MarkIdentityVerified use transactions to bump Version atomically.
+    role: core.IdentityStore; identities keyed by "type:value".
+    why: SetUserForIdentity and MarkIdentityVerified bump Version atomically inside a transaction.
   - name: ChannelStore
     kind: struct
-    role: core.ChannelStore over Datastore; auth channels keyed by "provider:identityKey".
-    why: SaveChannel reads existing to preserve CreatedAt and monotonically increment Version.
+    role: core.ChannelStore; auth channels keyed by "provider:identityKey".
+    why: SaveChannel preserves CreatedAt and monotonically increments Version.
   - name: TokenStore
     kind: struct
-    role: core.TokenStore over Datastore; verification/reset AuthTokens keyed by the token string.
-    why: GetToken self-deletes expired tokens before returning a "token expired" error.
+    role: core.TokenStore; verification/reset tokens keyed by the token string.
+    why: GetToken self-deletes expired tokens before erroring.
   - name: RefreshTokenStore
     kind: struct
-    role: core.RefreshTokenStore over Datastore; rotation, family revocation, cleanup.
-    why: Tokens are keyed by SHA-256 hash, never the raw value; rotation runs in a transaction.
-  - name: RefreshTokenStore.RotateRefreshToken
-    kind: method
-    role: Atomically revokes the old token and mints the next-generation token in the same family.
-    why: Detecting an already-revoked token signals reuse; the whole family is then revoked outside the txn.
+    role: core.RefreshTokenStore; refresh tokens keyed by SHA-256 hash.
+    why: Supports rotation, family revocation on reuse, and cleanup; raw tokens never land in Datastore.
   - name: APIKeyStore
     kind: struct
-    role: core.APIKeyStore over Datastore; bcrypt-hashed API keys keyed by KeyID.
-    why: ValidateAPIKey parses the "oa_keyid_secret" format and bcrypt-compares; hash never returned in listings.
+    role: core.APIKeyStore; bcrypt-hashed API keys keyed by KeyID.
+    why: ValidateAPIKey parses the "oa_keyid_secret" format; hashes are stripped from listings.
   - name: UsernameStore
     kind: struct
-    role: core.UsernameStore over Datastore; case-insensitive username->userID reservations.
-    why: Keyed by lowercased username; ReserveUsername/ChangeUsername use transactions for atomic uniqueness.
+    role: core.UsernameStore; case-insensitive username->userID reservations.
+    why: Lowercased keys with txn-guarded uniqueness; ChangeUsername atomically swaps old and new entries.
+  - name: UserEntity
+    kind: struct
+    role: Datastore entity for a user; profile stored as noindex JSON.
+    why: Mirrors core.User with versioning and timestamps for Datastore persistence.
+  - name: IdentityEntity
+    kind: struct
+    role: Datastore entity for an identity (type:value -> userID).
+    why: ToIdentity and IdentityToEntity bridge to core.Identity.
+  - name: ChannelEntity
+    kind: struct
+    role: Datastore entity for an auth channel (provider:identityKey).
+    why: Credentials and profile stored as noindex JSON; tracks expiry and version.
+  - name: AuthTokenEntity
+    kind: struct
+    role: Datastore entity for verification/reset tokens.
+    why: Key name is the token itself; ToAuthToken/AuthTokenToEntity bridge to core.AuthToken.
+  - name: RefreshTokenEntity
+    kind: struct
+    role: Datastore entity for a refresh token keyed by hash.
+    why: Carries family, generation, scopes, authorization_details, and revocation metadata.
+  - name: APIKeyEntity
+    kind: struct
+    role: Datastore entity for an API key keyed by KeyID.
+    why: Stores bcrypt hash plus scopes (JSON noindex) and optional expiry flagged by HasExpiry.
+  - name: UsernameEntity
+    kind: struct
+    role: Datastore entity mapping lowercased username -> userID.
+    why: Original-case username preserved alongside the normalized key.
+  - name: KindSigningKey
+    kind: const
+    role: Datastore kind name for signing keys.
+    why: Shared between entity definitions and query construction.
+  - name: KindKidKey
+    kind: const
+    role: Datastore kind name for kid grace entries.
+    why: Shared between entity definitions and query construction.
+  - name: KindUser
+    kind: const
+    role: Datastore kind name for users.
+    why: One of seven core kind constants declared in stores.go.
+  - name: KindIdentity
+    kind: const
+    role: Datastore kind name for identities.
+    why: One of seven core kind constants.
+  - name: KindChannel
+    kind: const
+    role: Datastore kind name for channels.
+    why: One of seven core kind constants.
+  - name: KindAuthToken
+    kind: const
+    role: Datastore kind name for auth tokens.
+    why: One of seven core kind constants.
+  - name: KindRefreshToken
+    kind: const
+    role: Datastore kind name for refresh tokens.
+    why: One of seven core kind constants.
+  - name: KindAPIKey
+    kind: const
+    role: Datastore kind name for API keys.
+    why: One of seven core kind constants.
+  - name: KindUsername
+    kind: const
+    role: Datastore kind name for username reservations.
+    why: One of seven core kind constants.
 depends_on:
   - path: ../../core
     entities: [User, Identity, Channel, UserStore, IdentityStore, ChannelStore, RefreshTokenStore, APIKeyStore, UsernameStore, TokenStore, AuthToken, RefreshToken, APIKey, TokenType, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret, AuthorizationDetail]

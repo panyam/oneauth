@@ -1,63 +1,85 @@
 package: keys
-purpose: Owns signing-key storage, lookup, encryption-at-rest, kid-based rotation with grace periods, and JWKS publication/consumption for OneAuth.
+purpose: Signing-key storage, kid-based lookup, encryption-at-rest, grace-period rotation, and JWKS publication/consumption for OneAuth.
 language: go
 doc_file: doc.go
 diagrams_file: diagrams.md
-last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
-last_rebuilt_at: 2026-05-22T18:29:59Z
+last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
+last_rebuilt_at: 2026-05-23T00:00:00Z
 entities:
   - name: KeyRecord
     kind: struct
-    role: Single value type carrying ClientID, Key, Algorithm, and Kid for every key operation.
-    why: Replaces scattered per-field accessor methods so decorators implement 5 methods instead of forwarding many.
+    role: Single value type carrying ClientID, Key, Algorithm, and Kid.
+    why: Replaces scattered per-field accessors so decorators forward one value, not many getters.
   - name: KeyLookup
     kind: interface
-    role: Read-only lookup by clientID (GetKey) or kid (GetKeyByKid).
-    why: Lets read-only stores (JWKSKeyStore, KidStore) participate without implementing write methods.
+    role: Read-only contract with GetKey(clientID) and GetKeyByKid(kid).
+    why: Lets read-only sources like a remote JWKS plug in without implementing writes.
   - name: KeyStorage
     kind: interface
-    role: KeyLookup plus PutKey/DeleteKey/ListKeyIDs for persistent backends.
-    why: The clientID-keyed write contract that FS/GORM/GAE backends and the encryption decorator share.
+    role: KeyLookup plus PutKey, DeleteKey, and ListKeyIDs.
+    why: ClientID-keyed write contract for persistent backends and the encryption decorator.
   - name: KidStorage
     kind: interface
-    role: KeyLookup plus Add/Remove/CleanExpired for kid-indexed grace-period storage.
-    why: Keyed by kid not clientID; GetKey(clientID) always returns ErrKeyNotFound, so retired keys can persist across restarts in backends.
+    role: KeyLookup plus Add, Remove, and CleanExpired, keyed by kid.
+    why: Lets retired grace-period keys persist across restarts in backends, not just process memory.
   - name: InMemoryKeyStore
     kind: struct
-    role: Thread-safe in-memory KeyStorage with a kid->clientID secondary index.
-    why: Default for tests/single-process; maintains kidIndex so GetKeyByKid is O(1) and stays consistent on overwrite/delete.
+    role: Thread-safe in-memory KeyStorage with a kid to clientID secondary index.
+    why: Keeps GetKeyByKid O(1) and consistent across overwrite and delete; default for tests and small deployments.
+  - name: NewInMemoryKeyStore
+    kind: func
+    role: Constructor for an empty InMemoryKeyStore.
+    why: Standard entry point for callers wiring an in-memory keystore.
   - name: EncryptedKeyStorage
     kind: struct
-    role: KeyStorage decorator that AES-256-GCM encrypts HMAC secrets at rest, passing asymmetric keys through.
-    why: Computes kid from plaintext before encryption so kid lookups still work; decryption failure falls back to plaintext for pre-encryption migration.
+    role: KeyStorage decorator that AES-256-GCM encrypts HMAC secrets at rest while asymmetric keys pass through.
+    why: Computes kid from plaintext before encryption so kid lookups still work; falls back to plaintext when decryption fails for pre-encryption migration.
   - name: NewEncryptedKeyStorage
     kind: func
-    role: Builds the decorator from a 64-hex-char master key via HKDF-SHA256 key derivation.
-    why: Derives the AES key with a fixed info string rather than using the master directly, isolating the encryption key per purpose.
+    role: Builds the decorator from a 64-hex-character master key.
+    why: Derives the AES key via HKDF-SHA256 with a fixed info string so the on-disk key is never the master key.
   - name: JWKSHandler
     kind: struct
-    role: HTTP handler serving /.well-known/jwks.json from a KeyStore plus optional KidStore grace-period keys.
-    why: Only publishes asymmetric keys (HS256 secrets never exposed) and adds ETag/If-None-Match/Cache-Control for conditional caching.
+    role: HTTP handler serving /.well-known/jwks.json from a KeyStore plus an optional KidStore.
+    why: Publishes only asymmetric keys (HMAC secrets never leak) and supports ETag, If-None-Match, and Cache-Control conditional caching.
   - name: JWKSKeyStore
     kind: struct
     role: Read-only KeyLookup that fetches and caches public keys from a remote JWKS URL with background refresh.
-    why: Cache misses trigger an on-demand refresh (rate-limited by MinRefreshGap) before erroring; GetSigningKey always fails since only public keys exist.
+    why: Cache misses trigger an on-demand refresh rate-limited by MinRefreshGap; GetSigningKey always errors since only public keys are available.
   - name: NewJWKSKeyStore
     kind: func
-    role: Constructs a JWKSKeyStore with functional options; Start() begins fetching.
-    why: Defaults RefreshInterval=1h and MinRefreshGap=5s to bound network load and prevent refresh stampede.
+    role: Constructor accepting functional options for the JWKS client.
+    why: Defaults RefreshInterval to 1h and MinRefreshGap to 5s; Start performs the initial fetch and launches the refresher.
+  - name: JWKSOption
+    kind: type
+    role: Functional option for JWKSKeyStore configuration.
+    why: WithHTTPClient, WithRefreshInterval, and WithMinRefreshGap follow the standard functional-options pattern.
   - name: KidStore
     kind: struct
-    role: In-memory KidStorage holding kid->key mappings including time-expiring grace-period entries.
-    why: Lets a rotated-out key keep validating tokens until its grace period lapses, then CleanExpired reclaims it.
+    role: In-memory KidStorage holding kid to key mappings including time-expiring grace entries.
+    why: A rotated-out key keeps validating tokens until its grace period lapses, then CleanExpired drops it.
+  - name: NewKidStore
+    kind: func
+    role: Constructor for an empty KidStore.
+    why: Standard entry point when grace-period rotation is wired in process memory.
   - name: CompositeKeyLookup
     kind: struct
-    role: Tries multiple KeyLookups in order, returning the first hit.
-    why: Combines a KeyStorage's current key with a KidStore's grace entries behind one lookup surface.
-  - name: kidRecord
-    kind: struct
-    role: Internal KidStore entry with key material, clientID, and optional ExpiresAt.
-    why: Zero ExpiresAt means never-expire (current key); isExpired drives both lookup filtering and JWKS exclusion.
+    role: Tries multiple KeyLookups in order and returns the first hit.
+    why: Combines a KeyStorage's current key with a KidStore's grace entries behind one read-side interface.
+  - name: ErrKeyNotFound
+    kind: const
+    role: Sentinel error for a missing clientID lookup.
+    why: Stable signal for callers and middleware that must branch on absence rather than format errors.
+  - name: ErrAlgorithmMismatch
+    kind: const
+    role: Sentinel error when a key's algorithm does not match the expected JWT alg.
+    why: Lets validation reject token-alg substitution attacks distinctly from key-missing errors.
+  - name: ErrKidNotFound
+    kind: const
+    role: Sentinel error for an unknown or expired kid.
+    why: Distinguishes grace-period expiry from a genuinely missing client registration.
 depends_on:
   - path: ../utils
     entities: [ComputeKid, DecodeVerifyKey, IsAsymmetricAlg, JWK, JWKSet, JWKToPublicKey, PublicKeyToJWK]
+  - path: golang.org/x/crypto/hkdf
+    entities: [New]

@@ -1,46 +1,74 @@
-// Package saml is a POC SAML 2.0 service-provider integration that wraps
-// crewjam/saml behind redirect-style login, logout, and ACS handlers and hands
-// off authenticated users through an OAuth2-token-shaped callback.
+// Package saml registers SAML 2.0 SSO HTTP routes (login, ACS, logout)
+// on a gorilla/mux router, wrapping crewjam/saml to fit oneauth's
+// redirect-based multi-provider login flow.
 //
-// <!-- design:start -->
-// This package owns the wiring between a host HTTP app and an external SAML
-// identity provider. It loads the SP signing keypair from on-disk cert/key
-// files, fetches IdP metadata over the network at registration time, and builds
-// a single process-global samlsp.Middleware. Rather than gating routes with the
-// library's RequireAccount middleware, it deliberately exposes explicit
-// redirect-driven endpoints (/saml/login, /saml/logout, /saml/acs) so a
-// top-level login page can present SAML as one option among several auth
-// methods. The result is intentionally a "bastardization" of crewjam/saml: on
-// successful assertion it fabricates a placeholder oauth2.Token and invokes the
-// host's callback, making SAML masquerade as an OAuth provider for a unified
-// login surface. It does NOT issue real OAuth grants, persist users, or manage
-// configuration beyond reading env vars and hardcoded cert/key file paths
-// (flagged for future configmap migration). State is package-global and read
-// once at init, so config changes require a restart.
+// The package builds a process-global samlsp.Middleware from an on-disk
+// SP keypair and IdP metadata fetched at registration time, then mounts
+// explicit /saml/login, /saml/acs, /saml/logout, and catch-all /saml/
+// handlers on the caller-supplied router. It deliberately avoids the
+// crewjam RequireAccount gate so SAML can sit alongside other providers
+// on a top-level /login page. After a successful ACS assertion the
+// package fabricates a placeholder oauth2.Token and invokes the host's
+// HandleUserFunc, letting SAML reuse the same handoff path as real
+// OAuth providers. Configuration is read once from env vars and
+// hardcoded cert/key file paths, so changes require a restart; the
+// cert/key paths are flagged for future configmap migration.
 //
-// # ENTITIES
+// ENTITIES
 //
-// HandleUserFunc — Callback signature invoked after a successful SAML
-// authentication; receives an auth type, provider, a (fake) oauth2.Token, the
-// extracted userInfo map, and the response/request, so the host app can
-// establish its own session. The OAuth2 shape is intentional so SAML plugs into
-// the same handoff path as real OAuth providers.
+// RegisterSamlAuth — Loads the SP keypair and IdP metadata, builds the
+// samlsp.Middleware, and mounts the /saml/* routes on the supplied
+// router. Single entry point applications call to wire SAML into their
+// auth router; the custom /saml/login handler exists so SAML is one
+// option on a multi-provider /login page rather than gated by
+// RequireAccount middleware.
 //
-// RegisterSamlAuth — Entry point: loads the SP keypair, fetches IdP metadata,
-// constructs the samlsp.Middleware (with signed requests), and registers the
-// /saml/login, /saml/logout, /saml/acs, and catch-all /saml/ routes on the
-// supplied mux.Router. Returns an error if the keypair or IdP metadata cannot be
-// loaded.
+// HandleUserFunc — Callback signature invoked after a successful ACS
+// assertion, receiving a synthesized oauth2.Token and the extracted
+// user attributes. Lets the host application persist the SAML user
+// through the same code path it uses for OAuth providers, by masking
+// the SAML assertion as an oauth2.Token.
 //
-// SAML_ISSUER, SAML_CALLBACK_URL, SAML_LOGIN_URL, SAML_METADATA_URL —
-// Package-level configuration sourced from the matching environment variables
-// and trimmed at init. SAML_LOGIN_URL is the IdP SSO destination for AuthN
-// requests; SAML_METADATA_URL is fetched at registration to configure the SP;
-// SAML_ISSUER is reported as the provider name to the callback.
+// logout — Builds a SAML SLO redirect, deletes the local session, and
+// sends the browser to the IdP logout URL. Implements /saml/logout so
+// callers can trigger single logout without exposing crewjam internals.
 //
-// # FLOWS
+// samlMiddleware — Package-level *samlsp.Middleware shared by the
+// login, ACS, and logout handlers. The handlers are closures registered
+// on the router but need a common ServiceProvider, Session store, and
+// RequestTracker; keeping it package-scoped avoids threading it through
+// every HandlerFunc.
 //
-// See diagrams.md for the SP-initiated SSO login flow (request tracking through
-// ACS assertion parsing and the user handoff).
-// <!-- design:end -->
+// SAML_ISSUER — Issuer string passed back to the user callback as the
+// provider name; sourced from the SAML_ISSUER env var. Identifies which
+// IdP authenticated the user when the host app stores or audits
+// credentials.
+//
+// SAML_CALLBACK_URL — Configured callback URL from the
+// SAML_CALLBACK_URL env var. Held for future use by callers configuring
+// the SP; the active callback comes from the RegisterSamlAuth argument
+// today.
+//
+// SAML_LOGIN_URL — IdP SSO endpoint from the SAML_LOGIN_URL env var,
+// used as the destination of MakeAuthenticationRequest. Tells the SP
+// where to redirect the browser to start SP-initiated SSO.
+//
+// SAML_METADATA_URL — IdP metadata URL from the SAML_METADATA_URL env
+// var, fetched once at registration to seed the SP. Provides the IdP's
+// signing certs and endpoint bindings without requiring them to be
+// checked in.
+//
+// SAML_CERT_FILE — Filesystem path to the SP's X.509 certificate
+// (saml_service.cert). Loaded with the private key to sign
+// AuthnRequests and decrypt assertions; marked TODO for migration to
+// configmap.
+//
+// SAML_KEY_FILE — Filesystem path to the SP's RSA private key
+// (saml_service.key). Paired with SAML_CERT_FILE to form the SP
+// keypair; marked TODO for migration to configmap.
+//
+// FLOWS
+//
+// See diagrams.md for sequence diagrams of: SP-initiated SSO login,
+// IdP-initiated SSO login, and SAML single logout.
 package saml

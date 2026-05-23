@@ -1,96 +1,137 @@
 //go:build !wasm
 // +build !wasm
 
-// Package gae provides Google Cloud Datastore implementations of oneauth store interfaces.
-//
-// <!-- design:start -->
 // Package gae supplies Google Cloud Datastore-backed implementations of
-// oneauth's KeyStorage and KidStorage (keys/) plus the core user, identity,
-// channel, auth-token, refresh-token, API-key, and username store
-// interfaces, with all kinds isolated per tenant via Datastore namespaces.
-// Each store holds a *datastore.Client, a namespace, and a context; the ctx
-// lives on the struct (a pre-issue-110/175 pattern) and WithContext returns a
-// copy to override it per call. The package owns Datastore entity shapes and
-// the marshalling between them and core types; it does not own the auth logic
-// or the interfaces themselves. Notable: large blobs (profiles, credentials,
-// scopes, key bytes) are stored as noindex JSON, refresh tokens and API key
-// secrets are persisted only as hashes, and reservation/rotation operations
-// run inside Datastore transactions for atomicity.
+// oneauth's KeyStorage and KidStorage (keys/) plus the core user,
+// identity, channel, auth-token, refresh-token, API-key, and username
+// store interfaces, with all kinds isolated per tenant via Datastore
+// namespaces.
 //
-// # ENTITIES
+// Each store holds a *datastore.Client, a namespace, and a context; the
+// ctx lives on the struct (a pre-issue-110/175 pattern) and WithContext
+// returns a copy to override it per call. The package owns the
+// Datastore entity shapes and the marshalling between them and core
+// types; it does not own the auth logic or the interfaces themselves.
+// Notable: large blobs (profiles, credentials, scopes, key bytes) are
+// stored as noindex JSON, refresh tokens and API key secrets are
+// persisted only as hashes, and reservation/rotation operations run
+// inside Datastore transactions for atomicity.
 //
-// GAEKeyStore — keys.KeyStorage over Datastore; per-client signing keys keyed
-// by ClientID, with kid indexed so GetKeyByKid can reverse-lookup.
+// ENTITIES
 //
-// NewKeyStore — constructs a GAEKeyStore for a namespace with a background ctx.
+// GAEKeyStore — keys.KeyStorage over Datastore for per-client signing
+// keys. Keyed by ClientID with kid indexed so GetKeyByKid can
+// reverse-lookup.
 //
-// SigningKeyEntity — Datastore entity for a signing key; KeyBytes noindex, kid
-// indexed.
+// NewKeyStore — constructs a GAEKeyStore for a namespace with a
+// background ctx. ctx lives on the struct (pre-issue-110/175 pattern);
+// use WithContext to scope per call.
 //
-// GAEKidStore — keys.KidStorage over Datastore; kid grace entries keyed by the
-// kid itself, so GetKey (client-indexed) always returns ErrKeyNotFound.
+// SigningKeyEntity — Datastore entity for a per-client signing key.
+// KeyBytes is noindex; kid is indexed to support reverse-lookup
+// queries.
 //
-// NewKidStore — constructs a GAEKidStore; compile-time asserts KidStorage.
+// GAEKidStore — keys.KidStorage over Datastore for kid→key grace
+// entries. Keyed by the kid itself, so GetKey (client-indexed) always
+// returns ErrKeyNotFound here.
 //
-// KidKeyEntity — Datastore entity for a kid grace entry; ExpiresAt noindex
-// because CleanExpired scans and filters in Go (Datastore can't combine
-// not-zero and less-than filters), which is fine for small kid stores.
+// NewKidStore — constructs a GAEKidStore for a namespace with a
+// background ctx. A var _ assertion guarantees keys.KidStorage
+// conformance at build time.
 //
-// UserStore — core.UserStore; user accounts with JSON profile blobs. SaveUser
-// reads-before-writes to preserve CreatedAt.
+// KidKeyEntity — Datastore entity for a kid grace entry. ExpiresAt is
+// noindex; CleanExpired scans and filters in Go because Datastore
+// can't combine not-zero and less-than filters, which is fine for
+// small kid stores.
 //
-// GAEUser — core.User impl; SaveUser type-asserts to recover the active flag,
-// else defaults active=true.
+// UserStore — core.UserStore over Datastore for user accounts with
+// JSON profile blobs. SaveUser reads-before-writes to preserve
+// CreatedAt across updates.
 //
-// IdentityStore — core.IdentityStore; identities keyed by "type:value".
-// SetUserForIdentity and MarkIdentityVerified bump Version atomically in a txn.
+// GAEUser — core.User implementation carrying ID, active flag, and
+// profile map. SaveUser type-asserts to *GAEUser to recover the active
+// flag; defaults to active=true otherwise.
 //
-// ChannelStore — core.ChannelStore; channels keyed by "provider:identityKey".
-// SaveChannel preserves CreatedAt and monotonically increments Version.
+// IdentityStore — core.IdentityStore; identities keyed by
+// "type:value". SetUserForIdentity and MarkIdentityVerified bump
+// Version atomically inside a transaction.
 //
-// TokenStore — core.TokenStore; verification/reset tokens keyed by the token
-// string. GetToken self-deletes expired tokens before erroring.
+// ChannelStore — core.ChannelStore; auth channels keyed by
+// "provider:identityKey". SaveChannel preserves CreatedAt and
+// monotonically increments Version.
 //
-// RefreshTokenStore — core.RefreshTokenStore; tokens keyed by SHA-256 hash
-// (never the raw value), with rotation, family revocation, and cleanup.
+// TokenStore — core.TokenStore; verification/reset tokens keyed by
+// the token string. GetToken self-deletes expired tokens before
+// erroring.
 //
-// APIKeyStore — core.APIKeyStore; bcrypt-hashed keys keyed by KeyID.
-// ValidateAPIKey parses the "oa_keyid_secret" format; hashes are stripped from
-// listings.
+// RefreshTokenStore — core.RefreshTokenStore; refresh tokens keyed by
+// SHA-256 hash. Supports rotation, family revocation on reuse, and
+// cleanup; raw tokens never land in Datastore.
 //
-// UsernameStore — core.UsernameStore; case-insensitive username->userID
-// reservations keyed by lowercased username, with txn-guarded uniqueness.
+// APIKeyStore — core.APIKeyStore; bcrypt-hashed API keys keyed by
+// KeyID. ValidateAPIKey parses the "oa_keyid_secret" format; hashes
+// are stripped from listings.
 //
-// # FLOWS
+// UsernameStore — core.UsernameStore; case-insensitive
+// username->userID reservations. Lowercased keys with txn-guarded
+// uniqueness; ChangeUsername atomically swaps old and new entries.
 //
-// See diagrams.md for the refresh-token rotation and reuse-detection flow.
-// <!-- design:end -->
+// UserEntity — Datastore entity for a user; profile stored as noindex
+// JSON. Mirrors core.User with versioning and timestamps for
+// Datastore persistence.
 //
-// It is designed for deployment on Google Cloud Platform and supports multi-tenancy
-// through Datastore namespaces.
+// IdentityEntity — Datastore entity for an identity (type:value ->
+// userID). ToIdentity and IdentityToEntity bridge to core.Identity.
 //
-// # Datastore Kinds
+// ChannelEntity — Datastore entity for an auth channel
+// (provider:identityKey). Credentials and profile stored as noindex
+// JSON; tracks expiry and version.
 //
-// The package uses the following Datastore kinds:
-//   - User: User accounts with profile data
-//   - Identity: Email/phone identities linked to users
-//   - Channel: Authentication channels (local, google, github, etc.)
-//   - AuthToken: Verification and password reset tokens
-//   - RefreshToken: Long-lived refresh tokens for API access
-//   - APIKey: Long-lived API keys for programmatic access
+// AuthTokenEntity — Datastore entity for verification/reset tokens.
+// Key name is the token itself; ToAuthToken/AuthTokenToEntity bridge
+// to core.AuthToken.
 //
-// # Namespacing
+// RefreshTokenEntity — Datastore entity for a refresh token keyed by
+// hash. Carries family, generation, scopes, authorization_details,
+// and revocation metadata.
 //
-// All stores support Datastore namespaces for multi-tenant applications.
-// Pass a namespace when creating stores to isolate data between tenants:
+// APIKeyEntity — Datastore entity for an API key keyed by KeyID.
+// Stores bcrypt hash plus scopes (JSON noindex) and optional expiry
+// flagged by HasExpiry.
 //
-//	userStore := gae.NewUserStore(client, "tenant-123")
-//	tokenStore := gae.NewRefreshTokenStore(client, "tenant-123")
+// UsernameEntity — Datastore entity mapping lowercased username ->
+// userID. Original-case username preserved alongside the normalized
+// key.
 //
-// # Usage
+// KindSigningKey — Datastore kind name for signing keys. Shared
+// between entity definitions and query construction.
 //
-//	client, _ := datastore.NewClient(ctx, projectID)
-//	userStore := gae.NewUserStore(client, "")  // default namespace
-//	refreshTokenStore := gae.NewRefreshTokenStore(client, "")
-//	apiKeyStore := gae.NewAPIKeyStore(client, "")
+// KindKidKey — Datastore kind name for kid grace entries. Shared
+// between entity definitions and query construction.
+//
+// KindUser — Datastore kind name for users. One of seven core kind
+// constants declared in stores.go.
+//
+// KindIdentity — Datastore kind name for identities. One of seven
+// core kind constants.
+//
+// KindChannel — Datastore kind name for channels. One of seven core
+// kind constants.
+//
+// KindAuthToken — Datastore kind name for auth tokens. One of seven
+// core kind constants.
+//
+// KindRefreshToken — Datastore kind name for refresh tokens. One of
+// seven core kind constants.
+//
+// KindAPIKey — Datastore kind name for API keys. One of seven core
+// kind constants.
+//
+// KindUsername — Datastore kind name for username reservations. One
+// of seven core kind constants.
+//
+// FLOWS
+//
+// See [diagrams.md](diagrams.md) for sequence diagrams of:
+// refresh-token rotation with reuse detection.
 package gae

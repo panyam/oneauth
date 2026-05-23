@@ -1,165 +1,253 @@
 package: core
-purpose: Foundation data model, store interfaces, token/scope/RFC-9396 types, and pluggable security primitives that every other OneAuth package imports.
+purpose: Foundation types, store interfaces, token/scope primitives, and pluggable security helpers shared by every OneAuth package.
 language: go
 doc_file: doc.go
 diagrams_file: diagrams.md
-last_rebuilt: ead2b4a0eb7a36818650e3d4dfa6968277d8a5ac
-last_rebuilt_at: 2026-05-22T18:29:59Z
+last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
+last_rebuilt_at: 2026-05-23T00:00:00Z
 entities:
   - name: User
     kind: interface
-    role: Unified account abstraction exposing only Id() and Profile().
-    why: Interface (not struct) so backends supply their own row type without core dictating storage shape.
+    role: Unified account abstraction exposing Id() and Profile().
+    why: Lets backends supply their own row type while the rest of OneAuth talks to a stable shape.
   - name: BasicUser
     kind: struct
-    role: Trivial User implementation holding an ID and a profile map.
-    why: Default for apps/tests that need no custom user row.
+    role: Trivial in-memory User implementation.
+    why: Default fallback for callers and tests that have no backing store row.
   - name: Identity
     kind: struct
-    role: A verifiable contact method (email/phone) owned by one user, with a Version for optimistic locking.
-    why: Separated from User so one account can own many contacts and verification state lives per-contact, not per-user.
+    role: Verifiable contact (email/phone) owned by one user, with optimistic-locking Version.
+    why: Keeps verification state per-contact so one user can own many addresses.
   - name: Channel
     kind: struct
-    role: An auth mechanism/provider (local, google, github) keyed by IdentityKey, holding per-provider credentials.
-    why: Lets multiple providers attach to the same identity; ExpiresAt drives re-auth via IsExpired.
+    role: Per-provider auth credentials (local/google/github) keyed by IdentityKey, with ExpiresAt and IsExpired.
+    why: Layers multiple login methods onto a single Identity while preserving re-auth signals.
   - name: IdentityKey
     kind: func
-    role: Builds the canonical "type:value" key linking channels to identities.
-    why: Single source of truth for key format so stores and channels agree.
+    role: Builds the canonical "type:value" key that links Channels to Identities.
+    why: Single source of truth for that key format so callers cannot drift.
   - name: HandleUserFunc
     kind: type
-    role: Callback fired after successful OAuth or local auth, given token + userInfo + http writer.
-    why: The seam where apps issue sessions/tokens; core stays transport-agnostic by handing off the response.
+    role: Post-auth callback receiving the OAuth token, userInfo, and http writer/request.
+    why: The seam that keeps core transport-agnostic — apps decide what session to issue.
   - name: UserStore
     kind: interface
-    role: CRUD/upsert for unified user accounts.
-    why: One of several composed store interfaces — backends implement only what an app wires.
+    role: CRUD plus get-or-create for User rows.
+    why: Decomposed by concern so backends do not implement a god interface.
   - name: IdentityStore
     kind: interface
-    role: Get-or-create, associate, and verify contact identities.
-    why: GetIdentity carries a createIfMissing flag, folding lookup and provisioning into one call.
+    role: Manage Identity rows with verification and user-association.
+    why: Folds lookup and provisioning into one call via createIfMissing.
   - name: ChannelStore
     kind: interface
-    role: Get-or-create and list auth channels by identity.
-    why: Mirrors IdentityStore's get-or-create shape for consistency.
+    role: Manage Channel rows keyed by provider plus identity key.
+    why: Separates auth-provider state from contact state.
   - name: RefreshTokenStore
     kind: interface
-    role: Refresh-token lifecycle including rotation, family revocation, and theft detection.
-    why: RotateRefreshToken returns ErrTokenReused on a revoked token — reuse signals theft, triggering family revocation.
+    role: Refresh-token lifecycle with rotation and family-based theft detection.
+    why: RotateRefreshToken returns ErrTokenReused on an already-revoked token, signaling theft.
   - name: APIKeyStore
     kind: interface
-    role: API-key lifecycle; full key (id_secret) returned only at creation.
-    why: Only the bcrypt hash is stored, so the secret can never be recovered after issuance.
+    role: API-key lifecycle returning the full key once and storing only a hash.
+    why: Makes secret loss the user's problem, not the store's exposure.
   - name: UsernameStore
     kind: interface
-    role: Optional username uniqueness reservations and atomic rename.
+    role: Optional username uniqueness and atomic rename.
     why: Optional because the unified model keys on identities, not usernames.
   - name: TokenStore
     kind: interface
-    role: Storage for short-lived verification/reset AuthTokens.
-    why: Distinct from RefreshTokenStore — different lifetimes and no rotation/family semantics.
+    role: Storage for short-lived verification and reset AuthTokens.
+    why: Kept distinct from refresh tokens (different lifetimes, no rotation/family).
   - name: AuthToken
     kind: struct
-    role: A verification or password-reset token with type and expiry.
-    why: IsValid checks both type match and expiry to prevent cross-purpose token reuse.
-  - name: RefreshToken
-    kind: struct
-    role: Long-lived API refresh token carrying Family/Generation, scopes, and RFC 9396 details.
-    why: Family + Generation enable rotation-with-theft-detection across a token lineage.
-  - name: APIKey
-    kind: struct
-    role: Long-lived programmatic key (public KeyID + bcrypt KeyHash) with optional expiry.
-    why: Nil ExpiresAt means never-expires, so IsExpired guards the pointer.
-  - name: TokenPair
-    kind: struct
-    role: OAuth token-endpoint success response; includes IssuedTokenType for RFC 8693.
-    why: IssuedTokenType is present only for token-exchange, absent otherwise per spec.
-  - name: TokenRequest
-    kind: struct
-    role: Union of all token-endpoint grant inputs (password, refresh, client_credentials, jwt-bearer, token-exchange).
-    why: Assertion (resource-owner) vs ClientAssertion (client auth) are deliberately separate fields — a common confusion the comments call out.
-  - name: TokenError
-    kind: struct
-    role: RFC 6749 error-response envelope.
-    why: Keeps error wire shape in core so every transport emits identically.
+    role: Verification or password-reset token.
+    why: IsValid checks both type and expiry to block cross-purpose reuse.
   - name: TokenType
     kind: type
-    role: String enum for verification/reset/refresh token kinds.
-    why: Pairs with the Token*Expiry default-duration constants.
+    role: Enum of token kinds (email_verification, password_reset, refresh).
+    why: One typed namespace so AuthToken.IsValid can compare safely.
+  - name: RefreshToken
+    kind: struct
+    role: Long-lived API token carrying Family, Generation, scopes, and RFC 9396 details.
+    why: Enables rotation-with-theft-detection across a token lineage.
+  - name: APIKey
+    kind: struct
+    role: Long-lived programmatic key (public KeyID plus bcrypt KeyHash) with optional expiry.
+    why: Nil ExpiresAt means never-expires; bcrypt hash means the secret is unrecoverable.
+  - name: TokenPair
+    kind: struct
+    role: OAuth token-endpoint response payload.
+    why: Carries IssuedTokenType for RFC 8693 token-exchange responses only.
+  - name: TokenRequest
+    kind: struct
+    role: OAuth token-endpoint request payload, a union over grant types.
+    why: Keeps Assertion (resource-owner) and ClientAssertion (client auth) deliberately separate.
+  - name: TokenError
+    kind: struct
+    role: OAuth 2.0 wire-format error.
+    why: Standard error and error_description envelope for token responses.
   - name: GenerateSecureToken
     kind: func
-    role: 32-byte crypto/rand hex token generator.
-    why: Centralizes secure randomness so callers can't roll weak tokens.
-  - name: GenerateAPIKeyID / GenerateAPIKeySecret
+    role: Crypto-random 32-byte hex token generator.
+    why: Centralizes randomness for verification and reset tokens.
+  - name: GenerateAPIKeyID
     kind: func
-    role: Generate the "oa_"-prefixed public id and the secret half of an API key.
-    why: Prefix makes keys greppable/identifiable in logs and stores.
+    role: Generates a key ID prefixed with "oa_".
+    why: Prefix keeps API keys identifiable in logs and grep.
+  - name: GenerateAPIKeySecret
+    kind: func
+    role: Generates the secret half of an API key.
+    why: Pairs with GenerateAPIKeyID and is what gets bcrypted.
   - name: AuthorizationDetail
     kind: struct
-    role: A single RFC 9396 authorization_details object; extension keys live in Extra and flatten to top level.
-    why: Custom Marshal/UnmarshalJSON flattens Extra and rejects keys colliding with reserved common fields.
-  - name: AuthorizationDetail.Validate / ValidateAll / FilterByType
+    role: A single RFC 9396 authorization_details object with custom JSON marshalling.
+    why: Flattens Extra extension fields to top-level and rejects collisions with common keys.
+  - name: AuthorizationDetail.Validate
+    kind: method
+    role: Validates a single detail; only Type is required.
+    why: Matches RFC 9396 minimum-required-field semantics.
+  - name: ValidateAll
     kind: func
-    role: Require non-empty Type, validate slices, and select details by type.
-    why: Type is the only mandatory field per RFC 9396 section 2.
+    role: Validates a slice of AuthorizationDetail.
+    why: Convenience over per-item Validate when handling a request list.
+  - name: FilterByType
+    kind: func
+    role: Selects details by Type.
+    why: Lets callers route subsets to different policy handlers.
+  - name: ErrInvalidAuthorizationDetails
+    kind: const
+    role: Sentinel error for malformed authorization_details (RFC 9396 section 5.2).
+    why: Lets callers wrap and identify the OAuth-compliant error code.
   - name: SignupPolicy
     kind: struct
-    role: Declarative knobs for what signup requires (username/email/phone/password, uniqueness, password length, username regex).
-    why: Getter methods supply safe fallbacks so a zero-value field never produces an invalid regex or zero length.
-  - name: DefaultSignupPolicy / PolicyUsernameRequired / PolicyEmailOnly / PolicyFlexible
-    kind: var/func
-    role: Preset signup policies for common app shapes.
-    why: PolicyFlexible is OAuth-friendly (everything optional) for federated-only apps.
+    role: Declarative signup requirements with safe-fallback getters.
+    why: Zero-value never yields invalid regex or zero length.
+  - name: DefaultSignupPolicy
+    kind: func
+    role: Returns the conservative default policy (email plus password required).
+    why: Sensible starting point for apps that do not customise.
+  - name: PolicyUsernameRequired
+    kind: const
+    role: Preset requiring username, email, and password.
+    why: Common config for classic username-based apps.
+  - name: PolicyEmailOnly
+    kind: const
+    role: Preset requiring only email and password.
+    why: Username-less default for modern apps.
+  - name: PolicyFlexible
+    kind: const
+    role: OAuth-friendly all-optional preset.
+    why: Lets federated signups complete without any local credentials.
   - name: Credentials
     kind: struct
-    role: Signup/login input bundle; Email and Phone are pointers (optional).
-    why: Pointer fields distinguish "absent" from "empty string" for optional contacts.
+    role: Signup/login input.
+    why: Email and Phone are pointers so absent is distinguishable from empty.
   - name: AuthError
     kind: struct
-    role: Structured auth error carrying Code, Message, and offending Field.
-    why: Field + Code let UIs render per-field form errors instead of opaque strings.
+    role: Structured auth error with Code, Message, Field.
+    why: Enables per-field form rendering and machine-readable codes.
   - name: AuthErrorHandler
     kind: type
-    role: App hook to render auth errors (redirect/flash/JSON); returns true if it wrote the response.
-    why: Returning false lets core fall back to default JSON, so apps override only when they care.
-  - name: SignupValidator / CredentialsValidator / CreateUserFunc / GetUserScopesFunc
+    role: Pluggable error renderer returning true if it wrote the response.
+    why: Lets apps redirect or render flash messages; false falls back to JSON.
+  - name: SignupValidator
     kind: type
-    role: Pluggable callbacks for validating signup/login and minting users/scopes.
-    why: Function-typed seams keep policy in the app while core owns the flow.
+    role: Function-typed signup validator.
+    why: Keeps validation in the app while core owns the flow.
+  - name: CredentialsValidator
+    kind: type
+    role: Function-typed login validator returning the User.
+    why: App owns password verification policy.
+  - name: CreateUserFunc
+    kind: type
+    role: Function-typed user creator.
+    why: App owns user provisioning specifics.
+  - name: DefaultSignupValidator
+    kind: const
+    role: Sensible default signup validation (length, format, email/phone presence).
+    why: Most apps can use it unmodified.
   - name: DetectUsernameType
     kind: func
-    role: Heuristically classify a login identifier as email/phone/username.
-    why: Enables one login field accepting any identifier type.
-  - name: scope helpers
+    role: Heuristically classifies a login field as email, phone, or username.
+    why: Lets one form field accept all three.
+  - name: GetUserScopesFunc
+    kind: type
+    role: Callback that returns the allowed scopes for a user.
+    why: Scope policy is app-defined (roles, groups, plan).
+  - name: DefaultGetUserScopes
     kind: func
-    role: Parse/Join/Intersect/Union/Contains/Validate/Equal operations over scope slices.
-    why: IntersectScopes restricts (requested vs allowed) while UnionScopes merges — complementary and explicitly documented as such.
+    role: Returns a default callback granting read/write/profile/offline to all users.
+    why: Lets callers wire scope handling without writing one first.
+  - name: ParseScopes
+    kind: func
+    role: Parses a space-separated scope string, deduplicated.
+    why: Matches OAuth wire format.
+  - name: JoinScopes
+    kind: func
+    role: Joins scopes back into a space-separated string.
+    why: Round-trip helper for OAuth wire format.
+  - name: IntersectScopes
+    kind: func
+    role: Returns scopes present in both slices (restrict).
+    why: Filters requested scopes against the allowed set.
+  - name: UnionScopes
+    kind: func
+    role: Returns sorted, deduplicated union of two scope slices (merge).
+    why: Combines existing and newly-requested scope sets.
+  - name: ContainsScope
+    kind: func
+    role: Membership check on a scope slice.
+    why: Simple gate at handler boundaries.
+  - name: ContainsAllScopes
+    kind: func
+    role: Reports whether all required scopes are present.
+    why: Authorisation check for protected endpoints.
+  - name: ValidateRequestedScopes
+    kind: func
+    role: Splits requested scopes into valid/invalid against an allowed set.
+    why: Drives standards-compliant invalid_scope responses.
+  - name: ScopesEqual
+    kind: func
+    role: Order-independent scope-slice equality.
+    why: Comparison without normalising in callers.
   - name: TokenBlacklist
     kind: interface
     role: Tracks revoked JWT jti values until natural expiry.
-    why: Pluggable so single-node uses memory and distributed swaps in Redis with identical contract.
+    why: Pluggable so single-node uses memory and clusters use Redis with the same shape.
   - name: InMemoryBlacklist
     kind: struct
-    role: Thread-safe map-based TokenBlacklist with CleanupExpired.
-    why: Entries self-expire at token expiry, bounding growth without external storage.
+    role: Thread-safe in-memory TokenBlacklist with CleanupExpired sweeper.
+    why: Bounded growth via self-expiring entries; fits single-process deployments.
   - name: RateLimiter
     kind: interface
-    role: Per-key Allow() gate for operations like login attempts.
-    why: Minimal one-method contract so backends stay swappable.
+    role: Per-key Allow() gate.
+    why: Decouples rate policy from the limiter implementation.
   - name: InMemoryRateLimiter
     kind: struct
-    role: Token-bucket rate limiter with per-key buckets and CleanupStale.
-    why: Lazy refill on each Allow avoids a background ticker.
+    role: Token-bucket RateLimiter with lazy refill and CleanupStale.
+    why: Avoids a background ticker by refilling on each call.
   - name: AccountLockout
     kind: struct
-    role: Counts consecutive auth failures per key and locks after MaxAttempts for LockDuration.
-    why: Lockouts self-expire on read (IsLocked deletes stale entries), so no sweeper is required.
+    role: Per-key consecutive-failure counter that locks after MaxAttempts for LockDuration.
+    why: Lockouts self-expire on read, so no sweeper is required.
   - name: SendEmail
     kind: interface
-    role: App-provided sender for verification and password-reset emails.
-    why: Keeps email transport out of core; ConsoleEmailSender is the dev stand-in.
-  - name: GetUserIDFromContext / SetUserIDInContext
+    role: App-provided email transport for verification and password-reset.
+    why: Keeps SMTP/SES wiring out of core.
+  - name: ConsoleEmailSender
+    kind: struct
+    role: Development SendEmail implementation that logs to stdout.
+    why: Lets apps boot end-to-end without an SMTP backend.
+  - name: GetUserIDFromContext
     kind: func
-    role: Store/retrieve the logged-in user ID on a request context.
-    why: Private key type prevents context-key collisions across packages.
+    role: Reads the logged-in user ID from request context.
+    why: Uses a private key type to avoid cross-package context-key collisions.
+  - name: SetUserIDInContext
+    kind: func
+    role: Stores the logged-in user ID in request context.
+    why: Paired with GetUserIDFromContext for typed access.
+  - name: DefaultUserParamName
+    kind: const
+    role: Default context key string ("loggedInUserId").
+    why: Documented constant so middleware and handlers agree.
 depends_on: []
