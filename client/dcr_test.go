@@ -46,6 +46,29 @@ func TestRegisterClient_Success(t *testing.T) {
 	assert.Equal(t, "assigned-secret-456", resp.ClientSecret)
 }
 
+// TestClientRegistrationRequest_ApplicationTypeWireFormat verifies the
+// ApplicationType field round-trips through the JSON wire format with the
+// expected tag and omitempty behavior. When set, it appears as
+// "application_type" in the body; when empty, it is omitted.
+//
+// See: https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata
+func TestClientRegistrationRequest_ApplicationTypeWireFormat(t *testing.T) {
+	t.Run("native value present in body", func(t *testing.T) {
+		body, err := json.Marshal(ClientRegistrationRequest{
+			ClientName:      "x",
+			ApplicationType: "native",
+		})
+		require.NoError(t, err)
+		assert.Contains(t, string(body), `"application_type":"native"`)
+	})
+
+	t.Run("empty value omitted from body", func(t *testing.T) {
+		body, err := json.Marshal(ClientRegistrationRequest{ClientName: "x"})
+		require.NoError(t, err)
+		assert.NotContains(t, string(body), "application_type")
+	})
+}
+
 // TestRegisterClient_ServerError verifies that non-success HTTP status codes
 // from the DCR endpoint are surfaced as errors with the response body.
 //

@@ -36,6 +36,12 @@ type ClientRegistrationRequest struct {
 	ResponseTypes           []string `json:"response_types,omitempty"`
 	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
 	Scope                   string   `json:"scope,omitempty"`
+	// ApplicationType identifies the client class per OpenID Connect Dynamic
+	// Client Registration 1.0 §2: "native" for installed/CLI/SDK clients,
+	// "web" for web-server-hosted clients. omitempty so existing callers stay
+	// wire-compatible; consumers whose spec requires it (e.g. MCP per SEP-837)
+	// set it explicitly.
+	ApplicationType string `json:"application_type,omitempty"`
 }
 
 // ClientRegistrationResponse is the parsed response from a DCR endpoint,
