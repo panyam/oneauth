@@ -25,6 +25,7 @@ Go client library for OAuth 2.0 authentication: browser-based login (authorizati
 
 ## Recent Changes
 - **Client-side DCR + validation utilities (mcpkit#158)** — `RegisterClient` (client-side RFC 7591 DCR caller), `ValidateHTTPS`/`IsLocalhost`/`ValidateCIMDURL` (OAuth endpoint validation), `ClientCredentialsSource` (RFC 6749 §4.4 grant wrapper with caching). Pushed down from mcpkit/ext/auth as pure-OAuth reusable code. See oneauth#78.
+- **DCR `application_type` (mcpkit#440)** — added `ApplicationType` to `ClientRegistrationRequest` per OpenID Connect Dynamic Client Registration 1.0. `omitempty` so existing oneauth callers stay wire-compatible; consumers whose spec requires it (MCP per SEP-837) set it explicitly to `"native"` or `"web"`.
 
 ## Dependencies
 `core/` is imported for `UnionScopes`. Otherwise standalone with only stdlib + `stretchr/testify` (testing).
