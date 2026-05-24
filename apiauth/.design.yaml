@@ -1,413 +1,385 @@
 package: apiauth
-purpose: Transport-independent OAuth 2.0 core (issue / validate / introspect / revoke / authenticate clients) plus thin HTTP bindings for token / RFC 7662 / RFC 7009 / RFC 8414 / RFC 9728 / resource-server middleware.
+purpose: Transport-independent OAuth 2.0 core (issue / validate / introspect / revoke / authenticate clients) plus thin HTTP bindings for the token endpoint, RFC 7662 introspection, RFC 7009 revocation, RFC 8414 AS metadata, RFC 9728 protected-resource metadata, and resource-server middleware.
 language: go
-doc_file: doc.go
-diagrams_file: diagrams.md
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
+  - name: TokenIssuer
+    kind: interface
+    role: Mints access tokens via the four standard OAuth grants (CreateAccessToken, ClientCredentials, RefreshGrant, PasswordGrant).
+    why: Focused capability — issuance is the only concern; refresh-token creation is left to callers so transport metadata (device info, IP) stays out of the core.
+  - name: TokenValidator
+    kind: interface
+    role: Parses + validates tokens (signature, exp, iss, aud, blacklist) and checks scope / RFC 9396 authorization_details.
+    why: Read-only counterpart to TokenIssuer — middleware, introspection, and CheckScopes all share one validator.
+  - name: TokenIntrospector
+    kind: interface
+    role: RFC 7662 introspection — returns {Active:false} on any validation failure rather than leaking why.
+    why: Confidentiality requirement of §2.2 means introspection cannot share an error channel with internal validation.
+  - name: TokenRevoker
+    kind: interface
+    role: RFC 7009 token revocation, dispatched by token_type_hint.
+    why: Lets a single endpoint cover access-token blacklisting and refresh-token store revocation without coupling them.
+  - name: ClientAuthenticator
+    kind: interface
+    role: Verifies caller credentials (client_secret_basic / client_secret_post / private_key_jwt) at the token / introspection / revocation endpoints.
+    why: Decouples assertion-based auth (RFC 7523 §2.2) from the storage layer, and unifies the three endpoints behind one verifier.
   - name: OneAuth
     kind: struct
-    role: Composition root holding Issuer / Validator / Introspector / Revoker / Authenticator, shared stores, and Hooks.
-    why: Option A — no god object; built once by NewOneAuth and re-used so wired implementations share state (key store, blacklist, refresh store, JTI store).
+    role: Composition root holding wired Issuer / Validator / Introspector / Revoker / Authenticator plus shared stores and Hooks.
+    why: Option A — no god object; built once by NewOneAuth so wired implementations share key store, blacklist, refresh store, and JTI store.
   - name: OneAuthConfig
     kind: struct
     role: Dependency bundle consumed by NewOneAuth.
     why: Keeps the constructor signature stable as new optional knobs (hooks, callbacks, signing config) are added.
   - name: NewOneAuth
     kind: func
-    role: Wires every focused interface and shared store into a OneAuth.
+    role: Wires every focused interface and shared store into a OneAuth value.
     why: Single place that knows the dependency graph — implementations themselves take only what they need.
   - name: OneAuth.IntrospectionHTTPHandler
     kind: method
     role: Returns an IntrospectionHandler wired to the OneAuth Introspector / Authenticator.
-    why: Convenience for the common HTTP mount; keeps callers from re-wiring the two interfaces by hand.
+    why: Convenience for the common HTTP mount; keeps callers from re-wiring the interfaces by hand.
   - name: OneAuth.RevocationHTTPHandler
     kind: method
     role: Returns a RevocationHandler wired to the OneAuth Revoker / Authenticator.
-    why: Same shape as IntrospectionHTTPHandler so mounting is symmetric.
+    why: Same shape as IntrospectionHTTPHandler so mounting both endpoints is symmetric.
   - name: OneAuth.HTTPMiddleware
     kind: method
-    role: Returns an APIMiddleware wired to the OneAuth Validator / Blacklist / KeyStore.
-    why: Lets callers protect resource endpoints without re-declaring fields the OneAuth already owns.
-  - name: TokenIssuer
-    kind: interface
-    role: Mints access tokens via CreateAccessToken / ClientCredentials / RefreshGrant / PasswordGrant.
-    why: PasswordGrant deliberately omits refresh-token creation — transport-specific metadata (device, IP) is the caller's domain.
-  - name: TokenValidator
-    kind: interface
-    role: Parses and verifies tokens and checks scope / RFC 9396 authorization_details.
-    why: CheckScopes / CheckAuthorizationDetails return empty response structs — success / failure is signalled via the error return.
-  - name: TokenIntrospector
-    kind: interface
-    role: RFC 7662 introspection over a TokenValidator.
-    why: Returns Active=false on any failure (RFC 7662 §2.2 confidentiality — never reveal why).
-  - name: TokenRevoker
-    kind: interface
-    role: RFC 7009 revocation across blacklist + refresh store.
-    why: token_type_hint guides which store to probe first; empty hint tries refresh (cheaper) before access.
-  - name: ClientAuthenticator
-    kind: interface
-    role: Verifies client credentials (client_secret_basic / post or private_key_jwt assertion).
-    why: The interface exists primarily so the assertion path can be plumbed into token / introspection / revocation handlers without re-implementing per endpoint.
-  - name: CreateAccessTokenRequest
-    kind: struct
-    role: Input shape for TokenIssuer.CreateAccessToken.
-    why: Convention-driven wrapper (per issue 175) so ctx stays first and additional fields are additive.
-  - name: CreateAccessTokenResponse
-    kind: struct
-    role: Output shape carrying the signed token and expires_in.
-    why: Wrapped (not bare string) for symmetry with the rest of the interface.
-  - name: ClientCredentialsRequest
-    kind: struct
-    role: Input shape for the client_credentials grant.
-    why: Carries client creds + requested scopes + RFC 9396 details together.
-  - name: ClientCredentialsResponse
-    kind: struct
-    role: Wraps *core.TokenPair for the client_credentials grant.
-    why: Wrapped (not bare TokenPair) for convention parity with other interface methods and forward-compat headroom.
-  - name: RefreshGrantRequest
-    kind: struct
-    role: Input shape for the refresh_token grant.
-    why: Single-field today; wrapping leaves room for ctx-bound metadata later without breaking shape.
-  - name: RefreshGrantResponse
-    kind: struct
-    role: Wraps the rotated *core.TokenPair.
-    why: Same wrapping rationale as ClientCredentialsResponse.
-  - name: PasswordGrantRequest
-    kind: struct
-    role: Input shape for the password grant.
-    why: Holds username / password / requested scopes / RFC 9396 details / optional client_id — caller intersects with allowed.
-  - name: PasswordGrantResponse
-    kind: struct
-    role: Output of a successful password grant.
-    why: Returns granted scopes + auth details so the caller can mint a refresh token with the same envelope.
-  - name: PasswordGrantResult
-    kind: type
-    role: Deprecated alias of PasswordGrantResponse.
-    why: One-release deprecation bridge from the pre-175 name.
-  - name: ValidateTokenRequest
-    kind: struct
-    role: Input shape for TokenValidator.ValidateToken.
-    why: Wrapper preserves the (ctx, *Req) → (*Resp, error) convention even for one-field methods.
-  - name: ValidateTokenResponse
-    kind: struct
-    role: Wraps the extracted *TokenInfo.
-    why: Wrapping keeps headroom for adding sibling fields (e.g. raw claims) without changing the method.
-  - name: CheckScopesRequest
-    kind: struct
-    role: Input pairing a token with its required scopes.
-    why: Lets the validator do parse + scope check in one trip.
-  - name: CheckScopesResponse
-    kind: struct
-    role: Empty response — outcome is signalled via the error return.
-    why: Wrapped to keep the convention shape even when there is nothing to return.
-  - name: CheckAuthorizationDetailsRequest
-    kind: struct
-    role: Input pairing a token with required RFC 9396 types.
-    why: Mirrors CheckScopesRequest so the two enforcement passes share a shape.
-  - name: CheckAuthorizationDetailsResponse
-    kind: struct
-    role: Empty response — outcome via error.
-    why: Same rationale as CheckScopesResponse.
-  - name: IntrospectRequest
-    kind: struct
-    role: Input to TokenIntrospector.Introspect.
-    why: Wrapper-only today; leaves room for token_type_hint without API churn.
-  - name: IntrospectResponse
-    kind: struct
-    role: Wraps *IntrospectionResult so local and remote paths share the same payload.
-    why: Lets callers be agnostic about whether introspection ran locally or against a remote endpoint.
-  - name: RevokeRequest
-    kind: struct
-    role: Input to TokenRevoker.Revoke (token + token_type_hint).
-    why: Empty hint is meaningful — the revoker tries refresh first, then access.
-  - name: RevokeResponse
-    kind: struct
-    role: Empty response — outcome via error.
-    why: RFC 7009 §2.2 says always 200 OK; the wrapper carries no payload by design.
-  - name: AuthenticateClientRequest
-    kind: struct
-    role: Carries either the secret pair (ClientID + ClientSecret) or the assertion pair plus required Audiences.
-    why: The implementation prefers the assertion when both are populated (strongest credential per RFC 6749 §2.3.1).
-  - name: AuthenticateClientResponse
-    kind: struct
-    role: Reports the authenticated ClientID and the method name.
-    why: Method is informational (telemetry); handlers that need only success / failure can ignore it.
-  - name: TokenInfo
-    kind: struct
-    role: Validated-claims carrier (UserID, Scopes, AuthorizationDetails, CustomClaims, AuthType).
-    why: AuthorizationDetails are first-class (not buried in custom claims); AuthType distinguishes jwt vs api_key downstream.
+    role: Returns an APIMiddleware that delegates to the OneAuth TokenValidator.
+    why: One-line bridge from the core onto a resource-server request pipeline.
   - name: APIAuth
     kind: struct
-    role: Legacy all-in-one HTTP handler for POST /api/token plus logout / sessions / API-key endpoints.
-    why: Predates the focused-interface decomposition; remains wired because real callers consume CreateAccessToken / ValidateAccessToken JWT helpers directly.
+    role: Legacy/standalone HTTP token endpoint — implements ServeHTTP, dispatches to handlePasswordGrant / handleRefreshTokenGrant / handleClientCredentialsGrant / handleJwtBearerGrant / handleTokenExchangeGrant.
+    why: Preserves the original config-bag entry point and adds RFC 7523 + RFC 8693 grants; new code should compose OneAuth, but APIAuth remains the production handler for the token endpoint.
   - name: APIAuth.ServeHTTP
     kind: method
-    role: Parses form or JSON body and dispatches /api/token by grant_type.
-    why: Single switch over five grants — keeps grant handlers isolated and lets each enforce its own RFC.
+    role: POST /api/token — parses form or JSON, dispatches by grant_type.
+    why: Single transport surface that owns request decoding and OAuth error mapping for all grant types.
+  - name: APIAuth.CreateAccessToken
+    kind: method
+    role: Builds + signs the JWT (sub / scopes / jti / iat / exp / iss / aud / authorization_details + CustomClaimsFunc).
+    why: Shared by every grant path; enforces the standardClaims allow-list so CustomClaimsFunc cannot override security-critical claims.
+  - name: APIAuth.ValidateAccessToken
+    kind: method
+    role: Verifies signature (HMAC or asymmetric), token type, iss, aud, sub, scopes, and blacklist.
+    why: Used by APIAuth.VerifyTokenFunc to plug the legacy auth into resource-server middleware without needing a TokenValidator.
+  - name: APIAuth.ValidateAccessTokenFull
+    kind: method
+    role: Same as ValidateAccessToken plus returns the customClaims map.
+    why: Powers the apiauthIntrospector bridge so the introspection handler can emit non-standard claims.
+  - name: APIAuth.authenticateTokenEndpointClient
+    kind: method
+    role: Routes client auth through ClientAuthenticator, lazily constructing one over ClientKeyStore if none was wired.
+    why: Lazy authenticator must be cached (sync.Once) — a fresh instance per request would mean a fresh JTIStore and defeat replay protection.
   - name: APIAuth.HandleLogout
     kind: method
-    role: POST /api/logout — revokes a refresh token.
-    why: Errors from the revoke are intentionally swallowed so the response does not leak whether the token existed.
+    role: POST /api/logout — revokes the supplied refresh token.
+    why: Lightweight session-end endpoint that does not require an access token (just the refresh token to revoke).
   - name: APIAuth.HandleLogoutAll
     kind: method
     role: POST /api/logout-all — revokes every refresh token for the authenticated user.
-    why: Requires userID in the request context (middleware-installed).
+    why: Single-call kill switch for compromised accounts; reads userID from middleware-set context.
   - name: APIAuth.HandleListSessions
     kind: method
-    role: GET /api/sessions — lists active refresh-token sessions for the authenticated user.
-    why: Returns partial hashes (not raw tokens) as session IDs to avoid leaking credentials.
+    role: GET /api/sessions — lists the user's active refresh tokens with device metadata.
+    why: Lets UIs render a "signed in on N devices" view without exposing the raw token hashes.
   - name: APIAuth.HandleAPIKeys
     kind: method
-    role: GET/POST /api/keys — lists or creates user API keys.
-    why: POST returns the full key once — the only time the full secret is visible to the caller.
+    role: GET/POST /api/keys — list or create API keys (oa_ prefix) with scoped expiry.
+    why: API keys are a parallel credential to JWTs; managing them on the auth handler keeps scope intersection logic in one place.
   - name: APIAuth.HandleRevokeAPIKey
     kind: method
-    role: DELETE /api/keys/{id} — revokes an API key.
-    why: Verifies ownership before revoking so users cannot delete keys they do not own.
-  - name: APIAuth.CreateAccessToken
-    kind: method
-    role: Mints a signed JWT carrying sub / scopes / authz_details / jti and any non-overriding CustomClaimsFunc fields.
-    why: standardClaims gate prevents CustomClaimsFunc from clobbering security-critical claims; kid header is computed when possible for downstream key resolution.
-  - name: APIAuth.ValidateAccessToken
-    kind: method
-    role: Parses and validates a JWT and returns (userID, scopes).
-    why: Locks signing method by key type (HMAC vs RSA vs ECDSA) and rejects non-access type claims to keep refresh tokens out of the bearer slot.
-  - name: APIAuth.ValidateAccessTokenFull
-    kind: method
-    role: Like ValidateAccessToken but also returns the custom (non-standard) claims.
-    why: Needed by callers (e.g. relays) that route on app-injected claims after the standard checks pass.
-  - name: APIAuth.VerifyTokenFunc
-    kind: method
-    role: Adapts ValidateAccessToken into a token-verify callback.
-    why: Lets older middleware implementations that take a function pointer plug into APIAuth's JWT config without holding a reference.
+    role: DELETE /api/keys/{keyID} — revokes an API key after ownership check.
+    why: Ownership check is the only safe way to expose this from a shared multi-tenant handler.
   - name: APIMiddleware
     kind: struct
-    role: Resource-server middleware that validates Bearer JWTs or oa_-prefixed API keys.
-    why: Holds backward-compatible single-tenant JWTSecretKey fields alongside the newer KeyStore / Validator path; the inline path is slated for removal in Phase 3.
+    role: HTTP middleware that validates Bearer tokens (JWT via local validator, opaque oa_* via APIKeyStore, with optional remote introspection fallback) and stamps user/scopes/authType/customClaims on the context.
+    why: One pipeline covers single-tenant and multi-tenant (KeyStore) deployments; lazily promotes to NewJWTValidator while preserving an inline fallback for JWTSecretKey-only configs.
   - name: APIMiddleware.ValidateToken
     kind: method
-    role: Middleware that authenticates the request and installs userID / scopes / auth type / claims in context.
-    why: Single entry point — every other middleware variant funnels through validateRequest for one set of validation rules.
+    role: Middleware factory — rejects requests with no/invalid token.
+    why: The hard-fail path for protected endpoints.
   - name: APIMiddleware.RequireScopes
     kind: method
-    role: Middleware factory enforcing that all required scopes are granted.
-    why: Returns a per-route factory so handlers can compose scope gates at registration time.
-  - name: APIMiddleware.Optional
-    kind: method
-    role: Middleware that installs identity if a valid token is present, otherwise passes through unauthenticated.
-    why: For routes that surface different behaviour for anonymous vs authenticated callers without rejecting the former.
+    role: Middleware factory — additionally requires every named scope on the token.
+    why: Compose-time guardrail keeps scope checks out of handler bodies.
   - name: APIMiddleware.RequireAuthorizationDetails
     kind: method
-    role: Middleware factory enforcing presence of one authorization_details entry per required RFC 9396 type.
-    why: Type-presence (not exact-match) check keeps the gate composable; entries are read from the dedicated context value.
-  - name: GetUserIDFromAPIContext
-    kind: func
-    role: Reads the authenticated userID out of a request context.
-    why: Typed helper so downstream code does not depend on the unexported context-key type.
-  - name: GetScopesFromAPIContext
-    kind: func
-    role: Reads the granted scopes out of a request context.
-    why: Same rationale as GetUserIDFromAPIContext — encapsulates the context key.
-  - name: GetAuthTypeFromAPIContext
-    kind: func
-    role: Reads the auth method ("jwt" or "api_key") out of a request context.
-    why: Lets handlers branch on credential type (e.g. block API keys on sensitive routes).
-  - name: GetCustomClaimsFromContext
-    kind: func
-    role: Reads non-standard JWT claims out of a request context.
-    why: Returns nil when API-key auth was used so callers can detect "no JWT" without a separate flag.
-  - name: GetAuthorizationDetailsFromContext
-    kind: func
-    role: Reads the RFC 9396 details out of a request context.
-    why: Authz details live under a dedicated context value (not in custom claims) so middlewares can compose without parsing twice.
+    role: Middleware factory — requires at least one RFC 9396 authorization_details entry per required type.
+    why: RAR enforcement at the edge; types only — value-level checks belong in the handler.
+  - name: APIMiddleware.Optional
+    kind: method
+    role: Middleware factory — populates context if a valid token is present, otherwise passes through.
+    why: Public endpoints that personalize when signed in.
   - name: jwtIssuer
     kind: struct
-    role: TokenIssuer implementation that signs JWTs and runs the client_credentials / refresh / password grant logic.
-    why: Refresh grant does theft detection — presenting an already-revoked refresh token revokes the entire family.
-  - name: JWTIssuerConfig
-    kind: struct
-    role: Dependency bundle for NewJWTIssuer.
-    why: Centralises all optional callbacks (ValidateCredentials, GetUserScopes) so individual grants can probe what's wired.
-  - name: NewJWTIssuer
-    kind: func
-    role: Constructor for jwtIssuer (returned as TokenIssuer).
-    why: Defaults AccessExpiry to core.TokenExpiryAccessToken so callers can leave it zero.
+    role: Concrete TokenIssuer using golang-jwt to sign HS256 / RS256 / ES256 access tokens.
+    why: All grant paths funnel through CreateAccessToken so jti generation, kid header, and authorization_details encoding live in one place.
+  - name: jwtIssuer.PasswordGrant
+    kind: method
+    role: Validates credentials, intersects requested scopes with allowed, and returns access token + granted scopes + RAR details (no refresh token).
+    why: Refresh token creation is intentionally the caller's job so transport metadata stays out of the core.
+  - name: jwtIssuer.RefreshGrant
+    kind: method
+    role: Looks up + rotates the refresh token and re-issues an access token carrying the original scopes / authorization_details.
+    why: Theft detection — a revoked or reused token triggers RevokeTokenFamily so every sibling session dies with it.
+  - name: jwtIssuer.ClientCredentials
+    kind: method
+    role: Authenticates client by secret + issues sub=client_id access token (no refresh).
+    why: Machine-to-machine path; refresh tokens are nonsense without a user.
   - name: jwtValidator
     kind: struct
-    role: TokenValidator implementation that resolves keys by kid then by client_id claim and fires SecurityHooks.
-    why: Locks token alg to the stored key's alg and cross-checks kid owner against client_id to block algorithm-confusion and cross-app forgery.
+    role: Concrete TokenValidator — resolves keys via KeyLookup (kid → client_id fallback), enforces iss/aud/type, and consults the blacklist.
+    why: kid lookup must check that the kid's owning client_id matches the claim's client_id to block cross-app forgery.
   - name: JWTValidatorConfig
     kind: struct
-    role: Dependency bundle for NewJWTValidator.
-    why: Keeps the validator narrow — read-only key lookup + blacklist + hooks; no signing material.
+    role: Config bundle for NewJWTValidator (KeyLookup, Blacklist, Issuer, Audience, Hooks).
+    why: Keeps the constructor surface stable as new hooks land.
   - name: NewJWTValidator
     kind: func
-    role: Constructor for jwtValidator (returned as TokenValidator).
-    why: Same shape as NewJWTIssuer so wiring code reads symmetrically.
-  - name: tokenIntrospector
+    role: Constructor returning a TokenValidator.
+    why: All consumers depend on the interface; the struct is unexported.
+  - name: JWTIssuerConfig
     kind: struct
-    role: TokenIntrospector implementation delegating validation to a TokenValidator.
-    why: No HTTP, no transport — depends only on TokenValidator so it can run inside HTTP handlers or any other binding.
-  - name: NewTokenIntrospector
+    role: Config bundle for NewJWTIssuer (signing key/alg, expiry, key lookup, refresh store, credential validator, scopes func, hooks).
+    why: Keeps grant wiring explicit — the issuer takes only what it needs for the grants its caller will exercise.
+  - name: NewJWTIssuer
     kind: func
-    role: Constructor for tokenIntrospector.
-    why: Single-arg constructor — anything else (claim extraction, scope mapping) flows out of the validator's TokenInfo.
-  - name: tokenRevoker
-    kind: struct
-    role: TokenRevoker implementation tying a blacklist (access tokens) and a RefreshTokenStore (refresh tokens).
-    why: Empty token_type_hint deliberately tries refresh first because the store lookup is cheaper than ParseUnverified.
-  - name: TokenRevokerConfig
-    kind: struct
-    role: Dependency bundle for NewTokenRevoker.
-    why: Keeps blacklist + refresh store + hooks as a unit so callers cannot accidentally wire only half of it.
-  - name: NewTokenRevoker
-    kind: func
-    role: Constructor for tokenRevoker (returned as TokenRevoker).
-    why: Mirrors the other constructors; hooks are nil-safe through TokenHooks.fire*.
+    role: Constructor returning a TokenIssuer.
+    why: Defaults AccessExpiry to core.TokenExpiryAccessToken; hides the struct.
   - name: clientAuthenticator
     kind: struct
-    role: ClientAuthenticator implementation with separate secret and assertion paths.
-    why: Secret path uses constant-time comparison; assertion path enforces iss==sub==client_id, alg lock, audience match, bounded lifetime, and jti replay protection.
+    role: Concrete ClientAuthenticator — secret path uses constant-time compare; assertion path verifies JWT against the client's registered key.
+    why: Same interface covers client_secret_basic / client_secret_post / private_key_jwt without leaking the dispatch into HTTP handlers.
   - name: NewClientAuthenticator
     kind: func
-    role: Builds a clientAuthenticator with an in-memory JTIStore.
-    why: Default is single-process; the in-memory store has lazy GC and no background goroutine.
+    role: Constructor that wires in an in-memory JTIStore for assertion replay protection.
+    why: Default works single-process; multi-node uses NewClientAuthenticatorWithJTIStore.
   - name: NewClientAuthenticatorWithJTIStore
     kind: func
-    role: Like NewClientAuthenticator but accepts a caller-supplied JTIStore.
-    why: Multi-node deployments need a distributed JTI store (Redis SETNX with EX) — the interface stays narrow so the swap is one method.
+    role: Variant taking a caller-supplied JTIStore (Redis, etc.).
+    why: Replay protection must be cluster-wide in multi-node deployments.
+  - name: clientAuthenticator.AuthenticateClient
+    kind: method
+    role: Dispatches secret vs assertion paths and returns the authenticated client_id + method tag.
+    why: Method tag (client_secret_basic / client_secret_post / private_key_jwt) is informational for telemetry; the interface contract is the boolean success.
   - name: ClientAssertionTypeJWTBearer
     kind: const
-    role: The OAuth assertion-type URN that must appear in client_assertion_type for private_key_jwt / client_secret_jwt.
-    why: Any other value is rejected — RFC 7521 §4.2 names this URN as the contract for assertion-based client auth.
+    role: The RFC 7521 §4.2 URN urn:ietf:params:oauth:client-assertion-type:jwt-bearer.
+    why: Strict equality check — any other value rejects the assertion as malformed.
   - name: MaxClientAssertionLifetime
     kind: const
-    role: Upper bound on (exp - iat) for client assertions.
-    why: 5 minutes matches conventional IdP ceilings and bounds JTIStore memory in the in-memory implementation.
+    role: 5-minute ceiling on (exp - iat) for client assertions.
+    why: Bounds the JTIStore memory footprint and matches the conventional "short-lived" guidance from OIDC Core §9.
   - name: JTIStore
     kind: interface
-    role: At-most-once store for client-assertion jti claims.
-    why: SeenWithin is an atomic check-and-set so callers do not race a separate Mark — replay protection cannot leak through the API.
+    role: Replay-protection store for client-assertion jti claims (atomic SeenWithin check-and-set).
+    why: Narrow interface so a Redis-backed implementation is one method; in-memory is the default.
   - name: NewInMemoryJTIStore
     kind: func
-    role: Returns the default goroutine-safe JTIStore backed by a map with lazy GC.
-    why: Single-process default; multi-node deployments swap in a distributed implementation.
-  - name: IntrospectionValidator
+    role: Returns the default in-memory JTIStore with lazy eviction.
+    why: Safe default for single-process deployments; no goroutine started.
+  - name: tokenIntrospector
     kind: struct
-    role: Remote-introspection HTTP client (RFC 7662) used as the APIMiddleware fallback when local validation fails.
-    why: Optional response cache reduces AS load but means a revoked token may read as active for up to CacheTTL.
-  - name: IntrospectionValidator.Validate
-    kind: method
-    role: POSTs to the introspection endpoint and returns the parsed IntrospectionResult.
-    why: An inactive token is NOT an error — only transport / auth failures error so callers can distinguish them.
-  - name: IntrospectionValidator.ValidateForMiddleware
-    kind: method
-    role: Adapts Validate into the (userID, scopes, authType, customClaims, err) tuple used by APIMiddleware.validateRequest.
-    why: Keeps the middleware path agnostic to local vs remote validation — both shapes match.
-  - name: IntrospectionResult
+    role: Concrete TokenIntrospector built on a TokenValidator — invalid tokens collapse to {Active:false}.
+    why: Decouples introspection from JWT internals; reuses parseRawJWTClaims to surface raw claims that ValidateToken strips.
+  - name: NewTokenIntrospector
+    kind: func
+    role: Constructor that wraps any TokenValidator.
+    why: Composition over inheritance — local introspection is just a wrapped validator.
+  - name: tokenRevoker
     kind: struct
-    role: Parsed RFC 7662 introspection response shared by local and remote paths.
-    why: Same type out of both producers means callers do not need to know which path produced the result.
+    role: Concrete TokenRevoker — tries refresh-store first when no hint, then blacklists the access token by jti.
+    why: Single endpoint covers both token types without leaking the dispatch into HTTP code.
+  - name: TokenRevokerConfig
+    kind: struct
+    role: Config bundle for NewTokenRevoker (Blacklist, RefreshStore, Hooks).
+    why: Either store may be nil — a deployment without a blacklist still wants refresh-token revocation.
+  - name: NewTokenRevoker
+    kind: func
+    role: Constructor returning a TokenRevoker.
+    why: Hides struct internals.
   - name: IntrospectionHandler
     kind: struct
-    role: Thin HTTP wrapper for POST /oauth/introspect over TokenIntrospector and ClientAuthenticator.
-    why: Authenticates the caller before introspecting and surfaces authorization_details from raw claims (RFC 9396 §9.1).
+    role: HTTP wrapper around TokenIntrospector + ClientAuthenticator for POST /oauth/introspect.
+    why: Thin transport layer — all validation and confidentiality live in TokenIntrospector.
+  - name: IntrospectionHandler.ServeHTTP
+    kind: method
+    role: Parses form, authenticates client (basic/post/private_key_jwt), introspects, and emits the RFC 7662 JSON shape (including RFC 9396 authorization_details when present).
+    why: §2.2 — invalid tokens must respond {active:false} 200, never an OAuth error.
   - name: NewIntrospectionHandler
     kind: func
-    role: Bridge constructor that wraps an APIAuth into the new IntrospectionHandler shape.
-    why: Keeps existing APIAuth-based callers working as they migrate to the focused-interface composition.
+    role: Bridge constructor that wraps APIAuth.ValidateAccessTokenFull as a TokenIntrospector.
+    why: Lets the legacy APIAuth power introspection without losing custom claims handling.
   - name: RevocationHandler
     kind: struct
-    role: Thin HTTP wrapper for POST /oauth/revoke over TokenRevoker and ClientAuthenticator.
-    why: Always returns 200 OK per RFC 7009 §2.2 except on client-auth failure — invalid tokens are silently accepted.
+    role: HTTP wrapper around TokenRevoker + ClientAuthenticator for POST /oauth/revoke.
+    why: Always returns 200 OK per RFC 7009 §2.2; the client cannot distinguish "revoked" from "never existed".
+  - name: RevocationHandler.ServeHTTP
+    kind: method
+    role: Parses form, authenticates client, then delegates to TokenRevoker.Revoke.
+    why: Same transport pattern as introspection so wiring is symmetric.
   - name: NewRevocationHandler
     kind: func
-    role: Bridge constructor that wraps an APIAuth into a RevocationHandler.
-    why: Same migration story as NewIntrospectionHandler — keeps legacy wiring viable.
-  - name: Hooks
-    kind: struct
-    role: Lifecycle callback container grouped into Token, Auth, Client, and Security.
-    why: Each implementation receives only its relevant group so callbacks don't bleed across concerns; nil callbacks are no-ops via fire* helpers.
-  - name: TokenHooks
-    kind: struct
-    role: Token lifecycle callbacks (OnIssued, OnRefreshed, OnRevoked).
-    why: Used by jwtIssuer / tokenRevoker — keeps audit logging out of the core flow.
-  - name: AuthHooks
-    kind: struct
-    role: User-authentication callbacks (OnLoginSuccess, OnLoginFailure, OnScopeStepUp).
-    why: Separate from TokenHooks because callers often log user-events differently from token-events.
-  - name: ClientHooks
-    kind: struct
-    role: Client-management callbacks (OnRegistered, OnDeleted, OnKeyRotated).
-    why: Fired by client-registration paths in sibling packages — defined here so the Hooks bundle is one type.
-  - name: SecurityHooks
-    kind: struct
-    role: Security-event callbacks (OnTokenRejected, OnBlacklistHit, OnAlgorithmMismatch).
-    why: OnAlgorithmMismatch is the CVE-2015-9235 signal — intrusion detection wants this on a dedicated channel.
-  - name: TrustedAssertionIssuer
-    kind: struct
-    role: Upstream-IdP configuration (PublicKey or KeyFunc, Audiences, AcceptedAlgorithms) consumed by jwt-bearer / token-exchange grants.
-    why: AcceptedAlgorithms must be set in production to lock out alg-confusion; iss is matched verbatim against the assertion.
-  - name: JwtBearerGrantType
+    role: Bridge constructor that builds a TokenRevoker from an APIAuth's blacklist + refresh store.
+    why: Lets the legacy APIAuth power revocation without re-implementing the dispatch.
+  - name: extractClientCredentials
+    kind: func
+    role: Inspects an HTTP request for client credentials in any of three OAuth-defined channels (assertion / basic / post), preferring the strongest.
+    why: RFC 6749 §2.3 forbids multiple methods per request; this helper picks the strongest credential when a confused client sends more than one.
+  - name: derivedAudience
+    kind: func
+    role: Builds the absolute URL of the request endpoint as a fallback for assertion `aud` validation.
+    why: Production deployments should populate AcceptedAudiences explicitly; this is the single-host convenience default.
+  - name: errMissingClientCredentials
     kind: const
-    role: The OAuth grant-type URN for RFC 7523 §2.1.
-    why: Distinct from RFC 7523 §2.2 (private_key_jwt client auth) — this is a subject assertion exchanged for an access token, not a client credential.
-  - name: TokenExchangeGrantType
-    kind: const
-    role: The OAuth grant-type URN for RFC 8693.
-    why: Phase 1 supports only a JWT subject_token producing an access token; audience / resource are advisory until audience-binding lands.
-  - name: TokenTypeAccessToken
-    kind: const
-    role: RFC 8693 §3 access_token URN.
-    why: Required in the issued_token_type field of token-exchange responses (RFC 8693 §2.2).
-  - name: TokenTypeRefreshToken
-    kind: const
-    role: RFC 8693 §3 refresh_token URN.
-    why: Reserved for future token-exchange output types — not currently issued.
-  - name: TokenTypeIDToken
-    kind: const
-    role: RFC 8693 §3 id_token URN.
-    why: Reserved for OIDC integration — not currently issued.
-  - name: TokenTypeJWT
-    kind: const
-    role: RFC 8693 §3 jwt URN.
-    why: The only subject_token_type accepted by handleTokenExchangeGrant in Phase 1.
-  - name: TokenTypeSAML2
-    kind: const
-    role: RFC 8693 §3 saml2 URN.
-    why: Reserved — accepting SAML subject tokens requires per-type validators that are not yet wired.
+    role: Sentinel error letting the token endpoint return invalid_request 400 while introspection/revocation return invalid_client 401.
+    why: Different endpoints map "no credentials at all" to different RFC error codes — sentinel lets the shared helper preserve that asymmetry.
   - name: ASServerMetadata
     kind: struct
-    role: RFC 8414 / OIDC Discovery authorization-server metadata document.
-    why: Metadata-only — advertising endpoints does not make the server a full OIDC provider; AuthorizationResponseIssParameterSupported uses pointer semantics to distinguish absent from explicit false.
+    role: RFC 8414 + OIDC Discovery §4 metadata struct served at /.well-known/oauth-authorization-server and /.well-known/openid-configuration.
+    why: One declarative struct covers both well-known paths; CacheMaxAge keeps responses cacheable.
   - name: NewASMetadataHandler
     kind: func
-    role: Returns an http.Handler that serves the metadata JSON.
-    why: Pre-serialises the response (metadata is static) and sets a Cache-Control max-age default of 1 hour.
+    role: Returns a GET-only http.Handler that pre-serializes the metadata JSON.
+    why: Metadata is static — encode once at construction, serve forever.
   - name: MountASMetadata
     kind: func
-    role: Registers metadata at both RFC 8414 and OIDC Discovery well-known paths on a single mux.
-    why: Single helper covers the ecosystem split — OAuth-only clients (RFC 8414) and OIDC clients can both auto-discover.
+    role: Registers the same handler at both /.well-known/oauth-authorization-server and /.well-known/openid-configuration.
+    why: OAuth-only and OIDC-aware clients both auto-discover with no fallback path.
   - name: ASMetadataProxy
     kind: struct
-    role: Fetches and caches an upstream AS's discovery document and re-serves it at the RFC 8414 well-known path.
-    why: Bridges OIDC-only providers (Keycloak) for MCP clients that only try RFC 8414; lazy fetch + TTL cache keep startup fast and resilient.
+    role: Lazy + cached proxy that fetches an upstream AS's OIDC/RFC 8414 metadata and re-serves it locally.
+    why: Bridges OIDC-only providers (Keycloak) into RFC-8414-only clients (VS Code MCP) without duplicating config.
   - name: NewASMetadataProxy
     kind: func
-    role: Builds an ASMetadataProxy with a configurable cache TTL (default 1 hour).
-    why: Tries RFC 8414 first, then OIDC discovery — same fallback as client.DiscoverAS so behaviour is symmetric across the codebase.
+    role: Constructor with default 1-hour cache TTL.
+    why: Lazy fetch on first request avoids startup-time network dependency.
   - name: ProtectedResourceMetadata
     kind: struct
-    role: RFC 9728 protected-resource metadata served at /.well-known/oauth-protected-resource.
-    why: Resource + AuthorizationServers are REQUIRED; everything else is omitempty so the wire output stays tight.
+    role: RFC 9728 PRM struct served at /.well-known/oauth-protected-resource.
+    why: Lets clients discover trusted authorization servers + supported scopes/algs/formats from the resource server.
   - name: NewProtectedResourceHandler
     kind: func
-    role: Returns an http.Handler serving the PRM JSON.
-    why: Same pre-serialise + Cache-Control shape as the AS handler so both well-known endpoints behave consistently.
+    role: GET-only handler that pre-serializes the PRM JSON.
+    why: Same pre-serialize-and-cache pattern as ASMetadataHandler.
   - name: MountProtectedResource
     kind: func
-    role: Mounts PRM and optionally proxies AS metadata at the RFC 8414 path for each AuthorizationServers entry.
-    why: MCP clients discover the AS via PRM → RFC 8414; proxying ensures OIDC-only providers don't break that chain.
-depends_on: []
+    role: Mounts the PRM endpoint and optionally proxies AS metadata for every listed authorization_server.
+    why: One call gives MCP clients a complete discovery surface even when the upstream AS only speaks OIDC.
+  - name: IntrospectionValidator
+    kind: struct
+    role: HTTP client that validates tokens by POSTing to a remote RFC 7662 introspection endpoint (with optional response caching).
+    why: Alternative to local JWT/JWKS validation for resource servers that prefer central blacklist enforcement or accept opaque tokens.
+  - name: IntrospectionValidator.Validate
+    kind: method
+    role: Calls the introspection endpoint with client_secret_basic auth and parses the response.
+    why: Inactive tokens return {Active:false} rather than an error — only transport failures surface as errors.
+  - name: IntrospectionValidator.ValidateForMiddleware
+    kind: method
+    role: Adapter that returns the (userID, scopes, authType, customClaims) tuple APIMiddleware wants.
+    why: Lets remote introspection slot in as a fallback after local JWT validation in APIMiddleware.validateRequest.
+  - name: IntrospectionResult
+    kind: struct
+    role: Parsed RFC 7662 response, shared by local TokenIntrospector and remote IntrospectionValidator.
+    why: Consistent shape so consumers don't care whether validation happened locally or via HTTP.
+  - name: TokenInfo
+    kind: struct
+    role: Validated-token payload (UserID, Scopes, AuthorizationDetails, CustomClaims, AuthType) returned wrapped in ValidateTokenResponse.
+    why: Single result type shared by middleware, introspection, and CheckScopes.
+  - name: Hooks
+    kind: struct
+    role: Lifecycle callbacks grouped by concern (TokenHooks, AuthHooks, ClientHooks, SecurityHooks).
+    why: Each implementation receives only its relevant group — no god-object callback bag.
+  - name: TokenHooks
+    kind: struct
+    role: OnIssued / OnRefreshed / OnRevoked callbacks fired by the issuer + revoker.
+    why: Token lifecycle is the most commonly audited event surface.
+  - name: SecurityHooks
+    kind: struct
+    role: OnTokenRejected / OnBlacklistHit / OnAlgorithmMismatch callbacks fired by the validator.
+    why: Pre-wired signals for alerting + intrusion detection — OnAlgorithmMismatch in particular catches the CVE-2015-9235 attack vector.
+  - name: AuthHooks
+    kind: struct
+    role: OnLoginSuccess / OnLoginFailure / OnScopeStepUp callbacks.
+    why: Authentication-side observability separated from token-side observability.
+  - name: ClientHooks
+    kind: struct
+    role: OnRegistered / OnDeleted / OnKeyRotated callbacks for client lifecycle.
+    why: Distinct concern (DCR/admin) gets its own group rather than being mixed into TokenHooks.
+  - name: JwtBearerGrantType
+    kind: const
+    role: urn:ietf:params:oauth:grant-type:jwt-bearer — RFC 7523 §2.1 grant URI.
+    why: Strict grant-type match in the token-endpoint dispatch switch.
+  - name: TokenExchangeGrantType
+    kind: const
+    role: urn:ietf:params:oauth:grant-type:token-exchange — RFC 8693 §2.1 grant URI.
+    why: Strict grant-type match in the token-endpoint dispatch switch.
+  - name: TrustedAssertionIssuer
+    kind: struct
+    role: Describes an upstream IdP whose JWT assertions the AS will accept (Issuer URL + PublicKey or KeyFunc + Audiences + AcceptedAlgorithms).
+    why: Allowlist for jwt-bearer + token-exchange grants; AcceptedAlgorithms locks out alg-confusion at the per-issuer level.
+  - name: validateAssertion
+    kind: func
+    role: Shared validator for jwt-bearer and token-exchange (JWT) — parses iss, picks the issuer, verifies signature, checks aud / exp / sub.
+    why: Same RFC 7523 §3 rules apply to both grants; one helper keeps them in lock-step.
+  - name: APIAuth.handleJwtBearerGrant
+    kind: method
+    role: RFC 7523 §2.1 — validates the assertion, mints an access token with sub=assertion.sub (no refresh token).
+    why: Refresh tokens would muddle the upstream IdP's session semantics — the assertion itself is the renewable credential.
+  - name: APIAuth.handleTokenExchangeGrant
+    kind: method
+    role: RFC 8693 — only subject_token_type=jwt + requested_token_type=access_token in phase 1, audience/resource params advisory.
+    why: Phase-1 scope is enough for enterprise-identity-chain use cases; the response shape must include issued_token_type per §2.2.
+  - name: TokenTypeJWT
+    kind: const
+    role: urn:ietf:params:oauth:token-type:jwt — the only subject_token_type accepted by handleTokenExchangeGrant in phase 1.
+    why: Other types (id_token, refresh_token, saml2) need per-type validators; phase 1 ships JWT only.
+  - name: TokenTypeAccessToken
+    kind: const
+    role: urn:ietf:params:oauth:token-type:access_token — the default + only requested_token_type accepted.
+    why: Phase-1 issuance is access-token-only; non-access output lands in a future commit.
+  - name: parseAuthorizationDetailsFromClaims
+    kind: func
+    role: Converts raw JWT claim slices into typed core.AuthorizationDetail structs (with Extra for non-standard fields).
+    why: RFC 9396 RAR claims arrive as untyped JSON; this lifts them once at the boundary so handlers see typed values.
+  - name: matchesAudience
+    kind: func
+    role: Checks expected aud against the JWT claim, handling both string and array forms (RFC 7519 §4.1.3).
+    why: Real-world tokens use both shapes; one helper keeps the check consistent across validator/assertion/client-auth paths.
+  - name: standardClaims
+    kind: const
+    role: Allow-list of JWT claim keys that CustomClaimsFunc cannot override (sub, iss, aud, exp, iat, type, scopes, jti, authorization_details).
+    why: Defense-in-depth — prevents a careless custom-claims callback from forging security-critical fields.
+  - name: constantTimeEqual
+    kind: func
+    role: Length-aware constant-time byte comparison for client_secret validation.
+    why: Defends against timing-side-channel inference of the stored secret.
+  - name: GetUserIDFromAPIContext
+    kind: func
+    role: Reads the authenticated user/client id stamped on the context by APIMiddleware.
+    why: Public accessor — handlers shouldn't reach into private context keys.
+  - name: GetScopesFromAPIContext
+    kind: func
+    role: Reads the granted scopes from the request context.
+    why: Same accessor pattern as GetUserIDFromAPIContext.
+  - name: GetAuthTypeFromAPIContext
+    kind: func
+    role: Reads "jwt" / "api_key" / "introspection" from the context.
+    why: Lets handlers diverge on auth modality without re-parsing the token.
+  - name: GetCustomClaimsFromContext
+    kind: func
+    role: Reads the non-standard JWT claim map from the context.
+    why: Surfaces caller-injected claims (e.g., relay tenant id) to downstream handlers.
+  - name: GetAuthorizationDetailsFromContext
+    kind: func
+    role: Reads the RFC 9396 authorization_details slice from the context.
+    why: RAR enforcement lives in handler code beyond the simple type-presence check RequireAuthorizationDetails performs.
+depends_on:
+  - path: ../core
+    entities: [AuthorizationDetail, ValidateAll, RefreshTokenStore, APIKeyStore, TokenRequest, TokenError, TokenPair, TokenBlacklist, RateLimiter, CredentialsValidator, GetUserScopesFunc, ScopeRead, ScopeWrite, ScopeProfile, ScopeOffline, ContainsAllScopes, IntersectScopes, JoinScopes, ParseScopes, DetectUsernameType, GenerateSecureToken, ErrTokenNotFound, ErrTokenReused, ErrAPIKeyNotFound, GetUserIDFromContext, SetUserIDInContext]
+  - path: ../keys
+    entities: [KeyLookup, KeyStorage]
+  - path: ../utils
+    entities: [ComputeKid, DecodeVerifyKey, IsAsymmetricAlg, SigningMethodForAlg]

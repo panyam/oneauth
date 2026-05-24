@@ -1,10 +1,8 @@
 package: fs
 purpose: Filesystem-backed (JSON file per record) implementations of OneAuth's key, kid, app, user, username, identity, channel, token, refresh-token, and API-key stores for single-process dev and small deployments.
 language: go
-doc_file: doc.go
-diagrams_file: diagrams.md
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
   - name: safeName
     kind: func
@@ -13,7 +11,7 @@ entities:
   - name: writeAtomicFile
     kind: func
     role: Writes data atomically via tempfile in the same dir, os.Rename, then chmod 0600.
-    why: A crash mid-write leaves either the old or the new file, never a half-written one.
+    why: A crash mid-write leaves either the old or the new file, never a half-written one; final 0600 ensures owner-only access.
   - name: FSKeyStore
     kind: struct
     role: keys.KeyStorage impl with one signing-key JSON file per clientID under signing_keys/.
@@ -22,6 +20,14 @@ entities:
     kind: func
     role: Constructor for FSKeyStore.
     why: Directory is created lazily on first PutKey, not at construction time.
+  - name: FSKeyStore.PutKey
+    kind: method
+    role: Persists a KeyRecord, computing kid via utils.ComputeKid when not supplied.
+    why: Atomic write keeps the on-disk view consistent and kid auto-derivation matches in-memory KeyStore semantics.
+  - name: FSKeyStore.GetKeyByKid
+    kind: method
+    role: Linear scan of signing_keys/ matching entry.Kid.
+    why: Clientid-indexed layout means kid lookup has no direct path; acceptable at dev-scale key counts.
   - name: fsKeyEntry
     kind: struct
     role: On-disk JSON shape for a signing key (ClientID, Key, Algorithm, Kid).
@@ -34,6 +40,14 @@ entities:
     kind: func
     role: Constructor for FSKidStore.
     why: GetKey(clientID) on a KidStorage always returns ErrKeyNotFound by design, matching the in-memory KidStore.
+  - name: FSKidStore.GetKeyByKid
+    kind: method
+    role: Direct kid->path lookup with on-read expiry filter.
+    why: Kid is the primary key here (unlike FSKeyStore) so lookup is O(1) on disk.
+  - name: FSKidStore.CleanExpired
+    kind: method
+    role: Sweeps kid_keys/ and removes entries whose ExpiresAt is in the past.
+    why: Maintenance hook; on-read filtering already hides expired entries but disk would grow without this.
   - name: fsKidEntry
     kind: struct
     role: On-disk JSON shape for a kid->key grace entry with ExpiresAt.
@@ -50,6 +64,10 @@ entities:
     kind: func
     role: Constructor for FSAppStore.
     why: Single-process only; multi-process deployments need a backend with real transaction semantics (e.g. GORMAppStore).
+  - name: FSAppStore.ListApps
+    kind: method
+    role: Reads every .json under apps/ and returns parseable entries, skipping corrupt ones silently.
+    why: Partial recovery beats total failure for admin tooling; loop var aliasing is avoided via explicit clone.
   - name: FSUserStore
     kind: struct
     role: core.UserStore impl with one user JSON file per userId under users/.
@@ -70,6 +88,10 @@ entities:
     kind: func
     role: Constructor for FSUsernameStore.
     why: Concurrent same-name reservations resolve last-write-wins.
+  - name: FSUsernameStore.ChangeUsername
+    kind: method
+    role: Two-file rename (delete old, write new) with best-effort restore if new write fails.
+    why: No cross-file atomicity on the filesystem; documented as "use GORM backend for high-concurrency production".
   - name: FSUsername
     kind: struct
     role: Persisted username record carrying both NormalizedUsername (key) and original-case Username plus Version.
@@ -81,7 +103,7 @@ entities:
   - name: NewFSIdentityStore
     kind: func
     role: Constructor for FSIdentityStore.
-    why: Uses filepath.Base on the composed identity key for path safety (not safeName).
+    why: Uses filepath.Base on the composed identity key for path safety (not safeName) - inconsistent but already safe per security tests.
   - name: FSChannelStore
     kind: struct
     role: ChannelStore impl with one channel JSON file per provider+identityKey under channels/.
@@ -106,6 +128,18 @@ entities:
     kind: func
     role: Constructor for FSRefreshTokenStore.
     why: Uses RWMutex plus getTokenUnsafe/forEachToken internals so multi-token sweeps hold a single lock.
+  - name: FSRefreshTokenStore.RotateRefreshToken
+    kind: method
+    role: Revokes old token, mints new token in same Family with Generation+1, atomically writes both.
+    why: Replay of an already-revoked token returns ErrTokenReused as the signal for callers to RevokeTokenFamily.
+  - name: FSRefreshTokenStore.RevokeTokenFamily
+    kind: method
+    role: Sweeps every token sharing a Family value and marks them revoked.
+    why: Family-based theft detection - one compromised generation invalidates the whole chain.
+  - name: FSRefreshTokenStore.CleanupExpiredTokens
+    kind: method
+    role: Removes tokens that are expired or revoked more than 24h ago.
+    why: Bounded retention for revoked tokens preserves a short forensic window before reclaiming disk.
   - name: FSAPIKeyStore
     kind: struct
     role: APIKey store with one file per keyID under api_keys/ and bcrypt-hashed secrets.
@@ -114,12 +148,16 @@ entities:
     kind: func
     role: Constructor for FSAPIKeyStore.
     why: Only the bcrypt hash of the secret is persisted; the raw secret leaves the store exactly once at creation.
+  - name: FSAPIKeyStore.ValidateAPIKey
+    kind: method
+    role: Parses oa_<keyID>_<secret>, loads the keyID record, checks revoked/expired, bcrypt-compares.
+    why: Constant-time bcrypt compare avoids timing leaks on secret comparison.
 depends_on:
   - path: ../../core
-    entities: [User, Identity, Channel, IdentityKey, AuthToken, RefreshToken, APIKey, TokenType, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret]
+    entities: [User, UserStore, Identity, IdentityStore, Channel, ChannelStore, IdentityKey, RefreshToken, RefreshTokenStore, APIKey, APIKeyStore, AuthToken, TokenType, TokenStore, UsernameStore, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret, ErrTokenNotFound, ErrTokenExpired, ErrTokenRevoked, ErrTokenReused, ErrAPIKeyNotFound]
   - path: ../../keys
-    entities: [KeyRecord, KeyStorage, KidStorage]
+    entities: [KeyStorage, KidStorage, KeyRecord, ErrKeyNotFound, ErrAlgorithmMismatch, ErrKidNotFound]
   - path: ../../admin
-    entities: [AppRegistration, AppRegistrationStore]
+    entities: [AppRegistrationStore, AppRegistration, ErrAppNotFound]
   - path: ../../utils
     entities: [ComputeKid]

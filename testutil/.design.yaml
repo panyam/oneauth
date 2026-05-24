@@ -1,10 +1,8 @@
 package: testutil
 purpose: In-process OAuth authorization server plus standalone OAuth/JWT helpers for oneauth integration tests.
 language: go
-doc_file: doc.go
-diagrams_file: diagrams.md
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
   - name: TestAuthServer
     kind: struct
@@ -54,39 +52,39 @@ entities:
     kind: func
     role: Enables jwt-bearer (RFC 7523) and token-exchange (RFC 8693) grants and auto-extends advertised grants.
     why: Only Option that turns advertisement into real behavior; later WithGrantTypesSupported can still override.
-  - name: MintToken
+  - name: TestAuthServer.MintToken
     kind: method
     role: Mints a standard RS256 access JWT directly, bypassing the HTTP token endpoint.
     why: Fast path with no network round-trip; kid header matches JWKS for verification.
-  - name: MintTokenWithClaims
+  - name: TestAuthServer.MintTokenWithClaims
     kind: method
     role: Mints an RS256 JWT from an arbitrary claims map with overridable iss/iat/exp defaults.
     why: Enables negative tests (wrong issuer, expired, missing claims).
-  - name: MintTokenForSubject
+  - name: TestAuthServer.MintTokenForSubject
     kind: method
     role: Convenience minting for a subject and scopes; no *testing.T needed.
     why: Aimed at non-test example code that still wants a signed token.
-  - name: URL
+  - name: TestAuthServer.URL
     kind: method
     role: Returns the server base URL.
     why: Only known after the random httptest port binds.
-  - name: JWKSURL
+  - name: TestAuthServer.JWKSURL
     kind: method
     role: Returns the JWKS endpoint URL.
     why: Lets tests point JWKS-aware clients at the live server.
-  - name: TokenEndpoint
+  - name: TestAuthServer.TokenEndpoint
     kind: method
     role: Returns the token endpoint URL.
     why: Lets tests POST grants directly when bypassing discovery.
-  - name: AdminKey
+  - name: TestAuthServer.AdminKey
     kind: method
     role: Returns the configured admin API key.
     why: Tests need it to call /apps endpoints.
-  - name: Issuer
+  - name: TestAuthServer.Issuer
     kind: method
     role: Returns the resolved JWT issuer.
     why: Reads the server URL when the default sentinel was used.
-  - name: Close
+  - name: TestAuthServer.Close
     kind: method
     role: Stops the underlying httptest server; nil-safe.
     why: Called automatically via t.Cleanup when NewTestAuthServer is used.
@@ -130,12 +128,12 @@ depends_on:
   - path: ../core
     entities: [GenerateSecureToken]
   - path: ../keys
-    entities: [KeyStorage, KeyRecord, InMemoryKeyStore, JWKSHandler]
+    entities: [KeyStorage, KeyRecord, InMemoryKeyStore, NewInMemoryKeyStore, JWKSHandler]
   - path: ../admin
-    entities: [AppRegistrar, APIKeyAuth]
+    entities: [AppRegistrar, NewAppRegistrar, APIKeyAuth]
   - path: ../apiauth
-    entities: [APIAuth, TrustedAssertionIssuer, JwtBearerGrantType, TokenExchangeGrantType, IntrospectionHandler, ASServerMetadata, MountASMetadata]
+    entities: [APIAuth, NewIntrospectionHandler, MountASMetadata, ASServerMetadata, TrustedAssertionIssuer, JwtBearerGrantType, TokenExchangeGrantType]
   - path: ../httpauth
     entities: [LimitBody, DefaultMaxBodySize]
   - path: ../utils
-    entities: [ComputeKid, EncodePublicKeyPEM]
+    entities: [EncodePublicKeyPEM, ComputeKid]

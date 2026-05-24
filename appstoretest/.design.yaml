@@ -1,54 +1,53 @@
 package: appstoretest
-purpose: Shared contract test suite that every AppRegistrationStore backend runs against its own factory to prove uniform behavior.
+purpose: Shared contract test suite that every AppRegistrationStore backend (inmem, fs, gorm) runs against to prove behavioral parity.
 language: go
-doc_file: doc.go
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
   - name: Factory
     kind: type
-    role: Function type a backend supplies that returns a fresh AppRegistrationStore per test.
-    why: Inverts construction so the suite stays storage-agnostic and each backend controls setup/teardown.
+    role: Function alias `func(t *testing.T) admin.AppRegistrationStore` that produces a fresh store per test.
+    why: Lets each backend plug its own constructor (with temp dirs, SQLite handles, etc.) into the shared suite without the suite knowing about backend internals.
   - name: RunAll
     kind: func
-    role: Entry point that runs the complete suite of contract subtests against one factory.
-    why: Single call site keeps every backend's coverage in lock-step.
+    role: Single entry point that registers every Test* subtest under the caller's *testing.T.
+    why: Backends call one function; new contract tests added here automatically apply to every backend without editing each callsite.
   - name: TestSaveAndGet
     kind: func
-    role: Asserts SaveApp then GetApp returns the saved registration.
-    why: Baseline read-after-write contract every backend must honor.
+    role: Happy-path round-trip - SaveApp then GetApp returns identical core fields.
+    why: Smoke-tests that the backend wires read and write to the same logical key.
   - name: TestNotFound
     kind: func
-    role: Asserts GetApp on a missing client_id returns admin.ErrAppNotFound.
-    why: Pins the sentinel-error contract so callers can branch on a typed miss.
+    role: Asserts GetApp on an unknown client_id returns the sentinel `admin.ErrAppNotFound`.
+    why: Pins the error contract so callers can rely on the sentinel regardless of backend.
   - name: TestDeleteApp
     kind: func
-    role: Asserts DeleteApp removes a registration and a later GetApp returns ErrAppNotFound.
-    why: Confirms deletion is observable, not just a no-op flag.
+    role: Save, delete, then verify subsequent GetApp returns ErrAppNotFound.
+    why: Confirms deletes are durable and visible to reads on the same handle.
   - name: TestDeleteNonexistent
     kind: func
-    role: Asserts deleting a missing client_id returns ErrAppNotFound.
-    why: Aligns delete-miss semantics with KeyStorage.DeleteKey so backends agree on the error.
+    role: Deleting a never-saved client_id must return ErrAppNotFound (not nil, not a different error).
+    why: Locks in delete-of-missing semantics matching KeyStorage.DeleteKey so callers don't have to special-case backends.
   - name: TestOverwriteApp
     kind: func
-    role: Asserts re-saving an existing client_id replaces stored metadata.
-    why: Locks down upsert (not append/conflict) semantics for SaveApp.
+    role: Second SaveApp on the same client_id replaces (not merges) the prior registration.
+    why: Pins upsert semantics so DCR re-registration produces deterministic state across backends.
   - name: TestListApps
     kind: func
-    role: Asserts ListApps returns every saved registration.
-    why: Verifies enumeration completeness independent of insertion order.
+    role: After saving N apps, ListApps returns all N (compared after sorting).
+    why: Forces the backend to enumerate without relying on insertion order, which differs between FS/GORM/inmem.
   - name: TestListAppsEmpty
     kind: func
-    role: Asserts ListApps on a fresh store returns an empty slice, not an error.
-    why: Distinguishes "no apps" from a failure so callers need not special-case empty.
+    role: ListApps on a fresh store returns an empty slice with nil error.
+    why: Forbids backends from returning ErrAppNotFound or nil-slice-with-error on emptiness.
   - name: TestPersistence
     kind: func
-    role: Asserts a saved registration is visible to a subsequent read on the same handle.
-    why: Catches write-buffering bugs in persistent backends (FS, GORM); trivially true for InMem.
+    role: Save then immediately read back on the same handle and confirm the write is visible.
+    why: Catches write-buffering or transaction-not-committed bugs in FS and GORM backends (trivial for InMem).
   - name: TestAllFieldsRoundTrip
     kind: func
-    role: Asserts every AppRegistration field survives a SaveApp/GetApp round-trip.
-    why: Catches backend serialization gaps such as GORM failing to JSON-encode slice fields.
+    role: Saves an AppRegistration with every field populated (slices, floats, timestamps, RAR types, DCR metadata) and verifies every field on read-back.
+    why: Catches backend serialization bugs - notably GORM forgetting to JSON-encode slice fields like RedirectURIs / GrantTypes / AuthorizationDetailsTypes.
 depends_on:
   - path: ../admin
-    entities: [AppRegistration, AppRegistrationStore, ErrAppNotFound]
+    entities: [AppRegistrationStore, AppRegistration, ErrAppNotFound]

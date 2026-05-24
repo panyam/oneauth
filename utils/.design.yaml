@@ -1,9 +1,8 @@
 package: utils
 purpose: Stateless crypto and encoding helpers — RSA/ECDSA key generation, PEM/PKCS8 codec, JWK/JWKS conversion, RFC 7638 kid thumbprints, JWT signing-method lookup, and Flask session-cookie decoding.
 language: go
-doc_file: doc.go
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
   - name: MinRSAKeySize
     kind: const

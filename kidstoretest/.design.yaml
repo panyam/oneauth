@@ -1,13 +1,12 @@
 package: kidstoretest
-purpose: Shared, test-only contract suite that every KidStorage backend (in-memory KidStore, FS, GORM, GAE) runs against its own factory, mirroring keystoretest.
+purpose: Shared conformance test suite that every keys.KidStorage backend runs against its own factory to prove uniform contract compliance.
 language: go
-doc_file: doc.go
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
   - name: Factory
     kind: type
-    role: Function alias producing a fresh keys.KidStorage per test invocation.
+    role: Function alias producing a fresh keys.KidStorage for each test invocation.
     why: Lets one suite drive every backend; each impl supplies its own constructor without the suite knowing the backend.
   - name: RunAll
     kind: func
@@ -57,4 +56,4 @@ depends_on:
   - path: ../keys
     entities: [KidStorage, ErrKidNotFound, ErrKeyNotFound]
   - path: ../utils
-    entities: [ComputeKid, GenerateRSAKeyPair]
+    entities: [GenerateRSAKeyPair, ComputeKid]

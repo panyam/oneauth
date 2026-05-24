@@ -1,10 +1,8 @@
 package: fs
 purpose: Filesystem-backed credential store that persists oneauth client server credentials as a single JSON file keyed by normalized server URL.
 language: go
-doc_file: doc.go
-diagrams_file: diagrams.md
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
   - name: FSCredentialStore
     kind: struct
@@ -15,11 +13,11 @@ entities:
     role: On-disk JSON shape wrapping the servers map under a "servers" key.
     why: Gives the file a single top-level object so the format can grow without breaking older readers.
   - name: NewFSCredentialStore
-    kind: function
+    kind: func
     role: Constructs a store, defaulting the path to ~/.config/<appName>/credentials.json and eagerly loading any existing file.
     why: A missing file is not an error so first-run callers get an empty but usable store.
   - name: normalizeURL
-    kind: function
+    kind: func
     role: Reduces a server URL to scheme://host, defaulting a missing scheme to https.
     why: Variant URLs (trailing slashes, paths, queries) must collapse onto one credential entry.
   - name: FSCredentialStore.GetCredential

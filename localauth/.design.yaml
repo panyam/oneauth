@@ -1,31 +1,29 @@
 package: localauth
 purpose: HTTP handlers and store-backed callbacks for local username/password authentication — signup, login, email verification, password reset, and credential linking onto OAuth users.
 language: go
-doc_file: doc.go
-diagrams_file: diagrams.md
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
   - name: LocalAuth
     kind: struct
-    role: Config-as-struct holder wiring credential validators, stores, email sender, policy, and error handlers into local auth HTTP handlers.
+    role: Config-as-struct holder wiring credential validators, stores, email sender, policy, and error handlers into the local auth HTTP handlers.
     why: All behavior is driven by which optional fields are set; nil fields disable features (e.g. no TokenStore disables reset) rather than erroring at construction.
   - name: LocalAuth.ServeHTTP
     kind: method
-    role: Handles POST login — parses form, rate-limits, checks lockout, validates credentials, fires HandleUser on success.
-    why: Rate-limit and lockout checks run before credential validation to avoid leaking timing/state; key is IP:username.
+    role: Login POST handler — parses form, rate-limits, checks lockout, validates credentials, fires HandleUser on success.
+    why: Rate-limit and lockout checks run before credential validation so attackers can't bypass them via timing/state; key is IP:username.
   - name: LocalAuth.HandleSignup
     kind: method
-    role: Processes registration — parses form, validates against policy/legacy validator, enforces username uniqueness, creates user, optionally sends verification email, auto-logs-in.
-    why: Auto-login is skipped only when RequireEmailVerification AND an EmailSender are both set; string-matches CreateUser errors to map to ErrCodeEmailExists.
+    role: Registration POST handler — parses form, validates against policy or legacy validator, enforces username uniqueness, creates user, optionally emails verification link, auto-logs-in.
+    why: Auto-login is skipped only when RequireEmailVerification AND an EmailSender are both set; substring-matches CreateUser errors to map to ErrCodeEmailExists.
   - name: LocalAuth.HandleVerifyEmail
     kind: method
-    role: Verifies an email-verification token from the ?token query param via the VerifyEmail callback.
-    why: Only token plumbing lives here; actual identity-marking is delegated to the configured VerifyEmail func.
+    role: Verifies an email-verification token from the ?token query param via the configured VerifyEmail callback.
+    why: Only token plumbing lives here; identity-marking is delegated to the configured func so backends stay swappable.
   - name: LocalAuth.HandleForgotPasswordForm
     kind: method
     role: GET handler that either redirects to ForgotPasswordURL or renders a minimal built-in HTML form.
-    why: Dual-mode (redirect vs built-in form) lets apps own the UI without forcing it.
+    why: Dual-mode (redirect vs built-in form) lets apps own the UI without forcing them to.
   - name: LocalAuth.HandleForgotPassword
     kind: method
     role: POST handler that mints a password-reset token and emails a reset link, always returning success.
@@ -53,7 +51,7 @@ entities:
   - name: GetLoggedInUserFunc
     kind: type
     role: func(r *http.Request) (userID string, err error) — app-supplied resolver for the current session user.
-    why: LinkCredentials needs the logged-in user but localauth has no session model; the app owns session/JWT decoding.
+    why: HandleLinkCredentials needs the logged-in user but localauth has no session model; the app owns session/JWT decoding.
   - name: LinkCredentialsConfig
     kind: struct
     role: Bundles UserStore, IdentityStore, ChannelStore, and optional UsernameStore for HandleLinkCredentials.
@@ -61,7 +59,7 @@ entities:
   - name: EnsureAuthUserConfig
     kind: struct
     role: Store bundle (User/Identity/Channel + optional Username) shared by the ensure-user and credential-linking helpers.
-    why: Single config type lets OAuth login, local signup, and linking share channel-aware user creation logic.
+    why: A single config type lets OAuth login, local signup, and linking share channel-aware user creation logic.
   - name: NewCreateUserFunc
     kind: func
     role: Builds a core.CreateUserFunc that creates User + (unverified) Identity + local Channel with a bcrypt password hash.
@@ -92,4 +90,4 @@ entities:
     why: Verifies the email belongs to the userID and rejects if a local channel already exists, preventing hijack.
 depends_on:
   - path: ../core
-    entities: [User, BasicUser, Identity, Channel, IdentityKey, HandleUserFunc, UserStore, IdentityStore, ChannelStore, UsernameStore, TokenStore, TokenType, SignupPolicy, Credentials, AuthError, AuthErrorHandler, DetectUsernameType, RateLimiter, AccountLockout, SendEmail]
+    entities: [User, BasicUser, Identity, Channel, IdentityKey, UserStore, IdentityStore, ChannelStore, UsernameStore, TokenStore, AuthToken, TokenTypeEmailVerification, TokenTypePasswordReset, TokenExpiryEmailVerification, TokenExpiryPasswordReset, Credentials, CredentialsValidator, CreateUserFunc, SignupValidator, DefaultSignupValidator, SignupPolicy, DefaultSignupPolicy, DetectUsernameType, HandleUserFunc, SendEmail, RateLimiter, AccountLockout, AuthError, NewAuthError, AuthErrorHandler, ErrCodeEmailExists, ErrCodeInvalidCreds, ErrCodeInvalidEmail, ErrCodeInvalidPhone, ErrCodeInvalidUsername, ErrCodeMissingField, ErrCodeUsernameTaken, ErrCodeWeakPassword]

@@ -1,10 +1,8 @@
 package: saml
 purpose: Registers SAML 2.0 SSO HTTP routes (login, ACS, logout) on a gorilla/mux router, wrapping crewjam/saml to fit oneauth's redirect-based multi-provider login flow.
 language: go
-doc_file: doc.go
-diagrams_file: diagrams.md
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
   - name: RegisterSamlAuth
     kind: func
@@ -46,8 +44,4 @@ entities:
     kind: const
     role: Filesystem path to the SP's RSA private key (saml_service.key).
     why: Paired with SAML_CERT_FILE to form the SP keypair; marked TODO for migration to configmap.
-depends_on:
-  - github.com/crewjam/saml
-  - github.com/crewjam/saml/samlsp
-  - github.com/gorilla/mux
-  - golang.org/x/oauth2
+depends_on: []

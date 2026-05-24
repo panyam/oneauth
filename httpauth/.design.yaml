@@ -1,10 +1,8 @@
 package: httpauth
 purpose: Session-based HTTP auth glue plus standalone middleware for CSRF, security headers, and request body limits.
 language: go
-doc_file: doc.go
-diagrams_file: diagrams.md
-last_rebuilt: f4f2394f13eb05e20247c77dcbe437cb33db4f33
-last_rebuilt_at: 2026-05-23T00:00:00Z
+last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
+last_rebuilt_at: 2026-05-24T17:31:10Z
 entities:
   - name: OneAuth
     kind: struct
@@ -120,4 +118,4 @@ entities:
     why: Skips any header left empty so disabling is explicit and per-field.
 depends_on:
   - path: ../core
-    entities: [User, BasicUser, Channel, ChannelStore, IdentityKey, IdentityStore, UserStore]
+    entities: [User, BasicUser, Channel, IdentityKey, UserStore, IdentityStore, ChannelStore]
