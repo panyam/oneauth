@@ -563,6 +563,11 @@ var standardClaims = map[string]bool{
 // CreateAccessToken creates a signed JWT access token. If CustomClaimsFunc is set,
 // its returned claims are merged into the token (standard claims cannot be overridden).
 // authzDetails is an optional RFC 9396 authorization_details array embedded in the JWT.
+//
+// Deprecated: prefer the transport-agnostic TokenIssuer.CreateAccessToken(ctx,
+// *CreateAccessTokenRequest) (*CreateAccessTokenResponse, error) on the OneAuth.Issuer
+// (or NewJWTIssuer-built jwtIssuer). This positional method is retained as the internal
+// implementation that APIAuth's HTTP handlers still call; consolidation tracked under issue 218.
 func (a *APIAuth) CreateAccessToken(userID string, scopes []string, authzDetails []core.AuthorizationDetail) (string, int64, error) {
 	expiry := a.AccessTokenExpiry
 	if expiry == 0 {
@@ -640,6 +645,10 @@ func (a *APIAuth) CreateAccessToken(userID string, scopes []string, authzDetails
 
 // VerifyTokenFunc returns a function that can be used as Middleware.VerifyToken.
 // This allows the Middleware to validate Bearer tokens using the APIAuth's JWT configuration.
+//
+// Deprecated: prefer the transport-agnostic TokenValidator.ValidateToken(ctx,
+// *ValidateTokenRequest) (*ValidateTokenResponse, error) on the OneAuth.Validator.
+// Retained for httpauth.Middleware wiring; consolidation tracked under issue 218.
 func (a *APIAuth) VerifyTokenFunc() func(tokenString string) (userID string, token any, err error) {
 	return func(tokenString string) (string, any, error) {
 		userID, scopes, err := a.ValidateAccessToken(tokenString)
@@ -650,7 +659,12 @@ func (a *APIAuth) VerifyTokenFunc() func(tokenString string) (userID string, tok
 	}
 }
 
-// ValidateAccessToken validates a JWT access token and returns the claims
+// ValidateAccessToken validates a JWT access token and returns the claims.
+//
+// Deprecated: prefer the transport-agnostic TokenValidator.ValidateToken(ctx,
+// *ValidateTokenRequest) (*ValidateTokenResponse, error) on the OneAuth.Validator.
+// Retained as the implementation backing the deprecated VerifyTokenFunc;
+// consolidation tracked under issue 218.
 func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes []string, err error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		return a.jwtKeyFunc(token)
@@ -721,6 +735,12 @@ func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes
 
 // ValidateAccessTokenFull validates a JWT access token and returns the standard claims
 // plus any custom claims (non-standard keys) as a separate map.
+//
+// Deprecated: prefer the transport-agnostic TokenValidator.ValidateToken(ctx,
+// *ValidateTokenRequest) (*ValidateTokenResponse, error) on the OneAuth.Validator —
+// its response carries the same standard + custom claims split via TokenInfo.
+// Retained as the implementation backing IntrospectionHandler today; consolidation
+// tracked separately.
 func (a *APIAuth) ValidateAccessTokenFull(tokenString string) (userID string, scopes []string, customClaims map[string]any, err error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		return a.jwtKeyFunc(token)

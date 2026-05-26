@@ -11,6 +11,10 @@ JWT-based API authentication: token issuance (login/refresh/client_credentials),
 
 ## Transport-Independent Core (OneAuth)
 
+All transport-agnostic interfaces in this package follow the gRPC-shape convention `MethodName(ctx context.Context, req *XRequest) (*XResponse, error)` — `TokenIssuer`, `TokenValidator`, `TokenIntrospector`, `TokenRevoker`, `ClientAuthenticator`. HTTP handlers are thin wrappers that construct the request type from the HTTP message and format the response. The same shape is used in `admin/` (`ClientRegistrar`, `ClientRegistrationManager`). Convention rationale: issue #110; apiauth adoption: issue #175.
+
+Legacy positional methods on `APIAuth` (`CreateAccessToken`, `ValidateAccessToken`, `ValidateAccessTokenFull`, `VerifyTokenFunc`) are marked `// Deprecated:` — they remain as the internal implementation backing the HTTP handlers until consolidation lands. Tracked under issue #218.
+
 The `OneAuth` struct composes focused interfaces for all auth operations without HTTP:
 - **interfaces.go** — `TokenIssuer`, `TokenValidator`, `TokenIntrospector`, `TokenRevoker`, `ClientAuthenticator`, `TokenInfo`
 - **hooks.go** — `Hooks` (grouped: `TokenHooks`, `AuthHooks`, `ClientHooks`, `SecurityHooks`)

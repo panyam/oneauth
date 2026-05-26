@@ -1,5 +1,20 @@
 # OneAuth Release Notes
 
+## Version 0.1.6
+
+### Convention closure for issues 175 + 172
+
+The `(ctx, *XRequest) → (*XResponse, error)` convention adopted across the library (CLAUDE.md "gRPC-shape convention everywhere") is now closed-loop for `apiauth/` and `admin/`:
+
+- **`apiauth/`**: all five transport-agnostic interfaces (`TokenIssuer`, `TokenValidator`, `TokenIntrospector`, `TokenRevoker`, `ClientAuthenticator`) follow the convention. HTTP handlers are thin wrappers. Four legacy positional methods on `APIAuth` — `CreateAccessToken`, `ValidateAccessToken`, `ValidateAccessTokenFull`, `VerifyTokenFunc` — are now marked `// Deprecated:` and point at the canonical interface methods. They remain as the internal implementation backing the HTTP handlers; consolidation + outright removal is tracked under issue 218.
+- **`admin/`**: `ClientRegistrar` interface (Register / RegisterLegacy / ListClients / GetClient / DeleteClient / RotateSecret) is in shape, implemented on `AppRegistrar`, and covered by pure-Go interface tests (`client_admin_test.go`) that bypass HTTP entirely. `ClientRegistrationManager` (RFC 7592 self-service) already adopted the convention via issues 168/169/170.
+
+Documentation updated: `apiauth/SUMMARY.md` now carries the convention paragraph that `admin/SUMMARY.md` already had.
+
+Closes 175, 172. Follow-up consolidation tracked under 218. Client SDK migration tracked under 217.
+
+---
+
 ## Version 0.1.5
 
 ### Client SDK — RFC 8693 token exchange + RFC 7523 §2.1 JWT bearer grant
