@@ -39,9 +39,9 @@ func (s *FSAPIKeyStore) getKeyPath(keyID string) (string, error) {
 	return filepath.Join(s.getKeyDir(), safeID+".json"), nil
 }
 
-// CreateAPIKey creates a new API key and returns the full key (only shown once)
-// The key format is: keyID + "_" + secret
-func (s *FSAPIKeyStore) CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (fullKey string, apiKey *core.APIKey, err error) {
+// CreateAPIKey creates a new API key for the given subject and returns the full key (only shown once).
+// The key format is: keyID + "_" + secret.
+func (s *FSAPIKeyStore) CreateAPIKey(subject, name string, scopes []string, expiresAt *time.Time) (fullKey string, apiKey *core.APIKey, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -66,7 +66,7 @@ func (s *FSAPIKeyStore) CreateAPIKey(userID, name string, scopes []string, expir
 	apiKey = &core.APIKey{
 		KeyID:      keyID,
 		KeyHash:    string(keyHash),
-		UserID:     userID,
+		Subject:    subject,
 		Name:       name,
 		Scopes:     scopes,
 		CreatedAt:  now,
@@ -191,8 +191,8 @@ func (s *FSAPIKeyStore) RevokeAPIKey(keyID string) error {
 	return s.saveKey(apiKey)
 }
 
-// ListUserAPIKeys returns all API keys for a user (without secrets)
-func (s *FSAPIKeyStore) ListUserAPIKeys(userID string) ([]*core.APIKey, error) {
+// ListSubjectAPIKeys returns all API keys owned by a subject (without secrets).
+func (s *FSAPIKeyStore) ListSubjectAPIKeys(subject string) ([]*core.APIKey, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -223,7 +223,7 @@ func (s *FSAPIKeyStore) ListUserAPIKeys(userID string) ([]*core.APIKey, error) {
 			continue
 		}
 
-		if apiKey.UserID == userID {
+		if apiKey.Subject == subject {
 			// Clear the hash for security (not needed in listings)
 			apiKey.KeyHash = ""
 			keys = append(keys, &apiKey)

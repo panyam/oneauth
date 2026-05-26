@@ -35,8 +35,8 @@ func (s *FSRefreshTokenStore) getTokenPath(token string) string {
 	return filepath.Join(s.getTokenDir(), filename)
 }
 
-// CreateRefreshToken creates a new refresh token for a user
-func (s *FSRefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+// CreateRefreshToken creates a new refresh token for the given subject.
+func (s *FSRefreshTokenStore) CreateRefreshToken(subject, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -54,7 +54,7 @@ func (s *FSRefreshTokenStore) CreateRefreshToken(userID, clientID string, device
 	refreshToken := &core.RefreshToken{
 		Token:      token,
 		TokenHash:  s.hashToken(token),
-		UserID:     userID,
+		Subject:    subject,
 		ClientID:   clientID,
 		DeviceInfo: deviceInfo,
 		Family:     family[:16], // Use first 16 chars as family ID
@@ -160,7 +160,7 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*core.Refresh
 	refreshToken := &core.RefreshToken{
 		Token:                newToken,
 		TokenHash:            s.hashToken(newToken),
-		UserID:               old.UserID,
+		Subject:              old.Subject,
 		ClientID:             old.ClientID,
 		DeviceInfo:           old.DeviceInfo,
 		Family:               old.Family,
@@ -203,13 +203,13 @@ func (s *FSRefreshTokenStore) RevokeRefreshToken(token string) error {
 	return s.saveToken(refreshToken)
 }
 
-// RevokeUserTokens revokes all refresh tokens for a user
-func (s *FSRefreshTokenStore) RevokeUserTokens(userID string) error {
+// RevokeSubjectTokens revokes all refresh tokens belonging to a subject.
+func (s *FSRefreshTokenStore) RevokeSubjectTokens(subject string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	return s.forEachToken(func(token *core.RefreshToken, path string) error {
-		if token.UserID == userID && !token.Revoked {
+		if token.Subject == subject && !token.Revoked {
 			now := time.Now()
 			token.Revoked = true
 			token.RevokedAt = &now
@@ -243,14 +243,15 @@ func (s *FSRefreshTokenStore) RevokeTokenFamily(family string) error {
 	})
 }
 
-// GetUserTokens lists all active (non-revoked, non-expired) refresh tokens for a user
-func (s *FSRefreshTokenStore) GetUserTokens(userID string) ([]*core.RefreshToken, error) {
+// GetSubjectTokens lists all active (non-revoked, non-expired) refresh
+// tokens belonging to a subject.
+func (s *FSRefreshTokenStore) GetSubjectTokens(subject string) ([]*core.RefreshToken, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	var tokens []*core.RefreshToken
 	err := s.forEachToken(func(token *core.RefreshToken, path string) error {
-		if token.UserID == userID && token.IsValid() {
+		if token.Subject == subject && token.IsValid() {
 			// Don't include the actual token value for security
 			tokenCopy := *token
 			tokenCopy.Token = "" // Clear token value

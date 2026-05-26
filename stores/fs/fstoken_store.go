@@ -29,7 +29,7 @@ func (s *FSTokenStore) getTokenPath(token string) (string, error) {
 	return filepath.Join(s.StoragePath, "tokens", safeToken+".json"), nil
 }
 
-func (s *FSTokenStore) CreateToken(userID, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
+func (s *FSTokenStore) CreateToken(subject, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func (s *FSTokenStore) CreateToken(userID, email string, tokenType localauth.Ver
 	verToken := &localauth.VerificationToken{
 		Token:     token,
 		Type:      tokenType,
-		UserID:    userID,
+		Subject:    subject,
 		Email:     email,
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(expiryDuration),
@@ -104,7 +104,7 @@ func (s *FSTokenStore) DeleteToken(token string) error {
 	return err
 }
 
-func (s *FSTokenStore) DeleteUserTokens(userID string, tokenType localauth.VerificationType) error {
+func (s *FSTokenStore) DeleteSubjectTokens(subject string, tokenType localauth.VerificationType) error {
 	tokensDir := filepath.Join(s.StoragePath, "tokens")
 	entries, err := os.ReadDir(tokensDir)
 	if err != nil {
@@ -129,7 +129,7 @@ func (s *FSTokenStore) DeleteUserTokens(userID string, tokenType localauth.Verif
 			continue
 		}
 
-		if verToken.UserID == userID && verToken.Type == tokenType {
+		if verToken.Subject == subject && verToken.Type == tokenType {
 			_ = os.Remove(filepath.Join(tokensDir, entry.Name()))
 		}
 	}

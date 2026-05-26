@@ -503,8 +503,8 @@ func TestAPIKeyAuthentication(t *testing.T) {
 
 		var response map[string]any
 		json.NewDecoder(rr.Body).Decode(&response)
-		if response["user_id"] != apiKey.UserID {
-			t.Errorf("Expected user_id %s, got %v", apiKey.UserID, response["user_id"])
+		if response["user_id"] != apiKey.Subject {
+			t.Errorf("Expected user_id %s, got %v", apiKey.Subject, response["user_id"])
 		}
 		if response["auth_type"] != "api_key" {
 			t.Errorf("Expected auth_type api_key, got %v", response["auth_type"])

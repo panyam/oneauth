@@ -225,7 +225,7 @@ func NewTokenStore(db *gorm.DB) *TokenStore {
 	return &TokenStore{db: db}
 }
 
-func (s *TokenStore) CreateToken(userID, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
+func (s *TokenStore) CreateToken(subject, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -234,7 +234,7 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType localauth.Verif
 	model := &VerificationTokenModel{
 		Token:     token,
 		Type:      tokenType,
-		UserID:    userID,
+		Subject:   subject,
 		Email:     email,
 		ExpiresAt: time.Now().Add(expiryDuration),
 	}
@@ -268,8 +268,8 @@ func (s *TokenStore) DeleteToken(token string) error {
 	return s.db.Delete(&VerificationTokenModel{}, "token = ?", token).Error
 }
 
-func (s *TokenStore) DeleteUserTokens(userID string, tokenType localauth.VerificationType) error {
-	return s.db.Delete(&VerificationTokenModel{}, "user_id = ? AND type = ?", userID, tokenType).Error
+func (s *TokenStore) DeleteSubjectTokens(subject string, tokenType localauth.VerificationType) error {
+	return s.db.Delete(&VerificationTokenModel{}, "subject = ? AND type = ?", subject, tokenType).Error
 }
 
 // =============================================================================
@@ -290,7 +290,7 @@ func (s *RefreshTokenStore) hashToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+func (s *RefreshTokenStore) CreateRefreshToken(subject, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -305,7 +305,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceIn
 	model := &RefreshTokenModel{
 		TokenHash:  s.hashToken(token),
 		Token:      token,
-		UserID:     userID,
+		Subject:    subject,
 		ClientID:   clientID,
 		DeviceInfo: deviceInfo,
 		Family:     family[:16],
@@ -381,7 +381,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 
 		newModel := &RefreshTokenModel{
 			TokenHash:            s.hashToken(newToken),
-			UserID:               oldModel.UserID,
+			Subject:              oldModel.Subject,
 			ClientID:             oldModel.ClientID,
 			DeviceInfo:           oldModel.DeviceInfo,
 			Family:               oldModel.Family,
@@ -417,10 +417,10 @@ func (s *RefreshTokenStore) RevokeRefreshToken(token string) error {
 		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
 }
 
-func (s *RefreshTokenStore) RevokeUserTokens(userID string) error {
+func (s *RefreshTokenStore) RevokeSubjectTokens(subject string) error {
 	now := time.Now()
 	return s.db.Model(&RefreshTokenModel{}).
-		Where("user_id = ? AND revoked = ?", userID, false).
+		Where("subject = ? AND revoked = ?", subject, false).
 		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
 }
 
@@ -431,9 +431,9 @@ func (s *RefreshTokenStore) RevokeTokenFamily(family string) error {
 		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
 }
 
-func (s *RefreshTokenStore) GetUserTokens(userID string) ([]*core.RefreshToken, error) {
+func (s *RefreshTokenStore) GetSubjectTokens(subject string) ([]*core.RefreshToken, error) {
 	var models []RefreshTokenModel
-	if err := s.db.Where("user_id = ? AND revoked = ? AND expires_at > ?", userID, false, time.Now()).
+	if err := s.db.Where("subject = ? AND revoked = ? AND expires_at > ?", subject, false, time.Now()).
 		Find(&models).Error; err != nil {
 		return nil, err
 	}
@@ -466,7 +466,7 @@ func NewAPIKeyStore(db *gorm.DB) *APIKeyStore {
 	return &APIKeyStore{db: db}
 }
 
-func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (string, *core.APIKey, error) {
+func (s *APIKeyStore) CreateAPIKey(subject, name string, scopes []string, expiresAt *time.Time) (string, *core.APIKey, error) {
 	keyID, err := core.GenerateAPIKeyID()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to generate key ID: %w", err)
@@ -486,7 +486,7 @@ func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expires
 	model := &APIKeyModel{
 		KeyID:      keyID,
 		KeyHash:    string(keyHash),
-		UserID:     userID,
+		Subject:    subject,
 		Name:       name,
 		Scopes:     scopes,
 		ExpiresAt:  expiresAt,
@@ -563,9 +563,9 @@ func (s *APIKeyStore) RevokeAPIKey(keyID string) error {
 		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
 }
 
-func (s *APIKeyStore) ListUserAPIKeys(userID string) ([]*core.APIKey, error) {
+func (s *APIKeyStore) ListSubjectAPIKeys(subject string) ([]*core.APIKey, error) {
 	var models []APIKeyModel
-	if err := s.db.Where("user_id = ?", userID).Find(&models).Error; err != nil {
+	if err := s.db.Where("subject = ?", subject).Find(&models).Error; err != nil {
 		return nil, err
 	}
 

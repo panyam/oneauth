@@ -1,3 +1,69 @@
+# Migration Guide
+
+## v0.1.2 → v0.1.3 — Subject vocab (phase 1: token-bearing types)
+
+The principal field on token-bearing types renames from `UserID` to `Subject` to match RFC 7519 / RFC 8693 vocabulary. Affects `core.RefreshToken`, `core.APIKey`, `localauth.VerificationToken`, and the storage interface methods on `RefreshTokenStore`, `APIKeyStore`, and `VerificationTokenStore`.
+
+### Code changes (consumers)
+
+Search-and-replace on your consumer:
+
+```
+.UserID                         →  .Subject     (only on RefreshToken / APIKey / VerificationToken instances)
+GetUserTokens(                  →  GetSubjectTokens(
+RevokeUserTokens(               →  RevokeSubjectTokens(
+ListUserAPIKeys(                →  ListSubjectAPIKeys(
+DeleteUserTokens(               →  DeleteSubjectTokens(
+```
+
+`accounts.Identity.UserID`, `accounts.Username.UserID`, `UserStore`, and the `httpauth` public surface all stay unchanged.
+
+### Stored data migration
+
+#### GORM (Postgres / MySQL / SQLite)
+
+```sql
+ALTER TABLE refresh_tokens RENAME COLUMN user_id TO subject;
+ALTER TABLE api_keys       RENAME COLUMN user_id TO subject;
+ALTER TABLE auth_tokens    RENAME COLUMN user_id TO subject;
+-- indexes on user_id are auto-renamed by Postgres/MySQL. On SQLite,
+-- drop and recreate the index after the rename.
+```
+
+#### Filesystem store
+
+`stores/fs` persists JSON files with a `user_id` field on three token kinds:
+`refresh_tokens/*.json`, `api_keys/*.json`, `tokens/*.json`. Rewrite the
+field name in place, or **reset the store** (re-issue all tokens / API
+keys; users re-verify email).
+
+```bash
+# In each affected directory:
+for f in refresh_tokens api_keys tokens; do
+  find "$f" -name '*.json' -exec sed -i.bak 's/"user_id":/"subject":/g' {} \;
+done
+```
+
+#### GAE / Datastore
+
+`subject` becomes the new Datastore property name on
+`RefreshToken`, `APIKey`, and `AuthToken` kinds. Either run a Datastore
+update job to copy `user_id` → `subject` and drop `user_id`, or reset
+those kinds. Active filter queries on those kinds also need updating
+(they used `FilterField("user_id", ...)` — the library now filters by
+`subject`).
+
+If you have no production data on these stores (dev / staging), the
+simplest path is to delete those kinds and let the library recreate
+them with the new property.
+
+### Easier alternative
+
+If you have no production data persisted yet, just reset the three
+token stores and re-issue everything on next login. No SQL needed.
+
+---
+
 # Migration Guide: Sub-Module Split (v0.0.x → v0.0.40)
 
 ## What Changed

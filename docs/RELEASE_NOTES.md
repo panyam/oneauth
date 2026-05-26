@@ -1,5 +1,42 @@
 # OneAuth Release Notes
 
+## Version 0.1.3 (PR 2a — token Subject foundation)
+
+### Subject vocabulary — phase 1: token-bearing types
+
+**Breaking.** The token-bearing types in `core/` and `localauth/` now use **Subject** (RFC 7519 `sub`) for the principal field, replacing **UserID**. Motivation: in `client_credentials` flows the principal is a service account, not a human user — `UserID` was misleading. `Subject` is what the JWT `sub` claim, RFC 7662 introspection, RFC 8693 token exchange, and Spring Security / JWT / X.509 idiom all call this concept. Account-model types (`accounts.User`, `accounts.Identity.UserID`, `accounts.Username.UserID`) stay as **UserID** — those are application user records, not OAuth subjects.
+
+**Go API renames:**
+
+| Before | After |
+|---|---|
+| `core.RefreshToken.UserID` (`json:"user_id"`) | `core.RefreshToken.Subject` (`json:"subject"`) |
+| `core.APIKey.UserID` (`json:"user_id"`) | `core.APIKey.Subject` (`json:"subject"`) |
+| `localauth.VerificationToken.UserID` (`json:"user_id"`) | `localauth.VerificationToken.Subject` (`json:"subject"`) |
+| `RefreshTokenStore.CreateRefreshToken(userID, ...)` | `CreateRefreshToken(subject, ...)` |
+| `RefreshTokenStore.RevokeUserTokens(userID)` | `RevokeSubjectTokens(subject)` |
+| `RefreshTokenStore.GetUserTokens(userID)` | `GetSubjectTokens(subject)` |
+| `APIKeyStore.CreateAPIKey(userID, ...)` | `CreateAPIKey(subject, ...)` |
+| `APIKeyStore.ListUserAPIKeys(userID)` | `ListSubjectAPIKeys(subject)` |
+| `VerificationTokenStore.CreateToken(userID, ...)` | `CreateToken(subject, ...)` |
+| `VerificationTokenStore.DeleteUserTokens(userID, ...)` | `DeleteSubjectTokens(subject, ...)` |
+
+All three backends (`stores/fs`, `stores/gorm`, `stores/gae`) updated. Models renamed in lock-step.
+
+**Storage migration required.** GORM column renames: `refresh_tokens.user_id` → `subject`, `api_keys.user_id` → `subject`, `auth_tokens.user_id` → `subject`. FS JSON storage: `user_id` → `subject` on the three token kinds. GAE Datastore: same field renames. Existing data must be migrated or the affected stores reset — see `docs/MIGRATION.md`.
+
+**Out of scope (deferred to PR 2b):**
+- `core.GetUserIDFromContext` / `SetUserIDInContext` / `DefaultUserParamName="loggedInUserId"`
+- `core.GetUserScopesFunc`
+- `apiauth.PasswordGrantResponse.UserID` / `TokenInfo.UserID` / `GetUserIDFromAPIContext`
+- `httpauth.Middleware.GetLoggedInUserId` / `OneAuth.SetLoggedInUserID` (public surface stays — internals flip in PR 2b)
+- `grpc.UserIDFromContext` / `DefaultMetadataKeyUserID="x-user-id"`
+- Session cookie key `loggedInUserId` (PR 2b invalidates active sessions)
+
+See issue tracker for PR 2b.
+
+---
+
 ## Version 0.1.2
 
 ### Client SDK — gRPC-shape `ClientCredentials` + RFC 8707 / RFC 9396 plumbing
