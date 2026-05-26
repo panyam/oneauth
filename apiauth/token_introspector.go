@@ -39,7 +39,7 @@ func (ti *tokenIntrospector) Introspect(ctx context.Context, req *IntrospectRequ
 
 	result := &IntrospectionResult{
 		Active:    true,
-		Sub:       info.UserID,
+		Sub:       info.Subject,
 		TokenType: "access_token",
 	}
 

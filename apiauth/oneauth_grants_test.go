@@ -45,7 +45,7 @@ func TestOneAuth_RefreshGrant(t *testing.T) {
 
 	vresp, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tp.AccessToken})
 	require.NoError(t, err)
-	assert.Equal(t, "refresh-user", vresp.Info.UserID)
+	assert.Equal(t, "refresh-user", vresp.Info.Subject)
 }
 
 // TestOneAuth_RefreshGrant_RevokedToken verifies that refreshing a revoked
@@ -96,7 +96,7 @@ func newTestOneAuthWithPasswordGrant(t *testing.T) *apiauth.OneAuth {
 			}
 			return nil, fmt.Errorf("invalid credentials")
 		},
-		GetUserScopes: func(userID string) ([]string, error) {
+		GetSubjectScopes: func(userID string) ([]string, error) {
 			return []string{"read", "write", "profile"}, nil
 		},
 	})
@@ -115,14 +115,14 @@ func TestOneAuth_PasswordGrant(t *testing.T) {
 		Scopes:   []string{"read"},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "user-alice", result.UserID)
+	assert.Equal(t, "user-alice", result.Subject)
 	assert.NotEmpty(t, result.AccessToken)
 	assert.True(t, result.ExpiresIn > 0)
 	assert.Equal(t, []string{"read"}, result.GrantedScopes)
 
 	vresp, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: result.AccessToken})
 	require.NoError(t, err)
-	assert.Equal(t, "user-alice", vresp.Info.UserID)
+	assert.Equal(t, "user-alice", vresp.Info.Subject)
 }
 
 // TestOneAuth_PasswordGrant_BadPassword verifies that wrong credentials
@@ -183,7 +183,7 @@ func TestOneAuth_PasswordGrant_CallerCreatesRefreshToken(t *testing.T) {
 
 	// Step 2: Caller creates refresh token with transport metadata
 	rt, err := oa.RefreshStore.CreateRefreshToken(
-		result.UserID, "my-app",
+		result.Subject, "my-app",
 		map[string]any{"user_agent": "TestBot/1.0", "ip": "127.0.0.1"},
 		result.GrantedScopes,
 	)

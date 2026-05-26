@@ -227,7 +227,7 @@ func TestIntrospectionClient_MiddlewareIntegration(t *testing.T) {
 
 	var extractedUserID string
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		extractedUserID = apiauth.GetUserIDFromAPIContext(r.Context())
+		extractedUserID = apiauth.GetSubjectFromAPIContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
 

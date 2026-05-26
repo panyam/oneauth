@@ -52,7 +52,7 @@ func setupAPIAuthTest(t *testing.T) (*apiauth.APIAuth, *fs.FSRefreshTokenStore, 
 		JWTSecretKey:        "test-secret-key-for-testing-only",
 		JWTIssuer:           "oneauth-test",
 		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
-		GetUserScopes: func(userID string) ([]string, error) {
+		GetSubjectScopes: func(userID string) ([]string, error) {
 			return []string{core.ScopeRead, core.ScopeWrite, core.ScopeProfile, core.ScopeOffline}, nil
 		},
 	}
@@ -329,7 +329,7 @@ func TestJWTValidation(t *testing.T) {
 
 	// Test handler that returns user info
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		scopes := apiauth.GetScopesFromAPIContext(r.Context())
 		authType := apiauth.GetAuthTypeFromAPIContext(r.Context())
 		json.NewEncoder(w).Encode(map[string]any{
@@ -482,7 +482,7 @@ func TestAPIKeyAuthentication(t *testing.T) {
 	}
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		authType := apiauth.GetAuthTypeFromAPIContext(r.Context())
 		json.NewEncoder(w).Encode(map[string]any{
 			"user_id":   userID,
@@ -557,7 +557,7 @@ func TestAPIKeyManagement(t *testing.T) {
 		body, _ := json.Marshal(createBody)
 		req := httptest.NewRequest(http.MethodPost, "/api/keys", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(core.SetUserIDInContext(req.Context(), userID))
+		req = req.WithContext(core.SetSubjectInContext(req.Context(), userID))
 		rr := httptest.NewRecorder()
 
 		apiAuth.HandleAPIKeys(rr, req)
@@ -585,7 +585,7 @@ func TestAPIKeyManagement(t *testing.T) {
 
 	t.Run("list API keys", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/keys", nil)
-		req = req.WithContext(core.SetUserIDInContext(req.Context(), userID))
+		req = req.WithContext(core.SetSubjectInContext(req.Context(), userID))
 		rr := httptest.NewRecorder()
 
 		apiAuth.HandleAPIKeys(rr, req)
@@ -608,7 +608,7 @@ func TestAPIKeyManagement(t *testing.T) {
 		}
 
 		req := httptest.NewRequest(http.MethodDelete, "/api/keys/"+createdKeyID, nil)
-		req = req.WithContext(core.SetUserIDInContext(req.Context(), userID))
+		req = req.WithContext(core.SetSubjectInContext(req.Context(), userID))
 		rr := httptest.NewRecorder()
 
 		apiAuth.HandleRevokeAPIKey(rr, req)
@@ -637,7 +637,7 @@ func TestOptionalMiddleware(t *testing.T) {
 	}
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		json.NewEncoder(w).Encode(map[string]any{
 			"user_id": userID,
 		})
@@ -726,7 +726,7 @@ func TestQueryParamToken(t *testing.T) {
 	}
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		json.NewEncoder(w).Encode(map[string]any{
 			"user_id": userID,
 		})
@@ -812,7 +812,7 @@ func TestCustomClaimsInContext(t *testing.T) {
 		JWTSecretKey:        "test-secret-custom-claims",
 		JWTIssuer:           "oneauth-test",
 		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
-		GetUserScopes: func(userID string) ([]string, error) {
+		GetSubjectScopes: func(userID string) ([]string, error) {
 			return []string{core.ScopeRead, core.ScopeWrite}, nil
 		},
 		CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {

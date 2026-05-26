@@ -84,7 +84,7 @@ func TestOneAuth_ValidateToken(t *testing.T) {
 	vresp, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tok.Token})
 	require.NoError(t, err)
 	info := vresp.Info
-	assert.Equal(t, "bob", info.UserID)
+	assert.Equal(t, "bob", info.Subject)
 	assert.Equal(t, []string{"read"}, info.Scopes)
 	assert.Equal(t, "jwt", info.AuthType)
 }
@@ -209,7 +209,7 @@ func TestOneAuth_ClientCredentials(t *testing.T) {
 	// Token should be valid
 	vresp, err := oa.Validator.ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tp.AccessToken})
 	require.NoError(t, err)
-	assert.Equal(t, "test-client", vresp.Info.UserID) // sub = client_id for CC
+	assert.Equal(t, "test-client", vresp.Info.Subject) // sub = client_id for CC
 }
 
 // TestOneAuth_ClientCredentials_BadSecret verifies that bad credentials
@@ -411,7 +411,7 @@ func TestOneAuth_HTTPMiddleware(t *testing.T) {
 	token := tok.Token
 
 	handler := mw.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		w.Write([]byte(userID))
 	}))
 

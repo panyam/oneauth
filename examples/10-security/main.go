@@ -103,7 +103,7 @@ func newResourceServer(ks keys.KeyStorage) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			custom := apiauth.GetCustomClaimsFromContext(r.Context())
 			fmt.Fprintf(w, `{"user":%q,"client_id":%q}`,
-				apiauth.GetUserIDFromAPIContext(r.Context()),
+				apiauth.GetSubjectFromAPIContext(r.Context()),
 				custom["client_id"])
 		}),
 	))

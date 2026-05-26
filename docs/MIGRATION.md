@@ -1,5 +1,45 @@
 # Migration Guide
 
+## v0.1.3 → v0.1.4 — Subject vocab (phase 2: consumers, helpers, transports)
+
+Completes the rename started in v0.1.3. Go API surfaces that handle the *principal-of-a-token* concept move from **UserID** to **Subject**. Account-model types (`accounts.User`, `accounts.Identity.UserID`, etc.) remain untouched.
+
+### Code changes (consumers)
+
+Search-and-replace on your consumer:
+
+```
+core.GetUserIDFromContext         →  core.GetSubjectFromContext
+core.SetUserIDInContext           →  core.SetSubjectInContext
+core.DefaultUserParamName         →  core.DefaultSubjectParamName
+core.GetUserScopesFunc            →  core.GetSubjectScopesFunc
+core.DefaultGetUserScopes         →  core.DefaultGetSubjectScopes
+apiauth.GetUserIDFromAPIContext   →  apiauth.GetSubjectFromAPIContext
+APIAuth.GetUserScopes             →  GetSubjectScopes
+JWTIssuerConfig.GetUserScopes     →  GetSubjectScopes
+OneAuthConfig.GetUserScopes       →  GetSubjectScopes
+PasswordGrantResponse.UserID      →  .Subject
+TokenInfo.UserID                  →  .Subject
+Middleware.UserParamName          →  SubjectParamName
+Middleware.GetLoggedInUserId(     →  Middleware.GetLoggedInSubject(
+OneAuth.SetLoggedInUserID(        →  OneAuth.SetLoggedInSubject(
+grpc.UserIDFromContext            →  grpc.SubjectFromContext
+grpc.UserIDFromContextWithConfig  →  grpc.SubjectFromContextWithConfig
+grpc.UserIDToOutgoingContext      →  grpc.SubjectToOutgoingContext
+grpc.DefaultMetadataKeyUserID     →  grpc.DefaultMetadataKeySubject
+grpc.Config.MetadataKeyUserID     →  grpc.Config.MetadataKeySubject
+```
+
+### Session invalidation (no code action needed)
+
+The session-cookie key flipped from `loggedInUserId` to `loggedInSubject`. Cookies issued by ≤ v0.1.3 are not recognised — users re-login on next visit. No SQL or session-store migration needed.
+
+### gRPC fleet upgrade
+
+The metadata header changed from `x-user-id` to `x-subject`. Upgrade gRPC clients and servers together. `SwitchUserTo*` and `x-switch-user` are unchanged (impersonation is human-user-scoped).
+
+---
+
 ## v0.1.2 → v0.1.3 — Subject vocab (phase 1: token-bearing types)
 
 The principal field on token-bearing types renames from `UserID` to `Subject` to match RFC 7519 / RFC 8693 vocabulary. Affects `core.RefreshToken`, `core.APIKey`, `localauth.VerificationToken`, and the storage interface methods on `RefreshTokenStore`, `APIKeyStore`, and `VerificationTokenStore`.

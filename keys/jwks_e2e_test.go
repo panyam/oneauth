@@ -65,7 +65,7 @@ func TestFederated_EndToEnd_HS256(t *testing.T) {
 	var gotUserID string
 	var gotClaims map[string]any
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotUserID = apiauth.GetUserIDFromAPIContext(r.Context())
+		gotUserID = apiauth.GetSubjectFromAPIContext(r.Context())
 		gotClaims = apiauth.GetCustomClaimsFromContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -250,7 +250,7 @@ func TestFederated_EndToEnd_RS256_ViaRegistrar(t *testing.T) {
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	var gotUserID string
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotUserID = apiauth.GetUserIDFromAPIContext(r.Context())
+		gotUserID = apiauth.GetSubjectFromAPIContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -317,7 +317,7 @@ func TestJWKS_EndToEnd_RS256(t *testing.T) {
 	var gotUserID string
 	var gotClaims map[string]any
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotUserID = apiauth.GetUserIDFromAPIContext(r.Context())
+		gotUserID = apiauth.GetSubjectFromAPIContext(r.Context())
 		gotClaims = apiauth.GetCustomClaimsFromContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -368,7 +368,7 @@ func TestJWKS_EndToEnd_ES256(t *testing.T) {
 	middleware := &apiauth.APIMiddleware{KeyStore: resourceKeyStore}
 	var gotUserID string
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotUserID = apiauth.GetUserIDFromAPIContext(r.Context())
+		gotUserID = apiauth.GetSubjectFromAPIContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
 

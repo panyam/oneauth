@@ -65,7 +65,7 @@ type APIAuth struct {
 
 	// Callbacks
 	ValidateCredentials CredentialsValidator            // Validates username/password
-	GetUserScopes       core.GetUserScopesFunc          // Returns allowed scopes for a user
+	GetSubjectScopes    core.GetSubjectScopesFunc          // Returns allowed scopes for the subject (user ID or client_id)
 	OnLoginSuccess      func(userID string, r *http.Request) // Optional: for logging/analytics
 	OnLoginFailure      func(username string, r *http.Request, err error) // Optional: for logging/analytics
 
@@ -227,9 +227,9 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 
 	// Get user's allowed scopes
 	allowedScopes := []string{core.ScopeRead, core.ScopeWrite, core.ScopeProfile, core.ScopeOffline}
-	if a.GetUserScopes != nil {
+	if a.GetSubjectScopes != nil {
 		var err error
-		allowedScopes, err = a.GetUserScopes(user.Id())
+		allowedScopes, err = a.GetSubjectScopes(user.Id())
 		if err != nil {
 			log.Printf("Error getting user scopes: %v", err)
 			a.errorResponse(w, "server_error", "Failed to get user permissions", http.StatusInternalServerError)
@@ -486,7 +486,7 @@ func (a *APIAuth) HandleLogoutAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user ID from context (set by middleware)
-	userID := core.GetUserIDFromContext(r.Context())
+	userID := core.GetSubjectFromContext(r.Context())
 	if userID == "" {
 		a.errorResponse(w, "unauthorized", "Authentication required", http.StatusUnauthorized)
 		return
@@ -511,7 +511,7 @@ func (a *APIAuth) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user ID from context
-	userID := core.GetUserIDFromContext(r.Context())
+	userID := core.GetSubjectFromContext(r.Context())
 	if userID == "" {
 		a.errorResponse(w, "unauthorized", "Authentication required", http.StatusUnauthorized)
 		return
@@ -873,7 +873,7 @@ func (a *APIAuth) HandleAPIKeys(w http.ResponseWriter, r *http.Request) {
 // handleListAPIKeys handles GET /api/keys - lists user's API keys
 func (a *APIAuth) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context
-	userID := core.GetUserIDFromContext(r.Context())
+	userID := core.GetSubjectFromContext(r.Context())
 	if userID == "" {
 		a.errorResponse(w, "unauthorized", "Authentication required", http.StatusUnauthorized)
 		return
@@ -920,7 +920,7 @@ func (a *APIAuth) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 // handleCreateAPIKey handles POST /api/keys - creates a new API key
 func (a *APIAuth) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context
-	userID := core.GetUserIDFromContext(r.Context())
+	userID := core.GetSubjectFromContext(r.Context())
 	if userID == "" {
 		a.errorResponse(w, "unauthorized", "Authentication required", http.StatusUnauthorized)
 		return
@@ -945,9 +945,9 @@ func (a *APIAuth) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	// Validate and limit scopes
 	allowedScopes := []string{core.ScopeRead, core.ScopeWrite, core.ScopeProfile}
-	if a.GetUserScopes != nil {
+	if a.GetSubjectScopes != nil {
 		var err error
-		allowedScopes, err = a.GetUserScopes(userID)
+		allowedScopes, err = a.GetSubjectScopes(userID)
 		if err != nil {
 			log.Printf("Error getting user scopes: %v", err)
 			a.errorResponse(w, "server_error", "Failed to get user permissions", http.StatusInternalServerError)
@@ -999,7 +999,7 @@ func (a *APIAuth) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user ID from context
-	userID := core.GetUserIDFromContext(r.Context())
+	userID := core.GetSubjectFromContext(r.Context())
 	if userID == "" {
 		a.errorResponse(w, "unauthorized", "Authentication required", http.StatusUnauthorized)
 		return
@@ -1053,7 +1053,7 @@ func (a *APIAuth) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 type apiContextKey string
 
 const (
-	contextKeyUserID               apiContextKey = "api_user_id"
+	contextKeySubject               apiContextKey = "api_user_id"
 	contextKeyScopes               apiContextKey = "api_scopes"
 	contextKeyAuthType             apiContextKey = "api_auth_type" // "jwt" or "api_key"
 	contextKeyCustomClaims         apiContextKey = "api_custom_claims"
@@ -1111,11 +1111,13 @@ type APIMiddleware struct {
 	lazyValidator TokenValidator
 }
 
-// GetUserIDFromAPIContext retrieves the user ID from the API middleware context
-func GetUserIDFromAPIContext(ctx context.Context) string {
-	if v := ctx.Value(contextKeyUserID); v != nil {
-		if userID, ok := v.(string); ok {
-			return userID
+// GetSubjectFromAPIContext retrieves the authenticated subject (RFC 7519
+// `sub` — user ID for human-driven flows, client_id for
+// client_credentials) from the API middleware context.
+func GetSubjectFromAPIContext(ctx context.Context) string {
+	if v := ctx.Value(contextKeySubject); v != nil {
+		if subject, ok := v.(string); ok {
+			return subject
 		}
 	}
 	return ""
@@ -1302,7 +1304,7 @@ func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes [
 		if len(info.AuthorizationDetails) > 0 {
 			customClaims["__authz_details"] = info.AuthorizationDetails
 		}
-		return info.UserID, info.Scopes, info.AuthType, customClaims, nil
+		return info.Subject, info.Scopes, info.AuthType, customClaims, nil
 	}
 
 	// Fallback: single-tenant JWTSecretKey validation (no KeyStore configured)
@@ -1571,7 +1573,7 @@ func toStringSlice(raw []any) []string {
 
 // setAuthContext sets all standard auth context values on the request context.
 func setAuthContext(ctx context.Context, userID string, scopes []string, authType string, customClaims map[string]any) context.Context {
-	ctx = context.WithValue(ctx, contextKeyUserID, userID)
+	ctx = context.WithValue(ctx, contextKeySubject, userID)
 	ctx = context.WithValue(ctx, contextKeyScopes, scopes)
 	ctx = context.WithValue(ctx, contextKeyAuthType, authType)
 	if customClaims != nil {
@@ -1582,7 +1584,7 @@ func setAuthContext(ctx context.Context, userID string, scopes []string, authTyp
 		}
 		ctx = context.WithValue(ctx, contextKeyCustomClaims, customClaims)
 	}
-	ctx = core.SetUserIDInContext(ctx, userID)
+	ctx = core.SetSubjectInContext(ctx, userID)
 	return ctx
 }
 

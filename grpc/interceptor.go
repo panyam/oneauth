@@ -15,7 +15,7 @@ type InterceptorConfig struct {
 	*Config
 
 	// RequireAuth when true rejects unauthenticated requests.
-	// When false, requests proceed but UserIDFromContext returns empty.
+	// When false, requests proceed but SubjectFromContext returns empty.
 	RequireAuth bool
 
 	// PublicMethods is a set of method names that don't require auth.
@@ -67,7 +67,7 @@ func UnaryAuthInterceptor(config *InterceptorConfig) grpc.UnaryServerInterceptor
 	config.Config.EnsureDefaults()
 
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		userID := extractUserID(ctx, config)
+		userID := extractSubject(ctx, config)
 
 		// Check if auth is required for this method
 		if config.RequireAuth && !config.PublicMethods[info.FullMethod] {
@@ -92,7 +92,7 @@ func StreamAuthInterceptor(config *InterceptorConfig) grpc.StreamServerIntercept
 
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		ctx := ss.Context()
-		userID := extractUserID(ctx, config)
+		userID := extractSubject(ctx, config)
 
 		// Check if auth is required for this method
 		if config.RequireAuth && !config.PublicMethods[info.FullMethod] {
@@ -105,8 +105,8 @@ func StreamAuthInterceptor(config *InterceptorConfig) grpc.StreamServerIntercept
 	}
 }
 
-// extractUserID extracts the user ID from context using the interceptor config.
-func extractUserID(ctx context.Context, config *InterceptorConfig) string {
+// extractSubject extracts the user ID from context using the interceptor config.
+func extractSubject(ctx context.Context, config *InterceptorConfig) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return ""
@@ -120,7 +120,7 @@ func extractUserID(ctx context.Context, config *InterceptorConfig) string {
 	}
 
 	// Fall back to actual user ID
-	if values := md.Get(config.Config.MetadataKeyUserID); len(values) > 0 {
+	if values := md.Get(config.Config.MetadataKeySubject); len(values) > 0 {
 		return values[0]
 	}
 

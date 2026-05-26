@@ -64,7 +64,7 @@ func (b *OAuthBridge) SaveUserAndRedirect(authtype, provider string, token *oaut
 
 	// We have verified an identity and a channel that is verifying this identity —
 	// now establish the logged-in session.
-	b.OneAuth.SetLoggedInUserID(user.Id(), w, r)
+	b.OneAuth.SetLoggedInSubject(user.Id(), w, r)
 
 	// Auth done — go back to where we need to be
 	callbackURL := "/"

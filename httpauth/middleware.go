@@ -10,26 +10,26 @@ import (
 )
 
 // middlewareContextKey is a local context key type used by Middleware
-// to store the logged-in user ID with a configurable param name.
+// to store the authenticated subject with a configurable param name.
 type middlewareContextKey string
 
 type Middleware struct {
 	AuthTokenHeaderName string
 	AuthTokenCookieName string
-	UserParamName       string
+	SubjectParamName    string
 	CallbackURLParam    string
 	SessionGetter       func(r *http.Request, param string) any
 	GetRedirURL         func(r *http.Request) string
 	DefaultRedirectURL  string
-	VerifyToken         func(tokenString string) (loggedInUserId string, token any, err error)
+	VerifyToken         func(tokenString string) (loggedInSubject string, token any, err error)
 }
 
 /**
  * Ensures that config values have reasonable defaults.
  */
 func (a *Middleware) EnsureReasonableDefaults() {
-	if a.UserParamName == "" {
-		a.UserParamName = "loggedInUserId"
+	if a.SubjectParamName == "" {
+		a.SubjectParamName = "loggedInSubject"
 	}
 	if a.CallbackURLParam == "" {
 		a.CallbackURLParam = "/"
@@ -39,22 +39,24 @@ func (a *Middleware) EnsureReasonableDefaults() {
 	}
 }
 
-// Get the ID of the logged in user from the current request
-func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
+// GetLoggedInSubject returns the authenticated subject (RFC 7519 `sub`)
+// for the current request — a user ID for human-driven flows or a
+// client_id for client_credentials.
+func (a *Middleware) GetLoggedInSubject(r *http.Request) string {
 	a.EnsureReasonableDefaults()
 
-	v := r.Context().Value(middlewareContextKey(a.UserParamName))
+	v := r.Context().Value(middlewareContextKey(a.SubjectParamName))
 	if v != nil {
-		loggedInUserId := v.(string)
-		if loggedInUserId != "" {
-			return loggedInUserId
+		loggedInSubject := v.(string)
+		if loggedInSubject != "" {
+			return loggedInSubject
 		}
 	}
 
 	if a.SessionGetter != nil {
-		userParam := a.SessionGetter(r, a.UserParamName)
-		if userParam != "" && userParam != nil {
-			return userParam.(string)
+		sessParam := a.SessionGetter(r, a.SubjectParamName)
+		if sessParam != "" && sessParam != nil {
+			return sessParam.(string)
 		}
 	}
 
@@ -72,8 +74,6 @@ func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
 			authTokens = append(authTokens, cookie.Value)
 		}
 	}
-	// log.Println("Auth Tokens Found: ", authTokens)
-	// log.Println("Cookies: ", r.Cookies())
 
 	for _, authToken := range authTokens {
 		// Strip "Bearer " prefix if present
@@ -84,34 +84,30 @@ func (a *Middleware) GetLoggedInUserId(r *http.Request) string {
 		if token == "" {
 			continue
 		}
-		loggedInUserId, _, err := a.VerifyToken(token)
-		if err == nil && loggedInUserId != "" {
-			return loggedInUserId
+		loggedInSubject, _, err := a.VerifyToken(token)
+		if err == nil && loggedInSubject != "" {
+			return loggedInSubject
 		} else if err != nil {
 			slog.Warn("Error verifying token: ", "token", token[:min(len(token), 20)]+"...", "error", err)
 		}
 	}
 
-	// Verify the JWT
 	return ""
 }
 
 /**
- * Fetches the user from the request and loads the UserId and User variables
- * available for other handlers.
+ * Fetches the subject from the request and loads it into the request
+ * context for downstream handlers.
  *
- * Note this does not perform any redirects if a valid user does not exist.
- * To also enforce a user exists, use the EnsureUser handler which both
- * calls ExgractUser and ensures that user is logged in.
+ * Note this does not perform any redirects if a valid subject does not
+ * exist. To also enforce that, use EnsureUser.
  */
 func (a *Middleware) ExtractUser(next http.Handler) http.Handler {
 	a.EnsureReasonableDefaults()
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			// Check session, context, and Authorization header for user ID
-			userParam := a.GetLoggedInUserId(r)
-			// set the logged in user ID as the request scoped variable
-			next.ServeHTTP(w, a.setLoggedInUserId(userParam, r))
+			subject := a.GetLoggedInSubject(r)
+			next.ServeHTTP(w, a.setLoggedInSubject(subject, r))
 		},
 	)
 }
@@ -120,11 +116,8 @@ func (a *Middleware) EnsureUser(next http.Handler) http.Handler {
 	a.EnsureReasonableDefaults()
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			// Check session, context, and Authorization header for user ID
-			userParam := a.GetLoggedInUserId(r)
-			if userParam == "" {
-				// Redirect to a login if user not logged in
-				// `/${a.redirectURLPrefix || "auth"}/login?callbackURL=${encodeURIComponent(req.originalUrl)}`;
+			subject := a.GetLoggedInSubject(r)
+			if subject == "" {
 				redirUrl := ""
 				if a.GetRedirURL != nil {
 					redirUrl = a.GetRedirURL(r)
@@ -136,23 +129,19 @@ func (a *Middleware) EnsureUser(next http.Handler) http.Handler {
 					fullRedirUrl := fmt.Sprintf("%s?%s=%s", redirUrl, a.CallbackURLParam, encodedUrl)
 					http.Redirect(w, r, fullRedirUrl, http.StatusFound)
 				} else {
-					// otherwise a 401
 					http.Error(w, "Login Failed", http.StatusUnauthorized)
 				}
 				return
-			} else {
-				// set the logged in user ID as the request scoped variable
-				next.ServeHTTP(w, a.setLoggedInUserId(userParam, r))
 			}
+			next.ServeHTTP(w, a.setLoggedInSubject(subject, r))
 		},
 	)
 }
 
-// Set the logged in user id into the request's variable set
-// This will make it available to all other handlers downstream
-func (a *Middleware) setLoggedInUserId(userId string, r *http.Request) *http.Request {
-	// set the logged in user ID as the request scoped variable
-	contextWithUser := context.WithValue(r.Context(), middlewareContextKey(a.UserParamName), userId)
-	//create a new request using that new context
-	return r.WithContext(contextWithUser)
+// setLoggedInSubject stores the authenticated subject in the request
+// context under the configured param name so downstream handlers can
+// read it back via GetLoggedInSubject.
+func (a *Middleware) setLoggedInSubject(subject string, r *http.Request) *http.Request {
+	contextWithSubject := context.WithValue(r.Context(), middlewareContextKey(a.SubjectParamName), subject)
+	return r.WithContext(contextWithSubject)
 }

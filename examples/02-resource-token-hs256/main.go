@@ -91,7 +91,7 @@ func newResourceServer(ks keys.KeyStorage) http.Handler {
 			custom := apiauth.GetCustomClaimsFromContext(ctx)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]any{
-				"user":      apiauth.GetUserIDFromAPIContext(ctx),
+				"user":      apiauth.GetSubjectFromAPIContext(ctx),
 				"scopes":    apiauth.GetScopesFromAPIContext(ctx),
 				"client_id": custom["client_id"],
 				"max_rooms": custom["max_rooms"],

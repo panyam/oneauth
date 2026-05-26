@@ -162,7 +162,7 @@ func TestMultiTenantValidation_DifferentHosts(t *testing.T) {
 	}
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		json.NewEncoder(w).Encode(map[string]any{"user_id": userID})
 	})
 
@@ -302,7 +302,7 @@ func TestMultiTenantValidation_FallbackToSingleKey(t *testing.T) {
 	}
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		json.NewEncoder(w).Encode(map[string]any{"user_id": userID})
 	})
 

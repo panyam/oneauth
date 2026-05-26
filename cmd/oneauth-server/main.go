@@ -254,7 +254,7 @@ func main() {
 		Blacklist:    blacklist,
 	}
 	mux.Handle("GET /api/me", apiMiddleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		scopes := apiauth.GetScopesFromAPIContext(r.Context())
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{

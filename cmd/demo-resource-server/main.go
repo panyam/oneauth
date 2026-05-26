@@ -155,7 +155,7 @@ func main() {
 
 	// Validate endpoint
 	validateHandler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		customClaims := apiauth.GetCustomClaimsFromContext(r.Context())
 		clientID, _ := customClaims["client_id"].(string)
 
