@@ -4,6 +4,8 @@
 package gorm
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/panyam/oneauth/keys"
@@ -35,10 +37,14 @@ func NewKeyStore(db *gorm.DB) *KeyStore {
 	return &KeyStore{db: db}
 }
 
-func (s *KeyStore) PutKey(rec *keys.KeyRecord) error {
+func (s *KeyStore) PutKey(ctx context.Context, req *keys.PutKeyRequest) (*keys.PutKeyResponse, error) {
+	if req == nil || req.Record == nil {
+		return nil, fmt.Errorf("PutKey: req.Record is required")
+	}
+	rec := req.Record
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
-		return keys.ErrAlgorithmMismatch
+		return nil, keys.ErrAlgorithmMismatch
 	}
 	kid := rec.Kid
 	if kid == "" {
@@ -50,98 +56,72 @@ func (s *KeyStore) PutKey(rec *keys.KeyRecord) error {
 		Algorithm: rec.Algorithm,
 		Kid:       kid,
 	}
-	return s.db.Save(model).Error
+	if err := s.db.WithContext(ctx).Save(model).Error; err != nil {
+		return nil, err
+	}
+	return &keys.PutKeyResponse{}, nil
 }
 
-func (s *KeyStore) DeleteKey(clientID string) error {
-	result := s.db.Delete(&SigningKeyModel{}, "client_id = ?", clientID)
+func (s *KeyStore) DeleteKey(ctx context.Context, req *keys.DeleteKeyRequest) (*keys.DeleteKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteKey: req is required")
+	}
+	result := s.db.WithContext(ctx).Delete(&SigningKeyModel{}, "client_id = ?", req.ClientID)
 	if result.Error != nil {
-		return result.Error
+		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return keys.ErrKeyNotFound
+		return nil, keys.ErrKeyNotFound
 	}
-	return nil
+	return &keys.DeleteKeyResponse{}, nil
 }
 
-func (s *KeyStore) GetKey(clientID string) (*keys.KeyRecord, error) {
+func (s *KeyStore) GetKey(ctx context.Context, req *keys.GetKeyRequest) (*keys.GetKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKey: req is required")
+	}
 	var model SigningKeyModel
-	if err := s.db.First(&model, "client_id = ?", clientID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "client_id = ?", req.ClientID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, keys.ErrKeyNotFound
 		}
 		return nil, err
 	}
-	return &keys.KeyRecord{
+	return &keys.GetKeyResponse{Record: &keys.KeyRecord{
 		ClientID:  model.ClientID,
 		Key:       model.Key,
 		Algorithm: model.Algorithm,
 		Kid:       model.Kid,
-	}, nil
+	}}, nil
 }
 
-func (s *KeyStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
+func (s *KeyStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequest) (*keys.GetKeyByKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKeyByKid: req is required")
+	}
 	var model SigningKeyModel
-	if err := s.db.First(&model, "kid = ?", kid).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "kid = ?", req.Kid).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, keys.ErrKidNotFound
 		}
 		return nil, err
 	}
-	return &keys.KeyRecord{
+	return &keys.GetKeyByKidResponse{Record: &keys.KeyRecord{
 		ClientID:  model.ClientID,
 		Key:       model.Key,
 		Algorithm: model.Algorithm,
 		Kid:       model.Kid,
-	}, nil
+	}}, nil
 }
 
-func (s *KeyStore) ListKeyIDs() ([]string, error) {
+func (s *KeyStore) ListKeyIDs(ctx context.Context, req *keys.ListKeyIDsRequest) (*keys.ListKeyIDsResponse, error) {
 	var models []SigningKeyModel
-	if err := s.db.Select("client_id").Find(&models).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("client_id").Find(&models).Error; err != nil {
 		return nil, err
 	}
-	keys := make([]string, len(models))
+	ids := make([]string, len(models))
 	for i, m := range models {
-		keys[i] = m.ClientID
+		ids[i] = m.ClientID
 	}
-	return keys, nil
-}
-
-// Backward-compatible aliases
-
-func (s *KeyStore) RegisterKey(clientID string, key any, algorithm string) error {
-	return s.PutKey(&keys.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
-}
-
-func (s *KeyStore) GetVerifyKey(clientID string) (any, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return nil, err
-	}
-	return rec.Key, nil
-}
-
-func (s *KeyStore) GetSigningKey(clientID string) (any, error) {
-	return s.GetVerifyKey(clientID)
-}
-
-func (s *KeyStore) GetExpectedAlg(clientID string) (string, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Algorithm, nil
-}
-
-func (s *KeyStore) ListKeys() ([]string, error) {
-	return s.ListKeyIDs()
-}
-
-func (s *KeyStore) GetCurrentKid(clientID string) (string, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Kid, nil
+	return &keys.ListKeyIDsResponse{ClientIDs: ids}, nil
 }

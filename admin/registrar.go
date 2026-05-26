@@ -183,7 +183,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		if err != nil {
 			return nil, fmt.Errorf("encode public key: %w", err)
 		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: pemBytes, Algorithm: signingAlg}); err != nil {
+		if _, err := h.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: clientID, Key: pemBytes, Algorithm: signingAlg}}); err != nil {
 			return nil, fmt.Errorf("store key: %w", err)
 		}
 		// No client_secret in response for asymmetric.
@@ -192,7 +192,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		if err != nil {
 			return nil, fmt.Errorf("generate secret: %w", err)
 		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: signingAlg}); err != nil {
+		if _, err := h.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: signingAlg}}); err != nil {
 			return nil, fmt.Errorf("store key: %w", err)
 		}
 		resp.ClientSecret = secret
@@ -269,7 +269,7 @@ func (h *AppRegistrar) RegisterLegacy(ctx context.Context, req *RegisterLegacyRe
 		if _, err := utils.DecodeVerifyKey([]byte(req.PublicKey), signingAlg); err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidPublicKey, err)
 		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(req.PublicKey), Algorithm: signingAlg}); err != nil {
+		if _, err := h.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: clientID, Key: []byte(req.PublicKey), Algorithm: signingAlg}}); err != nil {
 			return nil, fmt.Errorf("store key: %w", err)
 		}
 		// No client_secret in response for asymmetric.
@@ -278,7 +278,7 @@ func (h *AppRegistrar) RegisterLegacy(ctx context.Context, req *RegisterLegacyRe
 		if err != nil {
 			return nil, fmt.Errorf("generate secret: %w", err)
 		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: signingAlg}); err != nil {
+		if _, err := h.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: signingAlg}}); err != nil {
 			return nil, fmt.Errorf("store key: %w", err)
 		}
 		resp.ClientSecret = secret
@@ -361,7 +361,7 @@ func (h *AppRegistrar) DeleteClient(ctx context.Context, req *DeleteClientReques
 
 	// KeyStore deletion is best-effort: a stranded key is unreachable
 	// once the registration is gone (same rationale as DeleteRegistration).
-	_ = h.KeyStore.DeleteKey(req.ClientID)
+	_, _ = h.KeyStore.DeleteKey(ctx, &keys.DeleteKeyRequest{ClientID: req.ClientID})
 
 	return &DeleteClientResponse{}, nil
 }
@@ -403,7 +403,8 @@ func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretReques
 	var oldKey any
 	var oldAlg, oldKid string
 	if h.KidStore != nil {
-		if oldRec, err := h.KeyStore.GetKey(req.ClientID); err == nil {
+		if oldResp, err := h.KeyStore.GetKey(ctx, &keys.GetKeyRequest{ClientID: req.ClientID}); err == nil {
+			oldRec := oldResp.Record
 			oldKey = oldRec.Key
 			oldAlg = oldRec.Algorithm
 			oldKid = oldRec.Kid
@@ -422,7 +423,7 @@ func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretReques
 		if _, err := utils.DecodeVerifyKey([]byte(req.PublicKey), reg.SigningAlg); err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidPublicKey, err)
 		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: req.ClientID, Key: []byte(req.PublicKey), Algorithm: reg.SigningAlg}); err != nil {
+		if _, err := h.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: req.ClientID, Key: []byte(req.PublicKey), Algorithm: reg.SigningAlg}}); err != nil {
 			return nil, fmt.Errorf("update key: %w", err)
 		}
 	} else {
@@ -430,7 +431,7 @@ func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretReques
 		if err != nil {
 			return nil, fmt.Errorf("generate secret: %w", err)
 		}
-		if err := h.KeyStore.PutKey(&keys.KeyRecord{ClientID: req.ClientID, Key: []byte(newSecret), Algorithm: reg.SigningAlg}); err != nil {
+		if _, err := h.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: req.ClientID, Key: []byte(newSecret), Algorithm: reg.SigningAlg}}); err != nil {
 			return nil, fmt.Errorf("update key: %w", err)
 		}
 		resp.ClientSecret = newSecret
@@ -440,15 +441,15 @@ func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretReques
 		// Surface persistence failures: silently dropping the old kid
 		// would advertise a grace period that didn't actually persist,
 		// rejecting in-flight tokens. Fail the rotation instead.
-		if err := h.KidStore.Add(oldKid, oldKey, oldAlg, req.ClientID, time.Now().Add(gracePeriod)); err != nil {
+		if _, err := h.KidStore.Add(context.Background(), &keys.AddKidRequest{Kid: oldKid, Key: oldKey, Algorithm: oldAlg, ClientID: req.ClientID, ExpiresAt: time.Now().Add(gracePeriod)}); err != nil {
 			return nil, fmt.Errorf("retain previous key: %w", err)
 		}
 		resp.PreviousKid = oldKid
 		resp.GracePeriod = gracePeriod
 	}
 
-	if newRec, err := h.KeyStore.GetKey(req.ClientID); err == nil && newRec.Kid != "" {
-		resp.Kid = newRec.Kid
+	if newResp, err := h.KeyStore.GetKey(ctx, &keys.GetKeyRequest{ClientID: req.ClientID}); err == nil && newResp.Record.Kid != "" {
+		resp.Kid = newResp.Record.Kid
 	}
 	return resp, nil
 }
@@ -650,7 +651,7 @@ func (h *AppRegistrar) DeleteRegistration(ctx context.Context, req *DeleteRegist
 	// registration is gone, which is the user-visible deletion contract;
 	// a stranded key is at worst an internal cleanup concern (the KeyStore
 	// entry is unreachable without an AppRegistration to point at it).
-	_ = h.KeyStore.DeleteKey(req.ClientID)
+	_, _ = h.KeyStore.DeleteKey(ctx, &keys.DeleteKeyRequest{ClientID: req.ClientID})
 
 	return &DeleteRegistrationResponse{}, nil
 }

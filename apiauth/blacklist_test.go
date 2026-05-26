@@ -11,6 +11,7 @@ package apiauth_test
 //     Insufficient Session Expiration
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -246,8 +247,7 @@ func TestBlacklist_ValidateAccessTokenFull_ChecksBlacklist(t *testing.T) {
 func TestBlacklist_MultiTenantMiddleware(t *testing.T) {
 	bl := core.NewInMemoryBlacklist()
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey("app1", []byte("secret1"), "HS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app1", Key: []byte("secret1"), Algorithm: "HS256"}})
 	mw := &apiauth.APIMiddleware{
 		KeyStore:  ks,
 		Blacklist: bl,

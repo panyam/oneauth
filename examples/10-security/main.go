@@ -18,6 +18,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"flag"
@@ -40,8 +41,8 @@ import (
 func servePreseededApps(ks *keys.InMemoryKeyStore) (*rsa.PrivateKey, []byte) {
 	rsaPrivKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	pubPEM, _ := utils.EncodePublicKeyPEM(&rsaPrivKey.PublicKey)
-	ks.RegisterKey("app-rsa", pubPEM, "RS256")
-	ks.RegisterKey("app-hmac", []byte("shared-secret-for-hs256-app"), "HS256")
+	ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}})
+	ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-hmac", Key: []byte("shared-secret-for-hs256-app"), Algorithm: "HS256"}})
 	return rsaPrivKey, pubPEM
 }
 

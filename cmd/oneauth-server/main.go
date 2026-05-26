@@ -150,11 +150,11 @@ func main() {
 
 		// Register the public key in the keystore so JWKS exposes it.
 		// kid is auto-derived from the key material by the keystore.
-		if err := keyStore.PutKey(&keys.KeyRecord{
+		if _, err := keyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 			ClientID:  issuerClientID,
 			Key:       pubPEM,
 			Algorithm: alg,
-		}); err != nil {
+		}}); err != nil {
 			log.Fatalf("Failed to register issuer public key: %v", err)
 		}
 		log.Printf("Asymmetric token signing enabled (alg=%s, public key registered as %q for JWKS)", alg, issuerClientID)

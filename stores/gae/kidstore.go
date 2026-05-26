@@ -5,6 +5,7 @@ package gae
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/datastore"
@@ -14,23 +15,18 @@ import (
 const KindKidKey = "KidKey"
 
 // KidKeyEntity is the Datastore entity for kid→key grace entries.
-// The Datastore key name is the kid itself.
 type KidKeyEntity struct {
 	Key       *datastore.Key `datastore:"__key__"`
 	KeyBytes  []byte         `datastore:"key_bytes,noindex"`
 	Algorithm string         `datastore:"algorithm"`
 	ClientID  string         `datastore:"client_id"`
-	// ExpiresAt is unindexed: CleanExpired scans + filters in Go (kid
-	// stores are small, and we'd need a not-equal-zero filter combined
-	// with a less-than filter which Datastore doesn't support natively).
-	ExpiresAt time.Time `datastore:"expires_at,noindex"`
+	ExpiresAt time.Time      `datastore:"expires_at,noindex"`
 }
 
 // GAEKidStore implements keys.KidStorage using Google Cloud Datastore.
 type GAEKidStore struct {
 	client    *datastore.Client
 	namespace string
-	ctx       context.Context
 }
 
 var _ keys.KidStorage = (*GAEKidStore)(nil)
@@ -40,18 +36,6 @@ func NewKidStore(client *datastore.Client, namespace string) *GAEKidStore {
 	return &GAEKidStore{
 		client:    client,
 		namespace: namespace,
-		ctx:       context.Background(),
-	}
-}
-
-// WithContext returns a copy of the store with the given context, matching
-// the GAEKeyStore.WithContext pattern (see issue 110 / 175 for the planned
-// ctx-as-parameter migration).
-func (s *GAEKidStore) WithContext(ctx context.Context) *GAEKidStore {
-	return &GAEKidStore{
-		client:    s.client,
-		namespace: s.namespace,
-		ctx:       ctx,
 	}
 }
 
@@ -61,36 +45,48 @@ func (s *GAEKidStore) namespacedKey(name string) *datastore.Key {
 	return key
 }
 
-func (s *GAEKidStore) Add(kid string, key any, algorithm string, clientID string, expiresAt time.Time) error {
-	keyBytes, ok := key.([]byte)
+func (s *GAEKidStore) Add(ctx context.Context, req *keys.AddKidRequest) (*keys.AddKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("Add: req is required")
+	}
+	keyBytes, ok := req.Key.([]byte)
 	if !ok {
-		return keys.ErrAlgorithmMismatch
+		return nil, keys.ErrAlgorithmMismatch
 	}
 
 	entity := &KidKeyEntity{
-		Key:       s.namespacedKey(kid),
+		Key:       s.namespacedKey(req.Kid),
 		KeyBytes:  keyBytes,
-		Algorithm: algorithm,
-		ClientID:  clientID,
-		ExpiresAt: expiresAt,
+		Algorithm: req.Algorithm,
+		ClientID:  req.ClientID,
+		ExpiresAt: req.ExpiresAt,
 	}
-	_, err := s.client.Put(s.ctx, entity.Key, entity)
-	return err
+	if _, err := s.client.Put(ctx, entity.Key, entity); err != nil {
+		return nil, err
+	}
+	return &keys.AddKidResponse{}, nil
 }
 
-// Remove is idempotent — Datastore Delete on a missing key returns nil.
-func (s *GAEKidStore) Remove(kid string) error {
-	return s.client.Delete(s.ctx, s.namespacedKey(kid))
+func (s *GAEKidStore) Remove(ctx context.Context, req *keys.RemoveKidRequest) (*keys.RemoveKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("Remove: req is required")
+	}
+	if err := s.client.Delete(ctx, s.namespacedKey(req.Kid)); err != nil {
+		return nil, err
+	}
+	return &keys.RemoveKidResponse{}, nil
 }
 
-// GetKey always returns ErrKeyNotFound — KidStorage is kid-indexed.
-func (s *GAEKidStore) GetKey(clientID string) (*keys.KeyRecord, error) {
+func (s *GAEKidStore) GetKey(ctx context.Context, req *keys.GetKeyRequest) (*keys.GetKeyResponse, error) {
 	return nil, keys.ErrKeyNotFound
 }
 
-func (s *GAEKidStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
+func (s *GAEKidStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequest) (*keys.GetKeyByKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKeyByKid: req is required")
+	}
 	var entity KidKeyEntity
-	if err := s.client.Get(s.ctx, s.namespacedKey(kid), &entity); err != nil {
+	if err := s.client.Get(ctx, s.namespacedKey(req.Kid), &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			return nil, keys.ErrKidNotFound
 		}
@@ -99,23 +95,23 @@ func (s *GAEKidStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
 	if !entity.ExpiresAt.IsZero() && time.Now().After(entity.ExpiresAt) {
 		return nil, keys.ErrKidNotFound
 	}
-	return &keys.KeyRecord{
+	return &keys.GetKeyByKidResponse{Record: &keys.KeyRecord{
 		ClientID:  entity.ClientID,
 		Key:       entity.KeyBytes,
 		Algorithm: entity.Algorithm,
-		Kid:       kid,
-	}, nil
+		Kid:       req.Kid,
+	}}, nil
 }
 
-func (s *GAEKidStore) CleanExpired() error {
+func (s *GAEKidStore) CleanExpired(ctx context.Context, req *keys.CleanExpiredRequest) (*keys.CleanExpiredResponse, error) {
 	q := datastore.NewQuery(KindKidKey)
 	if s.namespace != "" {
 		q = q.Namespace(s.namespace)
 	}
 	var entities []KidKeyEntity
-	dsKeys, err := s.client.GetAll(s.ctx, q, &entities)
+	dsKeys, err := s.client.GetAll(ctx, q, &entities)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	now := time.Now()
 	var toDelete []*datastore.Key
@@ -125,7 +121,10 @@ func (s *GAEKidStore) CleanExpired() error {
 		}
 	}
 	if len(toDelete) == 0 {
-		return nil
+		return &keys.CleanExpiredResponse{}, nil
 	}
-	return s.client.DeleteMulti(s.ctx, toDelete)
+	if err := s.client.DeleteMulti(ctx, toDelete); err != nil {
+		return nil, err
+	}
+	return &keys.CleanExpiredResponse{Removed: len(toDelete)}, nil
 }

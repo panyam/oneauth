@@ -5,6 +5,7 @@ package gae
 
 import (
 	"context"
+	"fmt"
 
 	"cloud.google.com/go/datastore"
 	"github.com/panyam/oneauth/keys"
@@ -25,7 +26,6 @@ type SigningKeyEntity struct {
 type GAEKeyStore struct {
 	client    *datastore.Client
 	namespace string
-	ctx       context.Context
 }
 
 // NewKeyStore creates a new Datastore-backed KeyStore.
@@ -33,16 +33,6 @@ func NewKeyStore(client *datastore.Client, namespace string) *GAEKeyStore {
 	return &GAEKeyStore{
 		client:    client,
 		namespace: namespace,
-		ctx:       context.Background(),
-	}
-}
-
-// WithContext returns a copy of the store with the given context.
-func (s *GAEKeyStore) WithContext(ctx context.Context) *GAEKeyStore {
-	return &GAEKeyStore{
-		client:    s.client,
-		namespace: s.namespace,
-		ctx:       ctx,
 	}
 }
 
@@ -52,10 +42,14 @@ func (s *GAEKeyStore) namespacedKey(name string) *datastore.Key {
 	return key
 }
 
-func (s *GAEKeyStore) PutKey(rec *keys.KeyRecord) error {
+func (s *GAEKeyStore) PutKey(ctx context.Context, req *keys.PutKeyRequest) (*keys.PutKeyResponse, error) {
+	if req == nil || req.Record == nil {
+		return nil, fmt.Errorf("PutKey: req.Record is required")
+	}
+	rec := req.Record
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
-		return keys.ErrAlgorithmMismatch
+		return nil, keys.ErrAlgorithmMismatch
 	}
 
 	kid := rec.Kid
@@ -69,26 +63,34 @@ func (s *GAEKeyStore) PutKey(rec *keys.KeyRecord) error {
 		Algorithm: rec.Algorithm,
 		Kid:       kid,
 	}
-	_, err := s.client.Put(s.ctx, entity.Key, entity)
-	return err
-}
-
-func (s *GAEKeyStore) DeleteKey(clientID string) error {
-	key := s.namespacedKey(clientID)
-	var entity SigningKeyEntity
-	if err := s.client.Get(s.ctx, key, &entity); err != nil {
-		if err == datastore.ErrNoSuchEntity {
-			return keys.ErrKeyNotFound
-		}
-		return err
+	if _, err := s.client.Put(ctx, entity.Key, entity); err != nil {
+		return nil, err
 	}
-	return s.client.Delete(s.ctx, key)
+	return &keys.PutKeyResponse{}, nil
 }
 
-func (s *GAEKeyStore) getEntity(clientID string) (*SigningKeyEntity, error) {
+func (s *GAEKeyStore) DeleteKey(ctx context.Context, req *keys.DeleteKeyRequest) (*keys.DeleteKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteKey: req is required")
+	}
+	key := s.namespacedKey(req.ClientID)
+	var entity SigningKeyEntity
+	if err := s.client.Get(ctx, key, &entity); err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			return nil, keys.ErrKeyNotFound
+		}
+		return nil, err
+	}
+	if err := s.client.Delete(ctx, key); err != nil {
+		return nil, err
+	}
+	return &keys.DeleteKeyResponse{}, nil
+}
+
+func (s *GAEKeyStore) getEntity(ctx context.Context, clientID string) (*SigningKeyEntity, error) {
 	key := s.namespacedKey(clientID)
 	var entity SigningKeyEntity
-	if err := s.client.Get(s.ctx, key, &entity); err != nil {
+	if err := s.client.Get(ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			return nil, keys.ErrKeyNotFound
 		}
@@ -97,90 +99,58 @@ func (s *GAEKeyStore) getEntity(clientID string) (*SigningKeyEntity, error) {
 	return &entity, nil
 }
 
-func (s *GAEKeyStore) GetKey(clientID string) (*keys.KeyRecord, error) {
-	entity, err := s.getEntity(clientID)
+func (s *GAEKeyStore) GetKey(ctx context.Context, req *keys.GetKeyRequest) (*keys.GetKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKey: req is required")
+	}
+	entity, err := s.getEntity(ctx, req.ClientID)
 	if err != nil {
 		return nil, err
 	}
-	return &keys.KeyRecord{
-		ClientID:  clientID,
+	return &keys.GetKeyResponse{Record: &keys.KeyRecord{
+		ClientID:  req.ClientID,
 		Key:       entity.KeyBytes,
 		Algorithm: entity.Algorithm,
 		Kid:       entity.Kid,
-	}, nil
+	}}, nil
 }
 
-func (s *GAEKeyStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
-	q := datastore.NewQuery(KindSigningKey).FilterField("kid", "=", kid).Limit(1)
+func (s *GAEKeyStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequest) (*keys.GetKeyByKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKeyByKid: req is required")
+	}
+	q := datastore.NewQuery(KindSigningKey).FilterField("kid", "=", req.Kid).Limit(1)
 	if s.namespace != "" {
 		q = q.Namespace(s.namespace)
 	}
 	var entities []SigningKeyEntity
-	dsKeys, err := s.client.GetAll(s.ctx, q, &entities)
+	dsKeys, err := s.client.GetAll(ctx, q, &entities)
 	if err != nil {
 		return nil, err
 	}
 	if len(entities) == 0 {
 		return nil, keys.ErrKidNotFound
 	}
-	return &keys.KeyRecord{
+	return &keys.GetKeyByKidResponse{Record: &keys.KeyRecord{
 		ClientID:  dsKeys[0].Name,
 		Key:       entities[0].KeyBytes,
 		Algorithm: entities[0].Algorithm,
 		Kid:       entities[0].Kid,
-	}, nil
+	}}, nil
 }
 
-func (s *GAEKeyStore) ListKeyIDs() ([]string, error) {
+func (s *GAEKeyStore) ListKeyIDs(ctx context.Context, req *keys.ListKeyIDsRequest) (*keys.ListKeyIDsResponse, error) {
 	q := datastore.NewQuery(KindSigningKey).KeysOnly()
 	if s.namespace != "" {
 		q = q.Namespace(s.namespace)
 	}
-	dsKeys, err := s.client.GetAll(s.ctx, q, nil)
+	dsKeys, err := s.client.GetAll(ctx, q, nil)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]string, len(dsKeys))
+	ids := make([]string, len(dsKeys))
 	for i, k := range dsKeys {
-		result[i] = k.Name
+		ids[i] = k.Name
 	}
-	return result, nil
-}
-
-// Backward-compatible aliases
-
-func (s *GAEKeyStore) RegisterKey(clientID string, key any, algorithm string) error {
-	return s.PutKey(&keys.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
-}
-
-func (s *GAEKeyStore) GetVerifyKey(clientID string) (any, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return nil, err
-	}
-	return rec.Key, nil
-}
-
-func (s *GAEKeyStore) GetSigningKey(clientID string) (any, error) {
-	return s.GetVerifyKey(clientID)
-}
-
-func (s *GAEKeyStore) GetExpectedAlg(clientID string) (string, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Algorithm, nil
-}
-
-func (s *GAEKeyStore) ListKeys() ([]string, error) {
-	return s.ListKeyIDs()
-}
-
-func (s *GAEKeyStore) GetCurrentKid(clientID string) (string, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Kid, nil
+	return &keys.ListKeyIDsResponse{ClientIDs: ids}, nil
 }

@@ -11,6 +11,7 @@ package apiauth_test
 //   - See: https://github.com/panyam/oneauth/issues/53
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,11 +30,11 @@ func setupClientCredentialsAuth(t *testing.T) (*apiauth.APIAuth, *keys.InMemoryK
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
 	// Register a client with HS256 secret
-	ks.PutKey(&keys.KeyRecord{
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "test-service",
 		Key:       []byte("service-secret-key"),
 		Algorithm: "HS256",
-	})
+	}})
 	auth := &apiauth.APIAuth{
 		JWTSecretKey:   "server-jwt-secret-key-32chars!!",
 		JWTIssuer:      "test-issuer",

@@ -6,6 +6,7 @@ package apiauth_test
 // See: https://www.rfc-editor.org/rfc/rfc9396
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -25,11 +26,11 @@ import (
 func setupRARAuth(t *testing.T) (*apiauth.APIAuth, *keys.InMemoryKeyStore) {
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
-	ks.PutKey(&keys.KeyRecord{
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "test-client",
 		Key:       []byte("test-client-secret"),
 		Algorithm: "HS256",
-	})
+	}})
 
 	auth := &apiauth.APIAuth{
 		JWTSecretKey:   "rar-test-jwt-secret-32chars-min!",
@@ -241,11 +242,11 @@ func TestCreateAccessToken_StandardClaimsGuard_RAR(t *testing.T) {
 // See: https://www.rfc-editor.org/rfc/rfc9396#section-9.1
 func TestIntrospection_WithRAR(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	ks.PutKey(&keys.KeyRecord{
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "resource-server",
 		Key:       []byte("rs-secret"),
 		Algorithm: "HS256",
-	})
+	}})
 
 	auth := &apiauth.APIAuth{
 		JWTSecretKey:   "introspect-rar-secret-32chars-m!",
@@ -290,11 +291,11 @@ func TestIntrospection_WithRAR(t *testing.T) {
 // See: https://www.rfc-editor.org/rfc/rfc9396#section-9.1
 func TestIntrospection_WithoutRAR(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	ks.PutKey(&keys.KeyRecord{
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "resource-server",
 		Key:       []byte("rs-secret"),
 		Algorithm: "HS256",
-	})
+	}})
 
 	auth := &apiauth.APIAuth{
 		JWTSecretKey:   "introspect-norar-secret-32ch-m!",

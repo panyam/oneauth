@@ -10,6 +10,7 @@ package admin_test
 //   - See: https://github.com/panyam/oneauth/issues/48
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -51,7 +52,7 @@ func TestDCR_SymmetricRegistration(t *testing.T) {
 
 	// Verify the key was stored
 	clientID := resp["client_id"].(string)
-	rec, err := ks.GetKey(clientID)
+	recResp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var rec *keys.KeyRecord; if recResp_ != nil { rec = recResp_.Record }
 	require.NoError(t, err)
 	assert.Equal(t, "HS256", rec.Algorithm)
 }

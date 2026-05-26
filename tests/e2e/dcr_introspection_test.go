@@ -11,6 +11,7 @@ package e2e_test
 //   - See: https://github.com/panyam/oneauth/issues/55
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -120,11 +121,11 @@ func TestIntrospectionClient_E2E_ValidateViaIntrospection(t *testing.T) {
 	// Register a resource server client for introspection auth
 	rsClientID := "e2e-rs-introspect-client"
 	rsSecret := "e2e-rs-secret"
-	env.KeyStore.PutKey(&keys.KeyRecord{
+	_, _ = env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  rsClientID,
 		Key:       []byte(rsSecret),
 		Algorithm: "HS256",
-	})
+	}})
 
 	// Create a user and get an access token
 	email, password := CreateTestUser(t, env, "introspect-client-user")

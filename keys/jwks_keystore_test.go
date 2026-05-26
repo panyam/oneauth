@@ -2,10 +2,10 @@ package keys
 
 // Tests for JWKSKeyStore: fetching and caching keys from a remote JWKS endpoint,
 // cache-miss-triggered refresh, resilience when the server is down, concurrent access
-// safety, and error handling for unsupported operations.
+// safety.
 
 import (
-	"crypto/ecdsa"
+	"context"
 	"crypto/rsa"
 	"encoding/json"
 	"net/http"
@@ -25,9 +25,7 @@ func serveJWKS(t *testing.T, keys []utils.JWK) *httptest.Server {
 	}))
 }
 
-// TestJWKSKeyStore_GetVerifyKey verifies that JWKSKeyStore fetches an RSA public key
-// from a remote JWKS endpoint and returns it for token verification.
-func TestJWKSKeyStore_GetVerifyKey(t *testing.T) {
+func TestJWKSKeyStore_GetKeyByKid_RSA(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	pub, _ := utils.ParsePublicKeyPEM(pubPEM)
 	rsaPub := pub.(*rsa.PublicKey)
@@ -42,45 +40,32 @@ func TestJWKSKeyStore_GetVerifyKey(t *testing.T) {
 	}
 	defer ks.Stop()
 
-	key, err := ks.GetVerifyKey("app_rsa")
+	resp, err := ks.GetKeyByKid(context.Background(), &GetKeyByKidRequest{Kid: "app_rsa"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, ok := key.(*rsa.PublicKey)
+	rec := resp.Record
+	got, ok := rec.Key.(*rsa.PublicKey)
 	if !ok {
-		t.Fatalf("expected *rsa.PublicKey, got %T", key)
+		t.Fatalf("expected *rsa.PublicKey, got %T", rec.Key)
 	}
 	if rsaPub.N.Cmp(got.N) != 0 {
 		t.Error("RSA modulus mismatch")
 	}
-}
-
-// TestJWKSKeyStore_GetExpectedAlg verifies that JWKSKeyStore returns the correct
-// algorithm (ES256) for a key fetched from the remote JWKS endpoint.
-func TestJWKSKeyStore_GetExpectedAlg(t *testing.T) {
-	_, pubPEM, _ := utils.GenerateECDSAKeyPair()
-	pub, _ := utils.ParsePublicKeyPEM(pubPEM)
-	ecPub := pub.(*ecdsa.PublicKey)
-	jwk := utils.ECDSAPublicKeyToJWK("app_ec", "ES256", ecPub)
-
-	srv := serveJWKS(t, []utils.JWK{jwk})
-	defer srv.Close()
-
-	ks := NewJWKSKeyStore(srv.URL, WithMinRefreshGap(0))
-	ks.Start()
-	defer ks.Stop()
-
-	alg, err := ks.GetExpectedAlg("app_ec")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if alg != "ES256" {
-		t.Errorf("expected ES256, got %s", alg)
+	if rec.Algorithm != "RS256" {
+		t.Errorf("expected RS256, got %s", rec.Algorithm)
 	}
 }
 
-// TestJWKSKeyStore_CacheMissTriggersRefresh verifies that a cache miss for an unknown key
-// triggers a refresh from the remote endpoint and returns ErrKeyNotFound if the key still does not exist.
+func TestJWKSKeyStore_GetKey_AlwaysNotFound(t *testing.T) {
+	// JWKSKeyStore.GetKey by clientID must always return ErrKeyNotFound.
+	ks := NewJWKSKeyStore("http://localhost:0")
+	_, err := ks.GetKey(context.Background(), &GetKeyRequest{ClientID: "anything"})
+	if err != ErrKeyNotFound {
+		t.Errorf("expected ErrKeyNotFound, got %v", err)
+	}
+}
+
 func TestJWKSKeyStore_CacheMissTriggersRefresh(t *testing.T) {
 	fetchCount := 0
 	var mu sync.Mutex
@@ -101,22 +86,15 @@ func TestJWKSKeyStore_CacheMissTriggersRefresh(t *testing.T) {
 	ks.Start()
 	defer ks.Stop()
 
-	// First fetch at Start(), then cache miss for "dynamic_app" shouldn't need another
-	// since "dynamic_app" was returned in the first fetch
-	_, err := ks.GetVerifyKey("dynamic_app")
-	if err != nil {
+	if _, err := ks.GetKeyByKid(context.Background(), &GetKeyByKidRequest{Kid: "dynamic_app"}); err != nil {
 		t.Fatal(err)
 	}
 
-	// Unknown key should trigger refresh attempt then return ErrKeyNotFound
-	_, err = ks.GetVerifyKey("nonexistent")
-	if err != ErrKeyNotFound {
-		t.Errorf("expected ErrKeyNotFound, got %v", err)
+	if _, err := ks.GetKeyByKid(context.Background(), &GetKeyByKidRequest{Kid: "nonexistent"}); err != ErrKidNotFound {
+		t.Errorf("expected ErrKidNotFound, got %v", err)
 	}
 }
 
-// TestJWKSKeyStore_ServerDown_UsesCachedKeys verifies that JWKSKeyStore continues to serve
-// previously cached keys even after the remote JWKS server goes down.
 func TestJWKSKeyStore_ServerDown_UsesCachedKeys(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	pub, _ := utils.ParsePublicKeyPEM(pubPEM)
@@ -129,32 +107,18 @@ func TestJWKSKeyStore_ServerDown_UsesCachedKeys(t *testing.T) {
 	ks.Start()
 	defer ks.Stop()
 
-	// Shut down the server
 	srv.Close()
 
-	// Should still return cached key
-	key, err := ks.GetVerifyKey("cached_app")
+	resp, err := ks.GetKeyByKid(context.Background(), &GetKeyByKidRequest{Kid: "cached_app"})
 	if err != nil {
 		t.Fatalf("expected cached key, got error: %v", err)
 	}
-	got := key.(*rsa.PublicKey)
+	got := resp.Record.Key.(*rsa.PublicKey)
 	if rsaPub.N.Cmp(got.N) != 0 {
 		t.Error("cached key mismatch")
 	}
 }
 
-// TestJWKSKeyStore_GetSigningKey_Errors verifies that GetSigningKey always returns an error
-// since JWKSKeyStore is read-only and does not hold private keys.
-func TestJWKSKeyStore_GetSigningKey_Errors(t *testing.T) {
-	ks := NewJWKSKeyStore("http://localhost:0")
-	_, err := ks.GetSigningKey("anything")
-	if err == nil {
-		t.Error("expected error from GetSigningKey")
-	}
-}
-
-// TestJWKSKeyStore_ConcurrentAccess verifies that concurrent GetVerifyKey and GetExpectedAlg
-// calls do not race or panic.
 func TestJWKSKeyStore_ConcurrentAccess(t *testing.T) {
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	pub, _ := utils.ParsePublicKeyPEM(pubPEM)
@@ -172,9 +136,8 @@ func TestJWKSKeyStore_ConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ks.GetVerifyKey("concurrent_app")
-			ks.GetExpectedAlg("concurrent_app")
-			ks.GetVerifyKey("missing")
+			ks.GetKeyByKid(context.Background(), &GetKeyByKidRequest{Kid: "concurrent_app"})
+			ks.GetKeyByKid(context.Background(), &GetKeyByKidRequest{Kid: "missing"})
 		}()
 	}
 	wg.Wait()

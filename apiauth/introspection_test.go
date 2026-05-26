@@ -17,6 +17,7 @@ package apiauth_test
 //   - See: https://github.com/panyam/oneauth/issues/47
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -40,12 +41,11 @@ func setupIntrospection(t *testing.T) (*apiauth.IntrospectionHandler, *apiauth.A
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
 	// Register a resource server client that can call introspection
-	ks.PutKey(&keys.KeyRecord{
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "resource-server",
 		Key:       []byte("rs-secret"),
 		Algorithm: "HS256",
-	})
-
+	}})
 	blacklist := core.NewInMemoryBlacklist()
 
 	auth := &apiauth.APIAuth{

@@ -5,6 +5,7 @@ package examples_test
 // Run with: go test -run Example -v ./examples/
 
 import (
+	"context"
 	"bytes"
 	"crypto/rsa"
 	cryptorand "crypto/rand"
@@ -155,11 +156,10 @@ func ExampleAPIMiddleware_kidBasedLookup() {
 	ks := keys.NewInMemoryKeyStore()
 
 	// Register an HS256 app and an RS256 app in the same KeyStore
-	ks.RegisterKey("app-hs256", []byte("my-secret"), "HS256")
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-hs256", Key: []byte("my-secret"), Algorithm: "HS256"}})
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
-	ks.RegisterKey("app-rs256", pubPEM, "RS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rs256", Key: pubPEM, Algorithm: "RS256"}})
 	// Mint tokens — both get kid headers automatically
 	hsToken, _ := admin.MintResourceToken("alice", "app-hs256", "my-secret", admin.AppQuota{}, []string{"read"}, nil)
 	rsToken, _ := admin.MintResourceTokenWithKey("bob", "app-rs256", privKey, admin.AppQuota{}, []string{"read"}, nil)
@@ -327,10 +327,9 @@ func ExampleJWKSHandler_securityProperties() {
 	ks := keys.NewInMemoryKeyStore()
 
 	// Register one HS256 (symmetric) and one RS256 (asymmetric) app
-	ks.RegisterKey("app-secret", []byte("my-hs256-secret"), "HS256")
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-secret", Key: []byte("my-hs256-secret"), Algorithm: "HS256"}})
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
-	ks.RegisterKey("app-public", pubPEM, "RS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-public", Key: pubPEM, Algorithm: "RS256"}})
 	// Serve JWKS
 	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
 	srv := httptest.NewServer(http.HandlerFunc(jwksHandler.ServeHTTP))
@@ -388,12 +387,11 @@ func ExampleJWKSHandler_multiAlgorithm() {
 	ks := keys.NewInMemoryKeyStore()
 
 	// Register one HS256 app and one RS256 app
-	ks.RegisterKey("app-hmac", []byte("shared-secret"), "HS256")
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-hmac", Key: []byte("shared-secret"), Algorithm: "HS256"}})
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
-	ks.RegisterKey("app-rsa", pubPEM, "RS256")
-
-	ids, _ := ks.ListKeyIDs()
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}})
+	ids, _ := ks.ListKeyIDs(context.Background(), &keys.ListKeyIDsRequest{})
 	fmt.Println("total_apps:", len(ids))
 
 	// Serve JWKS (only asymmetric keys appear)
@@ -469,8 +467,7 @@ func ExampleAPIMiddleware_algorithmConfusionPrevention() {
 	pubPEM, _ := utils.EncodePublicKeyPEM(&privKey.PublicKey)
 
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey("app-rsa", pubPEM, "RS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}})
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

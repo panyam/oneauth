@@ -188,8 +188,9 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 
 	// Try kid-based lookup first
 	if kid, ok := token.Header["kid"].(string); ok && kid != "" {
-		rec, err := v.keyLookup.GetKeyByKid(kid)
-		if err == nil && rec != nil {
+		kidResp, err := v.keyLookup.GetKeyByKid(context.Background(), &keys.GetKeyByKidRequest{Kid: kid})
+		if err == nil && kidResp != nil && kidResp.Record != nil {
+			rec := kidResp.Record
 			if token.Header["alg"] != rec.Algorithm {
 				v.hooks.fireOnAlgorithmMismatch(rec.Algorithm, fmt.Sprintf("%v", token.Header["alg"]))
 				return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
@@ -209,8 +210,9 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 	// Fall back to client_id claim
 	if claims, ok := token.Claims.(jwt.MapClaims); ok {
 		if clientID, ok := claims["client_id"].(string); ok && clientID != "" {
-			rec, err := v.keyLookup.GetKey(clientID)
-			if err == nil && rec != nil {
+			getResp, err := v.keyLookup.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
+			if err == nil && getResp != nil && getResp.Record != nil {
+				rec := getResp.Record
 				if token.Header["alg"] != rec.Algorithm {
 					v.hooks.fireOnAlgorithmMismatch(rec.Algorithm, fmt.Sprintf("%v", token.Header["alg"]))
 					return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
@@ -339,10 +341,11 @@ func (i *jwtIssuer) ClientCredentials(ctx context.Context, req *ClientCredential
 	}
 
 	// Authenticate client
-	rec, err := i.clientKeyLookup.GetKey(req.ClientID)
-	if err != nil || rec == nil {
+	resp, err := i.clientKeyLookup.GetKey(ctx, &keys.GetKeyRequest{ClientID: req.ClientID})
+	if err != nil || resp == nil || resp.Record == nil {
 		return nil, fmt.Errorf("invalid_client: unknown client")
 	}
+	rec := resp.Record
 	storedKey, ok := rec.Key.([]byte)
 	if !ok {
 		return nil, fmt.Errorf("invalid_client: client does not support secret authentication")

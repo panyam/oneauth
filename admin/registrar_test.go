@@ -4,6 +4,7 @@ package admin_test
 // deletion, secret/key rotation, admin auth enforcement, and input validation.
 
 import (
+	"context"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/keys"
 	"bytes"
@@ -56,7 +57,7 @@ func TestAppRegistrar_Register(t *testing.T) {
 	}
 
 	// Verify key was stored
-	key, err := ks.GetVerifyKey(clientID)
+	keyResp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var key any; if keyResp_ != nil { key = keyResp_.Record.Key }
 	if err != nil {
 		t.Fatalf("Key should be stored: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestAppRegistrar_Register(t *testing.T) {
 		t.Error("Stored key should match returned secret")
 	}
 
-	alg, _ := ks.GetExpectedAlg(clientID)
+	algResp_, _ := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var alg string; if algResp_ != nil { alg = algResp_.Record.Algorithm }
 	if alg != "HS256" {
 		t.Errorf("Expected alg HS256, got %s", alg)
 	}
@@ -215,7 +216,7 @@ func TestAppRegistrar_DeleteApp(t *testing.T) {
 	}
 
 	// Should be gone from KeyStore
-	_, err := ks.GetVerifyKey(clientID)
+	_Resp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var _ any; if _Resp_ != nil { _ = _Resp_.Record.Key }
 	if err != keys.ErrKeyNotFound {
 		t.Errorf("Expected ErrKeyNotFound after delete, got %v", err)
 	}
@@ -273,7 +274,7 @@ func TestAppRegistrar_RotateSecret(t *testing.T) {
 	}
 
 	// KeyStore should have the new secret
-	key, _ := ks.GetVerifyKey(clientID)
+	keyResp_, _ := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var key any; if keyResp_ != nil { key = keyResp_.Record.Key }
 	if string(key.([]byte)) != newSecret {
 		t.Error("KeyStore should have the rotated secret")
 	}
@@ -403,11 +404,11 @@ func TestAppRegistrar_Register_RS256(t *testing.T) {
 
 	// Verify key stored as PEM bytes
 	clientID := resp["client_id"].(string)
-	key, _ := ks.GetVerifyKey(clientID)
+	keyResp_, _ := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var key any; if keyResp_ != nil { key = keyResp_.Record.Key }
 	if string(key.([]byte)) != string(pubPEM) {
 		t.Error("Stored key should be the public key PEM")
 	}
-	alg, _ := ks.GetExpectedAlg(clientID)
+	algResp_, _ := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var alg string; if algResp_ != nil { alg = algResp_.Record.Algorithm }
 	if alg != "RS256" {
 		t.Errorf("Expected alg RS256, got %s", alg)
 	}
@@ -501,7 +502,7 @@ func TestAppRegistrar_RotateKey_RS256(t *testing.T) {
 	}
 
 	// KeyStore should have the new key
-	key, _ := ks.GetVerifyKey(clientID)
+	keyResp_, _ := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var key any; if keyResp_ != nil { key = keyResp_.Record.Key }
 	if string(key.([]byte)) != string(pubPEM2) {
 		t.Error("KeyStore should have the rotated public key")
 	}

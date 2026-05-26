@@ -10,6 +10,7 @@ package e2e_test
 // needs to reuse the same Store/KeyStore across two AppRegistrar instances.
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -73,7 +74,7 @@ func TestAppRegistrar_PersistsAcrossRestart(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, getResp.StatusCode, "revoked app must not be resurrected on restart")
 
 	// And the revoked app's signing key must be gone from the KeyStore too.
-	if _, err := ks.GetKey(revokeID); err != keys.ErrKeyNotFound {
+	if _, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: revokeID}); err != keys.ErrKeyNotFound {
 		t.Errorf("expected ErrKeyNotFound for revoked app's signing key, got %v", err)
 	}
 }

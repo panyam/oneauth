@@ -139,7 +139,7 @@ func TestClientRegistrar_DeleteClient_RemovesFromStoreAndKeyStore(t *testing.T) 
 		t.Errorf("store should report ErrAppNotFound after DeleteClient, got %v", err)
 	}
 	// KeyStore side: gone.
-	if _, err := ks.GetKey(clientID); !errors.Is(err, keys.ErrKeyNotFound) {
+	if _, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); !errors.Is(err, keys.ErrKeyNotFound) {
 		t.Errorf("KeyStore should report ErrKeyNotFound after DeleteClient, got %v", err)
 	}
 	// Repeat delete: ErrAppNotFound (idempotency by accident — safe).
@@ -157,7 +157,7 @@ func TestClientRegistrar_RotateSecret_Symmetric(t *testing.T) {
 	registered, err := r.RegisterLegacy(context.Background(), &admin.RegisterLegacyRequest{ClientDomain: "rotate.me"})
 	require.NoError(t, err)
 
-	preRotateKey, err := ks.GetKey(registered.ClientID)
+	preRotateKeyResp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: registered.ClientID}); var preRotateKey *keys.KeyRecord; if preRotateKeyResp_ != nil { preRotateKey = preRotateKeyResp_.Record }
 	require.NoError(t, err)
 	preRotateKid := preRotateKey.Kid
 

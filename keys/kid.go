@@ -1,6 +1,8 @@
 package keys
 
 import (
+	"context"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -19,6 +21,40 @@ func (r *kidRecord) isExpired() bool {
 	return !r.ExpiresAt.IsZero() && time.Now().After(r.ExpiresAt)
 }
 
+// ----------------------------------------------------------------------------
+// Request / response types — KidStorage
+// ----------------------------------------------------------------------------
+
+// AddKidRequest is the input to KidStorage.Add. If ExpiresAt is zero,
+// the kid has no expiry (current key).
+type AddKidRequest struct {
+	Kid       string
+	Key       any
+	Algorithm string
+	ClientID  string
+	ExpiresAt time.Time
+}
+
+// AddKidResponse is the output of KidStorage.Add.
+type AddKidResponse struct{}
+
+// RemoveKidRequest is the input to KidStorage.Remove.
+type RemoveKidRequest struct {
+	Kid string
+}
+
+// RemoveKidResponse is the output of KidStorage.Remove.
+type RemoveKidResponse struct{}
+
+// CleanExpiredRequest is the input to KidStorage.CleanExpired.
+type CleanExpiredRequest struct{}
+
+// CleanExpiredResponse is the output of KidStorage.CleanExpired.
+type CleanExpiredResponse struct {
+	// Removed is the number of expired records evicted by this call.
+	Removed int
+}
+
 // KidStorage is the write side of a kid-indexed key store. It extends the
 // read-only KeyLookup with the grace-period operations KidStore provides,
 // so retired keys can be persisted across process restarts by backends in
@@ -29,23 +65,23 @@ func (r *kidRecord) isExpired() bool {
 type KidStorage interface {
 	KeyLookup
 
-	// Add registers a kid→key mapping. If expiresAt is zero, the key has
-	// no expiry. Re-adding an existing kid overwrites it.
-	Add(kid string, key any, algorithm string, clientID string, expiresAt time.Time) error
+	// Add registers a kid→key mapping. If req.ExpiresAt is zero, the key
+	// has no expiry. Re-adding an existing kid overwrites it.
+	Add(ctx context.Context, req *AddKidRequest) (*AddKidResponse, error)
 
 	// Remove deletes a kid entry. Removing an absent kid is not an error.
-	Remove(kid string) error
+	Remove(ctx context.Context, req *RemoveKidRequest) (*RemoveKidResponse, error)
 
 	// CleanExpired removes all entries whose expiry has passed.
-	CleanExpired() error
+	CleanExpired(ctx context.Context, req *CleanExpiredRequest) (*CleanExpiredResponse, error)
 }
 
 // KidStore is an in-memory KidStorage that tracks kid→key mappings,
 // including grace-period entries retained during key rotation.
 //
 // Usage during rotation:
-//  1. kidStore.Add(oldKid, oldKey, alg, clientID, time.Now().Add(gracePeriod))
-//  2. keyStorage.PutKey(newRecord)  // overwrites current
+//  1. kidStore.Add(ctx, &AddKidRequest{Kid: oldKid, Key: oldKey, Algorithm: alg, ClientID: clientID, ExpiresAt: time.Now().Add(gracePeriod)})
+//  2. keyStorage.PutKey(ctx, &PutKeyRequest{Record: newRecord})  // overwrites current
 //  3. kidStore holds the old key until grace period expires
 type KidStore struct {
 	mu      sync.RWMutex
@@ -61,60 +97,71 @@ func NewKidStore() *KidStore {
 	}
 }
 
-// Add registers a kid→key mapping. If expiresAt is zero, the key has no expiry.
-func (s *KidStore) Add(kid string, key any, algorithm string, clientID string, expiresAt time.Time) error {
+// Add registers a kid→key mapping. If req.ExpiresAt is zero, the key has no expiry.
+func (s *KidStore) Add(ctx context.Context, req *AddKidRequest) (*AddKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("Add: req is required")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.records[kid] = &kidRecord{
-		Key:       key,
-		Algorithm: algorithm,
-		ClientID:  clientID,
-		ExpiresAt: expiresAt,
+	s.records[req.Kid] = &kidRecord{
+		Key:       req.Key,
+		Algorithm: req.Algorithm,
+		ClientID:  req.ClientID,
+		ExpiresAt: req.ExpiresAt,
 	}
-	return nil
+	return &AddKidResponse{}, nil
 }
 
 // Remove deletes a kid entry. Removing an absent kid is not an error.
-func (s *KidStore) Remove(kid string) error {
+func (s *KidStore) Remove(ctx context.Context, req *RemoveKidRequest) (*RemoveKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("Remove: req is required")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.records, kid)
-	return nil
+	delete(s.records, req.Kid)
+	return &RemoveKidResponse{}, nil
 }
 
 // GetKey always returns ErrKeyNotFound — KidStore only supports kid-based lookup.
-func (s *KidStore) GetKey(clientID string) (*KeyRecord, error) {
+func (s *KidStore) GetKey(ctx context.Context, req *GetKeyRequest) (*GetKeyResponse, error) {
 	return nil, ErrKeyNotFound
 }
 
 // GetKeyByKid returns the key record for the given kid.
 // Returns ErrKidNotFound if the kid is unknown or expired.
-func (s *KidStore) GetKeyByKid(kid string) (*KeyRecord, error) {
+func (s *KidStore) GetKeyByKid(ctx context.Context, req *GetKeyByKidRequest) (*GetKeyByKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKeyByKid: req is required")
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	rec, ok := s.records[kid]
+	rec, ok := s.records[req.Kid]
 	if !ok || rec.isExpired() {
 		return nil, ErrKidNotFound
 	}
-	return &KeyRecord{
+	return &GetKeyByKidResponse{Record: &KeyRecord{
 		ClientID:  rec.ClientID,
 		Key:       rec.Key,
 		Algorithm: rec.Algorithm,
-		Kid:       kid,
-	}, nil
+		Kid:       req.Kid,
+	}}, nil
 }
 
 // CleanExpired removes all expired entries.
-func (s *KidStore) CleanExpired() error {
+func (s *KidStore) CleanExpired(ctx context.Context, req *CleanExpiredRequest) (*CleanExpiredResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	removed := 0
 	for kid, rec := range s.records {
 		if rec.isExpired() {
 			delete(s.records, kid)
+			removed++
 		}
 	}
-	return nil
+	return &CleanExpiredResponse{Removed: removed}, nil
 }
 
 // Len returns the number of entries (including expired ones not yet cleaned).
@@ -132,22 +179,22 @@ type CompositeKeyLookup struct {
 }
 
 // GetKey tries each lookup in order for a client_id match.
-func (c *CompositeKeyLookup) GetKey(clientID string) (*KeyRecord, error) {
+func (c *CompositeKeyLookup) GetKey(ctx context.Context, req *GetKeyRequest) (*GetKeyResponse, error) {
 	for _, l := range c.Lookups {
-		rec, err := l.GetKey(clientID)
+		resp, err := l.GetKey(ctx, req)
 		if err == nil {
-			return rec, nil
+			return resp, nil
 		}
 	}
 	return nil, ErrKeyNotFound
 }
 
 // GetKeyByKid tries each lookup in order for a kid match.
-func (c *CompositeKeyLookup) GetKeyByKid(kid string) (*KeyRecord, error) {
+func (c *CompositeKeyLookup) GetKeyByKid(ctx context.Context, req *GetKeyByKidRequest) (*GetKeyByKidResponse, error) {
 	for _, l := range c.Lookups {
-		rec, err := l.GetKeyByKid(kid)
+		resp, err := l.GetKeyByKid(ctx, req)
 		if err == nil {
-			return rec, nil
+			return resp, nil
 		}
 	}
 	return nil, ErrKidNotFound

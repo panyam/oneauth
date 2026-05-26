@@ -1,6 +1,7 @@
 package keys
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -23,16 +24,72 @@ type KeyRecord struct {
 	Kid       string // key identifier, computed from key material
 }
 
+// ----------------------------------------------------------------------------
+// Request / response types — KeyLookup
+// ----------------------------------------------------------------------------
+
+// GetKeyRequest is the input to KeyLookup.GetKey.
+type GetKeyRequest struct {
+	ClientID string
+}
+
+// GetKeyResponse is the output of KeyLookup.GetKey.
+type GetKeyResponse struct {
+	Record *KeyRecord
+}
+
+// GetKeyByKidRequest is the input to KeyLookup.GetKeyByKid.
+type GetKeyByKidRequest struct {
+	Kid string
+}
+
+// GetKeyByKidResponse is the output of KeyLookup.GetKeyByKid.
+type GetKeyByKidResponse struct {
+	Record *KeyRecord
+}
+
+// ----------------------------------------------------------------------------
+// Request / response types — KeyStorage
+// ----------------------------------------------------------------------------
+
+// PutKeyRequest is the input to KeyStorage.PutKey.
+type PutKeyRequest struct {
+	Record *KeyRecord
+}
+
+// PutKeyResponse is the output of KeyStorage.PutKey.
+type PutKeyResponse struct{}
+
+// DeleteKeyRequest is the input to KeyStorage.DeleteKey.
+type DeleteKeyRequest struct {
+	ClientID string
+}
+
+// DeleteKeyResponse is the output of KeyStorage.DeleteKey.
+type DeleteKeyResponse struct{}
+
+// ListKeyIDsRequest is the input to KeyStorage.ListKeyIDs.
+type ListKeyIDsRequest struct{}
+
+// ListKeyIDsResponse is the output of KeyStorage.ListKeyIDs.
+type ListKeyIDsResponse struct {
+	ClientIDs []string
+}
+
+// ----------------------------------------------------------------------------
+// Interfaces
+// ----------------------------------------------------------------------------
+
 // KeyLookup provides read-only key lookup by clientID or kid.
 // Implemented by all keystores, including read-only ones like JWKSKeyStore.
 type KeyLookup interface {
 	// GetKey returns the key record for the given clientID.
 	// Returns ErrKeyNotFound if the client has no registered key.
-	GetKey(clientID string) (*KeyRecord, error)
+	GetKey(ctx context.Context, req *GetKeyRequest) (*GetKeyResponse, error)
 
 	// GetKeyByKid returns the key record matching the given kid.
 	// Returns ErrKidNotFound if no key matches or the key has expired.
-	GetKeyByKid(kid string) (*KeyRecord, error)
+	GetKeyByKid(ctx context.Context, req *GetKeyByKidRequest) (*GetKeyByKidResponse, error)
 }
 
 // KeyStorage extends KeyLookup with write operations.
@@ -40,16 +97,16 @@ type KeyLookup interface {
 type KeyStorage interface {
 	KeyLookup
 
-	// PutKey stores a key record. If Kid is empty, it is auto-computed
-	// from the key material and algorithm. Overwrites any existing key
-	// for the same ClientID.
-	PutKey(record *KeyRecord) error
+	// PutKey stores a key record. If req.Record.Kid is empty, it is
+	// auto-computed from the key material and algorithm. Overwrites any
+	// existing key for the same ClientID.
+	PutKey(ctx context.Context, req *PutKeyRequest) (*PutKeyResponse, error)
 
 	// DeleteKey removes the key for the given clientID.
-	DeleteKey(clientID string) error
+	DeleteKey(ctx context.Context, req *DeleteKeyRequest) (*DeleteKeyResponse, error)
 
 	// ListKeyIDs returns all registered client IDs.
-	ListKeyIDs() ([]string, error)
+	ListKeyIDs(ctx context.Context, req *ListKeyIDsRequest) (*ListKeyIDsResponse, error)
 }
 
 // keyEntry is the internal storage representation for InMemoryKeyStore.
@@ -81,7 +138,11 @@ func computeKid(key any, alg string) string {
 }
 
 // PutKey stores a key record. Computes Kid from key material if not set.
-func (s *InMemoryKeyStore) PutKey(rec *KeyRecord) error {
+func (s *InMemoryKeyStore) PutKey(ctx context.Context, req *PutKeyRequest) (*PutKeyResponse, error) {
+	if req == nil || req.Record == nil {
+		return nil, fmt.Errorf("PutKey: req.Record is required")
+	}
+	rec := req.Record
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -99,116 +160,79 @@ func (s *InMemoryKeyStore) PutKey(rec *KeyRecord) error {
 	if kid != "" {
 		s.kidIndex[kid] = rec.ClientID
 	}
-	return nil
+	return &PutKeyResponse{}, nil
 }
 
 // DeleteKey removes the key for the given clientID.
-func (s *InMemoryKeyStore) DeleteKey(clientID string) error {
+func (s *InMemoryKeyStore) DeleteKey(ctx context.Context, req *DeleteKeyRequest) (*DeleteKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteKey: req is required")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	entry, ok := s.keys[clientID]
+	entry, ok := s.keys[req.ClientID]
 	if !ok {
-		return ErrKeyNotFound
+		return nil, ErrKeyNotFound
 	}
 	if entry.Kid != "" {
 		delete(s.kidIndex, entry.Kid)
 	}
-	delete(s.keys, clientID)
-	return nil
+	delete(s.keys, req.ClientID)
+	return &DeleteKeyResponse{}, nil
 }
 
 // GetKey returns the key record for the given clientID.
-func (s *InMemoryKeyStore) GetKey(clientID string) (*KeyRecord, error) {
+func (s *InMemoryKeyStore) GetKey(ctx context.Context, req *GetKeyRequest) (*GetKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKey: req is required")
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	entry, ok := s.keys[clientID]
+	entry, ok := s.keys[req.ClientID]
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
-	return &KeyRecord{
-		ClientID:  clientID,
+	return &GetKeyResponse{Record: &KeyRecord{
+		ClientID:  req.ClientID,
 		Key:       entry.Key,
 		Algorithm: entry.Algorithm,
 		Kid:       entry.Kid,
-	}, nil
+	}}, nil
 }
 
 // GetKeyByKid returns the key record matching the given kid.
-func (s *InMemoryKeyStore) GetKeyByKid(kid string) (*KeyRecord, error) {
+func (s *InMemoryKeyStore) GetKeyByKid(ctx context.Context, req *GetKeyByKidRequest) (*GetKeyByKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKeyByKid: req is required")
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	clientID, ok := s.kidIndex[kid]
+	clientID, ok := s.kidIndex[req.Kid]
 	if !ok {
 		return nil, ErrKidNotFound
 	}
 
 	entry, ok := s.keys[clientID]
-	if !ok || entry.Kid != kid {
+	if !ok || entry.Kid != req.Kid {
 		return nil, ErrKidNotFound
 	}
 
-	return &KeyRecord{
+	return &GetKeyByKidResponse{Record: &KeyRecord{
 		ClientID:  clientID,
 		Key:       entry.Key,
 		Algorithm: entry.Algorithm,
 		Kid:       entry.Kid,
-	}, nil
+	}}, nil
 }
 
 // ListKeyIDs returns all registered client IDs.
-func (s *InMemoryKeyStore) ListKeyIDs() ([]string, error) {
+func (s *InMemoryKeyStore) ListKeyIDs(ctx context.Context, req *ListKeyIDsRequest) (*ListKeyIDsResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	ids := make([]string, 0, len(s.keys))
 	for k := range s.keys {
 		ids = append(ids, k)
 	}
-	return ids, nil
-}
-
-// ============================================================================
-// Backward-compatible aliases (used by existing callers during migration)
-// ============================================================================
-
-// RegisterKey is a convenience method matching the old WritableKeyStore interface.
-func (s *InMemoryKeyStore) RegisterKey(clientID string, key any, algorithm string) error {
-	return s.PutKey(&KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
-}
-
-// GetVerifyKey is a convenience method matching the old KeyStore interface.
-func (s *InMemoryKeyStore) GetVerifyKey(clientID string) (any, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return nil, err
-	}
-	return rec.Key, nil
-}
-
-// GetSigningKey is a convenience method matching the old KeyStore interface.
-func (s *InMemoryKeyStore) GetSigningKey(clientID string) (any, error) {
-	return s.GetVerifyKey(clientID)
-}
-
-// GetExpectedAlg is a convenience method matching the old KeyStore interface.
-func (s *InMemoryKeyStore) GetExpectedAlg(clientID string) (string, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Algorithm, nil
-}
-
-// ListKeys is a convenience alias for ListKeyIDs.
-func (s *InMemoryKeyStore) ListKeys() ([]string, error) {
-	return s.ListKeyIDs()
-}
-
-// GetCurrentKid returns the kid for the given clientID.
-func (s *InMemoryKeyStore) GetCurrentKid(clientID string) (string, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Kid, nil
+	return &ListKeyIDsResponse{ClientIDs: ids}, nil
 }

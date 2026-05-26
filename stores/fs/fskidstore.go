@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,8 +14,6 @@ import (
 )
 
 // fsKidEntry is the on-disk JSON representation of a kid→key grace entry.
-// Mirrors fsKeyEntry but keyed by kid (not clientID) and carries an expiry
-// — the grace-period TTL set when a key is retired during rotation.
 type fsKidEntry struct {
 	Kid       string    `json:"kid"`
 	Key       []byte    `json:"key"`
@@ -24,8 +23,6 @@ type fsKidEntry struct {
 }
 
 // FSKidStore implements keys.KidStorage using filesystem storage.
-// One file per kid under {StoragePath}/kid_keys/, mirroring FSKeyStore's
-// file-per-record layout.
 type FSKidStore struct {
 	StoragePath string
 	mu          sync.RWMutex
@@ -50,69 +47,77 @@ func (s *FSKidStore) getKidPath(kid string) (string, error) {
 	return filepath.Join(s.getKidDir(), safeKid+".json"), nil
 }
 
-// isExpired matches keys.kidRecord.isExpired: zero time = never expires.
 func isExpired(t time.Time) bool {
 	return !t.IsZero() && time.Now().After(t)
 }
 
-func (s *FSKidStore) Add(kid string, key any, algorithm string, clientID string, expiresAt time.Time) error {
-	keyBytes, ok := key.([]byte)
+func (s *FSKidStore) Add(ctx context.Context, req *keys.AddKidRequest) (*keys.AddKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("Add: req is required")
+	}
+	keyBytes, ok := req.Key.([]byte)
 	if !ok {
-		return keys.ErrAlgorithmMismatch
+		return nil, keys.ErrAlgorithmMismatch
 	}
 
-	path, err := s.getKidPath(kid)
+	path, err := s.getKidPath(req.Kid)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if err := os.MkdirAll(s.getKidDir(), 0700); err != nil {
-		return err
+		return nil, err
 	}
 
 	entry := &fsKidEntry{
-		Kid:       kid,
+		Kid:       req.Kid,
 		Key:       keyBytes,
-		Algorithm: algorithm,
-		ClientID:  clientID,
-		ExpiresAt: expiresAt,
+		Algorithm: req.Algorithm,
+		ClientID:  req.ClientID,
+		ExpiresAt: req.ExpiresAt,
 	}
 	data, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return writeAtomicFile(path, data)
+	if err := writeAtomicFile(path, data); err != nil {
+		return nil, err
+	}
+	return &keys.AddKidResponse{}, nil
 }
 
-// Remove is idempotent — deleting an absent kid is not an error.
-func (s *FSKidStore) Remove(kid string) error {
+func (s *FSKidStore) Remove(ctx context.Context, req *keys.RemoveKidRequest) (*keys.RemoveKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("Remove: req is required")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	path, err := s.getKidPath(kid)
+	path, err := s.getKidPath(req.Kid)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return err
+		return nil, err
 	}
-	return nil
+	return &keys.RemoveKidResponse{}, nil
 }
 
-// GetKey always returns ErrKeyNotFound — KidStorage is kid-indexed and
-// has no clientID→key lookup. Matches the in-memory KidStore.
-func (s *FSKidStore) GetKey(clientID string) (*keys.KeyRecord, error) {
+func (s *FSKidStore) GetKey(ctx context.Context, req *keys.GetKeyRequest) (*keys.GetKeyResponse, error) {
 	return nil, keys.ErrKeyNotFound
 }
 
-func (s *FSKidStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
+func (s *FSKidStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequest) (*keys.GetKeyByKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKeyByKid: req is required")
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	path, err := s.getKidPath(kid)
+	path, err := s.getKidPath(req.Kid)
 	if err != nil {
 		return nil, keys.ErrKidNotFound
 	}
@@ -130,15 +135,15 @@ func (s *FSKidStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
 	if isExpired(entry.ExpiresAt) {
 		return nil, keys.ErrKidNotFound
 	}
-	return &keys.KeyRecord{
+	return &keys.GetKeyByKidResponse{Record: &keys.KeyRecord{
 		ClientID:  entry.ClientID,
 		Key:       entry.Key,
 		Algorithm: entry.Algorithm,
 		Kid:       entry.Kid,
-	}, nil
+	}}, nil
 }
 
-func (s *FSKidStore) CleanExpired() error {
+func (s *FSKidStore) CleanExpired(ctx context.Context, req *keys.CleanExpiredRequest) (*keys.CleanExpiredResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -146,11 +151,12 @@ func (s *FSKidStore) CleanExpired() error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return &keys.CleanExpiredResponse{}, nil
 		}
-		return err
+		return nil, err
 	}
 
+	removed := 0
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
@@ -166,9 +172,10 @@ func (s *FSKidStore) CleanExpired() error {
 		}
 		if isExpired(entry.ExpiresAt) {
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return err
+				return nil, err
 			}
+			removed++
 		}
 	}
-	return nil
+	return &keys.CleanExpiredResponse{Removed: removed}, nil
 }
