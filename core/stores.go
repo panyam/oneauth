@@ -4,8 +4,10 @@ import "time"
 
 // RefreshTokenStore manages refresh tokens for API access.
 type RefreshTokenStore interface {
-	// CreateRefreshToken creates a new refresh token for a user.
-	CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*RefreshToken, error)
+	// CreateRefreshToken creates a new refresh token for the given subject
+	// (RFC 7519 sub) — a user ID for user-bound tokens, a client_id for
+	// client_credentials.
+	CreateRefreshToken(subject, clientID string, deviceInfo map[string]any, scopes []string) (*RefreshToken, error)
 
 	// GetRefreshToken retrieves a refresh token by its value.
 	GetRefreshToken(token string) (*RefreshToken, error)
@@ -17,14 +19,15 @@ type RefreshTokenStore interface {
 	// RevokeRefreshToken marks a token as revoked.
 	RevokeRefreshToken(token string) error
 
-	// RevokeUserTokens revokes all refresh tokens for a user.
-	RevokeUserTokens(userID string) error
+	// RevokeSubjectTokens revokes all refresh tokens belonging to a subject.
+	RevokeSubjectTokens(subject string) error
 
 	// RevokeTokenFamily revokes all tokens in a family (theft detection).
 	RevokeTokenFamily(family string) error
 
-	// GetUserTokens lists all active (non-revoked, non-expired) refresh tokens for a user.
-	GetUserTokens(userID string) ([]*RefreshToken, error)
+	// GetSubjectTokens lists all active (non-revoked, non-expired) refresh
+	// tokens for a subject.
+	GetSubjectTokens(subject string) ([]*RefreshToken, error)
 
 	// CleanupExpiredTokens removes expired tokens (for maintenance).
 	CleanupExpiredTokens() error
@@ -32,9 +35,9 @@ type RefreshTokenStore interface {
 
 // APIKeyStore manages API keys for programmatic access.
 type APIKeyStore interface {
-	// CreateAPIKey creates a new API key and returns the full key (only shown once).
-	// The key format is: keyID + "_" + secret.
-	CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (fullKey string, apiKey *APIKey, err error)
+	// CreateAPIKey creates a new API key for the given subject and returns
+	// the full key (only shown once). The key format is keyID + "_" + secret.
+	CreateAPIKey(subject, name string, scopes []string, expiresAt *time.Time) (fullKey string, apiKey *APIKey, err error)
 
 	// GetAPIKeyByID retrieves an API key by its public ID.
 	GetAPIKeyByID(keyID string) (*APIKey, error)
@@ -46,8 +49,8 @@ type APIKeyStore interface {
 	// RevokeAPIKey marks an API key as revoked.
 	RevokeAPIKey(keyID string) error
 
-	// ListUserAPIKeys returns all API keys for a user (without secrets).
-	ListUserAPIKeys(userID string) ([]*APIKey, error)
+	// ListSubjectAPIKeys returns all API keys owned by a subject (without secrets).
+	ListSubjectAPIKeys(subject string) ([]*APIKey, error)
 
 	// UpdateAPIKeyLastUsed updates the last used timestamp.
 	UpdateAPIKeyLastUsed(keyID string) error

@@ -224,12 +224,12 @@ func newInMemoryRefreshStore() *inMemoryRefreshStore {
 	return &inMemoryRefreshStore{tokens: make(map[string]*core.RefreshToken)}
 }
 
-func (s *inMemoryRefreshStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+func (s *inMemoryRefreshStore) CreateRefreshToken(subject, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
 	token, _ := core.GenerateSecureToken()
 	family, _ := core.GenerateSecureToken()
 	rt := &core.RefreshToken{
 		Token:     token,
-		UserID:    userID,
+		Subject:   subject,
 		ClientID:  clientID,
 		Scopes:    scopes,
 		Family:    family[:16],
@@ -270,7 +270,7 @@ func (s *inMemoryRefreshStore) RotateRefreshToken(old string) (*core.RefreshToke
 	newToken, _ := core.GenerateSecureToken()
 	newRT := &core.RefreshToken{
 		Token:                newToken,
-		UserID:               rt.UserID,
+		Subject:              rt.Subject,
 		ClientID:             rt.ClientID,
 		Scopes:               rt.Scopes,
 		AuthorizationDetails: rt.AuthorizationDetails,
@@ -281,9 +281,9 @@ func (s *inMemoryRefreshStore) RotateRefreshToken(old string) (*core.RefreshToke
 	return newRT, nil
 }
 
-func (s *inMemoryRefreshStore) RevokeUserTokens(userID string) error { return nil }
-func (s *inMemoryRefreshStore) RevokeTokenFamily(family string) error { return nil }
-func (s *inMemoryRefreshStore) GetUserTokens(userID string) ([]*core.RefreshToken, error) {
+func (s *inMemoryRefreshStore) RevokeSubjectTokens(subject string) error { return nil }
+func (s *inMemoryRefreshStore) RevokeTokenFamily(family string) error    { return nil }
+func (s *inMemoryRefreshStore) GetSubjectTokens(subject string) ([]*core.RefreshToken, error) {
 	return nil, nil
 }
 func (s *inMemoryRefreshStore) CleanupExpiredTokens() error { return nil }

@@ -77,7 +77,7 @@ type ChannelEntity struct {
 type VerificationTokenEntity struct {
 	Key       *datastore.Key            `datastore:"__key__"`
 	Type      localauth.VerificationType `datastore:"type"`
-	UserID    string                    `datastore:"user_id"`
+	Subject   string                    `datastore:"subject"`
 	Email     string                    `datastore:"email"`
 	CreatedAt time.Time                 `datastore:"created_at"`
 	ExpiresAt time.Time                 `datastore:"expires_at"`
@@ -87,7 +87,7 @@ func (e *VerificationTokenEntity) ToVerificationToken() *localauth.VerificationT
 	return &localauth.VerificationToken{
 		Token:     e.Key.Name,
 		Type:      e.Type,
-		UserID:    e.UserID,
+		Subject:   e.Subject,
 		Email:     e.Email,
 		CreatedAt: e.CreatedAt,
 		ExpiresAt: e.ExpiresAt,
@@ -98,7 +98,7 @@ func VerificationTokenToEntity(t *localauth.VerificationToken, key *datastore.Ke
 	return &VerificationTokenEntity{
 		Key:       key,
 		Type:      t.Type,
-		UserID:    t.UserID,
+		Subject:   t.Subject,
 		Email:     t.Email,
 		CreatedAt: t.CreatedAt,
 		ExpiresAt: t.ExpiresAt,
@@ -108,7 +108,7 @@ func VerificationTokenToEntity(t *localauth.VerificationToken, key *datastore.Ke
 // RefreshTokenEntity is the Datastore entity for refresh tokens
 type RefreshTokenEntity struct {
 	Key                  *datastore.Key `datastore:"__key__"` // Key is the token hash
-	UserID               string         `datastore:"user_id"`
+	Subject              string         `datastore:"subject"`
 	ClientID             string         `datastore:"client_id,omitempty"`
 	DeviceInfo           []byte         `datastore:"device_info,noindex"`            // JSON encoded
 	Family               string         `datastore:"family"`
@@ -126,7 +126,7 @@ type RefreshTokenEntity struct {
 type APIKeyEntity struct {
 	Key        *datastore.Key `datastore:"__key__"` // Key is the KeyID
 	KeyHash    string         `datastore:"key_hash,noindex"`
-	UserID     string         `datastore:"user_id"`
+	Subject    string         `datastore:"subject"`
 	Name       string         `datastore:"name"`
 	Scopes     []byte         `datastore:"scopes,noindex"` // JSON encoded
 	CreatedAt  time.Time      `datastore:"created_at"`

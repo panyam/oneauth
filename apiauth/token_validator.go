@@ -418,7 +418,7 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 
 	// Create new access token (carry forward scopes + authorization_details)
 	tok, err := i.CreateAccessToken(ctx, &CreateAccessTokenRequest{
-		Subject:              rt.UserID,
+		Subject:              rt.Subject,
 		Scopes:               rt.Scopes,
 		AuthorizationDetails: rt.AuthorizationDetails,
 	})
@@ -426,7 +426,7 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		return nil, fmt.Errorf("server_error: %w", err)
 	}
 
-	i.hooks.fireOnIssued(rt.UserID, "refresh_token")
+	i.hooks.fireOnIssued(rt.Subject, "refresh_token")
 
 	return &RefreshGrantResponse{Tokens: &core.TokenPair{
 		AccessToken:          tok.Token,

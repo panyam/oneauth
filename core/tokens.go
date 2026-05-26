@@ -37,7 +37,7 @@ func GenerateSecureToken() (string, error) {
 type RefreshToken struct {
 	Token                string                `json:"token"`       // 64-char hex token value
 	TokenHash            string                `json:"token_hash"`  // SHA256 hash for storage (optional)
-	UserID               string                `json:"user_id"`     // Associated user
+	Subject              string                `json:"subject"`     // Principal the token represents (RFC 7519 sub) — user ID for user-bound tokens, client_id for client_credentials
 	ClientID             string                `json:"client_id"`   // Optional client/app identifier
 	DeviceInfo           map[string]any        `json:"device_info"` // User agent, IP, etc.
 	Family               string                `json:"family"`      // Token family for rotation tracking
@@ -65,7 +65,7 @@ func (t *RefreshToken) IsValid() bool {
 type APIKey struct {
 	KeyID      string     `json:"key_id"`      // Public identifier (e.g., "oa_abc123...")
 	KeyHash    string     `json:"key_hash"`    // bcrypt hash of the secret portion
-	UserID     string     `json:"user_id"`     // Owner of this key
+	Subject    string     `json:"subject"`     // Principal the key represents (RFC 7519 sub) — user ID for user-bound keys, client_id for service accounts
 	Name       string     `json:"name"`        // User-defined label
 	Scopes     []string   `json:"scopes"`      // Allowed scopes
 	CreatedAt  time.Time  `json:"created_at"`

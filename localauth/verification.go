@@ -30,7 +30,7 @@ const (
 type VerificationToken struct {
 	Token     string           `json:"token"`
 	Type      VerificationType `json:"type"`
-	UserID    string           `json:"user_id"`
+	Subject   string           `json:"subject"`
 	Email     string           `json:"email"`
 	CreatedAt time.Time        `json:"created_at"`
 	ExpiresAt time.Time        `json:"expires_at"`
@@ -49,8 +49,8 @@ func (t *VerificationToken) IsValid(expectedType VerificationType) bool {
 // VerificationTokenStore manages localauth verification tokens (signup
 // email-verify, password-reset). Renamed from core.TokenStore.
 type VerificationTokenStore interface {
-	CreateToken(userID, email string, tokenType VerificationType, expiryDuration time.Duration) (*VerificationToken, error)
+	CreateToken(subject, email string, tokenType VerificationType, expiryDuration time.Duration) (*VerificationToken, error)
 	GetToken(token string) (*VerificationToken, error)
 	DeleteToken(token string) error
-	DeleteUserTokens(userID string, tokenType VerificationType) error
+	DeleteSubjectTokens(subject string, tokenType VerificationType) error
 }

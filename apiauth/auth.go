@@ -333,7 +333,7 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 	}
 
 	// Create new access token (carry forward authorization_details from original grant)
-	accessToken, expiresIn, err := a.CreateAccessToken(refreshToken.UserID, refreshToken.Scopes, refreshToken.AuthorizationDetails)
+	accessToken, expiresIn, err := a.CreateAccessToken(refreshToken.Subject, refreshToken.Scopes, refreshToken.AuthorizationDetails)
 	if err != nil {
 		log.Printf("Error creating access token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -493,7 +493,7 @@ func (a *APIAuth) HandleLogoutAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke all user tokens
-	if err := a.RefreshTokenStore.RevokeUserTokens(userID); err != nil {
+	if err := a.RefreshTokenStore.RevokeSubjectTokens(userID); err != nil {
 		log.Printf("Error revoking user tokens: %v", err)
 		a.errorResponse(w, "server_error", "Failed to revoke sessions", http.StatusInternalServerError)
 		return
@@ -518,7 +518,7 @@ func (a *APIAuth) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user's active tokens
-	tokens, err := a.RefreshTokenStore.GetUserTokens(userID)
+	tokens, err := a.RefreshTokenStore.GetSubjectTokens(userID)
 	if err != nil {
 		log.Printf("Error getting user tokens: %v", err)
 		a.errorResponse(w, "server_error", "Failed to get sessions", http.StatusInternalServerError)
@@ -880,7 +880,7 @@ func (a *APIAuth) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user's API keys
-	keys, err := a.APIKeyStore.ListUserAPIKeys(userID)
+	keys, err := a.APIKeyStore.ListSubjectAPIKeys(userID)
 	if err != nil {
 		log.Printf("Error listing API keys: %v", err)
 		a.errorResponse(w, "server_error", "Failed to list API keys", http.StatusInternalServerError)
@@ -1030,7 +1030,7 @@ func (a *APIAuth) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if apiKey.UserID != userID {
+	if apiKey.Subject != userID {
 		a.errorResponse(w, "forbidden", "Not authorized to revoke this key", http.StatusForbidden)
 		return
 	}
@@ -1458,7 +1458,7 @@ func (m *APIMiddleware) validateAPIKey(fullKey string) (userID string, scopes []
 		}
 	}()
 
-	return apiKey.UserID, apiKey.Scopes, "api_key", nil
+	return apiKey.Subject, apiKey.Scopes, "api_key", nil
 }
 
 // handleAuthError handles authentication errors

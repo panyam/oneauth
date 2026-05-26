@@ -513,7 +513,7 @@ func (s *TokenStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *TokenStore) CreateToken(userID, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
+func (s *TokenStore) CreateToken(subject, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -524,7 +524,7 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType localauth.Verif
 	entity := &VerificationTokenEntity{
 		Key:       key,
 		Type:      tokenType,
-		UserID:    userID,
+		Subject:   subject,
 		Email:     email,
 		CreatedAt: now,
 		ExpiresAt: now.Add(expiryDuration),
@@ -537,7 +537,7 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType localauth.Verif
 	return &localauth.VerificationToken{
 		Token:     token,
 		Type:      tokenType,
-		UserID:    userID,
+		Subject:   subject,
 		Email:     email,
 		CreatedAt: now,
 		ExpiresAt: now.Add(expiryDuration),
@@ -568,9 +568,9 @@ func (s *TokenStore) DeleteToken(token string) error {
 	return s.client.Delete(s.ctx, key)
 }
 
-func (s *TokenStore) DeleteUserTokens(userID string, tokenType localauth.VerificationType) error {
+func (s *TokenStore) DeleteSubjectTokens(subject string, tokenType localauth.VerificationType) error {
 	query := datastore.NewQuery(KindAuthToken).
-		FilterField("user_id", "=", userID).
+		FilterField("subject", "=", subject).
 		FilterField("type", "=", string(tokenType)).
 		KeysOnly()
 	if s.namespace != "" {
@@ -628,7 +628,7 @@ func (s *RefreshTokenStore) hashToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+func (s *RefreshTokenStore) CreateRefreshToken(subject, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -653,7 +653,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceIn
 	key := s.namespacedKey(KindRefreshToken, tokenHash)
 	entity := &RefreshTokenEntity{
 		Key:        key,
-		UserID:     userID,
+		Subject:    subject,
 		ClientID:   clientID,
 		DeviceInfo: deviceBytes,
 		Family:     family[:16],
@@ -672,7 +672,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(userID, clientID string, deviceIn
 	return &core.RefreshToken{
 		Token:      token,
 		TokenHash:  tokenHash,
-		UserID:     userID,
+		Subject:    subject,
 		ClientID:   clientID,
 		DeviceInfo: deviceInfo,
 		Family:     family[:16],
@@ -701,7 +701,7 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 
 	rt := &core.RefreshToken{
 		TokenHash:            entity.Key.Name,
-		UserID:               entity.UserID,
+		Subject:              entity.Subject,
 		ClientID:             entity.ClientID,
 		DeviceInfo:           deviceInfo,
 		Family:               entity.Family,
@@ -794,7 +794,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 
 		newEntity := &RefreshTokenEntity{
 			Key:                  newKey,
-			UserID:               oldRT.UserID,
+			Subject:              oldRT.Subject,
 			ClientID:             oldRT.ClientID,
 			DeviceInfo:           deviceBytes,
 			Family:               oldRT.Family,
@@ -814,7 +814,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 		newRefreshToken = &core.RefreshToken{
 			Token:                newTokenStr,
 			TokenHash:            newHash,
-			UserID:               oldRT.UserID,
+			Subject:              oldRT.Subject,
 			ClientID:             oldRT.ClientID,
 			DeviceInfo:           oldRT.DeviceInfo,
 			Family:               oldRT.Family,
@@ -871,9 +871,9 @@ func (s *RefreshTokenStore) RevokeRefreshToken(token string) error {
 	return err
 }
 
-func (s *RefreshTokenStore) RevokeUserTokens(userID string) error {
+func (s *RefreshTokenStore) RevokeSubjectTokens(subject string) error {
 	query := datastore.NewQuery(KindRefreshToken).
-		FilterField("user_id", "=", userID).
+		FilterField("subject", "=", subject).
 		FilterField("revoked", "=", false)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
@@ -931,9 +931,9 @@ func (s *RefreshTokenStore) RevokeTokenFamily(family string) error {
 	return nil
 }
 
-func (s *RefreshTokenStore) GetUserTokens(userID string) ([]*core.RefreshToken, error) {
+func (s *RefreshTokenStore) GetSubjectTokens(subject string) ([]*core.RefreshToken, error) {
 	query := datastore.NewQuery(KindRefreshToken).
-		FilterField("user_id", "=", userID).
+		FilterField("subject", "=", subject).
 		FilterField("revoked", "=", false)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
@@ -1037,7 +1037,7 @@ func (s *APIKeyStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expiresAt *time.Time) (string, *core.APIKey, error) {
+func (s *APIKeyStore) CreateAPIKey(subject, name string, scopes []string, expiresAt *time.Time) (string, *core.APIKey, error) {
 	keyID, err := core.GenerateAPIKeyID()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to generate key ID: %w", err)
@@ -1064,7 +1064,7 @@ func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expires
 	entity := &APIKeyEntity{
 		Key:        key,
 		KeyHash:    string(keyHash),
-		UserID:     userID,
+		Subject:    subject,
 		Name:       name,
 		Scopes:     scopeBytes,
 		CreatedAt:  now,
@@ -1084,7 +1084,7 @@ func (s *APIKeyStore) CreateAPIKey(userID, name string, scopes []string, expires
 	return fullKey, &core.APIKey{
 		KeyID:      keyID,
 		KeyHash:    string(keyHash),
-		UserID:     userID,
+		Subject:    subject,
 		Name:       name,
 		Scopes:     scopes,
 		CreatedAt:  now,
@@ -1103,7 +1103,7 @@ func (s *APIKeyStore) entityToAPIKey(entity *APIKeyEntity) *core.APIKey {
 	apiKey := &core.APIKey{
 		KeyID:      entity.Key.Name,
 		KeyHash:    entity.KeyHash,
-		UserID:     entity.UserID,
+		Subject:    entity.Subject,
 		Name:       entity.Name,
 		Scopes:     scopes,
 		CreatedAt:  entity.CreatedAt,
@@ -1187,9 +1187,9 @@ func (s *APIKeyStore) RevokeAPIKey(keyID string) error {
 	return err
 }
 
-func (s *APIKeyStore) ListUserAPIKeys(userID string) ([]*core.APIKey, error) {
+func (s *APIKeyStore) ListSubjectAPIKeys(subject string) ([]*core.APIKey, error) {
 	query := datastore.NewQuery(KindAPIKey).
-		FilterField("user_id", "=", userID)
+		FilterField("subject", "=", subject)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}

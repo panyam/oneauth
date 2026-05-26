@@ -178,7 +178,7 @@ func ChannelToModel(c *accounts.Channel) *ChannelModel {
 type VerificationTokenModel struct {
 	Token     string                     `gorm:"primaryKey;size:128"`
 	Type      localauth.VerificationType `gorm:"size:32;index"`
-	UserID    string                     `gorm:"size:64;index"`
+	Subject   string                     `gorm:"size:64;index"`
 	Email     string                     `gorm:"size:255"`
 	CreatedAt time.Time                  `gorm:"autoCreateTime"`
 	ExpiresAt time.Time                  `gorm:"index"`
@@ -192,7 +192,7 @@ func (m *VerificationTokenModel) ToVerificationToken() *localauth.VerificationTo
 	return &localauth.VerificationToken{
 		Token:     m.Token,
 		Type:      m.Type,
-		UserID:    m.UserID,
+		Subject:   m.Subject,
 		Email:     m.Email,
 		CreatedAt: m.CreatedAt,
 		ExpiresAt: m.ExpiresAt,
@@ -203,7 +203,7 @@ func VerificationTokenToModel(t *localauth.VerificationToken) *VerificationToken
 	return &VerificationTokenModel{
 		Token:     t.Token,
 		Type:      t.Type,
-		UserID:    t.UserID,
+		Subject:   t.Subject,
 		Email:     t.Email,
 		CreatedAt: t.CreatedAt,
 		ExpiresAt: t.ExpiresAt,
@@ -214,7 +214,7 @@ func VerificationTokenToModel(t *localauth.VerificationToken) *VerificationToken
 type RefreshTokenModel struct {
 	TokenHash  string      `gorm:"primaryKey;size:64"`
 	Token      string      `gorm:"-"` // Not stored, only used in memory
-	UserID     string      `gorm:"size:64;index"`
+	Subject    string      `gorm:"size:64;index"`
 	ClientID   string      `gorm:"size:64"`
 	DeviceInfo JSONMap     `gorm:"type:jsonb"`
 	Family     string      `gorm:"size:32;index"`
@@ -236,7 +236,7 @@ func (m *RefreshTokenModel) ToRefreshToken() *core.RefreshToken {
 	return &core.RefreshToken{
 		Token:                m.Token,
 		TokenHash:            m.TokenHash,
-		UserID:               m.UserID,
+		Subject:              m.Subject,
 		ClientID:             m.ClientID,
 		DeviceInfo:           m.DeviceInfo,
 		Family:               m.Family,
@@ -255,7 +255,7 @@ func RefreshTokenToModel(t *core.RefreshToken) *RefreshTokenModel {
 	return &RefreshTokenModel{
 		Token:                t.Token,
 		TokenHash:            t.TokenHash,
-		UserID:               t.UserID,
+		Subject:              t.Subject,
 		ClientID:             t.ClientID,
 		DeviceInfo:           JSONMap(t.DeviceInfo),
 		Family:               t.Family,
@@ -274,7 +274,7 @@ func RefreshTokenToModel(t *core.RefreshToken) *RefreshTokenModel {
 type APIKeyModel struct {
 	KeyID      string      `gorm:"primaryKey;size:64"`
 	KeyHash    string      `gorm:"size:128"`
-	UserID     string      `gorm:"size:64;index"`
+	Subject    string      `gorm:"size:64;index"`
 	Name       string      `gorm:"size:255"`
 	Scopes     StringSlice `gorm:"type:jsonb"`
 	CreatedAt  time.Time   `gorm:"autoCreateTime"`
@@ -292,7 +292,7 @@ func (m *APIKeyModel) ToAPIKey() *core.APIKey {
 	return &core.APIKey{
 		KeyID:      m.KeyID,
 		KeyHash:    m.KeyHash,
-		UserID:     m.UserID,
+		Subject:    m.Subject,
 		Name:       m.Name,
 		Scopes:     m.Scopes,
 		CreatedAt:  m.CreatedAt,
@@ -307,7 +307,7 @@ func APIKeyToModel(k *core.APIKey) *APIKeyModel {
 	return &APIKeyModel{
 		KeyID:      k.KeyID,
 		KeyHash:    k.KeyHash,
-		UserID:     k.UserID,
+		Subject:    k.Subject,
 		Name:       k.Name,
 		Scopes:     StringSlice(k.Scopes),
 		CreatedAt:  k.CreatedAt,
