@@ -57,6 +57,15 @@ type ClientCredentialsSource struct {
 	// Scopes to request.
 	Scopes []string
 
+	// Resources are RFC 8707 resource indicators forwarded on every
+	// token request. Emitted as repeated `resource` form values per §2.
+	Resources []string
+
+	// AuthorizationDetails are RFC 9396 rich authorization requirements
+	// forwarded on every token request as the `authorization_details`
+	// JSON-encoded form value per §6.1.
+	AuthorizationDetails []core.AuthorizationDetail
+
 	// Refresher enables proactive token refresh before expiry. When nil or
 	// Refresher.Buffer == 0, refresh is reactive — happens on the next
 	// Token() call after expiry.
@@ -147,15 +156,14 @@ func (s *ClientCredentialsSource) fetchTokenLocked() (*ServerCredential, error) 
 			WithASMetadata(&ASMetadata{TokenEndpoint: s.TokenEndpoint}))
 	}
 
-	var (
-		cred *ServerCredential
-		err  error
-	)
-	if s.ClientAssertion != nil {
-		cred, err = s.client.ClientCredentialsTokenWithAssertion(s.ClientID, *s.ClientAssertion, s.Scopes)
-	} else {
-		cred, err = s.client.ClientCredentialsToken(s.ClientID, s.ClientSecret, s.Scopes)
-	}
+	cred, err := s.client.ClientCredentials(&ClientCredentialsRequest{
+		ClientID:             s.ClientID,
+		ClientSecret:         s.ClientSecret,
+		ClientAssertion:      s.ClientAssertion,
+		Scopes:               s.Scopes,
+		Resources:            s.Resources,
+		AuthorizationDetails: s.AuthorizationDetails,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("client credentials: %w", err)
 	}

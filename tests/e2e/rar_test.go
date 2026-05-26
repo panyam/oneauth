@@ -17,6 +17,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/panyam/oneauth/client"
+	"github.com/panyam/oneauth/core"
 )
 
 // TestRAR_ClientCredentials_FullFlow verifies the complete RAR flow:
@@ -235,4 +238,55 @@ func TestRAR_NoDetails_Unchanged(t *testing.T) {
 	assert.False(t, hasAD, "authorization_details should not appear when not requested")
 	assert.NotEmpty(t, tokenResp["access_token"])
 	assert.Equal(t, "read", tokenResp["scope"])
+}
+
+// TestRAR_ClientCredentials_SDKForm exercises the SDK-routed,
+// form-encoded path: AuthClient.ClientCredentials carrying both RFC
+// 8707 Resources and RFC 9396 AuthorizationDetails against the
+// in-process AS. Proves end-to-end that the new request struct
+// form-encodes correctly AND the AS round-trips authorization_details
+// into the token's JWT claims.
+//
+// Companion to TestRAR_ClientCredentials_FullFlow, which exercises the
+// raw HTTP / JSON-body path. The same details MUST land identically
+// regardless of whether the caller used the SDK or hand-built the form.
+func TestRAR_ClientCredentials_SDKForm(t *testing.T) {
+	env := NewTestEnv(t)
+	if env.IsRemote() {
+		t.Skip("RAR SDK e2e requires in-process servers")
+	}
+	clientID, clientSecret := RegisterApp(t, env, "rar-sdk.example.com")
+	defer NewTestClient(env).Delete("/apps/" + clientID)
+
+	details := []core.AuthorizationDetail{
+		{
+			Type:      "payment_initiation",
+			Actions:   []string{"initiate"},
+			Locations: []string{"https://bank.example.com/payments"},
+		},
+	}
+
+	authClient := client.NewAuthClient(env.BaseURL(), nil,
+		client.WithTokenEndpoint("/api/token"))
+	cred, err := authClient.ClientCredentials(&client.ClientCredentialsRequest{
+		ClientID:             clientID,
+		ClientSecret:         clientSecret,
+		Scopes:               []string{"payments"},
+		Resources:            []string{"https://api.example.com"},
+		AuthorizationDetails: details,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, cred.AccessToken)
+
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	parsed, _, err := parser.ParseUnverified(cred.AccessToken, jwt.MapClaims{})
+	require.NoError(t, err)
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	require.True(t, ok)
+
+	ad, ok := claims["authorization_details"].([]any)
+	require.True(t, ok, "JWT MUST carry authorization_details claim")
+	require.Len(t, ad, 1)
+	first := ad[0].(map[string]any)
+	assert.Equal(t, "payment_initiation", first["type"], "type round-trips through SDK form-encoding")
 }

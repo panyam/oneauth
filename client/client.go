@@ -235,106 +235,132 @@ func (c *AuthClient) Login(username, password, scope string) (*ServerCredential,
 	return cred, nil
 }
 
+// ClientCredentialsRequest is the gRPC-shape input to ClientCredentials:
+// every parameter the client_credentials grant accepts, in one place.
+// Use the request struct directly for new code; ClientCredentialsToken
+// and ClientCredentialsTokenWithAssertion remain as 3-line wrappers for
+// existing callers.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4
+type ClientCredentialsRequest struct {
+	// ClientID identifies the client to the AS. Required.
+	ClientID string
+
+	// ClientSecret authenticates the client when ClientAssertion is nil.
+	// Sent via the negotiated client_secret_basic / client_secret_post
+	// method (RFC 6749 §2.3.1).
+	ClientSecret string
+
+	// ClientAssertion, when non-nil, switches client authentication to
+	// the private_key_jwt path (RFC 7521 §4.2 / RFC 7523 §2.2 / OIDC
+	// Core §9). ClientSecret is ignored when this is set.
+	ClientAssertion *ClientAssertionConfig
+
+	// Scopes requested for the access token. Sent as the space-delimited
+	// `scope` form value.
+	Scopes []string
+
+	// Resources are RFC 8707 resource indicators — absolute URIs naming
+	// the resource server(s) the token will be used at. Emitted as
+	// repeated `resource` form values per §2.
+	Resources []string
+
+	// AuthorizationDetails carries RFC 9396 rich authorization
+	// requirements. JSON-encoded into a single `authorization_details`
+	// form value per §6.1.
+	AuthorizationDetails []core.AuthorizationDetail
+}
+
+// ClientCredentials is the consolidated client_credentials grant entry
+// point (RFC 6749 §4.4). It selects the client-authentication method
+// (`client_secret_basic` / `client_secret_post` when ClientSecret is
+// set; `private_key_jwt` when ClientAssertion is non-nil), assembles
+// the form-encoded request — including RFC 8707 `resource` indicators
+// and RFC 9396 `authorization_details` when present — and persists the
+// resulting credential.
+func (c *AuthClient) ClientCredentials(req *ClientCredentialsRequest) (*ServerCredential, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ClientCredentials: req is required")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	tokenEndpoint := c.serverURL + c.tokenEndpoint
+	if c.cachedASMeta != nil && c.cachedASMeta.TokenEndpoint != "" {
+		tokenEndpoint = c.cachedASMeta.TokenEndpoint
+	}
+
+	data := url.Values{
+		"grant_type": {"client_credentials"},
+	}
+	if len(req.Scopes) > 0 {
+		data.Set("scope", strings.Join(req.Scopes, " "))
+	}
+	for _, r := range req.Resources {
+		data.Add("resource", r)
+	}
+	if len(req.AuthorizationDetails) > 0 {
+		ad, err := json.Marshal(req.AuthorizationDetails)
+		if err != nil {
+			return nil, fmt.Errorf("ClientCredentials: marshal authorization_details: %w", err)
+		}
+		data.Set("authorization_details", string(ad))
+	}
+
+	var (
+		cred *ServerCredential
+		err  error
+	)
+	if req.ClientAssertion != nil {
+		cred, err = c.requestTokenFormWithAssertion(tokenEndpoint, data, req.ClientID, tokenEndpoint, *req.ClientAssertion)
+	} else {
+		var asMethods []string
+		if c.cachedASMeta != nil {
+			asMethods = c.cachedASMeta.TokenEndpointAuthMethods
+		}
+		authMethod := SelectAuthMethod(req.ClientSecret, asMethods)
+		cred, err = c.requestTokenForm(tokenEndpoint, data, authMethod, req.ClientID, req.ClientSecret)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if err := c.store.SetCredential(c.serverURL, cred); err != nil {
+		return nil, fmt.Errorf("failed to store credential: %w", err)
+	}
+	if err := c.store.Save(); err != nil {
+		return nil, fmt.Errorf("failed to save credentials: %w", err)
+	}
+	return cred, nil
+}
+
 // ClientCredentialsToken authenticates using the client_credentials grant
-// (RFC 6749 §4.4). This is for machine-to-machine authentication where there
-// is no user context — the client authenticates on its own behalf using its
-// client_id and client_secret. No refresh token is issued.
-//
-// The request is sent as application/x-www-form-urlencoded (RFC 6749 §4.4.2).
-// Client credentials are sent using the negotiated auth method:
-//   - If AS metadata was provided via WithASMetadata, SelectAuthMethod picks
-//     the best method from token_endpoint_auth_methods_supported
-//   - Without metadata, defaults to client_secret_basic (RFC 6749 §2.3.1)
-//
-// The resulting access token is stored in the credential store for use by
-// subsequent API calls via the AuthClient's HTTP transport.
+// (RFC 6749 §4.4) with `client_secret_basic` / `client_secret_post`. Thin
+// wrapper over ClientCredentials — use the request struct directly for
+// RFC 8707 `resource` or RFC 9396 `authorization_details`.
 //
 // See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4
 // See: https://github.com/panyam/oneauth/issues/72
 func (c *AuthClient) ClientCredentialsToken(clientID, clientSecret string, scopes []string) (*ServerCredential, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Negotiate auth method based on cached AS metadata
-	var asMethods []string
-	if c.cachedASMeta != nil {
-		asMethods = c.cachedASMeta.TokenEndpointAuthMethods
-	}
-	authMethod := SelectAuthMethod(clientSecret, asMethods)
-
-	// Use discovered token endpoint URL if available (may include path like
-	// /realms/oneauth-test/protocol/openid-connect/token for Keycloak).
-	// Fall back to serverURL + tokenEndpoint path for simple deployments.
-	tokenEndpoint := c.serverURL + c.tokenEndpoint
-	if c.cachedASMeta != nil && c.cachedASMeta.TokenEndpoint != "" {
-		tokenEndpoint = c.cachedASMeta.TokenEndpoint
-	}
-
-	data := url.Values{
-		"grant_type": {"client_credentials"},
-	}
-	if len(scopes) > 0 {
-		data.Set("scope", strings.Join(scopes, " "))
-	}
-
-	cred, err := c.requestTokenForm(tokenEndpoint, data, authMethod, clientID, clientSecret)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := c.store.SetCredential(c.serverURL, cred); err != nil {
-		return nil, fmt.Errorf("failed to store credential: %w", err)
-	}
-
-	if err := c.store.Save(); err != nil {
-		return nil, fmt.Errorf("failed to save credentials: %w", err)
-	}
-
-	return cred, nil
+	return c.ClientCredentials(&ClientCredentialsRequest{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Scopes:       scopes,
+	})
 }
 
-// ClientCredentialsTokenWithAssertion is the private_key_jwt variant of
-// ClientCredentialsToken (RFC 6749 §4.4 with RFC 7521 §4.2 / RFC 7523
-// §2.2 client authentication). The client signs a fresh JWT for every
-// request and presents it as `client_assertion` instead of a shared
-// secret. Use this when the AS has registered the client's public key
-// (typically via DCR with token_endpoint_auth_method=private_key_jwt).
-//
-// The audience claim of the assertion is the discovered token endpoint
-// URL when AS metadata is cached; otherwise the configured token
-// endpoint. Per OIDC Core §9, the AS SHOULD accept this value as an
-// audience identifier — OneAuth's server-side authenticator accepts
-// either the token endpoint URL or the AS issuer.
+// ClientCredentialsTokenWithAssertion is the private_key_jwt wrapper
+// over ClientCredentials (RFC 6749 §4.4 with RFC 7521 §4.2 / RFC 7523
+// §2.2). Use ClientCredentials directly for resource / authorization
+// detail parameters.
 //
 // See: https://www.rfc-editor.org/rfc/rfc7523#section-2.2
-// See: https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
 func (c *AuthClient) ClientCredentialsTokenWithAssertion(clientID string, cfg ClientAssertionConfig, scopes []string) (*ServerCredential, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	tokenEndpoint := c.serverURL + c.tokenEndpoint
-	if c.cachedASMeta != nil && c.cachedASMeta.TokenEndpoint != "" {
-		tokenEndpoint = c.cachedASMeta.TokenEndpoint
-	}
-
-	data := url.Values{
-		"grant_type": {"client_credentials"},
-	}
-	if len(scopes) > 0 {
-		data.Set("scope", strings.Join(scopes, " "))
-	}
-
-	cred, err := c.requestTokenFormWithAssertion(tokenEndpoint, data, clientID, tokenEndpoint, cfg)
-	if err != nil {
-		return nil, err
-	}
-	if err := c.store.SetCredential(c.serverURL, cred); err != nil {
-		return nil, fmt.Errorf("failed to store credential: %w", err)
-	}
-	if err := c.store.Save(); err != nil {
-		return nil, fmt.Errorf("failed to save credentials: %w", err)
-	}
-	return cred, nil
+	return c.ClientCredentials(&ClientCredentialsRequest{
+		ClientID:        clientID,
+		ClientAssertion: &cfg,
+		Scopes:          scopes,
+	})
 }
 
 // Logout removes the credential for this server
