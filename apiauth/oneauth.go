@@ -61,7 +61,7 @@ type OneAuthConfig struct {
 
 	// Password grant callbacks (optional — only needed if password grant is used)
 	ValidateCredentials CredentialsValidator    // validates username/password
-	GetUserScopes       core.GetUserScopesFunc  // returns allowed scopes for a user
+	GetSubjectScopes    core.GetSubjectScopesFunc // returns allowed scopes for the subject (user ID or client_id)
 
 	// Hooks — lifecycle callbacks
 	Hooks Hooks
@@ -85,7 +85,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		ClientKeyLookup:     cfg.KeyStore, // KeyStorage implements KeyLookup
 		RefreshStore:        cfg.RefreshStore,
 		ValidateCredentials: cfg.ValidateCredentials,
-		GetUserScopes:       cfg.GetUserScopes,
+		GetSubjectScopes:    cfg.GetSubjectScopes,
 		Hooks:               cfg.Hooks.Token,
 	})
 

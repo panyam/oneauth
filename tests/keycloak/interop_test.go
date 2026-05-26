@@ -244,7 +244,7 @@ func TestKeycloak_ValidateToken_ClientCredentials(t *testing.T) {
 	// Validate via HTTP middleware
 	var extractedUserID string
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		extractedUserID = apiauth.GetUserIDFromAPIContext(r.Context())
+		extractedUserID = apiauth.GetSubjectFromAPIContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
 

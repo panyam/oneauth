@@ -123,7 +123,7 @@ func (a *OneAuth) setupRoutes() *OneAuth {
 	return a
 }
 
-func (a *OneAuth) verifyJWT(tokenString string) (loggedInUserId string, t any, err error) {
+func (a *OneAuth) verifyJWT(tokenString string) (loggedInSubject string, t any, err error) {
 	// Parse the token with the secret key
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		return []byte(a.JWTSecretKey), nil
@@ -155,7 +155,7 @@ func (a *OneAuth) verifyJWT(tokenString string) (loggedInUserId string, t any, e
 
 func (a *OneAuth) onLogout(w http.ResponseWriter, r *http.Request) {
 	log.Println("Logging out user...")
-	a.SetLoggedInUserID("", w, r)
+	a.SetLoggedInSubject("", w, r)
 	log.Println("Accept Header Type: ", r.Header["Accept"])
 	toUrl := r.URL.Query()["to"]
 	log.Println("TOURL: ", toUrl)
@@ -166,14 +166,14 @@ func (a *OneAuth) onLogout(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SetLoggedInUserID sets the auth token and logged-in user ID on each
-// configured cookie domain. Pass an empty userID to clear (logout).
+// SetLoggedInSubject stores the authenticated subject (RFC 7519 `sub`
+// — a user ID for human-driven flows or a client_id for
+// client_credentials) on each configured cookie domain. Pass an empty
+// string to clear (logout).
 //
-// Renamed from the previous setLoggedInUser(user core.User, ...) — httpauth
-// now owns only the transport layer and never sees the accounts.User shape.
 // Callers (typically federatedauth or localauth) translate their User
 // object to user.Id() at the call site.
-func (a *OneAuth) SetLoggedInUserID(userID string, w http.ResponseWriter, r *http.Request) string {
+func (a *OneAuth) SetLoggedInSubject(subject string, w http.ResponseWriter, r *http.Request) string {
 	a.EnsureDefaults()
 	log.Println("ReqHost, Cookie Domains: ", r.Host, a.CookieDomains)
 	domains := a.CookieDomains
@@ -189,11 +189,11 @@ func (a *OneAuth) SetLoggedInUserID(userID string, w http.ResponseWriter, r *htt
 			Path:   "/",
 		})
 
-		if userID != "" {
-			a.Session.Put(r.Context(), "loggedInUserId", userID)
+		if subject != "" {
+			a.Session.Put(r.Context(), "loggedInSubject", subject)
 			http.SetCookie(w, &http.Cookie{
-				Name:    "loggedInUserId",
-				Value:   userID,
+				Name:    "loggedInSubject",
+				Value:   subject,
 				Domain:  cookieDomain,
 				Path:    "/",
 				Expires: time.Now().Add(time.Second * time.Duration(a.SessionTimeoutInSeconds)),
@@ -201,7 +201,7 @@ func (a *OneAuth) SetLoggedInUserID(userID string, w http.ResponseWriter, r *htt
 			})
 
 			token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-				"sub": userID,
+				"sub": subject,
 				"iss": a.JwtIssuer,
 				"aud": "admin", // replace with Role for the user later on
 				"exp": time.Now().Add(time.Hour).Unix(),
@@ -230,7 +230,7 @@ func (a *OneAuth) SetLoggedInUserID(userID string, w http.ResponseWriter, r *htt
 			slog.Warn("error clearing session ", "err", err)
 		}
 		http.SetCookie(w, &http.Cookie{
-			Name:    "loggedInUserId",
+			Name:    "loggedInSubject",
 			Domain:  cookieDomain,
 			Path:    "/",
 			MaxAge:  -1,

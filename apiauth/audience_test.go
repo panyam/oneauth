@@ -313,7 +313,7 @@ func TestAudience_ArrayAud_Middleware_Accepted(t *testing.T) {
 	token := mintToken(t, secret, arrayAudClaims([]string{"service-a", "service-b"}))
 
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		assert.Equal(t, "user1", userID)
 		w.WriteHeader(http.StatusOK)
 	}))

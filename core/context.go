@@ -2,23 +2,26 @@ package core
 
 import "context"
 
-type userParamNameKey string
+type subjectParamNameKey string
 
-// DefaultUserParamName is the default context key for user ID
-const DefaultUserParamName = "loggedInUserId"
+// DefaultSubjectParamName is the default context / session key for the
+// authenticated principal — RFC 7519 `sub`. Holds a user ID for
+// human-driven flows and a client_id for client_credentials.
+const DefaultSubjectParamName = "loggedInSubject"
 
-// GetUserIDFromContext retrieves the user ID from the request context
-// Uses the default key "loggedInUserId"
-func GetUserIDFromContext(ctx context.Context) string {
-	if v := ctx.Value(userParamNameKey(DefaultUserParamName)); v != nil {
-		if userID, ok := v.(string); ok {
-			return userID
+// GetSubjectFromContext retrieves the authenticated subject from the
+// request context. Uses the default key DefaultSubjectParamName.
+func GetSubjectFromContext(ctx context.Context) string {
+	if v := ctx.Value(subjectParamNameKey(DefaultSubjectParamName)); v != nil {
+		if subject, ok := v.(string); ok {
+			return subject
 		}
 	}
 	return ""
 }
 
-// SetUserIDInContext sets the user ID in the request context
-func SetUserIDInContext(ctx context.Context, userID string) context.Context {
-	return context.WithValue(ctx, userParamNameKey(DefaultUserParamName), userID)
+// SetSubjectInContext sets the authenticated subject in the request
+// context.
+func SetSubjectInContext(ctx context.Context, subject string) context.Context {
+	return context.WithValue(ctx, subjectParamNameKey(DefaultSubjectParamName), subject)
 }

@@ -114,7 +114,7 @@ func newResourceServer() http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]any{
 				"message": "hello from protected resource",
-				"sub":     apiauth.GetUserIDFromAPIContext(r.Context()),
+				"sub":     apiauth.GetSubjectFromAPIContext(r.Context()),
 				"scopes":  apiauth.GetScopesFromAPIContext(r.Context()),
 			})
 		}),

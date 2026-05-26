@@ -134,7 +134,7 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 	}
 
 	return &ValidateTokenResponse{Info: &TokenInfo{
-		UserID:               userID,
+		Subject:              userID,
 		Scopes:               scopes,
 		AuthorizationDetails: authzDetails,
 		CustomClaims:         customClaims,
@@ -233,7 +233,7 @@ type jwtIssuer struct {
 	clientKeyLookup     keys.KeyLookup
 	refreshStore        core.RefreshTokenStore
 	validateCredentials CredentialsValidator
-	getUserScopes       core.GetUserScopesFunc
+	getSubjectScopes    core.GetSubjectScopesFunc
 	hooks               TokenHooks
 }
 
@@ -247,7 +247,7 @@ type JWTIssuerConfig struct {
 	ClientKeyLookup     keys.KeyLookup         // for client_credentials authentication
 	RefreshStore        core.RefreshTokenStore  // for refresh_token grant
 	ValidateCredentials CredentialsValidator // for password grant
-	GetUserScopes       core.GetUserScopesFunc   // for password grant (optional)
+	GetSubjectScopes    core.GetSubjectScopesFunc // for password grant (optional)
 	Hooks               TokenHooks
 }
 
@@ -266,7 +266,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		clientKeyLookup:     cfg.ClientKeyLookup,
 		refreshStore:        cfg.RefreshStore,
 		validateCredentials: cfg.ValidateCredentials,
-		getUserScopes:       cfg.GetUserScopes,
+		getSubjectScopes:    cfg.GetSubjectScopes,
 		hooks:               cfg.Hooks,
 	}
 }
@@ -458,9 +458,9 @@ func (i *jwtIssuer) PasswordGrant(ctx context.Context, req *PasswordGrantRequest
 
 	// Get allowed scopes
 	allowedScopes := []string{core.ScopeRead, core.ScopeWrite, core.ScopeProfile, core.ScopeOffline}
-	if i.getUserScopes != nil {
+	if i.getSubjectScopes != nil {
 		var err error
-		allowedScopes, err = i.getUserScopes(user.Id())
+		allowedScopes, err = i.getSubjectScopes(user.Id())
 		if err != nil {
 			return nil, fmt.Errorf("server_error: failed to get user scopes: %w", err)
 		}
@@ -491,7 +491,7 @@ func (i *jwtIssuer) PasswordGrant(ctx context.Context, req *PasswordGrantRequest
 	i.hooks.fireOnIssued(user.Id(), "password")
 
 	return &PasswordGrantResponse{
-		UserID:               user.Id(),
+		Subject:              user.Id(),
 		AccessToken:          tok.Token,
 		ExpiresIn:            tok.ExpiresIn,
 		GrantedScopes:        grantedScopes,

@@ -53,7 +53,7 @@ func ExampleAppRegistrar_hs256FederatedFlow() {
 	// Resource server validates tokens using the same KeyStore
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	resSrv := httptest.NewServer(middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"user":"%s"}`, apiauth.GetUserIDFromAPIContext(r.Context()))
+		fmt.Fprintf(w, `{"user":"%s"}`, apiauth.GetSubjectFromAPIContext(r.Context()))
 	})))
 	defer resSrv.Close()
 
@@ -123,7 +123,7 @@ func ExampleAppRegistrar_rs256WithJWKS() {
 
 	middleware := &apiauth.APIMiddleware{KeyStore: resKeyStore}
 	resSrv := httptest.NewServer(middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"user":"%s"}`, apiauth.GetUserIDFromAPIContext(r.Context()))
+		fmt.Fprintf(w, `{"user":"%s"}`, apiauth.GetSubjectFromAPIContext(r.Context()))
 	})))
 	defer resSrv.Close()
 

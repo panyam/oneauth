@@ -204,7 +204,7 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	mux.Handle("GET /api/me", apiMW.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"user_id": apiauth.GetUserIDFromAPIContext(r.Context()),
+			"user_id": apiauth.GetSubjectFromAPIContext(r.Context()),
 			"scopes":  apiauth.GetScopesFromAPIContext(r.Context()),
 		})
 	})))

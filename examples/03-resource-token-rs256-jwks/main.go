@@ -99,7 +99,7 @@ func newResourceServer(jwksURL string) http.Handler {
 			ctx := r.Context()
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]any{
-				"user":   apiauth.GetUserIDFromAPIContext(ctx),
+				"user":   apiauth.GetSubjectFromAPIContext(ctx),
 				"scopes": apiauth.GetScopesFromAPIContext(ctx),
 			})
 		}),

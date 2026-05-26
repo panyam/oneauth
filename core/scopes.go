@@ -19,14 +19,15 @@ func AllBuiltinScopes() []string {
 	return []string{ScopeRead, ScopeWrite, ScopeProfile, ScopeOffline, ScopeAdmin}
 }
 
-// GetUserScopesFunc is a callback that returns allowed scopes for a user.
-// Applications implement this to determine what scopes a user is allowed to have.
-// This can be based on user roles, profile data, groups, etc.
-type GetUserScopesFunc func(userID string) ([]string, error)
+// GetSubjectScopesFunc is a callback that returns allowed scopes for a
+// principal. Applications implement this to determine what scopes a
+// subject (user ID for human-driven flows, client_id for
+// client_credentials) is allowed to have.
+type GetSubjectScopesFunc func(subject string) ([]string, error)
 
-// DefaultGetUserScopes returns a default implementation that grants basic scopes to all users
-func DefaultGetUserScopes() GetUserScopesFunc {
-	return func(userID string) ([]string, error) {
+// DefaultGetSubjectScopes returns a default implementation that grants basic scopes to all subjects.
+func DefaultGetSubjectScopes() GetSubjectScopesFunc {
+	return func(subject string) ([]string, error) {
 		return []string{ScopeRead, ScopeWrite, ScopeProfile, ScopeOffline}, nil
 	}
 }

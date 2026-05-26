@@ -1,5 +1,43 @@
 # OneAuth Release Notes
 
+## Version 0.1.4 (PR 2b — Subject vocab consumer-side rename)
+
+### Subject vocabulary — phase 2: consumers, helpers, transports
+
+**Breaking.** Completes the rename started in v0.1.3 (PR 2a). All Go API surfaces that handle the *principal-of-a-token* concept now use **Subject** — context helpers, scope callbacks, response types, HTTP middleware methods, gRPC functions, gRPC metadata header, and the session cookie key. Account-model types (`accounts.User`, `accounts.Identity.UserID`, `accounts.Username.UserID`, etc.) stay as **UserID** — see v0.1.3 notes.
+
+**Go API renames:**
+
+| Before | After |
+|---|---|
+| `core.GetUserIDFromContext(ctx)` | `core.GetSubjectFromContext(ctx)` |
+| `core.SetUserIDInContext(ctx, ...)` | `core.SetSubjectInContext(ctx, ...)` |
+| `core.DefaultUserParamName = "loggedInUserId"` | `core.DefaultSubjectParamName = "loggedInSubject"` |
+| `core.GetUserScopesFunc` / `DefaultGetUserScopes` | `core.GetSubjectScopesFunc` / `DefaultGetSubjectScopes` |
+| `apiauth.APIAuth.GetUserScopes` | `apiauth.APIAuth.GetSubjectScopes` |
+| `apiauth.OneAuthConfig.GetUserScopes` | `apiauth.OneAuthConfig.GetSubjectScopes` |
+| `apiauth.JWTIssuerConfig.GetUserScopes` | `apiauth.JWTIssuerConfig.GetSubjectScopes` |
+| `apiauth.PasswordGrantResponse.UserID` | `.Subject` |
+| `apiauth.TokenInfo.UserID` | `.Subject` |
+| `apiauth.GetUserIDFromAPIContext(ctx)` | `GetSubjectFromAPIContext(ctx)` |
+| `httpauth.Middleware.UserParamName` | `SubjectParamName` |
+| `httpauth.Middleware.GetLoggedInUserId(r)` | `GetLoggedInSubject(r)` |
+| `httpauth.OneAuth.SetLoggedInUserID(...)` | `SetLoggedInSubject(...)` |
+| `grpc.UserIDFromContext` / `UserIDFromContextWithConfig` | `SubjectFromContext` / `SubjectFromContextWithConfig` |
+| `grpc.UserIDToOutgoingContext` / `WithKey` | `SubjectToOutgoingContext` / `WithKey` |
+| `grpc.DefaultMetadataKeyUserID = "x-user-id"` | `DefaultMetadataKeySubject = "x-subject"` |
+| `grpc.Config.MetadataKeyUserID` | `MetadataKeySubject` |
+
+**Active sessions invalidated.** The session-cookie key flipped from `loggedInUserId` to `loggedInSubject`. Cookies issued by v0.1.3 and earlier are not recognised by v0.1.4 — affected users will be prompted to log in again. No code or data migration needed; the new cookies are issued on next login.
+
+**gRPC clients/servers must upgrade in lock-step.** The metadata header changed from `x-user-id` to `x-subject`. A v0.1.4 server will not see subjects sent by a v0.1.3 client (and vice versa).
+
+**`SwitchUser*` stays.** `grpc.SwitchUserToOutgoingContext`, `SwitchUserToOutgoingContextWithKey`, `MetadataKeySwitchUser`, and `DefaultMetadataKeySwitchUser = "x-switch-user"` are unchanged — impersonation is human-user-scoped by nature.
+
+Combined with v0.1.3, this completes the Subject vocab rename across the library.
+
+---
+
 ## Version 0.1.3 (PR 2a — token Subject foundation)
 
 ### Subject vocabulary — phase 1: token-bearing types

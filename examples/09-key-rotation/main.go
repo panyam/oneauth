@@ -104,7 +104,7 @@ func newResourceServer(ks keys.KeyStorage, kidStore *keys.KidStore) http.Handler
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprintf(w, `{"user":%q,"scopes":%q}`,
-				apiauth.GetUserIDFromAPIContext(r.Context()),
+				apiauth.GetSubjectFromAPIContext(r.Context()),
 				apiauth.GetScopesFromAPIContext(r.Context()))
 		}),
 	))

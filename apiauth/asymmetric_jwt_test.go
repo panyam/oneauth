@@ -267,7 +267,7 @@ func TestAPIMiddleware_RS256_MultiTenant(t *testing.T) {
 
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		if userID != "user-1" {
 			t.Errorf("userID = %s, want user-1", userID)
 		}

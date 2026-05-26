@@ -87,7 +87,7 @@ func TestKeycloak_PrivateKeyJWT_ClientCredentials(t *testing.T) {
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	var extractedUserID string
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		extractedUserID = apiauth.GetUserIDFromAPIContext(r.Context())
+		extractedUserID = apiauth.GetSubjectFromAPIContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)

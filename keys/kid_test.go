@@ -320,7 +320,7 @@ func TestValidateJWT_WithKid(t *testing.T) {
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	var gotUserID string
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotUserID = apiauth.GetUserIDFromAPIContext(r.Context())
+		gotUserID = apiauth.GetSubjectFromAPIContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -358,7 +358,7 @@ func TestValidateJWT_LegacyNoKid(t *testing.T) {
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	var gotUserID string
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotUserID = apiauth.GetUserIDFromAPIContext(r.Context())
+		gotUserID = apiauth.GetSubjectFromAPIContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
 

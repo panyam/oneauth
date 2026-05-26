@@ -80,7 +80,7 @@ func TestUnaryAuthInterceptor_RequireAuth_NoUser(t *testing.T) {
 func TestUnaryAuthInterceptor_RequireAuth_WithUser(t *testing.T) {
 	interceptor := UnaryAuthInterceptor(nil)
 
-	md := metadata.Pairs(DefaultMetadataKeyUserID, "user123")
+	md := metadata.Pairs(DefaultMetadataKeySubject, "user123")
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 	info := &grpc.UnaryServerInfo{FullMethod: "/pkg.Svc/Method"}
 
@@ -207,7 +207,7 @@ func TestStreamAuthInterceptor_RequireAuth_NoUser(t *testing.T) {
 func TestStreamAuthInterceptor_RequireAuth_WithUser(t *testing.T) {
 	interceptor := StreamAuthInterceptor(nil)
 
-	md := metadata.Pairs(DefaultMetadataKeyUserID, "user123")
+	md := metadata.Pairs(DefaultMetadataKeySubject, "user123")
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 	stream := &mockServerStream{ctx: ctx}
 	info := &grpc.StreamServerInfo{FullMethod: "/pkg.Svc/StreamMethod"}

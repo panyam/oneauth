@@ -104,13 +104,9 @@ type PasswordGrantRequest struct {
 }
 
 // PasswordGrantResponse holds the output of a successful password grant.
-// The caller uses UserID + GrantedScopes to create a refresh token if needed.
-//
-// (Renamed from PasswordGrantResult during the 175 convention port; the
-// PasswordGrantResult type alias below preserves the old name for one
-// release as a deprecation bridge.)
+// The caller uses Subject + GrantedScopes to create a refresh token if needed.
 type PasswordGrantResponse struct {
-	UserID               string
+	Subject              string // RFC 7519 sub — user ID for password grant
 	AccessToken          string
 	ExpiresIn            int64
 	GrantedScopes        []string
@@ -292,8 +288,10 @@ type AuthenticateClientResponse struct {
 // TokenInfo holds the validated claims extracted from a token.
 // Returned wrapped inside ValidateTokenResponse.
 type TokenInfo struct {
-	// UserID is the subject (sub claim) — a user ID or client_id.
-	UserID string
+	// Subject is the principal the token represents (RFC 7519 sub) — a
+	// user ID for human-driven flows or a client_id for
+	// client_credentials.
+	Subject string
 
 	// Scopes are the granted scopes from the token.
 	Scopes []string

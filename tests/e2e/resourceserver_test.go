@@ -73,7 +73,7 @@ func buildOneResourceServer(t *testing.T, name string, authServer *httptest.Serv
 	})
 
 	mux.Handle("POST /validate", mw.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := apiauth.GetUserIDFromAPIContext(r.Context())
+		userID := apiauth.GetSubjectFromAPIContext(r.Context())
 		customClaims := apiauth.GetCustomClaimsFromContext(r.Context())
 
 		entry := map[string]any{
@@ -93,7 +93,7 @@ func buildOneResourceServer(t *testing.T, name string, authServer *httptest.Serv
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"data":    "protected-resource",
-			"user_id": apiauth.GetUserIDFromAPIContext(r.Context()),
+			"user_id": apiauth.GetSubjectFromAPIContext(r.Context()),
 		})
 	})))
 
