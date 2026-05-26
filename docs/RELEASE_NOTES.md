@@ -1,5 +1,27 @@
 # OneAuth Release Notes
 
+## Version 0.1.5
+
+### Client SDK — RFC 8693 token exchange + RFC 7523 §2.1 JWT bearer grant
+
+Two new general-purpose OAuth primitives on `AuthClient`. Both are additive — no existing behavior changes.
+
+**`AuthClient.TokenExchange(*TokenExchangeRequest)` — RFC 8693.** Exchange a subject token (plus optional actor token / requested type / audience / resource / scope) for a freshly issued token. Returns `TokenExchangeResponse` including `IssuedTokenType` (required by RFC 8693 §2.2). Useful for bridging trust domains — e.g. exchanging an upstream-IdP ID token for an internal ID-JAG.
+
+**`AuthClient.JwtBearerGrant(*JwtBearerGrantRequest)` — RFC 7523 §2.1.** Present a signed JWT (typically the output of a prior token exchange or trusted upstream issuance) as `assertion` at the token endpoint to obtain an access token. Distinct from the `private_key_jwt` client authentication method, which authenticates the client itself — both can coexist in the same request.
+
+Both methods reuse the existing `AuthClient` client-authentication negotiation: `client_secret_basic`, `client_secret_post`, and `private_key_jwt` (via `ClientAssertionConfig`) all work transparently.
+
+**Wire shape:** `application/x-www-form-urlencoded` with the appropriate `grant_type` value. `audience` and `resource` are emitted as repeated form values per RFC 8693 §2.1 / RFC 8707 §2. `scope` is space-delimited per RFC 6749 §3.3.
+
+**Tests:** 5 unit tests covering wire shape + minimal request omission + all three client-auth methods, plus 2 e2e tests against the in-process `testutil.TestAuthServer` with `TrustedAssertionIssuers` configured.
+
+Near-term consumer: mcpkit's SEP-990 enterprise-managed authorization (mcpkit issue 448), which chains these two primitives in an `EnterpriseManagedTokenSource` with two-stage caching.
+
+See issue 213.
+
+---
+
 ## Version 0.1.4 (PR 2b — Subject vocab consumer-side rename)
 
 ### Subject vocabulary — phase 2: consumers, helpers, transports
