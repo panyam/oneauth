@@ -113,7 +113,7 @@
 				
 				<option value="file28">github.com/panyam/oneauth/client/browser_login.go (79.3%)</option>
 				
-				<option value="file29">github.com/panyam/oneauth/client/client.go (67.3%)</option>
+				<option value="file29">github.com/panyam/oneauth/client/client.go (76.6%)</option>
 				
 				<option value="file30">github.com/panyam/oneauth/client/client_credentials_source.go (90.9%)</option>
 				
@@ -123,7 +123,7 @@
 				
 				<option value="file33">github.com/panyam/oneauth/client/discovery.go (91.8%)</option>
 				
-				<option value="file34">github.com/panyam/oneauth/client/private_key_jwt.go (78.8%)</option>
+				<option value="file34">github.com/panyam/oneauth/client/private_key_jwt.go (88.6%)</option>
 				
 				<option value="file35">github.com/panyam/oneauth/client/stores/fs/credentials.go (77.9%)</option>
 				
@@ -7542,36 +7542,56 @@ func (c *AuthClient) Login(username, password, scope string) (*ServerCredential,
         <span class="cov8" title="1">return cred, nil</span>
 }
 
-// ClientCredentialsToken authenticates using the client_credentials grant
-// (RFC 6749 §4.4). This is for machine-to-machine authentication where there
-// is no user context — the client authenticates on its own behalf using its
-// client_id and client_secret. No refresh token is issued.
-//
-// The request is sent as application/x-www-form-urlencoded (RFC 6749 §4.4.2).
-// Client credentials are sent using the negotiated auth method:
-//   - If AS metadata was provided via WithASMetadata, SelectAuthMethod picks
-//     the best method from token_endpoint_auth_methods_supported
-//   - Without metadata, defaults to client_secret_basic (RFC 6749 §2.3.1)
-//
-// The resulting access token is stored in the credential store for use by
-// subsequent API calls via the AuthClient's HTTP transport.
+// ClientCredentialsRequest is the gRPC-shape input to ClientCredentials:
+// every parameter the client_credentials grant accepts, in one place.
+// Use the request struct directly for new code; ClientCredentialsToken
+// and ClientCredentialsTokenWithAssertion remain as 3-line wrappers for
+// existing callers.
 //
 // See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4
-// See: https://github.com/panyam/oneauth/issues/72
-func (c *AuthClient) ClientCredentialsToken(clientID, clientSecret string, scopes []string) (*ServerCredential, error) <span class="cov8" title="1">{
-        c.mu.Lock()
+type ClientCredentialsRequest struct {
+        // ClientID identifies the client to the AS. Required.
+        ClientID string
+
+        // ClientSecret authenticates the client when ClientAssertion is nil.
+        // Sent via the negotiated client_secret_basic / client_secret_post
+        // method (RFC 6749 §2.3.1).
+        ClientSecret string
+
+        // ClientAssertion, when non-nil, switches client authentication to
+        // the private_key_jwt path (RFC 7521 §4.2 / RFC 7523 §2.2 / OIDC
+        // Core §9). ClientSecret is ignored when this is set.
+        ClientAssertion *ClientAssertionConfig
+
+        // Scopes requested for the access token. Sent as the space-delimited
+        // `scope` form value.
+        Scopes []string
+
+        // Resources are RFC 8707 resource indicators — absolute URIs naming
+        // the resource server(s) the token will be used at. Emitted as
+        // repeated `resource` form values per §2.
+        Resources []string
+
+        // AuthorizationDetails carries RFC 9396 rich authorization
+        // requirements. JSON-encoded into a single `authorization_details`
+        // form value per §6.1.
+        AuthorizationDetails []core.AuthorizationDetail
+}
+
+// ClientCredentials is the consolidated client_credentials grant entry
+// point (RFC 6749 §4.4). It selects the client-authentication method
+// (`client_secret_basic` / `client_secret_post` when ClientSecret is
+// set; `private_key_jwt` when ClientAssertion is non-nil), assembles
+// the form-encoded request — including RFC 8707 `resource` indicators
+// and RFC 9396 `authorization_details` when present — and persists the
+// resulting credential.
+func (c *AuthClient) ClientCredentials(req *ClientCredentialsRequest) (*ServerCredential, error) <span class="cov8" title="1">{
+        if req == nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("ClientCredentials: req is required")
+        }</span>
+        <span class="cov8" title="1">c.mu.Lock()
         defer c.mu.Unlock()
 
-        // Negotiate auth method based on cached AS metadata
-        var asMethods []string
-        if c.cachedASMeta != nil </span><span class="cov8" title="1">{
-                asMethods = c.cachedASMeta.TokenEndpointAuthMethods
-        }</span>
-        <span class="cov8" title="1">authMethod := SelectAuthMethod(clientSecret, asMethods)
-
-        // Use discovered token endpoint URL if available (may include path like
-        // /realms/oneauth-test/protocol/openid-connect/token for Keycloak).
-        // Fall back to serverURL + tokenEndpoint path for simple deployments.
         tokenEndpoint := c.serverURL + c.tokenEndpoint
         if c.cachedASMeta != nil &amp;&amp; c.cachedASMeta.TokenEndpoint != "" </span><span class="cov8" title="1">{
                 tokenEndpoint = c.cachedASMeta.TokenEndpoint
@@ -7580,69 +7600,75 @@ func (c *AuthClient) ClientCredentialsToken(clientID, clientSecret string, scope
         <span class="cov8" title="1">data := url.Values{
                 "grant_type": {"client_credentials"},
         }
-        if len(scopes) &gt; 0 </span><span class="cov8" title="1">{
-                data.Set("scope", strings.Join(scopes, " "))
+        if len(req.Scopes) &gt; 0 </span><span class="cov8" title="1">{
+                data.Set("scope", strings.Join(req.Scopes, " "))
         }</span>
+        <span class="cov8" title="1">for _, r := range req.Resources </span><span class="cov8" title="1">{
+                data.Add("resource", r)
+        }</span>
+        <span class="cov8" title="1">if len(req.AuthorizationDetails) &gt; 0 </span><span class="cov8" title="1">{
+                ad, err := json.Marshal(req.AuthorizationDetails)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("ClientCredentials: marshal authorization_details: %w", err)
+                }</span>
+                <span class="cov8" title="1">data.Set("authorization_details", string(ad))</span>
+        }
 
-        <span class="cov8" title="1">cred, err := c.requestTokenForm(tokenEndpoint, data, authMethod, clientID, clientSecret)
-        if err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">var (
+                cred *ServerCredential
+                err  error
+        )
+        if req.ClientAssertion != nil </span><span class="cov8" title="1">{
+                cred, err = c.requestTokenFormWithAssertion(tokenEndpoint, data, req.ClientID, tokenEndpoint, *req.ClientAssertion)
+        }</span> else<span class="cov8" title="1"> {
+                var asMethods []string
+                if c.cachedASMeta != nil </span><span class="cov8" title="1">{
+                        asMethods = c.cachedASMeta.TokenEndpointAuthMethods
+                }</span>
+                <span class="cov8" title="1">authMethod := SelectAuthMethod(req.ClientSecret, asMethods)
+                cred, err = c.requestTokenForm(tokenEndpoint, data, authMethod, req.ClientID, req.ClientSecret)</span>
+        }
+        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
 
         <span class="cov8" title="1">if err := c.store.SetCredential(c.serverURL, cred); err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("failed to store credential: %w", err)
         }</span>
-
         <span class="cov8" title="1">if err := c.store.Save(); err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("failed to save credentials: %w", err)
         }</span>
-
         <span class="cov8" title="1">return cred, nil</span>
 }
 
-// ClientCredentialsTokenWithAssertion is the private_key_jwt variant of
-// ClientCredentialsToken (RFC 6749 §4.4 with RFC 7521 §4.2 / RFC 7523
-// §2.2 client authentication). The client signs a fresh JWT for every
-// request and presents it as `client_assertion` instead of a shared
-// secret. Use this when the AS has registered the client's public key
-// (typically via DCR with token_endpoint_auth_method=private_key_jwt).
+// ClientCredentialsToken authenticates using the client_credentials grant
+// (RFC 6749 §4.4) with `client_secret_basic` / `client_secret_post`. Thin
+// wrapper over ClientCredentials — use the request struct directly for
+// RFC 8707 `resource` or RFC 9396 `authorization_details`.
 //
-// The audience claim of the assertion is the discovered token endpoint
-// URL when AS metadata is cached; otherwise the configured token
-// endpoint. Per OIDC Core §9, the AS SHOULD accept this value as an
-// audience identifier — OneAuth's server-side authenticator accepts
-// either the token endpoint URL or the AS issuer.
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4
+// See: https://github.com/panyam/oneauth/issues/72
+func (c *AuthClient) ClientCredentialsToken(clientID, clientSecret string, scopes []string) (*ServerCredential, error) <span class="cov8" title="1">{
+        return c.ClientCredentials(&amp;ClientCredentialsRequest{
+                ClientID:     clientID,
+                ClientSecret: clientSecret,
+                Scopes:       scopes,
+        })
+}</span>
+
+// ClientCredentialsTokenWithAssertion is the private_key_jwt wrapper
+// over ClientCredentials (RFC 6749 §4.4 with RFC 7521 §4.2 / RFC 7523
+// §2.2). Use ClientCredentials directly for resource / authorization
+// detail parameters.
 //
 // See: https://www.rfc-editor.org/rfc/rfc7523#section-2.2
-// See: https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
 func (c *AuthClient) ClientCredentialsTokenWithAssertion(clientID string, cfg ClientAssertionConfig, scopes []string) (*ServerCredential, error) <span class="cov0" title="0">{
-        c.mu.Lock()
-        defer c.mu.Unlock()
-
-        tokenEndpoint := c.serverURL + c.tokenEndpoint
-        if c.cachedASMeta != nil &amp;&amp; c.cachedASMeta.TokenEndpoint != "" </span><span class="cov0" title="0">{
-                tokenEndpoint = c.cachedASMeta.TokenEndpoint
-        }</span>
-
-        <span class="cov0" title="0">data := url.Values{
-                "grant_type": {"client_credentials"},
-        }
-        if len(scopes) &gt; 0 </span><span class="cov0" title="0">{
-                data.Set("scope", strings.Join(scopes, " "))
-        }</span>
-
-        <span class="cov0" title="0">cred, err := c.requestTokenFormWithAssertion(tokenEndpoint, data, clientID, tokenEndpoint, cfg)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-        <span class="cov0" title="0">if err := c.store.SetCredential(c.serverURL, cred); err != nil </span><span class="cov0" title="0">{
-                return nil, fmt.Errorf("failed to store credential: %w", err)
-        }</span>
-        <span class="cov0" title="0">if err := c.store.Save(); err != nil </span><span class="cov0" title="0">{
-                return nil, fmt.Errorf("failed to save credentials: %w", err)
-        }</span>
-        <span class="cov0" title="0">return cred, nil</span>
-}
+        return c.ClientCredentials(&amp;ClientCredentialsRequest{
+                ClientID:        clientID,
+                ClientAssertion: &amp;cfg,
+                Scopes:          scopes,
+        })
+}</span>
 
 // Logout removes the credential for this server
 func (c *AuthClient) Logout() error <span class="cov8" title="1">{
@@ -7744,18 +7770,18 @@ func (c *AuthClient) requestTokenForm(tokenEndpoint string, data url.Values, aut
 // requestTokenForm. The audience is typically the token endpoint URL
 // (per OIDC Core §9); pass it explicitly so this works with non-default
 // deployments.
-func (c *AuthClient) requestTokenFormWithAssertion(tokenEndpoint string, data url.Values, clientID, audience string, cfg ClientAssertionConfig) (*ServerCredential, error) <span class="cov0" title="0">{
+func (c *AuthClient) requestTokenFormWithAssertion(tokenEndpoint string, data url.Values, clientID, audience string, cfg ClientAssertionConfig) (*ServerCredential, error) <span class="cov8" title="1">{
         assertion, err := MintClientAssertion(clientID, audience, cfg)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("mint client_assertion: %w", err)
         }</span>
-        <span class="cov0" title="0">applyAssertionToForm(clientID, assertion, data)
+        <span class="cov8" title="1">applyAssertionToForm(clientID, assertion, data)
 
         req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("failed to create request: %w", err)
         }</span>
-        <span class="cov0" title="0">req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+        <span class="cov8" title="1">req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
         return c.executeTokenRequest(req)</span>
 }
 
@@ -7976,17 +8002,28 @@ type ClientCredentialsSource struct {
         // ClientID identifies this client to the authorization server.
         ClientID string
 
-        // ClientSecret authenticates this client.
+        // ClientSecret authenticates this client when ClientAssertion is nil.
+        // Sent via the negotiated client_secret_basic or client_secret_post
+        // method (RFC 6749 §2.3.1).
         ClientSecret string
+
+        // ClientAssertion, when non-nil, switches the source to the
+        // private_key_jwt client-authentication path (RFC 7521 §4.2 /
+        // RFC 7523 §2.2 / OIDC Core §9). ClientSecret is ignored. The same
+        // caching, OnToken, and ProactiveRefresher machinery applies.
+        ClientAssertion *ClientAssertionConfig
 
         // Scopes to request.
         Scopes []string
 
-        // AuthorizationDetails to request (RFC 9396). Sent alongside scopes.
-        AuthorizationDetails []core.AuthorizationDetail
+        // Resources are RFC 8707 resource indicators forwarded on every
+        // token request. Emitted as repeated `resource` form values per §2.
+        Resources []string
 
-        // Audience is the resource server's canonical URI (RFC 8707 resource indicator).
-        Audience string
+        // AuthorizationDetails are RFC 9396 rich authorization requirements
+        // forwarded on every token request as the `authorization_details`
+        // JSON-encoded form value per §6.1.
+        AuthorizationDetails []core.AuthorizationDetail
 
         // Refresher enables proactive token refresh before expiry. When nil or
         // Refresher.Buffer == 0, refresh is reactive — happens on the next
@@ -8078,7 +8115,14 @@ func (s *ClientCredentialsSource) fetchTokenLocked() (*ServerCredential, error) 
                         WithASMetadata(&amp;ASMetadata{TokenEndpoint: s.TokenEndpoint}))
         }</span>
 
-        <span class="cov8" title="1">cred, err := s.client.ClientCredentialsToken(s.ClientID, s.ClientSecret, s.Scopes)
+        <span class="cov8" title="1">cred, err := s.client.ClientCredentials(&amp;ClientCredentialsRequest{
+                ClientID:             s.ClientID,
+                ClientSecret:         s.ClientSecret,
+                ClientAssertion:      s.ClientAssertion,
+                Scopes:               s.Scopes,
+                Resources:            s.Resources,
+                AuthorizationDetails: s.AuthorizationDetails,
+        })
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("client credentials: %w", err)
         }</span>
@@ -8873,6 +8917,16 @@ type ClientAssertionConfig struct {
         // 5min to satisfy OneAuth's server-side assertion lifetime cap;
         // other AS implementations are typically stricter.
         Lifetime time.Duration
+
+        // Audience, when non-empty, overrides the `aud` claim of the minted
+        // assertion. Empty falls back to the positional `audience` argument
+        // of MintClientAssertion (typically the token endpoint URL).
+        //
+        // RFC 7523bis (current OAuth WG draft) requires `aud` to be the AS
+        // issuer identifier; OIDC Core §9 historically permitted the token
+        // endpoint URL. ASes in the wild differ — set this when targeting a
+        // 7523bis-strict AS that rejects the token endpoint URL.
+        Audience string
 }
 
 // DefaultClientAssertionLifetime is the assertion lifetime applied when
@@ -8884,18 +8938,26 @@ const DefaultClientAssertionLifetime = 60 * time.Second
 // identity, suitable for use as the `client_assertion` form parameter
 // at the token / introspection / revocation endpoints.
 //
+// When cfg.Audience is non-empty it overrides the positional audience
+// argument — use the field to target RFC 7523bis ASes that require
+// `aud == issuer URL`; rely on the positional default (token endpoint
+// URL) for OIDC Core §9-compliant ASes.
+//
 // Claims set per RFC 7523 §3 + OIDC Core §9:
 //
 //        iss = clientID
 //        sub = clientID
-//        aud = audience  (token endpoint URL or AS issuer URL)
+//        aud = cfg.Audience if set, else `audience` argument
 //        jti = random 128-bit hex string
 //        iat = now
 //        exp = now + cfg.Lifetime  (or default)
 //
 // Returns the compact JWS string ready to drop into a form value.
 func MintClientAssertion(clientID, audience string, cfg ClientAssertionConfig) (string, error) <span class="cov8" title="1">{
-        if clientID == "" </span><span class="cov8" title="1">{
+        if cfg.Audience != "" </span><span class="cov8" title="1">{
+                audience = cfg.Audience
+        }</span>
+        <span class="cov8" title="1">if clientID == "" </span><span class="cov8" title="1">{
                 return "", fmt.Errorf("MintClientAssertion: clientID is required")
         }</span>
         <span class="cov8" title="1">if audience == "" </span><span class="cov8" title="1">{
@@ -8948,7 +9010,7 @@ func MintClientAssertion(clientID, audience string, cfg ClientAssertionConfig) (
 // applyAssertionToForm attaches a freshly minted `client_assertion` +
 // `client_assertion_type` to the form, plus `client_id` (some IdPs
 // require it even though it duplicates the assertion `iss`).
-func applyAssertionToForm(clientID, assertion string, data url.Values) <span class="cov0" title="0">{
+func applyAssertionToForm(clientID, assertion string, data url.Values) <span class="cov8" title="1">{
         data.Set("client_id", clientID)
         data.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
         data.Set("client_assertion", assertion)
