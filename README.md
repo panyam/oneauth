@@ -1,189 +1,135 @@
 # OneAuth
 
-A Go authentication library providing unified local and OAuth-based authentication with support for multiple authentication methods per user account.
+An **embeddable Go authentication library** for apps and resource servers. Local auth (signup, login, email verification, password reset), OAuth2 / OIDC client flows, multi-tenant JWT issuance and validation, federated app registration, and a small reference server you can deploy as-is or treat as a worked example.
 
-The library is organized into focused subpackages (`core/`, `keys/`, `admin/`, `apiauth/`, `localauth/`, `httpauth/`). The core module is lightweight (~6 dependencies: jwt, scs, x/crypto, x/oauth2). Heavy backends (GORM, GAE/Datastore, SAML, gRPC) live in separate sub-modules so consumers only pull what they need.
+OneAuth is **not** trying to be a full identity provider — it interoperates with real IdPs (Keycloak interop is in CI) and focuses on making Go services easy to secure with standards-compliant pieces. See [docs/ROADMAP.md](docs/ROADMAP.md) for vision and what's deliberately out of scope.
 
-## Features
+## Why OneAuth?
 
-- **Unified authentication** — Password and OAuth through a single interface
-- **Multi-provider support** — One account accessible via password, Google, GitHub, etc.
-- **API authentication** — JWT access tokens, refresh tokens, API keys
-- **Multi-tenant JWT** — KeyStore interface for per-client signing keys with algorithm confusion prevention
-- **Federated auth** — App registration, resource-scoped token minting, custom claims
-- **Flexible storage** — File-based, GORM (SQL), and GAE/Datastore implementations
-- **Client SDK** — Token management, auto-refresh, credential persistence for CLI tools
-- **gRPC support** — Auth context utilities and interceptors
+- **Library, not a sidecar.** Embed in your Go service. No extra process, no auth-server-as-product to operate.
+- **Composed interfaces, no god objects.** Every transport-agnostic surface follows `Method(ctx, *XRequest) (*XResponse, error)` — `TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator` / `ClientRegistrationManager` / `ClientRegistrar`. HTTP handlers are thin wrappers.
+- **Storage-agnostic.** Three backends ship for every store interface — file (dev), GORM (Postgres / MySQL / SQLite), GAE/Datastore. Bring your own by implementing the interfaces.
+- **Lightweight core.** Top-level module pulls ~6 deps (jwt, scs, x/crypto, x/oauth2, …). Heavy backends (GORM, GAE, SAML, gRPC) are separate Go sub-modules so consumers only download what they use. See [docs/MIGRATION.md](docs/MIGRATION.md) for the sub-module layout.
+- **Real interop.** Keycloak conformance suite runs against a live container in `tests/keycloak/`. Gap analyses vs Auth0 and Authlete live in [docs/gaps/](docs/gaps/).
 
-## Quick Start
+## Standards
+
+| Endpoint / Feature | RFC |
+|---|---|
+| Token endpoint — password, refresh, client_credentials, jwt-bearer, token-exchange | RFC 6749, 7523, 8693 |
+| Token Introspection (`/oauth/introspect`) | RFC 7662 |
+| Token Revocation (`/oauth/revoke`) | RFC 7009 |
+| Authorization Server Metadata + OIDC Discovery | RFC 8414 |
+| JWKS (`/.well-known/jwks.json`) | RFC 7517, 7638 |
+| Protected Resource Metadata | RFC 9728 |
+| Dynamic Client Registration | RFC 7591 |
+| DCR Management (GET / PUT / DELETE on `/apps/dcr/{client_id}`) | RFC 7592 |
+| Rich Authorization Requests (`authorization_details`) | RFC 9396 |
+| `iss` on authorize redirect | RFC 9207 |
+| PKCE on OAuth2 social login + headless CLI login | RFC 7636, 8252 |
+| Private Key JWT client auth (`private_key_jwt`) | RFC 7521, 7523 |
+
+A full Authlete-superset gap analysis lives at [docs/gaps/AUTHLETE_GAP_ANALYSIS.md](docs/gaps/AUTHLETE_GAP_ANALYSIS.md).
+
+## Install
 
 ```bash
-go get github.com/panyam/oneauth
+go get github.com/panyam/oneauth@latest
 ```
 
-```go
-import (
-    "github.com/panyam/oneauth/core"
-    "github.com/panyam/oneauth/localauth"
-    "github.com/panyam/oneauth/stores/fs"
-)
+Sub-modules (only pull what you need):
 
-// Initialize stores
-storagePath := "/path/to/storage"
-userStore := fs.NewFSUserStore(storagePath)
-identityStore := fs.NewFSIdentityStore(storagePath)
-channelStore := fs.NewFSChannelStore(storagePath)
-tokenStore := fs.NewFSTokenStore(storagePath)
-
-// Create authentication callbacks
-createUser := localauth.NewCreateUserFunc(userStore, identityStore, channelStore)
-validateCreds := localauth.NewCredentialsValidator(identityStore, channelStore, userStore)
-
-// Configure local authentication
-localAuth := &localauth.LocalAuth{
-    CreateUser:          createUser,
-    ValidateCredentials: validateCreds,
-    EmailSender:         &core.ConsoleEmailSender{},
-    TokenStore:          tokenStore,
-    BaseURL:             "https://yourapp.com",
-    HandleUser:          yourSessionHandler,
-}
-
-// Set up HTTP routes
-mux := http.NewServeMux()
-mux.Handle("/auth/login", localAuth)
-mux.Handle("/auth/signup", http.HandlerFunc(localAuth.HandleSignup))
+```bash
+go get github.com/panyam/oneauth/stores/gorm@latest
+go get github.com/panyam/oneauth/stores/gae@latest
+go get github.com/panyam/oneauth/grpc@latest
+go get github.com/panyam/oneauth/saml@latest
 ```
 
-See [Getting Started](docs/GETTING_STARTED.md) for the full setup guide.
+## Where to start
+
+| You want to… | Go here |
+|---|---|
+| Wire up local signup/login in a Go service | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) |
+| Walk through OAuth concepts hands-on, one RFC at a time | [examples/](examples/) — 10 progressive runnable examples |
+| Protect API endpoints with JWT (multi-tenant, JWKS-aware) | [docs/API_AUTH.md](docs/API_AUTH.md) |
+| Run an authorization server today | [`cmd/oneauth-server/`](cmd/oneauth-server/) — config-driven, deployable to GAE / Docker / K8s |
+| See the whole federated flow (auth + apps + resource servers) locally | [`demo/`](demo/) — 6-service Docker Compose |
+| Use the client SDK from a CLI tool | [docs/CLIENT_SDK.md](docs/CLIENT_SDK.md) |
+| Understand the design decisions and rationale | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 
 ## Architecture
 
-OneAuth separates authentication into three layers:
+Three-layer data model for end-user accounts. Lives in `accounts/`:
 
 ```
-User: john@example.com
-├── Identity: john@example.com (verified)
+User: alice@example.com
+├── Identity: alice@example.com (verified)
 ├── Channel: local    (password hash)
 ├── Channel: google   (OAuth tokens)
 └── Channel: github   (OAuth tokens)
 ```
 
-- **User** — A unique account with profile information
-- **Identity** — An email or phone number with verification status (shared across channels)
-- **Channel** — An authentication mechanism storing provider-specific credentials
+- **User** — your application account.
+- **Identity** — a contact handle (email, phone) with verification status, shared across channels.
+- **Channel** — one authentication mechanism (local, google, github, …) carrying provider-specific credentials.
 
-Verifying an email through any channel (e.g., Google OAuth) verifies it for all channels.
+Verifying an identity through any channel verifies it everywhere. New channels can be linked onto an existing user by matching identity.
 
-See [Architecture](docs/ARCHITECTURE.md) for design decisions, data model diagrams, and token lifecycle.
+For the token lifecycle, federated-auth flow, and the rest of the data model, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## API Authentication
+## Package map
 
-Protect API endpoints with JWT middleware:
+Every package has a `DESIGN.md` (rich) and `SUMMARY.md` (LLM-friendly index). The top-level tour is [MAP.md](MAP.md).
 
-```go
-import "github.com/panyam/oneauth/apiauth"
-
-middleware := &apiauth.APIMiddleware{
-    KeyStore:        keyStore,        // multi-tenant (per-client keys)
-    TokenQueryParam: "token",         // ?token= fallback for WebSocket clients
-}
-
-mux.Handle("/api/data", middleware.ValidateToken(handler))
-mux.Handle("/api/write", middleware.RequireScopes("write")(handler))
-mux.Handle("/api/public", middleware.Optional(handler))
-
-// Access claims in handlers
-userID := apiauth.GetUserIDFromAPIContext(r.Context())
-custom := apiauth.GetCustomClaimsFromContext(r.Context())
-```
-
-See [API Authentication](docs/API_AUTH.md) for JWT lifecycle, custom claims, multi-tenant validation, and middleware configuration.
-
-## Federated Auth (App Registration)
-
-For systems where multiple applications register and mint scoped JWTs:
-
-```go
-import (
-    "github.com/panyam/oneauth/admin"
-    "github.com/panyam/oneauth/apiauth"
-    gormstore "github.com/panyam/oneauth/stores/gorm"
-)
-
-// Resource server validates tokens from any registered app
-keyStore := gormstore.NewGORMKeyStore(db)
-middleware := &apiauth.APIMiddleware{KeyStore: keyStore}
-
-// Apps register via admin API and mint tokens for their users
-token, err := admin.MintResourceToken(clientID, clientSecret, userID, scopes, customClaims)
-```
-
-See [Architecture — Federated Auth](docs/ARCHITECTURE.md#federated-authentication) for the full flow.
-
-## Store Implementations
-
-| Implementation | Package | Use Case |
-|---------------|---------|----------|
-| File-based | `stores/fs` | Development, < 1000 users |
-| GORM (SQL) | `stores/gorm` | PostgreSQL, MySQL, SQLite |
-| GAE/Datastore | `stores/gae` | Google Cloud deployments |
-
-All stores implement the same interfaces defined in `core/` (`UserStore`, `IdentityStore`, `ChannelStore`, `TokenStore`, `RefreshTokenStore`, `APIKeyStore`) and `keys/` (`KeyStorage`).
-
-See [Stores](docs/STORES.md) for interface definitions and usage examples.
-
-## Client SDK
-
-For CLI tools and programmatic clients:
-
-```go
-import (
-    "github.com/panyam/oneauth/client"
-    "github.com/panyam/oneauth/client/stores/fs"
-)
-
-store, _ := fs.NewFSCredentialStore("", "myapp")
-authClient := client.NewAuthClient("https://api.example.com", store)
-authClient.Login("user@example.com", "password", "read write")
-
-// Auto-refresh on 401 or before expiry
-resp, _ := authClient.HTTPClient().Get("https://api.example.com/resource")
-```
+| Package | Role |
+|---|---|
+| [`accounts/`](accounts/DESIGN.md) | User / Identity / Channel model + store interfaces |
+| [`core/`](core/DESIGN.md) | Tokens, scopes, RFC 9396 authorization_details, rate-limit/blacklist primitives |
+| [`keys/`](keys/DESIGN.md) | Signing-key storage, kid lookup, encryption-at-rest, JWKS, rotation grace |
+| [`localauth/`](localauth/DESIGN.md) | Local signup, login, verification, password reset, credential linking |
+| [`federatedauth/`](federatedauth/DESIGN.md) | OAuth/SAML callback orchestration, channel linking onto existing users |
+| [`httpauth/`](httpauth/DESIGN.md) | Session/JWT-aware login mux, CSRF, body-limit, security-header middleware |
+| [`apiauth/`](apiauth/DESIGN.md) | Token issuance, JWT middleware, introspection, revocation, discovery |
+| [`admin/`](admin/DESIGN.md) | App registration (DCR + RFC 7592 + admin CRUD), resource-token minting |
+| [`oauth2/`](oauth2/DESIGN.md) | Google / GitHub social-login providers with PKCE |
+| [`saml/`](saml/DESIGN.md) | SAML 2.0 SP adapter (POC) |
+| [`client/`](client/DESIGN.md) | Client SDK — discovery, browser/CLI/M2M login, token cache, auto-refresh |
+| [`grpc/`](grpc/DESIGN.md) | Auth context propagation across HTTP↔gRPC boundary |
+| [`stores/fs`](stores/fs/DESIGN.md) · [`stores/gorm`](stores/gorm/DESIGN.md) · [`stores/gae`](stores/gae/DESIGN.md) | Backend implementations of every store interface |
+| [`testutil/`](testutil/DESIGN.md) | In-process RS256 AS + JWKS + DCR fixture for downstream tests |
 
 ## Documentation
 
-### Guides
+| Document | What it covers |
+|---|---|
+| [GETTING_STARTED](docs/GETTING_STARTED.md) | Install, store setup, first auth flow |
+| [ARCHITECTURE](docs/ARCHITECTURE.md) | Design decisions, data model, token lifecycle, federated auth |
+| [API_AUTH](docs/API_AUTH.md) | JWT middleware, custom claims, multi-tenant validation |
+| [BROWSER_AUTH](docs/BROWSER_AUTH.md) | OAuth flows, channel linking, session management |
+| [FEDERATED_AUTH](docs/FEDERATED_AUTH.md) | App registration, MintResourceToken, AdminAuth |
+| [JWT_SIGNING](docs/JWT_SIGNING.md) | HS256 / RS256 / ES256 keys, JWKS, rotation |
+| [CLIENT_SDK](docs/CLIENT_SDK.md) | CLI / programmatic clients, browser-login, refresh |
+| [STORES](docs/STORES.md) | Store interfaces and implementations |
+| [GRPC](docs/GRPC.md) | gRPC context utilities + interceptors |
+| [AUTH_FLOWS](docs/AUTH_FLOWS.md) | Login/signup decision trees, edge cases |
+| [TESTING](docs/TESTING.md) | Test patterns, security references |
+| [MIGRATION](docs/MIGRATION.md) | Sub-module layout, consumer migration guide |
+| [CONFORMANCE](docs/CONFORMANCE.md) | Conformance / load / adversarial test strategy |
+| [RELEASE_NOTES](docs/RELEASE_NOTES.md) | Version history |
+| [godoc](https://pkg.go.dev/github.com/panyam/oneauth) | Generated API reference |
 
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](docs/GETTING_STARTED.md) | Installation, store setup, first auth flow |
-| [API Authentication](docs/API_AUTH.md) | JWT middleware, custom claims, multi-tenant validation |
-| [Browser Authentication](docs/BROWSER_AUTH.md) | OAuth flows, channel linking, session management |
-| [gRPC Integration](docs/GRPC.md) | Context utilities, auth interceptors |
-| [Stores](docs/STORES.md) | Store interfaces, implementations, KeyStore |
-| [Testing](docs/TESTING.md) | Test patterns, security best practices |
+## Build & test
 
-### Reference
+```bash
+make test          # Unit tests
+make e2e           # In-process e2e (~2s)
+make testkcl       # Keycloak interop + RAR conformance (Docker)
+make testall       # 9-stage matrix + report
+```
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](docs/ARCHITECTURE.md) | Design decisions, data model, token lifecycle, federated auth |
-| [Auth Flows](docs/AUTH_FLOWS.md) | Login/signup decision trees, user journeys |
-| [Developer Guide](docs/DEVELOPER_GUIDE.md) | Index of all developer documentation |
-| [User Guide](docs/USER_GUIDE.md) | End-user documentation |
-| [Release Notes](docs/RELEASE_NOTES.md) | Version history and changelog |
-| [API Docs](https://pkg.go.dev/github.com/panyam/oneauth) | Generated godoc reference |
-
-## Requirements
-
-- Go 1.21+
-- `golang.org/x/crypto/bcrypt` — password hashing
-- `github.com/golang-jwt/jwt/v5` — JWT tokens
-- `golang.org/x/oauth2` — OAuth providers (optional)
-- `gorm.io/gorm` — GORM stores (optional)
-- `cloud.google.com/go/datastore` — GAE stores (optional)
+Reference deployment lives in [`cmd/oneauth-server/`](cmd/oneauth-server/). The 6-service federated demo (auth + 2 apps + 2 resource servers + Postgres) lives in [`demo/`](demo/) — see [docs/DEMOS.md](docs/DEMOS.md).
 
 ## License
 
-See LICENSE file for terms and conditions.
+See [LICENSE](LICENSE).
