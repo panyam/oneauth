@@ -118,3 +118,46 @@ func TestPrivateKeyJWT_E2E_SDKHelper(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, cred.AccessToken)
 }
+
+// TestPrivateKeyJWT_E2E_ClientCredentialsSource exercises the cached
+// TokenSource path: ClientCredentialsSource with ClientAssertion set
+// must route through the private_key_jwt helper, cache the token across
+// Token() calls, and re-fetch after induced expiry. This is the path
+// most production consumers will use (e.g. mcpkit's SEP-1046 work).
+//
+// See issue 211.
+func TestPrivateKeyJWT_E2E_ClientCredentialsSource(t *testing.T) {
+	env := NewTestEnv(t)
+	if env.IsRemote() {
+		t.Skip("private_key_jwt e2e requires in-process servers")
+	}
+
+	const clientID = "e2e-pkjwt-source-client"
+	privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
+	require.NoError(t, err)
+	require.NoError(t, env.KeyStore.PutKey(&keys.KeyRecord{
+		ClientID:  clientID,
+		Key:       pubPEM,
+		Algorithm: "RS256",
+	}))
+	priv, err := utils.ParsePrivateKeyPEM(privPEM)
+	require.NoError(t, err)
+
+	src := &client.ClientCredentialsSource{
+		TokenEndpoint: env.BaseURL() + "/api/token",
+		ClientID:      clientID,
+		ClientAssertion: &client.ClientAssertionConfig{
+			PrivateKey: priv,
+			SigningAlg: "RS256",
+		},
+		Scopes: []string{"read"},
+	}
+
+	tok1, err := src.Token()
+	require.NoError(t, err)
+	require.NotEmpty(t, tok1, "source must mint a token via private_key_jwt")
+
+	tok2, err := src.Token()
+	require.NoError(t, err)
+	assert.Equal(t, tok1, tok2, "second Token() must return the cached value")
+}
