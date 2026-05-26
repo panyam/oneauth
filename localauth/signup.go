@@ -8,10 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/accounts"
 )
 
-// HandleSignup processes user registration
+// HandleSignup processes user registration.
 func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	if a.CreateUser == nil {
 		http.Error(w, `{"error": "Signup not configured"}`, http.StatusInternalServerError)
@@ -36,7 +36,7 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		policy := a.getSignupPolicy()
 		if policy.EnforceUsernameUnique {
 			if _, err := a.UsernameStore.GetUserByUsername(creds.Username); err == nil {
-				authErr := core.NewAuthError(core.ErrCodeUsernameTaken, "Username is already taken", "username")
+				authErr := accounts.NewAuthError(accounts.ErrCodeUsernameTaken, "Username is already taken", "username")
 				a.handleSignupError(authErr, w, r)
 				return
 			}
@@ -50,10 +50,10 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		// Try to detect specific error types
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "already registered") || strings.Contains(errMsg, "already exists") {
-			authErr := core.NewAuthError(core.ErrCodeEmailExists, errMsg, "email")
+			authErr := accounts.NewAuthError(accounts.ErrCodeEmailExists, errMsg, "email")
 			a.handleSignupError(authErr, w, r)
 		} else {
-			authErr := core.NewAuthError("create_failed", fmt.Sprintf("Failed to create user: %s", errMsg), "")
+			authErr := accounts.NewAuthError("create_failed", fmt.Sprintf("Failed to create user: %s", errMsg), "")
 			a.handleSignupError(authErr, w, r)
 		}
 		return
@@ -74,7 +74,7 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if primaryEmail != "" && a.EmailSender != nil && a.TokenStore != nil && a.BaseURL != "" {
-		token, err := a.TokenStore.CreateToken(user.Id(), primaryEmail, core.TokenTypeEmailVerification, core.TokenExpiryEmailVerification)
+		token, err := a.TokenStore.CreateToken(user.Id(), primaryEmail, VerificationTypeEmail, VerificationExpiryEmail)
 		if err != nil {
 			log.Println("error creating verification token: ", err)
 		} else {
@@ -106,16 +106,16 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getSignupPolicy returns the configured policy or default
-func (a *LocalAuth) getSignupPolicy() core.SignupPolicy {
+// getSignupPolicy returns the configured policy or default.
+func (a *LocalAuth) getSignupPolicy() SignupPolicy {
 	if a.SignupPolicy != nil {
 		return *a.SignupPolicy
 	}
-	return core.DefaultSignupPolicy()
+	return DefaultSignupPolicy()
 }
 
-// validateSignupCredentials validates credentials using policy or legacy validator
-func (a *LocalAuth) validateSignupCredentials(creds *core.Credentials) *core.AuthError {
+// validateSignupCredentials validates credentials using policy or legacy validator.
+func (a *LocalAuth) validateSignupCredentials(creds *Credentials) *accounts.AuthError {
 	// If SignupPolicy is set, use policy-based validation
 	if a.SignupPolicy != nil {
 		return a.validateWithPolicy(creds, *a.SignupPolicy)
@@ -124,7 +124,7 @@ func (a *LocalAuth) validateSignupCredentials(creds *core.Credentials) *core.Aut
 	// Otherwise, use legacy validator for backwards compatibility
 	validator := a.ValidateSignup
 	if validator == nil {
-		validator = core.DefaultSignupValidator
+		validator = DefaultSignupValidator
 	}
 	if err := validator(creds); err != nil {
 		// Convert to AuthError (best effort to detect field)
@@ -133,43 +133,43 @@ func (a *LocalAuth) validateSignupCredentials(creds *core.Credentials) *core.Aut
 		code := "validation_error"
 		if strings.Contains(errMsg, "username") {
 			field = "username"
-			code = core.ErrCodeInvalidUsername
+			code = accounts.ErrCodeInvalidUsername
 		} else if strings.Contains(errMsg, "email") {
 			field = "email"
-			code = core.ErrCodeInvalidEmail
+			code = accounts.ErrCodeInvalidEmail
 		} else if strings.Contains(errMsg, "phone") {
 			field = "phone"
-			code = core.ErrCodeInvalidPhone
+			code = accounts.ErrCodeInvalidPhone
 		} else if strings.Contains(errMsg, "password") {
 			field = "password"
-			code = core.ErrCodeWeakPassword
+			code = accounts.ErrCodeWeakPassword
 		}
-		return core.NewAuthError(code, errMsg, field)
+		return accounts.NewAuthError(code, errMsg, field)
 	}
 	return nil
 }
 
-// validateWithPolicy validates credentials against the signup policy
-func (a *LocalAuth) validateWithPolicy(creds *core.Credentials, policy core.SignupPolicy) *core.AuthError {
+// validateWithPolicy validates credentials against the signup policy.
+func (a *LocalAuth) validateWithPolicy(creds *Credentials, policy SignupPolicy) *accounts.AuthError {
 	// Check required fields
 	if policy.RequireUsername && creds.Username == "" {
-		return core.NewAuthError(core.ErrCodeMissingField, "Username is required", "username")
+		return accounts.NewAuthError(accounts.ErrCodeMissingField, "Username is required", "username")
 	}
 	if policy.RequireEmail && (creds.Email == nil || *creds.Email == "") {
-		return core.NewAuthError(core.ErrCodeMissingField, "Email is required", "email")
+		return accounts.NewAuthError(accounts.ErrCodeMissingField, "Email is required", "email")
 	}
 	if policy.RequirePhone && (creds.Phone == nil || *creds.Phone == "") {
-		return core.NewAuthError(core.ErrCodeMissingField, "Phone is required", "phone")
+		return accounts.NewAuthError(accounts.ErrCodeMissingField, "Phone is required", "phone")
 	}
 	if policy.RequirePassword && creds.Password == "" {
-		return core.NewAuthError(core.ErrCodeMissingField, "Password is required", "password")
+		return accounts.NewAuthError(accounts.ErrCodeMissingField, "Password is required", "password")
 	}
 
 	// Validate username format if provided
 	if creds.Username != "" {
 		pattern := policy.GetUsernamePattern()
 		if !pattern.MatchString(creds.Username) {
-			return core.NewAuthError(core.ErrCodeInvalidUsername, "Username must be 3-20 characters and contain only letters, numbers, underscores, and hyphens", "username")
+			return accounts.NewAuthError(accounts.ErrCodeInvalidUsername, "Username must be 3-20 characters and contain only letters, numbers, underscores, and hyphens", "username")
 		}
 	}
 
@@ -177,7 +177,7 @@ func (a *LocalAuth) validateWithPolicy(creds *core.Credentials, policy core.Sign
 	if creds.Email != nil && *creds.Email != "" {
 		emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 		if !emailRegex.MatchString(*creds.Email) {
-			return core.NewAuthError(core.ErrCodeInvalidEmail, "Invalid email format", "email")
+			return accounts.NewAuthError(accounts.ErrCodeInvalidEmail, "Invalid email format", "email")
 		}
 	}
 
@@ -188,7 +188,7 @@ func (a *LocalAuth) validateWithPolicy(creds *core.Credentials, policy core.Sign
 		cleaned = strings.ReplaceAll(cleaned, "(", "")
 		cleaned = strings.ReplaceAll(cleaned, ")", "")
 		if len(cleaned) < 10 {
-			return core.NewAuthError(core.ErrCodeInvalidPhone, "Invalid phone number", "phone")
+			return accounts.NewAuthError(accounts.ErrCodeInvalidPhone, "Invalid phone number", "phone")
 		}
 	}
 
@@ -196,15 +196,15 @@ func (a *LocalAuth) validateWithPolicy(creds *core.Credentials, policy core.Sign
 	if creds.Password != "" {
 		minLen := policy.GetMinPasswordLength()
 		if len(creds.Password) < minLen {
-			return core.NewAuthError(core.ErrCodeWeakPassword, fmt.Sprintf("Password must be at least %d characters", minLen), "password")
+			return accounts.NewAuthError(accounts.ErrCodeWeakPassword, fmt.Sprintf("Password must be at least %d characters", minLen), "password")
 		}
 	}
 
 	return nil
 }
 
-// parseSignupForm parses signup form data without validation
-func (a *LocalAuth) parseSignupForm(r *http.Request) (*core.Credentials, *core.AuthError) {
+// parseSignupForm parses signup form data without validation.
+func (a *LocalAuth) parseSignupForm(r *http.Request) (*Credentials, *accounts.AuthError) {
 	contentType := r.Header.Get("Content-Type")
 	// For signup, always use "username" field (UsernameField is for login only)
 	usernameField := "username"
@@ -217,7 +217,7 @@ func (a *LocalAuth) parseSignupForm(r *http.Request) (*core.Credentials, *core.A
 	if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") ||
 		strings.HasPrefix(contentType, "multipart/form-data") {
 		if err := r.ParseForm(); err != nil {
-			return nil, core.NewAuthError("parse_error", "Error parsing form", "")
+			return nil, accounts.NewAuthError("parse_error", "Error parsing form", "")
 		}
 		username = r.FormValue(usernameField)
 		email = r.FormValue(emailField)
@@ -226,7 +226,7 @@ func (a *LocalAuth) parseSignupForm(r *http.Request) (*core.Credentials, *core.A
 	} else {
 		var data map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil || data == nil {
-			return nil, core.NewAuthError("parse_error", "Invalid post body", "")
+			return nil, accounts.NewAuthError("parse_error", "Invalid post body", "")
 		}
 		if u, ok := data[usernameField].(string); ok {
 			username = u
@@ -242,7 +242,7 @@ func (a *LocalAuth) parseSignupForm(r *http.Request) (*core.Credentials, *core.A
 		}
 	}
 
-	creds := &core.Credentials{
+	creds := &Credentials{
 		Username: username,
 		Password: password,
 	}

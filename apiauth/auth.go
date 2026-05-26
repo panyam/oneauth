@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
@@ -63,7 +64,7 @@ type APIAuth struct {
 	RefreshTokenExpiry time.Duration // Defaults to 7 days
 
 	// Callbacks
-	ValidateCredentials core.CredentialsValidator       // Validates username/password
+	ValidateCredentials CredentialsValidator            // Validates username/password
 	GetUserScopes       core.GetUserScopesFunc          // Returns allowed scopes for a user
 	OnLoginSuccess      func(userID string, r *http.Request) // Optional: for logging/analytics
 	OnLoginFailure      func(username string, r *http.Request, err error) // Optional: for logging/analytics
@@ -214,7 +215,7 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 	}
 
 	// Validate credentials
-	usernameType := core.DetectUsernameType(req.Username)
+	usernameType := accounts.DetectUsernameType(req.Username)
 	user, err := a.ValidateCredentials(req.Username, req.Password, usernameType)
 	if err != nil || user == nil {
 		if a.OnLoginFailure != nil {

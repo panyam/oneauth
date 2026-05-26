@@ -4,7 +4,6 @@ package apiauth_test
 
 import (
 	"github.com/panyam/oneauth/localauth"
-	"github.com/panyam/oneauth/core"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +15,7 @@ import (
 	"time"
 	"github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
+	"github.com/panyam/oneauth/accounts"
 )
 
 // setupTestAuthComplete creates a fully configured LocalAuth for testing all flows
@@ -34,7 +34,7 @@ func setupTestAuthComplete(t *testing.T) (*localauth.LocalAuth, *fs.FSUserStore,
 		ValidateCredentials:      localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
 		CreateUser:               localauth.NewCreateUserFunc(userStore, identityStore, channelStore),
 		ValidateSignup:           nil, // Use default validator
-		EmailSender:              &core.ConsoleEmailSender{},
+		EmailSender:              &localauth.ConsoleEmailSender{},
 		TokenStore:               tokenStore,
 		BaseURL:                  "http://localhost:8080",
 		RequireEmailVerification: false,
@@ -151,7 +151,7 @@ func TestCompleteSignupFlow(t *testing.T) {
 		}
 
 		// Verify channel exists
-		identityKey := core.IdentityKey("email", "test@example.com")
+		identityKey := accounts.IdentityKey("email", "test@example.com")
 		channel, _, err := channelStore.GetChannel("local", identityKey, false)
 		if err != nil {
 			t.Fatalf("Failed to get channel: %v", err)
@@ -173,7 +173,7 @@ func TestCompleteLoginFlow(t *testing.T) {
 	// Create a test user
 	testEmail := "logintest@example.com"
 	testPassword := "password123"
-	creds := &core.Credentials{
+	creds := &localauth.Credentials{
 		Username: "loginuser",
 		Email:    &testEmail,
 		Password: testPassword,
@@ -249,13 +249,13 @@ func TestEmailVerificationFlow(t *testing.T) {
 	testEmail := "verify@example.com"
 
 	// Create a verification token
-	token, err := tokenStore.CreateToken("testuser123", testEmail, core.TokenTypeEmailVerification, 24*time.Hour)
+	token, err := tokenStore.CreateToken("testuser123", testEmail, localauth.VerificationTypeEmail, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to create token: %v", err)
 	}
 
 	// Create identity (unverified)
-	identity := &core.Identity{
+	identity := &accounts.Identity{
 		Type:     "email",
 		Value:    testEmail,
 		UserID:   "testuser123",
@@ -337,7 +337,7 @@ func TestPasswordResetFlow(t *testing.T) {
 	newPassword := "newpassword456"
 
 	// Create a user
-	creds := &core.Credentials{
+	creds := &localauth.Credentials{
 		Username: "resetuser",
 		Email:    &testEmail,
 		Password: oldPassword,
@@ -371,7 +371,7 @@ func TestPasswordResetFlow(t *testing.T) {
 	})
 
 	// Create a reset token manually for testing
-	resetToken, err := tokenStore.CreateToken("", testEmail, core.TokenTypePasswordReset, 1*time.Hour)
+	resetToken, err := tokenStore.CreateToken("", testEmail, localauth.VerificationTypePasswordReset, 1*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to create reset token: %v", err)
 	}
@@ -423,7 +423,7 @@ func TestPasswordResetFlow(t *testing.T) {
 
 	t.Run("reset password with weak password", func(t *testing.T) {
 		// Create new token for this test
-		newToken, err := tokenStore.CreateToken("", testEmail, core.TokenTypePasswordReset, 1*time.Hour)
+		newToken, err := tokenStore.CreateToken("", testEmail, localauth.VerificationTypePasswordReset, 1*time.Hour)
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}

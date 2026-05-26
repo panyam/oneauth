@@ -16,10 +16,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/panyam/oneauth/accounts"
 )
 
 // maliciousInputs contains path traversal and injection payloads that MUST be rejected.
@@ -124,7 +124,7 @@ func TestSecurity_PathTraversal_ChannelStore_Provider(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("SaveChannel_provider_"+tc.name, func(t *testing.T) {
-			err := store.SaveChannel(&core.Channel{
+			err := store.SaveChannel(&accounts.Channel{
 				Provider:    tc.input,
 				IdentityKey: "email:test@example.com",
 				Credentials: map[string]any{},
@@ -149,7 +149,7 @@ func TestSecurity_PathTraversal_ChannelStore_IdentityKey(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("SaveChannel_identityKey_"+tc.name, func(t *testing.T) {
-			err := store.SaveChannel(&core.Channel{
+			err := store.SaveChannel(&accounts.Channel{
 				Provider:    "local",
 				IdentityKey: tc.input,
 				Credentials: map[string]any{},

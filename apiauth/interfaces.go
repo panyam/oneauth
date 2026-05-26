@@ -3,8 +3,14 @@ package apiauth
 import (
 	"context"
 
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
 )
+
+// CredentialsValidator is re-exported from accounts as a single shared
+// function shape so apiauth's password-grant validator field and localauth's
+// host-supplied validator are assignable to each other without conversion.
+type CredentialsValidator = accounts.CredentialsValidator
 
 // Transport-independent interfaces for OneAuth operations.
 //

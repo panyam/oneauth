@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/localauth"
 )
 
-// FSTokenStore stores verification and reset tokens as JSON files
+// FSTokenStore stores localauth verification and reset tokens as JSON files.
+// Satisfies localauth.VerificationTokenStore.
 type FSTokenStore struct {
 	StoragePath string
 }
@@ -27,13 +29,13 @@ func (s *FSTokenStore) getTokenPath(token string) (string, error) {
 	return filepath.Join(s.StoragePath, "tokens", safeToken+".json"), nil
 }
 
-func (s *FSTokenStore) CreateToken(userID, email string, tokenType core.TokenType, expiryDuration time.Duration) (*core.AuthToken, error) {
+func (s *FSTokenStore) CreateToken(userID, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
 
-	authToken := &core.AuthToken{
+	verToken := &localauth.VerificationToken{
 		Token:     token,
 		Type:      tokenType,
 		UserID:    userID,
@@ -50,7 +52,7 @@ func (s *FSTokenStore) CreateToken(userID, email string, tokenType core.TokenTyp
 		return nil, err
 	}
 
-	data, err := json.MarshalIndent(authToken, "", "  ")
+	data, err := json.MarshalIndent(verToken, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -59,10 +61,10 @@ func (s *FSTokenStore) CreateToken(userID, email string, tokenType core.TokenTyp
 		return nil, err
 	}
 
-	return authToken, nil
+	return verToken, nil
 }
 
-func (s *FSTokenStore) GetToken(token string) (*core.AuthToken, error) {
+func (s *FSTokenStore) GetToken(token string) (*localauth.VerificationToken, error) {
 	path, err := s.getTokenPath(token)
 	if err != nil {
 		return nil, err
@@ -75,19 +77,19 @@ func (s *FSTokenStore) GetToken(token string) (*core.AuthToken, error) {
 		return nil, err
 	}
 
-	var authToken core.AuthToken
-	if err := json.Unmarshal(data, &authToken); err != nil {
+	var verToken localauth.VerificationToken
+	if err := json.Unmarshal(data, &verToken); err != nil {
 		return nil, err
 	}
 
 	// Check if token is expired
-	if authToken.IsExpired() {
+	if verToken.IsExpired() {
 		// Auto-delete expired token
 		_ = s.DeleteToken(token)
 		return nil, fmt.Errorf("token expired")
 	}
 
-	return &authToken, nil
+	return &verToken, nil
 }
 
 func (s *FSTokenStore) DeleteToken(token string) error {
@@ -102,7 +104,7 @@ func (s *FSTokenStore) DeleteToken(token string) error {
 	return err
 }
 
-func (s *FSTokenStore) DeleteUserTokens(userID string, tokenType core.TokenType) error {
+func (s *FSTokenStore) DeleteUserTokens(userID string, tokenType localauth.VerificationType) error {
 	tokensDir := filepath.Join(s.StoragePath, "tokens")
 	entries, err := os.ReadDir(tokensDir)
 	if err != nil {
@@ -122,12 +124,12 @@ func (s *FSTokenStore) DeleteUserTokens(userID string, tokenType core.TokenType)
 			continue
 		}
 
-		var authToken core.AuthToken
-		if err := json.Unmarshal(data, &authToken); err != nil {
+		var verToken localauth.VerificationToken
+		if err := json.Unmarshal(data, &verToken); err != nil {
 			continue
 		}
 
-		if authToken.UserID == userID && authToken.Type == tokenType {
+		if verToken.UserID == userID && verToken.Type == tokenType {
 			_ = os.Remove(filepath.Join(tokensDir, entry.Name()))
 		}
 	}

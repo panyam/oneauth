@@ -36,7 +36,7 @@ func setupAPIAuthTest(t *testing.T) (*apiauth.APIAuth, *fs.FSRefreshTokenStore, 
 	testEmail := "apitest@example.com"
 	testPassword := "password123"
 	createUser := localauth.NewCreateUserFunc(userStore, identityStore, channelStore)
-	_, err = createUser(&core.Credentials{
+	_, err = createUser(&localauth.Credentials{
 		Username: "apiuser",
 		Email:    &testEmail,
 		Password: testPassword,
@@ -797,7 +797,7 @@ func TestCustomClaimsInContext(t *testing.T) {
 	// Create test user
 	testEmail := "customclaims@example.com"
 	createUser := localauth.NewCreateUserFunc(userStore, identityStore, channelStore)
-	_, err = createUser(&core.Credentials{
+	_, err = createUser(&localauth.Credentials{
 		Username: "customuser",
 		Email:    &testEmail,
 		Password: "password123",

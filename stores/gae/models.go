@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
-	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/accounts"
+	"github.com/panyam/oneauth/localauth"
 )
 
 // UserEntity is the Datastore entity for users
@@ -33,8 +34,8 @@ type IdentityEntity struct {
 	Version   int            `datastore:"version"`
 }
 
-func (e *IdentityEntity) ToIdentity() *core.Identity {
-	return &core.Identity{
+func (e *IdentityEntity) ToIdentity() *accounts.Identity {
+	return &accounts.Identity{
 		Type:      e.Type,
 		Value:     e.Value,
 		UserID:    e.UserID,
@@ -45,7 +46,7 @@ func (e *IdentityEntity) ToIdentity() *core.Identity {
 	}
 }
 
-func IdentityToEntity(i *core.Identity, key *datastore.Key) *IdentityEntity {
+func IdentityToEntity(i *accounts.Identity, key *datastore.Key) *IdentityEntity {
 	return &IdentityEntity{
 		Key:       key,
 		Type:      i.Type,
@@ -72,18 +73,18 @@ type ChannelEntity struct {
 	Version     int            `datastore:"version"`
 }
 
-// AuthTokenEntity is the Datastore entity for verification/reset tokens
-type AuthTokenEntity struct {
-	Key       *datastore.Key `datastore:"__key__"`
-	Type      core.TokenType   `datastore:"type"`
-	UserID    string         `datastore:"user_id"`
-	Email     string         `datastore:"email"`
-	CreatedAt time.Time      `datastore:"created_at"`
-	ExpiresAt time.Time      `datastore:"expires_at"`
+// VerificationTokenEntity is the Datastore entity for localauth verification tokens.
+type VerificationTokenEntity struct {
+	Key       *datastore.Key            `datastore:"__key__"`
+	Type      localauth.VerificationType `datastore:"type"`
+	UserID    string                    `datastore:"user_id"`
+	Email     string                    `datastore:"email"`
+	CreatedAt time.Time                 `datastore:"created_at"`
+	ExpiresAt time.Time                 `datastore:"expires_at"`
 }
 
-func (e *AuthTokenEntity) ToAuthToken() *core.AuthToken {
-	return &core.AuthToken{
+func (e *VerificationTokenEntity) ToVerificationToken() *localauth.VerificationToken {
+	return &localauth.VerificationToken{
 		Token:     e.Key.Name,
 		Type:      e.Type,
 		UserID:    e.UserID,
@@ -93,8 +94,8 @@ func (e *AuthTokenEntity) ToAuthToken() *core.AuthToken {
 	}
 }
 
-func AuthTokenToEntity(t *core.AuthToken, key *datastore.Key) *AuthTokenEntity {
-	return &AuthTokenEntity{
+func VerificationTokenToEntity(t *localauth.VerificationToken, key *datastore.Key) *VerificationTokenEntity {
+	return &VerificationTokenEntity{
 		Key:       key,
 		Type:      t.Type,
 		UserID:    t.UserID,

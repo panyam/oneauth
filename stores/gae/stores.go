@@ -17,7 +17,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/api/iterator"
 
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/localauth"
 )
 
 // Kind constants for Datastore entities
@@ -35,7 +37,7 @@ const (
 // UserStore
 // ============================================================================
 
-// GAEUser implements the core.User interface
+// GAEUser implements the accounts.User interface
 type GAEUser struct {
 	UserID      string         `json:"user_id"`
 	Active      bool           `json:"is_active"`
@@ -47,7 +49,7 @@ type GAEUser struct {
 func (u *GAEUser) Id() string              { return u.UserID }
 func (u *GAEUser) Profile() map[string]any { return u.UserProfile }
 
-// UserStore implements core.UserStore using Google Cloud Datastore
+// UserStore implements accounts.UserStore using Google Cloud Datastore
 type UserStore struct {
 	client    *datastore.Client
 	namespace string
@@ -78,7 +80,7 @@ func (s *UserStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (core.User, error) {
+func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (accounts.User, error) {
 	key := s.namespacedKey(KindUser, userId)
 
 	var profileBytes []byte
@@ -108,7 +110,7 @@ func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]
 	}, nil
 }
 
-func (s *UserStore) GetUserById(userId string) (core.User, error) {
+func (s *UserStore) GetUserById(userId string) (accounts.User, error) {
 	key := s.namespacedKey(KindUser, userId)
 	log.Println("UserStore Key: ", key, KindUser, userId)
 	var entity UserEntity
@@ -133,7 +135,7 @@ func (s *UserStore) GetUserById(userId string) (core.User, error) {
 	}, nil
 }
 
-func (s *UserStore) SaveUser(user core.User) error {
+func (s *UserStore) SaveUser(user accounts.User) error {
 	key := s.namespacedKey(KindUser, user.Id())
 
 	var profileBytes []byte
@@ -172,7 +174,7 @@ func (s *UserStore) SaveUser(user core.User) error {
 // IdentityStore
 // ============================================================================
 
-// IdentityStore implements core.IdentityStore using Google Cloud Datastore
+// IdentityStore implements accounts.IdentityStore using Google Cloud Datastore
 type IdentityStore struct {
 	client    *datastore.Client
 	namespace string
@@ -206,7 +208,7 @@ func (s *IdentityStore) identityKeyName(idType, value string) string {
 	return idType + ":" + value
 }
 
-func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*core.Identity, bool, error) {
+func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*accounts.Identity, bool, error) {
 	key := s.namespacedKey(KindIdentity, s.identityKeyName(identityType, identityValue))
 	var entity IdentityEntity
 	err := s.client.Get(s.ctx, key, &entity)
@@ -238,7 +240,7 @@ func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIf
 	return entity.ToIdentity(), false, nil
 }
 
-func (s *IdentityStore) SaveIdentity(identity *core.Identity) error {
+func (s *IdentityStore) SaveIdentity(identity *accounts.Identity) error {
 	key := s.namespacedKey(KindIdentity, s.identityKeyName(identity.Type, identity.Value))
 	entity := IdentityToEntity(identity, key)
 	_, err := s.client.Put(s.ctx, key, entity)
@@ -279,14 +281,14 @@ func (s *IdentityStore) MarkIdentityVerified(identityType, identityValue string)
 	return err
 }
 
-func (s *IdentityStore) GetUserIdentities(userId string) ([]*core.Identity, error) {
+func (s *IdentityStore) GetUserIdentities(userId string) ([]*accounts.Identity, error) {
 	query := datastore.NewQuery(KindIdentity).
 		FilterField("user_id", "=", userId)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
-	var identities []*core.Identity
+	var identities []*accounts.Identity
 	it := s.client.Run(s.ctx, query)
 	for {
 		var entity IdentityEntity
@@ -306,7 +308,7 @@ func (s *IdentityStore) GetUserIdentities(userId string) ([]*core.Identity, erro
 // ChannelStore
 // ============================================================================
 
-// ChannelStore implements core.ChannelStore using Google Cloud Datastore
+// ChannelStore implements accounts.ChannelStore using Google Cloud Datastore
 type ChannelStore struct {
 	client    *datastore.Client
 	namespace string
@@ -340,7 +342,7 @@ func (s *ChannelStore) channelKeyName(provider, identityKey string) string {
 	return provider + ":" + identityKey
 }
 
-func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*core.Channel, bool, error) {
+func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*accounts.Channel, bool, error) {
 	key := s.namespacedKey(KindChannel, s.channelKeyName(provider, identityKey))
 	var entity ChannelEntity
 	err := s.client.Get(s.ctx, key, &entity)
@@ -361,7 +363,7 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 			if _, err := s.client.Put(s.ctx, key, &entity); err != nil {
 				return nil, false, err
 			}
-			return &core.Channel{
+			return &accounts.Channel{
 				Provider:    provider,
 				IdentityKey: identityKey,
 				Credentials: make(map[string]any),
@@ -385,7 +387,7 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 		json.Unmarshal(entity.Profile, &profile)
 	}
 
-	return &core.Channel{
+	return &accounts.Channel{
 		Provider:    entity.Provider,
 		IdentityKey: entity.IdentityKey,
 		Credentials: credentials,
@@ -397,7 +399,7 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 	}, false, nil
 }
 
-func (s *ChannelStore) SaveChannel(channel *core.Channel) error {
+func (s *ChannelStore) SaveChannel(channel *accounts.Channel) error {
 	key := s.namespacedKey(KindChannel, s.channelKeyName(channel.Provider, channel.IdentityKey))
 
 	var credBytes, profileBytes []byte
@@ -436,14 +438,14 @@ func (s *ChannelStore) SaveChannel(channel *core.Channel) error {
 	return err
 }
 
-func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*core.Channel, error) {
+func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*accounts.Channel, error) {
 	query := datastore.NewQuery(KindChannel).
 		FilterField("identity_key", "=", identityKey)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
-	var channels []*core.Channel
+	var channels []*accounts.Channel
 	it := s.client.Run(s.ctx, query)
 	for {
 		var entity ChannelEntity
@@ -463,7 +465,7 @@ func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*core.Channe
 			json.Unmarshal(entity.Profile, &profile)
 		}
 
-		channels = append(channels, &core.Channel{
+		channels = append(channels, &accounts.Channel{
 			Provider:    entity.Provider,
 			IdentityKey: entity.IdentityKey,
 			Credentials: credentials,
@@ -511,7 +513,7 @@ func (s *TokenStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *TokenStore) CreateToken(userID, email string, tokenType core.TokenType, expiryDuration time.Duration) (*core.AuthToken, error) {
+func (s *TokenStore) CreateToken(userID, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -519,7 +521,7 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType core.TokenType,
 
 	key := s.namespacedKey(KindAuthToken, token)
 	now := time.Now()
-	entity := &AuthTokenEntity{
+	entity := &VerificationTokenEntity{
 		Key:       key,
 		Type:      tokenType,
 		UserID:    userID,
@@ -532,7 +534,7 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType core.TokenType,
 		return nil, err
 	}
 
-	return &core.AuthToken{
+	return &localauth.VerificationToken{
 		Token:     token,
 		Type:      tokenType,
 		UserID:    userID,
@@ -542,9 +544,9 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType core.TokenType,
 	}, nil
 }
 
-func (s *TokenStore) GetToken(token string) (*core.AuthToken, error) {
+func (s *TokenStore) GetToken(token string) (*localauth.VerificationToken, error) {
 	key := s.namespacedKey(KindAuthToken, token)
-	var entity AuthTokenEntity
+	var entity VerificationTokenEntity
 	if err := s.client.Get(s.ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			return nil, fmt.Errorf("token not found")
@@ -552,7 +554,7 @@ func (s *TokenStore) GetToken(token string) (*core.AuthToken, error) {
 		return nil, err
 	}
 
-	authToken := entity.ToAuthToken()
+	authToken := entity.ToVerificationToken()
 	if authToken.IsExpired() {
 		_ = s.DeleteToken(token)
 		return nil, fmt.Errorf("token expired")
@@ -566,7 +568,7 @@ func (s *TokenStore) DeleteToken(token string) error {
 	return s.client.Delete(s.ctx, key)
 }
 
-func (s *TokenStore) DeleteUserTokens(userID string, tokenType core.TokenType) error {
+func (s *TokenStore) DeleteUserTokens(userID string, tokenType localauth.VerificationType) error {
 	query := datastore.NewQuery(KindAuthToken).
 		FilterField("user_id", "=", userID).
 		FilterField("type", "=", string(tokenType)).
@@ -1231,7 +1233,7 @@ func (s *APIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
 // UsernameStore
 // ============================================================================
 
-// UsernameStore implements core.UsernameStore using Google Cloud Datastore
+// UsernameStore implements accounts.UsernameStore using Google Cloud Datastore
 type UsernameStore struct {
 	client    *datastore.Client
 	namespace string

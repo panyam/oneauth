@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/accounts"
 )
 
 // FSChannelStore stores channels as JSON files
@@ -32,7 +32,7 @@ func (s *FSChannelStore) getChannelPath(provider, identityKey string) (string, e
 	return filepath.Join(s.StoragePath, "channels", filename), nil
 }
 
-func (s *FSChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*core.Channel, bool, error) {
+func (s *FSChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*accounts.Channel, bool, error) {
 	path, err := s.getChannelPath(provider, identityKey)
 	if err != nil {
 		return nil, false, err
@@ -42,7 +42,7 @@ func (s *FSChannelStore) GetChannel(provider string, identityKey string, createI
 	if err != nil {
 		if os.IsNotExist(err) && createIfMissing {
 			now := time.Now()
-			channel := &core.Channel{
+			channel := &accounts.Channel{
 				Provider:    provider,
 				IdentityKey: identityKey,
 				Credentials: make(map[string]any),
@@ -62,14 +62,14 @@ func (s *FSChannelStore) GetChannel(provider string, identityKey string, createI
 		return nil, false, err
 	}
 
-	var channel core.Channel
+	var channel accounts.Channel
 	if err := json.Unmarshal(data, &channel); err != nil {
 		return nil, false, err
 	}
 	return &channel, false, nil
 }
 
-func (s *FSChannelStore) SaveChannel(channel *core.Channel) error {
+func (s *FSChannelStore) SaveChannel(channel *accounts.Channel) error {
 	path, err := s.getChannelPath(channel.Provider, channel.IdentityKey)
 	if err != nil {
 		return err
@@ -94,17 +94,17 @@ func (s *FSChannelStore) SaveChannel(channel *core.Channel) error {
 	return writeAtomicFile(path, data)
 }
 
-func (s *FSChannelStore) GetChannelsByIdentity(identityKey string) ([]*core.Channel, error) {
+func (s *FSChannelStore) GetChannelsByIdentity(identityKey string) ([]*accounts.Channel, error) {
 	channelsDir := filepath.Join(s.StoragePath, "channels")
 	entries, err := os.ReadDir(channelsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []*core.Channel{}, nil
+			return []*accounts.Channel{}, nil
 		}
 		return nil, err
 	}
 
-	var channels []*core.Channel
+	var channels []*accounts.Channel
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -115,7 +115,7 @@ func (s *FSChannelStore) GetChannelsByIdentity(identityKey string) ([]*core.Chan
 			continue
 		}
 
-		var channel core.Channel
+		var channel accounts.Channel
 		if err := json.Unmarshal(data, &channel); err != nil {
 			continue
 		}

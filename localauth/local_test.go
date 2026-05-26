@@ -4,7 +4,6 @@ package localauth_test
 
 import (
 	"github.com/panyam/oneauth/localauth"
-	"github.com/panyam/oneauth/core"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,14 +14,15 @@ import (
 	"time"
 	"github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
+	"github.com/panyam/oneauth/accounts"
 )
 
 // testAuthService wraps the stores for testing
 type testAuthService struct {
-	UserStore     core.UserStore
-	IdentityStore core.IdentityStore
-	ChannelStore  core.ChannelStore
-	TokenStore    core.TokenStore
+	UserStore     accounts.UserStore
+	IdentityStore accounts.IdentityStore
+	ChannelStore  accounts.ChannelStore
+	TokenStore    localauth.VerificationTokenStore
 }
 
 // setupTestAuth creates a temporary storage directory and returns test services
@@ -58,7 +58,7 @@ func TestSignupFlow(t *testing.T) {
 	createUser := localauth.NewCreateUserFunc(service.UserStore, service.IdentityStore, service.ChannelStore)
 	localAuth := &localauth.LocalAuth{
 		CreateUser:  createUser,
-		EmailSender: &core.ConsoleEmailSender{},
+		EmailSender: &localauth.ConsoleEmailSender{},
 		TokenStore:  service.TokenStore,
 		BaseURL:     "http://localhost:8080",
 		HandleUser: func(authtype string, provider string, token *oauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {
@@ -149,7 +149,7 @@ func TestLoginFlow(t *testing.T) {
 	// Create test user
 	testEmail := "login@example.com"
 	testPassword := "password123"
-	creds := &core.Credentials{
+	creds := &localauth.Credentials{
 		Username: "loginuser",
 		Email:    &testEmail,
 		Password: testPassword,
@@ -237,7 +237,7 @@ func TestTokenExpiry(t *testing.T) {
 	defer cleanup(t, tmpDir)
 
 	// Create an expired token
-	token, err := service.TokenStore.CreateToken("testuser", "test@example.com", core.TokenTypeEmailVerification, -1*time.Hour)
+	token, err := service.TokenStore.CreateToken("testuser", "test@example.com", localauth.VerificationTypeEmail, -1*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to create token: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestUsernameDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := core.DetectUsernameType(tt.input)
+			result := accounts.DetectUsernameType(tt.input)
 			if result != tt.expected {
 				t.Errorf("For input %q, expected %q, got %q", tt.input, tt.expected, result)
 			}
@@ -280,13 +280,13 @@ func TestUsernameDetection(t *testing.T) {
 func TestDefaultValidator(t *testing.T) {
 	tests := []struct {
 		name      string
-		creds     *core.Credentials
+		creds     *localauth.Credentials
 		expectErr bool
 		errText   string
 	}{
 		{
 			name: "valid credentials",
-			creds: &core.Credentials{
+			creds: &localauth.Credentials{
 				Username: "testuser",
 				Email:    ptrString("test@example.com"),
 				Password: "password123",
@@ -295,7 +295,7 @@ func TestDefaultValidator(t *testing.T) {
 		},
 		{
 			name: "username too short",
-			creds: &core.Credentials{
+			creds: &localauth.Credentials{
 				Username: "ab",
 				Email:    ptrString("test@example.com"),
 				Password: "password123",
@@ -305,7 +305,7 @@ func TestDefaultValidator(t *testing.T) {
 		},
 		{
 			name: "invalid email",
-			creds: &core.Credentials{
+			creds: &localauth.Credentials{
 				Username: "testuser",
 				Email:    ptrString("invalid-email"),
 				Password: "password123",
@@ -315,7 +315,7 @@ func TestDefaultValidator(t *testing.T) {
 		},
 		{
 			name: "password too short",
-			creds: &core.Credentials{
+			creds: &localauth.Credentials{
 				Username: "testuser",
 				Email:    ptrString("test@example.com"),
 				Password: "pass",
@@ -327,7 +327,7 @@ func TestDefaultValidator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := core.DefaultSignupValidator(tt.creds)
+			err := localauth.DefaultSignupValidator(tt.creds)
 			if tt.expectErr {
 				if err == nil {
 					t.Error("Expected error but got nil")
@@ -386,7 +386,7 @@ func setupPasswordResetAuth(t *testing.T) (*localauth.LocalAuth, *testAuthServic
 
 	// Create a test user
 	testEmail := "reset@example.com"
-	creds := &core.Credentials{
+	creds := &localauth.Credentials{
 		Username: "resetuser",
 		Email:    &testEmail,
 		Password: "oldpassword123",
@@ -550,7 +550,7 @@ func TestResetPasswordForm(t *testing.T) {
 		localAuth, service, _, tmpDir := setupPasswordResetAuth(t)
 		defer cleanup(t, tmpDir)
 
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", core.TokenTypePasswordReset, core.TokenExpiryPasswordReset)
+		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
@@ -592,7 +592,7 @@ func TestResetPasswordForm(t *testing.T) {
 
 		localAuth.ResetPasswordURL = "/reset-password"
 
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", core.TokenTypePasswordReset, core.TokenExpiryPasswordReset)
+		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
@@ -640,7 +640,7 @@ func TestResetPassword(t *testing.T) {
 		defer cleanup(t, tmpDir)
 
 		// Create a valid reset token
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", core.TokenTypePasswordReset, core.TokenExpiryPasswordReset)
+		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
@@ -680,7 +680,7 @@ func TestResetPassword(t *testing.T) {
 
 		localAuth.ResetPasswordURL = "/reset-password"
 
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", core.TokenTypePasswordReset, core.TokenExpiryPasswordReset)
+		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
@@ -733,7 +733,7 @@ func TestResetPassword(t *testing.T) {
 		localAuth, service, _, tmpDir := setupPasswordResetAuth(t)
 		defer cleanup(t, tmpDir)
 
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", core.TokenTypePasswordReset, core.TokenExpiryPasswordReset)
+		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
@@ -779,7 +779,7 @@ func TestResetPassword(t *testing.T) {
 		defer cleanup(t, tmpDir)
 
 		// Create an expired token
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", core.TokenTypePasswordReset, -1*time.Hour)
+		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, -1*time.Hour)
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}

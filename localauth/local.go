@@ -8,28 +8,29 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
 )
 
 type VerifyEmailFunc func(token string) error
 type UpdatePasswordFunc func(email, newPassword string) error
 
-// Allows local username/password based authentication
+// Allows local username/password based authentication.
 type LocalAuth struct {
 	// Validates credentials during login
-	ValidateCredentials core.CredentialsValidator
+	ValidateCredentials CredentialsValidator
 
 	// Validates credentials during signup (deprecated: use SignupPolicy instead)
-	ValidateSignup core.SignupValidator
+	ValidateSignup SignupValidator
 
 	// Creates a new user (for signup)
-	CreateUser core.CreateUserFunc
+	CreateUser CreateUserFunc
 
 	// Optional email sender for verification emails
-	EmailSender core.SendEmail
+	EmailSender SendEmail
 
 	// Optional token store for email verification and password reset
-	TokenStore core.TokenStore
+	TokenStore VerificationTokenStore
 
 	// Base URL for generating verification/reset links
 	BaseURL string
@@ -47,7 +48,7 @@ type LocalAuth struct {
 	PhoneField    string
 
 	// Handler called after successful authentication
-	HandleUser core.HandleUserFunc
+	HandleUser accounts.HandleUserFunc
 
 	// Callback to verify email by token
 	VerifyEmail VerifyEmailFunc
@@ -56,13 +57,13 @@ type LocalAuth struct {
 	UpdatePassword UpdatePasswordFunc
 
 	// SignupPolicy defines what is required for signup (overrides ValidateSignup if set)
-	SignupPolicy *core.SignupPolicy
+	SignupPolicy *SignupPolicy
 
 	// OnSignupError is called when signup fails. If nil, returns JSON error.
-	OnSignupError core.AuthErrorHandler
+	OnSignupError accounts.AuthErrorHandler
 
 	// OnLoginError is called when login fails. If nil, returns JSON error.
-	OnLoginError core.AuthErrorHandler
+	OnLoginError accounts.AuthErrorHandler
 
 	// SignupURL is used for redirects on error (if OnSignupError uses redirects)
 	SignupURL string
@@ -71,7 +72,7 @@ type LocalAuth struct {
 	LoginURL string
 
 	// Optional UsernameStore for enforcing username uniqueness
-	UsernameStore core.UsernameStore
+	UsernameStore accounts.UsernameStore
 
 	// ForgotPasswordURL: if set, GET /forgot-password redirects here and
 	// POST /forgot-password redirects here with ?sent=true on success.
@@ -120,7 +121,7 @@ func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Parse form data
 	username, password, err := a.parseLoginForm(r)
 	if err != nil {
-		authErr := core.NewAuthError(core.ErrCodeMissingField, err.Error(), "username")
+		authErr := accounts.NewAuthError(accounts.ErrCodeMissingField, err.Error(), "username")
 		a.handleLoginError(authErr, w, r)
 		return
 	}
@@ -143,7 +144,7 @@ func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Detect username type (email, phone, or username) if not specified
-	usernameType := core.DetectUsernameType(username)
+	usernameType := DetectUsernameType(username)
 
 	// Validate credentials
 	user, err := a.ValidateCredentials(username, password, usernameType)
@@ -155,7 +156,7 @@ func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if a.Lockout != nil {
 			a.Lockout.RecordFailure(username)
 		}
-		authErr := core.NewAuthError(core.ErrCodeInvalidCreds, "Invalid credentials", "password")
+		authErr := accounts.NewAuthError(accounts.ErrCodeInvalidCreds, "Invalid credentials", "password")
 		a.handleLoginError(authErr, w, r)
 		return
 	}
@@ -329,7 +330,7 @@ func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request)
 	// Generate reset token
 	// Note: We need UserID for CreateToken, but we don't want to reveal if email exists
 	// For security, always return success even if email doesn't exist
-	token, err := a.TokenStore.CreateToken("", email, core.TokenTypePasswordReset, core.TokenExpiryPasswordReset)
+	token, err := a.TokenStore.CreateToken("", email, VerificationTypePasswordReset, VerificationExpiryPasswordReset)
 	if err != nil {
 		log.Printf("Error creating reset token: %v", err)
 		// Still return success to avoid revealing if email exists
@@ -431,7 +432,7 @@ func (a *LocalAuth) HandleResetPassword(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if authToken.Type != core.TokenTypePasswordReset {
+	if authToken.Type != VerificationTypePasswordReset {
 		a.resetPasswordError(w, r, token, "Invalid token type")
 		return
 	}
@@ -484,8 +485,8 @@ func (a *LocalAuth) resetPasswordError(w http.ResponseWriter, r *http.Request, t
 	http.Error(w, fmt.Sprintf(`{"error": "%s"}`, message), http.StatusBadRequest)
 }
 
-// handleLoginError handles login errors using the configured handler or default JSON
-func (a *LocalAuth) handleLoginError(err *core.AuthError, w http.ResponseWriter, r *http.Request) {
+// handleLoginError handles login errors using the configured handler or default JSON.
+func (a *LocalAuth) handleLoginError(err *accounts.AuthError, w http.ResponseWriter, r *http.Request) {
 	if a.OnLoginError != nil && a.OnLoginError(err, w, r) {
 		return
 	}
@@ -493,7 +494,7 @@ func (a *LocalAuth) handleLoginError(err *core.AuthError, w http.ResponseWriter,
 	w.Header().Set("Content-Type", "application/json")
 	// Use 400 for validation errors, 401 for invalid credentials
 	statusCode := http.StatusUnauthorized
-	if err.Code == core.ErrCodeMissingField || err.Code == core.ErrCodeInvalidEmail || err.Code == core.ErrCodeInvalidUsername {
+	if err.Code == accounts.ErrCodeMissingField || err.Code == accounts.ErrCodeInvalidEmail || err.Code == accounts.ErrCodeInvalidUsername {
 		statusCode = http.StatusBadRequest
 	}
 	w.WriteHeader(statusCode)
@@ -504,8 +505,8 @@ func (a *LocalAuth) handleLoginError(err *core.AuthError, w http.ResponseWriter,
 	})
 }
 
-// handleSignupError handles signup errors using the configured handler or default JSON
-func (a *LocalAuth) handleSignupError(err *core.AuthError, w http.ResponseWriter, r *http.Request) {
+// handleSignupError handles signup errors using the configured handler or default JSON.
+func (a *LocalAuth) handleSignupError(err *accounts.AuthError, w http.ResponseWriter, r *http.Request) {
 	if a.OnSignupError != nil && a.OnSignupError(err, w, r) {
 		return
 	}
@@ -523,12 +524,12 @@ func (a *LocalAuth) handleSignupError(err *core.AuthError, w http.ResponseWriter
 // Credential Linking (Phase 4)
 // =============================================================================
 
-// LinkCredentialsConfig holds configuration for HandleLinkCredentials
+// LinkCredentialsConfig holds configuration for HandleLinkCredentials.
 type LinkCredentialsConfig struct {
-	UserStore     core.UserStore
-	IdentityStore core.IdentityStore
-	ChannelStore  core.ChannelStore
-	UsernameStore core.UsernameStore // Optional
+	UserStore     accounts.UserStore
+	IdentityStore accounts.IdentityStore
+	ChannelStore  accounts.ChannelStore
+	UsernameStore accounts.UsernameStore // Optional
 }
 
 // GetLoggedInUserFunc returns the currently logged-in user ID from the request.
@@ -620,7 +621,7 @@ func (a *LocalAuth) HandleLinkCredentials(config LinkCredentialsConfig, getUser 
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]any{
 				"error": fmt.Sprintf("Password must be at least %d characters", minLen),
-				"code":  core.ErrCodeWeakPassword,
+				"code":  accounts.ErrCodeWeakPassword,
 				"field": "password",
 			})
 			return
@@ -634,7 +635,7 @@ func (a *LocalAuth) HandleLinkCredentials(config LinkCredentialsConfig, getUser 
 				w.WriteHeader(http.StatusBadRequest)
 				json.NewEncoder(w).Encode(map[string]any{
 					"error": "Invalid username format",
-					"code":  core.ErrCodeInvalidUsername,
+					"code":  accounts.ErrCodeInvalidUsername,
 					"field": "username",
 				})
 				return
@@ -648,7 +649,7 @@ func (a *LocalAuth) HandleLinkCredentials(config LinkCredentialsConfig, getUser 
 					w.WriteHeader(http.StatusBadRequest)
 					json.NewEncoder(w).Encode(map[string]any{
 						"error": "Username is already taken",
-						"code":  core.ErrCodeUsernameTaken,
+						"code":  accounts.ErrCodeUsernameTaken,
 						"field": "username",
 					})
 					return
@@ -657,7 +658,7 @@ func (a *LocalAuth) HandleLinkCredentials(config LinkCredentialsConfig, getUser 
 		}
 
 		// Link credentials using the helper
-		linkConfig := EnsureAuthUserConfig(config)
+		linkConfig := LinkLocalCredentialsConfig(config)
 		if err := LinkLocalCredentials(linkConfig, userID, username, password, email); err != nil {
 			errMsg := err.Error()
 			code := "link_failed"

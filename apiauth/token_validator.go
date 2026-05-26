@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
@@ -231,7 +232,7 @@ type jwtIssuer struct {
 	accessExpiry        time.Duration
 	clientKeyLookup     keys.KeyLookup
 	refreshStore        core.RefreshTokenStore
-	validateCredentials core.CredentialsValidator
+	validateCredentials CredentialsValidator
 	getUserScopes       core.GetUserScopesFunc
 	hooks               TokenHooks
 }
@@ -245,7 +246,7 @@ type JWTIssuerConfig struct {
 	AccessExpiry        time.Duration
 	ClientKeyLookup     keys.KeyLookup         // for client_credentials authentication
 	RefreshStore        core.RefreshTokenStore  // for refresh_token grant
-	ValidateCredentials core.CredentialsValidator // for password grant
+	ValidateCredentials CredentialsValidator // for password grant
 	GetUserScopes       core.GetUserScopesFunc   // for password grant (optional)
 	Hooks               TokenHooks
 }
@@ -449,7 +450,7 @@ func (i *jwtIssuer) PasswordGrant(ctx context.Context, req *PasswordGrantRequest
 	}
 
 	// Validate credentials
-	usernameType := core.DetectUsernameType(req.Username)
+	usernameType := accounts.DetectUsernameType(req.Username)
 	user, err := i.validateCredentials(req.Username, req.Password, usernameType)
 	if err != nil || user == nil {
 		return nil, fmt.Errorf("invalid_grant: invalid credentials")

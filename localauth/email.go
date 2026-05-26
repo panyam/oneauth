@@ -1,14 +1,15 @@
-package core
+package localauth
 
 import "log"
 
-// SendEmail interface allows applications to provide their own email sending implementation
+// SendEmail lets applications provide their own email-sending implementation
+// for localauth's verification-email and password-reset flows.
 type SendEmail interface {
 	SendVerificationEmail(to string, verificationLink string) error
 	SendPasswordResetEmail(to string, resetLink string) error
 }
 
-// ConsoleEmailSender is a development implementation that logs emails to console
+// ConsoleEmailSender is a development implementation that logs emails to console.
 type ConsoleEmailSender struct{}
 
 func (c *ConsoleEmailSender) SendVerificationEmail(to string, verificationLink string) error {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 	"github.com/panyam/oneauth/stores/fs"
+	"github.com/panyam/oneauth/federatedauth"
 )
 
 // =============================================================================
@@ -203,13 +204,13 @@ func TestUsernameStoreNotFound(t *testing.T) {
 // NewEnsureAuthUserFunc Tests
 // =============================================================================
 
-func setupAuthStores(t *testing.T) (localauth.EnsureAuthUserConfig, string) {
+func setupAuthStores(t *testing.T) (federatedauth.EnsureAuthUserConfig, string) {
 	tmpDir, err := os.MkdirTemp("", "oneauth-channel-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	return localauth.EnsureAuthUserConfig{
+	return federatedauth.EnsureAuthUserConfig{
 		UserStore:     fs.NewFSUserStore(tmpDir),
 		IdentityStore: fs.NewFSIdentityStore(tmpDir),
 		ChannelStore:  fs.NewFSChannelStore(tmpDir),
@@ -223,7 +224,7 @@ func TestEnsureAuthUserNewUser(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
 
-	ensureUser := localauth.NewEnsureAuthUserFunc(config)
+	ensureUser := federatedauth.NewEnsureAuthUserFunc(config)
 
 	userInfo := map[string]any{
 		"email":   "new@example.com",
@@ -265,7 +266,7 @@ func TestEnsureAuthUserExistingUserNewChannel(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
 
-	ensureUser := localauth.NewEnsureAuthUserFunc(config)
+	ensureUser := federatedauth.NewEnsureAuthUserFunc(config)
 
 	// Create user via Google
 	userInfo := map[string]any{
@@ -308,7 +309,7 @@ func TestEnsureAuthUserMissingEmail(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
 
-	ensureUser := localauth.NewEnsureAuthUserFunc(config)
+	ensureUser := federatedauth.NewEnsureAuthUserFunc(config)
 
 	userInfo := map[string]any{
 		"name": "No Email User",
@@ -330,7 +331,7 @@ func TestLinkLocalCredentials(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
 
-	ensureUser := localauth.NewEnsureAuthUserFunc(config)
+	ensureUser := federatedauth.NewEnsureAuthUserFunc(config)
 
 	// Create OAuth-only user
 	userInfo := map[string]any{
@@ -343,7 +344,7 @@ func TestLinkLocalCredentials(t *testing.T) {
 	}
 
 	// Link local credentials
-	err = localauth.LinkLocalCredentials(config, user.Id(), "newusername", "password123", "oauth@example.com")
+	err = localauth.LinkLocalCredentials(localauth.LinkLocalCredentialsConfig(config), user.Id(), "newusername", "password123", "oauth@example.com")
 	if err != nil {
 		t.Fatalf("Failed to link credentials: %v", err)
 	}
@@ -373,7 +374,7 @@ func TestLinkLocalCredentialsAlreadyExists(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
 
-	ensureUser := localauth.NewEnsureAuthUserFunc(config)
+	ensureUser := federatedauth.NewEnsureAuthUserFunc(config)
 
 	// Create OAuth user
 	userInfo := map[string]any{
@@ -382,13 +383,13 @@ func TestLinkLocalCredentialsAlreadyExists(t *testing.T) {
 	user, _ := ensureUser("oauth", "google", nil, userInfo)
 
 	// Link credentials first time
-	err := localauth.LinkLocalCredentials(config, user.Id(), "username1", "password123", "test@example.com")
+	err := localauth.LinkLocalCredentials(localauth.LinkLocalCredentialsConfig(config), user.Id(), "username1", "password123", "test@example.com")
 	if err != nil {
 		t.Fatalf("First link should succeed: %v", err)
 	}
 
 	// Try to link again - should fail
-	err = localauth.LinkLocalCredentials(config, user.Id(), "username2", "password456", "test@example.com")
+	err = localauth.LinkLocalCredentials(localauth.LinkLocalCredentialsConfig(config), user.Id(), "username2", "password456", "test@example.com")
 	if err == nil {
 		t.Error("Should not allow linking credentials twice")
 	}
@@ -400,7 +401,7 @@ func TestLinkLocalCredentialsWrongEmail(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
 
-	ensureUser := localauth.NewEnsureAuthUserFunc(config)
+	ensureUser := federatedauth.NewEnsureAuthUserFunc(config)
 
 	// Create user
 	userInfo := map[string]any{
@@ -409,7 +410,7 @@ func TestLinkLocalCredentialsWrongEmail(t *testing.T) {
 	user, _ := ensureUser("oauth", "google", nil, userInfo)
 
 	// Try to link with different email
-	err := localauth.LinkLocalCredentials(config, user.Id(), "username", "password123", "wrong@example.com")
+	err := localauth.LinkLocalCredentials(localauth.LinkLocalCredentialsConfig(config), user.Id(), "username", "password123", "wrong@example.com")
 	if err == nil {
 		t.Error("Should not allow linking with wrong email")
 	}
@@ -425,14 +426,14 @@ func TestCredentialsValidatorWithUsername(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
 
-	ensureUser := localauth.NewEnsureAuthUserFunc(config)
+	ensureUser := federatedauth.NewEnsureAuthUserFunc(config)
 
 	// Create OAuth user and link local credentials
 	userInfo := map[string]any{
 		"email": "test@example.com",
 	}
 	user, _ := ensureUser("oauth", "google", nil, userInfo)
-	localauth.LinkLocalCredentials(config, user.Id(), "testuser", "password123", "test@example.com")
+	localauth.LinkLocalCredentials(localauth.LinkLocalCredentialsConfig(config), user.Id(), "testuser", "password123", "test@example.com")
 
 	// Create validator with username support
 	validator := localauth.NewCredentialsValidatorWithUsername(
@@ -466,11 +467,11 @@ func TestCredentialsValidatorWithUsernameWrongPassword(t *testing.T) {
 	config, tmpDir := setupAuthStores(t)
 	defer os.RemoveAll(tmpDir)
 
-	ensureUser := localauth.NewEnsureAuthUserFunc(config)
+	ensureUser := federatedauth.NewEnsureAuthUserFunc(config)
 
 	userInfo := map[string]any{"email": "test@example.com"}
 	user, _ := ensureUser("oauth", "google", nil, userInfo)
-	localauth.LinkLocalCredentials(config, user.Id(), "testuser", "password123", "test@example.com")
+	localauth.LinkLocalCredentials(localauth.LinkLocalCredentialsConfig(config), user.Id(), "testuser", "password123", "test@example.com")
 
 	validator := localauth.NewCredentialsValidatorWithUsername(
 		config.IdentityStore,

@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/localauth"
 )
 
 // JSONMap is a helper type for storing JSON maps in GORM
@@ -106,8 +108,8 @@ func (IdentityModel) TableName() string {
 	return "identities"
 }
 
-func (m *IdentityModel) ToIdentity() *core.Identity {
-	return &core.Identity{
+func (m *IdentityModel) ToIdentity() *accounts.Identity {
+	return &accounts.Identity{
 		Type:      m.Type,
 		Value:     m.Value,
 		UserID:    m.UserID,
@@ -118,7 +120,7 @@ func (m *IdentityModel) ToIdentity() *core.Identity {
 	}
 }
 
-func IdentityToModel(i *core.Identity) *IdentityModel {
+func IdentityToModel(i *accounts.Identity) *IdentityModel {
 	return &IdentityModel{
 		Type:      i.Type,
 		Value:     i.Value,
@@ -146,8 +148,8 @@ func (ChannelModel) TableName() string {
 	return "channels"
 }
 
-func (m *ChannelModel) ToChannel() *core.Channel {
-	return &core.Channel{
+func (m *ChannelModel) ToChannel() *accounts.Channel {
+	return &accounts.Channel{
 		Provider:    m.Provider,
 		IdentityKey: m.IdentityKey,
 		Credentials: m.Credentials,
@@ -159,7 +161,7 @@ func (m *ChannelModel) ToChannel() *core.Channel {
 	}
 }
 
-func ChannelToModel(c *core.Channel) *ChannelModel {
+func ChannelToModel(c *accounts.Channel) *ChannelModel {
 	return &ChannelModel{
 		Provider:    c.Provider,
 		IdentityKey: c.IdentityKey,
@@ -172,22 +174,22 @@ func ChannelToModel(c *core.Channel) *ChannelModel {
 	}
 }
 
-// AuthTokenModel is the GORM model for verification/reset tokens
-type AuthTokenModel struct {
-	Token     string       `gorm:"primaryKey;size:128"`
-	Type      core.TokenType `gorm:"size:32;index"`
-	UserID    string       `gorm:"size:64;index"`
-	Email     string       `gorm:"size:255"`
-	CreatedAt time.Time    `gorm:"autoCreateTime"`
-	ExpiresAt time.Time    `gorm:"index"`
+// VerificationTokenModel is the GORM model for localauth verification tokens.
+type VerificationTokenModel struct {
+	Token     string                     `gorm:"primaryKey;size:128"`
+	Type      localauth.VerificationType `gorm:"size:32;index"`
+	UserID    string                     `gorm:"size:64;index"`
+	Email     string                     `gorm:"size:255"`
+	CreatedAt time.Time                  `gorm:"autoCreateTime"`
+	ExpiresAt time.Time                  `gorm:"index"`
 }
 
-func (AuthTokenModel) TableName() string {
+func (VerificationTokenModel) TableName() string {
 	return "auth_tokens"
 }
 
-func (m *AuthTokenModel) ToAuthToken() *core.AuthToken {
-	return &core.AuthToken{
+func (m *VerificationTokenModel) ToVerificationToken() *localauth.VerificationToken {
+	return &localauth.VerificationToken{
 		Token:     m.Token,
 		Type:      m.Type,
 		UserID:    m.UserID,
@@ -197,8 +199,8 @@ func (m *AuthTokenModel) ToAuthToken() *core.AuthToken {
 	}
 }
 
-func AuthTokenToModel(t *core.AuthToken) *AuthTokenModel {
-	return &AuthTokenModel{
+func VerificationTokenToModel(t *localauth.VerificationToken) *VerificationTokenModel {
+	return &VerificationTokenModel{
 		Token:     t.Token,
 		Type:      t.Type,
 		UserID:    t.UserID,
