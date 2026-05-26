@@ -46,10 +46,10 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	e.localAuth = &localauth.LocalAuth{
 		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
 		CreateUser:          localauth.NewCreateUserFunc(userStore, identityStore, channelStore),
-		EmailSender:         &core.ConsoleEmailSender{},
+		EmailSender:         &localauth.ConsoleEmailSender{},
 		TokenStore:          tokenStore,
 		BaseURL:             "http://test",
-		SignupPolicy:        &core.PolicyEmailOnly,
+		SignupPolicy:        &localauth.PolicyEmailOnly,
 		VerifyEmail:         localauth.NewVerifyEmailFunc(identityStore, tokenStore),
 		UpdatePassword:      localauth.NewUpdatePasswordFunc(identityStore, channelStore),
 		HandleUser: func(authtype, provider string, token *oauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {

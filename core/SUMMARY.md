@@ -1,20 +1,24 @@
-# core/ — Foundation Types
+# core/ — Transport-Level Foundation Types
 
-Foundation types and interfaces for the OneAuth authentication framework. Every other OneAuth package imports core.
+Transport-level types and interfaces used across the OneAuth packages. After the
+account-model extraction this package no longer owns user/identity/channel
+concepts — those live in [`accounts/`](../accounts/SUMMARY.md) (data shape)
+and [`localauth/`](../localauth/SUMMARY.md) (username/password) and
+[`federatedauth/`](../federatedauth/SUMMARY.md) (OAuth/SAML callbacks).
 
 ## Contents
-- **user.go** — `User` interface, `BasicUser`, `Identity`, `Channel`, `IdentityKey()`, `HandleUserFunc`
-- **stores.go** — Store interfaces: `UserStore`, `IdentityStore`, `ChannelStore`, `RefreshTokenStore`, `APIKeyStore`, `UsernameStore`
-- **tokens.go** — `TokenType`, `AuthToken`, `RefreshToken`, `APIKey`, `TokenPair`, `TokenRequest`, `TokenError`, `TokenStore`, error vars, expiry constants
-- **credentials.go** — `SignupPolicy`, `AuthError`, `Credentials`, validator function types, `DetectUsernameType()`, preset policies
+- **stores.go** — Store interfaces: `RefreshTokenStore`, `APIKeyStore`
+- **tokens.go** — `RefreshToken`, `APIKey`, `TokenPair`, `TokenRequest`, `TokenError`, error vars, expiry constants, `GenerateSecureToken`, `GenerateAPIKeyID`, `GenerateAPIKeySecret`
 - **scopes.go** — Scope constants (`ScopeRead`, etc.), `GetUserScopesFunc`, `ParseScopes`, `JoinScopes`, `IntersectScopes`, `UnionScopes`
-- **email.go** — `SendEmail` interface, `ConsoleEmailSender`
 - **context.go** — `GetUserIDFromContext()`, `SetUserIDInContext()`, `DefaultUserParamName`
-
-## Recent Additions
 - **authorization_details.go** — `AuthorizationDetail` struct (RFC 9396), custom JSON marshal/unmarshal with extension flattening, `ValidateAll()`, `FilterByType()`, `ErrInvalidAuthorizationDetails`
 - **blacklist.go** — `TokenBlacklist` interface and `InMemoryBlacklist` for jti-based JWT revocation
 - **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket); also `AccountLockout` for tracking failed login attempts and temporary account lockouts
 
+## What moved out (and where)
+- `User`, `BasicUser`, `Identity`, `Channel`, `IdentityKey`, `HandleUserFunc`, `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`, `AuthError`, `AuthErrorHandler`, `ErrCode*`, `DetectUsernameType`, `CredentialsValidator`, `LinkedChannels` → [`accounts/`](../accounts/SUMMARY.md)
+- `Credentials`, `CreateUserFunc`, `SignupPolicy`, `SignupValidator`, `DefaultSignupValidator`, `Policy*` presets, `SendEmail`, `ConsoleEmailSender`, `AuthToken`/`TokenStore`/`TokenType`/email-verify+password-reset consts (renamed `Verification*`) → [`localauth/`](../localauth/SUMMARY.md)
+- `SaveUserAndRedirect`, `HandleLinkOAuthCallback`, `AuthUserStore`, `EnsureAuthUserConfig`, `NewEnsureAuthUserFunc` (provider-driven user creation orchestration) → [`federatedauth/`](../federatedauth/SUMMARY.md)
+
 ## Dependencies
-Standard library + `golang.org/x/oauth2` (for `HandleUserFunc`'s `*oauth2.Token` parameter).
+Standard library only.

@@ -39,7 +39,7 @@ func setupRateLimitAuth(t *testing.T) (*localauth.LocalAuth, func()) {
 
 	createUser := localauth.NewCreateUserFunc(userStore, identityStore, channelStore)
 	email := "alice@example.com"
-	creds := &core.Credentials{
+	creds := &localauth.Credentials{
 		Username: "alice",
 		Email:    &email,
 		Password: "correctpassword123",

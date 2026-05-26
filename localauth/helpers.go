@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/accounts"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -17,9 +17,9 @@ import (
 // only that bcrypt.CompareHashAndPassword runs in constant time.
 var dummyBcryptHash, _ = bcrypt.GenerateFromPassword([]byte("oneauth-timing-dummy"), bcrypt.DefaultCost)
 
-// NewCreateUserFunc creates a CreateUserFunc from stores
-func NewCreateUserFunc(userStore core.UserStore, identityStore core.IdentityStore, channelStore core.ChannelStore) core.CreateUserFunc {
-	return func(creds *core.Credentials) (core.User, error) {
+// NewCreateUserFunc creates a CreateUserFunc from stores.
+func NewCreateUserFunc(userStore accounts.UserStore, identityStore accounts.IdentityStore, channelStore accounts.ChannelStore) CreateUserFunc {
+	return func(creds *Credentials) (accounts.User, error) {
 		// Determine primary identity
 		var identityType, identityValue string
 		if creds.Email != nil && *creds.Email != "" {
@@ -62,7 +62,7 @@ func NewCreateUserFunc(userStore core.UserStore, identityStore core.IdentityStor
 		}
 
 		// Create identity
-		identity = &core.Identity{
+		identity = &accounts.Identity{
 			Type:     identityType,
 			Value:    identityValue,
 			UserID:   userId,
@@ -73,8 +73,8 @@ func NewCreateUserFunc(userStore core.UserStore, identityStore core.IdentityStor
 		}
 
 		// Create local channel with password
-		identityKey := core.IdentityKey(identityType, identityValue)
-		channel := &core.Channel{
+		identityKey := accounts.IdentityKey(identityType, identityValue)
+		channel := &accounts.Channel{
 			Provider:    "local",
 			IdentityKey: identityKey,
 			Credentials: map[string]any{
@@ -92,12 +92,12 @@ func NewCreateUserFunc(userStore core.UserStore, identityStore core.IdentityStor
 	}
 }
 
-// NewCredentialsValidator creates a CredentialsValidator from stores
-func NewCredentialsValidator(identityStore core.IdentityStore, channelStore core.ChannelStore, userStore core.UserStore) core.CredentialsValidator {
-	return func(username, password, usernameType string) (core.User, error) {
+// NewCredentialsValidator creates a CredentialsValidator from stores.
+func NewCredentialsValidator(identityStore accounts.IdentityStore, channelStore accounts.ChannelStore, userStore accounts.UserStore) CredentialsValidator {
+	return func(username, password, usernameType string) (accounts.User, error) {
 		// Auto-detect username type if not specified
 		if usernameType == "" {
-			usernameType = core.DetectUsernameType(username)
+			usernameType = DetectUsernameType(username)
 		}
 
 		// For username type, search is not implemented yet
@@ -106,7 +106,7 @@ func NewCredentialsValidator(identityStore core.IdentityStore, channelStore core
 		}
 
 		// For email/phone, lookup identity directly
-		identityKey := core.IdentityKey(usernameType, username)
+		identityKey := accounts.IdentityKey(usernameType, username)
 
 		// Get local channel for this identity
 		channel, _, err := channelStore.GetChannel("local", identityKey, false)
@@ -140,20 +140,20 @@ func NewCredentialsValidator(identityStore core.IdentityStore, channelStore core
 	}
 }
 
-// NewVerifyEmailFunc creates a VerifyEmailFunc from stores
-func NewVerifyEmailFunc(identityStore core.IdentityStore, tokenStore core.TokenStore) VerifyEmailFunc {
+// NewVerifyEmailFunc creates a VerifyEmailFunc from stores.
+func NewVerifyEmailFunc(identityStore accounts.IdentityStore, tokenStore VerificationTokenStore) VerifyEmailFunc {
 	return func(token string) error {
-		authToken, err := tokenStore.GetToken(token)
+		verToken, err := tokenStore.GetToken(token)
 		if err != nil {
 			return fmt.Errorf("invalid or expired token")
 		}
 
-		if authToken.Type != core.TokenTypeEmailVerification {
+		if verToken.Type != VerificationTypeEmail {
 			return fmt.Errorf("invalid token type")
 		}
 
 		// Mark the email identity as verified
-		if err := identityStore.MarkIdentityVerified("email", authToken.Email); err != nil {
+		if err := identityStore.MarkIdentityVerified("email", verToken.Email); err != nil {
 			return fmt.Errorf("failed to verify email: %w", err)
 		}
 
@@ -168,7 +168,7 @@ func NewVerifyEmailFunc(identityStore core.IdentityStore, tokenStore core.TokenS
 
 // NewUpdatePasswordFunc creates an UpdatePasswordFunc from stores.
 // If the user has no local channel (e.g. OAuth-only user), one is created automatically.
-func NewUpdatePasswordFunc(identityStore core.IdentityStore, channelStore core.ChannelStore) UpdatePasswordFunc {
+func NewUpdatePasswordFunc(identityStore accounts.IdentityStore, channelStore accounts.ChannelStore) UpdatePasswordFunc {
 	return func(email, newPassword string) error {
 		// Get the identity
 		identity, _, err := identityStore.GetIdentity("email", email, false)
@@ -183,10 +183,10 @@ func NewUpdatePasswordFunc(identityStore core.IdentityStore, channelStore core.C
 		}
 
 		// Get or create local channel (supports OAuth-only users setting a password via reset)
-		identityKey := core.IdentityKey("email", email)
+		identityKey := accounts.IdentityKey("email", email)
 		channel, _, err := channelStore.GetChannel("local", identityKey, false)
 		if err != nil || channel == nil {
-			channel = &core.Channel{
+			channel = &accounts.Channel{
 				Provider:    "local",
 				IdentityKey: identityKey,
 				Credentials: map[string]any{},
@@ -208,7 +208,7 @@ func NewUpdatePasswordFunc(identityStore core.IdentityStore, channelStore core.C
 	}
 }
 
-// generateSecureUserId generates a cryptographically secure user ID
+// generateSecureUserId generates a cryptographically secure user ID.
 func generateSecureUserId() string {
 	b := make([]byte, 16)
 	rand.Read(b)
@@ -216,246 +216,18 @@ func generateSecureUserId() string {
 }
 
 // =============================================================================
-// Channel-Aware User Creation (Phase 4)
-// =============================================================================
-
-// EnsureAuthUserConfig holds configuration for NewEnsureAuthUserFunc.
-//
-// Example setup in your app:
-//
-//	config := oneauth.EnsureAuthUserConfig{
-//	    UserStore:     gaeStores.UserStore,
-//	    IdentityStore: gaeStores.IdentityStore,
-//	    ChannelStore:  gaeStores.ChannelStore,
-//	    UsernameStore: gaeStores.UsernameStore, // optional
-//	}
-//	ensureUser := oneauth.NewEnsureAuthUserFunc(config)
-//
-//	// Then use with OneAuth:
-//	authUserStore := &MyAuthUserStore{config: config, ensureUser: ensureUser}
-//	oneAuth.UserStore = authUserStore
-type EnsureAuthUserConfig struct {
-	UserStore     core.UserStore
-	IdentityStore core.IdentityStore
-	ChannelStore  core.ChannelStore
-	UsernameStore core.UsernameStore // Optional - for username uniqueness
-}
-
-// NewEnsureAuthUserFunc creates a function that handles user creation/lookup for both
-// OAuth and local authentication with channel linking support.
-//
-// # Who Calls This
-//
-// This function is called by OneAuth.SaveUserAndRedirect after a successful OAuth callback
-// or local login. The returned function implements the core logic for AuthUserStore.EnsureAuthUser.
-//
-// # Flow for OAuth (e.g., Google Login)
-//
-//  1. User clicks "Login with Google" → redirects to Google
-//  2. Google redirects back to /auth/google/callback with auth code
-//  3. OAuth handler exchanges code for token, fetches userInfo (email, name, picture)
-//  4. OAuth handler calls OneAuth.SaveUserAndRedirect(authtype="oauth", provider="google", token, userInfo)
-//  5. SaveUserAndRedirect calls UserStore.EnsureAuthUser → this function
-//  6. This function checks if email identity exists:
-//     - EXISTS: Link Google channel to existing user, update profile["channels"]
-//     - NEW: Create User, Identity (verified=true), Google Channel
-//  7. SaveUserAndRedirect creates JWT, sets cookies, redirects to app
-//
-// # Flow for Local Signup
-//
-//  1. User submits signup form with email/password
-//  2. LocalAuth.HandleSignup validates and calls CreateUser (from NewCreateUserFunc)
-//  3. CreateUser creates User, Identity (verified=false), Local Channel
-//  4. HandleSignup calls HandleUser → SaveUserAndRedirect → this function
-//  5. User is logged in (or email verification required)
-//
-// # Channel Linking Logic
-//
-// Multiple channels (local, google, github) can point to the same user via shared email:
-//
-//	User (id: abc123)
-//	├── Identity: email → user@example.com
-//	├── Channel: local → email:user@example.com (password_hash)
-//	├── Channel: google → email:user@example.com (oauth profile)
-//	└── Channel: github → email:user@example.com (oauth profile)
-//
-// User profile tracks linked providers: profile["channels"] = ["local", "google", "github"]
-func NewEnsureAuthUserFunc(config EnsureAuthUserConfig) func(authtype string, provider string, token any, userInfo map[string]any) (core.User, error) {
-	return func(authtype string, provider string, token any, userInfo map[string]any) (core.User, error) {
-		// Extract email from userInfo (primary identifier for linking)
-		email, _ := userInfo["email"].(string)
-		if email == "" {
-			return nil, fmt.Errorf("email is required for authentication")
-		}
-
-		identityType := "email"
-		identityKey := core.IdentityKey(identityType, email)
-
-		// Check if identity already exists
-		identity, _, err := config.IdentityStore.GetIdentity(identityType, email, false)
-
-		if err == nil && identity != nil && identity.UserID != "" {
-			// Existing user - link new channel if needed
-			return handleExistingUser(config, identity, authtype, provider, identityKey, userInfo)
-		}
-
-		// New user - create user, identity, and channel
-		return handleNewUser(config, authtype, provider, identityType, email, identityKey, userInfo)
-	}
-}
-
-// handleExistingUser links a new auth channel to an existing user
-func handleExistingUser(config EnsureAuthUserConfig, identity *core.Identity, authtype, provider, identityKey string, userInfo map[string]any) (core.User, error) {
-	// Get existing user
-	user, err := config.UserStore.GetUserById(identity.UserID)
-	log.Println("User Store: ", config.UserStore)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user for identity (%v): : %w", identity, err)
-	}
-
-	// Check if channel already exists for this provider
-	channel, isNew, err := config.ChannelStore.GetChannel(provider, identityKey, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get/create channel: %w", err)
-	}
-
-	// Update channel with latest OAuth info
-	if channel.Profile == nil {
-		channel.Profile = make(map[string]any)
-	}
-	for k, v := range userInfo {
-		channel.Profile[k] = v
-	}
-	if err := config.ChannelStore.SaveChannel(channel); err != nil {
-		return nil, fmt.Errorf("failed to save channel: %w", err)
-	}
-
-	// Update user profile with linked channels
-	profile := user.Profile()
-	if profile == nil {
-		profile = make(map[string]any)
-	}
-	channels := getLinkedChannels(profile)
-	if !containsString(channels, provider) {
-		channels = append(channels, provider)
-		profile["channels"] = channels
-
-		// Update other profile fields from OAuth if not set
-		if profile["name"] == nil || profile["name"] == "" {
-			if name, ok := userInfo["name"].(string); ok && name != "" {
-				profile["name"] = name
-			}
-		}
-		if profile["picture"] == nil || profile["picture"] == "" {
-			if picture, ok := userInfo["picture"].(string); ok && picture != "" {
-				profile["picture"] = picture
-			}
-		}
-
-		// Save updated user
-		updatedUser := &core.BasicUser{ID: user.Id(), ProfileData: profile}
-		if err := config.UserStore.SaveUser(updatedUser); err != nil {
-			log.Printf("Warning: failed to update user profile: %v", err)
-		}
-	}
-
-	if isNew {
-		log.Printf("Linked %s channel to existing user %s", provider, identity.UserID)
-	} else {
-		log.Printf("User %s logged in via %s channel", identity.UserID, provider)
-	}
-
-	return user, nil
-}
-
-// handleNewUser creates a new user with identity and channel
-func handleNewUser(config EnsureAuthUserConfig, authtype, provider, identityType, email, identityKey string, userInfo map[string]any) (core.User, error) {
-	userId := generateSecureUserId()
-
-	// Build initial profile
-	profile := map[string]any{
-		"email":    email,
-		"channels": []string{provider},
-	}
-
-	// Copy relevant fields from OAuth userInfo
-	if name, ok := userInfo["name"].(string); ok && name != "" {
-		profile["name"] = name
-	}
-	if picture, ok := userInfo["picture"].(string); ok && picture != "" {
-		profile["picture"] = picture
-	}
-	if username, ok := userInfo["username"].(string); ok && username != "" {
-		profile["username"] = username
-	}
-
-	// Create user
-	user, err := config.UserStore.CreateUser(userId, true, profile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	// Create identity (verified for OAuth)
-	identity := &core.Identity{
-		Type:     identityType,
-		Value:    email,
-		UserID:   userId,
-		Verified: authtype == "oauth", // OAuth-verified emails are trusted
-	}
-	if err := config.IdentityStore.SaveIdentity(identity); err != nil {
-		return nil, fmt.Errorf("failed to create identity: %w", err)
-	}
-
-	// Create channel
-	channel := &core.Channel{
-		Provider:    provider,
-		IdentityKey: identityKey,
-		Credentials: make(map[string]any),
-		Profile:     userInfo,
-	}
-	if err := config.ChannelStore.SaveChannel(channel); err != nil {
-		return nil, fmt.Errorf("failed to create channel: %w", err)
-	}
-
-	log.Printf("Created new user %s via %s with identity %s", userId, provider, identityKey)
-	return user, nil
-}
-
-// getLinkedChannels extracts the channels list from user profile
-func getLinkedChannels(profile map[string]any) []string {
-	if profile == nil {
-		return []string{}
-	}
-
-	switch v := profile["channels"].(type) {
-	case []string:
-		return v
-	case []any:
-		result := make([]string, 0, len(v))
-		for _, item := range v {
-			if s, ok := item.(string); ok {
-				result = append(result, s)
-			}
-		}
-		return result
-	default:
-		return []string{}
-	}
-}
-
-// containsString checks if a slice contains a string
-func containsString(slice []string, s string) bool {
-	for _, item := range slice {
-		if item == s {
-			return true
-		}
-	}
-	return false
-}
-
-// =============================================================================
 // Credential Linking Helpers
 // =============================================================================
+
+// LinkLocalCredentialsConfig groups the stores LinkLocalCredentials needs.
+// Self-contained so localauth doesn't have to import federatedauth just for
+// the cross-cutting "add local password to an OAuth user" flow.
+type LinkLocalCredentialsConfig struct {
+	UserStore     accounts.UserStore
+	IdentityStore accounts.IdentityStore
+	ChannelStore  accounts.ChannelStore
+	UsernameStore accounts.UsernameStore // Optional — reserves the username if set
+}
 
 // LinkLocalCredentials adds local (password) authentication to an existing OAuth-only user.
 // This enables "incremental auth" where users sign up via OAuth and later add a password.
@@ -470,23 +242,6 @@ func containsString(slice []string, s string) bool {
 //  4. Your handler calls LinkLocalCredentials with the logged-in user's ID
 //  5. User can now login with email/password OR Google
 //
-// # Example Handler in Your App
-//
-//	func handleSetPassword(w http.ResponseWriter, r *http.Request) {
-//	    userID := getLoggedInUserID(r) // from session/JWT
-//	    user, _ := userStore.GetUserById(userID)
-//	    email := user.Profile()["email"].(string)
-//
-//	    username := r.FormValue("username") // optional
-//	    password := r.FormValue("password")
-//
-//	    err := oneauth.LinkLocalCredentials(config, userID, username, password, email)
-//	    if err != nil {
-//	        // handle error (e.g., username taken, password too weak)
-//	    }
-//	    // redirect to profile with success message
-//	}
-//
 // # What It Does
 //
 //  1. Verifies the email belongs to the given userID
@@ -494,7 +249,7 @@ func containsString(slice []string, s string) bool {
 //  3. Creates local channel with hashed password
 //  4. Reserves username in UsernameStore (if configured and username provided)
 //  5. Updates user profile["channels"] to include "local"
-func LinkLocalCredentials(config EnsureAuthUserConfig, userID string, username, password, email string) error {
+func LinkLocalCredentials(config LinkLocalCredentialsConfig, userID string, username, password, email string) error {
 	// Get existing identity
 	identity, _, err := config.IdentityStore.GetIdentity("email", email, false)
 	if err != nil {
@@ -504,7 +259,7 @@ func LinkLocalCredentials(config EnsureAuthUserConfig, userID string, username, 
 		return fmt.Errorf("email does not belong to this user")
 	}
 
-	identityKey := core.IdentityKey("email", email)
+	identityKey := accounts.IdentityKey("email", email)
 
 	// Check if local channel already exists
 	existingChannel, _, err := config.ChannelStore.GetChannel("local", identityKey, false)
@@ -519,7 +274,7 @@ func LinkLocalCredentials(config EnsureAuthUserConfig, userID string, username, 
 	}
 
 	// Create local channel
-	channel := &core.Channel{
+	channel := &accounts.Channel{
 		Provider:    "local",
 		IdentityKey: identityKey,
 		Credentials: map[string]any{
@@ -556,7 +311,7 @@ func LinkLocalCredentials(config EnsureAuthUserConfig, userID string, username, 
 	if profile == nil {
 		profile = make(map[string]any)
 	}
-	channels := getLinkedChannels(profile)
+	channels := accounts.LinkedChannels(profile)
 	if !containsString(channels, "local") {
 		channels = append(channels, "local")
 		profile["channels"] = channels
@@ -565,7 +320,7 @@ func LinkLocalCredentials(config EnsureAuthUserConfig, userID string, username, 
 		profile["username"] = username
 	}
 
-	updatedUser := &core.BasicUser{ID: userID, ProfileData: profile}
+	updatedUser := &accounts.BasicUser{ID: userID, ProfileData: profile}
 	if err := config.UserStore.SaveUser(updatedUser); err != nil {
 		log.Printf("Warning: failed to update user profile: %v", err)
 	}
@@ -576,18 +331,6 @@ func LinkLocalCredentials(config EnsureAuthUserConfig, userID string, username, 
 
 // NewCredentialsValidatorWithUsername creates a CredentialsValidator that supports
 // logging in with username (in addition to email/phone).
-//
-// # Who Calls This
-//
-// Use this instead of NewCredentialsValidator when setting up LocalAuth if you want
-// users to be able to login with their username:
-//
-//	localAuth := &oneauth.LocalAuth{
-//	    ValidateCredentials: oneauth.NewCredentialsValidatorWithUsername(
-//	        identityStore, channelStore, userStore, usernameStore,
-//	    ),
-//	    // ... other config
-//	}
 //
 // # How Username Login Works
 //
@@ -603,11 +346,11 @@ func LinkLocalCredentials(config EnsureAuthUserConfig, userID string, username, 
 //
 // If user enters an email or phone number instead of username, it falls back to
 // the standard email/phone lookup (same as NewCredentialsValidator).
-func NewCredentialsValidatorWithUsername(identityStore core.IdentityStore, channelStore core.ChannelStore, userStore core.UserStore, usernameStore core.UsernameStore) core.CredentialsValidator {
-	return func(username, password, usernameType string) (core.User, error) {
+func NewCredentialsValidatorWithUsername(identityStore accounts.IdentityStore, channelStore accounts.ChannelStore, userStore accounts.UserStore, usernameStore accounts.UsernameStore) CredentialsValidator {
+	return func(username, password, usernameType string) (accounts.User, error) {
 		// Auto-detect username type if not specified
 		if usernameType == "" {
-			usernameType = core.DetectUsernameType(username)
+			usernameType = DetectUsernameType(username)
 		}
 
 		var identityKey string
@@ -629,7 +372,7 @@ func NewCredentialsValidatorWithUsername(identityStore core.IdentityStore, chann
 			}
 
 			// Find email identity
-			var emailIdentity *core.Identity
+			var emailIdentity *accounts.Identity
 			for _, id := range identities {
 				if id.Type == "email" {
 					emailIdentity = id
@@ -639,10 +382,10 @@ func NewCredentialsValidatorWithUsername(identityStore core.IdentityStore, chann
 			if emailIdentity == nil {
 				return nil, fmt.Errorf("invalid credentials")
 			}
-			identityKey = core.IdentityKey("email", emailIdentity.Value)
+			identityKey = accounts.IdentityKey("email", emailIdentity.Value)
 		} else {
 			// For email/phone, lookup identity directly
-			identityKey = core.IdentityKey(usernameType, username)
+			identityKey = accounts.IdentityKey(usernameType, username)
 		}
 
 		// Get local channel for this identity
@@ -661,8 +404,7 @@ func NewCredentialsValidatorWithUsername(identityStore core.IdentityStore, chann
 			return nil, fmt.Errorf("invalid credentials")
 		}
 
-		// Get identity and user
-		// Parse identity key to get type and value
+		// Get identity and user via parsed identity key
 		parts := parseIdentityKey(identityKey)
 		if parts == nil {
 			return nil, fmt.Errorf("invalid credentials")
@@ -677,7 +419,7 @@ func NewCredentialsValidatorWithUsername(identityStore core.IdentityStore, chann
 	}
 }
 
-// parseIdentityKey splits "type:value" into [type, value]
+// parseIdentityKey splits "type:value" into [type, value].
 func parseIdentityKey(key string) []string {
 	for i, c := range key {
 		if c == ':' {
@@ -685,4 +427,13 @@ func parseIdentityKey(key string) []string {
 		}
 	}
 	return nil
+}
+
+func containsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
 }

@@ -30,6 +30,7 @@ import (
 	gormstore "github.com/panyam/oneauth/stores/gorm"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"github.com/panyam/oneauth/accounts"
 )
 
 // issuerClientID is the keystore client_id under which the asymmetric issuer
@@ -95,21 +96,21 @@ func main() {
 	localAuth := &localauth.LocalAuth{
 		ValidateCredentials: localauth.NewCredentialsValidator(stores.identityStore, stores.channelStore, stores.userStore),
 		CreateUser:          localauth.NewCreateUserFunc(stores.userStore, stores.identityStore, stores.channelStore),
-		EmailSender:         &core.ConsoleEmailSender{},
+		EmailSender:         &localauth.ConsoleEmailSender{},
 		TokenStore:          stores.tokenStore,
 		BaseURL:             fmt.Sprintf("http://localhost:%s", cfg.Server.Port),
-		SignupPolicy:        &core.PolicyEmailOnly,
+		SignupPolicy:        &localauth.PolicyEmailOnly,
 		HandleUser:          makeHandleUser(cfg),
 		VerifyEmail:         localauth.NewVerifyEmailFunc(stores.identityStore, stores.tokenStore),
 		UpdatePassword:      localauth.NewUpdatePasswordFunc(stores.identityStore, stores.channelStore),
 		// Redirect-mode for forgot/reset password
 		ForgotPasswordURL: "/auth/forgot-password",
 		ResetPasswordURL:  "/auth/reset-password",
-		OnLoginError: func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
+		OnLoginError: func(err *accounts.AuthError, w http.ResponseWriter, r *http.Request) bool {
 			renderTemplate(w, "login.html", map[string]any{"Title": "Login", "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
-		OnSignupError: func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
+		OnSignupError: func(err *accounts.AuthError, w http.ResponseWriter, r *http.Request) bool {
 			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up", "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
@@ -360,10 +361,10 @@ func main() {
 
 // userStores holds all the store instances needed for auth.
 type userStores struct {
-	userStore         core.UserStore
-	identityStore     core.IdentityStore
-	channelStore      core.ChannelStore
-	tokenStore        core.TokenStore
+	userStore         accounts.UserStore
+	identityStore     accounts.IdentityStore
+	channelStore      accounts.ChannelStore
+	tokenStore        localauth.VerificationTokenStore
 	refreshTokenStore core.RefreshTokenStore
 	cleanupPath       string // temp dir to remove on shutdown (memory mode)
 }
@@ -605,7 +606,7 @@ func buildAdminAuth(cfg *Config) (admin.AdminAuth, error) {
 }
 
 // makeHandleUser returns a HandleUserFunc that sets a JWT cookie for browser sessions.
-func makeHandleUser(cfg *Config) core.HandleUserFunc {
+func makeHandleUser(cfg *Config) accounts.HandleUserFunc {
 	return func(authtype string, provider string, token *oauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {
 		email, _ := userInfo["email"].(string)
 		username, _ := userInfo["username"].(string)

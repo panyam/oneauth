@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/accounts"
 )
 
 // FSUser implements the oneauth.User interface
@@ -39,7 +39,7 @@ func (s *FSUserStore) getUserPath(userId string) (string, error) {
 	return filepath.Join(s.StoragePath, "users", safeID+".json"), nil
 }
 
-func (s *FSUserStore) CreateUser(userId string, isActive bool, profile map[string]any) (core.User, error) {
+func (s *FSUserStore) CreateUser(userId string, isActive bool, profile map[string]any) (accounts.User, error) {
 	user := &FSUser{
 		UserId:      userId,
 		IsActive:    isActive,
@@ -50,7 +50,7 @@ func (s *FSUserStore) CreateUser(userId string, isActive bool, profile map[strin
 	return user, s.SaveUser(user)
 }
 
-func (s *FSUserStore) GetUserById(userId string) (core.User, error) {
+func (s *FSUserStore) GetUserById(userId string) (accounts.User, error) {
 	path, err := s.getUserPath(userId)
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (s *FSUserStore) GetUserById(userId string) (core.User, error) {
 	return &user, nil
 }
 
-func (s *FSUserStore) SaveUser(user core.User) error {
+func (s *FSUserStore) SaveUser(user accounts.User) error {
 	fsUser, ok := user.(*FSUser)
 	if !ok {
 		// Convert if it's a different implementation

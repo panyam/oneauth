@@ -2,7 +2,6 @@ package localauth_test
 
 import (
 	"github.com/panyam/oneauth/localauth"
-	"github.com/panyam/oneauth/core"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +11,8 @@ import (
 	"testing"
 	"github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
+	"github.com/panyam/oneauth/accounts"
+	"github.com/panyam/oneauth/federatedauth"
 )
 
 // =============================================================================
@@ -29,8 +30,8 @@ type TestJourney struct {
 	UsernameStore *fs.FSUsernameStore
 
 	// EnsureUser handles OAuth user creation/lookup
-	EnsureUser func(authtype string, provider string, token any, userInfo map[string]any) (core.User, error)
-	Config     localauth.EnsureAuthUserConfig
+	EnsureUser func(authtype string, provider string, token any, userInfo map[string]any) (accounts.User, error)
+	Config     federatedauth.EnsureAuthUserConfig
 }
 
 func setupJourney(t *testing.T) *TestJourney {
@@ -45,7 +46,7 @@ func setupJourney(t *testing.T) *TestJourney {
 	tokenStore := fs.NewFSTokenStore(tmpDir)
 	usernameStore := fs.NewFSUsernameStore(tmpDir)
 
-	config := localauth.EnsureAuthUserConfig{
+	config := federatedauth.EnsureAuthUserConfig{
 		UserStore:     userStore,
 		IdentityStore: identityStore,
 		ChannelStore:  channelStore,
@@ -59,7 +60,7 @@ func setupJourney(t *testing.T) *TestJourney {
 		ChannelStore:  channelStore,
 		TokenStore:    tokenStore,
 		UsernameStore: usernameStore,
-		EnsureUser:    localauth.NewEnsureAuthUserFunc(config),
+		EnsureUser:    federatedauth.NewEnsureAuthUserFunc(config),
 		Config:        config,
 	}
 }
@@ -93,7 +94,7 @@ func TestJourney1_MultipleOAuthSameEmail(t *testing.T) {
 	t.Logf("Created user via Google: %s", user1ID)
 
 	// Verify Google channel exists
-	identityKey := core.IdentityKey("email", email)
+	identityKey := accounts.IdentityKey("email", email)
 	googleChannel, _, err := j.ChannelStore.GetChannel("google", identityKey, false)
 	if err != nil || googleChannel == nil {
 		t.Error("Google channel should exist")
@@ -162,7 +163,7 @@ func TestJourney2_OAuthUserAddsCredentials(t *testing.T) {
 	t.Logf("Created OAuth user: %s", userID)
 
 	// Verify NO local channel exists yet
-	identityKey := core.IdentityKey("email", email)
+	identityKey := accounts.IdentityKey("email", email)
 	localChannel, _, _ := j.ChannelStore.GetChannel("local", identityKey, false)
 	if localChannel != nil {
 		t.Error("Local channel should NOT exist yet for OAuth-only user")
@@ -192,7 +193,7 @@ func TestJourney2_OAuthUserAddsCredentials(t *testing.T) {
 	}
 
 	// Day 3, Step 2: User sets password
-	err = localauth.LinkLocalCredentials(j.Config, userID, newUsername, "password123", email)
+	err = localauth.LinkLocalCredentials(localauth.LinkLocalCredentialsConfig(j.Config), userID, newUsername, "password123", email)
 	if err != nil {
 		t.Fatalf("Failed to link local credentials: %v", err)
 	}
@@ -251,7 +252,7 @@ func TestJourney3_EmailSignupThenLinkOAuth(t *testing.T) {
 	password := "mypass123"
 
 	// Create LocalAuth for signup
-	policy := core.DefaultSignupPolicy()
+	policy := localauth.DefaultSignupPolicy()
 	localAuth := &localauth.LocalAuth{
 		CreateUser:   localauth.NewCreateUserFunc(j.UserStore, j.IdentityStore, j.ChannelStore),
 		SignupPolicy: &policy,
@@ -282,7 +283,7 @@ func TestJourney3_EmailSignupThenLinkOAuth(t *testing.T) {
 	t.Logf("Created local user: %s", user1ID)
 
 	// Verify local channel exists
-	identityKey := core.IdentityKey("email", email)
+	identityKey := accounts.IdentityKey("email", email)
 	localChannel, _, _ := j.ChannelStore.GetChannel("local", identityKey, false)
 	if localChannel == nil {
 		t.Error("Local channel should exist")
@@ -337,7 +338,7 @@ func TestJourney4_UsernameAsPrimaryLogin(t *testing.T) {
 	password := "securepass123"
 
 	// Create user with email identity
-	policy := core.DefaultSignupPolicy()
+	policy := localauth.DefaultSignupPolicy()
 	localAuth := &localauth.LocalAuth{
 		CreateUser:   localauth.NewCreateUserFunc(j.UserStore, j.IdentityStore, j.ChannelStore),
 		SignupPolicy: &policy,
@@ -455,7 +456,7 @@ func TestJourney6_PasswordChange(t *testing.T) {
 	newPassword := "newpassword456"
 
 	// Create user with password
-	policy := core.DefaultSignupPolicy()
+	policy := localauth.DefaultSignupPolicy()
 	localAuth := &localauth.LocalAuth{
 		CreateUser:     localauth.NewCreateUserFunc(j.UserStore, j.IdentityStore, j.ChannelStore),
 		SignupPolicy:   &policy,
@@ -577,7 +578,7 @@ func TestJourney8_OAuthUserPasswordReset(t *testing.T) {
 	userID := user.Id()
 
 	// Verify NO local channel exists
-	identityKey := core.IdentityKey("email", email)
+	identityKey := accounts.IdentityKey("email", email)
 	localChannel, _, _ := j.ChannelStore.GetChannel("local", identityKey, false)
 	if localChannel != nil {
 		t.Fatal("Local channel should NOT exist for OAuth-only user")
@@ -631,7 +632,7 @@ func TestEdgeCase_DuplicateEmailSignup(t *testing.T) {
 
 	email := "existing@example.com"
 
-	policy := core.DefaultSignupPolicy()
+	policy := localauth.DefaultSignupPolicy()
 	localAuth := &localauth.LocalAuth{
 		CreateUser:   localauth.NewCreateUserFunc(j.UserStore, j.IdentityStore, j.ChannelStore),
 		SignupPolicy: &policy,
@@ -665,8 +666,8 @@ func TestEdgeCase_DuplicateEmailSignup(t *testing.T) {
 
 	var response map[string]any
 	json.NewDecoder(rr.Body).Decode(&response)
-	if response["code"] != core.ErrCodeEmailExists {
-		t.Errorf("Expected error code %q, got %q", core.ErrCodeEmailExists, response["code"])
+	if response["code"] != accounts.ErrCodeEmailExists {
+		t.Errorf("Expected error code %q, got %q", accounts.ErrCodeEmailExists, response["code"])
 	}
 }
 
@@ -679,7 +680,7 @@ func TestEdgeCase_OAuthReturnsExistingEmail(t *testing.T) {
 	email := "shared@example.com"
 
 	// Create local user first
-	policy := core.DefaultSignupPolicy()
+	policy := localauth.DefaultSignupPolicy()
 	localAuth := &localauth.LocalAuth{
 		CreateUser:   localauth.NewCreateUserFunc(j.UserStore, j.IdentityStore, j.ChannelStore),
 		SignupPolicy: &policy,
@@ -715,7 +716,7 @@ func TestEdgeCase_OAuthReturnsExistingEmail(t *testing.T) {
 	}
 
 	// User now has both channels
-	identityKey := core.IdentityKey("email", email)
+	identityKey := accounts.IdentityKey("email", email)
 	localChannel, _, _ := j.ChannelStore.GetChannel("local", identityKey, false)
 	googleChannel, _, _ := j.ChannelStore.GetChannel("google", identityKey, false)
 
@@ -741,13 +742,13 @@ func TestEdgeCase_LinkCredentialsTwiceFails(t *testing.T) {
 	userID := user.Id()
 
 	// First link succeeds
-	err := localauth.LinkLocalCredentials(j.Config, userID, "username1", "password123", email)
+	err := localauth.LinkLocalCredentials(localauth.LinkLocalCredentialsConfig(j.Config), userID, "username1", "password123", email)
 	if err != nil {
 		t.Fatalf("First link should succeed: %v", err)
 	}
 
 	// Second link should fail
-	err = localauth.LinkLocalCredentials(j.Config, userID, "username2", "password456", email)
+	err = localauth.LinkLocalCredentials(localauth.LinkLocalCredentialsConfig(j.Config), userID, "username2", "password456", email)
 	if err == nil {
 		t.Error("Second link should fail - local channel already exists")
 	}
@@ -789,7 +790,7 @@ func TestEdgeCase_AutoDetectEmailVsUsername(t *testing.T) {
 	password := "password123"
 
 	// Create user with local auth
-	policy := core.DefaultSignupPolicy()
+	policy := localauth.DefaultSignupPolicy()
 	localAuth := &localauth.LocalAuth{
 		CreateUser:   localauth.NewCreateUserFunc(j.UserStore, j.IdentityStore, j.ChannelStore),
 		SignupPolicy: &policy,

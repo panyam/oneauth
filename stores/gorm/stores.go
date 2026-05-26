@@ -13,7 +13,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/localauth"
 )
 
 // AutoMigrate runs database migrations for all oneauth tables
@@ -22,7 +24,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&UserModel{},
 		&IdentityModel{},
 		&ChannelModel{},
-		&AuthTokenModel{},
+		&VerificationTokenModel{},
 		&RefreshTokenModel{},
 		&APIKeyModel{},
 		&UsernameModel{},
@@ -36,7 +38,7 @@ func AutoMigrate(db *gorm.DB) error {
 // UserStore
 // =============================================================================
 
-// GORMUser implements the core.User interface
+// GORMUser implements the accounts.User interface
 type GORMUser struct {
 	model *UserModel
 }
@@ -44,7 +46,7 @@ type GORMUser struct {
 func (u *GORMUser) Id() string              { return u.model.ID }
 func (u *GORMUser) Profile() map[string]any { return u.model.Profile }
 
-// UserStore implements core.UserStore using GORM
+// UserStore implements accounts.UserStore using GORM
 type UserStore struct {
 	db *gorm.DB
 }
@@ -53,7 +55,7 @@ func NewUserStore(db *gorm.DB) *UserStore {
 	return &UserStore{db: db}
 }
 
-func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (core.User, error) {
+func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (accounts.User, error) {
 	model := &UserModel{
 		ID:       userId,
 		IsActive: isActive,
@@ -65,7 +67,7 @@ func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]
 	return &GORMUser{model: model}, nil
 }
 
-func (s *UserStore) GetUserById(userId string) (core.User, error) {
+func (s *UserStore) GetUserById(userId string) (accounts.User, error) {
 	var model UserModel
 	if err := s.db.First(&model, "id = ?", userId).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -76,7 +78,7 @@ func (s *UserStore) GetUserById(userId string) (core.User, error) {
 	return &GORMUser{model: &model}, nil
 }
 
-func (s *UserStore) SaveUser(user core.User) error {
+func (s *UserStore) SaveUser(user accounts.User) error {
 	model := &UserModel{
 		ID:      user.Id(),
 		Profile: user.Profile(),
@@ -88,7 +90,7 @@ func (s *UserStore) SaveUser(user core.User) error {
 // IdentityStore
 // =============================================================================
 
-// IdentityStore implements core.IdentityStore using GORM
+// IdentityStore implements accounts.IdentityStore using GORM
 type IdentityStore struct {
 	db *gorm.DB
 }
@@ -97,7 +99,7 @@ func NewIdentityStore(db *gorm.DB) *IdentityStore {
 	return &IdentityStore{db: db}
 }
 
-func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*core.Identity, bool, error) {
+func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*accounts.Identity, bool, error) {
 	var model IdentityModel
 	err := s.db.First(&model, "type = ? AND value = ?", identityType, identityValue).Error
 
@@ -123,7 +125,7 @@ func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIf
 	return model.ToIdentity(), false, nil
 }
 
-func (s *IdentityStore) SaveIdentity(identity *core.Identity) error {
+func (s *IdentityStore) SaveIdentity(identity *accounts.Identity) error {
 	model := IdentityToModel(identity)
 	return s.db.Save(model).Error
 }
@@ -140,13 +142,13 @@ func (s *IdentityStore) MarkIdentityVerified(identityType, identityValue string)
 		Update("verified", true).Error
 }
 
-func (s *IdentityStore) GetUserIdentities(userId string) ([]*core.Identity, error) {
+func (s *IdentityStore) GetUserIdentities(userId string) ([]*accounts.Identity, error) {
 	var models []IdentityModel
 	if err := s.db.Where("user_id = ?", userId).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
-	identities := make([]*core.Identity, len(models))
+	identities := make([]*accounts.Identity, len(models))
 	for i, m := range models {
 		identities[i] = m.ToIdentity()
 	}
@@ -157,7 +159,7 @@ func (s *IdentityStore) GetUserIdentities(userId string) ([]*core.Identity, erro
 // ChannelStore
 // =============================================================================
 
-// ChannelStore implements core.ChannelStore using GORM
+// ChannelStore implements accounts.ChannelStore using GORM
 type ChannelStore struct {
 	db *gorm.DB
 }
@@ -166,7 +168,7 @@ func NewChannelStore(db *gorm.DB) *ChannelStore {
 	return &ChannelStore{db: db}
 }
 
-func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*core.Channel, bool, error) {
+func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*accounts.Channel, bool, error) {
 	var model ChannelModel
 	err := s.db.First(&model, "provider = ? AND identity_key = ?", provider, identityKey).Error
 
@@ -192,18 +194,18 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 	return model.ToChannel(), false, nil
 }
 
-func (s *ChannelStore) SaveChannel(channel *core.Channel) error {
+func (s *ChannelStore) SaveChannel(channel *accounts.Channel) error {
 	model := ChannelToModel(channel)
 	return s.db.Save(model).Error
 }
 
-func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*core.Channel, error) {
+func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*accounts.Channel, error) {
 	var models []ChannelModel
 	if err := s.db.Where("identity_key = ?", identityKey).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
-	channels := make([]*core.Channel, len(models))
+	channels := make([]*accounts.Channel, len(models))
 	for i, m := range models {
 		channels[i] = m.ToChannel()
 	}
@@ -223,13 +225,13 @@ func NewTokenStore(db *gorm.DB) *TokenStore {
 	return &TokenStore{db: db}
 }
 
-func (s *TokenStore) CreateToken(userID, email string, tokenType core.TokenType, expiryDuration time.Duration) (*core.AuthToken, error) {
+func (s *TokenStore) CreateToken(userID, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
 	}
 
-	model := &AuthTokenModel{
+	model := &VerificationTokenModel{
 		Token:     token,
 		Type:      tokenType,
 		UserID:    userID,
@@ -241,11 +243,11 @@ func (s *TokenStore) CreateToken(userID, email string, tokenType core.TokenType,
 		return nil, err
 	}
 
-	return model.ToAuthToken(), nil
+	return model.ToVerificationToken(), nil
 }
 
-func (s *TokenStore) GetToken(token string) (*core.AuthToken, error) {
-	var model AuthTokenModel
+func (s *TokenStore) GetToken(token string) (*localauth.VerificationToken, error) {
+	var model VerificationTokenModel
 	if err := s.db.First(&model, "token = ?", token).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("token not found")
@@ -253,21 +255,21 @@ func (s *TokenStore) GetToken(token string) (*core.AuthToken, error) {
 		return nil, err
 	}
 
-	authToken := model.ToAuthToken()
-	if authToken.IsExpired() {
+	verToken := model.ToVerificationToken()
+	if verToken.IsExpired() {
 		_ = s.DeleteToken(token)
 		return nil, fmt.Errorf("token expired")
 	}
 
-	return authToken, nil
+	return verToken, nil
 }
 
 func (s *TokenStore) DeleteToken(token string) error {
-	return s.db.Delete(&AuthTokenModel{}, "token = ?", token).Error
+	return s.db.Delete(&VerificationTokenModel{}, "token = ?", token).Error
 }
 
-func (s *TokenStore) DeleteUserTokens(userID string, tokenType core.TokenType) error {
-	return s.db.Delete(&AuthTokenModel{}, "user_id = ? AND type = ?", userID, tokenType).Error
+func (s *TokenStore) DeleteUserTokens(userID string, tokenType localauth.VerificationType) error {
+	return s.db.Delete(&VerificationTokenModel{}, "user_id = ? AND type = ?", userID, tokenType).Error
 }
 
 // =============================================================================
@@ -585,7 +587,7 @@ func (s *APIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
 // UsernameStore
 // =============================================================================
 
-// UsernameStore implements core.UsernameStore using GORM with optimistic concurrency.
+// UsernameStore implements accounts.UsernameStore using GORM with optimistic concurrency.
 //
 // # Purpose
 //

@@ -4,7 +4,6 @@ package localauth_test
 
 import (
 	"github.com/panyam/oneauth/localauth"
-	"github.com/panyam/oneauth/core"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +13,7 @@ import (
 	"testing"
 	"github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
+	"github.com/panyam/oneauth/accounts"
 )
 
 // =============================================================================
@@ -23,7 +23,7 @@ import (
 // TestSignupPolicyDefaults verifies that the default signup policy requires email and password
 // but not username or phone, with a minimum password length of 8.
 func TestSignupPolicyDefaults(t *testing.T) {
-	policy := core.DefaultSignupPolicy()
+	policy := localauth.DefaultSignupPolicy()
 
 	if policy.RequireUsername {
 		t.Error("Expected RequireUsername to be false by default")
@@ -46,29 +46,29 @@ func TestSignupPolicyDefaults(t *testing.T) {
 // PolicyUsernameRequired, PolicyEmailOnly, and PolicyFlexible.
 func TestSignupPolicyPresets(t *testing.T) {
 	// Test PolicyUsernameRequired
-	if !core.PolicyUsernameRequired.RequireUsername {
+	if !localauth.PolicyUsernameRequired.RequireUsername {
 		t.Error("PolicyUsernameRequired should require username")
 	}
-	if !core.PolicyUsernameRequired.RequireEmail {
+	if !localauth.PolicyUsernameRequired.RequireEmail {
 		t.Error("PolicyUsernameRequired should require email")
 	}
 
 	// Test PolicyEmailOnly
-	if core.PolicyEmailOnly.RequireUsername {
+	if localauth.PolicyEmailOnly.RequireUsername {
 		t.Error("PolicyEmailOnly should not require username")
 	}
-	if !core.PolicyEmailOnly.RequireEmail {
+	if !localauth.PolicyEmailOnly.RequireEmail {
 		t.Error("PolicyEmailOnly should require email")
 	}
 
 	// Test PolicyFlexible
-	if core.PolicyFlexible.RequireUsername {
+	if localauth.PolicyFlexible.RequireUsername {
 		t.Error("PolicyFlexible should not require username")
 	}
-	if core.PolicyFlexible.RequireEmail {
+	if localauth.PolicyFlexible.RequireEmail {
 		t.Error("PolicyFlexible should not require email")
 	}
-	if core.PolicyFlexible.RequirePassword {
+	if localauth.PolicyFlexible.RequirePassword {
 		t.Error("PolicyFlexible should not require password")
 	}
 }
@@ -76,7 +76,7 @@ func TestSignupPolicyPresets(t *testing.T) {
 // TestSignupPolicyGetUsernamePattern verifies that custom and default username regex patterns
 // are compiled and applied correctly.
 func TestSignupPolicyGetUsernamePattern(t *testing.T) {
-	policy := core.SignupPolicy{
+	policy := localauth.SignupPolicy{
 		UsernamePattern: `^[a-z]+$`,
 	}
 
@@ -92,7 +92,7 @@ func TestSignupPolicyGetUsernamePattern(t *testing.T) {
 	}
 
 	// Test default pattern
-	defaultPolicy := core.SignupPolicy{}
+	defaultPolicy := localauth.SignupPolicy{}
 	defaultPattern := defaultPolicy.GetUsernamePattern()
 	if !defaultPattern.MatchString("user_name-123") {
 		t.Error("Default pattern should match 'user_name-123'")
@@ -102,13 +102,13 @@ func TestSignupPolicyGetUsernamePattern(t *testing.T) {
 // TestSignupPolicyGetMinPasswordLength verifies that GetMinPasswordLength returns the configured
 // value or defaults to 8 when zero.
 func TestSignupPolicyGetMinPasswordLength(t *testing.T) {
-	policy := core.SignupPolicy{MinPasswordLength: 12}
+	policy := localauth.SignupPolicy{MinPasswordLength: 12}
 	if policy.GetMinPasswordLength() != 12 {
 		t.Errorf("Expected MinPasswordLength 12, got %d", policy.GetMinPasswordLength())
 	}
 
 	// Test default
-	zeroPolicy := core.SignupPolicy{}
+	zeroPolicy := localauth.SignupPolicy{}
 	if zeroPolicy.GetMinPasswordLength() != 8 {
 		t.Errorf("Expected default MinPasswordLength 8, got %d", zeroPolicy.GetMinPasswordLength())
 	}
@@ -131,7 +131,7 @@ func TestSignupWithPolicyEmailOnly(t *testing.T) {
 	identityStore := fs.NewFSIdentityStore(tmpDir)
 	channelStore := fs.NewFSChannelStore(tmpDir)
 
-	policy := core.PolicyEmailOnly
+	policy := localauth.PolicyEmailOnly
 	localAuth := &localauth.LocalAuth{
 		CreateUser:   localauth.NewCreateUserFunc(userStore, identityStore, channelStore),
 		SignupPolicy: &policy,
@@ -170,7 +170,7 @@ func TestSignupWithPolicyUsernameRequired(t *testing.T) {
 	identityStore := fs.NewFSIdentityStore(tmpDir)
 	channelStore := fs.NewFSChannelStore(tmpDir)
 
-	policy := core.PolicyUsernameRequired
+	policy := localauth.PolicyUsernameRequired
 	localAuth := &localauth.LocalAuth{
 		CreateUser:   localauth.NewCreateUserFunc(userStore, identityStore, channelStore),
 		SignupPolicy: &policy,
@@ -197,8 +197,8 @@ func TestSignupWithPolicyUsernameRequired(t *testing.T) {
 
 	var response map[string]any
 	json.NewDecoder(rr.Body).Decode(&response)
-	if response["code"] != core.ErrCodeMissingField {
-		t.Errorf("Expected error code %q, got %q", core.ErrCodeMissingField, response["code"])
+	if response["code"] != accounts.ErrCodeMissingField {
+		t.Errorf("Expected error code %q, got %q", accounts.ErrCodeMissingField, response["code"])
 	}
 	if response["field"] != "username" {
 		t.Errorf("Expected field 'username', got %q", response["field"])
@@ -218,7 +218,7 @@ func TestSignupPolicyPasswordLength(t *testing.T) {
 	identityStore := fs.NewFSIdentityStore(tmpDir)
 	channelStore := fs.NewFSChannelStore(tmpDir)
 
-	policy := core.SignupPolicy{
+	policy := localauth.SignupPolicy{
 		RequireEmail:      true,
 		RequirePassword:   true,
 		MinPasswordLength: 12,
@@ -249,8 +249,8 @@ func TestSignupPolicyPasswordLength(t *testing.T) {
 
 	var response map[string]any
 	json.NewDecoder(rr.Body).Decode(&response)
-	if response["code"] != core.ErrCodeWeakPassword {
-		t.Errorf("Expected error code %q, got %q", core.ErrCodeWeakPassword, response["code"])
+	if response["code"] != accounts.ErrCodeWeakPassword {
+		t.Errorf("Expected error code %q, got %q", accounts.ErrCodeWeakPassword, response["code"])
 	}
 }
 
@@ -261,7 +261,7 @@ func TestSignupPolicyPasswordLength(t *testing.T) {
 // TestAuthErrorInterface verifies that AuthError implements the error interface and exposes
 // code, message, and field properties correctly.
 func TestAuthErrorInterface(t *testing.T) {
-	err := core.NewAuthError(core.ErrCodeEmailExists, "Email already exists", "email")
+	err := accounts.NewAuthError(accounts.ErrCodeEmailExists, "Email already exists", "email")
 
 	// Test error interface
 	if err.Error() != "Email already exists" {
@@ -269,8 +269,8 @@ func TestAuthErrorInterface(t *testing.T) {
 	}
 
 	// Test fields
-	if err.Code != core.ErrCodeEmailExists {
-		t.Errorf("Expected code %q, got %q", core.ErrCodeEmailExists, err.Code)
+	if err.Code != accounts.ErrCodeEmailExists {
+		t.Errorf("Expected code %q, got %q", accounts.ErrCodeEmailExists, err.Code)
 	}
 	if err.Field != "email" {
 		t.Errorf("Expected field 'email', got %q", err.Field)
@@ -292,13 +292,13 @@ func TestAuthErrorHandler(t *testing.T) {
 
 	// Track if custom handler was called
 	handlerCalled := false
-	capturedError := (*core.AuthError)(nil)
+	capturedError := (*accounts.AuthError)(nil)
 
-	policy := core.PolicyEmailOnly
+	policy := localauth.PolicyEmailOnly
 	localAuth := &localauth.LocalAuth{
 		CreateUser:   localauth.NewCreateUserFunc(userStore, identityStore, channelStore),
 		SignupPolicy: &policy,
-		OnSignupError: func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
+		OnSignupError: func(err *accounts.AuthError, w http.ResponseWriter, r *http.Request) bool {
 			handlerCalled = true
 			capturedError = err
 			// Custom response
@@ -327,8 +327,8 @@ func TestAuthErrorHandler(t *testing.T) {
 	}
 	if capturedError == nil {
 		t.Error("Error was not passed to handler")
-	} else if capturedError.Code != core.ErrCodeInvalidEmail {
-		t.Errorf("Expected error code %q, got %q", core.ErrCodeInvalidEmail, capturedError.Code)
+	} else if capturedError.Code != accounts.ErrCodeInvalidEmail {
+		t.Errorf("Expected error code %q, got %q", accounts.ErrCodeInvalidEmail, capturedError.Code)
 	}
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("Expected status 422, got %d", rr.Code)
@@ -351,7 +351,7 @@ func TestDefaultErrorHandlerJSON(t *testing.T) {
 	identityStore := fs.NewFSIdentityStore(tmpDir)
 	channelStore := fs.NewFSChannelStore(tmpDir)
 
-	policy := core.PolicyEmailOnly
+	policy := localauth.PolicyEmailOnly
 	localAuth := &localauth.LocalAuth{
 		CreateUser:   localauth.NewCreateUserFunc(userStore, identityStore, channelStore),
 		SignupPolicy: &policy,
@@ -401,14 +401,14 @@ func TestDefaultErrorHandlerJSON(t *testing.T) {
 func TestErrorCodes(t *testing.T) {
 	// Just verify the constants are defined
 	codes := []string{
-		core.ErrCodeEmailExists,
-		core.ErrCodeUsernameTaken,
-		core.ErrCodeWeakPassword,
-		core.ErrCodeInvalidUsername,
-		core.ErrCodeInvalidEmail,
-		core.ErrCodeInvalidPhone,
-		core.ErrCodeMissingField,
-		core.ErrCodeInvalidCreds,
+		accounts.ErrCodeEmailExists,
+		accounts.ErrCodeUsernameTaken,
+		accounts.ErrCodeWeakPassword,
+		accounts.ErrCodeInvalidUsername,
+		accounts.ErrCodeInvalidEmail,
+		accounts.ErrCodeInvalidPhone,
+		accounts.ErrCodeMissingField,
+		accounts.ErrCodeInvalidCreds,
 	}
 
 	for _, code := range codes {

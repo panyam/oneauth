@@ -60,8 +60,8 @@ type OneAuthConfig struct {
 	RefreshStore core.RefreshTokenStore // for refresh token management (optional)
 
 	// Password grant callbacks (optional — only needed if password grant is used)
-	ValidateCredentials core.CredentialsValidator // validates username/password
-	GetUserScopes       core.GetUserScopesFunc   // returns allowed scopes for a user
+	ValidateCredentials CredentialsValidator    // validates username/password
+	GetUserScopes       core.GetUserScopesFunc  // returns allowed scopes for a user
 
 	// Hooks — lifecycle callbacks
 	Hooks Hooks

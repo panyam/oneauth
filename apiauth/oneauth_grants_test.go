@@ -16,6 +16,7 @@ import (
 	"github.com/panyam/oneauth/keys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/panyam/oneauth/accounts"
 )
 
 // =============================================================================
@@ -89,9 +90,9 @@ func newTestOneAuthWithPasswordGrant(t *testing.T) *apiauth.OneAuth {
 		Issuer:       "test-issuer",
 		Blacklist:    core.NewInMemoryBlacklist(),
 		RefreshStore: newInMemoryRefreshStore(),
-		ValidateCredentials: func(username, password, usernameType string) (core.User, error) {
+		ValidateCredentials: func(username, password, usernameType string) (accounts.User, error) {
 			if username == "alice@example.com" && password == "correct-password" {
-				return &core.BasicUser{ID: "user-alice", ProfileData: map[string]any{"email": username}}, nil
+				return &accounts.BasicUser{ID: "user-alice", ProfileData: map[string]any{"email": username}}, nil
 			}
 			return nil, fmt.Errorf("invalid credentials")
 		},

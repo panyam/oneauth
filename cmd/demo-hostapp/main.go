@@ -16,11 +16,11 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/panyam/oneauth/admin"
-	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/httpauth"
 	"github.com/panyam/oneauth/localauth"
 	fsstore "github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
+	"github.com/panyam/oneauth/accounts"
 )
 
 //go:embed templates/*.html
@@ -77,7 +77,7 @@ func main() {
 	localAuth := &localauth.LocalAuth{
 		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
 		CreateUser:          localauth.NewCreateUserFunc(userStore, identityStore, channelStore),
-		SignupPolicy:        &core.PolicyEmailOnly,
+		SignupPolicy:        &localauth.PolicyEmailOnly,
 		HandleUser: func(authtype string, provider string, token *oauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {
 			email, _ := userInfo["email"].(string)
 			// Create session JWT
@@ -100,11 +100,11 @@ func main() {
 			})
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 		},
-		OnLoginError: func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
+		OnLoginError: func(err *accounts.AuthError, w http.ResponseWriter, r *http.Request) bool {
 			renderTemplate(w, "login.html", map[string]any{"Title": "Login — " + *name, "App": *name, "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
-		OnSignupError: func(err *core.AuthError, w http.ResponseWriter, r *http.Request) bool {
+		OnSignupError: func(err *accounts.AuthError, w http.ResponseWriter, r *http.Request) bool {
 			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up — " + *name, "App": *name, "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
