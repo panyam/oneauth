@@ -109,6 +109,33 @@ func TestMintClientAssertion_FreshJTIPerCall(t *testing.T) {
 	assert.NotEqual(t, parseJTI(a), parseJTI(b), "jti MUST differ between assertions")
 }
 
+// TestMintClientAssertion_AudienceOverride — when ClientAssertionConfig.Audience
+// is set, it MUST become the `aud` claim and the positional `audience` argument
+// MUST be ignored. This lets callers target RFC 7523bis ASes (which require
+// `aud == issuer URL`) without bypassing the helper, while default behaviour
+// (positional argument = token endpoint URL per OIDC Core §9) is preserved
+// when the field is empty.
+//
+// See issue #211.
+func TestMintClientAssertion_AudienceOverride(t *testing.T) {
+	priv := newRSAKey(t)
+	const positionalAud = "https://as.example.com/token"
+	const overrideAud = "https://as.example.com" // RFC 7523bis issuer-identifier shape
+
+	signed, err := client.MintClientAssertion("c", positionalAud, client.ClientAssertionConfig{
+		PrivateKey: priv,
+		SigningAlg: "RS256",
+		Audience:   overrideAud,
+	})
+	require.NoError(t, err)
+
+	parsed, err := jwt.Parse(signed, func(t *jwt.Token) (any, error) { return &priv.PublicKey, nil })
+	require.NoError(t, err)
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	require.True(t, ok)
+	assert.Equal(t, overrideAud, claims["aud"], "cfg.Audience MUST win over the positional argument")
+}
+
 // TestMintClientAssertion_RequiresInputs — minimal-viable validation
 // that callers don't trigger nil-derefs on bad input. These are sanity
 // checks, not security boundaries.

@@ -44,6 +44,16 @@ type ClientAssertionConfig struct {
 	// 5min to satisfy OneAuth's server-side assertion lifetime cap;
 	// other AS implementations are typically stricter.
 	Lifetime time.Duration
+
+	// Audience, when non-empty, overrides the `aud` claim of the minted
+	// assertion. Empty falls back to the positional `audience` argument
+	// of MintClientAssertion (typically the token endpoint URL).
+	//
+	// RFC 7523bis (current OAuth WG draft) requires `aud` to be the AS
+	// issuer identifier; OIDC Core §9 historically permitted the token
+	// endpoint URL. ASes in the wild differ — set this when targeting a
+	// 7523bis-strict AS that rejects the token endpoint URL.
+	Audience string
 }
 
 // DefaultClientAssertionLifetime is the assertion lifetime applied when
@@ -55,17 +65,25 @@ const DefaultClientAssertionLifetime = 60 * time.Second
 // identity, suitable for use as the `client_assertion` form parameter
 // at the token / introspection / revocation endpoints.
 //
+// When cfg.Audience is non-empty it overrides the positional audience
+// argument — use the field to target RFC 7523bis ASes that require
+// `aud == issuer URL`; rely on the positional default (token endpoint
+// URL) for OIDC Core §9-compliant ASes.
+//
 // Claims set per RFC 7523 §3 + OIDC Core §9:
 //
 //	iss = clientID
 //	sub = clientID
-//	aud = audience  (token endpoint URL or AS issuer URL)
+//	aud = cfg.Audience if set, else `audience` argument
 //	jti = random 128-bit hex string
 //	iat = now
 //	exp = now + cfg.Lifetime  (or default)
 //
 // Returns the compact JWS string ready to drop into a form value.
 func MintClientAssertion(clientID, audience string, cfg ClientAssertionConfig) (string, error) {
+	if cfg.Audience != "" {
+		audience = cfg.Audience
+	}
 	if clientID == "" {
 		return "", fmt.Errorf("MintClientAssertion: clientID is required")
 	}

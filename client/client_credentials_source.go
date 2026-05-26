@@ -43,17 +43,19 @@ type ClientCredentialsSource struct {
 	// ClientID identifies this client to the authorization server.
 	ClientID string
 
-	// ClientSecret authenticates this client.
+	// ClientSecret authenticates this client when ClientAssertion is nil.
+	// Sent via the negotiated client_secret_basic or client_secret_post
+	// method (RFC 6749 §2.3.1).
 	ClientSecret string
+
+	// ClientAssertion, when non-nil, switches the source to the
+	// private_key_jwt client-authentication path (RFC 7521 §4.2 /
+	// RFC 7523 §2.2 / OIDC Core §9). ClientSecret is ignored. The same
+	// caching, OnToken, and ProactiveRefresher machinery applies.
+	ClientAssertion *ClientAssertionConfig
 
 	// Scopes to request.
 	Scopes []string
-
-	// AuthorizationDetails to request (RFC 9396). Sent alongside scopes.
-	AuthorizationDetails []core.AuthorizationDetail
-
-	// Audience is the resource server's canonical URI (RFC 8707 resource indicator).
-	Audience string
 
 	// Refresher enables proactive token refresh before expiry. When nil or
 	// Refresher.Buffer == 0, refresh is reactive — happens on the next
@@ -145,7 +147,15 @@ func (s *ClientCredentialsSource) fetchTokenLocked() (*ServerCredential, error) 
 			WithASMetadata(&ASMetadata{TokenEndpoint: s.TokenEndpoint}))
 	}
 
-	cred, err := s.client.ClientCredentialsToken(s.ClientID, s.ClientSecret, s.Scopes)
+	var (
+		cred *ServerCredential
+		err  error
+	)
+	if s.ClientAssertion != nil {
+		cred, err = s.client.ClientCredentialsTokenWithAssertion(s.ClientID, *s.ClientAssertion, s.Scopes)
+	} else {
+		cred, err = s.client.ClientCredentialsToken(s.ClientID, s.ClientSecret, s.Scopes)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("client credentials: %w", err)
 	}
