@@ -1,12 +1,12 @@
 package: kidstoretest
-purpose: Shared conformance test suite that every keys.KidStorage backend runs against its own factory to prove uniform contract compliance.
+purpose: Shared conformance test suite that every `keys.KidStorage` backend (in-memory KidStore, FS, GORM, GAE) drives via a per-test factory to prove uniform contract compliance.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
   - name: Factory
     kind: type
-    role: Function alias producing a fresh keys.KidStorage for each test invocation.
+    role: Function alias producing a fresh `keys.KidStorage` for each test invocation.
     why: Lets one suite drive every backend; each impl supplies its own constructor without the suite knowing the backend.
   - name: RunAll
     kind: func
@@ -14,46 +14,44 @@ entities:
     why: Single call per backend keeps coverage in lock-step across all implementations.
   - name: TestAddAndGetByKid
     kind: func
-    role: Asserts Add then GetKeyByKid round-trips key bytes, algorithm, clientID, and kid.
+    role: Asserts `Add` then `GetKeyByKid` round-trips key bytes, algorithm, clientID, and kid.
     why: Establishes the baseline write-read contract every backend must honor.
   - name: TestGetByUnknownKid
     kind: func
-    role: Asserts an unknown kid returns keys.ErrKidNotFound.
+    role: Asserts an unknown kid returns `keys.ErrKidNotFound`.
     why: Pins the sentinel error so callers can branch on miss vs failure.
   - name: TestGetKeyByClientIDAlwaysNotFound
     kind: func
-    role: Asserts GetKey by clientID always returns keys.ErrKeyNotFound on a kid-indexed store.
+    role: Asserts `GetKey` by clientID always returns `keys.ErrKeyNotFound` on a kid-indexed store.
     why: A kid store is not clientID-indexed; lookup-by-client is meaningless and must fail uniformly.
   - name: TestOverwriteSameKid
     kind: func
-    role: Asserts re-Adding the same kid replaces key, algorithm, and clientID.
-    why: Add is upsert-by-kid; backends must not silently keep stale rows.
+    role: Asserts re-`Add`ing the same kid replaces key, algorithm, and clientID.
+    why: `Add` is upsert-by-kid; backends must not silently keep stale rows.
   - name: TestRemoveIdempotent
     kind: func
-    role: Asserts Remove of an absent kid is nil and Remove of a present kid clears it.
-    why: KidStorage.Remove is intentionally idempotent, unlike KeyStorage.DeleteKey which errors on miss.
+    role: Asserts `Remove` of an absent kid is nil and `Remove` of a present kid clears it.
+    why: `KidStorage.Remove` is intentionally idempotent, unlike `KeyStorage.DeleteKey` which errors on miss.
   - name: TestExpiredKidNotReturned
     kind: func
-    role: Asserts a kid with a past expiry returns keys.ErrKidNotFound on read.
+    role: Asserts a kid with a past expiry returns `keys.ErrKidNotFound` on read.
     why: Reads must filter expired entries even before any sweep runs.
   - name: TestZeroExpiryNeverExpires
     kind: func
-    role: Asserts a zero time.Time expiry means the kid is always retrievable.
+    role: Asserts a zero `time.Time` expiry means the kid is always retrievable.
     why: Zero value is the no-expiry sentinel and must not be treated as expired-at-epoch.
   - name: TestCleanExpired
     kind: func
-    role: Asserts CleanExpired sweeps only expired kids and physically frees the slot for re-Add.
+    role: Asserts `CleanExpired` sweeps only expired kids and physically frees the slot for re-`Add`.
     why: Confirms the sweep removes the backing row/file, not just hides it from reads.
   - name: TestAsymmetricKeyRoundTrip
     kind: func
-    role: Asserts an RSA public-key PEM stored under a computed kid round-trips with RS256.
+    role: Asserts an RSA public-key PEM stored under a computed kid round-trips with `RS256`.
     why: Backends must preserve PEM bytes verbatim, not just symmetric secrets.
   - name: TestPersistence
     kind: func
     role: Asserts the store reads back what it wrote within one instance.
     why: Trivial for in-memory but exercises the real storage layer for FS/GORM/GAE; cross-restart proof lives in backend-specific tests.
 depends_on:
-  - path: ../keys
-    entities: [KidStorage, ErrKidNotFound, ErrKeyNotFound]
-  - path: ../utils
-    entities: [GenerateRSAKeyPair, ComputeKid]
+  - keys
+  - utils

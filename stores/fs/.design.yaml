@@ -1,163 +1,295 @@
 package: fs
-purpose: Filesystem-backed (JSON file per record) implementations of OneAuth's key, kid, app, user, username, identity, channel, token, refresh-token, and API-key stores for single-process dev and small deployments.
+purpose: File-backed implementations of every oneauth store interface, optimized for dev and single-node deployments via file-per-record JSON layouts with atomic temp-file + rename writes.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
   - name: safeName
-    kind: func
-    role: Single point of defense sanitizing user-supplied identifiers before use in filesystem paths.
-    why: Rejects empty/null-byte/absolute/.. inputs and folds / \ : to underscores so callers cannot escape the storage dir.
+    kind: function
+    role: Sanitizes user-supplied input before use in path construction; rejects traversal, null bytes, and absolute paths.
+    why: Single point of defense against CWE-22 across every FS store — every constructor that takes user input routes through this.
   - name: writeAtomicFile
-    kind: func
-    role: Writes data atomically via tempfile in the same dir, os.Rename, then chmod 0600.
-    why: A crash mid-write leaves either the old or the new file, never a half-written one; final 0600 ensures owner-only access.
-  - name: FSKeyStore
-    kind: struct
-    role: keys.KeyStorage impl with one signing-key JSON file per clientID under signing_keys/.
-    why: Keys must be []byte else ErrAlgorithmMismatch; GetKeyByKid scans all files because the layout is clientID-indexed.
-  - name: NewFSKeyStore
-    kind: func
-    role: Constructor for FSKeyStore.
-    why: Directory is created lazily on first PutKey, not at construction time.
-  - name: FSKeyStore.PutKey
-    kind: method
-    role: Persists a KeyRecord, computing kid via utils.ComputeKid when not supplied.
-    why: Atomic write keeps the on-disk view consistent and kid auto-derivation matches in-memory KeyStore semantics.
-  - name: FSKeyStore.GetKeyByKid
-    kind: method
-    role: Linear scan of signing_keys/ matching entry.Kid.
-    why: Clientid-indexed layout means kid lookup has no direct path; acceptable at dev-scale key counts.
-  - name: fsKeyEntry
-    kind: struct
-    role: On-disk JSON shape for a signing key (ClientID, Key, Algorithm, Kid).
-    why: Decouples the persisted layout from the keys.KeyRecord domain type.
-  - name: FSKidStore
-    kind: struct
-    role: keys.KidStorage impl with one kid-indexed JSON file per kid under kid_keys/.
-    why: Each entry carries a grace-period ExpiresAt (zero = never); expired entries are filtered on read and purged by CleanExpired.
-  - name: NewFSKidStore
-    kind: func
-    role: Constructor for FSKidStore.
-    why: GetKey(clientID) on a KidStorage always returns ErrKeyNotFound by design, matching the in-memory KidStore.
-  - name: FSKidStore.GetKeyByKid
-    kind: method
-    role: Direct kid->path lookup with on-read expiry filter.
-    why: Kid is the primary key here (unlike FSKeyStore) so lookup is O(1) on disk.
-  - name: FSKidStore.CleanExpired
-    kind: method
-    role: Sweeps kid_keys/ and removes entries whose ExpiresAt is in the past.
-    why: Maintenance hook; on-read filtering already hides expired entries but disk would grow without this.
-  - name: fsKidEntry
-    kind: struct
-    role: On-disk JSON shape for a kid->key grace entry with ExpiresAt.
-    why: Mirrors fsKeyEntry but keyed by kid and carries the rotation grace-period TTL.
-  - name: isExpired
-    kind: func
-    role: Helper matching keys.kidRecord.isExpired - zero time means never expires.
-    why: Centralizes the grace-period predicate so on-read filtering and CleanExpired agree.
-  - name: FSAppStore
-    kind: struct
-    role: admin.AppRegistrationStore impl with one AppRegistration JSON file per client_id under apps/.
-    why: GetApp distinguishes a corrupt file (parse error) from an absent registration (ErrAppNotFound); ListApps silently skips corrupt files so one hand-corrupted file cannot lock out admin tooling.
-  - name: NewFSAppStore
-    kind: func
-    role: Constructor for FSAppStore.
-    why: Single-process only; multi-process deployments need a backend with real transaction semantics (e.g. GORMAppStore).
-  - name: FSAppStore.ListApps
-    kind: method
-    role: Reads every .json under apps/ and returns parseable entries, skipping corrupt ones silently.
-    why: Partial recovery beats total failure for admin tooling; loop var aliasing is avoided via explicit clone.
-  - name: FSUserStore
-    kind: struct
-    role: core.UserStore impl with one user JSON file per userId under users/.
-    why: SaveUser converts foreign core.User implementations into FSUser, best-effort preserving created_at from the profile map.
-  - name: NewFSUserStore
-    kind: func
-    role: Constructor for FSUserStore.
-    why: No mutex; relies on writeAtomicFile plus the single-process assumption.
+    kind: function
+    role: Writes data via temp file in the target directory, then os.Rename to final path with 0600 perms.
+    why: Crash-safety primitive — guarantees readers see either the old contents or the new contents, never a partial file.
   - name: FSUser
     kind: struct
-    role: Persisted user record (UserId, IsActive, UserProfile map, CreatedAt, UpdatedAt) implementing core.User.
-    why: Open profile map keeps the persisted shape extensible without schema migration.
-  - name: FSUsernameStore
+    role: JSON-serializable user record implementing accounts.User (Id, Profile, timestamps).
+    why: Decouples on-disk representation from the accounts.User interface so profile maps round-trip cleanly.
+  - name: FSUserStore
     kind: struct
-    role: UsernameStore impl enforcing uniqueness via one file per normalized (lowercase) username under usernames/.
-    why: Optimistic Version field plus atomic file writes; ChangeUsername is best-effort restore on failure (not atomic across files).
-  - name: NewFSUsernameStore
-    kind: func
-    role: Constructor for FSUsernameStore.
-    why: Concurrent same-name reservations resolve last-write-wins.
-  - name: FSUsernameStore.ChangeUsername
+    role: Implements accounts.UserStore as one JSON file per user under users/.
+    why: Simplest mapping; uses safeName so userId can be arbitrary string without traversal risk.
+  - name: FSUserStore.CreateUser
     kind: method
-    role: Two-file rename (delete old, write new) with best-effort restore if new write fails.
-    why: No cross-file atomicity on the filesystem; documented as "use GORM backend for high-concurrency production".
-  - name: FSUsername
-    kind: struct
-    role: Persisted username record carrying both NormalizedUsername (key) and original-case Username plus Version.
-    why: Lets lookups be case-insensitive while display preserves original case; Version enables optimistic concurrency.
+    role: Builds an FSUser, stamps timestamps, and writes it via SaveUser.
+    why: Single-call constructor + persistence so callers don't have to manage the dual step.
+  - name: FSUserStore.GetUserById
+    kind: method
+    role: Reads users/{safeID}.json and unmarshals to FSUser; not-found surfaces as a typed error.
+    why: Distinguishes missing from unreadable for callers handling first-login flows.
+  - name: FSUserStore.SaveUser
+    kind: method
+    role: Marshals any accounts.User (including non-FSUser impls) into FSUser shape and atomically writes it.
+    why: Lets the FS backend accept users created by other stores without losing fields.
   - name: FSIdentityStore
     kind: struct
-    role: IdentityStore impl with one identity JSON file per type+value key under identities/.
-    why: createIfMissing seeds an unassigned (empty UserID, unverified) identity; reverse lookups (GetUserIdentities) scan the directory.
-  - name: NewFSIdentityStore
-    kind: func
-    role: Constructor for FSIdentityStore.
-    why: Uses filepath.Base on the composed identity key for path safety (not safeName) - inconsistent but already safe per security tests.
+    role: Implements accounts.IdentityStore as one JSON file per (type, value) identity under identities/.
+    why: Identity-as-file lets each provider login be looked up by a single OS read.
+  - name: FSIdentityStore.GetIdentity
+    kind: method
+    role: Loads or upsert-creates an identity record; createIfMissing seeds an unverified, unlinked entry.
+    why: Federated-login bootstrap path — first sign-in materializes the identity before user linking.
+  - name: FSIdentityStore.SaveIdentity
+    kind: method
+    role: Atomically writes an identity JSON under identities/{key}.json.
+    why: Used by all mutators; centralizes the marshal + atomic-write step.
+  - name: FSIdentityStore.SetUserForIdentity
+    kind: method
+    role: Loads identity, bumps Version, sets UserID, saves.
+    why: Account-linking step — runs after the user account exists.
+  - name: FSIdentityStore.MarkIdentityVerified
+    kind: method
+    role: Loads identity, sets Verified=true, bumps Version, saves.
+    why: Email/phone verification handoff from localauth and federated providers.
+  - name: FSIdentityStore.GetUserIdentities
+    kind: method
+    role: Full directory scan; returns every identity whose UserID matches.
+    why: Profile-page "linked accounts" list; O(N) scan acceptable at dev scale.
   - name: FSChannelStore
     kind: struct
-    role: ChannelStore impl with one channel JSON file per provider+identityKey under channels/.
-    why: SaveChannel auto-bumps Version and CreatedAt/UpdatedAt; reverse lookup by identityKey scans the directory.
-  - name: NewFSChannelStore
-    kind: func
-    role: Constructor for FSChannelStore.
-    why: createIfMissing seeds empty credentials/profile maps.
+    role: Implements accounts.ChannelStore as one JSON file per (provider, identityKey) under channels/.
+    why: Channel credentials (OAuth tokens, etc.) isolated from primary identity records.
+  - name: FSChannelStore.GetChannel
+    kind: method
+    role: Loads or upsert-creates a channel record with default empty credentials/profile maps.
+    why: Federated-flow path that needs a writable channel to stash refresh tokens.
+  - name: FSChannelStore.SaveChannel
+    kind: method
+    role: Bumps Version (or seeds it on first save), updates timestamps, atomically writes.
+    why: Optimistic-concurrency hook even though the FS backend doesn't enforce CAS.
+  - name: FSChannelStore.GetChannelsByIdentity
+    kind: method
+    role: Full directory scan; filters channels whose IdentityKey matches.
+    why: Lets a profile UI list every provider tied to one identity.
   - name: FSTokenStore
     kind: struct
-    role: Verification/reset token store with one AuthToken JSON file per token value under tokens/.
-    why: GetToken auto-deletes and rejects expired tokens; DeleteUserTokens scans the directory filtering by userID and type.
-  - name: NewFSTokenStore
-    kind: func
-    role: Constructor for FSTokenStore.
-    why: Filename is the (safeName-sanitized) token itself, so the secret appears on disk in the path - acceptable for short-lived single-use tokens.
+    role: Implements localauth.VerificationTokenStore for email-verify / password-reset tokens under tokens/.
+    why: Short-lived token storage with auto-cleanup on expired read.
+  - name: FSTokenStore.CreateToken
+    kind: method
+    role: Generates a secure token, builds the VerificationToken, atomically writes it.
+    why: Single call for the signup / forgot-password email link minting.
+  - name: FSTokenStore.GetToken
+    kind: method
+    role: Reads the token JSON; if IsExpired() deletes it and returns "token expired".
+    why: Self-cleaning read path — a side-effecting GC avoids needing a separate sweeper for the common case.
+  - name: FSTokenStore.DeleteToken
+    kind: method
+    role: Idempotent removal; absent file is not an error.
+    why: Called from "token successfully used" paths and from GetToken's expiry branch.
+  - name: FSTokenStore.DeleteUserTokens
+    kind: method
+    role: Full directory scan; removes every token matching userID + type.
+    why: "Forgot password again" invalidates the previous link without a separate index.
   - name: FSRefreshTokenStore
     kind: struct
-    role: RefreshToken store with rotation and family-based theft detection, one file per token under refresh_tokens/.
-    why: Filename is the SHA256 hash of the token (not the raw value) so the secret never appears in a path; RotateRefreshToken returns ErrTokenReused when an already-revoked token is replayed.
-  - name: NewFSRefreshTokenStore
-    kind: func
-    role: Constructor for FSRefreshTokenStore.
-    why: Uses RWMutex plus getTokenUnsafe/forEachToken internals so multi-token sweeps hold a single lock.
+    role: Implements core.RefreshTokenStore as one JSON file per token (filename = sha256(token)) under refresh_tokens/; sync.RWMutex serializes intra-process access.
+    why: Hashed filename means the raw token never appears in filesystem metadata, defending against directory-listing leaks.
+  - name: FSRefreshTokenStore.CreateRefreshToken
+    kind: method
+    role: Mints token + family ID, generation=1, saves under hashed filename.
+    why: Establishes the family rooted at this token for rotation-chain theft detection.
   - name: FSRefreshTokenStore.RotateRefreshToken
     kind: method
-    role: Revokes old token, mints new token in same Family with Generation+1, atomically writes both.
-    why: Replay of an already-revoked token returns ErrTokenReused as the signal for callers to RevokeTokenFamily.
+    role: Loads old token; if already revoked returns ErrTokenReused (theft signal); otherwise revokes old, mints new in same family with generation+1.
+    why: RFC 6749 §10.4 rotation with sender-constrained replay detection — the interesting flow in this package.
+  - name: FSRefreshTokenStore.RevokeRefreshToken
+    kind: method
+    role: Marks one token revoked + stamps RevokedAt; idempotent on already-revoked or absent.
+    why: Direct revocation endpoint backing.
+  - name: FSRefreshTokenStore.RevokeUserTokens
+    kind: method
+    role: forEachToken sweep; revokes every non-revoked token for the user.
+    why: "Logout everywhere" / account-takeover recovery.
   - name: FSRefreshTokenStore.RevokeTokenFamily
     kind: method
-    role: Sweeps every token sharing a Family value and marks them revoked.
-    why: Family-based theft detection - one compromised generation invalidates the whole chain.
+    role: forEachToken sweep; revokes every non-revoked token sharing the family ID.
+    why: Theft response — once one token in a family is reused, kill the whole chain.
+  - name: FSRefreshTokenStore.GetUserTokens
+    kind: method
+    role: Lists active tokens for a user; clears the raw Token value before returning.
+    why: Admin / profile listing must never leak usable bearer material.
   - name: FSRefreshTokenStore.CleanupExpiredTokens
     kind: method
-    role: Removes tokens that are expired or revoked more than 24h ago.
-    why: Bounded retention for revoked tokens preserves a short forensic window before reclaiming disk.
+    role: Removes expired tokens and revoked tokens older than 24h.
+    why: Bounds disk growth; the 24h post-revocation grace gives audit a window.
+  - name: FSRefreshTokenStore.forEachToken
+    kind: method
+    role: Iterates refresh_tokens/, parses each, calls visitor; skips unreadable / unparseable files.
+    why: Shared traversal kernel for the revoke / list / cleanup paths.
   - name: FSAPIKeyStore
     kind: struct
-    role: APIKey store with one file per keyID under api_keys/ and bcrypt-hashed secrets.
-    why: CreateAPIKey returns the full "oa_keyid_secret" once; ValidateAPIKey parses the triple and bcrypt-compares; listings clear KeyHash before returning.
-  - name: NewFSAPIKeyStore
-    kind: func
-    role: Constructor for FSAPIKeyStore.
-    why: Only the bcrypt hash of the secret is persisted; the raw secret leaves the store exactly once at creation.
+    role: Implements core.APIKeyStore as one JSON file per keyID under api_keys/; bcrypt-hashes the secret; sync.RWMutex serializes intra-process access.
+    why: Long-lived API keys need hash-at-rest separate from short-lived refresh tokens.
+  - name: FSAPIKeyStore.CreateAPIKey
+    kind: method
+    role: Generates keyID + secret, bcrypts the secret, persists metadata, returns "oa_keyid_secret" once.
+    why: One-time secret reveal — caller must store it; only the bcrypt hash survives on disk.
   - name: FSAPIKeyStore.ValidateAPIKey
     kind: method
-    role: Parses oa_<keyID>_<secret>, loads the keyID record, checks revoked/expired, bcrypt-compares.
-    why: Constant-time bcrypt compare avoids timing leaks on secret comparison.
+    role: Parses fullKey into "oa" prefix + keyID + secret, loads record, checks revoked/expired/hash.
+    why: Per-request validation; returns the metadata so the caller can derive scopes.
+  - name: FSAPIKeyStore.RevokeAPIKey
+    kind: method
+    role: Marks key revoked + stamps RevokedAt; idempotent.
+    why: User-initiated key rotation.
+  - name: FSAPIKeyStore.ListUserAPIKeys
+    kind: method
+    role: Full directory scan; returns user's keys with KeyHash zeroed.
+    why: Profile UI listing — never expose the bcrypt hash even though it's not the secret.
+  - name: FSAPIKeyStore.UpdateAPIKeyLastUsed
+    kind: method
+    role: Re-saves the record with LastUsedAt=now.
+    why: Hot path on every authenticated API call — full file rewrite is the cost paid for not needing a DB.
+  - name: FSUsername
+    kind: struct
+    role: JSON record of a username reservation — stores normalized form + original case + UserID + Version.
+    why: Case-insensitive lookup with case-preserving display.
+  - name: FSUsernameStore
+    kind: struct
+    role: Implements the UsernameStore as one JSON file per normalized-username under usernames/.
+    why: Uniqueness enforced by filesystem — filename collision = username taken.
+  - name: FSUsernameStore.ReserveUsername
+    kind: method
+    role: Reads existing; if owned by same user updates case, else if exists errors "taken", else creates.
+    why: Best-effort uniqueness — last-write-wins on a true race, acceptable at dev scale.
+  - name: FSUsernameStore.GetUserByUsername
+    kind: method
+    role: Reads usernames/{lowercase}.json, returns UserID.
+    why: Username-login lookup from CredentialsValidatorWithUsername.
+  - name: FSUsernameStore.ReleaseUsername
+    kind: method
+    role: Removes the username file; idempotent on absent.
+    why: Account deletion / admin moderation.
+  - name: FSUsernameStore.ChangeUsername
+    kind: method
+    role: If same normalized form updates case; else verifies ownership, checks new is free, deletes old + writes new, attempts old-restore on new-write failure.
+    why: Cross-file move; explicitly not atomic — documented as such on the method.
+  - name: FSAppStore
+    kind: struct
+    role: Implements admin.AppRegistrationStore as one JSON file per client_id under apps/; sync.RWMutex serializes intra-process access.
+    why: DCR-registered OAuth clients need first-class persistence; file-per-record avoids serializing the whole catalog on every write.
+  - name: FSAppStore.SaveApp
+    kind: method
+    role: Rejects empty ClientID, marshals via JSON, atomically writes under apps/{safeID}.json.
+    why: Used by both DCR creation and updates — overwrite semantics handled by writeAtomicFile.
+  - name: FSAppStore.GetApp
+    kind: method
+    role: Reads file; missing → admin.ErrAppNotFound; corrupt JSON → parse error (deliberately not ErrAppNotFound).
+    why: Callers must distinguish registration absent (safe to recreate) from registration unreadable (operator intervention).
+  - name: FSAppStore.ListApps
+    kind: method
+    role: Reads apps/, skips dirs / non-.json / corrupt files, returns parsed list (or empty slice if dir absent).
+    why: Partial recovery beats total failure for admin tooling — one bad file shouldn't lock out the rest.
+  - name: FSAppStore.DeleteApp
+    kind: method
+    role: Stats the file; ErrAppNotFound if missing, else os.Remove.
+    why: Matches InMemoryAppStore semantics so the contract suite passes both backends.
+  - name: fsKeyEntry
+    kind: struct
+    role: On-disk JSON shape for a signing key — ClientID, raw key bytes, algorithm, optional kid.
+    why: Decouples wire format from keys.KeyRecord (which has interface-typed Key).
+  - name: FSKeyStore
+    kind: struct
+    role: Implements keys.KeyStorage as one JSON file per client_id under signing_keys/; sync.RWMutex serializes intra-process access.
+    why: HMAC secrets and per-client signing keys; the by-kid lookup forces a directory scan since filenames are keyed by clientID.
+  - name: FSKeyStore.PutKey
+    kind: method
+    role: Auto-computes kid if absent, writes signing_keys/{safeID}.json atomically.
+    why: Single mutator; ensures every persisted key has a kid even if caller didn't supply one.
+  - name: FSKeyStore.GetKey
+    kind: method
+    role: Reads file by clientID; not-found → keys.ErrKeyNotFound.
+    why: Hot validation path for HS256 verification.
+  - name: FSKeyStore.GetKeyByKid
+    kind: method
+    role: Linear scan of signing_keys/ matching entry.Kid; not-found → keys.ErrKidNotFound.
+    why: JWKS lookup path; O(N) is acceptable at the # of clients this backend targets.
+  - name: FSKeyStore.DeleteKey
+    kind: method
+    role: Stats then os.Remove; missing → keys.ErrKeyNotFound.
+    why: Client-deletion path; couples with FSKidStore for rotation grace.
+  - name: FSKeyStore.ListKeyIDs
+    kind: method
+    role: Directory scan returning every entry's ClientID.
+    why: Admin enumeration.
+  - name: FSKeyStore.RegisterKey
+    kind: method
+    role: Backward-compat shim — wraps PutKey for the legacy signature.
+    why: Pre-KeyRecord callers still compile.
+  - name: FSKeyStore.GetVerifyKey
+    kind: method
+    role: Backward-compat shim returning just the key material.
+    why: Pre-KeyRecord callers still compile.
+  - name: FSKeyStore.GetSigningKey
+    kind: method
+    role: Backward-compat alias for GetVerifyKey.
+    why: Symmetric algorithm — sign key equals verify key.
+  - name: FSKeyStore.GetExpectedAlg
+    kind: method
+    role: Backward-compat — returns the algorithm string for a clientID.
+    why: Older middleware queried alg separately.
+  - name: FSKeyStore.ListKeys
+    kind: method
+    role: Backward-compat alias for ListKeyIDs.
+    why: Pre-rename callers still compile.
+  - name: FSKeyStore.GetCurrentKid
+    kind: method
+    role: Returns the kid for a clientID.
+    why: Lets the JWT signer label tokens with the right kid.
+  - name: fsKidEntry
+    kind: struct
+    role: On-disk JSON shape for a kid→key grace entry — adds an ExpiresAt (zero = never) over fsKeyEntry.
+    why: Encodes the rotation grace window directly with the key bytes.
+  - name: FSKidStore
+    kind: struct
+    role: Implements keys.KidStorage as one JSON file per kid under kid_keys/; sync.RWMutex serializes intra-process access.
+    why: Retired keys with a TTL — lets tokens minted under the old kid keep validating during rotation.
+  - name: FSKidStore.Add
+    kind: method
+    role: Writes kid_keys/{safeKid}.json with key bytes, algorithm, clientID, expiresAt.
+    why: Called during key rotation to park the previous signing key.
+  - name: FSKidStore.Remove
+    kind: method
+    role: Idempotent file removal.
+    why: Lets operators force-evict a kid out of grace.
+  - name: FSKidStore.GetKey
+    kind: method
+    role: Always returns keys.ErrKeyNotFound — KidStorage has no clientID index.
+    why: Matches the in-memory KidStore contract; KidStorage is kid-indexed only.
+  - name: FSKidStore.GetKeyByKid
+    kind: method
+    role: Reads kid_keys/{safeKid}.json; if expired returns ErrKidNotFound; else returns the record.
+    why: Hot verify path during rotation grace.
+  - name: FSKidStore.CleanExpired
+    kind: method
+    role: Sweeps kid_keys/, deletes entries whose ExpiresAt has passed.
+    why: Bounds the grace-key set; called by a separate rotation maintenance job.
+  - name: isExpired
+    kind: function
+    role: Helper returning false for zero time (never-expires sentinel).
+    why: Centralizes the "zero = never" rule used in both lookup and cleanup.
 depends_on:
-  - path: ../../core
-    entities: [User, UserStore, Identity, IdentityStore, Channel, ChannelStore, IdentityKey, RefreshToken, RefreshTokenStore, APIKey, APIKeyStore, AuthToken, TokenType, TokenStore, UsernameStore, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret, ErrTokenNotFound, ErrTokenExpired, ErrTokenRevoked, ErrTokenReused, ErrAPIKeyNotFound]
-  - path: ../../keys
-    entities: [KeyStorage, KidStorage, KeyRecord, ErrKeyNotFound, ErrAlgorithmMismatch, ErrKidNotFound]
+  - path: ../../accounts
+    entities: [User, UserStore, Identity, IdentityStore, IdentityKey, Channel, ChannelStore]
   - path: ../../admin
-    entities: [AppRegistrationStore, AppRegistration, ErrAppNotFound]
+    entities: [AppRegistration, AppRegistrationStore, ErrAppNotFound]
+  - path: ../../core
+    entities: [APIKey, APIKeyStore, RefreshToken, RefreshTokenStore, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret, TokenExpiryRefreshToken, ErrAPIKeyNotFound, ErrTokenNotFound, ErrTokenExpired, ErrTokenRevoked, ErrTokenReused]
+  - path: ../../keys
+    entities: [KeyStorage, KidStorage, KeyRecord, ErrKeyNotFound, ErrKidNotFound, ErrAlgorithmMismatch]
+  - path: ../../localauth
+    entities: [VerificationTokenStore, VerificationToken, VerificationType]
   - path: ../../utils
     entities: [ComputeKid]

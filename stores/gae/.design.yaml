@@ -1,229 +1,138 @@
 package: gae
-purpose: Google Cloud Datastore-backed implementations of oneauth's key, kid, user, identity, channel, auth-token, refresh-token, API-key, and username store interfaces.
+purpose: Google Cloud Datastore-backed implementations of oneauth's account/identity/channel/token/key/username stores, with namespacing, JSON-blob payloads, and transactional rotation/revocation flows.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
-  - name: GAEKeyStore
-    kind: struct
-    role: keys.KeyStorage over Datastore for per-client signing keys.
-    why: Keyed by ClientID with kid indexed so GetKeyByKid can reverse-lookup via a query.
-  - name: NewKeyStore
-    kind: func
-    role: Constructs a GAEKeyStore for a namespace using a background ctx.
-    why: ctx is stored on the struct (pre-issue-110 pattern); use WithContext to scope per call.
-  - name: GAEKeyStore.WithContext
-    kind: method
-    role: Returns a shallow copy of the store carrying the given context.
-    why: Workaround until the ctx-as-parameter migration lands across all store interfaces.
-  - name: GAEKeyStore.PutKey
-    kind: method
-    role: Upserts a SigningKeyEntity, computing the kid from key bytes if not supplied.
-    why: Auto-derives kid so callers can register without pre-computing it.
-  - name: GAEKeyStore.GetKeyByKid
-    kind: method
-    role: Reverse-lookup by kid using a single-result indexed query.
-    why: The kid is a secondary index since the primary key is ClientID.
-  - name: GAEKeyStore.ListKeyIDs
-    kind: method
-    role: KeysOnly scan returning all registered client IDs in the namespace.
-    why: Cheap enumeration without fetching key bytes.
-  - name: SigningKeyEntity
-    kind: struct
-    role: Datastore entity for a per-client signing key.
-    why: KeyBytes is noindex (bulk data); kid is indexed to support reverse-lookup queries.
-  - name: KindSigningKey
-    kind: const
-    role: Datastore kind name for signing keys.
-    why: Shared between entity definitions and query construction.
-  - name: GAEKidStore
-    kind: struct
-    role: keys.KidStorage over Datastore for kid->key grace entries.
-    why: Keyed by the kid itself; GetKey (client-indexed) deliberately returns ErrKeyNotFound.
-  - name: NewKidStore
-    kind: func
-    role: Constructs a GAEKidStore for a namespace using a background ctx.
-    why: A var _ assertion guarantees keys.KidStorage conformance at build time.
-  - name: GAEKidStore.CleanExpired
-    kind: method
-    role: Scans every kid entry and deletes those past their ExpiresAt in a single DeleteMulti.
-    why: Datastore cannot combine a not-zero filter with a less-than filter, so filtering happens in Go.
-  - name: KidKeyEntity
-    kind: struct
-    role: Datastore entity for a kid grace entry.
-    why: ExpiresAt is noindex; CleanExpired scans and filters in Go (see above).
-  - name: KindKidKey
-    kind: const
-    role: Datastore kind name for kid grace entries.
-    why: Shared between entity definitions and query construction.
-  - name: UserStore
-    kind: struct
-    role: core.UserStore over Datastore for user accounts with JSON profile blobs.
-    why: SaveUser reads-before-writes to preserve CreatedAt across updates.
-  - name: NewUserStore
-    kind: func
-    role: Constructs a UserStore for a namespace using a background ctx.
-    why: Matches the constructor shape used by every store struct in the package.
-  - name: UserStore.SaveUser
-    kind: method
-    role: Upserts a user; reads existing entity first to retain CreatedAt and the active flag.
-    why: The core.User interface lacks an IsActive getter, so the impl type-asserts to *GAEUser.
-  - name: GAEUser
-    kind: struct
-    role: core.User implementation carrying ID, active flag, and profile map.
-    why: SaveUser type-asserts to *GAEUser to recover the active flag; defaults to active=true otherwise.
   - name: UserEntity
     kind: struct
-    role: Datastore entity for a user; profile stored as noindex JSON.
-    why: Mirrors core.User with versioning and timestamps for Datastore persistence.
-  - name: KindUser
-    kind: const
-    role: Datastore kind name for users.
-    why: One of seven core kind constants declared in stores.go.
-  - name: IdentityStore
-    kind: struct
-    role: core.IdentityStore; identities keyed by "type:value".
-    why: Composite string key avoids needing parent entity groups.
-  - name: NewIdentityStore
-    kind: func
-    role: Constructs an IdentityStore for a namespace using a background ctx.
-    why: Same shape as every other store constructor in the package.
-  - name: IdentityStore.SetUserForIdentity
-    kind: method
-    role: Transactionally rebinds an identity's UserID and bumps Version.
-    why: Read-modify-write must be atomic to avoid losing concurrent verification updates.
-  - name: IdentityStore.MarkIdentityVerified
-    kind: method
-    role: Transactionally flips Verified to true and bumps Version.
-    why: Same atomicity guarantee as SetUserForIdentity.
+    role: Datastore model for users (User kind) — IsActive flag, JSON profile blob (noindex), timestamps, version.
+    why: Persistent shape decoupled from the public accounts.User interface so JSON profiles can be unindexed.
   - name: IdentityEntity
     kind: struct
-    role: Datastore entity for an identity (type:value -> userID).
-    why: ToIdentity and IdentityToEntity bridge to core.Identity.
-  - name: IdentityEntity.ToIdentity
-    kind: method
-    role: Converts a stored entity into a core.Identity value.
-    why: Keeps Datastore representation hidden from core consumers.
-  - name: IdentityToEntity
-    kind: func
-    role: Converts a core.Identity into an IdentityEntity for a given key.
-    why: Inverse of ToIdentity used on Save paths.
-  - name: KindIdentity
-    kind: const
-    role: Datastore kind name for identities.
-    why: One of seven core kind constants.
-  - name: ChannelStore
-    kind: struct
-    role: core.ChannelStore; auth channels keyed by "provider:identityKey".
-    why: SaveChannel preserves CreatedAt and monotonically increments Version.
-  - name: NewChannelStore
-    kind: func
-    role: Constructs a ChannelStore for a namespace using a background ctx.
-    why: Same shape as every other store constructor in the package.
+    role: Datastore model for identities (Identity kind) — keyed by "type:value", indexed user_id for reverse lookups.
+    why: Allows GetUserIdentities reverse-index queries while keeping the key human-readable.
   - name: ChannelEntity
     kind: struct
-    role: Datastore entity for an auth channel (provider:identityKey).
-    why: Credentials and profile stored as noindex JSON; tracks expiry and version.
-  - name: KindChannel
-    kind: const
-    role: Datastore kind name for channels.
-    why: One of seven core kind constants.
-  - name: TokenStore
+    role: Datastore model for auth channels (Channel kind) — keyed by "provider:identityKey", carries credentials/profile JSON.
+    why: One row per (provider, identity) lets identity_key be queried for "all channels for this identity".
+  - name: VerificationTokenEntity
     kind: struct
-    role: core.TokenStore; verification/reset tokens keyed by the token string.
-    why: GetToken self-deletes expired tokens before erroring, so reads opportunistically GC.
-  - name: NewTokenStore
-    kind: func
-    role: Constructs a TokenStore for a namespace using a background ctx.
-    why: Same shape as every other store constructor in the package.
-  - name: TokenStore.DeleteUserTokens
-    kind: method
-    role: KeysOnly query by user_id + type, then DeleteMulti.
-    why: Used to invalidate all outstanding verification/reset tokens for a user.
-  - name: AuthTokenEntity
-    kind: struct
-    role: Datastore entity for verification/reset tokens.
-    why: Key name is the token itself; ToAuthToken/AuthTokenToEntity bridge to core.AuthToken.
-  - name: KindAuthToken
-    kind: const
-    role: Datastore kind name for auth tokens.
-    why: One of seven core kind constants.
-  - name: RefreshTokenStore
-    kind: struct
-    role: core.RefreshTokenStore; refresh tokens keyed by SHA-256 hash.
-    why: Supports rotation, family revocation on reuse, and cleanup; raw tokens never land in Datastore.
-  - name: NewRefreshTokenStore
-    kind: func
-    role: Constructs a RefreshTokenStore for a namespace using a background ctx.
-    why: Same shape as every other store constructor in the package.
-  - name: RefreshTokenStore.RotateRefreshToken
-    kind: method
-    role: Transactionally revokes the old token and writes a new one; triggers family revocation if the old token was already revoked.
-    why: Reuse-detection per OAuth2 refresh-token best practice; the family sweep runs outside the txn to avoid blowing the entity-group limit.
-  - name: RefreshTokenStore.RevokeTokenFamily
-    kind: method
-    role: Marks every non-revoked token in a family as revoked.
-    why: Single-token compromise should invalidate the entire rotation lineage.
-  - name: RefreshTokenStore.CleanupExpiredTokens
-    kind: method
-    role: Deletes expired tokens plus revoked tokens older than 24h.
-    why: Two-stage GC: hard-expired now, revoked after a grace window for audit.
+    role: Datastore model for localauth verification tokens (AuthToken kind) — token is the key name.
+    why: Direct key lookup avoids any index; bulk delete is filterable by user_id + type.
   - name: RefreshTokenEntity
     kind: struct
-    role: Datastore entity for a refresh token keyed by hash.
-    why: Carries family, generation, scopes, authorization_details, and revocation metadata.
-  - name: KindRefreshToken
-    kind: const
-    role: Datastore kind name for refresh tokens.
-    why: One of seven core kind constants.
-  - name: APIKeyStore
-    kind: struct
-    role: core.APIKeyStore; bcrypt-hashed API keys keyed by KeyID.
-    why: ValidateAPIKey parses the "oa_keyid_secret" format; hashes are stripped from listings.
-  - name: NewAPIKeyStore
-    kind: func
-    role: Constructs an APIKeyStore for a namespace using a background ctx.
-    why: Same shape as every other store constructor in the package.
-  - name: APIKeyStore.CreateAPIKey
-    kind: method
-    role: Generates keyID + secret, bcrypts the secret, persists, and returns the assembled full key once.
-    why: Plaintext secret only exists in the return value, never in Datastore.
-  - name: APIKeyStore.ValidateAPIKey
-    kind: method
-    role: Splits "oa_keyid_secret", fetches by keyID, then bcrypt-compares.
-    why: Two-part key lets lookup be O(1) without scanning every hash.
+    role: Datastore model for refresh tokens (RefreshToken kind) — token-hash key, family/generation, JSON scopes + RFC 9396 authorization_details.
+    why: Hash-keyed for O(1) lookup; family field indexed so a reuse attack can revoke the whole family.
   - name: APIKeyEntity
     kind: struct
-    role: Datastore entity for an API key keyed by KeyID.
-    why: Stores bcrypt hash plus scopes (JSON noindex) and optional expiry flagged by HasExpiry.
-  - name: KindAPIKey
-    kind: const
-    role: Datastore kind name for API keys.
-    why: One of seven core kind constants.
-  - name: UsernameStore
-    kind: struct
-    role: core.UsernameStore; case-insensitive username->userID reservations.
-    why: Lowercased keys with txn-guarded uniqueness; ChangeUsername atomically swaps old and new entries.
-  - name: NewUsernameStore
-    kind: func
-    role: Constructs a UsernameStore for a namespace using a background ctx.
-    why: Same shape as every other store constructor in the package.
-  - name: UsernameStore.ChangeUsername
-    kind: method
-    role: Transactional swap that deletes the old entry and creates the new one only if available.
-    why: Two-key atomic mutation without race windows where the username is dropped or duplicated.
+    role: Datastore model for API keys (APIKey kind) — KeyID is the key, bcrypt KeyHash unindexed, HasExpiry flag.
+    why: HasExpiry bool avoids omitempty pitfalls on time.Time zero-value when ExpiresAt is unset.
   - name: UsernameEntity
     kind: struct
-    role: Datastore entity mapping lowercased username -> userID.
-    why: Original-case username preserved alongside the normalized key.
-  - name: KindUsername
-    kind: const
-    role: Datastore kind name for username reservations.
-    why: One of seven core kind constants.
+    role: Datastore model for username→userID reservations (Username kind) — keyed by lowercased username, original case preserved in a field.
+    why: Case-insensitive uniqueness via normalised key, but original casing is retained for display.
+  - name: SigningKeyEntity
+    kind: struct
+    role: Datastore model for per-client signing keys (SigningKey kind) — clientID key, kid indexed for JWKS lookup.
+    why: Two-way lookup (by clientID for signing, by kid for verification) on the same row.
+  - name: KidKeyEntity
+    kind: struct
+    role: Datastore model for kid→key grace entries (KidKey kind) — kid is the key name, ExpiresAt unindexed.
+    why: Grace store for verification during key rotation; CleanExpired scans in Go because Datastore can't combine "not zero" with "less than".
+  - name: GAEUser
+    kind: struct
+    role: Concrete accounts.User implementation returned by UserStore — id, profile, active flag, timestamps.
+    why: Plain DTO that's returned from CreateUser/GetUserById; SaveUser checks for this type to read back IsActive.
+  - name: UserStore
+    kind: struct
+    role: accounts.UserStore implementation — CreateUser / GetUserById / SaveUser keyed by userId in the configured namespace.
+    why: Maps the public store interface onto a single User kind.
+  - name: IdentityStore
+    kind: struct
+    role: accounts.IdentityStore implementation — Get/Save identities, set UserID, mark verified, reverse-lookup by user_id.
+    why: Transactions guard SetUserForIdentity and MarkIdentityVerified to keep Version monotonic.
+  - name: ChannelStore
+    kind: struct
+    role: accounts.ChannelStore implementation — Get/Save channels and list channels for an identity key.
+    why: Single Channel kind with composite "provider:identityKey" name plus indexed identity_key for fan-out.
+  - name: TokenStore
+    kind: struct
+    role: core.TokenStore implementation for localauth verification tokens — Create / Get (auto-deletes if expired) / Delete / DeleteUserTokens.
+    why: Keys-only filter + DeleteMulti gives a single batched purge for "all reset tokens for this user".
+  - name: RefreshTokenStore
+    kind: struct
+    role: core.RefreshTokenStore implementation — Create, Rotate (transactional, reuse-detection), Revoke single/user/family, GetUserTokens, CleanupExpiredTokens.
+    why: Implements RFC 6749 §10.4 refresh-token rotation with family-wide revocation on reuse.
+  - name: APIKeyStore
+    kind: struct
+    role: core.APIKeyStore implementation — Create (bcrypt hash, "oa_keyid_secret" format), Validate, Revoke, List, UpdateLastUsed.
+    why: Tracks both KeyID (lookup) and a bcrypt hash of the secret (validation); HasExpiry flag avoids omitempty on time.Time.
+  - name: UsernameStore
+    kind: struct
+    role: accounts.UsernameStore implementation — Reserve / GetUserByUsername / Release / ChangeUsername with case-insensitive normalisation.
+    why: ChangeUsername runs Get-then-Put in one transaction to prevent races between two users grabbing the same name.
+  - name: GAEKeyStore
+    kind: struct
+    role: keys.KeyStorage implementation — PutKey / GetKey / GetKeyByKid / DeleteKey / ListKeyIDs over the SigningKey kind, plus legacy aliases (RegisterKey, GetVerifyKey, GetSigningKey, GetExpectedAlg, ListKeys, GetCurrentKid).
+    why: One row per client lets either direction (clientID or kid) resolve a key.
+  - name: GAEKidStore
+    kind: struct
+    role: keys.KidStorage implementation — Add / Remove (idempotent) / GetKeyByKid (honours ExpiresAt) / CleanExpired for the kid-grace store; GetKey deliberately returns ErrKeyNotFound.
+    why: Verification-only grace cache for old kids during rotation; intentionally not a primary-key store.
+  - name: WithContext-pattern
+    kind: idiom
+    role: Every store has a `WithContext(ctx)` clone method instead of taking ctx per-call.
+    why: Pre-dates the planned ctx-as-parameter migration tracked under issues 110 / 175.
+  - name: Kind constants
+    kind: const-group
+    role: KindUser / KindIdentity / KindChannel / KindAuthToken / KindRefreshToken / KindAPIKey / KindUsername / KindSigningKey / KindKidKey.
+    why: Single source of truth for Datastore kind names referenced from queries, keys, and tests.
 depends_on:
+  - path: ../../accounts
+    uses:
+      - accounts.User
+      - accounts.UserStore
+      - accounts.Identity
+      - accounts.IdentityStore
+      - accounts.Channel
+      - accounts.ChannelStore
+      - accounts.UsernameStore
   - path: ../../core
-    entities: [User, UserStore, Identity, IdentityStore, Channel, ChannelStore, AuthToken, TokenStore, TokenType, RefreshToken, RefreshTokenStore, APIKey, APIKeyStore, UsernameStore, AuthorizationDetail, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret, ErrTokenNotFound, ErrTokenExpired, ErrTokenRevoked, ErrTokenReused, ErrAPIKeyNotFound]
+    uses:
+      - core.TokenStore
+      - core.RefreshToken
+      - core.RefreshTokenStore
+      - core.APIKey
+      - core.APIKeyStore
+      - core.AuthorizationDetail
+      - core.GenerateSecureToken
+      - core.GenerateAPIKeyID
+      - core.GenerateAPIKeySecret
+      - core.TokenExpiryRefreshToken
+      - core.ErrTokenNotFound
+      - core.ErrTokenReused
+      - core.ErrTokenExpired
+      - core.ErrTokenRevoked
+      - core.ErrAPIKeyNotFound
   - path: ../../keys
-    entities: [KeyStorage, KidStorage, KeyRecord, ErrKeyNotFound, ErrKidNotFound, ErrAlgorithmMismatch]
+    uses:
+      - keys.KeyStorage
+      - keys.KidStorage
+      - keys.KeyRecord
+      - keys.ErrKeyNotFound
+      - keys.ErrKidNotFound
+      - keys.ErrAlgorithmMismatch
+  - path: ../../keystoretest
+    uses:
+      - keystoretest.RunAll
+  - path: ../../kidstoretest
+    uses:
+      - kidstoretest.RunAll
+  - path: ../../localauth
+    uses:
+      - localauth.VerificationType
+      - localauth.VerificationToken
   - path: ../../utils
-    entities: [ComputeKid]
+    uses:
+      - utils.ComputeKid

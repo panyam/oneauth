@@ -1,8 +1,8 @@
 package: oauth2
 purpose: Self-contained OAuth2 social-login providers (Google, GitHub) with a shared base, PKCE (RFC 7636), and state-cookie CSRF protection that deliver the authenticated user to a host-supplied callback.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
   - name: HandleUserFunc
     kind: type
@@ -93,3 +93,4 @@ entities:
     role: Verifier byte length (32) before base64 encoding.
     why: Yields the RFC-minimum 43-char verifier.
 depends_on: []
+

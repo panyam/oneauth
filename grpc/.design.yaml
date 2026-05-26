@@ -1,8 +1,8 @@
 package: grpc
 purpose: Authentication context utilities and server interceptors that propagate the authenticated user ID across the HTTP-to-gRPC boundary via metadata, with optional auth enforcement and switch-user impersonation.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
   - name: DefaultMetadataKeyUserID
     kind: const
@@ -19,7 +19,7 @@ entities:
   - name: DefaultConfig
     kind: func
     role: Returns a Config with default keys and switch-auth disabled.
-    why: Safe default posture — impersonation is off unless explicitly opted into.
+    why: Safe default posture - impersonation is off unless explicitly opted into.
   - name: Config.EnsureDefaults
     kind: method
     role: Fills empty key fields with their default values in place.
@@ -43,7 +43,7 @@ entities:
   - name: SwitchUserToOutgoingContext
     kind: func
     role: Appends a switch-user impersonation header to outgoing metadata (default key).
-    why: No effect unless the server has EnableSwitchAuth set — client cannot self-grant.
+    why: No effect unless the server has EnableSwitchAuth set - client cannot self-grant.
   - name: SwitchUserToOutgoingContextWithKey
     kind: func
     role: Switch-user append with a custom key.
@@ -67,7 +67,7 @@ entities:
   - name: NewPublicMethodsConfig
     kind: func
     role: Builds a require-auth config seeded with the given public (unauthenticated) methods.
-    why: Common case — most servers expose a few health/login methods without auth.
+    why: Common case - most servers expose a few health/login methods without auth.
   - name: OptionalAuthConfig
     kind: func
     role: Returns a config that lets unauthenticated requests through untouched.
@@ -75,7 +75,7 @@ entities:
   - name: UnaryAuthInterceptor
     kind: func
     role: gRPC unary server interceptor that extracts identity and enforces auth per method.
-    why: Only rejects with Unauthenticated when RequireAuth is set and method is not public; does not inject identity into the context — downstream code uses UserIDFromContext.
+    why: Only rejects with Unauthenticated when RequireAuth is set and method is not public; does not inject identity into the context - downstream code uses UserIDFromContext.
   - name: StreamAuthInterceptor
     kind: func
     role: Stream-side counterpart enforcing the same per-method auth rules on stream open.

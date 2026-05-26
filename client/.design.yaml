@@ -1,13 +1,13 @@
 package: client
 purpose: Client-side OAuth SDK — discovers authorization servers, drives browser/CLI/M2M login flows, caches and refreshes tokens, and injects them into HTTP requests.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
   - name: AuthClient
     kind: struct
     role: HTTP client bound to one server URL with automatic token storage, refresh, and login flows.
-    why: Central type wiring CredentialStore, auth-injecting transport, and token-endpoint calls together.
+    why: Central type that wires CredentialStore, auth-injecting transport, and token-endpoint calls together.
   - name: NewAuthClient
     kind: func
     role: Constructs an AuthClient, normalizing the server URL and wrapping the base transport with refreshTransport.
@@ -18,11 +18,11 @@ entities:
     why: Enables WithTokenEndpoint, WithHTTPClient, WithTransport, WithASMetadata without expanding the constructor.
   - name: WithTokenEndpoint
     kind: func
-    role: Sets a custom token endpoint path on AuthClient.
-    why: Lets callers point at non-default token URLs (e.g. /oauth/token).
+    role: Overrides the default `/auth/cli/token` path.
+    why: Lets callers point at non-default token URLs (e.g. `/oauth/token`).
   - name: WithHTTPClient
     kind: func
-    role: Copies timeout / redirect / jar from a user-supplied http.Client and adopts its transport.
+    role: Adopts a user-supplied http.Client's transport plus timeout / redirect / jar.
     why: Preserves user TLS, timeout, and cookie configuration while still wrapping for auth.
   - name: WithTransport
     kind: func
@@ -31,18 +31,18 @@ entities:
   - name: WithASMetadata
     kind: func
     role: Pre-populates cached AS discovery metadata on the AuthClient.
-    why: Skips a redundant discovery round trip and feeds SelectAuthMethod for client_credentials.
+    why: Skips a redundant discovery round-trip and feeds SelectAuthMethod for client_credentials.
   - name: AuthClient.HTTPClient
     kind: method
-    role: Returns the auth-injecting http.Client.
-    why: Callers use it as a drop-in *http.Client; Bearer header and refresh are transparent.
+    role: Returns the auth-injecting *http.Client.
+    why: Drop-in *http.Client; Bearer header and refresh are transparent.
   - name: AuthClient.ServerURL
     kind: method
     role: Returns the normalized server URL the client is bound to.
     why: Used as the CredentialStore key — exposed for diagnostics and round-tripping.
   - name: AuthClient.GetToken
     kind: method
-    role: Returns the current access token, triggering a refresh if within RefreshThreshold of expiry.
+    role: Returns the current access token, triggering a refresh if within `RefreshThreshold` of expiry.
     why: Single read path used by refreshTransport before every request.
   - name: AuthClient.GetCredential
     kind: method
@@ -50,274 +50,363 @@ entities:
     why: Lets callers inspect refresh token, scope, expiry, or RFC 9396 authorization_details.
   - name: AuthClient.Login
     kind: method
-    role: Password grant against the legacy JSON /auth/cli/token endpoint.
-    why: Convenience path for first-party CLIs talking to an oneauth server.
+    role: Performs the OAuth `password` grant against the legacy JSON `/auth/cli/token` endpoint and stores the credential.
+    why: First-party username/password login for OneAuth's own server.
   - name: AuthClient.ClientCredentialsToken
     kind: method
-    role: RFC 6749 §4.4 client_credentials grant with auth-method negotiation from cached AS metadata.
-    why: Standards-compliant M2M path — form-encoded, picks Basic / Post / none via SelectAuthMethod.
+    role: Performs the RFC 6749 §4.4 `client_credentials` grant with form-encoded body and negotiated client auth.
+    why: Machine-to-machine token acquisition that respects AS-advertised auth methods.
   - name: AuthClient.ClientCredentialsTokenWithAssertion
     kind: method
-    role: private_key_jwt variant of ClientCredentialsToken using a signed assertion instead of a secret.
-    why: For confidential clients that registered a public key via DCR (no shared secret to leak).
-  - name: AuthClient.Logout
-    kind: method
-    role: Removes the credential for this server from the store and persists.
-    why: Mirror of Login — clears local state without revoking server-side.
-  - name: AuthClient.IsLoggedIn
-    kind: method
-    role: Cheap "is there a non-expired credential?" check.
-    why: Used by CLIs to decide whether to prompt for login.
+    role: `client_credentials` grant variant that uses `private_key_jwt` (RFC 7523 §2.2) instead of a shared secret.
+    why: Strongest standard client auth — no shared secret to leak; required by FAPI-class deployments.
   - name: AuthClient.LoginWithBrowser
     kind: method
-    role: RFC 8252 + RFC 7636 authorization-code + PKCE flow driving a loopback callback.
-    why: The browser-login orchestration — generates verifier, opens browser, validates state, exchanges code.
+    role: Drives the RFC 8252 + RFC 7636 authorization-code-with-PKCE flow with a loopback callback server.
+    why: CLI/headless apps still need user-context tokens; PKCE makes the flow safe without a client secret.
+  - name: AuthClient.Logout
+    kind: method
+    role: Removes the credential for this server and persists.
+    why: Local logout — no server-side revocation is implied.
+  - name: AuthClient.IsLoggedIn
+    kind: method
+    role: Reports whether a non-expired credential exists for this server.
+    why: Cheap UI/CLI check that doesn't trigger a refresh.
   - name: AuthClient.OnToken
     kind: field
-    role: Callback fired after every successful refresh_token grant, post-store.
-    why: Lets callers persist refreshed credentials to side stores without subclassing CredentialStore.
+    role: Callback fired after a successful `refresh_token` grant, with the freshly stored credential.
+    why: Hook for external persistence and metrics; only the auto-refresh path fires it (initial logins return directly).
   - name: refreshTransport
     kind: struct
-    role: http.RoundTripper that adds Bearer header, retries once on 401 after refresh.
-    why: Decouples auth from application code — every request through HTTPClient gets fresh tokens.
-  - name: RefreshThreshold
-    kind: const
-    role: 5-minute lead time before expiry that triggers proactive refresh in GetToken.
-    why: Hard-coded to avoid edge-of-expiry races; refresh runs under the AuthClient mutex.
+    role: http.RoundTripper that fetches the current token, sets the Bearer header, and retries once on 401 after refresh.
+    why: Makes auth invisible to callers — they use the wrapped *http.Client like any other.
+  - name: refreshTokenLocked
+    kind: method
+    role: Exchanges the stored refresh token for a new credential and persists it.
+    why: Single chokepoint for refresh so the lock contract and OnToken callback ordering stay consistent.
   - name: OAuth2TokenRequest
     kind: struct
-    role: Request body for the legacy JSON token endpoint.
-    why: Used by Login and refreshTokenLocked only; standards-compliant paths use url.Values.
+    role: JSON body shape for the legacy `/auth/cli/token` endpoint.
+    why: Used by the JSON path (Login, refreshTokenLocked); kept separate from the form path so the two don't drift.
   - name: OAuth2TokenResponse
     kind: struct
-    role: Parsed token response shared by JSON and form paths.
-    why: Carries access/refresh/expires_in plus optional error + RFC 9396 raw authorization_details.
-  - name: BrowserLoginConfig
-    kind: struct
-    role: Configuration for LoginWithBrowser — endpoints, scopes, callback port, resource, client secret/assertion.
-    why: Single struct so the flow can be configured fully without method-overload soup.
-  - name: exchangeCodeParams
-    kind: struct
-    role: Bundle of inputs to the authorization-code → token exchange step.
-    why: Keeps the internal call signature readable; new fields land here without rippling callers.
-  - name: FollowRedirects
+    role: Parsed token endpoint response covering both JSON and form paths.
+    why: Single shape lets both `requestToken` and `executeTokenRequest` share the decode + error mapping.
+  - name: parseAuthzDetailsFromRaw
     kind: func
-    role: Returns an OpenBrowser hook that follows HTTP redirects instead of launching a browser.
-    why: Enables headless conformance tests and CI for the browser-login flow.
-  - name: ClientCredentialsSource
-    kind: struct
-    role: TokenSource implementation that caches client_credentials tokens with optional proactive refresh.
-    why: Hot-path M2M token provider — single in-process cache shared by multiple call sites.
-  - name: TokenSource
-    kind: interface
-    role: Minimal Token() (string, error) contract matched by ClientCredentialsSource.
-    why: Structurally compatible with mcpkit/core.TokenSource so no cross-module import is needed.
-  - name: ScopeAwareTokenSource
-    kind: interface
-    role: TokenSource + TokenForScopes(scopes []string) for scope step-up.
-    why: Lets resource clients widen the cached scope set without dropping the source.
-  - name: ProactiveRefresher
-    kind: struct
-    role: Holds the proactive-refresh policy (Buffer) and goroutine lifecycle state.
-    why: Encapsulates the start-once + Close machinery for the background refresher.
-  - name: ClientCredentialsSource.Token
-    kind: method
-    role: Returns a cached token if still valid, otherwise fetches via client_credentials and fires OnToken.
-    why: Lazy start of the background refresher; mutex held only for cache check + fetch.
-  - name: ClientCredentialsSource.TokenForScopes
-    kind: method
-    role: Invalidates the cache, merges scopes via core.UnionScopes, and fetches fresh.
-    why: Step-up path — scopes monotonically grow, never shrink.
-  - name: ClientCredentialsSource.Close
-    kind: method
-    role: Idempotent stop of the background refresh goroutine.
-    why: io.Closer-compliant; subsequent Token() calls still work reactively.
-  - name: tokenExpiryBuffer
+    role: Re-marshals the raw `authorization_details []any` from the token response into typed core.AuthorizationDetail.
+    why: Two-step JSON pass avoids leaking core types into the wire struct while keeping RFC 9396 round-tripping.
+  - name: RefreshThreshold
     kind: const
-    role: 30s buffer subtracted from expiry to absorb clock skew and network latency.
-    why: Prevents tokens from expiring between freshness check and server arrival.
+    role: How long before expiry (5 min) to proactively refresh.
+    why: Keeps refresh decisions in one place; chosen to comfortably outrun typical request RTTs.
   - name: ServerCredential
     kind: struct
-    role: Stored credential — access/refresh tokens, scope, expiry, RFC 9396 authorization_details.
-    why: Single value persisted per server URL by the CredentialStore.
+    role: Token bundle (access + refresh + scope + RFC 9396 details + expiry) persisted per server URL.
+    why: Single value handed to callers, the store, and OnToken — keeps the wire shape and the in-memory shape identical.
   - name: ServerCredential.IsExpired
     kind: method
-    role: True when access token has expired.
-    why: Drives gating in GetToken / IsLoggedIn.
+    role: Reports whether the access token's `ExpiresAt` is in the past.
+    why: Hot-path check used by GetToken, IsLoggedIn, and the refresh decision.
   - name: ServerCredential.IsExpiringSoon
     kind: method
-    role: True when expiry is within `within` of now.
-    why: GetToken uses this with RefreshThreshold to decide on a proactive refresh.
+    role: Reports whether the token will expire within a given window.
+    why: Drives proactive refresh inside RefreshThreshold without waiting for a true expiry.
   - name: ServerCredential.HasRefreshToken
     kind: method
-    role: True when a refresh token is present.
-    why: Refresh paths bail early if there's nothing to refresh with.
+    role: Reports whether a refresh token is available.
+    why: Refresh path skips when there's nothing to redeem (e.g. client_credentials grants).
   - name: CredentialStore
     kind: interface
-    role: Per-server credential persistence — Get/Set/Remove/ListServers/Save.
-    why: Pluggable so backends can be FS, OS keychain, or in-memory.
+    role: Persistence contract — get/set/remove a credential keyed by server URL, plus Save and ListServers.
+    why: Lets callers swap in file, keychain, or test stores without the AuthClient knowing.
   - name: noopCredentialStore
     kind: struct
-    role: Discards writes, returns nil on reads.
-    why: Used when callers pass nil — single-shot logins still return the credential to the caller.
+    role: CredentialStore that silently discards writes and returns nil on reads.
+    why: Used when `NewAuthClient` is called with nil — keeps single-shot flows working without forcing persistence.
+  - name: TokenSource
+    kind: interface
+    role: `Token() (string, error)` — minimal access-token provider (structurally compatible with mcpkit).
+    why: Decouples consumers from any particular OAuth grant; structural typing avoids a cross-module import.
+  - name: ScopeAwareTokenSource
+    kind: interface
+    role: TokenSource extended with `TokenForScopes` for scope step-up.
+    why: Lets resource clients request elevated scopes on demand without re-plumbing credentials.
+  - name: ClientCredentialsSource
+    kind: struct
+    role: TokenSource implementation that caches a client_credentials grant token and refreshes on expiry.
+    why: The standard machine-to-machine entry point — drop-in for any TokenSource consumer.
+  - name: ClientCredentialsSource.Token
+    kind: method
+    role: Returns the cached token if still valid (with a 30s skew buffer) or fetches a new one.
+    why: Hot-path read; also lazily starts the background refresher on first call when configured.
+  - name: ClientCredentialsSource.TokenForScopes
+    kind: method
+    role: Invalidates the cache, unions extra scopes onto the source, and fetches a new token.
+    why: Scope step-up entry point — RFC 6749 doesn't define it explicitly, so we own the semantics.
+  - name: ClientCredentialsSource.Close
+    kind: method
+    role: Stops the background refresh goroutine if one was started; safe to call multiple times.
+    why: io.Closer compliance and clean shutdown for long-lived processes.
+  - name: ClientCredentialsSource.fetchTokenLocked
+    kind: method
+    role: Lazily constructs the underlying AuthClient and calls ClientCredentialsToken under the source's lock.
+    why: Keeps token fetch + cache update atomic; returns the credential so OnToken can fire outside the lock.
+  - name: ClientCredentialsSource.backgroundRefresh
+    kind: method
+    role: Goroutine that sleeps until (expiry − Refresher.Buffer) and refreshes proactively.
+    why: Tail-latency hiding for predictable token rotation; failure falls through to reactive refresh on next Token().
+  - name: ClientCredentialsSource.OnToken
+    kind: field
+    role: Callback fired after every successful fetch (initial, reactive, or proactive).
+    why: External persistence hook that doesn't require implementing the full CredentialStore.
+  - name: ProactiveRefresher
+    kind: struct
+    role: Buffer policy plus the runtime state (`once`, `stop`, `closed`) for the background refresh goroutine.
+    why: Bundling policy + lifecycle keeps the source struct flat and makes lazy goroutine start explicit.
+  - name: tokenExpiryBuffer
+    kind: const
+    role: 30s subtracted from expiry when deciding whether the cached token is still fresh.
+    why: Absorbs clock skew + network latency so a token can't expire mid-flight after the freshness check.
   - name: ASMetadata
     kind: struct
-    role: RFC 8414 / OIDC Discovery authorization-server metadata.
-    why: Source of truth for endpoints, supported auth methods, PKCE methods.
+    role: Parsed RFC 8414 / OIDC Discovery 1.0 Authorization Server metadata document.
+    why: Single typed shape used by DiscoverAS, the AS cache, WithASMetadata, and SelectAuthMethod.
   - name: DiscoverAS
     kind: func
-    role: Fetches AS metadata trying RFC 8414 then OIDC paths, with optional cache and HTTP client.
-    why: Handles path-based issuers (e.g. Keycloak realms) and caches by issuer URL.
+    role: Fetches AS metadata, trying RFC 8414 then OIDC Discovery URLs (with path-aware variants).
+    why: Single entry point that abstracts over the two conflicting well-known specs and supports tenant paths.
+  - name: DiscoveryOption
+    kind: type
+    role: Functional option for DiscoverAS (HTTP client, store, TTL).
+    why: Discovery is cheap individually but cumulative across N token sources — options let callers share a cache.
   - name: WithHTTPClientForDiscovery
     kind: func
-    role: Discovery option to supply an http.Client.
-    why: Tests and custom-TLS environments inject their own client.
+    role: Plugs a custom *http.Client (timeouts, TLS, httptest) into DiscoverAS.
+    why: Keeps the public surface composable without exposing the internal config struct.
   - name: WithASMetadataStore
     kind: func
-    role: Discovery option enabling a shared cache across token sources.
-    why: One discovery fetch per issuer regardless of how many sources point at it.
+    role: Enables caching of discovery results through an ASMetadataStore.
+    why: Opt-in dedup of discovery fetches across token sources sharing one AS.
   - name: WithASCacheTTL
     kind: func
-    role: Sets the TTL applied to cache writes during discovery.
-    why: Override the store default per call when the AS rotates fast (or slow).
+    role: Overrides the cache TTL for a single DiscoverAS call.
+    why: Lets callers tighten freshness without touching the store's default.
+  - name: buildDiscoveryURLs
+    kind: func
+    role: Constructs the ordered list of well-known URLs to try for an issuer.
+    why: Centralizes the path-handling rules so the two well-known variants don't diverge.
+  - name: splitOriginPath
+    kind: func
+    role: Splits an issuer URL into origin (scheme+host) and path.
+    why: RFC 8414 vs OIDC Discovery differ on where the path goes — splitting once keeps the spec quirk in one place.
+  - name: fetchMetadata
+    kind: func
+    role: Performs one GET + JSON decode + sanity check (non-empty issuer or token endpoint).
+    why: Lets DiscoverAS iterate over candidate URLs cleanly without nested error handling.
   - name: ASMetadataStore
     kind: interface
-    role: Get/Put contract for AS metadata caches, safe for concurrent use.
-    why: Lets a single in-process cache serve many DiscoverAS callers.
+    role: Concurrency-safe cache of ASMetadata keyed by issuer URL with TTL semantics.
+    why: Lets DiscoverAS share state across token sources without coupling to a concrete implementation.
   - name: MemoryASMetadataStore
     kind: struct
-    role: sync.RWMutex-protected map with lazy TTL eviction.
-    why: Default single-process implementation; no background goroutine.
+    role: In-memory ASMetadataStore backed by an RWMutex map, with lazy TTL eviction on Get.
+    why: Single-process default; no goroutines to manage, bounded by the number of distinct issuers.
   - name: NewMemoryASMetadataStore
     kind: func
-    role: Constructs a MemoryASMetadataStore with a default TTL.
-    why: Zero defaults to DefaultASCacheTTL so callers can pass 0.
+    role: Constructs a MemoryASMetadataStore with a default TTL (falling back to `DefaultASCacheTTL`).
+    why: One-line wiring for the common case.
+  - name: cachedAS
+    kind: struct
+    role: Internal entry pairing metadata with its expiry time.
+    why: Keeps the map's value type self-describing for lazy expiry checks.
   - name: DefaultASCacheTTL
     kind: const
-    role: 1-hour default TTL for cached AS metadata.
-    why: AS endpoints rotate rarely — balances freshness with HTTP load.
+    role: One-hour default TTL for cached AS metadata.
+    why: AS metadata changes rarely; one hour balances freshness against redundant discovery.
   - name: TokenEndpointAuthMethod
     kind: type
-    role: Enum of RFC 6749 §2.3 client authentication methods.
-    why: Strongly-typed argument for the auth-method negotiation helpers.
+    role: Enum of token endpoint authentication methods (`none`, `client_secret_post`, `client_secret_basic`, `private_key_jwt`).
+    why: RFC 6749 §2.3 / RFC 8414 wire vocabulary — typed so call sites can't drift.
   - name: AuthMethodNone
     kind: const
-    role: Public-client method — client_id only, no secret.
-    why: For PKCE-only native/SPA clients.
+    role: Public client — no secret, only client_id in the body.
+    why: Native/SPA + PKCE clients legitimately lack a secret.
   - name: AuthMethodClientSecretPost
     kind: const
-    role: client_id + client_secret in form body.
-    why: Required by some AS implementations that don't accept Basic.
+    role: Sends client_id/client_secret in the form body.
+    why: Required by some AS implementations even though it's the less-preferred form.
   - name: AuthMethodClientSecretBasic
     kind: const
-    role: Credentials in HTTP Basic Authorization header (RFC 6749 §2.3.1 default).
-    why: Preferred when supported — credentials stay out of bodies and access logs.
+    role: HTTP Basic auth in the Authorization header — the RFC 6749 §2.3.1 default.
+    why: Credentials stay out of the body, so proxies/WAFs are less likely to log them.
   - name: AuthMethodPrivateKeyJWT
     kind: const
-    role: RFC 7521 §4.2 / 7523 §2.2 — client signs a JWT, presents as client_assertion.
+    role: `private_key_jwt` — client signs a JWT and sends it as `client_assertion`.
     why: Strongest standard method; no shared secret to leak.
   - name: SelectAuthMethod
     kind: func
-    role: Picks the best auth method given the client's secret and AS-advertised methods.
-    why: Prefers Basic, falls back to Post, defaults to Basic when AS metadata is silent.
+    role: Picks the best supported method given a secret and the AS's advertised list (preferring Basic over Post).
+    why: One source of truth for negotiation, used by both LoginWithBrowser and ClientCredentialsToken.
   - name: applyAuthToForm
     kind: func
-    role: Writes auth params into url.Values per the selected method.
-    why: For Basic, leaves the form clean — caller must still call req.SetBasicAuth.
+    role: Writes the correct client auth parameters onto a url.Values for the negotiated method.
+    why: Pairs with `req.SetBasicAuth` so Basic credentials never leak into the body alongside the header.
   - name: ClientAssertionConfig
     kind: struct
-    role: Material to mint a private_key_jwt assertion — key, alg, kid, lifetime.
-    why: Reusable per AuthClient; each Mint call produces fresh jti/iat/exp.
+    role: Carries the private key, alg, optional kid, and lifetime needed to mint a `client_assertion`.
+    why: One value to thread through both browser login and client_credentials paths.
   - name: MintClientAssertion
     kind: func
-    role: Signs a single-use JWT bearing iss/sub=clientID, aud=audience, fresh jti.
-    why: Used by both ClientCredentialsTokenWithAssertion and LoginWithBrowser when ClientAssertion is set.
+    role: Signs a fresh JWT (`iss`/`sub`=clientID, `aud`=endpoint, random `jti`, short `exp`) for `client_assertion`.
+    why: Centralizes claim shape + signing so every call site emits a spec-compliant assertion.
   - name: applyAssertionToForm
     kind: func
-    role: Sets client_id, client_assertion_type, client_assertion on form data.
-    why: Some IdPs require client_id even though it duplicates the assertion's iss.
+    role: Writes `client_id`, `client_assertion_type`, and `client_assertion` onto a url.Values.
+    why: Mirrors `applyAuthToForm` so private_key_jwt looks the same at call sites.
+  - name: randomJTI
+    kind: func
+    role: Generates a 128-bit random `jti` claim, base64-RawURL encoded.
+    why: Keeps assertions single-use for AS replay protection.
   - name: DefaultClientAssertionLifetime
     kind: const
-    role: 60s default lifetime for minted assertions.
-    why: Matches OIDC Core §9 short-lived recommendation; under OneAuth server cap.
-  - name: ClientRegistrationRequest
+    role: 60-second default assertion lifetime.
+    why: Matches OIDC Core §9's short-lived recommendation; well under OneAuth's server cap.
+  - name: BrowserLoginConfig
     kind: struct
-    role: RFC 7591 DCR registration body + RFC 7592 §2.2 update body.
-    why: Same wire shape covers both registration and full-replace updates.
-  - name: ClientRegistrationResponse
+    role: All inputs to `LoginWithBrowser` — endpoints (optional, auto-discovered), client identity, scopes, resource, optional ClientAssertion, browser-opener hook.
+    why: One struct beats a growing positional signature; explicit fields make defaults discoverable.
+  - name: exchangeCodeParams
     kind: struct
-    role: Parsed DCR response including RFC 7592 §3 registration_access_token and registration_client_uri.
-    why: Surfaces the management credentials needed for Get/Update/DeleteRegistration.
-  - name: RegisterClient
+    role: Internal bundle of inputs to `AuthClient.exchangeCode`.
+    why: Same rationale as BrowserLoginConfig — call signature was getting too long; new fields go here.
+  - name: AuthClient.exchangeCode
+    kind: method
+    role: Exchanges an auth code for tokens using the negotiated client auth (Basic / Post / none / private_key_jwt) and optional RFC 8707 `resource`.
+    why: Single chokepoint for the code → token step so all client-auth methods stay aligned.
+  - name: buildAuthorizationURL
     kind: func
-    role: POST to the registration endpoint and parse the response.
-    why: Pre-convention helper retained until issue #175 — minimal RFC 7591 driver.
-  - name: GetRegistration
+    role: Composes the `/authorize` URL with PKCE challenge, state, scopes, and optional RFC 8707 resource.
+    why: One builder keeps query-param ordering and encoding consistent across deployments.
+  - name: startLoopbackListener
     kind: func
-    role: RFC 7592 §2.1 read using registration_access_token.
-    why: Lets clients re-fetch their current metadata after registration.
-  - name: UpdateRegistration
+    role: Opens a TCP listener on `localhost:<port>` (or a random port if 0).
+    why: RFC 8252 native-app redirect — loopback listener is the safe redirect target.
+  - name: generateState
     kind: func
-    role: RFC 7592 §2.2 full-replace update; auto-fills client_id when caller omits.
-    why: Returns the rotated registration_access_token — callers MUST persist before discarding.
-  - name: DeleteRegistration
+    role: Generates a 128-bit random `state` parameter for CSRF protection.
+    why: Required by RFC 6749 §10.12 to bind the authorization request to the eventual callback.
+  - name: generateCodeVerifier
     kind: func
-    role: RFC 7592 §2.3 deletion.
-    why: After return, AS has invalidated the client — any outstanding tokens stop validating.
-  - name: ErrRegistrationUnauthorized
-    kind: var
-    role: Sentinel returned on 401 from any RFC 7592 management call.
-    why: Single error to branch on with errors.Is — AS doesn't distinguish auth failure modes.
-  - name: GetRegistrationRequest
+    role: Generates a 256-bit random PKCE verifier per RFC 7636 §4.1.
+    why: 32 bytes → 43 base64url chars hits the spec minimum without padding.
+  - name: computeCodeChallenge
+    kind: func
+    role: SHA-256 of the verifier, base64-RawURL — the S256 PKCE challenge.
+    why: PKCE S256 is mandatory; this is the only place the hash is computed.
+  - name: containsString
+    kind: func
+    role: Linear lookup helper for string slices.
+    why: One-off used to verify `S256` is in `code_challenge_methods_supported`.
+  - name: FollowRedirects
+    kind: func
+    role: Returns an OpenBrowser function that GETs the auth URL via an HTTP client instead of launching a browser.
+    why: Headless CI / conformance / test environments — the same loopback dance, no real browser.
+  - name: openBrowserDefault
+    kind: func
+    role: Platform-aware browser launcher (`open` / `xdg-open` / `rundll32`).
+    why: Default OpenBrowser implementation so the common case needs zero configuration.
+  - name: callbackResult
     kind: struct
-    role: (ctx, *Req) input bundle for GetRegistration.
-    why: Method-shape convention (issue #169) — HTTPClient lives on the struct like a CallOption.
-  - name: GetRegistrationResponse
-    kind: struct
-    role: Wrapper over *ClientRegistrationResponse.
-    why: Forward-compat headroom; symmetric with server-side ClientRegistrationManager.
-  - name: UpdateRegistrationRequest
-    kind: struct
-    role: (ctx, *Req) input for UpdateRegistration with required ClientID.
-    why: Same convention; ClientID is required by RFC 7592 §2.2 — SDK auto-fills into Metadata.
-  - name: UpdateRegistrationResponse
-    kind: struct
-    role: Wrapper carrying the post-update Registration with rotated token.
-    why: Forces callers to recognize the rotation by going through the wrapper.
-  - name: DeleteRegistrationRequest
-    kind: struct
-    role: (ctx, *Req) input for DeleteRegistration.
-    why: Method-shape convention.
-  - name: DeleteRegistrationResponse
-    kind: struct
-    role: Intentionally empty — AS returns 204 No Content.
-    why: Reserved shape for future fields without breaking the signature.
+    role: Result delivered onto the result channel by the loopback `/callback` handler.
+    why: Either-or shape (Code+State or Err) keeps the caller's select clean.
   - name: AuthTransport
     kind: struct
-    role: Simple http.RoundTripper that adds a static Bearer header.
-    why: Lightweight alternative to AuthClient when the caller manages tokens themselves.
+    role: Standalone http.RoundTripper that injects a static Bearer token.
+    why: Lightweight escape hatch when callers already have a token and don't need refresh.
   - name: NewAuthTransport
     kind: func
-    role: Builds an AuthTransport over http.DefaultTransport.
-    why: One-liner for static-token use.
+    role: Constructs an AuthTransport using `http.DefaultTransport`.
+    why: Common case helper.
   - name: NewAuthTransportWithBase
     kind: func
-    role: Builds an AuthTransport over a caller-supplied base transport.
-    why: Lets callers compose with their own connection pooling / proxy transports.
+    role: AuthTransport with a caller-supplied base transport.
+    why: Same as NewAuthTransport, but lets users keep their own pool/proxy settings.
+  - name: AuthTransport.RoundTrip
+    kind: method
+    role: Clones the request and sets the Bearer header before delegating to the base.
+    why: Clone-before-mutate is required by the http.RoundTripper contract.
+  - name: ClientRegistrationRequest
+    kind: struct
+    role: RFC 7591 DCR / RFC 7592 update body — client metadata the AS will assign or replace.
+    why: One struct both for initial registration and update; `ClientID` only used on update.
+  - name: ClientRegistrationResponse
+    kind: struct
+    role: Parsed DCR response including RFC 7592 management credentials (`registration_access_token`, `registration_client_uri`).
+    why: Carrying the management creds means callers can plug straight into GetRegistration / Update / Delete.
+  - name: RegisterClient
+    kind: func
+    role: POSTs an RFC 7591 registration to the AS's DCR endpoint and parses the response.
+    why: Pre-convention helper kept as-is; sufficient for one-shot registration flows.
+  - name: GetRegistration
+    kind: func
+    role: RFC 7592 §2.1 GET against the management endpoint to read current registration.
+    why: gRPC-shape `(ctx, *Req) → (*Resp, err)` — sets the pattern for the rest of the DCR management API.
+  - name: GetRegistrationRequest
+    kind: struct
+    role: Inputs to GetRegistration — management URI, access token, optional HTTPClient.
+    why: HTTPClient lives on the request (gRPC-CallOption analog) to keep the method signature strict.
+  - name: GetRegistrationResponse
+    kind: struct
+    role: Wraps the parsed `ClientRegistrationResponse`.
+    why: Wrapper preserves headroom for adding fields without breaking the method signature.
+  - name: UpdateRegistration
+    kind: func
+    role: RFC 7592 §2.2 full-replace PUT; surfaces the AS-rotated registration_access_token in the response.
+    why: Token rotation is mandatory on update — callers must persist the new token before discarding the old.
+  - name: UpdateRegistrationRequest
+    kind: struct
+    role: Inputs to UpdateRegistration including the full replacement metadata and the existing client_id.
+    why: `ClientID` is mandatory per RFC 7592 §2.2 and auto-filled into the metadata if missing.
+  - name: UpdateRegistrationResponse
+    kind: struct
+    role: Wraps the post-update registration (with the rotated token).
+    why: Same wrapping rationale as GetRegistrationResponse.
+  - name: DeleteRegistration
+    kind: func
+    role: RFC 7592 §2.3 DELETE; on success the AS invalidates all tokens issued for the client_id.
+    why: Symmetry with the rest of the management API; callers can clean up clients programmatically.
+  - name: DeleteRegistrationRequest
+    kind: struct
+    role: Inputs to DeleteRegistration.
+    why: Stays in the (ctx, *Req) shape even though only the URI + token are needed.
+  - name: DeleteRegistrationResponse
+    kind: struct
+    role: Intentionally empty (AS returns 204).
+    why: Preserves the (ctx, *Req) → (*Resp, err) convention and leaves headroom.
+  - name: ErrRegistrationUnauthorized
+    kind: var
+    role: Sentinel returned when an RFC 7592 management call gets 401.
+    why: Lets callers `errors.Is` to detect token rotation drift; the AS lumps wrong/missing/unknown into 401.
   - name: ValidateHTTPS
     kind: func
-    role: Asserts ASMetadata endpoints use HTTPS (localhost exempt).
-    why: Spec-compliance guard for callers that handle untrusted issuer URLs.
+    role: Checks that AS authorization/token endpoints use HTTPS (with a localhost exemption).
+    why: RFC 6749 §3.1.2.1 — endpoints over plain HTTP are unsafe outside of dev.
   - name: IsLocalhost
     kind: func
-    role: True for localhost / 127.0.0.1 / ::1 URLs.
-    why: Single source of truth for the HTTPS exemption per RFC 8252 §8.3.
+    role: Returns true for `localhost` / `127.0.0.1` / `::1`.
+    why: One definition of "loopback" used by ValidateHTTPS and ValidateCIMDURL.
   - name: ValidateCIMDURL
     kind: func
-    role: Validates a Client ID Metadata Document URL (HTTPS + non-root path).
-    why: Pre-flight check for the draft-parecki CIMD profile.
+    role: Checks Client ID Metadata Document URLs (HTTPS + non-root path).
+    why: Encodes the draft CIMD URL rules so callers don't have to.
 depends_on:
-  - path: ../core
-    entities: [AuthorizationDetail, UnionScopes]
-  - path: ../utils
-    entities: [SigningMethodForAlg]
+  - path: ../core/
+    uses:
+      - AuthorizationDetail
+      - UnionScopes
+    why: RFC 9396 authorization_details round-trip on token responses (parsed by parseAuthzDetailsFromRaw, carried on ServerCredential and ClientCredentialsSource) and scope union for the TokenForScopes step-up path.
+  - path: ../utils/
+    uses:
+      - SigningMethodForAlg
+    why: Maps the configured signing algorithm to a jwt.SigningMethod when minting `client_assertion` JWTs in MintClientAssertion.

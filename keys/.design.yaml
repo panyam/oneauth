@@ -1,8 +1,8 @@
 package: keys
 purpose: Signing-key storage, kid-indexed lookup, encryption-at-rest, grace-period rotation, and JWKS publication/consumption for OneAuth.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
   - name: KeyRecord
     kind: struct
@@ -217,5 +217,4 @@ entities:
     role: Option to set the minimum interval between any two refreshes.
     why: Prevents on-demand-miss refreshes from stampeding the upstream JWKS endpoint.
 depends_on:
-  - path: ../utils
-    entities: [JWK, JWKSet, IsAsymmetricAlg, DecodeVerifyKey, ComputeKid, PublicKeyToJWK, JWKToPublicKey, GenerateRSAKeyPair, GenerateECDSAKeyPair, ParsePublicKeyPEM, ParsePrivateKeyPEM, RSAPublicKeyToJWK, ECDSAPublicKeyToJWK]
+  - utils

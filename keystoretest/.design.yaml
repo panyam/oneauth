@@ -1,71 +1,71 @@
 package: keystoretest
-purpose: Shared conformance test suite that every KeyStorage backend (inmem, gorm, fs, gae) runs against to prove uniform behaviour for put/get/delete, kid resolution, and asymmetric key round-trips.
+purpose: Shared conformance test suite that every `keys.KeyStorage` backend (inmem, fs, gorm, gae) runs against to prove uniform put/get/delete/list, kid resolution, and asymmetric key round-trip semantics.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
   - name: Factory
     kind: type
-    role: Function signature backends provide so each subtest gets a fresh KeyStorage instance.
-    why: Per-test isolation without coupling the suite to any backend's constructor or cleanup.
+    role: "`func(t *testing.T) keys.KeyStorage` — backend-specific fresh-store constructor passed in by callers."
+    why: Per-subtest isolation without coupling the suite to any backend's constructor or cleanup.
   - name: RunAll
     kind: func
-    role: Registers every Test* helper as a t.Run subtest against the given Factory.
-    why: Single entry point so a backend's _test.go can opt into the full conformance matrix with one line.
+    role: Registers every `Test*` helper as a named `t.Run` subtest against the supplied `Factory`.
+    why: Single entry point so a backend's `_test.go` opts into the full conformance matrix with one line.
   - name: TestRegisterAndGet
     kind: func
-    role: Puts an HS256 secret, reads it back, asserts byte equality and algorithm.
+    role: Puts an HS256 secret, reads it back, asserts byte equality and `Algorithm == "HS256"`.
     why: Smoke test for the most basic Put/Get round-trip every backend must satisfy.
   - name: TestNotFound
     kind: func
-    role: GetKey on an unknown client must return keys.ErrKeyNotFound (not a wrapped error).
-    why: Pins the sentinel error contract callers rely on for branchless miss-handling.
+    role: `GetKey` on an unknown client must return `keys.ErrKeyNotFound` (compared with `==`, not wrapped).
+    why: Pins the sentinel error contract callers rely on for branchless miss handling.
   - name: TestMultipleHosts
     kind: func
-    role: Verifies two distinct ClientIDs hold distinct key material with no cross-talk.
+    role: Verifies two distinct `ClientID`s hold distinct key material with no cross-talk.
     why: Catches backends that accidentally namespace-collapse or share a single bucket.
   - name: TestDeleteKey
     kind: func
-    role: Put, delete, then assert subsequent GetKey returns ErrKeyNotFound.
+    role: Put, delete, then assert subsequent `GetKey` returns `ErrKeyNotFound`.
     why: Ensures delete is observable to readers, not just locally cached.
   - name: TestDeleteNonexistent
     kind: func
-    role: Deleting an unknown ClientID must return ErrKeyNotFound, not nil.
+    role: Deleting an unknown `ClientID` must return `ErrKeyNotFound`, not nil.
     why: Forces backends to distinguish "no-op delete" from "successful delete" loudly.
   - name: TestOverwriteKey
     kind: func
-    role: Re-Putting the same ClientID swaps both key material and algorithm in place.
-    why: Confirms upsert semantics so rotations (HS256 to HS512, key change) are honoured.
+    role: Re-`PutKey` with the same `ClientID` swaps both key material and algorithm in place (HS256 -> HS512).
+    why: Confirms upsert semantics so rotations (algorithm change, key change) are honoured.
   - name: TestListKeys
     kind: func
-    role: After three Puts, ListKeyIDs returns exactly those three ClientIDs.
+    role: After three Puts, `ListKeyIDs` returns exactly those three `ClientID`s (sorted-compared).
     why: Validates the admin/iteration surface every JWKS-like consumer depends on.
   - name: TestListKeysEmpty
     kind: func
-    role: ListKeyIDs on a fresh store returns an empty slice, not nil-panic or error.
-    why: Edge case where many backends would otherwise leak an "empty bucket" sentinel.
+    role: `ListKeyIDs` on a fresh store returns a zero-length slice with no error.
+    why: Guards against backends that nil-panic, error, or leak a sentinel on the empty case.
   - name: TestPersistence
     kind: func
-    role: Writes then re-reads through the factory-provided handle to prove data survives.
-    why: Single-process persistence floor; persistent backends are expected to satisfy it via shared storage.
+    role: Writes then re-reads through the same handle to prove data survives within a process.
+    why: Single-process persistence floor; persistent backends satisfy it via shared underlying storage.
   - name: TestKidResolverBasic
     kind: func
-    role: Stores an HS256 secret then resolves it via GetKeyByKid using utils.ComputeKid as oracle.
-    why: Asserts the kid-index path matches the ClientID path for symmetric keys.
+    role: Stores an HS256 secret then resolves it via `GetKeyByKid` using `utils.ComputeKid(secret, "HS256")` as oracle; unknown kid yields `ErrKidNotFound`.
+    why: Asserts the kid-index path matches the `ClientID` path for symmetric keys.
   - name: TestKidResolverAsymmetric
     kind: func
-    role: Stores an RSA public key PEM then resolves by kid computed off both PEM bytes and parsed *rsa.PublicKey.
-    why: Pins the invariant that ComputeKid(PEM) == ComputeKid(parsedKey) so backends can index either way.
+    role: Stores an RSA public-key PEM then resolves by kid computed off both PEM bytes and parsed `*rsa.PublicKey`, asserting they match.
+    why: Pins the invariant that `ComputeKid(PEM)` equals `ComputeKid(parsedKey)` so backends can index either way.
   - name: TestGetCurrentKid
     kind: func
-    role: GetKey must populate KeyRecord.Kid with the canonical thumbprint, and miss must return ErrKeyNotFound.
-    why: Callers read rec.Kid to stamp JWT headers; backends that forget to fill it would break signing silently.
+    role: `GetKey` must populate `KeyRecord.Kid` with the canonical thumbprint; miss must return `ErrKeyNotFound`.
+    why: Callers stamp JWT headers from `rec.Kid` — backends that forget to fill it would break signing silently.
   - name: TestRegisterAndGetAsymmetricKey
     kind: func
-    role: Round-trips an RSA public key PEM through PutKey/GetKey and decodes it back via utils.DecodeVerifyKey.
+    role: Round-trips an RSA public-key PEM through `PutKey`/`GetKey` and decodes it back via `utils.DecodeVerifyKey` into a `*rsa.PublicKey`.
     why: Guards the PEM-as-bytes contract so storage layers don't mangle or re-encode key material.
 depends_on:
   - path: ../keys
-    entities: [KeyStorage, KeyRecord, ErrKeyNotFound, ErrKidNotFound]
+    why: "Suite is parametrised over `keys.KeyStorage`; uses `keys.KeyRecord` for every Put/Get and pins `keys.ErrKeyNotFound` / `keys.ErrKidNotFound` as the exact sentinels backends must return."
   - path: ../utils
-    entities: [ComputeKid, GenerateRSAKeyPair, DecodeVerifyKey]
+    why: "`utils.ComputeKid` is the oracle for `TestKidResolverBasic` / `TestKidResolverAsymmetric` / `TestGetCurrentKid`; `utils.GenerateRSAKeyPair` and `utils.DecodeVerifyKey` drive the RSA PEM round-trip in `TestRegisterAndGetAsymmetricKey`."

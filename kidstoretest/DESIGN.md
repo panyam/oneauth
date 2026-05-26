@@ -28,7 +28,7 @@ Shared conformance test suite that every `keys.KidStorage` backend (in-memory Ki
 ## Gotchas
 
 - **`Add` is upsert by kid.** A second `Add` on the same kid replaces every field — key bytes, algorithm, *and* clientID — not just the value. Backends that treat `Add` as insert-only will fail `TestOverwriteSameKid`.
-- **`Remove` is idempotent, `KeyStorage.DeleteKey` is not.** `KidStorage.Remove` on a missing kid must return `nil`; the sibling `KeyStorage` contract returns `ErrKeyNotFound` on the same shape. Don't unify these.
+- **`Remove` is idempotent, `KeyStorage.DeleteKey` is not.** `KidStorage.Remove` on a missing kid must return `nil`; the sibling `KeyStorage` contract returns `ErrKeyNotFound` on the same shape. Don't unify these — this asymmetry is the kid/KeyStore decomposition payoff.
 - **`GetKey(clientID)` must always return `ErrKeyNotFound`.** A `KidStorage` is indexed by kid, not by client — even when a kid for that client exists, `GetKey` must fail. This is the documented split between the two storage roles.
 - **Zero `time.Time` is "never expires", not "expired at epoch".** Reads and `CleanExpired` must special-case the zero value; treating it as a past timestamp will sweep keys that were meant to live forever.
 - **Reads filter expired entries even without a sweep.** `GetKeyByKid` on a past-expiry kid must return `ErrKidNotFound` before `CleanExpired` ever runs, so callers never see stale material.
@@ -36,5 +36,5 @@ Shared conformance test suite that every `keys.KidStorage` backend (in-memory Ki
 
 ## Depends on
 
-- [`keys/`](../keys/DESIGN.md) — `KidStorage`, `ErrKidNotFound`, `ErrKeyNotFound`
-- [`utils/`](../utils/DESIGN.md) — `GenerateRSAKeyPair`, `ComputeKid`
+- `../keys` — `keys.KidStorage` (the contract this suite proves), plus the sentinel errors `keys.ErrKidNotFound` and `keys.ErrKeyNotFound` that the tests assert on miss-vs-failure branches.
+- `../utils` — `utils.GenerateRSAKeyPair` and `utils.ComputeKid` to mint an asymmetric PEM + matching kid for `TestAsymmetricKeyRoundTrip`.

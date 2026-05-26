@@ -2,6 +2,8 @@
 
 `package keys` owns every JWT signing key OneAuth touches: how they are stored (in memory, encrypted at rest, or fetched from a remote JWKS), how they are looked up (by `clientID` or by `kid`), and how they are published. The package is deliberately storage-agnostic — `KeyStorage` and `KidStorage` are interfaces that the `stores/{fs,gorm,gae}` backends and the `EncryptedKeyStorage` decorator all implement, while `JWKSHandler` and `JWKSKeyStore` form the publish/subscribe edges that face the outside world. What it deliberately does *not* own: JWT minting/parsing, scopes, or client registration — those live in `apiauth/`, `core/`, and `admin/`.
 
+The decomposition is itself a deliberate lesson: an earlier iteration had a single god `KeyStore` interface with per-field accessors (`GetSigningKey`, `GetVerifyKey`, `GetExpectedAlg`, `GetCurrentKid`, plus rotation hooks). Each new concern — encryption, kid rotation, remote JWKS — forced another method onto everyone. The split into `KeyLookup` (read-by-id/kid), `KeyStorage` (clientID-keyed writes), and `KidStorage` (kid-keyed grace storage), all returning a single `KeyRecord` value, lets each implementation honour only the concern it actually serves: `JWKSKeyStore` is `KeyLookup`-only, `EncryptedKeyStorage` decorates `KeyStorage` with five methods, and `KidStore` lives entirely on `KidStorage`.
+
 ## Contents
 
 - [Entities](#entities)
@@ -91,7 +93,7 @@ sequenceDiagram
     Caller->>Enc: GetKeyByKid(kid)
     Enc->>Inner: GetKeyByKid(kid)
     Inner-->>Enc: rec{Key=ciphertext}
-    Enc->>Enc: maybeDecryptRecord → plaintext
+    Enc->>Enc: maybeDecryptRecord -> plaintext
     Enc-->>Caller: rec{Key=plaintext}
 ```
 
@@ -164,7 +166,7 @@ sequenceDiagram
         J-->>Validator: rec{pub, alg, kid}
     else miss
         J->>J: refresh()
-        J->>J: if since(lastFetch) < MinRefreshGap → no-op
+        J->>J: if since(lastFetch) < MinRefreshGap -> no-op
         J->>Upstream: GET JWKSURL
         Upstream-->>J: JWKSet
         J->>J: build newKeys; Lock; replace; lastFetch=now
@@ -181,18 +183,17 @@ sequenceDiagram
 
 ## Gotchas
 
+- **The god-interface lesson that produced this decomposition.** The earlier `KeyStore` interface bundled `GetSigningKey` / `GetVerifyKey` / `GetExpectedAlg` / `GetCurrentKid` / write methods / rotation hooks into one contract. Three workarounds piled up — `JWKSKeyStore` fake-erroring on writes, encryption requiring per-field hooks, kid rotation grafted on as a sidecar — before the split into `KeyLookup` (read), `KeyStorage` (clientID writes), and `KidStorage` (kid writes), all returning a single `KeyRecord`. The rule going forward: if you find yourself adding a method that several implementations will stub out, decompose by concern instead. See `memories/feedback_god_interface.md`.
 - **HMAC secrets must never appear in JWKS.** `JWKSHandler.ServeHTTP` filters with `utils.IsAsymmetricAlg` before emitting any key, and the same check gates the `KidStore` branch. Adding a new key type means updating `IsAsymmetricAlg` in `utils/` — not relaxing the filter here. This is also why `JWKSKeyStore.GetSigningKey` returns a hard error instead of degrading silently.
-- **`EncryptedKeyStorage` computes `Kid` from plaintext, not ciphertext.** If you swap the encryption layer (e.g. move encryption inside a backend), preserve this ordering or every kid in the persisted store will become unreachable. Tests in `encrypted_test.go` exercise the round trip via `keystoretest.RunAll`.
+- **`EncryptedKeyStorage` computes `Kid` from plaintext, not ciphertext.** If you swap the encryption layer (e.g. move encryption inside a backend), preserve this ordering or every kid in the persisted store will become unreachable — the on-disk ciphertext changes on every write (random nonce), so kids derived from ciphertext would never match across writes. Tests in `encrypted_test.go` exercise the round trip via `keystoretest.RunAll`.
 - **Decryption failure is logged and treated as plaintext, not an error.** `maybeDecryptRecord` is intentionally lenient so a deployment can roll out `EncryptedKeyStorage` over a store of pre-existing plaintext HMAC secrets. Once migration is complete this fallback is a footgun — a corrupted ciphertext will silently surface as garbage `Key` bytes. Wrap with an integrity check (or remove the fallback) once migration is verified.
 - **`JWKSKeyStore` keys its internal cache by JWKS `kid`, not clientID.** `GetVerifyKey(clientID)` / `GetExpectedAlg(clientID)` will only succeed if the upstream JWKS happens to use the clientID as the `kid`. New code should prefer `GetKeyByKid`; the clientID-shaped methods exist for legacy validators that assume a local keystore shape.
+- **Algorithm-mismatch is a separate sentinel from key-not-found.** `ErrAlgorithmMismatch` exists so a validator can distinguish "we found a key but the JWT's `alg` header disagrees" (a likely alg-substitution attack) from "we have never heard of this client" (a registration issue). Callers that fold them into one branch lose the attack signal.
 - **`InMemoryKeyStore.GetKeyByKid` re-validates `entry.Kid == kid` after the index hit.** Without that check, a `PutKey` overwrite that reused an old clientID with new key material could leave a stale `kidIndex` entry pointing at the new entry's kid; the re-check makes the lookup self-correcting. Persistent backends in `stores/` must preserve this invariant.
 - **`JWKSHandler` reads `KidStore.records` directly under `KidStore.mu.RLock()`.** This couples the handler to `KidStore`'s internals (lowercase field), so the handler only works with the concrete in-memory `KidStore`, not arbitrary `KidStorage` implementations. If/when persistent `KidStorage` backends need to surface grace keys in JWKS, this branch needs an interface-level iteration method.
 - **`refresh()` swaps the entire `keys` map under `Lock`.** A kid that briefly disappears from the upstream JWKS will vanish from the cache on the next refresh, even if it was valid moments ago. Use `KidStore` (locally) to keep retired-but-still-valid keys around through grace; do not rely on `JWKSKeyStore` for that semantic.
+- **Rotation contract is `KidStore.Add` *then* `KeyStorage.PutKey`, never the reverse.** Reversing the order opens a window where the new kid is live but the old kid is unknown, so any in-flight token signed by the previous key fails verification. The `Admin->>Kid: Add` step in the rotation flow is load-bearing for zero-downtime rotation.
 
 ## Depends on
 
-- [`utils/`](../utils/DESIGN.md) — `JWK`, `JWKSet`, `IsAsymmetricAlg`, `DecodeVerifyKey`, `ComputeKid`, `PublicKeyToJWK`, `JWKToPublicKey`, `GenerateRSAKeyPair`, `GenerateECDSAKeyPair`, `ParsePublicKeyPEM`, `ParsePrivateKeyPEM`, `RSAPublicKeyToJWK`, `ECDSAPublicKeyToJWK`
-- [`admin/`](../admin/DESIGN.md) — `AppRegistrar`, `NewAppRegistrar`, `NoAuth`, `AppQuota`, `MintResourceToken`, `MintResourceTokenWithKey`
-- [`apiauth/`](../apiauth/DESIGN.md) — `APIMiddleware`, `APIAuth`, `GetUserIDFromAPIContext`, `GetCustomClaimsFromContext`
-- [`keystoretest/`](../keystoretest/DESIGN.md) — `RunAll`
-- [`kidstoretest/`](../kidstoretest/DESIGN.md) — `RunAll`
+- `../utils` — JWK/PEM helpers and kid computation: `ComputeKid` (used by `InMemoryKeyStore.PutKey` and `JWKSHandler`), `IsAsymmetricAlg` (gates JWKS publication of HMAC secrets), `DecodeVerifyKey`, `PublicKeyToJWK`, `JWK`, `JWKSet` (drive `JWKSHandler.ServeHTTP`), and `JWKToPublicKey` (drives `JWKSKeyStore.refresh`).

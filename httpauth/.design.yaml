@@ -1,17 +1,13 @@
 package: httpauth
-purpose: Session-based HTTP auth glue plus standalone middleware for CSRF, security headers, and request body limits.
+purpose: HTTP-layer plumbing for session-based auth — a session/JWT-aware login mux, a pluggable user-resolution middleware, and standalone CSRF / body-limit / security-header middlewares.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
   - name: OneAuth
     kind: struct
-    role: Top-level session-auth coordinator owning the mux, scs session manager, JWT minting/verification, and login/logout cookie lifecycle.
-    why: Defaults to a hardcoded JWT secret if neither field nor ONEAUTH_JWT_SECRET_KEY is set — fine for tests, unsafe in prod.
-  - name: AuthUserStore
-    kind: interface
-    role: Composite store (UserStore + IdentityStore + ChannelStore) with EnsureAuthUser as the OAuth/local creation entry point.
-    why: Composed rather than a god interface so impls only satisfy what they back; EnsureAuthUser orchestrates cross-store creation.
+    role: Session-auth coordinator owning the mux, scs session manager, JWT minting/verification, and login/logout cookie lifecycle.
+    why: Defaults to a hardcoded JWT secret if neither the field nor ONEAUTH_JWT_SECRET_KEY is set — fine for tests, unsafe in prod.
   - name: New
     kind: func
     role: Constructs a OneAuth with the given app name and applies EnsureDefaults.
@@ -23,31 +19,15 @@ entities:
   - name: OneAuth.Handler
     kind: method
     role: Returns the configured ServeMux after route setup.
-    why: Lazily builds routes so the logout handler exists even if AddAuth was never called.
+    why: Lazily builds routes so the /logout handler exists even if AddAuth was never called.
   - name: OneAuth.AddAuth
     kind: method
-    role: Mounts an auth provider handler under a prefix with subtree matching plus a 308 redirect from the bare prefix.
-    why: Uses 308 (not 301) to preserve POST method; reads r.RequestURI to recover the path lost by parent StripPrefix.
-  - name: OneAuth.SaveUserAndRedirect
+    role: Mounts a sub-handler under a prefix with subtree matching plus a 308 redirect from the bare prefix.
+    why: Uses 308 (not 301) to preserve POST method; reads r.RequestURI to recover the path lost by a parent StripPrefix.
+  - name: OneAuth.SetLoggedInUserID
     kind: method
-    role: OAuth callback sink — ensures the user via the store, sets login cookies, and redirects to the saved oauthCallbackURL.
-    why: Prefixes relative callback URLs with OAUTH2_BASE_URL and clears the callback cookie so it is single-use.
-  - name: OneAuth.HandleLinkOAuthCallback
-    kind: method
-    role: Links an OAuth provider to an existing local user after verifying the OAuth email matches the account email.
-    why: Email-match check is the security boundary preventing account hijacking via a mismatched provider email.
-  - name: OneAuth.StartLinkOAuth
-    kind: method
-    role: Stashes the user ID in session under linkingUserID to flag a subsequent callback as a linking flow.
-    why: Paired with GetLinkingUserID to thread linking intent through the redirect round-trip.
-  - name: OneAuth.GetLinkingUserID
-    kind: method
-    role: Pops (reads and clears) the linkingUserID session value.
-    why: Pop semantics ensure linking mode is consumed exactly once.
-  - name: LinkOAuthConfig
-    kind: struct
-    role: Bundles the three stores needed by HandleLinkOAuthCallback.
-    why: Passed per-call rather than held on OneAuth so linking can use a different store set than login.
+    role: Sets (or clears, on empty userID) the loggedInUserId cookie + JWT cookie + scs session entries across every configured CookieDomain.
+    why: Owns the entire login/logout cookie lifecycle so callers in federatedauth/localauth only need a user-id string.
   - name: Middleware
     kind: struct
     role: Request-scoped user resolver reading user ID from context, session, or Authorization header/cookie via a pluggable VerifyToken.
@@ -103,7 +83,7 @@ entities:
   - name: SecurityHeaders
     kind: func
     role: Middleware applying default OWASP security headers to every response.
-    why: Thin wrapper over SecurityHeadersWithConfig(DefaultSecurityHeadersConfig).
+    why: Thin wrapper over SecurityHeadersWithConfig(DefaultSecurityHeadersConfig()).
   - name: SecurityHeadersConfig
     kind: struct
     role: Per-header configuration; empty string disables an individual header.
@@ -115,7 +95,6 @@ entities:
   - name: SecurityHeadersWithConfig
     kind: func
     role: Middleware applying a caller-supplied header configuration.
-    why: Skips any header left empty so disabling is explicit and per-field.
-depends_on:
-  - path: ../core
-    entities: [User, BasicUser, Channel, IdentityKey, UserStore, IdentityStore, ChannelStore]
+    why: Skips any header left empty so disabling is explicit and per-field; X-Content-Type-Options is unconditional.
+depends_on: []
+

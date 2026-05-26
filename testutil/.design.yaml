@@ -1,8 +1,8 @@
 package: testutil
-purpose: In-process OAuth authorization server plus standalone OAuth/JWT helpers for oneauth integration tests.
+purpose: Shared test setup helpers for oneauth — an in-process RS256 OAuth AS plus OIDC discovery, token-grant, JWKS, and JWT introspection fixtures used across package test suites.
 language: go
-last_rebuilt: 57e6f0d2b10e75e7c3d4a352bd0a229beb99900e
-last_rebuilt_at: 2026-05-24T17:31:10Z
+last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
+last_rebuilt_at: 2026-05-26T07:42:23Z
 entities:
   - name: TestAuthServer
     kind: struct
@@ -94,7 +94,7 @@ entities:
     why: Decode target for DiscoverOIDC and a typed view onto the discovery doc.
   - name: TokenResponse
     kind: struct
-    role: Parsed OAuth token endpoint response (RFC 6749 §5.1).
+    role: Parsed OAuth token endpoint response (RFC 6749 section 5.1).
     why: Common return type for the grant helpers.
   - name: DiscoverOIDC
     kind: func
@@ -102,11 +102,11 @@ entities:
     why: Works against any compliant AS; fails via t.Fatal for test ergonomics.
   - name: GetClientCredentialsToken
     kind: func
-    role: Acquires a token via the client_credentials grant (RFC 6749 §4.4).
+    role: Acquires a token via the client_credentials grant (RFC 6749 section 4.4).
     why: Thin wrapper that delegates to PostTokenEndpoint with the right form fields.
   - name: GetPasswordToken
     kind: func
-    role: Acquires a token via the resource owner password grant (RFC 6749 §4.3).
+    role: Acquires a token via the resource owner password grant (RFC 6749 section 4.3).
     why: Test-only helper with no production equivalent.
   - name: PostTokenEndpoint
     kind: func
@@ -125,15 +125,15 @@ entities:
     role: Base64url-decodes a JWT header without verifying the signature.
     why: Test introspection only; never use in production.
 depends_on:
+  - path: ../admin
+    entities: [AppRegistrar, NewAppRegistrar, NewAPIKeyAuth]
+  - path: ../apiauth
+    entities: [APIAuth, TrustedAssertionIssuer, JwtBearerGrantType, TokenExchangeGrantType, NewIntrospectionHandler, MountASMetadata, ASServerMetadata]
   - path: ../core
     entities: [GenerateSecureToken]
-  - path: ../keys
-    entities: [KeyStorage, KeyRecord, InMemoryKeyStore, NewInMemoryKeyStore, JWKSHandler]
-  - path: ../admin
-    entities: [AppRegistrar, NewAppRegistrar, APIKeyAuth]
-  - path: ../apiauth
-    entities: [APIAuth, NewIntrospectionHandler, MountASMetadata, ASServerMetadata, TrustedAssertionIssuer, JwtBearerGrantType, TokenExchangeGrantType]
   - path: ../httpauth
     entities: [LimitBody, DefaultMaxBodySize]
+  - path: ../keys
+    entities: [KeyStorage, KeyRecord, NewInMemoryKeyStore, JWKSHandler]
   - path: ../utils
-    entities: [EncodePublicKeyPEM, ComputeKid]
+    entities: [ComputeKid, EncodePublicKeyPEM]
