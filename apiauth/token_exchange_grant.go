@@ -118,7 +118,11 @@ func (a *APIAuth) handleTokenExchangeGrant(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	accessToken, expiresIn, err := a.CreateAccessToken(subject, scopes, req.AuthorizationDetails)
+	tokResp, err := a.Issuer().CreateAccessToken(r.Context(), &CreateAccessTokenRequest{
+		Subject:              subject,
+		Scopes:               scopes,
+		AuthorizationDetails: req.AuthorizationDetails,
+	})
 	if err != nil {
 		log.Printf("Error creating access token (token-exchange grant): %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -129,9 +133,9 @@ func (a *APIAuth) handleTokenExchangeGrant(w http.ResponseWriter, r *http.Reques
 	// tokenResponse helper omits issued_token_type, which RFC 8693 §2.2
 	// REQUIRES. Encode the response inline.
 	resp := core.TokenPair{
-		AccessToken:          accessToken,
+		AccessToken:          tokResp.Token,
 		TokenType:            "Bearer",
-		ExpiresIn:            expiresIn,
+		ExpiresIn:            tokResp.ExpiresIn,
 		Scope:                core.JoinScopes(scopes),
 		AuthorizationDetails: req.AuthorizationDetails,
 		IssuedTokenType:      requestedType,

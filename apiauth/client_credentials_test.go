@@ -75,7 +75,11 @@ func TestClientCredentials_Success(t *testing.T) {
 
 	// Validate the JWT claims
 	token := resp["access_token"].(string)
-	userID, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var userID string
+	var _ []string
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	require.NoError(t, err, "minted token should be valid")
 	assert.Equal(t, "test-service", userID, "sub should be the client_id")
 }
@@ -169,7 +173,11 @@ func TestClientCredentials_WithScopes(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 
 	token := resp["access_token"].(string)
-	_, scopes, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var _ string
+	var scopes []string
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; scopes = vresp.Info.Scopes }
+
 	require.NoError(t, err)
 	assert.Contains(t, scopes, "read")
 	assert.Contains(t, scopes, "write")

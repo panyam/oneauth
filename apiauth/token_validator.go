@@ -3,6 +3,7 @@ package apiauth
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -15,32 +16,45 @@ import (
 
 // jwtValidator implements TokenValidator using local JWT validation.
 // Dependencies are explicit and minimal: KeyLookup (read-only), Blacklist,
-// issuer/audience config, and security hooks.
+// issuer/audience config, and security hooks. SigningKey is an optional
+// self-validation fallback (used when no KeyLookup is configured or the
+// token's kid / client_id doesn't resolve through it) — supports the
+// "APIAuth holds its own key" mode that doesn't need a KeyStore.
 type jwtValidator struct {
-	keyLookup keys.KeyLookup
-	blacklist core.TokenBlacklist
-	issuer    string
-	audience  string
-	hooks     SecurityHooks
+	keyLookup  keys.KeyLookup
+	signingKey any
+	signingAlg string
+	blacklist  core.TokenBlacklist
+	issuer     string
+	audience   string
+	hooks      SecurityHooks
 }
 
 // JWTValidatorConfig configures a jwtValidator.
 type JWTValidatorConfig struct {
 	KeyLookup keys.KeyLookup
-	Blacklist core.TokenBlacklist
-	Issuer    string
-	Audience  string
-	Hooks     SecurityHooks
+	// SigningKey is an optional fallback used when KeyLookup is nil or the
+	// token's kid / client_id does not resolve through it. For HS256, supply
+	// []byte; for RS256/ES256, supply the verification key (*rsa.PublicKey,
+	// *ecdsa.PublicKey) directly.
+	SigningKey any
+	SigningAlg string
+	Blacklist  core.TokenBlacklist
+	Issuer     string
+	Audience   string
+	Hooks      SecurityHooks
 }
 
 // NewJWTValidator creates a TokenValidator that validates JWTs locally.
 func NewJWTValidator(cfg JWTValidatorConfig) TokenValidator {
 	return &jwtValidator{
-		keyLookup: cfg.KeyLookup,
-		blacklist: cfg.Blacklist,
-		issuer:    cfg.Issuer,
-		audience:  cfg.Audience,
-		hooks:     cfg.Hooks,
+		keyLookup:  cfg.KeyLookup,
+		signingKey: cfg.SigningKey,
+		signingAlg: cfg.SigningAlg,
+		blacklist:  cfg.Blacklist,
+		issuer:     cfg.Issuer,
+		audience:   cfg.Audience,
+		hooks:      cfg.Hooks,
 	}
 }
 
@@ -182,46 +196,66 @@ func (v *jwtValidator) CheckAuthorizationDetails(ctx context.Context, req *Check
 
 // resolveKey finds the appropriate signing key for a JWT token.
 func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
-	if v.keyLookup == nil {
-		return nil, fmt.Errorf("no key store configured")
-	}
-
-	// Try kid-based lookup first
-	if kid, ok := token.Header["kid"].(string); ok && kid != "" {
-		kidResp, err := v.keyLookup.GetKeyByKid(context.Background(), &keys.GetKeyByKidRequest{Kid: kid})
-		if err == nil && kidResp != nil && kidResp.Record != nil {
-			rec := kidResp.Record
-			if token.Header["alg"] != rec.Algorithm {
-				v.hooks.fireOnAlgorithmMismatch(rec.Algorithm, fmt.Sprintf("%v", token.Header["alg"]))
-				return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
-			}
-			// Cross-check kid owner vs client_id claim
-			if rec.ClientID != "" {
-				if claims, ok := token.Claims.(jwt.MapClaims); ok {
-					if claimClientID, _ := claims["client_id"].(string); claimClientID != "" && claimClientID != rec.ClientID {
-						return nil, fmt.Errorf("kid owner %q does not match client_id claim %q", rec.ClientID, claimClientID)
-					}
-				}
-			}
-			return utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
-		}
-	}
-
-	// Fall back to client_id claim
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		if clientID, ok := claims["client_id"].(string); ok && clientID != "" {
-			getResp, err := v.keyLookup.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
-			if err == nil && getResp != nil && getResp.Record != nil {
-				rec := getResp.Record
+	// Try kid-based lookup first (only when a KeyLookup is configured)
+	if v.keyLookup != nil {
+		if kid, ok := token.Header["kid"].(string); ok && kid != "" {
+			kidResp, err := v.keyLookup.GetKeyByKid(context.Background(), &keys.GetKeyByKidRequest{Kid: kid})
+			if err == nil && kidResp != nil && kidResp.Record != nil {
+				rec := kidResp.Record
 				if token.Header["alg"] != rec.Algorithm {
 					v.hooks.fireOnAlgorithmMismatch(rec.Algorithm, fmt.Sprintf("%v", token.Header["alg"]))
 					return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
 				}
+				// Cross-check kid owner vs client_id claim
+				if rec.ClientID != "" {
+					if claims, ok := token.Claims.(jwt.MapClaims); ok {
+						if claimClientID, _ := claims["client_id"].(string); claimClientID != "" && claimClientID != rec.ClientID {
+							return nil, fmt.Errorf("kid owner %q does not match client_id claim %q", rec.ClientID, claimClientID)
+						}
+					}
+				}
 				return utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
+			}
+		}
+
+		// Fall back to client_id claim
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+			if clientID, ok := claims["client_id"].(string); ok && clientID != "" {
+				getResp, err := v.keyLookup.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
+				if err == nil && getResp != nil && getResp.Record != nil {
+					rec := getResp.Record
+					if token.Header["alg"] != rec.Algorithm {
+						v.hooks.fireOnAlgorithmMismatch(rec.Algorithm, fmt.Sprintf("%v", token.Header["alg"]))
+						return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
+					}
+					return utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
+				}
 			}
 		}
 	}
 
+	// Self-validation fallback: the validator was configured with its own
+	// SigningKey (typical APIAuth shape — one key, no KeyStore).
+	if v.signingKey != nil {
+		switch k := v.signingKey.(type) {
+		case []byte:
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return k, nil
+		default:
+			// Asymmetric key — type-check against the token's alg before returning.
+			if v.signingAlg != "" && token.Header["alg"] != v.signingAlg {
+				v.hooks.fireOnAlgorithmMismatch(v.signingAlg, fmt.Sprintf("%v", token.Header["alg"]))
+				return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", v.signingAlg, token.Header["alg"])
+			}
+			return v.signingKey, nil
+		}
+	}
+
+	if v.keyLookup == nil {
+		return nil, fmt.Errorf("no key store configured")
+	}
 	return nil, fmt.Errorf("no key found for token")
 }
 
@@ -236,8 +270,15 @@ type jwtIssuer struct {
 	refreshStore        core.RefreshTokenStore
 	validateCredentials CredentialsValidator
 	getSubjectScopes    core.GetSubjectScopesFunc
+	customClaims        CustomClaimsFunc
 	hooks               TokenHooks
 }
+
+// CustomClaimsFunc is called during access-token issuance to inject additional
+// non-standard claims. Returning a claim key that collides with a standard JWT
+// claim (sub, iss, aud, exp, iat, type, scopes, jti, authorization_details)
+// is ignored with a log warning — standard claims are owned by the issuer.
+type CustomClaimsFunc func(subject string, scopes []string) (map[string]any, error)
 
 // JWTIssuerConfig configures a jwtIssuer.
 type JWTIssuerConfig struct {
@@ -250,6 +291,7 @@ type JWTIssuerConfig struct {
 	RefreshStore        core.RefreshTokenStore  // for refresh_token grant
 	ValidateCredentials CredentialsValidator // for password grant
 	GetSubjectScopes    core.GetSubjectScopesFunc // for password grant (optional)
+	CustomClaims        CustomClaimsFunc       // optional per-token custom-claim injection
 	Hooks               TokenHooks
 }
 
@@ -269,6 +311,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		refreshStore:        cfg.RefreshStore,
 		validateCredentials: cfg.ValidateCredentials,
 		getSubjectScopes:    cfg.GetSubjectScopes,
+		customClaims:        cfg.CustomClaims,
 		hooks:               cfg.Hooks,
 	}
 }
@@ -305,6 +348,20 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	}
 	if i.audience != "" {
 		claims["aud"] = i.audience
+	}
+
+	if i.customClaims != nil {
+		custom, err := i.customClaims(subject, scopes)
+		if err != nil {
+			return nil, fmt.Errorf("custom claims func failed: %w", err)
+		}
+		for k, v := range custom {
+			if standardClaims[k] {
+				log.Printf("Warning: CustomClaimsFunc attempted to override standard claim %q (ignored)", k)
+				continue
+			}
+			claims[k] = v
+		}
 	}
 
 	signingMethod, err := utils.SigningMethodForAlg(i.signingAlg)

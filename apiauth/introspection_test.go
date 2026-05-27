@@ -78,7 +78,11 @@ func postIntrospect(t *testing.T, handler http.Handler, token, clientID, clientS
 // mintIntrospectionToken creates a signed access token for testing.
 func mintIntrospectionToken(t *testing.T, auth *apiauth.APIAuth, userID string, scopes []string) string {
 	t.Helper()
-	token, _, err := auth.CreateAccessToken(userID, scopes, nil)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: userID, Scopes: scopes, AuthorizationDetails: nil})
+	token := ""
+	var _ int64
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 	return token
 }

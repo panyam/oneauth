@@ -59,21 +59,22 @@ func (ai *apiauthIntrospector) Introspect(ctx context.Context, req *IntrospectRe
 		return nil, fmt.Errorf("IntrospectRequest is required")
 	}
 	tokenString := req.Token
-	userID, scopes, _, err := ai.auth.ValidateAccessTokenFull(tokenString)
+	validateResp, err := ai.auth.Validator().ValidateToken(ctx, &ValidateTokenRequest{Token: tokenString})
 	if err != nil {
 		return &IntrospectResponse{Result: &IntrospectionResult{Active: false}}, nil
 	}
+	info := validateResp.Info
 
 	rawClaims := parseRawJWTClaims(tokenString)
 
 	result := &IntrospectionResult{
 		Active:    true,
-		Sub:       userID,
+		Sub:       info.Subject,
 		TokenType: "access_token",
 	}
 
-	if len(scopes) > 0 {
-		result.Scope = joinScopes(scopes)
+	if len(info.Scopes) > 0 {
+		result.Scope = joinScopes(info.Scopes)
 	}
 
 	if rawClaims != nil {

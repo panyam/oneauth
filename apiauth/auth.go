@@ -2,8 +2,6 @@ package apiauth
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -105,6 +103,16 @@ type APIAuth struct {
 	// replay protection for private_key_jwt assertions.
 	lazyAuthenticator     ClientAuthenticator
 	lazyAuthenticatorOnce sync.Once
+
+	// lazyIssuer / lazyValidator cache the gRPC-shape TokenIssuer /
+	// TokenValidator built from APIAuth's configuration. They are the
+	// implementations every HTTP handler dispatches through. Lazy so
+	// callers can populate APIAuth fields after construction (the
+	// existing usage pattern) before any token is minted.
+	lazyIssuer        TokenIssuer
+	lazyIssuerOnce    sync.Once
+	lazyValidator     TokenValidator
+	lazyValidatorOnce sync.Once
 
 	// TrustedAssertionIssuers lists upstream IdPs whose JWT assertions
 	// the token endpoint will accept for the jwt-bearer grant
@@ -273,7 +281,11 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 	}
 
 	// Create access token (JWT)
-	accessToken, expiresIn, err := a.CreateAccessToken(user.Id(), grantedScopes, req.AuthorizationDetails)
+	tokResp, err := a.Issuer().CreateAccessToken(r.Context(), &CreateAccessTokenRequest{
+		Subject:              user.Id(),
+		Scopes:               grantedScopes,
+		AuthorizationDetails: req.AuthorizationDetails,
+	})
 	if err != nil {
 		log.Printf("Error creating access token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -286,7 +298,7 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 	}
 
 	// Return token pair
-	a.tokenResponse(w, accessToken, expiresIn, refreshToken.Token, grantedScopes, req.AuthorizationDetails)
+	a.tokenResponse(w, tokResp.Token, tokResp.ExpiresIn, refreshToken.Token, grantedScopes, req.AuthorizationDetails)
 }
 
 // handleRefreshTokenGrant handles the refresh_token grant type
@@ -340,7 +352,11 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 	newRefreshToken := rotResp.Token
 
 	// Create new access token (carry forward authorization_details from original grant)
-	accessToken, expiresIn, err := a.CreateAccessToken(refreshToken.Subject, refreshToken.Scopes, refreshToken.AuthorizationDetails)
+	tokResp, err := a.Issuer().CreateAccessToken(r.Context(), &CreateAccessTokenRequest{
+		Subject:              refreshToken.Subject,
+		Scopes:               refreshToken.Scopes,
+		AuthorizationDetails: refreshToken.AuthorizationDetails,
+	})
 	if err != nil {
 		log.Printf("Error creating access token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -348,7 +364,7 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 	}
 
 	// Return new token pair
-	a.tokenResponse(w, accessToken, expiresIn, newRefreshToken.Token, refreshToken.Scopes, refreshToken.AuthorizationDetails)
+	a.tokenResponse(w, tokResp.Token, tokResp.ExpiresIn, newRefreshToken.Token, refreshToken.Scopes, refreshToken.AuthorizationDetails)
 }
 
 // handleClientCredentialsGrant handles the client_credentials grant type (RFC 6749 §4.4).
@@ -395,7 +411,11 @@ func (a *APIAuth) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Re
 	}
 
 	// Create access token with sub=client_id (no user context)
-	accessToken, expiresIn, err := a.CreateAccessToken(clientID, scopes, req.AuthorizationDetails)
+	tokResp, err := a.Issuer().CreateAccessToken(r.Context(), &CreateAccessTokenRequest{
+		Subject:              clientID,
+		Scopes:               scopes,
+		AuthorizationDetails: req.AuthorizationDetails,
+	})
 	if err != nil {
 		log.Printf("Error creating client_credentials token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -403,7 +423,7 @@ func (a *APIAuth) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Re
 	}
 
 	// Return access token only — no refresh token for client_credentials
-	a.tokenResponse(w, accessToken, expiresIn, "", scopes, req.AuthorizationDetails)
+	a.tokenResponse(w, tokResp.Token, tokResp.ExpiresIn, "", scopes, req.AuthorizationDetails)
 }
 
 // authenticateTokenEndpointClient runs whichever auth method the request
@@ -568,288 +588,74 @@ var standardClaims = map[string]bool{
 	"authorization_details": true, // RFC 9396
 }
 
-// CreateAccessToken creates a signed JWT access token. If CustomClaimsFunc is set,
-// its returned claims are merged into the token (standard claims cannot be overridden).
-// authzDetails is an optional RFC 9396 authorization_details array embedded in the JWT.
-//
-// Deprecated: prefer the transport-agnostic TokenIssuer.CreateAccessToken(ctx,
-// *CreateAccessTokenRequest) (*CreateAccessTokenResponse, error) on the OneAuth.Issuer
-// (or NewJWTIssuer-built jwtIssuer). This positional method is retained as the internal
-// implementation that APIAuth's HTTP handlers still call; consolidation tracked under issue 218.
-func (a *APIAuth) CreateAccessToken(userID string, scopes []string, authzDetails []core.AuthorizationDetail) (string, int64, error) {
-	expiry := a.AccessTokenExpiry
-	if expiry == 0 {
-		expiry = core.TokenExpiryAccessToken
-	}
+// Issuer returns the TokenIssuer implementation backing APIAuth's token-mint
+// HTTP handlers. Lazily built from APIAuth's configuration on first call;
+// safe for use after all APIAuth fields are populated.
+func (a *APIAuth) Issuer() TokenIssuer {
+	a.lazyIssuerOnce.Do(func() {
+		a.lazyIssuer = NewJWTIssuer(JWTIssuerConfig{
+			SigningKey:          a.signingKeyForIssuer(),
+			SigningAlg:          a.signingAlg(),
+			Issuer:              a.JWTIssuer,
+			Audience:            a.JWTAudience,
+			AccessExpiry:        a.AccessTokenExpiry,
+			ClientKeyLookup:     a.ClientKeyStore,
+			RefreshStore:        a.RefreshTokenStore,
+			ValidateCredentials: a.ValidateCredentials,
+			GetSubjectScopes:    a.GetSubjectScopes,
+			CustomClaims:        CustomClaimsFunc(a.CustomClaimsFunc),
+		})
+	})
+	return a.lazyIssuer
+}
 
-	now := time.Now()
-	expiresAt := now.Add(expiry)
+// Validator returns the TokenValidator implementation backing APIAuth's
+// token-validation paths (middleware, introspection). Lazily built from
+// APIAuth's configuration on first call.
+func (a *APIAuth) Validator() TokenValidator {
+	a.lazyValidatorOnce.Do(func() {
+		a.lazyValidator = NewJWTValidator(JWTValidatorConfig{
+			SigningKey: a.signingKeyForValidator(),
+			SigningAlg: a.signingAlg(),
+			Blacklist:  a.Blacklist,
+			Issuer:     a.JWTIssuer,
+			Audience:   a.JWTAudience,
+		})
+	})
+	return a.lazyValidator
+}
 
-	// Generate jti (JWT ID) for token blacklisting (RFC 7519 §4.1.7)
-	jti, err := core.GenerateSecureToken()
-	if err != nil {
-		return "", 0, fmt.Errorf("failed to generate jti: %w", err)
+// signingAlg returns APIAuth's effective signing algorithm, defaulting to HS256.
+func (a *APIAuth) signingAlg() string {
+	if a.JWTSigningAlg != "" {
+		return a.JWTSigningAlg
 	}
+	return "HS256"
+}
 
-	claims := jwt.MapClaims{
-		"sub":    userID,
-		"type":   "access",
-		"scopes": scopes,
-		"jti":    jti,
-		"iat":    now.Unix(),
-		"exp":    expiresAt.Unix(),
-	}
-
-	if len(authzDetails) > 0 {
-		claims["authorization_details"] = authzDetails
-	}
-
-	if a.JWTIssuer != "" {
-		claims["iss"] = a.JWTIssuer
-	}
-	if a.JWTAudience != "" {
-		claims["aud"] = a.JWTAudience
-	}
-
-	// Merge custom claims (cannot override standard claims)
-	if a.CustomClaimsFunc != nil {
-		custom, err := a.CustomClaimsFunc(userID, scopes)
-		if err != nil {
-			return "", 0, fmt.Errorf("custom claims func failed: %w", err)
-		}
-		for k, v := range custom {
-			if standardClaims[k] {
-				log.Printf("Warning: CustomClaimsFunc attempted to override standard claim %q (ignored)", k)
-			} else {
-				claims[k] = v
-			}
-		}
-	}
-
-	signingMethod, err := utils.SigningMethodForAlg(a.JWTSigningAlg)
-	if err != nil {
-		return "", 0, fmt.Errorf("invalid signing algorithm: %w", err)
-	}
-
-	// Determine the signing key: asymmetric key takes precedence over JWTSecretKey
-	var signingKey any
+// signingKeyForIssuer returns the key used for signing new tokens.
+// Asymmetric (JWTSigningKey) takes precedence over symmetric (JWTSecretKey).
+func (a *APIAuth) signingKeyForIssuer() any {
 	if a.JWTSigningKey != nil {
-		signingKey = a.JWTSigningKey
-	} else {
-		signingKey = []byte(a.JWTSecretKey)
+		return a.JWTSigningKey
 	}
-
-	token := jwt.NewWithClaims(signingMethod, claims)
-	if kid, kidErr := utils.ComputeKid(signingKey, signingMethod.Alg()); kidErr == nil {
-		token.Header["kid"] = kid
-	}
-	tokenString, err := token.SignedString(signingKey)
-	if err != nil {
-		return "", 0, fmt.Errorf("failed to sign token: %w", err)
-	}
-
-	return tokenString, int64(expiry.Seconds()), nil
+	return []byte(a.JWTSecretKey)
 }
 
-// VerifyTokenFunc returns a function that can be used as Middleware.VerifyToken.
-// This allows the Middleware to validate Bearer tokens using the APIAuth's JWT configuration.
-//
-// Deprecated: prefer the transport-agnostic TokenValidator.ValidateToken(ctx,
-// *ValidateTokenRequest) (*ValidateTokenResponse, error) on the OneAuth.Validator.
-// Retained for httpauth.Middleware wiring; consolidation tracked under issue 218.
-func (a *APIAuth) VerifyTokenFunc() func(tokenString string) (userID string, token any, err error) {
-	return func(tokenString string) (string, any, error) {
-		userID, scopes, err := a.ValidateAccessToken(tokenString)
-		if err != nil {
-			return "", nil, err
-		}
-		return userID, scopes, nil
-	}
-}
-
-// ValidateAccessToken validates a JWT access token and returns the claims.
-//
-// Deprecated: prefer the transport-agnostic TokenValidator.ValidateToken(ctx,
-// *ValidateTokenRequest) (*ValidateTokenResponse, error) on the OneAuth.Validator.
-// Retained as the implementation backing the deprecated VerifyTokenFunc;
-// consolidation tracked under issue 218.
-func (a *APIAuth) ValidateAccessToken(tokenString string) (userID string, scopes []string, err error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-		return a.jwtKeyFunc(token)
-	})
-
-	if err != nil {
-		return "", nil, err
-	}
-
-	if !token.Valid {
-		return "", nil, fmt.Errorf("invalid token")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", nil, fmt.Errorf("invalid claims")
-	}
-
-	// Verify token type: reject if explicitly set to something other than "access"
-	// (prevents OneAuth refresh tokens from being used as access tokens).
-	// External IdP tokens (Keycloak, Auth0) don't include this claim — accepted.
-	if tokenType, ok := claims["type"].(string); ok && tokenType != "access" {
-		return "", nil, fmt.Errorf("invalid token type")
-	}
-
-	// Verify issuer if configured
-	if a.JWTIssuer != "" {
-		if iss, ok := claims["iss"].(string); !ok || iss != a.JWTIssuer {
-			return "", nil, fmt.Errorf("invalid issuer")
-		}
-	}
-
-	// Verify audience if configured (RFC 7519 §4.1.3)
-	// Handles both string and array aud claims (#52)
-	if a.JWTAudience != "" {
-		if !matchesAudience(claims, a.JWTAudience) {
-			return "", nil, fmt.Errorf("invalid audience: expected %q", a.JWTAudience)
-		}
-	}
-
-	// Extract user ID
-	userID, ok = claims["sub"].(string)
-	if !ok || userID == "" {
-		return "", nil, fmt.Errorf("missing subject")
-	}
-
-	// Extract scopes
-	if scopesRaw, ok := claims["scopes"].([]any); ok {
-		scopes = make([]string, 0, len(scopesRaw))
-		for _, s := range scopesRaw {
-			if str, ok := s.(string); ok {
-				scopes = append(scopes, str)
-			}
-		}
-	}
-
-	// Check blacklist if configured (RFC 7519 §4.1.7 jti-based revocation)
-	if a.Blacklist != nil {
-		if jti, ok := claims["jti"].(string); ok && jti != "" {
-			if a.Blacklist.IsRevoked(jti) {
-				return "", nil, fmt.Errorf("token has been revoked")
-			}
-		}
-	}
-
-	return userID, scopes, nil
-}
-
-// ValidateAccessTokenFull validates a JWT access token and returns the standard claims
-// plus any custom claims (non-standard keys) as a separate map.
-//
-// Deprecated: prefer the transport-agnostic TokenValidator.ValidateToken(ctx,
-// *ValidateTokenRequest) (*ValidateTokenResponse, error) on the OneAuth.Validator —
-// its response carries the same standard + custom claims split via TokenInfo.
-// Retained as the implementation backing IntrospectionHandler today; consolidation
-// tracked separately.
-func (a *APIAuth) ValidateAccessTokenFull(tokenString string) (userID string, scopes []string, customClaims map[string]any, err error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-		return a.jwtKeyFunc(token)
-	})
-
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	if !token.Valid {
-		return "", nil, nil, fmt.Errorf("invalid token")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", nil, nil, fmt.Errorf("invalid claims")
-	}
-
-	// Verify token type: reject if explicitly set to something other than "access"
-	// (prevents OneAuth refresh tokens from being used as access tokens).
-	// External IdP tokens (Keycloak, Auth0) don't include this claim — accepted.
-	if tokenType, ok := claims["type"].(string); ok && tokenType != "access" {
-		return "", nil, nil, fmt.Errorf("invalid token type")
-	}
-
-	// Verify issuer if configured
-	if a.JWTIssuer != "" {
-		if iss, ok := claims["iss"].(string); !ok || iss != a.JWTIssuer {
-			return "", nil, nil, fmt.Errorf("invalid issuer")
-		}
-	}
-
-	// Verify audience if configured (RFC 7519 §4.1.3)
-	// Handles both string and array aud claims (#52)
-	if a.JWTAudience != "" {
-		if !matchesAudience(claims, a.JWTAudience) {
-			return "", nil, nil, fmt.Errorf("invalid audience: expected %q", a.JWTAudience)
-		}
-	}
-
-	// Extract user ID
-	userID, ok = claims["sub"].(string)
-	if !ok || userID == "" {
-		return "", nil, nil, fmt.Errorf("missing subject")
-	}
-
-	// Extract scopes
-	if scopesRaw, ok := claims["scopes"].([]any); ok {
-		scopes = make([]string, 0, len(scopesRaw))
-		for _, s := range scopesRaw {
-			if str, ok := s.(string); ok {
-				scopes = append(scopes, str)
-			}
-		}
-	}
-
-	// Extract custom claims (everything that's not a standard JWT claim)
-	customClaims = make(map[string]any)
-	for k, v := range claims {
-		if !standardClaims[k] {
-			customClaims[k] = v
-		}
-	}
-
-	// Check blacklist if configured
-	if a.Blacklist != nil {
-		if jti, ok := claims["jti"].(string); ok && jti != "" {
-			if a.Blacklist.IsRevoked(jti) {
-				return "", nil, nil, fmt.Errorf("token has been revoked")
-			}
-		}
-	}
-
-	return userID, scopes, customClaims, nil
-}
-
-// jwtKeyFunc is the shared key-selection function for jwt.Parse in APIAuth.
-// It supports both symmetric (HMAC) and asymmetric (RSA/ECDSA) keys.
-func (a *APIAuth) jwtKeyFunc(token *jwt.Token) (any, error) {
-	// Asymmetric: JWTVerifyKey is set
+// signingKeyForValidator returns the key used for verifying token signatures.
+// For asymmetric algorithms, this is the public verification key; for HMAC,
+// the same secret used to sign.
+func (a *APIAuth) signingKeyForValidator() any {
 	if a.JWTVerifyKey != nil {
-		switch a.JWTVerifyKey.(type) {
-		case *rsa.PublicKey:
-			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v (expected RS256)", token.Header["alg"])
-			}
-		case *ecdsa.PublicKey:
-			if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v (expected ES256)", token.Header["alg"])
-			}
-		default:
-			return nil, fmt.Errorf("unsupported verify key type: %T", a.JWTVerifyKey)
-		}
-		return a.JWTVerifyKey, nil
+		return a.JWTVerifyKey
 	}
-
-	// Symmetric: HMAC with JWTSecretKey
-	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	if a.JWTSigningKey != nil {
+		// Asymmetric mode without an explicit verify key — most code paths
+		// pass both, but fall back to the signing key so HS256 holders that
+		// set only JWTSigningKey still work.
+		return a.JWTSigningKey
 	}
-	return []byte(a.JWTSecretKey), nil
+	return []byte(a.JWTSecretKey)
 }
 
 // tokenResponse sends a successful token response

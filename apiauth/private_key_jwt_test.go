@@ -150,7 +150,13 @@ func TestPrivateKeyJWT_Success(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotEmpty(t, resp["access_token"], "expected access_token")
 
-	sub, _, err := f.auth.ValidateAccessToken(resp["access_token"].(string))
+	vresp, err := f.auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: resp["access_token"].(string)})
+
+
+	var sub string
+
+
+	if vresp != nil && vresp.Info != nil { sub = vresp.Info.Subject }
 	require.NoError(t, err)
 	assert.Equal(t, f.clientID, sub, "minted token sub MUST equal client_id")
 }

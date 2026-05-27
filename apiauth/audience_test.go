@@ -25,6 +25,7 @@ package apiauth_test
 //     Improper Access Control — accepting tokens meant for other services.
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -83,7 +84,14 @@ func TestAudience_WrongAud_Rejected(t *testing.T) {
 	// Token was minted for service-b
 	token := mintToken(t, secret, baseClaims("service-b"))
 
-	_, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var _ string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	if assert.Error(t, err, "ValidateAccessToken should reject token with wrong audience") {
 		assert.Contains(t, err.Error(), "audience")
 	}
@@ -102,7 +110,16 @@ func TestAudience_WrongAud_Rejected_Full(t *testing.T) {
 
 	token := mintToken(t, secret, baseClaims("service-b"))
 
-	_, _, _, err := auth.ValidateAccessTokenFull(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var _ string
+
+	var _ []string
+
+	var _ map[string]any
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes; _ = vresp.Info.CustomClaims }
+
 	if assert.Error(t, err, "ValidateAccessTokenFull should reject token with wrong audience") {
 		assert.Contains(t, err.Error(), "audience")
 	}
@@ -123,7 +140,14 @@ func TestAudience_MissingAud_Rejected(t *testing.T) {
 	// Token has no aud claim at all
 	token := mintToken(t, secret, baseClaims(""))
 
-	_, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var _ string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	if assert.Error(t, err, "ValidateAccessToken should reject token missing audience when JWTAudience is configured") {
 		assert.Contains(t, err.Error(), "audience")
 	}
@@ -144,7 +168,14 @@ func TestAudience_CorrectAud_Accepted(t *testing.T) {
 
 	token := mintToken(t, secret, baseClaims("service-a"))
 
-	userID, scopes, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var userID string
+
+	var scopes []string
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes }
+
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
 	assert.Contains(t, scopes, "read")
@@ -162,13 +193,20 @@ func TestAudience_NoAudienceConfigured_AcceptsAll(t *testing.T) {
 
 	// Token with some audience — should be accepted
 	token := mintToken(t, secret, baseClaims("any-service"))
-	userID, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var userID string
+	var _ []string
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
 
 	// Token with no audience — should also be accepted
 	token2 := mintToken(t, secret, baseClaims(""))
-	userID2, _, err := auth.ValidateAccessToken(token2)
+	vresp, err = auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token2})
+	var userID2 string
+	if vresp != nil && vresp.Info != nil { userID2 = vresp.Info.Subject }
+
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID2)
 }
@@ -186,7 +224,16 @@ func TestAudience_CorrectAud_Full(t *testing.T) {
 	claims["tenant"] = "acme"
 	token := mintToken(t, secret, claims)
 
-	userID, _, customClaims, err := auth.ValidateAccessTokenFull(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var userID string
+
+	var _ []string
+
+	var customClaims map[string]any
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
 	assert.Equal(t, "acme", customClaims["tenant"])
@@ -228,7 +275,14 @@ func TestAudience_ArrayAud_Matching_Accepted(t *testing.T) {
 
 	token := mintToken(t, secret, arrayAudClaims([]string{"service-a", "service-b"}))
 
-	userID, scopes, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var userID string
+
+	var scopes []string
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes }
+
 	assert.NoError(t, err, "ValidateAccessToken should accept token with matching audience in array")
 	assert.Equal(t, "user1", userID)
 	assert.Contains(t, scopes, "read")
@@ -249,7 +303,14 @@ func TestAudience_ArrayAud_NotMatching_Rejected(t *testing.T) {
 
 	token := mintToken(t, secret, arrayAudClaims([]string{"service-b", "service-c"}))
 
-	_, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var _ string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	if assert.Error(t, err, "ValidateAccessToken should reject token when expected audience not in array") {
 		assert.Contains(t, err.Error(), "audience")
 	}
@@ -271,7 +332,16 @@ func TestAudience_ArrayAud_Full_Accepted(t *testing.T) {
 	claims["tenant"] = "acme"
 	token := mintToken(t, secret, claims)
 
-	userID, _, customClaims, err := auth.ValidateAccessTokenFull(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var userID string
+
+	var _ []string
+
+	var customClaims map[string]any
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+
 	assert.NoError(t, err, "ValidateAccessTokenFull should accept token with matching audience in array")
 	assert.Equal(t, "user1", userID)
 	assert.Equal(t, "acme", customClaims["tenant"])
@@ -291,7 +361,16 @@ func TestAudience_ArrayAud_Full_Rejected(t *testing.T) {
 
 	token := mintToken(t, secret, arrayAudClaims([]string{"service-b"}))
 
-	_, _, _, err := auth.ValidateAccessTokenFull(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var _ string
+
+	var _ []string
+
+	var _ map[string]any
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes; _ = vresp.Info.CustomClaims }
+
 	if assert.Error(t, err, "ValidateAccessTokenFull should reject token when expected audience not in array") {
 		assert.Contains(t, err.Error(), "audience")
 	}
@@ -368,7 +447,14 @@ func TestAudience_EmptyArray_Rejected(t *testing.T) {
 
 	token := mintToken(t, secret, arrayAudClaims([]string{}))
 
-	_, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var _ string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	if assert.Error(t, err, "ValidateAccessToken should reject token with empty audience array") {
 		assert.Contains(t, err.Error(), "audience")
 	}
@@ -389,7 +475,14 @@ func TestAudience_SingleElementArray_Accepted(t *testing.T) {
 
 	token := mintToken(t, secret, arrayAudClaims([]string{"service-a"}))
 
-	userID, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var userID string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.NoError(t, err, "ValidateAccessToken should accept single-element array with matching audience")
 	assert.Equal(t, "user1", userID)
 }

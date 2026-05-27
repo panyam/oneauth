@@ -222,7 +222,14 @@ func TestCreateAccessToken_StandardClaimsGuard_RAR(t *testing.T) {
 		{Type: "legitimate", Actions: []string{"read"}},
 	}
 
-	token, _, err := auth.CreateAccessToken("user-1", []string{"read"}, details)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: details})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 
 	// Parse JWT and verify the custom claim was blocked
@@ -264,7 +271,14 @@ func TestIntrospection_WithRAR(t *testing.T) {
 		},
 	}
 
-	token, _, err := auth.CreateAccessToken("user-rar", []string{"payments"}, details)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-rar", Scopes: []string{"payments"}, AuthorizationDetails: details})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 
 	// Introspect the token
@@ -305,7 +319,14 @@ func TestIntrospection_WithoutRAR(t *testing.T) {
 
 	handler := apiauth.NewIntrospectionHandler(auth, ks)
 
-	token, _, err := auth.CreateAccessToken("user-normal", []string{"read"}, nil)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-normal", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 
 	rr := postIntrospect(t, handler, token, "resource-server", "rs-secret")
