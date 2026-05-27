@@ -41,9 +41,9 @@ func TestClientRegistrar_Register_DirectInvocation(t *testing.T) {
 	assert.Contains(t, got.RegistrationClientURI, "https://issuer.example/apps/dcr/")
 
 	// Persisted: the same client_id is retrievable from the store directly.
-	stored, err := store.GetApp(got.ClientID)
+	stored, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: got.ClientID})
 	require.NoError(t, err)
-	assert.Equal(t, "Direct Invoke", stored.ClientName)
+	assert.Equal(t, "Direct Invoke", stored.App.ClientName)
 }
 
 // TestClientRegistrar_RegisterLegacy_DirectInvocation verifies the proprietary
@@ -65,9 +65,9 @@ func TestClientRegistrar_RegisterLegacy_DirectInvocation(t *testing.T) {
 	assert.Equal(t, 50, resp.MaxRooms, "OneAuth-specific quota field surfaced")
 	assert.Equal(t, 2.5, resp.MaxMsgRate)
 
-	stored, err := store.GetApp(resp.ClientID)
+	stored, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: resp.ClientID})
 	require.NoError(t, err)
-	assert.Equal(t, 50, stored.MaxRooms, "quota persisted on AppRegistration")
+	assert.Equal(t, 50, stored.App.MaxRooms, "quota persisted on AppRegistration")
 }
 
 // TestClientRegistrar_RegisterLegacy_AsymmetricRequiresPublicKey verifies the
@@ -135,7 +135,7 @@ func TestClientRegistrar_DeleteClient_RemovesFromStoreAndKeyStore(t *testing.T) 
 	require.NoError(t, err)
 
 	// Store side: gone.
-	if _, err := store.GetApp(clientID); !errors.Is(err, admin.ErrAppNotFound) {
+	if _, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: clientID}); !errors.Is(err, admin.ErrAppNotFound) {
 		t.Errorf("store should report ErrAppNotFound after DeleteClient, got %v", err)
 	}
 	// KeyStore side: gone.

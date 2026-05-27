@@ -254,10 +254,11 @@ func TestEmailVerificationFlow(t *testing.T) {
 	testEmail := "verify@example.com"
 
 	// Create a verification token
-	token, err := tokenStore.CreateToken("testuser123", testEmail, localauth.VerificationTypeEmail, 24*time.Hour)
+	tokenResp, err := tokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "testuser123", Email: testEmail, Type: localauth.VerificationTypeEmail, ExpiryDuration: 24*time.Hour})
 	if err != nil {
 		t.Fatalf("Failed to create token: %v", err)
 	}
+	token := tokenResp.Token
 
 	// Create identity (unverified)
 	identity := &accounts.Identity{
@@ -378,10 +379,11 @@ func TestPasswordResetFlow(t *testing.T) {
 	})
 
 	// Create a reset token manually for testing
-	resetToken, err := tokenStore.CreateToken("", testEmail, localauth.VerificationTypePasswordReset, 1*time.Hour)
+	resetTokenResp, err := tokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: testEmail, Type: localauth.VerificationTypePasswordReset, ExpiryDuration: 1*time.Hour})
 	if err != nil {
 		t.Fatalf("Failed to create reset token: %v", err)
 	}
+	resetToken := resetTokenResp.Token
 
 	t.Run("reset password with valid token", func(t *testing.T) {
 		form := url.Values{}
@@ -430,10 +432,11 @@ func TestPasswordResetFlow(t *testing.T) {
 
 	t.Run("reset password with weak password", func(t *testing.T) {
 		// Create new token for this test
-		newToken, err := tokenStore.CreateToken("", testEmail, localauth.VerificationTypePasswordReset, 1*time.Hour)
+		newTokenResp, err := tokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: testEmail, Type: localauth.VerificationTypePasswordReset, ExpiryDuration: 1*time.Hour})
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
+		newToken := newTokenResp.Token
 
 		form := url.Values{}
 		form.Set("token", newToken.Token)

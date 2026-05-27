@@ -89,16 +89,20 @@ func TestMintResourceTokenWithKey_RSA_HasKid(t *testing.T) {
 }
 
 func TestCreateAccessToken_HasKid(t *testing.T) {
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: "my-secret",
-	}
-	tokenStr, _, err := auth.CreateAccessToken("user-1", []string{"read"}, nil)
+	issuer := apiauth.NewJWTIssuer(apiauth.JWTIssuerConfig{
+		SigningKey: []byte("my-secret"),
+		SigningAlg: "HS256",
+	})
+	resp, err := issuer.CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{
+		Subject: "user-1",
+		Scopes:  []string{"read"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	parser := jwt.NewParser()
-	parsed, _, err := parser.ParseUnverified(tokenStr, jwt.MapClaims{})
+	parsed, _, err := parser.ParseUnverified(resp.Token, jwt.MapClaims{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@
 package gorm
 
 import (
+	"context"
 	"time"
 
 	"github.com/panyam/oneauth/admin"
@@ -61,52 +62,61 @@ func NewAppStore(db *gorm.DB) *AppStore {
 	return &AppStore{db: db}
 }
 
-// SaveApp inserts or replaces the registration for app.ClientID. Empty
+// SaveApp inserts or replaces the registration for req.App.ClientID. Empty
 // client_id is rejected with the same error pattern as InMemoryAppStore.
-func (s *AppStore) SaveApp(app *admin.AppRegistration) error {
-	if app == nil || app.ClientID == "" {
-		return errClientIDRequired
+func (s *AppStore) SaveApp(ctx context.Context, req *admin.SaveAppRequest) (*admin.SaveAppResponse, error) {
+	if req == nil || req.App == nil || req.App.ClientID == "" {
+		return nil, errClientIDRequired
 	}
-	model := appRegistrationToModel(app)
-	return s.db.Save(model).Error
+	model := appRegistrationToModel(req.App)
+	if err := s.db.WithContext(ctx).Save(model).Error; err != nil {
+		return nil, err
+	}
+	return &admin.SaveAppResponse{}, nil
 }
 
-// GetApp returns the registration for clientID, or admin.ErrAppNotFound.
-func (s *AppStore) GetApp(clientID string) (*admin.AppRegistration, error) {
+// GetApp returns the registration for req.ClientID, or admin.ErrAppNotFound.
+func (s *AppStore) GetApp(ctx context.Context, req *admin.GetAppRequest) (*admin.GetAppResponse, error) {
+	if req == nil {
+		return nil, errClientIDRequired
+	}
 	var model AppRegistrationModel
-	if err := s.db.First(&model, "client_id = ?", clientID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "client_id = ?", req.ClientID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, admin.ErrAppNotFound
 		}
 		return nil, err
 	}
-	return modelToAppRegistration(&model), nil
+	return &admin.GetAppResponse{App: modelToAppRegistration(&model)}, nil
 }
 
 // ListApps returns every registration in the store. Order is unspecified.
-func (s *AppStore) ListApps() ([]*admin.AppRegistration, error) {
+func (s *AppStore) ListApps(ctx context.Context, req *admin.ListAppsRequest) (*admin.ListAppsResponse, error) {
 	var models []AppRegistrationModel
-	if err := s.db.Find(&models).Error; err != nil {
+	if err := s.db.WithContext(ctx).Find(&models).Error; err != nil {
 		return nil, err
 	}
 	out := make([]*admin.AppRegistration, len(models))
 	for i := range models {
 		out[i] = modelToAppRegistration(&models[i])
 	}
-	return out, nil
+	return &admin.ListAppsResponse{Apps: out}, nil
 }
 
-// DeleteApp removes the registration for clientID. Returns admin.ErrAppNotFound
+// DeleteApp removes the registration for req.ClientID. Returns admin.ErrAppNotFound
 // if no such registration exists, matching InMemoryAppStore semantics.
-func (s *AppStore) DeleteApp(clientID string) error {
-	result := s.db.Delete(&AppRegistrationModel{}, "client_id = ?", clientID)
+func (s *AppStore) DeleteApp(ctx context.Context, req *admin.DeleteAppRequest) (*admin.DeleteAppResponse, error) {
+	if req == nil {
+		return nil, errClientIDRequired
+	}
+	result := s.db.WithContext(ctx).Delete(&AppRegistrationModel{}, "client_id = ?", req.ClientID)
 	if result.Error != nil {
-		return result.Error
+		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return admin.ErrAppNotFound
+		return nil, admin.ErrAppNotFound
 	}
-	return nil
+	return &admin.DeleteAppResponse{}, nil
 }
 
 // errClientIDRequired matches the InMemoryAppStore error message so the

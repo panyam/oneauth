@@ -274,7 +274,10 @@ func NewTokenStore(db *gorm.DB) *TokenStore {
 	return &TokenStore{db: db}
 }
 
-func (s *TokenStore) CreateToken(subject, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
+func (s *TokenStore) CreateToken(ctx context.Context, req *localauth.CreateVerificationTokenRequest) (*localauth.CreateVerificationTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CreateToken: req is required")
+	}
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -282,22 +285,25 @@ func (s *TokenStore) CreateToken(subject, email string, tokenType localauth.Veri
 
 	model := &VerificationTokenModel{
 		Token:     token,
-		Type:      tokenType,
-		Subject:   subject,
-		Email:     email,
-		ExpiresAt: time.Now().Add(expiryDuration),
+		Type:      req.Type,
+		Subject:   req.Subject,
+		Email:     req.Email,
+		ExpiresAt: time.Now().Add(req.ExpiryDuration),
 	}
 
-	if err := s.db.Create(model).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(model).Error; err != nil {
 		return nil, err
 	}
 
-	return model.ToVerificationToken(), nil
+	return &localauth.CreateVerificationTokenResponse{Token: model.ToVerificationToken()}, nil
 }
 
-func (s *TokenStore) GetToken(token string) (*localauth.VerificationToken, error) {
+func (s *TokenStore) GetToken(ctx context.Context, req *localauth.GetVerificationTokenRequest) (*localauth.GetVerificationTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetToken: req is required")
+	}
 	var model VerificationTokenModel
-	if err := s.db.First(&model, "token = ?", token).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "token = ?", req.Token).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("token not found")
 		}
@@ -306,19 +312,31 @@ func (s *TokenStore) GetToken(token string) (*localauth.VerificationToken, error
 
 	verToken := model.ToVerificationToken()
 	if verToken.IsExpired() {
-		_ = s.DeleteToken(token)
+		_, _ = s.DeleteToken(ctx, &localauth.DeleteVerificationTokenRequest{Token: req.Token})
 		return nil, fmt.Errorf("token expired")
 	}
 
-	return verToken, nil
+	return &localauth.GetVerificationTokenResponse{Token: verToken}, nil
 }
 
-func (s *TokenStore) DeleteToken(token string) error {
-	return s.db.Delete(&VerificationTokenModel{}, "token = ?", token).Error
+func (s *TokenStore) DeleteToken(ctx context.Context, req *localauth.DeleteVerificationTokenRequest) (*localauth.DeleteVerificationTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteToken: req is required")
+	}
+	if err := s.db.WithContext(ctx).Delete(&VerificationTokenModel{}, "token = ?", req.Token).Error; err != nil {
+		return nil, err
+	}
+	return &localauth.DeleteVerificationTokenResponse{}, nil
 }
 
-func (s *TokenStore) DeleteSubjectTokens(subject string, tokenType localauth.VerificationType) error {
-	return s.db.Delete(&VerificationTokenModel{}, "subject = ? AND type = ?", subject, tokenType).Error
+func (s *TokenStore) DeleteSubjectTokens(ctx context.Context, req *localauth.DeleteSubjectVerificationTokensRequest) (*localauth.DeleteSubjectVerificationTokensResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteSubjectTokens: req is required")
+	}
+	if err := s.db.WithContext(ctx).Delete(&VerificationTokenModel{}, "subject = ? AND type = ?", req.Subject, req.Type).Error; err != nil {
+		return nil, err
+	}
+	return &localauth.DeleteSubjectVerificationTokensResponse{}, nil
 }
 
 // =============================================================================

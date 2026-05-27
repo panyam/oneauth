@@ -6,6 +6,7 @@
 package fs_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -33,6 +34,7 @@ func TestFSAppStore_Contract(t *testing.T) {
 // regressions in that contract.
 func TestFSAppStore_PathTraversalRejected(t *testing.T) {
 	store := fs.NewFSAppStore(t.TempDir())
+	ctx := context.Background()
 
 	for _, badID := range []string{
 		"../etc/passwd",
@@ -43,16 +45,16 @@ func TestFSAppStore_PathTraversalRejected(t *testing.T) {
 		".",
 	} {
 		t.Run(badID, func(t *testing.T) {
-			err := store.SaveApp(&admin.AppRegistration{ClientID: badID, SigningAlg: "HS256", CreatedAt: time.Now()})
+			_, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{ClientID: badID, SigningAlg: "HS256", CreatedAt: time.Now()}})
 			if err == nil {
 				t.Fatalf("SaveApp(%q) should have rejected the traversal attempt", badID)
 			}
 			// Same defense at read + delete time so we never load a path
 			// composed by a non-safeName route.
-			if _, err := store.GetApp(badID); err == nil {
+			if _, err := store.GetApp(ctx, &admin.GetAppRequest{ClientID: badID}); err == nil {
 				t.Errorf("GetApp(%q) should have rejected the traversal attempt", badID)
 			}
-			if err := store.DeleteApp(badID); err == nil {
+			if _, err := store.DeleteApp(ctx, &admin.DeleteAppRequest{ClientID: badID}); err == nil {
 				t.Errorf("DeleteApp(%q) should have rejected the traversal attempt", badID)
 			}
 		})
@@ -67,9 +69,10 @@ func TestFSAppStore_PathTraversalRejected(t *testing.T) {
 func TestFSAppStore_CorruptFile_GetReturnsError(t *testing.T) {
 	dir := t.TempDir()
 	store := fs.NewFSAppStore(dir)
+	ctx := context.Background()
 
 	// Save a real entry to materialize the apps/ directory.
-	if err := store.SaveApp(&admin.AppRegistration{ClientID: "good", SigningAlg: "HS256", CreatedAt: time.Now()}); err != nil {
+	if _, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{ClientID: "good", SigningAlg: "HS256", CreatedAt: time.Now()}}); err != nil {
 		t.Fatalf("SaveApp: %v", err)
 	}
 	// Drop a hand-corrupted file alongside it.
@@ -78,7 +81,7 @@ func TestFSAppStore_CorruptFile_GetReturnsError(t *testing.T) {
 		t.Fatalf("seed corrupt file: %v", err)
 	}
 
-	_, err := store.GetApp("corrupt")
+	_, err := store.GetApp(ctx, &admin.GetAppRequest{ClientID: "corrupt"})
 	if err == nil {
 		t.Fatalf("GetApp on corrupt file should have errored")
 	}
@@ -88,12 +91,12 @@ func TestFSAppStore_CorruptFile_GetReturnsError(t *testing.T) {
 
 	// Good entry still readable — corruption of one file does not poison
 	// the rest of the store.
-	got, err := store.GetApp("good")
+	got, err := store.GetApp(ctx, &admin.GetAppRequest{ClientID: "good"})
 	if err != nil {
 		t.Fatalf("GetApp(good): %v", err)
 	}
-	if got.ClientID != "good" {
-		t.Errorf("ClientID=%q, want good", got.ClientID)
+	if got.App.ClientID != "good" {
+		t.Errorf("ClientID=%q, want good", got.App.ClientID)
 	}
 }
 
@@ -103,9 +106,10 @@ func TestFSAppStore_CorruptFile_GetReturnsError(t *testing.T) {
 func TestFSAppStore_CorruptFile_ListSkips(t *testing.T) {
 	dir := t.TempDir()
 	store := fs.NewFSAppStore(dir)
+	ctx := context.Background()
 
 	for _, id := range []string{"alpha", "beta"} {
-		if err := store.SaveApp(&admin.AppRegistration{ClientID: id, SigningAlg: "HS256", CreatedAt: time.Now()}); err != nil {
+		if _, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{ClientID: id, SigningAlg: "HS256", CreatedAt: time.Now()}}); err != nil {
 			t.Fatalf("SaveApp(%s): %v", id, err)
 		}
 	}
@@ -113,12 +117,12 @@ func TestFSAppStore_CorruptFile_ListSkips(t *testing.T) {
 		t.Fatalf("seed trash file: %v", err)
 	}
 
-	apps, err := store.ListApps()
+	resp, err := store.ListApps(ctx, &admin.ListAppsRequest{})
 	if err != nil {
 		t.Fatalf("ListApps: %v", err)
 	}
-	if len(apps) != 2 {
-		t.Errorf("expected 2 apps (corrupt file skipped), got %d", len(apps))
+	if len(resp.Apps) != 2 {
+		t.Errorf("expected 2 apps (corrupt file skipped), got %d", len(resp.Apps))
 	}
 }
 
@@ -128,6 +132,7 @@ func TestFSAppStore_CorruptFile_ListSkips(t *testing.T) {
 func TestFSAppStore_LazyDirectoryCreation(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "does-not-exist-yet", "nor-this")
 	store := fs.NewFSAppStore(dir)
+	ctx := context.Background()
 
 	// Pre-condition: the directory does not exist.
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
@@ -135,7 +140,7 @@ func TestFSAppStore_LazyDirectoryCreation(t *testing.T) {
 	}
 
 	// First write must succeed and materialize the directory.
-	if err := store.SaveApp(&admin.AppRegistration{ClientID: "lazy", SigningAlg: "HS256", CreatedAt: time.Now()}); err != nil {
+	if _, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{ClientID: "lazy", SigningAlg: "HS256", CreatedAt: time.Now()}}); err != nil {
 		t.Fatalf("SaveApp: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "apps")); err != nil {
@@ -145,12 +150,12 @@ func TestFSAppStore_LazyDirectoryCreation(t *testing.T) {
 	// Pre-condition for ListApps on a fresh store with no writes: returns
 	// an empty slice, not an error. Verify against a separate path.
 	emptyStore := fs.NewFSAppStore(filepath.Join(t.TempDir(), "another-fresh-dir"))
-	apps, err := emptyStore.ListApps()
+	emptyResp, err := emptyStore.ListApps(ctx, &admin.ListAppsRequest{})
 	if err != nil {
 		t.Errorf("ListApps on fresh store: %v", err)
 	}
-	if len(apps) != 0 {
-		t.Errorf("ListApps on fresh store should return empty slice, got %d entries", len(apps))
+	if len(emptyResp.Apps) != 0 {
+		t.Errorf("ListApps on fresh store should return empty slice, got %d entries", len(emptyResp.Apps))
 	}
 }
 
@@ -164,12 +169,13 @@ func TestFSAppStore_LazyDirectoryCreation(t *testing.T) {
 func TestFSAppStore_OverwriteIsAtomicallyVisible(t *testing.T) {
 	dir := t.TempDir()
 	store := fs.NewFSAppStore(dir)
+	ctx := context.Background()
 
 	const id = "overwriter"
 	for i, name := range []string{"first", "second", "third"} {
-		if err := store.SaveApp(&admin.AppRegistration{
+		if _, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{
 			ClientID: id, ClientName: name, SigningAlg: "HS256", CreatedAt: time.Now(),
-		}); err != nil {
+		}}); err != nil {
 			t.Fatalf("SaveApp #%d: %v", i, err)
 		}
 

@@ -7,6 +7,7 @@ package admin_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -23,18 +24,19 @@ import (
 // the registrar over the same store is the in-process simulation of restart.
 func TestAppRegistrar_HydratesFromStore(t *testing.T) {
 	store := admin.NewInMemoryAppStore()
-	store.SaveApp(&admin.AppRegistration{
+	ctx := context.Background()
+	store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{
 		ClientID:     "app_pre_existing",
 		ClientDomain: "example.com",
 		SigningAlg:   "HS256",
 		CreatedAt:    time.Now(),
-	})
-	store.SaveApp(&admin.AppRegistration{
+	}})
+	store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{
 		ClientID:   "app_revoked",
 		SigningAlg: "RS256",
 		Revoked:    true,
 		CreatedAt:  time.Now(),
-	})
+	}})
 
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
@@ -71,16 +73,17 @@ func TestAppRegistrar_SaveRegistration_PersistsToStore(t *testing.T) {
 		SigningAlg:   "HS256",
 		CreatedAt:    time.Now(),
 	}
-	if err := reg.SaveRegistration(app); err != nil {
+	ctx := context.Background()
+	if err := reg.SaveRegistration(ctx, app); err != nil {
 		t.Fatalf("SaveRegistration: %v", err)
 	}
 
-	got, err := store.GetApp("app_via_save")
+	got, err := store.GetApp(ctx, &admin.GetAppRequest{ClientID: "app_via_save"})
 	if err != nil {
 		t.Fatalf("store.GetApp: %v", err)
 	}
-	if got.ClientDomain != "save.example" {
-		t.Errorf("ClientDomain=%q, want save.example", got.ClientDomain)
+	if got.App.ClientDomain != "save.example" {
+		t.Errorf("ClientDomain=%q, want save.example", got.App.ClientDomain)
 	}
 }
 
@@ -106,12 +109,12 @@ func TestAppRegistrar_HandleRegister_PersistsToStore(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	got, err := store.GetApp(resp.ClientID)
+	got, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: resp.ClientID})
 	if err != nil {
 		t.Fatalf("store.GetApp(%s): %v", resp.ClientID, err)
 	}
-	if got.ClientDomain != "register.example" {
-		t.Errorf("ClientDomain=%q, want register.example", got.ClientDomain)
+	if got.App.ClientDomain != "register.example" {
+		t.Errorf("ClientDomain=%q, want register.example", got.App.ClientDomain)
 	}
 }
 
@@ -143,7 +146,7 @@ func TestAppRegistrar_HandleDeleteApp_PersistsDeletion(t *testing.T) {
 		t.Fatalf("delete: status=%d body=%s", delRR.Code, delRR.Body.String())
 	}
 
-	if _, err := store.GetApp(registered.ClientID); err != admin.ErrAppNotFound {
+	if _, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: registered.ClientID}); err != admin.ErrAppNotFound {
 		t.Errorf("store should not contain deleted app, got err=%v", err)
 	}
 }
@@ -175,10 +178,11 @@ func TestDCR_PersistsViaRegistrar(t *testing.T) {
 	}
 	json.Unmarshal(rr.Body.Bytes(), &resp)
 
-	got, err := store.GetApp(resp.ClientID)
+	getResp, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: resp.ClientID})
 	if err != nil {
 		t.Fatalf("store.GetApp(%s): %v", resp.ClientID, err)
 	}
+	got := getResp.App
 	if got.ClientName != "DCR Test App" {
 		t.Errorf("ClientName=%q, want DCR Test App", got.ClientName)
 	}

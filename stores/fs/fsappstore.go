@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -46,39 +47,45 @@ func (s *FSAppStore) appPath(clientID string) (string, error) {
 	return filepath.Join(s.appsDir(), safeID+".json"), nil
 }
 
-// SaveApp persists app to disk. Overwrites any existing registration with
+// SaveApp persists req.App to disk. Overwrites any existing registration with
 // the same client_id. Empty client_id is rejected.
-func (s *FSAppStore) SaveApp(app *admin.AppRegistration) error {
-	if app == nil || app.ClientID == "" {
-		return fmt.Errorf("AppRegistration.ClientID required")
+func (s *FSAppStore) SaveApp(ctx context.Context, req *admin.SaveAppRequest) (*admin.SaveAppResponse, error) {
+	if req == nil || req.App == nil || req.App.ClientID == "" {
+		return nil, fmt.Errorf("AppRegistration.ClientID required")
 	}
 
-	path, err := s.appPath(app.ClientID)
+	path, err := s.appPath(req.App.ClientID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if err := os.MkdirAll(s.appsDir(), 0700); err != nil {
-		return fmt.Errorf("create apps dir: %w", err)
+		return nil, fmt.Errorf("create apps dir: %w", err)
 	}
 
-	data, err := json.MarshalIndent(app, "", "  ")
+	data, err := json.MarshalIndent(req.App, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal AppRegistration: %w", err)
+		return nil, fmt.Errorf("marshal AppRegistration: %w", err)
 	}
-	return writeAtomicFile(path, data)
+	if err := writeAtomicFile(path, data); err != nil {
+		return nil, err
+	}
+	return &admin.SaveAppResponse{}, nil
 }
 
-// GetApp returns the registration for clientID, or admin.ErrAppNotFound if
+// GetApp returns the registration for req.ClientID, or admin.ErrAppNotFound if
 // no such file exists. A corrupt JSON file surfaces as a parse error rather
 // than ErrAppNotFound — callers should distinguish "registration absent"
 // from "registration unreadable" so an unexpected on-disk corruption isn't
 // silently treated as a missing client.
-func (s *FSAppStore) GetApp(clientID string) (*admin.AppRegistration, error) {
-	path, err := s.appPath(clientID)
+func (s *FSAppStore) GetApp(ctx context.Context, req *admin.GetAppRequest) (*admin.GetAppResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetApp: req is required")
+	}
+	path, err := s.appPath(req.ClientID)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +104,7 @@ func (s *FSAppStore) GetApp(clientID string) (*admin.AppRegistration, error) {
 	if err := json.Unmarshal(data, &app); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", filepath.Base(path), err)
 	}
-	return &app, nil
+	return &admin.GetAppResponse{App: &app}, nil
 }
 
 // ListApps returns every registration in the store. Files that fail to
@@ -108,7 +115,7 @@ func (s *FSAppStore) GetApp(clientID string) (*admin.AppRegistration, error) {
 //
 // Returns an empty slice (not an error) when the apps dir does not yet
 // exist, matching the InMemory backend's "fresh store has no apps" shape.
-func (s *FSAppStore) ListApps() ([]*admin.AppRegistration, error) {
+func (s *FSAppStore) ListApps(ctx context.Context, req *admin.ListAppsRequest) (*admin.ListAppsResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -116,7 +123,7 @@ func (s *FSAppStore) ListApps() ([]*admin.AppRegistration, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []*admin.AppRegistration{}, nil
+			return &admin.ListAppsResponse{Apps: []*admin.AppRegistration{}}, nil
 		}
 		return nil, err
 	}
@@ -135,26 +142,31 @@ func (s *FSAppStore) ListApps() ([]*admin.AppRegistration, error) {
 			// Skip corrupt files — see godoc for rationale.
 			continue
 		}
-		// Take address of a fresh copy; ranging by value re-uses the loop var.
 		clone := app
 		out = append(out, &clone)
 	}
-	return out, nil
+	return &admin.ListAppsResponse{Apps: out}, nil
 }
 
-// DeleteApp removes the registration for clientID. Returns admin.ErrAppNotFound
+// DeleteApp removes the registration for req.ClientID. Returns admin.ErrAppNotFound
 // if no such registration exists, matching InMemoryAppStore semantics.
-func (s *FSAppStore) DeleteApp(clientID string) error {
-	path, err := s.appPath(clientID)
+func (s *FSAppStore) DeleteApp(ctx context.Context, req *admin.DeleteAppRequest) (*admin.DeleteAppResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteApp: req is required")
+	}
+	path, err := s.appPath(req.ClientID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return admin.ErrAppNotFound
+		return nil, admin.ErrAppNotFound
 	}
-	return os.Remove(path)
+	if err := os.Remove(path); err != nil {
+		return nil, err
+	}
+	return &admin.DeleteAppResponse{}, nil
 }

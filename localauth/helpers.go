@@ -136,10 +136,11 @@ func NewCredentialsValidator(identityStore accounts.IdentityStore, channelStore 
 func NewVerifyEmailFunc(identityStore accounts.IdentityStore, tokenStore VerificationTokenStore) VerifyEmailFunc {
 	return func(token string) error {
 		ctx := context.Background()
-		verToken, err := tokenStore.GetToken(token)
+		getResp, err := tokenStore.GetToken(ctx, &GetVerificationTokenRequest{Token: token})
 		if err != nil {
 			return fmt.Errorf("invalid or expired token")
 		}
+		verToken := getResp.Token
 
 		if verToken.Type != VerificationTypeEmail {
 			return fmt.Errorf("invalid token type")
@@ -149,7 +150,7 @@ func NewVerifyEmailFunc(identityStore accounts.IdentityStore, tokenStore Verific
 			return fmt.Errorf("failed to verify email: %w", err)
 		}
 
-		if err := tokenStore.DeleteToken(token); err != nil {
+		if _, err := tokenStore.DeleteToken(ctx, &DeleteVerificationTokenRequest{Token: token}); err != nil {
 			log.Printf("Warning: failed to delete token: %v", err)
 		}
 

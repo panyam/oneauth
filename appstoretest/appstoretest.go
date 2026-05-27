@@ -4,6 +4,7 @@
 package appstoretest
 
 import (
+	"context"
 	"sort"
 	"testing"
 	"time"
@@ -27,6 +28,22 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("AllFieldsRoundTrip", func(t *testing.T) { TestAllFieldsRoundTrip(t, factory) })
 }
 
+func saveApp(t *testing.T, s admin.AppRegistrationStore, app *admin.AppRegistration) {
+	t.Helper()
+	if _, err := s.SaveApp(context.Background(), &admin.SaveAppRequest{App: app}); err != nil {
+		t.Fatalf("SaveApp failed: %v", err)
+	}
+}
+
+func getApp(t *testing.T, s admin.AppRegistrationStore, clientID string) (*admin.AppRegistration, error) {
+	t.Helper()
+	resp, err := s.GetApp(context.Background(), &admin.GetAppRequest{ClientID: clientID})
+	if err != nil {
+		return nil, err
+	}
+	return resp.App, nil
+}
+
 // TestSaveAndGet verifies that SaveApp followed by GetApp returns the saved registration.
 func TestSaveAndGet(t *testing.T, factory Factory) {
 	s := factory(t)
@@ -38,11 +55,9 @@ func TestSaveAndGet(t *testing.T, factory Factory) {
 		CreatedAt:    time.Now().UTC().Truncate(time.Second),
 	}
 
-	if err := s.SaveApp(app); err != nil {
-		t.Fatalf("SaveApp failed: %v", err)
-	}
+	saveApp(t, s, app)
 
-	got, err := s.GetApp("app_abc")
+	got, err := getApp(t, s, "app_abc")
 	if err != nil {
 		t.Fatalf("GetApp failed: %v", err)
 	}
@@ -61,7 +76,7 @@ func TestSaveAndGet(t *testing.T, factory Factory) {
 func TestNotFound(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	_, err := s.GetApp("does-not-exist")
+	_, err := s.GetApp(context.Background(), &admin.GetAppRequest{ClientID: "does-not-exist"})
 	if err != admin.ErrAppNotFound {
 		t.Errorf("expected ErrAppNotFound, got %v", err)
 	}
@@ -73,15 +88,13 @@ func TestDeleteApp(t *testing.T, factory Factory) {
 	s := factory(t)
 
 	app := &admin.AppRegistration{ClientID: "app_del", SigningAlg: "HS256", CreatedAt: time.Now()}
-	if err := s.SaveApp(app); err != nil {
-		t.Fatalf("SaveApp failed: %v", err)
-	}
+	saveApp(t, s, app)
 
-	if err := s.DeleteApp("app_del"); err != nil {
+	if _, err := s.DeleteApp(context.Background(), &admin.DeleteAppRequest{ClientID: "app_del"}); err != nil {
 		t.Fatalf("DeleteApp failed: %v", err)
 	}
 
-	if _, err := s.GetApp("app_del"); err != admin.ErrAppNotFound {
+	if _, err := s.GetApp(context.Background(), &admin.GetAppRequest{ClientID: "app_del"}); err != admin.ErrAppNotFound {
 		t.Errorf("expected ErrAppNotFound after delete, got %v", err)
 	}
 }
@@ -91,7 +104,7 @@ func TestDeleteApp(t *testing.T, factory Factory) {
 func TestDeleteNonexistent(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	err := s.DeleteApp("never-existed")
+	_, err := s.DeleteApp(context.Background(), &admin.DeleteAppRequest{ClientID: "never-existed"})
 	if err != admin.ErrAppNotFound {
 		t.Errorf("expected ErrAppNotFound, got %v", err)
 	}
@@ -105,14 +118,10 @@ func TestOverwriteApp(t *testing.T, factory Factory) {
 	original := &admin.AppRegistration{ClientID: "app_ow", ClientDomain: "old.example", SigningAlg: "HS256", CreatedAt: time.Now()}
 	updated := &admin.AppRegistration{ClientID: "app_ow", ClientDomain: "new.example", SigningAlg: "RS256", CreatedAt: time.Now()}
 
-	if err := s.SaveApp(original); err != nil {
-		t.Fatalf("SaveApp original failed: %v", err)
-	}
-	if err := s.SaveApp(updated); err != nil {
-		t.Fatalf("SaveApp updated failed: %v", err)
-	}
+	saveApp(t, s, original)
+	saveApp(t, s, updated)
 
-	got, err := s.GetApp("app_ow")
+	got, err := getApp(t, s, "app_ow")
 	if err != nil {
 		t.Fatalf("GetApp failed: %v", err)
 	}
@@ -129,15 +138,14 @@ func TestListApps(t *testing.T, factory Factory) {
 	s := factory(t)
 
 	for _, id := range []string{"app_alpha", "app_beta", "app_gamma"} {
-		if err := s.SaveApp(&admin.AppRegistration{ClientID: id, SigningAlg: "HS256", CreatedAt: time.Now()}); err != nil {
-			t.Fatalf("SaveApp %s failed: %v", id, err)
-		}
+		saveApp(t, s, &admin.AppRegistration{ClientID: id, SigningAlg: "HS256", CreatedAt: time.Now()})
 	}
 
-	apps, err := s.ListApps()
+	listResp, err := s.ListApps(context.Background(), &admin.ListAppsRequest{})
 	if err != nil {
 		t.Fatalf("ListApps failed: %v", err)
 	}
+	apps := listResp.Apps
 	if len(apps) != 3 {
 		t.Fatalf("expected 3 apps, got %d", len(apps))
 	}
@@ -160,12 +168,12 @@ func TestListApps(t *testing.T, factory Factory) {
 func TestListAppsEmpty(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	apps, err := s.ListApps()
+	listResp, err := s.ListApps(context.Background(), &admin.ListAppsRequest{})
 	if err != nil {
 		t.Fatalf("ListApps failed: %v", err)
 	}
-	if len(apps) != 0 {
-		t.Errorf("expected 0 apps, got %d", len(apps))
+	if len(listResp.Apps) != 0 {
+		t.Errorf("expected 0 apps, got %d", len(listResp.Apps))
 	}
 }
 
@@ -176,11 +184,9 @@ func TestPersistence(t *testing.T, factory Factory) {
 	s := factory(t)
 
 	app := &admin.AppRegistration{ClientID: "app_persist", ClientDomain: "p.example", SigningAlg: "HS256", CreatedAt: time.Now()}
-	if err := s.SaveApp(app); err != nil {
-		t.Fatalf("SaveApp failed: %v", err)
-	}
+	saveApp(t, s, app)
 
-	got, err := s.GetApp("app_persist")
+	got, err := getApp(t, s, "app_persist")
 	if err != nil {
 		t.Fatalf("GetApp after save failed: %v", err)
 	}
@@ -215,11 +221,9 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 		RegistrationClientURI:     "https://issuer.example/apps/dcr/app_full",
 	}
 
-	if err := s.SaveApp(app); err != nil {
-		t.Fatalf("SaveApp failed: %v", err)
-	}
+	saveApp(t, s, app)
 
-	got, err := s.GetApp("app_full")
+	got, err := getApp(t, s, "app_full")
 	if err != nil {
 		t.Fatalf("GetApp failed: %v", err)
 	}

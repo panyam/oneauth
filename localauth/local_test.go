@@ -3,7 +3,7 @@
 package localauth_test
 
 import (
-	"github.com/panyam/oneauth/localauth"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +12,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/panyam/oneauth/accounts"
+	"github.com/panyam/oneauth/localauth"
 	"github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
-	"github.com/panyam/oneauth/accounts"
 )
 
 // testAuthService wraps the stores for testing
@@ -237,13 +239,14 @@ func TestTokenExpiry(t *testing.T) {
 	defer cleanup(t, tmpDir)
 
 	// Create an expired token
-	token, err := service.TokenStore.CreateToken("testuser", "test@example.com", localauth.VerificationTypeEmail, -1*time.Hour)
+	tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "testuser", Email: "test@example.com", Type: localauth.VerificationTypeEmail, ExpiryDuration: -1*time.Hour})
 	if err != nil {
 		t.Fatalf("Failed to create token: %v", err)
 	}
+	token := tokenResp.Token
 
 	// Try to get the token - should fail
-	_, err = service.TokenStore.GetToken(token.Token)
+	_, err = service.TokenStore.GetToken(context.Background(), &localauth.GetVerificationTokenRequest{Token: token.Token})
 	if err == nil {
 		t.Error("Expected error for expired token")
 	}
@@ -550,10 +553,11 @@ func TestResetPasswordForm(t *testing.T) {
 		localAuth, service, _, tmpDir := setupPasswordResetAuth(t)
 		defer cleanup(t, tmpDir)
 
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
+		tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: "reset@example.com", Type: localauth.VerificationTypePasswordReset, ExpiryDuration: localauth.VerificationExpiryPasswordReset})
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
+		token := tokenResp.Token
 
 		req := httptest.NewRequest(http.MethodGet, "/auth/reset-password?token="+token.Token, nil)
 		rr := httptest.NewRecorder()
@@ -592,10 +596,11 @@ func TestResetPasswordForm(t *testing.T) {
 
 		localAuth.ResetPasswordURL = "/reset-password"
 
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
+		tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: "reset@example.com", Type: localauth.VerificationTypePasswordReset, ExpiryDuration: localauth.VerificationExpiryPasswordReset})
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
+		token := tokenResp.Token
 
 		req := httptest.NewRequest(http.MethodGet, "/auth/reset-password?token="+token.Token, nil)
 		rr := httptest.NewRecorder()
@@ -640,10 +645,11 @@ func TestResetPassword(t *testing.T) {
 		defer cleanup(t, tmpDir)
 
 		// Create a valid reset token
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
+		tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: "reset@example.com", Type: localauth.VerificationTypePasswordReset, ExpiryDuration: localauth.VerificationExpiryPasswordReset})
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
+		token := tokenResp.Token
 
 		form := url.Values{}
 		form.Set("token", token.Token)
@@ -668,7 +674,7 @@ func TestResetPassword(t *testing.T) {
 		}
 
 		// Token should be deleted after use
-		_, err = service.TokenStore.GetToken(token.Token)
+		_, err = service.TokenStore.GetToken(context.Background(), &localauth.GetVerificationTokenRequest{Token: token.Token})
 		if err == nil {
 			t.Error("Expected token to be deleted after use")
 		}
@@ -680,10 +686,11 @@ func TestResetPassword(t *testing.T) {
 
 		localAuth.ResetPasswordURL = "/reset-password"
 
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
+		tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: "reset@example.com", Type: localauth.VerificationTypePasswordReset, ExpiryDuration: localauth.VerificationExpiryPasswordReset})
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
+		token := tokenResp.Token
 
 		form := url.Values{}
 		form.Set("token", token.Token)
@@ -733,10 +740,11 @@ func TestResetPassword(t *testing.T) {
 		localAuth, service, _, tmpDir := setupPasswordResetAuth(t)
 		defer cleanup(t, tmpDir)
 
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, localauth.VerificationExpiryPasswordReset)
+		tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: "reset@example.com", Type: localauth.VerificationTypePasswordReset, ExpiryDuration: localauth.VerificationExpiryPasswordReset})
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
+		token := tokenResp.Token
 
 		form := url.Values{}
 		form.Set("token", token.Token)
@@ -779,10 +787,11 @@ func TestResetPassword(t *testing.T) {
 		defer cleanup(t, tmpDir)
 
 		// Create an expired token
-		token, err := service.TokenStore.CreateToken("", "reset@example.com", localauth.VerificationTypePasswordReset, -1*time.Hour)
+		tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: "reset@example.com", Type: localauth.VerificationTypePasswordReset, ExpiryDuration: -1*time.Hour})
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
+		token := tokenResp.Token
 
 		form := url.Values{}
 		form.Set("token", token.Token)
