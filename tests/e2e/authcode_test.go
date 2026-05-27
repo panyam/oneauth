@@ -48,7 +48,7 @@ func TestE2E_AuthCodePKCE_HeadlessFlow(t *testing.T) {
 	authClient := client.NewAuthClient(env.BaseURL(), store,
 		client.WithTokenEndpoint("/oauth/token"))
 
-	cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &client.BrowserLoginRequest{
 		ClientID:    "e2e-public-client",
 		Scopes:      []string{"openid", "read"},
 		Timeout:     5 * time.Second,
@@ -232,7 +232,7 @@ func TestE2E_AuthCodePKCE_ExplicitEndpoints_WithAuthMethods(t *testing.T) {
 
 	// Simulate MCPKit flow: caller already discovered endpoints + auth methods
 	// via PRM→AS metadata, and passes them explicitly.
-	cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &client.BrowserLoginRequest{
 		ClientID:                 "e2e-public-client",
 		Scopes:                   []string{"openid", "read"},
 		AuthorizationEndpoint:    env.BaseURL() + "/authorize",
@@ -280,7 +280,7 @@ func TestE2E_AuthCodePKCE_ExplicitEndpoints_ConfidentialClient(t *testing.T) {
 	authClient := client.NewAuthClient(env.BaseURL(), store,
 		client.WithTokenEndpoint("/oauth/token"))
 
-	cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &client.BrowserLoginRequest{
 		ClientID:                 clientID,
 		ClientSecret:             secret,
 		Scopes:                   []string{"read"},

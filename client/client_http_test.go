@@ -3,6 +3,7 @@ package client
 // Tests for the AuthClient HTTP interactions: login, token refresh, auth transport, and custom configuration options.
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -43,7 +44,7 @@ func TestAuthClient_Login_Success(t *testing.T) {
 	store := newMockCredentialStore()
 	client := NewAuthClient(server.URL, store)
 
-	cred, err := client.Login("user@example.com", "password123", "read write")
+	cred, err := client.Login(context.Background(), &LoginRequest{Username: "user@example.com", Password: "password123", Scope: "read write"})
 	if err != nil {
 		t.Fatalf("Login() error = %v", err)
 	}
@@ -82,7 +83,7 @@ func TestAuthClient_Login_InvalidCredentials(t *testing.T) {
 	store := newMockCredentialStore()
 	client := NewAuthClient(server.URL, store)
 
-	_, err := client.Login("user@example.com", "wrong-password", "read write")
+	_, err := client.Login(context.Background(), &LoginRequest{Username: "user@example.com", Password: "wrong-password", Scope: "read write"})
 	if err == nil {
 		t.Fatal("Login() should have failed with invalid credentials")
 	}
@@ -353,7 +354,7 @@ func TestAuthClient_WithCustomTokenEndpoint(t *testing.T) {
 	store := newMockCredentialStore()
 	client := NewAuthClient(server.URL, store, WithTokenEndpoint("/custom/token"))
 
-	_, err := client.Login("user@example.com", "password", "")
+	_, err := client.Login(context.Background(), &LoginRequest{Username: "user@example.com", Password: "password", Scope: ""})
 	if err != nil {
 		t.Fatalf("Login() error = %v", err)
 	}
