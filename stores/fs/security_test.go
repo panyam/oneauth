@@ -20,6 +20,7 @@ import (
 	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
+	"github.com/panyam/oneauth/localauth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -178,13 +179,13 @@ func TestSecurity_PathTraversal_TokenStore(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("GetToken_"+tc.name, func(t *testing.T) {
-			_, err := store.GetToken(tc.input)
+			_, err := store.GetToken(context.Background(), &localauth.GetVerificationTokenRequest{Token: tc.input})
 			assert.Error(t, err, "GetToken should reject malicious token %q", tc.input)
 		})
 
 		t.Run("DeleteToken_"+tc.name, func(t *testing.T) {
 			// DeleteToken should not follow traversal paths
-			err := store.DeleteToken(tc.input)
+			_, err := store.DeleteToken(context.Background(), &localauth.DeleteVerificationTokenRequest{Token: tc.input})
 			// May return "not found" error which is fine — as long as it doesn't
 			// delete files outside the storage directory
 			_ = err

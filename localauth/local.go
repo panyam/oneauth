@@ -330,13 +330,18 @@ func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request)
 	// Generate reset token
 	// Note: We need UserID for CreateToken, but we don't want to reveal if email exists
 	// For security, always return success even if email doesn't exist
-	token, err := a.TokenStore.CreateToken("", email, VerificationTypePasswordReset, VerificationExpiryPasswordReset)
+	createResp, err := a.TokenStore.CreateToken(r.Context(), &CreateVerificationTokenRequest{
+		Subject:        "",
+		Email:          email,
+		Type:           VerificationTypePasswordReset,
+		ExpiryDuration: VerificationExpiryPasswordReset,
+	})
 	if err != nil {
 		log.Printf("Error creating reset token: %v", err)
 		// Still return success to avoid revealing if email exists
 	} else {
 		// Send reset email
-		resetLink := fmt.Sprintf("%s/auth/reset-password?token=%s", a.BaseURL, token.Token)
+		resetLink := fmt.Sprintf("%s/auth/reset-password?token=%s", a.BaseURL, createResp.Token.Token)
 		if err := a.EmailSender.SendPasswordResetEmail(email, resetLink); err != nil {
 			log.Printf("Error sending reset email: %v", err)
 		}
@@ -378,7 +383,7 @@ func (a *LocalAuth) HandleResetPasswordForm(w http.ResponseWriter, r *http.Reque
 
 	// Verify token exists and is valid
 	if a.TokenStore != nil {
-		if _, err := a.TokenStore.GetToken(token); err != nil {
+		if _, err := a.TokenStore.GetToken(r.Context(), &GetVerificationTokenRequest{Token: token}); err != nil {
 			http.Error(w, "Invalid or expired token", http.StatusBadRequest)
 			return
 		}
@@ -426,11 +431,12 @@ func (a *LocalAuth) HandleResetPassword(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Validate token
-	authToken, err := a.TokenStore.GetToken(token)
+	getResp, err := a.TokenStore.GetToken(r.Context(), &GetVerificationTokenRequest{Token: token})
 	if err != nil {
 		a.resetPasswordError(w, r, token, "Invalid or expired reset link")
 		return
 	}
+	authToken := getResp.Token
 
 	if authToken.Type != VerificationTypePasswordReset {
 		a.resetPasswordError(w, r, token, "Invalid token type")
@@ -450,7 +456,7 @@ func (a *LocalAuth) HandleResetPassword(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Delete the token (one-time use)
-	if err := a.TokenStore.DeleteToken(token); err != nil {
+	if _, err := a.TokenStore.DeleteToken(r.Context(), &DeleteVerificationTokenRequest{Token: token}); err != nil {
 		log.Printf("Warning: failed to delete token: %v", err)
 	}
 

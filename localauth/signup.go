@@ -74,11 +74,16 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if primaryEmail != "" && a.EmailSender != nil && a.TokenStore != nil && a.BaseURL != "" {
-		token, err := a.TokenStore.CreateToken(user.Id(), primaryEmail, VerificationTypeEmail, VerificationExpiryEmail)
+		createResp, err := a.TokenStore.CreateToken(r.Context(), &CreateVerificationTokenRequest{
+			Subject:        user.Id(),
+			Email:          primaryEmail,
+			Type:           VerificationTypeEmail,
+			ExpiryDuration: VerificationExpiryEmail,
+		})
 		if err != nil {
 			log.Println("error creating verification token: ", err)
 		} else {
-			verificationLink := fmt.Sprintf("%s/auth/verify-email?token=%s", a.BaseURL, token.Token)
+			verificationLink := fmt.Sprintf("%s/auth/verify-email?token=%s", a.BaseURL, createResp.Token.Token)
 			if err := a.EmailSender.SendVerificationEmail(primaryEmail, verificationLink); err != nil {
 				log.Println("error sending verification email: ", err)
 			}

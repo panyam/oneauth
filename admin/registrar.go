@@ -104,8 +104,8 @@ func NewAppRegistrarWithStore(keyStore keys.KeyStorage, auth AdminAuth, store Ap
 		Store:    store,
 		apps:     make(map[string]*AppRegistration),
 	}
-	if existing, err := store.ListApps(); err == nil {
-		for _, app := range existing {
+	if existing, err := store.ListApps(context.Background(), &ListAppsRequest{}); err == nil && existing != nil {
+		for _, app := range existing.Apps {
 			clone := *app
 			r.apps[app.ClientID] = &clone
 		}
@@ -222,7 +222,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		RegistrationAccessToken:   regAccessToken,
 		RegistrationClientURI:     regClientURI,
 	}
-	if err := h.SaveRegistration(reg); err != nil {
+	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, fmt.Errorf("persist registration: %w", err)
 	}
 
@@ -292,7 +292,7 @@ func (h *AppRegistrar) RegisterLegacy(ctx context.Context, req *RegisterLegacyRe
 		MaxMsgRate:   req.MaxMsgRate,
 		CreatedAt:    time.Now(),
 	}
-	if err := h.SaveRegistration(reg); err != nil {
+	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, fmt.Errorf("persist registration: %w", err)
 	}
 	resp.CreatedAt = reg.CreatedAt
@@ -351,7 +351,7 @@ func (h *AppRegistrar) DeleteClient(ctx context.Context, req *DeleteClientReques
 	// Persist the deletion before invalidating the cache or credentials —
 	// same ordering as DeleteRegistration so a store error leaves the
 	// registration intact and the call retryable.
-	if err := h.Store.DeleteApp(req.ClientID); err != nil && err != ErrAppNotFound {
+	if _, err := h.Store.DeleteApp(ctx, &DeleteAppRequest{ClientID: req.ClientID}); err != nil && err != ErrAppNotFound {
 		return nil, fmt.Errorf("delete registration: %w", err)
 	}
 
@@ -458,8 +458,8 @@ func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretReques
 // in-memory cache. Used by handleRegister, DCRHandler, and (in #157) the
 // RFC 7592 management endpoints. If the store write fails, the cache is
 // not updated and the error is returned.
-func (h *AppRegistrar) SaveRegistration(reg *AppRegistration) error {
-	if err := h.Store.SaveApp(reg); err != nil {
+func (h *AppRegistrar) SaveRegistration(ctx context.Context, reg *AppRegistration) error {
+	if _, err := h.Store.SaveApp(ctx, &SaveAppRequest{App: reg}); err != nil {
 		return err
 	}
 	h.mu.Lock()
@@ -489,10 +489,11 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 	if req == nil || req.ClientID == "" || req.AccessToken == "" {
 		return nil, ErrUnauthorized
 	}
-	reg, err := h.Store.GetApp(req.ClientID)
-	if err != nil || reg == nil {
+	getResp, err := h.Store.GetApp(ctx, &GetAppRequest{ClientID: req.ClientID})
+	if err != nil || getResp == nil || getResp.App == nil {
 		return nil, ErrUnauthorized
 	}
+	reg := getResp.App
 	if reg.RegistrationAccessToken == "" {
 		return nil, ErrUnauthorized
 	}
@@ -544,10 +545,11 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if req == nil || req.ClientID == "" || req.AccessToken == "" || req.Metadata == nil {
 		return nil, ErrUnauthorized
 	}
-	reg, err := h.Store.GetApp(req.ClientID)
-	if err != nil || reg == nil {
+	getResp, err := h.Store.GetApp(ctx, &GetAppRequest{ClientID: req.ClientID})
+	if err != nil || getResp == nil || getResp.App == nil {
 		return nil, ErrUnauthorized
 	}
+	reg := getResp.App
 	if reg.RegistrationAccessToken == "" {
 		return nil, ErrUnauthorized
 	}
@@ -584,7 +586,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	reg.ClientDomain = domain
 	reg.RegistrationAccessToken = newToken
 
-	if err := h.SaveRegistration(reg); err != nil {
+	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, err
 	}
 	return &UpdateRegistrationResponse{
@@ -624,10 +626,11 @@ func (h *AppRegistrar) DeleteRegistration(ctx context.Context, req *DeleteRegist
 	if req == nil || req.ClientID == "" || req.AccessToken == "" {
 		return nil, ErrUnauthorized
 	}
-	reg, err := h.Store.GetApp(req.ClientID)
-	if err != nil || reg == nil {
+	getResp, err := h.Store.GetApp(ctx, &GetAppRequest{ClientID: req.ClientID})
+	if err != nil || getResp == nil || getResp.App == nil {
 		return nil, ErrUnauthorized
 	}
+	reg := getResp.App
 	if reg.RegistrationAccessToken == "" {
 		return nil, ErrUnauthorized
 	}
@@ -639,7 +642,7 @@ func (h *AppRegistrar) DeleteRegistration(ctx context.Context, req *DeleteRegist
 	// and KeyStore intact so the client retains a known-consistent state
 	// and the caller can retry; otherwise we'd leave dangling key material
 	// without a registration to bind it.
-	if err := h.Store.DeleteApp(req.ClientID); err != nil && err != ErrAppNotFound {
+	if _, err := h.Store.DeleteApp(ctx, &DeleteAppRequest{ClientID: req.ClientID}); err != nil && err != ErrAppNotFound {
 		return nil, err
 	}
 

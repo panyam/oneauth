@@ -1,6 +1,9 @@
 package localauth
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // VerificationType is the kind of email/phone-mediated verification token
 // issued by localauth (e.g. signup email-verify, password-reset).
@@ -46,11 +49,46 @@ func (t *VerificationToken) IsValid(expectedType VerificationType) bool {
 	return t.Type == expectedType && !t.IsExpired()
 }
 
+// CreateVerificationTokenRequest carries the inputs for issuing a verification
+// token. Subject may be empty for password-reset flows where the AS does not
+// want to reveal whether the email belongs to a registered user.
+type CreateVerificationTokenRequest struct {
+	Subject        string
+	Email          string
+	Type           VerificationType
+	ExpiryDuration time.Duration
+}
+
+type CreateVerificationTokenResponse struct {
+	Token *VerificationToken
+}
+
+type GetVerificationTokenRequest struct {
+	Token string
+}
+
+type GetVerificationTokenResponse struct {
+	Token *VerificationToken
+}
+
+type DeleteVerificationTokenRequest struct {
+	Token string
+}
+
+type DeleteVerificationTokenResponse struct{}
+
+type DeleteSubjectVerificationTokensRequest struct {
+	Subject string
+	Type    VerificationType
+}
+
+type DeleteSubjectVerificationTokensResponse struct{}
+
 // VerificationTokenStore manages localauth verification tokens (signup
 // email-verify, password-reset). Renamed from core.TokenStore.
 type VerificationTokenStore interface {
-	CreateToken(subject, email string, tokenType VerificationType, expiryDuration time.Duration) (*VerificationToken, error)
-	GetToken(token string) (*VerificationToken, error)
-	DeleteToken(token string) error
-	DeleteSubjectTokens(subject string, tokenType VerificationType) error
+	CreateToken(ctx context.Context, req *CreateVerificationTokenRequest) (*CreateVerificationTokenResponse, error)
+	GetToken(ctx context.Context, req *GetVerificationTokenRequest) (*GetVerificationTokenResponse, error)
+	DeleteToken(ctx context.Context, req *DeleteVerificationTokenRequest) (*DeleteVerificationTokenResponse, error)
+	DeleteSubjectTokens(ctx context.Context, req *DeleteSubjectVerificationTokensRequest) (*DeleteSubjectVerificationTokensResponse, error)
 }

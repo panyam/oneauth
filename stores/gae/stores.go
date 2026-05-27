@@ -558,7 +558,10 @@ func (s *TokenStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *TokenStore) CreateToken(subject, email string, tokenType localauth.VerificationType, expiryDuration time.Duration) (*localauth.VerificationToken, error) {
+func (s *TokenStore) CreateToken(ctx context.Context, req *localauth.CreateVerificationTokenRequest) (*localauth.CreateVerificationTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CreateToken: req is required")
+	}
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -568,31 +571,34 @@ func (s *TokenStore) CreateToken(subject, email string, tokenType localauth.Veri
 	now := time.Now()
 	entity := &VerificationTokenEntity{
 		Key:       key,
-		Type:      tokenType,
-		Subject:   subject,
-		Email:     email,
+		Type:      req.Type,
+		Subject:   req.Subject,
+		Email:     req.Email,
 		CreatedAt: now,
-		ExpiresAt: now.Add(expiryDuration),
+		ExpiresAt: now.Add(req.ExpiryDuration),
 	}
 
-	if _, err := s.client.Put(s.ctx, key, entity); err != nil {
+	if _, err := s.client.Put(ctx, key, entity); err != nil {
 		return nil, err
 	}
 
-	return &localauth.VerificationToken{
+	return &localauth.CreateVerificationTokenResponse{Token: &localauth.VerificationToken{
 		Token:     token,
-		Type:      tokenType,
-		Subject:   subject,
-		Email:     email,
+		Type:      req.Type,
+		Subject:   req.Subject,
+		Email:     req.Email,
 		CreatedAt: now,
-		ExpiresAt: now.Add(expiryDuration),
-	}, nil
+		ExpiresAt: now.Add(req.ExpiryDuration),
+	}}, nil
 }
 
-func (s *TokenStore) GetToken(token string) (*localauth.VerificationToken, error) {
-	key := s.namespacedKey(KindAuthToken, token)
+func (s *TokenStore) GetToken(ctx context.Context, req *localauth.GetVerificationTokenRequest) (*localauth.GetVerificationTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetToken: req is required")
+	}
+	key := s.namespacedKey(KindAuthToken, req.Token)
 	var entity VerificationTokenEntity
-	if err := s.client.Get(s.ctx, key, &entity); err != nil {
+	if err := s.client.Get(ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			return nil, fmt.Errorf("token not found")
 		}
@@ -601,37 +607,49 @@ func (s *TokenStore) GetToken(token string) (*localauth.VerificationToken, error
 
 	authToken := entity.ToVerificationToken()
 	if authToken.IsExpired() {
-		_ = s.DeleteToken(token)
+		_, _ = s.DeleteToken(ctx, &localauth.DeleteVerificationTokenRequest{Token: req.Token})
 		return nil, fmt.Errorf("token expired")
 	}
 
-	return authToken, nil
+	return &localauth.GetVerificationTokenResponse{Token: authToken}, nil
 }
 
-func (s *TokenStore) DeleteToken(token string) error {
-	key := s.namespacedKey(KindAuthToken, token)
-	return s.client.Delete(s.ctx, key)
+func (s *TokenStore) DeleteToken(ctx context.Context, req *localauth.DeleteVerificationTokenRequest) (*localauth.DeleteVerificationTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteToken: req is required")
+	}
+	key := s.namespacedKey(KindAuthToken, req.Token)
+	if err := s.client.Delete(ctx, key); err != nil {
+		return nil, err
+	}
+	return &localauth.DeleteVerificationTokenResponse{}, nil
 }
 
-func (s *TokenStore) DeleteSubjectTokens(subject string, tokenType localauth.VerificationType) error {
+func (s *TokenStore) DeleteSubjectTokens(ctx context.Context, req *localauth.DeleteSubjectVerificationTokensRequest) (*localauth.DeleteSubjectVerificationTokensResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteSubjectTokens: req is required")
+	}
 	query := datastore.NewQuery(KindAuthToken).
-		FilterField("subject", "=", subject).
-		FilterField("type", "=", string(tokenType)).
+		FilterField("subject", "=", req.Subject).
+		FilterField("type", "=", string(req.Type)).
 		KeysOnly()
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
-	keys, err := s.client.GetAll(s.ctx, query, nil)
+	keys, err := s.client.GetAll(ctx, query, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(keys) == 0 {
-		return nil
+		return &localauth.DeleteSubjectVerificationTokensResponse{}, nil
 	}
 
-	return s.client.DeleteMulti(s.ctx, keys)
+	if err := s.client.DeleteMulti(ctx, keys); err != nil {
+		return nil, err
+	}
+	return &localauth.DeleteSubjectVerificationTokensResponse{}, nil
 }
 
 // ============================================================================
