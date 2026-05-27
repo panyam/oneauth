@@ -392,17 +392,18 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 	}
 
 	// Get and validate the refresh token
-	rt, err := i.refreshStore.GetRefreshToken(req.RefreshToken)
+	getResp, err := i.refreshStore.GetRefreshToken(ctx, &core.GetRefreshTokenRequest{Token: req.RefreshToken})
 	if err != nil {
 		if err == core.ErrTokenNotFound {
 			return nil, fmt.Errorf("invalid_grant: invalid refresh token")
 		}
 		return nil, fmt.Errorf("server_error: %w", err)
 	}
+	rt := getResp.Token
 
 	// Check if revoked — token reuse detection (theft)
 	if rt.Revoked {
-		i.refreshStore.RevokeTokenFamily(rt.Family)
+		i.refreshStore.RevokeTokenFamily(ctx, &core.RevokeTokenFamilyRequest{Family: rt.Family})
 		return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
 	}
 	if rt.IsExpired() {
@@ -410,14 +411,15 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 	}
 
 	// Rotate: invalidate old, create new in same family
-	newRT, err := i.refreshStore.RotateRefreshToken(req.RefreshToken)
+	rotResp, err := i.refreshStore.RotateRefreshToken(ctx, &core.RotateRefreshTokenRequest{OldToken: req.RefreshToken})
 	if err != nil {
 		if err == core.ErrTokenReused {
-			i.refreshStore.RevokeTokenFamily(rt.Family)
+			i.refreshStore.RevokeTokenFamily(ctx, &core.RevokeTokenFamilyRequest{Family: rt.Family})
 			return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
 		}
 		return nil, fmt.Errorf("server_error: %w", err)
 	}
+	newRT := rotResp.Token
 
 	// Create new access token (carry forward scopes + authorization_details)
 	tok, err := i.CreateAccessToken(ctx, &CreateAccessTokenRequest{

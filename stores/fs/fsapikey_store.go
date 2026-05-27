@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -25,12 +26,10 @@ func NewFSAPIKeyStore(storagePath string) *FSAPIKeyStore {
 	return &FSAPIKeyStore{StoragePath: storagePath}
 }
 
-// getKeyDir returns the directory for API keys
 func (s *FSAPIKeyStore) getKeyDir() string {
 	return filepath.Join(s.StoragePath, "api_keys")
 }
 
-// getKeyPath returns the file path for an API key by its ID
 func (s *FSAPIKeyStore) getKeyPath(keyID string) (string, error) {
 	safeID, err := safeName(keyID)
 	if err != nil {
@@ -39,52 +38,46 @@ func (s *FSAPIKeyStore) getKeyPath(keyID string) (string, error) {
 	return filepath.Join(s.getKeyDir(), safeID+".json"), nil
 }
 
-// CreateAPIKey creates a new API key for the given subject and returns the full key (only shown once).
-// The key format is: keyID + "_" + secret.
-func (s *FSAPIKeyStore) CreateAPIKey(subject, name string, scopes []string, expiresAt *time.Time) (fullKey string, apiKey *core.APIKey, err error) {
+func (s *FSAPIKeyStore) CreateAPIKey(ctx context.Context, req *core.CreateAPIKeyRequest) (*core.CreateAPIKeyResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Generate key ID and secret
 	keyID, err := core.GenerateAPIKeyID()
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to generate key ID: %w", err)
+		return nil, fmt.Errorf("failed to generate key ID: %w", err)
 	}
 
 	secret, err := core.GenerateAPIKeySecret()
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to generate key secret: %w", err)
+		return nil, fmt.Errorf("failed to generate key secret: %w", err)
 	}
 
-	// Hash the secret with bcrypt
 	keyHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to hash key: %w", err)
+		return nil, fmt.Errorf("failed to hash key: %w", err)
 	}
 
 	now := time.Now()
-	apiKey = &core.APIKey{
+	apiKey := &core.APIKey{
 		KeyID:      keyID,
 		KeyHash:    string(keyHash),
-		Subject:    subject,
-		Name:       name,
-		Scopes:     scopes,
+		Subject:    req.Subject,
+		Name:       req.Name,
+		Scopes:     req.Scopes,
 		CreatedAt:  now,
-		ExpiresAt:  expiresAt,
+		ExpiresAt:  req.ExpiresAt,
 		LastUsedAt: now,
 		Revoked:    false,
 	}
 
 	if err := s.saveKey(apiKey); err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
-	// Return the full key (keyID_secret) - this is the only time the secret is available
-	fullKey = keyID + "_" + secret
-	return fullKey, apiKey, nil
+	fullKey := keyID + "_" + secret
+	return &core.CreateAPIKeyResponse{FullKey: fullKey, APIKey: apiKey}, nil
 }
 
-// saveKey saves an API key to disk
 func (s *FSAPIKeyStore) saveKey(key *core.APIKey) error {
 	path, err := s.getKeyPath(key.KeyID)
 	if err != nil {
@@ -102,15 +95,17 @@ func (s *FSAPIKeyStore) saveKey(key *core.APIKey) error {
 	return writeAtomicFile(path, data)
 }
 
-// GetAPIKeyByID retrieves an API key by its public ID
-func (s *FSAPIKeyStore) GetAPIKeyByID(keyID string) (*core.APIKey, error) {
+func (s *FSAPIKeyStore) GetAPIKeyByID(ctx context.Context, req *core.GetAPIKeyByIDRequest) (*core.GetAPIKeyByIDResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.getKeyUnsafe(keyID)
+	key, err := s.getKeyUnsafe(req.KeyID)
+	if err != nil {
+		return nil, err
+	}
+	return &core.GetAPIKeyByIDResponse{APIKey: key}, nil
 }
 
-// getKeyUnsafe retrieves a key without locking (caller must hold lock)
 func (s *FSAPIKeyStore) getKeyUnsafe(keyID string) (*core.APIKey, error) {
 	path, err := s.getKeyPath(keyID)
 	if err != nil {
@@ -132,67 +127,61 @@ func (s *FSAPIKeyStore) getKeyUnsafe(keyID string) (*core.APIKey, error) {
 	return &apiKey, nil
 }
 
-// ValidateAPIKey validates a full API key and returns the key metadata if valid
-// The fullKey format is: keyID + "_" + secret
-func (s *FSAPIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
+func (s *FSAPIKeyStore) ValidateAPIKey(ctx context.Context, req *core.ValidateAPIKeyRequest) (*core.ValidateAPIKeyResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Parse the full key
-	parts := strings.SplitN(fullKey, "_", 3) // oa_keyid_secret -> ["oa", "keyid", "secret"]
+	parts := strings.SplitN(req.FullKey, "_", 3)
 	if len(parts) != 3 || parts[0] != "oa" {
 		return nil, core.ErrAPIKeyNotFound
 	}
 
-	keyID := parts[0] + "_" + parts[1] // Reconstruct keyID: "oa_keyid"
+	keyID := parts[0] + "_" + parts[1]
 	secret := parts[2]
 
-	// Get the key
 	apiKey, err := s.getKeyUnsafe(keyID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check if revoked
 	if apiKey.Revoked {
 		return nil, core.ErrTokenRevoked
 	}
 
-	// Check if expired
 	if apiKey.IsExpired() {
 		return nil, core.ErrTokenExpired
 	}
 
-	// Verify the secret
 	if err := bcrypt.CompareHashAndPassword([]byte(apiKey.KeyHash), []byte(secret)); err != nil {
 		return nil, core.ErrAPIKeyNotFound
 	}
 
-	return apiKey, nil
+	return &core.ValidateAPIKeyResponse{APIKey: apiKey}, nil
 }
 
-// RevokeAPIKey marks an API key as revoked
-func (s *FSAPIKeyStore) RevokeAPIKey(keyID string) error {
+func (s *FSAPIKeyStore) RevokeAPIKey(ctx context.Context, req *core.RevokeAPIKeyRequest) (*core.RevokeAPIKeyResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	apiKey, err := s.getKeyUnsafe(keyID)
+	apiKey, err := s.getKeyUnsafe(req.KeyID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if apiKey.Revoked {
-		return nil // Already revoked
+		return &core.RevokeAPIKeyResponse{}, nil
 	}
 
 	now := time.Now()
 	apiKey.Revoked = true
 	apiKey.RevokedAt = &now
-	return s.saveKey(apiKey)
+	if err := s.saveKey(apiKey); err != nil {
+		return nil, err
+	}
+	return &core.RevokeAPIKeyResponse{}, nil
 }
 
-// ListSubjectAPIKeys returns all API keys owned by a subject (without secrets).
-func (s *FSAPIKeyStore) ListSubjectAPIKeys(subject string) ([]*core.APIKey, error) {
+func (s *FSAPIKeyStore) ListSubjectAPIKeys(ctx context.Context, req *core.ListSubjectAPIKeysRequest) (*core.ListSubjectAPIKeysResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -202,7 +191,7 @@ func (s *FSAPIKeyStore) ListSubjectAPIKeys(subject string) ([]*core.APIKey, erro
 	entries, err := os.ReadDir(keysDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return keys, nil
+			return &core.ListSubjectAPIKeysResponse{APIKeys: keys}, nil
 		}
 		return nil, err
 	}
@@ -223,26 +212,27 @@ func (s *FSAPIKeyStore) ListSubjectAPIKeys(subject string) ([]*core.APIKey, erro
 			continue
 		}
 
-		if apiKey.Subject == subject {
-			// Clear the hash for security (not needed in listings)
+		if apiKey.Subject == req.Subject {
 			apiKey.KeyHash = ""
 			keys = append(keys, &apiKey)
 		}
 	}
 
-	return keys, nil
+	return &core.ListSubjectAPIKeysResponse{APIKeys: keys}, nil
 }
 
-// UpdateAPIKeyLastUsed updates the last used timestamp
-func (s *FSAPIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
+func (s *FSAPIKeyStore) UpdateAPIKeyLastUsed(ctx context.Context, req *core.UpdateAPIKeyLastUsedRequest) (*core.UpdateAPIKeyLastUsedResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	apiKey, err := s.getKeyUnsafe(keyID)
+	apiKey, err := s.getKeyUnsafe(req.KeyID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	apiKey.LastUsedAt = time.Now()
-	return s.saveKey(apiKey)
+	if err := s.saveKey(apiKey); err != nil {
+		return nil, err
+	}
+	return &core.UpdateAPIKeyLastUsedResponse{}, nil
 }

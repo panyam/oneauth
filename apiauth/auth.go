@@ -253,13 +253,18 @@ func (a *APIAuth) handlePasswordGrant(w http.ResponseWriter, r *http.Request, re
 	}
 
 	// Create refresh token
-	refreshToken, err := a.RefreshTokenStore.CreateRefreshToken(
-		user.Id(), req.ClientID, deviceInfo, grantedScopes)
+	createResp, err := a.RefreshTokenStore.CreateRefreshToken(r.Context(), &core.CreateRefreshTokenRequest{
+		Subject:    user.Id(),
+		ClientID:   req.ClientID,
+		DeviceInfo: deviceInfo,
+		Scopes:     grantedScopes,
+	})
 	if err != nil {
 		log.Printf("Error creating refresh token: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create session", http.StatusInternalServerError)
 		return
 	}
+	refreshToken := createResp.Token
 
 	// Validate authorization_details if present (RFC 9396)
 	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
@@ -292,7 +297,7 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get and validate refresh token
-	refreshToken, err := a.RefreshTokenStore.GetRefreshToken(req.RefreshToken)
+	getResp, err := a.RefreshTokenStore.GetRefreshToken(r.Context(), &core.GetRefreshTokenRequest{Token: req.RefreshToken})
 	if err != nil {
 		if err == core.ErrTokenNotFound {
 			a.errorResponse(w, "invalid_grant", "Invalid refresh token", http.StatusUnauthorized)
@@ -301,11 +306,12 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 		}
 		return
 	}
+	refreshToken := getResp.Token
 
 	// Check if revoked — this indicates token reuse (theft detection).
 	// Revoke the entire token family to invalidate all related sessions.
 	if refreshToken.Revoked {
-		if revokeErr := a.RefreshTokenStore.RevokeTokenFamily(refreshToken.Family); revokeErr != nil {
+		if _, revokeErr := a.RefreshTokenStore.RevokeTokenFamily(r.Context(), &core.RevokeTokenFamilyRequest{Family: refreshToken.Family}); revokeErr != nil {
 			log.Printf("Error revoking token family on reuse: %v", revokeErr)
 		}
 		a.errorResponse(w, "invalid_grant", "Token reuse detected, all sessions revoked", http.StatusUnauthorized)
@@ -317,11 +323,11 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 	}
 
 	// Rotate refresh token (creates new one, invalidates old)
-	newRefreshToken, err := a.RefreshTokenStore.RotateRefreshToken(req.RefreshToken)
+	rotResp, err := a.RefreshTokenStore.RotateRefreshToken(r.Context(), &core.RotateRefreshTokenRequest{OldToken: req.RefreshToken})
 	if err != nil {
 		if err == core.ErrTokenReused {
 			// Token reuse detected - revoke entire family
-			if revokeErr := a.RefreshTokenStore.RevokeTokenFamily(refreshToken.Family); revokeErr != nil {
+			if _, revokeErr := a.RefreshTokenStore.RevokeTokenFamily(r.Context(), &core.RevokeTokenFamilyRequest{Family: refreshToken.Family}); revokeErr != nil {
 				log.Printf("Error revoking token family: %v", revokeErr)
 			}
 			a.errorResponse(w, "invalid_grant", "Token reuse detected, all sessions revoked", http.StatusUnauthorized)
@@ -331,6 +337,7 @@ func (a *APIAuth) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 		a.errorResponse(w, "server_error", "Failed to refresh session", http.StatusInternalServerError)
 		return
 	}
+	newRefreshToken := rotResp.Token
 
 	// Create new access token (carry forward authorization_details from original grant)
 	accessToken, expiresIn, err := a.CreateAccessToken(refreshToken.Subject, refreshToken.Scopes, refreshToken.AuthorizationDetails)
@@ -470,7 +477,7 @@ func (a *APIAuth) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke the token (ignore errors - don't reveal if token existed)
-	if err := a.RefreshTokenStore.RevokeRefreshToken(req.RefreshToken); err != nil {
+	if _, err := a.RefreshTokenStore.RevokeRefreshToken(r.Context(), &core.RevokeRefreshTokenRequest{Token: req.RefreshToken}); err != nil {
 		log.Printf("Error revoking token: %v", err)
 	}
 
@@ -493,7 +500,7 @@ func (a *APIAuth) HandleLogoutAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke all user tokens
-	if err := a.RefreshTokenStore.RevokeSubjectTokens(userID); err != nil {
+	if _, err := a.RefreshTokenStore.RevokeSubjectTokens(r.Context(), &core.RevokeSubjectTokensRequest{Subject: userID}); err != nil {
 		log.Printf("Error revoking user tokens: %v", err)
 		a.errorResponse(w, "server_error", "Failed to revoke sessions", http.StatusInternalServerError)
 		return
@@ -518,12 +525,13 @@ func (a *APIAuth) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user's active tokens
-	tokens, err := a.RefreshTokenStore.GetSubjectTokens(userID)
+	getResp, err := a.RefreshTokenStore.GetSubjectTokens(r.Context(), &core.GetSubjectTokensRequest{Subject: userID})
 	if err != nil {
 		log.Printf("Error getting user tokens: %v", err)
 		a.errorResponse(w, "server_error", "Failed to get sessions", http.StatusInternalServerError)
 		return
 	}
+	tokens := getResp.Tokens
 
 	// Build response with session info (hide sensitive data)
 	type sessionInfo struct {
@@ -900,12 +908,13 @@ func (a *APIAuth) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user's API keys
-	keys, err := a.APIKeyStore.ListSubjectAPIKeys(userID)
+	listResp, err := a.APIKeyStore.ListSubjectAPIKeys(r.Context(), &core.ListSubjectAPIKeysRequest{Subject: userID})
 	if err != nil {
 		log.Printf("Error listing API keys: %v", err)
 		a.errorResponse(w, "server_error", "Failed to list API keys", http.StatusInternalServerError)
 		return
 	}
+	keys := listResp.APIKeys
 
 	// Build response (hide hashes)
 	type apiKeyInfo struct {
@@ -990,18 +999,24 @@ func (a *APIAuth) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create API key
-	fullKey, apiKey, err := a.APIKeyStore.CreateAPIKey(userID, req.Name, grantedScopes, expiresAt)
+	createResp, err := a.APIKeyStore.CreateAPIKey(r.Context(), &core.CreateAPIKeyRequest{
+		Subject:   userID,
+		Name:      req.Name,
+		Scopes:    grantedScopes,
+		ExpiresAt: expiresAt,
+	})
 	if err != nil {
 		log.Printf("Error creating API key: %v", err)
 		a.errorResponse(w, "server_error", "Failed to create API key", http.StatusInternalServerError)
 		return
 	}
+	apiKey := createResp.APIKey
 
 	// Return response with full key (only shown once!)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{
-		"api_key":    fullKey, // This is the only time the full key is shown!
+		"api_key":    createResp.FullKey, // This is the only time the full key is shown!
 		"key_id":     apiKey.KeyID,
 		"name":       apiKey.Name,
 		"scopes":     apiKey.Scopes,
@@ -1040,7 +1055,7 @@ func (a *APIAuth) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the key belongs to the user
-	apiKey, err := a.APIKeyStore.GetAPIKeyByID(keyID)
+	getResp, err := a.APIKeyStore.GetAPIKeyByID(r.Context(), &core.GetAPIKeyByIDRequest{KeyID: keyID})
 	if err != nil {
 		if err == core.ErrAPIKeyNotFound {
 			a.errorResponse(w, "not_found", "API key not found", http.StatusNotFound)
@@ -1050,13 +1065,13 @@ func (a *APIAuth) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if apiKey.Subject != userID {
+	if getResp.APIKey.Subject != userID {
 		a.errorResponse(w, "forbidden", "Not authorized to revoke this key", http.StatusForbidden)
 		return
 	}
 
 	// Revoke the key
-	if err := a.APIKeyStore.RevokeAPIKey(keyID); err != nil {
+	if _, err := a.APIKeyStore.RevokeAPIKey(r.Context(), &core.RevokeAPIKeyRequest{KeyID: keyID}); err != nil {
 		log.Printf("Error revoking API key: %v", err)
 		a.errorResponse(w, "server_error", "Failed to revoke API key", http.StatusInternalServerError)
 		return
@@ -1265,7 +1280,7 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes 
 
 	// Check if it's an API key (starts with "oa_")
 	if strings.HasPrefix(token, "oa_") && m.APIKeyStore != nil {
-		userID, scopes, authType, err := m.validateAPIKey(token)
+		userID, scopes, authType, err := m.validateAPIKey(r.Context(), token)
 		return userID, scopes, authType, nil, err
 	}
 
@@ -1469,15 +1484,16 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (userID string, sc
 }
 
 // validateAPIKey validates an API key
-func (m *APIMiddleware) validateAPIKey(fullKey string) (userID string, scopes []string, authType string, err error) {
-	apiKey, err := m.APIKeyStore.ValidateAPIKey(fullKey)
+func (m *APIMiddleware) validateAPIKey(ctx context.Context, fullKey string) (userID string, scopes []string, authType string, err error) {
+	validateResp, err := m.APIKeyStore.ValidateAPIKey(ctx, &core.ValidateAPIKeyRequest{FullKey: fullKey})
 	if err != nil {
 		return "", nil, "", fmt.Errorf("invalid API key: %w", err)
 	}
+	apiKey := validateResp.APIKey
 
 	// Update last used timestamp (best effort, don't fail on error)
 	go func() {
-		if err := m.APIKeyStore.UpdateAPIKeyLastUsed(apiKey.KeyID); err != nil {
+		if _, err := m.APIKeyStore.UpdateAPIKeyLastUsed(context.Background(), &core.UpdateAPIKeyLastUsedRequest{KeyID: apiKey.KeyID}); err != nil {
 			log.Printf("Failed to update API key last used: %v", err)
 		}
 	}()

@@ -110,17 +110,22 @@ func TestRevocation_RefreshToken(t *testing.T) {
 	revHandler, auth, _ := setupRevocation(t)
 
 	// Create a refresh token
-	rt, err := auth.RefreshTokenStore.CreateRefreshToken("user-1", "revoke-client", nil, []string{"read"})
+	createResp, err := auth.RefreshTokenStore.CreateRefreshToken(context.Background(), &core.CreateRefreshTokenRequest{
+		Subject:  "user-1",
+		ClientID: "revoke-client",
+		Scopes:   []string{"read"},
+	})
 	require.NoError(t, err)
+	rt := createResp.Token
 
 	// Revoke it
 	rr := postRevoke(t, revHandler, rt.Token, "refresh_token", "revoke-client", "revoke-client-secret")
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	// Try to get the refresh token — should be revoked
-	got, err := auth.RefreshTokenStore.GetRefreshToken(rt.Token)
+	getResp, err := auth.RefreshTokenStore.GetRefreshToken(context.Background(), &core.GetRefreshTokenRequest{Token: rt.Token})
 	require.NoError(t, err)
-	assert.True(t, got.Revoked, "refresh token should be revoked")
+	assert.True(t, getResp.Token.Revoked, "refresh token should be revoked")
 }
 
 // TestRevocation_NoHint verifies that without a token_type_hint, the handler
@@ -224,49 +229,47 @@ func newInMemoryRefreshStore() *inMemoryRefreshStore {
 	return &inMemoryRefreshStore{tokens: make(map[string]*core.RefreshToken)}
 }
 
-func (s *inMemoryRefreshStore) CreateRefreshToken(subject, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+func (s *inMemoryRefreshStore) CreateRefreshToken(ctx context.Context, req *core.CreateRefreshTokenRequest) (*core.CreateRefreshTokenResponse, error) {
 	token, _ := core.GenerateSecureToken()
 	family, _ := core.GenerateSecureToken()
 	rt := &core.RefreshToken{
 		Token:     token,
-		Subject:   subject,
-		ClientID:  clientID,
-		Scopes:    scopes,
+		Subject:   req.Subject,
+		ClientID:  req.ClientID,
+		Scopes:    req.Scopes,
 		Family:    family[:16],
 		ExpiresAt: time.Now().Add(core.TokenExpiryRefreshToken),
 	}
 	s.tokens[token] = rt
-	return rt, nil
+	return &core.CreateRefreshTokenResponse{Token: rt}, nil
 }
 
-func (s *inMemoryRefreshStore) GetRefreshToken(token string) (*core.RefreshToken, error) {
-	rt, ok := s.tokens[token]
+func (s *inMemoryRefreshStore) GetRefreshToken(ctx context.Context, req *core.GetRefreshTokenRequest) (*core.GetRefreshTokenResponse, error) {
+	rt, ok := s.tokens[req.Token]
 	if !ok {
 		return nil, core.ErrTokenNotFound
 	}
-	return rt, nil
+	return &core.GetRefreshTokenResponse{Token: rt}, nil
 }
 
-func (s *inMemoryRefreshStore) RevokeRefreshToken(token string) error {
-	rt, ok := s.tokens[token]
+func (s *inMemoryRefreshStore) RevokeRefreshToken(ctx context.Context, req *core.RevokeRefreshTokenRequest) (*core.RevokeRefreshTokenResponse, error) {
+	rt, ok := s.tokens[req.Token]
 	if !ok {
-		return nil // don't reveal
+		return &core.RevokeRefreshTokenResponse{}, nil
 	}
 	rt.Revoked = true
-	return nil
+	return &core.RevokeRefreshTokenResponse{}, nil
 }
 
-func (s *inMemoryRefreshStore) RotateRefreshToken(old string) (*core.RefreshToken, error) {
-	rt, ok := s.tokens[old]
+func (s *inMemoryRefreshStore) RotateRefreshToken(ctx context.Context, req *core.RotateRefreshTokenRequest) (*core.RotateRefreshTokenResponse, error) {
+	rt, ok := s.tokens[req.OldToken]
 	if !ok {
 		return nil, core.ErrTokenNotFound
 	}
 	if rt.Revoked {
 		return nil, core.ErrTokenReused
 	}
-	// Revoke old
 	rt.Revoked = true
-	// Create new in same family
 	newToken, _ := core.GenerateSecureToken()
 	newRT := &core.RefreshToken{
 		Token:                newToken,
@@ -278,12 +281,18 @@ func (s *inMemoryRefreshStore) RotateRefreshToken(old string) (*core.RefreshToke
 		ExpiresAt:            time.Now().Add(core.TokenExpiryRefreshToken),
 	}
 	s.tokens[newToken] = newRT
-	return newRT, nil
+	return &core.RotateRefreshTokenResponse{Token: newRT}, nil
 }
 
-func (s *inMemoryRefreshStore) RevokeSubjectTokens(subject string) error { return nil }
-func (s *inMemoryRefreshStore) RevokeTokenFamily(family string) error    { return nil }
-func (s *inMemoryRefreshStore) GetSubjectTokens(subject string) ([]*core.RefreshToken, error) {
-	return nil, nil
+func (s *inMemoryRefreshStore) RevokeSubjectTokens(ctx context.Context, req *core.RevokeSubjectTokensRequest) (*core.RevokeSubjectTokensResponse, error) {
+	return &core.RevokeSubjectTokensResponse{}, nil
 }
-func (s *inMemoryRefreshStore) CleanupExpiredTokens() error { return nil }
+func (s *inMemoryRefreshStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
+	return &core.RevokeTokenFamilyResponse{}, nil
+}
+func (s *inMemoryRefreshStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {
+	return &core.GetSubjectTokensResponse{}, nil
+}
+func (s *inMemoryRefreshStore) CleanupExpiredTokens(ctx context.Context, req *core.CleanupExpiredTokensRequest) (*core.CleanupExpiredTokensResponse, error) {
+	return &core.CleanupExpiredTokensResponse{}, nil
+}

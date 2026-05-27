@@ -30,8 +30,13 @@ import (
 func TestOneAuth_RefreshGrant(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	rt, err := oa.RefreshStore.CreateRefreshToken("refresh-user", "test-client", nil, []string{"read", "write"})
+	rtResp, err := oa.RefreshStore.CreateRefreshToken(context.Background(), &core.CreateRefreshTokenRequest{
+		Subject:  "refresh-user",
+		ClientID: "test-client",
+		Scopes:   []string{"read", "write"},
+	})
 	require.NoError(t, err)
+	rt := rtResp.Token
 
 	resp, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: rt.Token})
 	require.NoError(t, err)
@@ -55,8 +60,13 @@ func TestOneAuth_RefreshGrant(t *testing.T) {
 func TestOneAuth_RefreshGrant_RevokedToken(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	rt, _ := oa.RefreshStore.CreateRefreshToken("user-theft", "test-client", nil, []string{"read"})
-	oa.RefreshStore.RevokeRefreshToken(rt.Token)
+	rtResp, _ := oa.RefreshStore.CreateRefreshToken(context.Background(), &core.CreateRefreshTokenRequest{
+		Subject:  "user-theft",
+		ClientID: "test-client",
+		Scopes:   []string{"read"},
+	})
+	rt := rtResp.Token
+	oa.RefreshStore.RevokeRefreshToken(context.Background(), &core.RevokeRefreshTokenRequest{Token: rt.Token})
 
 	_, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: rt.Token})
 	assert.Error(t, err)
@@ -182,12 +192,14 @@ func TestOneAuth_PasswordGrant_CallerCreatesRefreshToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 2: Caller creates refresh token with transport metadata
-	rt, err := oa.RefreshStore.CreateRefreshToken(
-		result.Subject, "my-app",
-		map[string]any{"user_agent": "TestBot/1.0", "ip": "127.0.0.1"},
-		result.GrantedScopes,
-	)
+	rtResp, err := oa.RefreshStore.CreateRefreshToken(context.Background(), &core.CreateRefreshTokenRequest{
+		Subject:    result.Subject,
+		ClientID:   "my-app",
+		DeviceInfo: map[string]any{"user_agent": "TestBot/1.0", "ip": "127.0.0.1"},
+		Scopes:     result.GrantedScopes,
+	})
 	require.NoError(t, err)
+	rt := rtResp.Token
 	assert.NotEmpty(t, rt.Token)
 
 	// Step 3: Later, refresh the token via core

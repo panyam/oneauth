@@ -17,10 +17,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/panyam/oneauth/accounts"
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/panyam/oneauth/accounts"
 )
 
 // maliciousInputs contains path traversal and injection payloads that MUST be rejected.
@@ -235,12 +236,12 @@ func TestSecurity_PathTraversal_APIKeyStore(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("GetAPIKeyByID_"+tc.name, func(t *testing.T) {
-			_, err := store.GetAPIKeyByID(tc.input)
+			_, err := store.GetAPIKeyByID(context.Background(), &core.GetAPIKeyByIDRequest{KeyID: tc.input})
 			assert.Error(t, err, "GetAPIKeyByID should reject malicious keyID %q", tc.input)
 		})
 
 		t.Run("RevokeAPIKey_"+tc.name, func(t *testing.T) {
-			err := store.RevokeAPIKey(tc.input)
+			_, err := store.RevokeAPIKey(context.Background(), &core.RevokeAPIKeyRequest{KeyID: tc.input})
 			// May return "not found" — fine as long as no escape
 			_ = err
 			assertNoEscape(t, dir, "apikeys")
@@ -318,7 +319,7 @@ func TestSecurity_PathTraversal_RefreshTokenStore_AlreadySafe(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("GetRefreshToken_"+tc.name, func(t *testing.T) {
-			_, err := store.GetRefreshToken(tc.input)
+			_, err := store.GetRefreshToken(context.Background(), &core.GetRefreshTokenRequest{Token: tc.input})
 			// Returns "not found" — the hash-based path is always safe
 			assert.Error(t, err)
 			assertNoEscape(t, dir, "refresh_tokens")

@@ -673,7 +673,10 @@ func (s *RefreshTokenStore) hashToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (s *RefreshTokenStore) CreateRefreshToken(subject, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.CreateRefreshTokenRequest) (*core.CreateRefreshTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CreateRefreshToken: req is required")
+	}
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -688,18 +691,18 @@ func (s *RefreshTokenStore) CreateRefreshToken(subject, clientID string, deviceI
 	now := time.Now()
 
 	var deviceBytes, scopeBytes []byte
-	if deviceInfo != nil {
-		deviceBytes, _ = json.Marshal(deviceInfo)
+	if req.DeviceInfo != nil {
+		deviceBytes, _ = json.Marshal(req.DeviceInfo)
 	}
-	if scopes != nil {
-		scopeBytes, _ = json.Marshal(scopes)
+	if req.Scopes != nil {
+		scopeBytes, _ = json.Marshal(req.Scopes)
 	}
 
 	key := s.namespacedKey(KindRefreshToken, tokenHash)
 	entity := &RefreshTokenEntity{
 		Key:        key,
-		Subject:    subject,
-		ClientID:   clientID,
+		Subject:    req.Subject,
+		ClientID:   req.ClientID,
 		DeviceInfo: deviceBytes,
 		Family:     family[:16],
 		Generation: 1,
@@ -710,24 +713,24 @@ func (s *RefreshTokenStore) CreateRefreshToken(subject, clientID string, deviceI
 		Revoked:    false,
 	}
 
-	if _, err := s.client.Put(s.ctx, key, entity); err != nil {
+	if _, err := s.client.Put(ctx, key, entity); err != nil {
 		return nil, err
 	}
 
-	return &core.RefreshToken{
+	return &core.CreateRefreshTokenResponse{Token: &core.RefreshToken{
 		Token:      token,
 		TokenHash:  tokenHash,
-		Subject:    subject,
-		ClientID:   clientID,
-		DeviceInfo: deviceInfo,
+		Subject:    req.Subject,
+		ClientID:   req.ClientID,
+		DeviceInfo: req.DeviceInfo,
 		Family:     family[:16],
 		Generation: 1,
-		Scopes:     scopes,
+		Scopes:     req.Scopes,
 		CreatedAt:  now,
 		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt: now,
 		Revoked:    false,
-	}, nil
+	}}, nil
 }
 
 func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.RefreshToken {
@@ -764,12 +767,15 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 	return rt
 }
 
-func (s *RefreshTokenStore) GetRefreshToken(token string) (*core.RefreshToken, error) {
-	tokenHash := s.hashToken(token)
+func (s *RefreshTokenStore) GetRefreshToken(ctx context.Context, req *core.GetRefreshTokenRequest) (*core.GetRefreshTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetRefreshToken: req is required")
+	}
+	tokenHash := s.hashToken(req.Token)
 	key := s.namespacedKey(KindRefreshToken, tokenHash)
 
 	var entity RefreshTokenEntity
-	if err := s.client.Get(s.ctx, key, &entity); err != nil {
+	if err := s.client.Get(ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			return nil, core.ErrTokenNotFound
 		}
@@ -777,17 +783,20 @@ func (s *RefreshTokenStore) GetRefreshToken(token string) (*core.RefreshToken, e
 	}
 
 	rt := s.entityToToken(&entity)
-	rt.Token = token
-	return rt, nil
+	rt.Token = req.Token
+	return &core.GetRefreshTokenResponse{Token: rt}, nil
 }
 
-func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshToken, error) {
-	oldHash := s.hashToken(oldToken)
+func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.RotateRefreshTokenRequest) (*core.RotateRefreshTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RotateRefreshToken: req is required")
+	}
+	oldHash := s.hashToken(req.OldToken)
 	key := s.namespacedKey(KindRefreshToken, oldHash)
 
 	var newRefreshToken *core.RefreshToken
 
-	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var entity RefreshTokenEntity
 		if err := tx.Get(key, &entity); err != nil {
 			if err == datastore.ErrNoSuchEntity {
@@ -878,8 +887,8 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 	if err == core.ErrTokenReused {
 		// Revoke entire family outside the transaction
 		var entity RefreshTokenEntity
-		if getErr := s.client.Get(s.ctx, key, &entity); getErr == nil {
-			s.RevokeTokenFamily(entity.Family)
+		if getErr := s.client.Get(ctx, key, &entity); getErr == nil {
+			s.RevokeTokenFamily(ctx, &core.RevokeTokenFamilyRequest{Family: entity.Family})
 		}
 		return nil, err
 	}
@@ -888,14 +897,17 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 		return nil, err
 	}
 
-	return newRefreshToken, nil
+	return &core.RotateRefreshTokenResponse{Token: newRefreshToken}, nil
 }
 
-func (s *RefreshTokenStore) RevokeRefreshToken(token string) error {
-	tokenHash := s.hashToken(token)
+func (s *RefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.RevokeRefreshTokenRequest) (*core.RevokeRefreshTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RevokeRefreshToken: req is required")
+	}
+	tokenHash := s.hashToken(req.Token)
 	key := s.namespacedKey(KindRefreshToken, tokenHash)
 
-	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var entity RefreshTokenEntity
 		if err := tx.Get(key, &entity); err != nil {
 			if err == datastore.ErrNoSuchEntity {
@@ -913,19 +925,25 @@ func (s *RefreshTokenStore) RevokeRefreshToken(token string) error {
 		_, err := tx.Put(key, &entity)
 		return err
 	})
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &core.RevokeRefreshTokenResponse{}, nil
 }
 
-func (s *RefreshTokenStore) RevokeSubjectTokens(subject string) error {
+func (s *RefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.RevokeSubjectTokensRequest) (*core.RevokeSubjectTokensResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RevokeSubjectTokens: req is required")
+	}
 	query := datastore.NewQuery(KindRefreshToken).
-		FilterField("subject", "=", subject).
+		FilterField("subject", "=", req.Subject).
 		FilterField("revoked", "=", false)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
 	now := time.Now()
-	it := s.client.Run(s.ctx, query)
+	it := s.client.Run(ctx, query)
 	for {
 		var entity RefreshTokenEntity
 		key, err := it.Next(&entity)
@@ -933,29 +951,32 @@ func (s *RefreshTokenStore) RevokeSubjectTokens(subject string) error {
 			break
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		entity.Key = key
 		entity.Revoked = true
 		entity.RevokedAt = now
-		if _, err := s.client.Put(s.ctx, key, &entity); err != nil {
-			return err
+		if _, err := s.client.Put(ctx, key, &entity); err != nil {
+			return nil, err
 		}
 	}
-	return nil
+	return &core.RevokeSubjectTokensResponse{}, nil
 }
 
-func (s *RefreshTokenStore) RevokeTokenFamily(family string) error {
+func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RevokeTokenFamily: req is required")
+	}
 	query := datastore.NewQuery(KindRefreshToken).
-		FilterField("family", "=", family).
+		FilterField("family", "=", req.Family).
 		FilterField("revoked", "=", false)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
 	now := time.Now()
-	it := s.client.Run(s.ctx, query)
+	it := s.client.Run(ctx, query)
 	for {
 		var entity RefreshTokenEntity
 		key, err := it.Next(&entity)
@@ -963,29 +984,32 @@ func (s *RefreshTokenStore) RevokeTokenFamily(family string) error {
 			break
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		entity.Key = key
 		entity.Revoked = true
 		entity.RevokedAt = now
-		if _, err := s.client.Put(s.ctx, key, &entity); err != nil {
-			return err
+		if _, err := s.client.Put(ctx, key, &entity); err != nil {
+			return nil, err
 		}
 	}
-	return nil
+	return &core.RevokeTokenFamilyResponse{}, nil
 }
 
-func (s *RefreshTokenStore) GetSubjectTokens(subject string) ([]*core.RefreshToken, error) {
+func (s *RefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetSubjectTokens: req is required")
+	}
 	query := datastore.NewQuery(KindRefreshToken).
-		FilterField("subject", "=", subject).
+		FilterField("subject", "=", req.Subject).
 		FilterField("revoked", "=", false)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
 	var tokens []*core.RefreshToken
-	it := s.client.Run(s.ctx, query)
+	it := s.client.Run(ctx, query)
 	for {
 		var entity RefreshTokenEntity
 		key, err := it.Next(&entity)
@@ -998,17 +1022,15 @@ func (s *RefreshTokenStore) GetSubjectTokens(subject string) ([]*core.RefreshTok
 		entity.Key = key
 
 		rt := s.entityToToken(&entity)
-		// Don't include the actual token value for security
 		rt.Token = ""
 		tokens = append(tokens, rt)
 	}
-	return tokens, nil
+	return &core.GetSubjectTokensResponse{Tokens: tokens}, nil
 }
 
-func (s *RefreshTokenStore) CleanupExpiredTokens() error {
+func (s *RefreshTokenStore) CleanupExpiredTokens(ctx context.Context, req *core.CleanupExpiredTokensRequest) (*core.CleanupExpiredTokensResponse, error) {
 	cutoff := time.Now().Add(-24 * time.Hour)
 
-	// Delete expired tokens
 	query := datastore.NewQuery(KindRefreshToken).
 		FilterField("expires_at", "<", time.Now()).
 		KeysOnly()
@@ -1016,18 +1038,17 @@ func (s *RefreshTokenStore) CleanupExpiredTokens() error {
 		query = query.Namespace(s.namespace)
 	}
 
-	keys, err := s.client.GetAll(s.ctx, query, nil)
+	keys, err := s.client.GetAll(ctx, query, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(keys) > 0 {
-		if err := s.client.DeleteMulti(s.ctx, keys); err != nil {
-			return err
+		if err := s.client.DeleteMulti(ctx, keys); err != nil {
+			return nil, err
 		}
 	}
 
-	// Delete old revoked tokens
 	query = datastore.NewQuery(KindRefreshToken).
 		FilterField("revoked", "=", true).
 		FilterField("revoked_at", "<", cutoff).
@@ -1036,16 +1057,18 @@ func (s *RefreshTokenStore) CleanupExpiredTokens() error {
 		query = query.Namespace(s.namespace)
 	}
 
-	keys, err = s.client.GetAll(s.ctx, query, nil)
+	keys, err = s.client.GetAll(ctx, query, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(keys) > 0 {
-		return s.client.DeleteMulti(s.ctx, keys)
+		if err := s.client.DeleteMulti(ctx, keys); err != nil {
+			return nil, err
+		}
 	}
 
-	return nil
+	return &core.CleanupExpiredTokensResponse{}, nil
 }
 
 // ============================================================================
@@ -1082,60 +1105,66 @@ func (s *APIKeyStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *APIKeyStore) CreateAPIKey(subject, name string, scopes []string, expiresAt *time.Time) (string, *core.APIKey, error) {
+func (s *APIKeyStore) CreateAPIKey(ctx context.Context, req *core.CreateAPIKeyRequest) (*core.CreateAPIKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CreateAPIKey: req is required")
+	}
 	keyID, err := core.GenerateAPIKeyID()
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to generate key ID: %w", err)
+		return nil, fmt.Errorf("failed to generate key ID: %w", err)
 	}
 
 	secret, err := core.GenerateAPIKeySecret()
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to generate key secret: %w", err)
+		return nil, fmt.Errorf("failed to generate key secret: %w", err)
 	}
 
 	keyHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to hash key: %w", err)
+		return nil, fmt.Errorf("failed to hash key: %w", err)
 	}
 
 	now := time.Now()
 	key := s.namespacedKey(KindAPIKey, keyID)
 
 	var scopeBytes []byte
-	if scopes != nil {
-		scopeBytes, _ = json.Marshal(scopes)
+	if req.Scopes != nil {
+		scopeBytes, _ = json.Marshal(req.Scopes)
 	}
 
 	entity := &APIKeyEntity{
 		Key:        key,
 		KeyHash:    string(keyHash),
-		Subject:    subject,
-		Name:       name,
+		Subject:    req.Subject,
+		Name:       req.Name,
 		Scopes:     scopeBytes,
 		CreatedAt:  now,
-		HasExpiry:  expiresAt != nil,
+		HasExpiry:  req.ExpiresAt != nil,
 		LastUsedAt: now,
 		Revoked:    false,
 	}
-	if expiresAt != nil {
-		entity.ExpiresAt = *expiresAt
+	if req.ExpiresAt != nil {
+		entity.ExpiresAt = *req.ExpiresAt
 	}
 
-	if _, err := s.client.Put(s.ctx, key, entity); err != nil {
-		return "", nil, err
+	if _, err := s.client.Put(ctx, key, entity); err != nil {
+		return nil, err
 	}
 
 	fullKey := keyID + "_" + secret
-	return fullKey, &core.APIKey{
-		KeyID:      keyID,
-		KeyHash:    string(keyHash),
-		Subject:    subject,
-		Name:       name,
-		Scopes:     scopes,
-		CreatedAt:  now,
-		ExpiresAt:  expiresAt,
-		LastUsedAt: now,
-		Revoked:    false,
+	return &core.CreateAPIKeyResponse{
+		FullKey: fullKey,
+		APIKey: &core.APIKey{
+			KeyID:      keyID,
+			KeyHash:    string(keyHash),
+			Subject:    req.Subject,
+			Name:       req.Name,
+			Scopes:     req.Scopes,
+			CreatedAt:  now,
+			ExpiresAt:  req.ExpiresAt,
+			LastUsedAt: now,
+			Revoked:    false,
+		},
 	}, nil
 }
 
@@ -1164,23 +1193,28 @@ func (s *APIKeyStore) entityToAPIKey(entity *APIKeyEntity) *core.APIKey {
 	return apiKey
 }
 
-func (s *APIKeyStore) GetAPIKeyByID(keyID string) (*core.APIKey, error) {
-	key := s.namespacedKey(KindAPIKey, keyID)
+func (s *APIKeyStore) GetAPIKeyByID(ctx context.Context, req *core.GetAPIKeyByIDRequest) (*core.GetAPIKeyByIDResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetAPIKeyByID: req is required")
+	}
+	key := s.namespacedKey(KindAPIKey, req.KeyID)
 
 	var entity APIKeyEntity
-	if err := s.client.Get(s.ctx, key, &entity); err != nil {
+	if err := s.client.Get(ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			return nil, core.ErrAPIKeyNotFound
 		}
 		return nil, err
 	}
 
-	return s.entityToAPIKey(&entity), nil
+	return &core.GetAPIKeyByIDResponse{APIKey: s.entityToAPIKey(&entity)}, nil
 }
 
-func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
-	// Parse the full key: oa_keyid_secret -> ["oa", "keyid", "secret"]
-	parts := strings.SplitN(fullKey, "_", 3)
+func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, req *core.ValidateAPIKeyRequest) (*core.ValidateAPIKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ValidateAPIKey: req is required")
+	}
+	parts := strings.SplitN(req.FullKey, "_", 3)
 	if len(parts) != 3 || parts[0] != "oa" {
 		return nil, core.ErrAPIKeyNotFound
 	}
@@ -1188,10 +1222,11 @@ func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
 	keyID := parts[0] + "_" + parts[1]
 	secret := parts[2]
 
-	apiKey, err := s.GetAPIKeyByID(keyID)
+	getResp, err := s.GetAPIKeyByID(ctx, &core.GetAPIKeyByIDRequest{KeyID: keyID})
 	if err != nil {
 		return nil, err
 	}
+	apiKey := getResp.APIKey
 
 	if apiKey.Revoked {
 		return nil, core.ErrTokenRevoked
@@ -1205,13 +1240,16 @@ func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
 		return nil, core.ErrAPIKeyNotFound
 	}
 
-	return apiKey, nil
+	return &core.ValidateAPIKeyResponse{APIKey: apiKey}, nil
 }
 
-func (s *APIKeyStore) RevokeAPIKey(keyID string) error {
-	key := s.namespacedKey(KindAPIKey, keyID)
+func (s *APIKeyStore) RevokeAPIKey(ctx context.Context, req *core.RevokeAPIKeyRequest) (*core.RevokeAPIKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RevokeAPIKey: req is required")
+	}
+	key := s.namespacedKey(KindAPIKey, req.KeyID)
 
-	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var entity APIKeyEntity
 		if err := tx.Get(key, &entity); err != nil {
 			if err == datastore.ErrNoSuchEntity {
@@ -1229,18 +1267,24 @@ func (s *APIKeyStore) RevokeAPIKey(keyID string) error {
 		_, err := tx.Put(key, &entity)
 		return err
 	})
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &core.RevokeAPIKeyResponse{}, nil
 }
 
-func (s *APIKeyStore) ListSubjectAPIKeys(subject string) ([]*core.APIKey, error) {
+func (s *APIKeyStore) ListSubjectAPIKeys(ctx context.Context, req *core.ListSubjectAPIKeysRequest) (*core.ListSubjectAPIKeysResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ListSubjectAPIKeys: req is required")
+	}
 	query := datastore.NewQuery(KindAPIKey).
-		FilterField("subject", "=", subject)
+		FilterField("subject", "=", req.Subject)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
 	var keys []*core.APIKey
-	it := s.client.Run(s.ctx, query)
+	it := s.client.Run(ctx, query)
 	for {
 		var entity APIKeyEntity
 		key, err := it.Next(&entity)
@@ -1252,16 +1296,19 @@ func (s *APIKeyStore) ListSubjectAPIKeys(subject string) ([]*core.APIKey, error)
 		}
 		entity.Key = key
 		apiKey := s.entityToAPIKey(&entity)
-		apiKey.KeyHash = "" // Don't expose hash in listings
+		apiKey.KeyHash = ""
 		keys = append(keys, apiKey)
 	}
-	return keys, nil
+	return &core.ListSubjectAPIKeysResponse{APIKeys: keys}, nil
 }
 
-func (s *APIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
-	key := s.namespacedKey(KindAPIKey, keyID)
+func (s *APIKeyStore) UpdateAPIKeyLastUsed(ctx context.Context, req *core.UpdateAPIKeyLastUsedRequest) (*core.UpdateAPIKeyLastUsedResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("UpdateAPIKeyLastUsed: req is required")
+	}
+	key := s.namespacedKey(KindAPIKey, req.KeyID)
 
-	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var entity APIKeyEntity
 		if err := tx.Get(key, &entity); err != nil {
 			return err
@@ -1271,7 +1318,10 @@ func (s *APIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
 		_, err := tx.Put(key, &entity)
 		return err
 	})
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &core.UpdateAPIKeyLastUsedResponse{}, nil
 }
 
 // ============================================================================

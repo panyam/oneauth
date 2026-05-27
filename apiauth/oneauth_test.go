@@ -178,14 +178,19 @@ func TestOneAuth_Revoke_AccessToken(t *testing.T) {
 func TestOneAuth_Revoke_RefreshToken(t *testing.T) {
 	oa := newTestOneAuth(t)
 
-	rt, err := oa.RefreshStore.CreateRefreshToken("eve", "test-client", nil, []string{"read"})
+	createResp, err := oa.RefreshStore.CreateRefreshToken(context.Background(), &core.CreateRefreshTokenRequest{
+		Subject:  "eve",
+		ClientID: "test-client",
+		Scopes:   []string{"read"},
+	})
 	require.NoError(t, err)
+	rt := createResp.Token
 
 	_, err = oa.Revoker.Revoke(context.Background(), &apiauth.RevokeRequest{Token: rt.Token, TokenTypeHint: "refresh_token"})
 	require.NoError(t, err)
 
-	got, _ := oa.RefreshStore.GetRefreshToken(rt.Token)
-	assert.True(t, got.Revoked)
+	getResp, _ := oa.RefreshStore.GetRefreshToken(context.Background(), &core.GetRefreshTokenRequest{Token: rt.Token})
+	assert.True(t, getResp.Token.Revoked)
 }
 
 // TestOneAuth_ClientCredentials verifies the full client_credentials

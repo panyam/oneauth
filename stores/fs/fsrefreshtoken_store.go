@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -23,20 +24,22 @@ func NewFSRefreshTokenStore(storagePath string) *FSRefreshTokenStore {
 	return &FSRefreshTokenStore{StoragePath: storagePath}
 }
 
-// getTokenDir returns the directory for refresh tokens
 func (s *FSRefreshTokenStore) getTokenDir() string {
 	return filepath.Join(s.StoragePath, "refresh_tokens")
 }
 
-// getTokenPath returns the file path for a token (using hash of token for filename)
 func (s *FSRefreshTokenStore) getTokenPath(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	filename := hex.EncodeToString(hash[:]) + ".json"
 	return filepath.Join(s.getTokenDir(), filename)
 }
 
-// CreateRefreshToken creates a new refresh token for the given subject.
-func (s *FSRefreshTokenStore) CreateRefreshToken(subject, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+func (s *FSRefreshTokenStore) hashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
+}
+
+func (s *FSRefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.CreateRefreshTokenRequest) (*core.CreateRefreshTokenResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -54,12 +57,12 @@ func (s *FSRefreshTokenStore) CreateRefreshToken(subject, clientID string, devic
 	refreshToken := &core.RefreshToken{
 		Token:      token,
 		TokenHash:  s.hashToken(token),
-		Subject:    subject,
-		ClientID:   clientID,
-		DeviceInfo: deviceInfo,
-		Family:     family[:16], // Use first 16 chars as family ID
+		Subject:    req.Subject,
+		ClientID:   req.ClientID,
+		DeviceInfo: req.DeviceInfo,
+		Family:     family[:16],
 		Generation: 1,
-		Scopes:     scopes,
+		Scopes:     req.Scopes,
 		CreatedAt:  now,
 		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt: now,
@@ -70,16 +73,9 @@ func (s *FSRefreshTokenStore) CreateRefreshToken(subject, clientID string, devic
 		return nil, err
 	}
 
-	return refreshToken, nil
+	return &core.CreateRefreshTokenResponse{Token: refreshToken}, nil
 }
 
-// hashToken creates a SHA256 hash of the token for storage
-func (s *FSRefreshTokenStore) hashToken(token string) string {
-	hash := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(hash[:])
-}
-
-// saveToken saves a refresh token to disk
 func (s *FSRefreshTokenStore) saveToken(token *core.RefreshToken) error {
 	path := s.getTokenPath(token.Token)
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
@@ -94,15 +90,17 @@ func (s *FSRefreshTokenStore) saveToken(token *core.RefreshToken) error {
 	return writeAtomicFile(path, data)
 }
 
-// GetRefreshToken retrieves a refresh token by its value
-func (s *FSRefreshTokenStore) GetRefreshToken(token string) (*core.RefreshToken, error) {
+func (s *FSRefreshTokenStore) GetRefreshToken(ctx context.Context, req *core.GetRefreshTokenRequest) (*core.GetRefreshTokenResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.getTokenUnsafe(token)
+	rt, err := s.getTokenUnsafe(req.Token)
+	if err != nil {
+		return nil, err
+	}
+	return &core.GetRefreshTokenResponse{Token: rt}, nil
 }
 
-// getTokenUnsafe retrieves a token without locking (caller must hold lock)
 func (s *FSRefreshTokenStore) getTokenUnsafe(token string) (*core.RefreshToken, error) {
 	path := s.getTokenPath(token)
 	data, err := os.ReadFile(path)
@@ -121,29 +119,23 @@ func (s *FSRefreshTokenStore) getTokenUnsafe(token string) (*core.RefreshToken, 
 	return &refreshToken, nil
 }
 
-// RotateRefreshToken invalidates old token and creates new one in same family
-// Returns ErrTokenReused if the old token was already revoked (theft detection)
-func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshToken, error) {
+func (s *FSRefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.RotateRefreshTokenRequest) (*core.RotateRefreshTokenResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Get the old token
-	old, err := s.getTokenUnsafe(oldToken)
+	old, err := s.getTokenUnsafe(req.OldToken)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check if already revoked (token reuse attack detection)
 	if old.Revoked {
 		return nil, core.ErrTokenReused
 	}
 
-	// Check if expired
 	if old.IsExpired() {
 		return nil, core.ErrTokenExpired
 	}
 
-	// Mark old token as revoked
 	now := time.Now()
 	old.Revoked = true
 	old.RevokedAt = &now
@@ -151,7 +143,6 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*core.Refresh
 		return nil, err
 	}
 
-	// Create new token in same family
 	newToken, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -177,39 +168,40 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(oldToken string) (*core.Refresh
 		return nil, err
 	}
 
-	return refreshToken, nil
+	return &core.RotateRefreshTokenResponse{Token: refreshToken}, nil
 }
 
-// RevokeRefreshToken marks a token as revoked
-func (s *FSRefreshTokenStore) RevokeRefreshToken(token string) error {
+func (s *FSRefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.RevokeRefreshTokenRequest) (*core.RevokeRefreshTokenResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	refreshToken, err := s.getTokenUnsafe(token)
+	refreshToken, err := s.getTokenUnsafe(req.Token)
 	if err != nil {
 		if err == core.ErrTokenNotFound {
-			return nil // Already gone
+			return &core.RevokeRefreshTokenResponse{}, nil
 		}
-		return err
+		return nil, err
 	}
 
 	if refreshToken.Revoked {
-		return nil // Already revoked
+		return &core.RevokeRefreshTokenResponse{}, nil
 	}
 
 	now := time.Now()
 	refreshToken.Revoked = true
 	refreshToken.RevokedAt = &now
-	return s.saveToken(refreshToken)
+	if err := s.saveToken(refreshToken); err != nil {
+		return nil, err
+	}
+	return &core.RevokeRefreshTokenResponse{}, nil
 }
 
-// RevokeSubjectTokens revokes all refresh tokens belonging to a subject.
-func (s *FSRefreshTokenStore) RevokeSubjectTokens(subject string) error {
+func (s *FSRefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.RevokeSubjectTokensRequest) (*core.RevokeSubjectTokensResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.forEachToken(func(token *core.RefreshToken, path string) error {
-		if token.Subject == subject && !token.Revoked {
+	if err := s.forEachToken(func(token *core.RefreshToken, path string) error {
+		if token.Subject == req.Subject && !token.Revoked {
 			now := time.Now()
 			token.Revoked = true
 			token.RevokedAt = &now
@@ -220,16 +212,18 @@ func (s *FSRefreshTokenStore) RevokeSubjectTokens(subject string) error {
 			return writeAtomicFile(path, data)
 		}
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
+	return &core.RevokeSubjectTokensResponse{}, nil
 }
 
-// RevokeTokenFamily revokes all tokens in a family (theft detection)
-func (s *FSRefreshTokenStore) RevokeTokenFamily(family string) error {
+func (s *FSRefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.forEachToken(func(token *core.RefreshToken, path string) error {
-		if token.Family == family && !token.Revoked {
+	if err := s.forEachToken(func(token *core.RefreshToken, path string) error {
+		if token.Family == req.Family && !token.Revoked {
 			now := time.Now()
 			token.Revoked = true
 			token.RevokedAt = &now
@@ -240,31 +234,32 @@ func (s *FSRefreshTokenStore) RevokeTokenFamily(family string) error {
 			return writeAtomicFile(path, data)
 		}
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
+	return &core.RevokeTokenFamilyResponse{}, nil
 }
 
-// GetSubjectTokens lists all active (non-revoked, non-expired) refresh
-// tokens belonging to a subject.
-func (s *FSRefreshTokenStore) GetSubjectTokens(subject string) ([]*core.RefreshToken, error) {
+func (s *FSRefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	var tokens []*core.RefreshToken
 	err := s.forEachToken(func(token *core.RefreshToken, path string) error {
-		if token.Subject == subject && token.IsValid() {
-			// Don't include the actual token value for security
+		if token.Subject == req.Subject && token.IsValid() {
 			tokenCopy := *token
-			tokenCopy.Token = "" // Clear token value
+			tokenCopy.Token = ""
 			tokens = append(tokens, &tokenCopy)
 		}
 		return nil
 	})
-
-	return tokens, err
+	if err != nil {
+		return nil, err
+	}
+	return &core.GetSubjectTokensResponse{Tokens: tokens}, nil
 }
 
-// CleanupExpiredTokens removes expired tokens (for maintenance)
-func (s *FSRefreshTokenStore) CleanupExpiredTokens() error {
+func (s *FSRefreshTokenStore) CleanupExpiredTokens(ctx context.Context, req *core.CleanupExpiredTokensRequest) (*core.CleanupExpiredTokensResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -272,9 +267,9 @@ func (s *FSRefreshTokenStore) CleanupExpiredTokens() error {
 	entries, err := os.ReadDir(tokensDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return &core.CleanupExpiredTokensResponse{}, nil
 		}
-		return err
+		return nil, err
 	}
 
 	for _, entry := range entries {
@@ -293,16 +288,14 @@ func (s *FSRefreshTokenStore) CleanupExpiredTokens() error {
 			continue
 		}
 
-		// Remove if expired or revoked more than 24 hours ago
 		if token.IsExpired() || (token.Revoked && token.RevokedAt != nil && time.Since(*token.RevokedAt) > 24*time.Hour) {
 			_ = os.Remove(path)
 		}
 	}
 
-	return nil
+	return &core.CleanupExpiredTokensResponse{}, nil
 }
 
-// forEachToken iterates over all tokens in the store
 func (s *FSRefreshTokenStore) forEachToken(fn func(token *core.RefreshToken, path string) error) error {
 	tokensDir := s.getTokenDir()
 	entries, err := os.ReadDir(tokensDir)
