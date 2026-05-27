@@ -53,7 +53,6 @@ func (u *GAEUser) Profile() map[string]any { return u.UserProfile }
 type UserStore struct {
 	client    *datastore.Client
 	namespace string
-	ctx       context.Context
 }
 
 // NewUserStore creates a new Datastore-backed UserStore
@@ -61,16 +60,6 @@ func NewUserStore(client *datastore.Client, namespace string) *UserStore {
 	return &UserStore{
 		client:    client,
 		namespace: namespace,
-		ctx:       context.Background(),
-	}
-}
-
-// WithContext returns a copy of the store with the given context
-func (s *UserStore) WithContext(ctx context.Context) *UserStore {
-	return &UserStore{
-		client:    s.client,
-		namespace: s.namespace,
-		ctx:       ctx,
 	}
 }
 
@@ -188,7 +177,6 @@ func (s *UserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest)
 type IdentityStore struct {
 	client    *datastore.Client
 	namespace string
-	ctx       context.Context
 }
 
 // NewIdentityStore creates a new Datastore-backed IdentityStore
@@ -196,15 +184,6 @@ func NewIdentityStore(client *datastore.Client, namespace string) *IdentityStore
 	return &IdentityStore{
 		client:    client,
 		namespace: namespace,
-		ctx:       context.Background(),
-	}
-}
-
-func (s *IdentityStore) WithContext(ctx context.Context) *IdentityStore {
-	return &IdentityStore{
-		client:    s.client,
-		namespace: s.namespace,
-		ctx:       ctx,
 	}
 }
 
@@ -346,7 +325,6 @@ func (s *IdentityStore) GetUserIdentities(ctx context.Context, req *accounts.Get
 type ChannelStore struct {
 	client    *datastore.Client
 	namespace string
-	ctx       context.Context
 }
 
 // NewChannelStore creates a new Datastore-backed ChannelStore
@@ -354,15 +332,6 @@ func NewChannelStore(client *datastore.Client, namespace string) *ChannelStore {
 	return &ChannelStore{
 		client:    client,
 		namespace: namespace,
-		ctx:       context.Background(),
-	}
-}
-
-func (s *ChannelStore) WithContext(ctx context.Context) *ChannelStore {
-	return &ChannelStore{
-		client:    s.client,
-		namespace: s.namespace,
-		ctx:       ctx,
 	}
 }
 
@@ -532,7 +501,6 @@ func (s *ChannelStore) GetChannelsByIdentity(ctx context.Context, req *accounts.
 type TokenStore struct {
 	client    *datastore.Client
 	namespace string
-	ctx       context.Context
 }
 
 // NewTokenStore creates a new Datastore-backed TokenStore
@@ -540,15 +508,6 @@ func NewTokenStore(client *datastore.Client, namespace string) *TokenStore {
 	return &TokenStore{
 		client:    client,
 		namespace: namespace,
-		ctx:       context.Background(),
-	}
-}
-
-func (s *TokenStore) WithContext(ctx context.Context) *TokenStore {
-	return &TokenStore{
-		client:    s.client,
-		namespace: s.namespace,
-		ctx:       ctx,
 	}
 }
 
@@ -660,7 +619,6 @@ func (s *TokenStore) DeleteSubjectTokens(ctx context.Context, req *localauth.Del
 type RefreshTokenStore struct {
 	client    *datastore.Client
 	namespace string
-	ctx       context.Context
 }
 
 // NewRefreshTokenStore creates a new Datastore-backed RefreshTokenStore
@@ -668,15 +626,6 @@ func NewRefreshTokenStore(client *datastore.Client, namespace string) *RefreshTo
 	return &RefreshTokenStore{
 		client:    client,
 		namespace: namespace,
-		ctx:       context.Background(),
-	}
-}
-
-func (s *RefreshTokenStore) WithContext(ctx context.Context) *RefreshTokenStore {
-	return &RefreshTokenStore{
-		client:    s.client,
-		namespace: s.namespace,
-		ctx:       ctx,
 	}
 }
 
@@ -1097,7 +1046,6 @@ func (s *RefreshTokenStore) CleanupExpiredTokens(ctx context.Context, req *core.
 type APIKeyStore struct {
 	client    *datastore.Client
 	namespace string
-	ctx       context.Context
 }
 
 // NewAPIKeyStore creates a new Datastore-backed APIKeyStore
@@ -1105,15 +1053,6 @@ func NewAPIKeyStore(client *datastore.Client, namespace string) *APIKeyStore {
 	return &APIKeyStore{
 		client:    client,
 		namespace: namespace,
-		ctx:       context.Background(),
-	}
-}
-
-func (s *APIKeyStore) WithContext(ctx context.Context) *APIKeyStore {
-	return &APIKeyStore{
-		client:    s.client,
-		namespace: s.namespace,
-		ctx:       ctx,
 	}
 }
 
@@ -1350,7 +1289,6 @@ func (s *APIKeyStore) UpdateAPIKeyLastUsed(ctx context.Context, req *core.Update
 type UsernameStore struct {
 	client    *datastore.Client
 	namespace string
-	ctx       context.Context
 }
 
 // NewUsernameStore creates a new Datastore-backed UsernameStore
@@ -1358,15 +1296,6 @@ func NewUsernameStore(client *datastore.Client, namespace string) *UsernameStore
 	return &UsernameStore{
 		client:    client,
 		namespace: namespace,
-		ctx:       context.Background(),
-	}
-}
-
-func (s *UsernameStore) WithContext(ctx context.Context) *UsernameStore {
-	return &UsernameStore{
-		client:    s.client,
-		namespace: s.namespace,
-		ctx:       ctx,
 	}
 }
 

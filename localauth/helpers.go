@@ -309,12 +309,14 @@ func NewCredentialsValidatorWithUsername(identityStore accounts.IdentityStore, c
 			}
 			userResp, err := usernameStore.GetUserByUsername(ctx, &accounts.GetUserByUsernameRequest{Username: username})
 			if err != nil {
+				bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
 				return nil, fmt.Errorf("invalid credentials")
 			}
 			userID := userResp.UserID
 
 			idsResp, err := identityStore.GetUserIdentities(ctx, &accounts.GetUserIdentitiesRequest{UserID: userID})
 			if err != nil || len(idsResp.Identities) == 0 {
+				bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
 				return nil, fmt.Errorf("invalid credentials")
 			}
 
@@ -326,6 +328,7 @@ func NewCredentialsValidatorWithUsername(identityStore accounts.IdentityStore, c
 				}
 			}
 			if emailIdentity == nil {
+				bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
 				return nil, fmt.Errorf("invalid credentials")
 			}
 			identityKey = accounts.IdentityKey("email", emailIdentity.Value)
@@ -335,12 +338,14 @@ func NewCredentialsValidatorWithUsername(identityStore accounts.IdentityStore, c
 
 		chResp, err := channelStore.GetChannel(ctx, &accounts.GetChannelRequest{Provider: "local", IdentityKey: identityKey})
 		if err != nil {
+			bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
 			return nil, fmt.Errorf("invalid credentials")
 		}
 		channel := chResp.Channel
 
 		passwordHash, ok := channel.Credentials["password_hash"].(string)
 		if !ok {
+			bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
 			return nil, fmt.Errorf("invalid credentials")
 		}
 

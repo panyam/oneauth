@@ -3,6 +3,7 @@
 package localauth_test
 
 import (
+	"time"
 	"github.com/panyam/oneauth/accounts"
 	"context"
 	"github.com/panyam/oneauth/localauth"
@@ -519,6 +520,50 @@ func TestCredentialsValidatorNoUsernameStore(t *testing.T) {
 	_, err := validator("someuser", "password", "username")
 	if err == nil {
 		t.Error("Should fail when UsernameStore is nil")
+	}
+}
+
+// TestCredentialsValidatorWithUsername_TimingOracle verifies the not-found-username
+// path runs a dummy bcrypt comparison, so its wall-clock duration is comparable to
+// a valid-username path. Without the defense, a missing username returns in microseconds
+// while a valid username costs ~bcrypt cost 10 (~30–100 ms), letting an attacker
+// enumerate accounts by timing /auth/login responses.
+//
+// See: https://cwe.mitre.org/data/definitions/208.html
+func TestCredentialsValidatorWithUsername_TimingOracle(t *testing.T) {
+	config, tmpDir := setupAuthStores(t)
+	defer os.RemoveAll(tmpDir)
+
+	validator := localauth.NewCredentialsValidatorWithUsername(
+		config.IdentityStore,
+		config.ChannelStore,
+		config.UserStore,
+		config.UsernameStore,
+	)
+
+	// Lower bound: one bcrypt.DefaultCost comparison takes ~20 ms even on a fast
+	// host. If the dummy comparison was skipped, the not-found path returns in
+	// well under 1 ms — orders of magnitude below this floor.
+	const bcryptFloor = 15 * time.Millisecond
+
+	for _, tc := range []struct {
+		name     string
+		username string
+	}{
+		{"unknown_username", "no-such-user"},
+		{"unknown_email", "ghost@example.com"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			start := time.Now()
+			_, err := validator(tc.username, "any-password", "")
+			elapsed := time.Since(start)
+			if err == nil {
+				t.Fatalf("expected error for missing %s", tc.name)
+			}
+			if elapsed < bcryptFloor {
+				t.Errorf("not-found path returned in %v; expected ≥ %v (dummy bcrypt missing — timing oracle reintroduced)", elapsed, bcryptFloor)
+			}
+		})
 	}
 }
 
