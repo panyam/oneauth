@@ -42,12 +42,12 @@ func (r *tokenRevoker) Revoke(ctx context.Context, req *RevokeRequest) (*RevokeR
 	}
 	switch req.TokenTypeHint {
 	case "refresh_token":
-		r.revokeRefreshToken(req.Token)
+		r.revokeRefreshToken(ctx, req.Token)
 	case "access_token":
 		r.revokeAccessToken(req.Token)
 	default:
 		// No hint — try refresh first (cheaper lookup), then access
-		if !r.revokeRefreshToken(req.Token) {
+		if !r.revokeRefreshToken(ctx, req.Token) {
 			r.revokeAccessToken(req.Token)
 		}
 	}
@@ -58,16 +58,16 @@ func (r *tokenRevoker) Revoke(ctx context.Context, req *RevokeRequest) (*RevokeR
 
 // revokeRefreshToken attempts to revoke a refresh token. Returns true if
 // the token was found in the refresh store.
-func (r *tokenRevoker) revokeRefreshToken(token string) bool {
+func (r *tokenRevoker) revokeRefreshToken(ctx context.Context, token string) bool {
 	if r.refreshStore == nil {
 		return false
 	}
-	rt, err := r.refreshStore.GetRefreshToken(token)
-	if err != nil || rt == nil {
+	getResp, err := r.refreshStore.GetRefreshToken(ctx, &core.GetRefreshTokenRequest{Token: token})
+	if err != nil || getResp == nil || getResp.Token == nil {
 		return false
 	}
-	if !rt.Revoked {
-		r.refreshStore.RevokeRefreshToken(token)
+	if !getResp.Token.Revoked {
+		r.refreshStore.RevokeRefreshToken(ctx, &core.RevokeRefreshTokenRequest{Token: token})
 	}
 	return true
 }

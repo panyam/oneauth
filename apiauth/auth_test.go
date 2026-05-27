@@ -4,10 +4,8 @@
 package apiauth_test
 
 import (
-	"github.com/panyam/oneauth/core"
-	"github.com/panyam/oneauth/apiauth"
-	"github.com/panyam/oneauth/localauth"
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +13,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/panyam/oneauth/apiauth"
+	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/localauth"
 	"github.com/panyam/oneauth/stores/fs"
 )
 
@@ -470,10 +472,16 @@ func TestAPIKeyAuthentication(t *testing.T) {
 	defer cleanupAPIAuthTest(t, tmpDir)
 
 	// Create API key directly for testing
-	fullKey, apiKey, err := apiKeyStore.CreateAPIKey("testuser123", "Test Key", []string{core.ScopeRead, core.ScopeWrite}, nil)
+	createResp, err := apiKeyStore.CreateAPIKey(context.Background(), &core.CreateAPIKeyRequest{
+		Subject: "testuser123",
+		Name:    "Test Key",
+		Scopes:  []string{core.ScopeRead, core.ScopeWrite},
+	})
 	if err != nil {
 		t.Fatalf("Failed to create API key: %v", err)
 	}
+	fullKey := createResp.FullKey
+	apiKey := createResp.APIKey
 
 	middleware := &apiauth.APIMiddleware{
 		JWTSecretKey: apiAuth.JWTSecretKey,
@@ -618,8 +626,8 @@ func TestAPIKeyManagement(t *testing.T) {
 		}
 
 		// Verify key is revoked
-		key, _ := apiKeyStore.GetAPIKeyByID(createdKeyID)
-		if key != nil && !key.Revoked {
+		getResp, _ := apiKeyStore.GetAPIKeyByID(context.Background(), &core.GetAPIKeyByIDRequest{KeyID: createdKeyID})
+		if getResp != nil && getResp.APIKey != nil && !getResp.APIKey.Revoked {
 			t.Error("Expected key to be revoked")
 		}
 	})
@@ -680,10 +688,16 @@ func TestAPITokenExpiry(t *testing.T) {
 
 	// Create an expired API key
 	expiredTime := time.Now().Add(-1 * time.Hour)
-	fullKey, _, err := apiKeyStore.CreateAPIKey("testuser", "Expired Key", []string{"read"}, &expiredTime)
+	expiredResp, err := apiKeyStore.CreateAPIKey(context.Background(), &core.CreateAPIKeyRequest{
+		Subject:   "testuser",
+		Name:      "Expired Key",
+		Scopes:    []string{"read"},
+		ExpiresAt: &expiredTime,
+	})
 	if err != nil {
 		t.Fatalf("Failed to create expired API key: %v", err)
 	}
+	fullKey := expiredResp.FullKey
 
 	t.Run("rejects expired API key", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/resource", nil)

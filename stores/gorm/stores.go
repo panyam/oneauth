@@ -339,7 +339,7 @@ func (s *RefreshTokenStore) hashToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (s *RefreshTokenStore) CreateRefreshToken(subject, clientID string, deviceInfo map[string]any, scopes []string) (*core.RefreshToken, error) {
+func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.CreateRefreshTokenRequest) (*core.CreateRefreshTokenResponse, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
 		return nil, err
@@ -354,30 +354,30 @@ func (s *RefreshTokenStore) CreateRefreshToken(subject, clientID string, deviceI
 	model := &RefreshTokenModel{
 		TokenHash:  s.hashToken(token),
 		Token:      token,
-		Subject:    subject,
-		ClientID:   clientID,
-		DeviceInfo: deviceInfo,
+		Subject:    req.Subject,
+		ClientID:   req.ClientID,
+		DeviceInfo: req.DeviceInfo,
 		Family:     family[:16],
 		Generation: 1,
-		Scopes:     scopes,
+		Scopes:     req.Scopes,
 		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt: now,
 		Revoked:    false,
 	}
 
-	if err := s.db.Create(model).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(model).Error; err != nil {
 		return nil, err
 	}
 
 	rt := model.ToRefreshToken()
-	rt.Token = token // Restore the actual token value
-	return rt, nil
+	rt.Token = token
+	return &core.CreateRefreshTokenResponse{Token: rt}, nil
 }
 
-func (s *RefreshTokenStore) GetRefreshToken(token string) (*core.RefreshToken, error) {
-	tokenHash := s.hashToken(token)
+func (s *RefreshTokenStore) GetRefreshToken(ctx context.Context, req *core.GetRefreshTokenRequest) (*core.GetRefreshTokenResponse, error) {
+	tokenHash := s.hashToken(req.Token)
 	var model RefreshTokenModel
-	if err := s.db.First(&model, "token_hash = ?", tokenHash).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "token_hash = ?", tokenHash).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, core.ErrTokenNotFound
 		}
@@ -385,17 +385,17 @@ func (s *RefreshTokenStore) GetRefreshToken(token string) (*core.RefreshToken, e
 	}
 
 	rt := model.ToRefreshToken()
-	rt.Token = token // Restore the actual token value
-	return rt, nil
+	rt.Token = req.Token
+	return &core.GetRefreshTokenResponse{Token: rt}, nil
 }
 
-func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshToken, error) {
-	oldHash := s.hashToken(oldToken)
+func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.RotateRefreshTokenRequest) (*core.RotateRefreshTokenResponse, error) {
+	oldHash := s.hashToken(req.OldToken)
 
 	var newRefreshToken *core.RefreshToken
 	var newTokenValue string
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var oldModel RefreshTokenModel
 		if err := tx.First(&oldModel, "token_hash = ?", oldHash).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -412,7 +412,6 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 			return core.ErrTokenExpired
 		}
 
-		// Revoke old token
 		now := time.Now()
 		if err := tx.Model(&oldModel).Updates(map[string]any{
 			"revoked":    true,
@@ -421,7 +420,6 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 			return err
 		}
 
-		// Create new token
 		newToken, err := core.GenerateSecureToken()
 		if err != nil {
 			return err
@@ -455,34 +453,43 @@ func (s *RefreshTokenStore) RotateRefreshToken(oldToken string) (*core.RefreshTo
 	}
 
 	newRefreshToken.Token = newTokenValue
-	return newRefreshToken, nil
+	return &core.RotateRefreshTokenResponse{Token: newRefreshToken}, nil
 }
 
-func (s *RefreshTokenStore) RevokeRefreshToken(token string) error {
-	tokenHash := s.hashToken(token)
+func (s *RefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.RevokeRefreshTokenRequest) (*core.RevokeRefreshTokenResponse, error) {
+	tokenHash := s.hashToken(req.Token)
 	now := time.Now()
-	return s.db.Model(&RefreshTokenModel{}).
+	if err := s.db.WithContext(ctx).Model(&RefreshTokenModel{}).
 		Where("token_hash = ?", tokenHash).
-		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
+		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error; err != nil {
+		return nil, err
+	}
+	return &core.RevokeRefreshTokenResponse{}, nil
 }
 
-func (s *RefreshTokenStore) RevokeSubjectTokens(subject string) error {
+func (s *RefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.RevokeSubjectTokensRequest) (*core.RevokeSubjectTokensResponse, error) {
 	now := time.Now()
-	return s.db.Model(&RefreshTokenModel{}).
-		Where("subject = ? AND revoked = ?", subject, false).
-		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
+	if err := s.db.WithContext(ctx).Model(&RefreshTokenModel{}).
+		Where("subject = ? AND revoked = ?", req.Subject, false).
+		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error; err != nil {
+		return nil, err
+	}
+	return &core.RevokeSubjectTokensResponse{}, nil
 }
 
-func (s *RefreshTokenStore) RevokeTokenFamily(family string) error {
+func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
 	now := time.Now()
-	return s.db.Model(&RefreshTokenModel{}).
-		Where("family = ? AND revoked = ?", family, false).
-		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
+	if err := s.db.WithContext(ctx).Model(&RefreshTokenModel{}).
+		Where("family = ? AND revoked = ?", req.Family, false).
+		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error; err != nil {
+		return nil, err
+	}
+	return &core.RevokeTokenFamilyResponse{}, nil
 }
 
-func (s *RefreshTokenStore) GetSubjectTokens(subject string) ([]*core.RefreshToken, error) {
+func (s *RefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {
 	var models []RefreshTokenModel
-	if err := s.db.Where("subject = ? AND revoked = ? AND expires_at > ?", subject, false, time.Now()).
+	if err := s.db.WithContext(ctx).Where("subject = ? AND revoked = ? AND expires_at > ?", req.Subject, false, time.Now()).
 		Find(&models).Error; err != nil {
 		return nil, err
 	}
@@ -490,16 +497,19 @@ func (s *RefreshTokenStore) GetSubjectTokens(subject string) ([]*core.RefreshTok
 	tokens := make([]*core.RefreshToken, len(models))
 	for i, m := range models {
 		tokens[i] = m.ToRefreshToken()
-		tokens[i].Token = "" // Don't expose token value
+		tokens[i].Token = ""
 	}
-	return tokens, nil
+	return &core.GetSubjectTokensResponse{Tokens: tokens}, nil
 }
 
-func (s *RefreshTokenStore) CleanupExpiredTokens() error {
+func (s *RefreshTokenStore) CleanupExpiredTokens(ctx context.Context, req *core.CleanupExpiredTokensRequest) (*core.CleanupExpiredTokensResponse, error) {
 	cutoff := time.Now().Add(-24 * time.Hour)
-	return s.db.Delete(&RefreshTokenModel{},
+	if err := s.db.WithContext(ctx).Delete(&RefreshTokenModel{},
 		"expires_at < ? OR (revoked = ? AND revoked_at < ?)",
-		time.Now(), true, cutoff).Error
+		time.Now(), true, cutoff).Error; err != nil {
+		return nil, err
+	}
+	return &core.CleanupExpiredTokensResponse{}, nil
 }
 
 // =============================================================================
@@ -515,66 +525,56 @@ func NewAPIKeyStore(db *gorm.DB) *APIKeyStore {
 	return &APIKeyStore{db: db}
 }
 
-func (s *APIKeyStore) CreateAPIKey(subject, name string, scopes []string, expiresAt *time.Time) (string, *core.APIKey, error) {
+func (s *APIKeyStore) CreateAPIKey(ctx context.Context, req *core.CreateAPIKeyRequest) (*core.CreateAPIKeyResponse, error) {
 	keyID, err := core.GenerateAPIKeyID()
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to generate key ID: %w", err)
+		return nil, fmt.Errorf("failed to generate key ID: %w", err)
 	}
 
 	secret, err := core.GenerateAPIKeySecret()
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to generate key secret: %w", err)
+		return nil, fmt.Errorf("failed to generate key secret: %w", err)
 	}
 
 	keyHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to hash key: %w", err)
+		return nil, fmt.Errorf("failed to hash key: %w", err)
 	}
 
 	now := time.Now()
 	model := &APIKeyModel{
 		KeyID:      keyID,
 		KeyHash:    string(keyHash),
-		Subject:    subject,
-		Name:       name,
-		Scopes:     scopes,
-		ExpiresAt:  expiresAt,
+		Subject:    req.Subject,
+		Name:       req.Name,
+		Scopes:     req.Scopes,
+		ExpiresAt:  req.ExpiresAt,
 		LastUsedAt: now,
 		Revoked:    false,
 	}
 
-	if err := s.db.Create(model).Error; err != nil {
-		return "", nil, err
+	if err := s.db.WithContext(ctx).Create(model).Error; err != nil {
+		return nil, err
 	}
 
 	fullKey := keyID + "_" + secret
-	return fullKey, model.ToAPIKey(), nil
+	return &core.CreateAPIKeyResponse{FullKey: fullKey, APIKey: model.ToAPIKey()}, nil
 }
 
-func (s *APIKeyStore) GetAPIKeyByID(keyID string) (*core.APIKey, error) {
+func (s *APIKeyStore) GetAPIKeyByID(ctx context.Context, req *core.GetAPIKeyByIDRequest) (*core.GetAPIKeyByIDResponse, error) {
 	var model APIKeyModel
-	if err := s.db.First(&model, "key_id = ?", keyID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "key_id = ?", req.KeyID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, core.ErrAPIKeyNotFound
 		}
 		return nil, err
 	}
-	return model.ToAPIKey(), nil
+	return &core.GetAPIKeyByIDResponse{APIKey: model.ToAPIKey()}, nil
 }
 
-func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
-	// Parse the full key: oa_keyid_secret
-	parts := make([]string, 3)
-	n := 0
-	for i := 0; i < len(fullKey) && n < 3; i++ {
-		if fullKey[i] == '_' {
-			n++
-		} else if n < 3 {
-			parts[n] += string(fullKey[i])
-		}
-	}
-
-	if parts[0] != "oa" || parts[1] == "" || parts[2] == "" {
+func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, req *core.ValidateAPIKeyRequest) (*core.ValidateAPIKeyResponse, error) {
+	parts := strings.SplitN(req.FullKey, "_", 3)
+	if len(parts) != 3 || parts[0] != "oa" || parts[1] == "" || parts[2] == "" {
 		return nil, core.ErrAPIKeyNotFound
 	}
 
@@ -582,7 +582,7 @@ func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
 	secret := parts[2]
 
 	var model APIKeyModel
-	if err := s.db.First(&model, "key_id = ?", keyID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "key_id = ?", keyID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, core.ErrAPIKeyNotFound
 		}
@@ -602,34 +602,40 @@ func (s *APIKeyStore) ValidateAPIKey(fullKey string) (*core.APIKey, error) {
 		return nil, core.ErrAPIKeyNotFound
 	}
 
-	return apiKey, nil
+	return &core.ValidateAPIKeyResponse{APIKey: apiKey}, nil
 }
 
-func (s *APIKeyStore) RevokeAPIKey(keyID string) error {
+func (s *APIKeyStore) RevokeAPIKey(ctx context.Context, req *core.RevokeAPIKeyRequest) (*core.RevokeAPIKeyResponse, error) {
 	now := time.Now()
-	return s.db.Model(&APIKeyModel{}).
-		Where("key_id = ?", keyID).
-		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error
+	if err := s.db.WithContext(ctx).Model(&APIKeyModel{}).
+		Where("key_id = ?", req.KeyID).
+		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error; err != nil {
+		return nil, err
+	}
+	return &core.RevokeAPIKeyResponse{}, nil
 }
 
-func (s *APIKeyStore) ListSubjectAPIKeys(subject string) ([]*core.APIKey, error) {
+func (s *APIKeyStore) ListSubjectAPIKeys(ctx context.Context, req *core.ListSubjectAPIKeysRequest) (*core.ListSubjectAPIKeysResponse, error) {
 	var models []APIKeyModel
-	if err := s.db.Where("subject = ?", subject).Find(&models).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("subject = ?", req.Subject).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
 	keys := make([]*core.APIKey, len(models))
 	for i, m := range models {
 		keys[i] = m.ToAPIKey()
-		keys[i].KeyHash = "" // Don't expose hash
+		keys[i].KeyHash = ""
 	}
-	return keys, nil
+	return &core.ListSubjectAPIKeysResponse{APIKeys: keys}, nil
 }
 
-func (s *APIKeyStore) UpdateAPIKeyLastUsed(keyID string) error {
-	return s.db.Model(&APIKeyModel{}).
-		Where("key_id = ?", keyID).
-		Update("last_used_at", time.Now()).Error
+func (s *APIKeyStore) UpdateAPIKeyLastUsed(ctx context.Context, req *core.UpdateAPIKeyLastUsedRequest) (*core.UpdateAPIKeyLastUsedResponse, error) {
+	if err := s.db.WithContext(ctx).Model(&APIKeyModel{}).
+		Where("key_id = ?", req.KeyID).
+		Update("last_used_at", time.Now()).Error; err != nil {
+		return nil, err
+	}
+	return &core.UpdateAPIKeyLastUsedResponse{}, nil
 }
 
 // =============================================================================
