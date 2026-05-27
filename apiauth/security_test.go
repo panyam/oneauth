@@ -134,11 +134,22 @@ func TestSecurity_ExpiredToken_Rejected(t *testing.T) {
 	secret := "test-secret-key-for-jwt"
 	auth := &apiauth.APIAuth{JWTSecretKey: secret}
 
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 
 	// Validate immediately — should work
-	userID, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var userID string
+	var _ []string
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
 
@@ -152,7 +163,14 @@ func TestSecurity_ExpiredToken_Rejected(t *testing.T) {
 	})
 	expiredStr, _ := expired.SignedString([]byte(secret))
 
-	_, _, err = auth.ValidateAccessToken(expiredStr)
+	vresp, err = auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: expiredStr})
+
+	var _ string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.Error(t, err, "expired tokens must be rejected")
 }
 
@@ -174,7 +192,14 @@ func TestSecurity_RefreshTokenType_RejectedAsAccess(t *testing.T) {
 	})
 	tokenStr, _ := token.SignedString([]byte(secret))
 
-	_, _, err := auth.ValidateAccessToken(tokenStr)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
+
+	var _ string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.Error(t, err, "refresh-type tokens must be rejected by access token validator")
 	assert.Contains(t, err.Error(), "invalid token type")
 }
@@ -195,7 +220,14 @@ func TestSecurity_MissingSub_Rejected(t *testing.T) {
 	})
 	tokenStr, _ := token.SignedString([]byte(secret))
 
-	_, _, err := auth.ValidateAccessToken(tokenStr)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
+
+	var _ string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.Error(t, err, "tokens without sub claim must be rejected")
 	assert.Contains(t, err.Error(), "missing subject")
 }
@@ -222,7 +254,14 @@ func TestSecurity_WrongIssuer_Rejected(t *testing.T) {
 	})
 	tokenStr, _ := token.SignedString([]byte(secret))
 
-	_, _, err := auth.ValidateAccessToken(tokenStr)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
+
+	var _ string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.Error(t, err, "tokens with wrong issuer must be rejected")
 	assert.Contains(t, err.Error(), "invalid issuer")
 }
@@ -239,20 +278,32 @@ func TestSecurity_EmptySigningKey_Errors(t *testing.T) {
 	// CreateAccessToken with empty key should still produce a token
 	// (jwt library allows it), but validation should use the same empty key.
 	// The real risk is key misconfiguration — this documents current behavior.
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+	token := ""
+	var _ int64
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	if err != nil {
 		// If it errors on creation, that's fine — fail-safe
 		return
 	}
 
 	// If it produces a token, it should at least be verifiable with the same empty key
-	userID, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var userID string
+	var _ []string
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
 
 	// But it must NOT be verifiable with a different key
 	auth2 := &apiauth.APIAuth{JWTSecretKey: "different-key"}
-	_, _, err = auth2.ValidateAccessToken(token)
+	vresp, err = auth2.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var _ string
+	var _ []string
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.Error(t, err, "token signed with empty key must not validate with different key")
 }
 

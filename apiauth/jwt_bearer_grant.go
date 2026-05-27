@@ -228,7 +228,11 @@ func (a *APIAuth) handleJwtBearerGrant(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
-	accessToken, expiresIn, err := a.CreateAccessToken(subject, scopes, req.AuthorizationDetails)
+	tokResp, err := a.Issuer().CreateAccessToken(r.Context(), &CreateAccessTokenRequest{
+		Subject:              subject,
+		Scopes:               scopes,
+		AuthorizationDetails: req.AuthorizationDetails,
+	})
 	if err != nil {
 		log.Printf("Error creating access token (jwt-bearer grant): %v", err)
 		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
@@ -239,5 +243,5 @@ func (a *APIAuth) handleJwtBearerGrant(w http.ResponseWriter, r *http.Request, r
 	// itself is the renewable credential (re-issued by the upstream
 	// IdP and re-presented). Returning a refresh token would muddle
 	// session semantics.
-	a.tokenResponse(w, accessToken, expiresIn, "", scopes, req.AuthorizationDetails)
+	a.tokenResponse(w, tokResp.Token, tokResp.ExpiresIn, "", scopes, req.AuthorizationDetails)
 }

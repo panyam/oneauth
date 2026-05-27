@@ -81,10 +81,24 @@ func TestInMemoryBlacklist_Cleanup(t *testing.T) {
 func TestBlacklist_JTIInAccessToken(t *testing.T) {
 	auth := &apiauth.APIAuth{JWTSecretKey: "test-secret"}
 
-	token1, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
+	token1Resp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token1 := ""
+
+	var _ int64
+
+	if token1Resp != nil { token1 = token1Resp.Token; _ = token1Resp.ExpiresIn }
+
 	require.NoError(t, err)
 
-	token2, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
+	token2Resp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token2 := ""
+
+	var _ int64
+
+	if token2Resp != nil { token2 = token2Resp.Token; _ = token2Resp.ExpiresIn }
+
 	require.NoError(t, err)
 
 	// Parse tokens to extract jti
@@ -117,11 +131,22 @@ func TestBlacklist_RevokedTokenRejected(t *testing.T) {
 		Blacklist:    bl,
 	}
 
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 
 	// Token should work before revocation
-	userID, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var userID string
+	var _ []string
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
 
@@ -132,7 +157,11 @@ func TestBlacklist_RevokedTokenRejected(t *testing.T) {
 	bl.Revoke(jti, time.Now().Add(time.Hour))
 
 	// Token should now be rejected
-	_, _, err = auth.ValidateAccessToken(token)
+	vresp, err = auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var _ string
+	var _ []string
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.Error(t, err, "revoked token should be rejected")
 	assert.Contains(t, err.Error(), "revoked")
 }
@@ -146,14 +175,25 @@ func TestBlacklist_NonRevokedTokenAccepted(t *testing.T) {
 		Blacklist:    bl,
 	}
 
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 
 	// Revoke a DIFFERENT token
 	bl.Revoke("some-other-jti", time.Now().Add(time.Hour))
 
 	// Our token should still work
-	userID, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var userID string
+	var _ []string
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
 }
@@ -164,10 +204,24 @@ func TestBlacklist_NoBlacklistConfigured(t *testing.T) {
 	auth := &apiauth.APIAuth{JWTSecretKey: "test-secret"}
 	// No Blacklist field set
 
-	token, _, err := auth.CreateAccessToken("user1", []string{"read"}, nil)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 
-	userID, _, err := auth.ValidateAccessToken(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var userID string
+
+	var _ []string
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
 }
@@ -197,7 +251,13 @@ func TestBlacklist_MiddlewareChecksBlacklist(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	token, _, _ := auth.CreateAccessToken("user1", []string{"read"}, nil)
+	tokenResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+
+	token := ""
+
+
+	if tokenResp != nil { token = tokenResp.Token }
 
 	// Should work before revocation
 	rr := httptest.NewRecorder()
@@ -230,7 +290,13 @@ func TestBlacklist_ValidateAccessTokenFull_ChecksBlacklist(t *testing.T) {
 		Blacklist:    bl,
 	}
 
-	token, _, _ := auth.CreateAccessToken("user1", []string{"read"}, nil)
+	tokenResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+
+	token := ""
+
+
+	if tokenResp != nil { token = tokenResp.Token }
 
 	// Extract and revoke
 	parser := jwt.NewParser()
@@ -238,7 +304,16 @@ func TestBlacklist_ValidateAccessTokenFull_ChecksBlacklist(t *testing.T) {
 	jti := parsed.Claims.(jwt.MapClaims)["jti"].(string)
 	bl.Revoke(jti, time.Now().Add(time.Hour))
 
-	_, _, _, err := auth.ValidateAccessTokenFull(token)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var _ string
+
+	var _ []string
+
+	var _ map[string]any
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes; _ = vresp.Info.CustomClaims }
+
 	assert.Error(t, err, "ValidateAccessTokenFull should also check blacklist")
 }
 

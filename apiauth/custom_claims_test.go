@@ -32,13 +32,22 @@ func TestCustomClaimsFunc_RoundTrip(t *testing.T) {
 	}
 
 	// Mint a token using the exported method
-	token, _, err := apiAuth.CreateAccessToken("user-123", []string{"read", "write"}, nil)
+	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-123", Scopes: []string{"read", "write"}, AuthorizationDetails: nil})
+	token := ""
+	var _ int64
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
 	}
 
 	// Validate and extract custom claims
-	userID, scopes, customClaims, err := apiAuth.ValidateAccessTokenFull(token)
+	vresp, err := apiAuth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+	var userID string
+	var scopes []string
+	var customClaims map[string]any
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull failed: %v", err)
 	}
@@ -73,12 +82,28 @@ func TestCustomClaimsFunc_Nil(t *testing.T) {
 		// CustomClaimsFunc is nil
 	}
 
-	token, _, err := apiAuth.CreateAccessToken("user-123", []string{"read"}, nil)
+	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-123", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
 	}
 
-	userID, scopes, customClaims, err := apiAuth.ValidateAccessTokenFull(token)
+	vresp, err := apiAuth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var userID string
+
+	var scopes []string
+
+	var customClaims map[string]any
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull failed: %v", err)
 	}
@@ -104,7 +129,8 @@ func TestCustomClaimsFunc_Error(t *testing.T) {
 		},
 	}
 
-	_, _, err := apiAuth.CreateAccessToken("user-123", []string{"read"}, nil)
+	_, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-123", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
 	if err == nil {
 		t.Fatal("Expected error from CreateAccessToken when CustomClaimsFunc fails")
 	}
@@ -125,12 +151,28 @@ func TestCustomClaimsFunc_NoOverrideStandard(t *testing.T) {
 		},
 	}
 
-	token, _, err := apiAuth.CreateAccessToken("real-user", []string{"read"}, nil)
+	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "real-user", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
 	}
 
-	userID, _, customClaims, err := apiAuth.ValidateAccessTokenFull(token)
+	vresp, err := apiAuth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var userID string
+
+	var _ []string
+
+	var customClaims map[string]any
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull failed: %v", err)
 	}
@@ -329,12 +371,28 @@ func TestValidateAccessTokenFull_StandardClaimsExcluded(t *testing.T) {
 		},
 	}
 
-	token, _, err := apiAuth.CreateAccessToken("user-1", []string{"read"}, nil)
+	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	token := ""
+
+	var _ int64
+
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
 	}
 
-	_, _, customClaims, err := apiAuth.ValidateAccessTokenFull(token)
+	vresp, err := apiAuth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
+
+	var _ string
+
+	var _ []string
+
+	var customClaims map[string]any
+
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull failed: %v", err)
 	}

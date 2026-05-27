@@ -84,7 +84,11 @@ func TestRevocation_AccessToken(t *testing.T) {
 	revHandler, auth, introHandler := setupRevocation(t)
 
 	// Mint an access token
-	token, _, err := auth.CreateAccessToken("user-1", []string{"read"}, nil)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+	token := ""
+	var _ int64
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 
 	// Verify it's active via introspection
@@ -136,7 +140,11 @@ func TestRevocation_NoHint(t *testing.T) {
 	revHandler, auth, introHandler := setupRevocation(t)
 
 	// Mint an access token and revoke with no hint
-	token, _, err := auth.CreateAccessToken("user-2", []string{"write"}, nil)
+	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-2", Scopes: []string{"write"}, AuthorizationDetails: nil})
+	token := ""
+	var _ int64
+	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+
 	require.NoError(t, err)
 
 	rr := postRevoke(t, revHandler, token, "", "revoke-client", "revoke-client-secret")
@@ -154,7 +162,13 @@ func TestRevocation_NoHint(t *testing.T) {
 func TestRevocation_AlreadyRevoked(t *testing.T) {
 	revHandler, auth, _ := setupRevocation(t)
 
-	token, _, _ := auth.CreateAccessToken("user-3", []string{"read"}, nil)
+	tokenResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-3", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+
+	token := ""
+
+
+	if tokenResp != nil { token = tokenResp.Token }
 
 	// Revoke twice — both should succeed
 	rr := postRevoke(t, revHandler, token, "access_token", "revoke-client", "revoke-client-secret")

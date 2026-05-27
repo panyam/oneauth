@@ -63,6 +63,11 @@ type OneAuthConfig struct {
 	ValidateCredentials CredentialsValidator    // validates username/password
 	GetSubjectScopes    core.GetSubjectScopesFunc // returns allowed scopes for the subject (user ID or client_id)
 
+	// CustomClaims is called during access-token issuance to inject additional
+	// non-standard claims into the JWT. Standard JWT claims (sub, iss, aud,
+	// exp, iat, type, scopes, jti, authorization_details) cannot be overridden.
+	CustomClaims CustomClaimsFunc
+
 	// Hooks — lifecycle callbacks
 	Hooks Hooks
 }
@@ -86,6 +91,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		RefreshStore:        cfg.RefreshStore,
 		ValidateCredentials: cfg.ValidateCredentials,
 		GetSubjectScopes:    cfg.GetSubjectScopes,
+		CustomClaims:        cfg.CustomClaims,
 		Hooks:               cfg.Hooks.Token,
 	})
 

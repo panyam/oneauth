@@ -147,12 +147,26 @@ func TestAPIAuth_RS256_Signing(t *testing.T) {
 		JWTIssuer:     "test",
 	}
 
-	tokenStr, _, err := auth.CreateAccessToken("user-rsa", []string{"read"}, nil)
+	tokenStrResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-rsa", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	tokenStr := ""
+
+	var _ int64
+
+	if tokenStrResp != nil { tokenStr = tokenStrResp.Token; _ = tokenStrResp.ExpiresIn }
+
 	if err != nil {
 		t.Fatalf("CreateAccessToken: %v", err)
 	}
 
-	userID, scopes, err := auth.ValidateAccessToken(tokenStr)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
+
+	var userID string
+
+	var scopes []string
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes }
+
 	if err != nil {
 		t.Fatalf("ValidateAccessToken: %v", err)
 	}
@@ -177,12 +191,26 @@ func TestAPIAuth_ES256_Signing(t *testing.T) {
 		JWTVerifyKey:  pubKey,
 	}
 
-	tokenStr, _, err := auth.CreateAccessToken("user-ec", []string{"write"}, nil)
+	tokenStrResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-ec", Scopes: []string{"write"}, AuthorizationDetails: nil})
+
+	tokenStr := ""
+
+	var _ int64
+
+	if tokenStrResp != nil { tokenStr = tokenStrResp.Token; _ = tokenStrResp.ExpiresIn }
+
 	if err != nil {
 		t.Fatalf("CreateAccessToken: %v", err)
 	}
 
-	userID, scopes, err := auth.ValidateAccessToken(tokenStr)
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
+
+	var userID string
+
+	var scopes []string
+
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes }
+
 	if err != nil {
 		t.Fatalf("ValidateAccessToken: %v", err)
 	}
@@ -208,10 +236,18 @@ func TestAPIAuth_RS256_RejectsHMAC(t *testing.T) {
 	}
 
 	// Create a valid RS256 token, then try to validate with HMAC-configured auth
-	tokenStr, _, _ := auth.CreateAccessToken("user-1", []string{"read"}, nil)
+	tokenStrResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+	tokenStr := ""
+
+	if tokenStrResp != nil { tokenStr = tokenStrResp.Token }
 
 	hmacAuth := &apiauth.APIAuth{JWTSecretKey: "some-secret"}
-	_, _, err := hmacAuth.ValidateAccessToken(tokenStr)
+	vresp, err := hmacAuth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
+	var _ string
+	var _ []string
+	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+
 	if err == nil {
 		t.Fatal("Expected HMAC auth to reject RS256 token")
 	}
@@ -233,8 +269,19 @@ func TestAPIAuth_ValidateAccessTokenFull_RS256(t *testing.T) {
 		},
 	}
 
-	tokenStr, _, _ := auth.CreateAccessToken("user-1", []string{"read"}, nil)
-	userID, _, custom, err := auth.ValidateAccessTokenFull(tokenStr)
+	tokenStrResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
+
+
+	tokenStr := ""
+
+
+	if tokenStrResp != nil { tokenStr = tokenStrResp.Token }
+	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
+	var userID string
+	var _ []string
+	var custom map[string]any
+	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes; custom = vresp.Info.CustomClaims }
+
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull: %v", err)
 	}
