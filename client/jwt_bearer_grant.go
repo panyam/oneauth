@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -44,7 +45,7 @@ type JwtBearerGrantRequest struct {
 
 // JwtBearerGrant performs an RFC 7523 §2.1 jwt-bearer grant exchange.
 // Returns a usable ServerCredential containing the access token.
-func (c *AuthClient) JwtBearerGrant(req *JwtBearerGrantRequest) (*ServerCredential, error) {
+func (c *AuthClient) JwtBearerGrant(ctx context.Context, req *JwtBearerGrantRequest) (*ServerCredential, error) {
 	if req == nil {
 		return nil, fmt.Errorf("JwtBearerGrant: req is required")
 	}
@@ -74,7 +75,7 @@ func (c *AuthClient) JwtBearerGrant(req *JwtBearerGrantRequest) (*ServerCredenti
 		data.Add("resource", r)
 	}
 
-	httpReq, err := c.buildTokenRequest(tokenEndpoint, data, req.ClientID, req.ClientSecret, req.ClientAssertion)
+	httpReq, err := c.buildTokenRequest(ctx, tokenEndpoint, data, req.ClientID, req.ClientSecret, req.ClientAssertion)
 	if err != nil {
 		return nil, err
 	}

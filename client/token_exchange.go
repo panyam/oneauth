@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -90,7 +91,7 @@ type rawTokenExchangeResponse struct {
 // authenticate via shared secret (ClientID + ClientSecret) or via
 // private_key_jwt (ClientID + ClientAssertion). Returns the parsed
 // response including `issued_token_type`.
-func (c *AuthClient) TokenExchange(req *TokenExchangeRequest) (*TokenExchangeResponse, error) {
+func (c *AuthClient) TokenExchange(ctx context.Context, req *TokenExchangeRequest) (*TokenExchangeResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("TokenExchange: req is required")
 	}
@@ -130,7 +131,7 @@ func (c *AuthClient) TokenExchange(req *TokenExchangeRequest) (*TokenExchangeRes
 		data.Set("scope", strings.Join(req.Scope, " "))
 	}
 
-	httpReq, err := c.buildTokenRequest(tokenEndpoint, data, req.ClientID, req.ClientSecret, req.ClientAssertion)
+	httpReq, err := c.buildTokenRequest(ctx, tokenEndpoint, data, req.ClientID, req.ClientSecret, req.ClientAssertion)
 	if err != nil {
 		return nil, err
 	}
@@ -169,14 +170,14 @@ func (c *AuthClient) TokenExchange(req *TokenExchangeRequest) (*TokenExchangeRes
 // non-credential-persisting flows that emit the same form/auth shape
 // as ClientCredentials but return shape-specific responses, so they
 // can't share executeTokenRequest's persistence path.
-func (c *AuthClient) buildTokenRequest(tokenEndpoint string, data url.Values, clientID, clientSecret string, assertion *ClientAssertionConfig) (*http.Request, error) {
+func (c *AuthClient) buildTokenRequest(ctx context.Context, tokenEndpoint string, data url.Values, clientID, clientSecret string, assertion *ClientAssertionConfig) (*http.Request, error) {
 	if assertion != nil {
 		signed, err := MintClientAssertion(clientID, tokenEndpoint, *assertion)
 		if err != nil {
 			return nil, fmt.Errorf("mint client_assertion: %w", err)
 		}
 		applyAssertionToForm(clientID, signed, data)
-		httpReq, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", tokenEndpoint, strings.NewReader(data.Encode()))
 		if err != nil {
 			return nil, fmt.Errorf("build request: %w", err)
 		}
@@ -189,7 +190,7 @@ func (c *AuthClient) buildTokenRequest(tokenEndpoint string, data url.Values, cl
 	}
 	authMethod := SelectAuthMethod(clientSecret, asMethods)
 	applyAuthToForm(authMethod, clientID, clientSecret, data)
-	httpReq, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", tokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}

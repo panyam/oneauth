@@ -121,7 +121,11 @@ func TestE2E_ClientCredentials_BasicAuth(t *testing.T) {
 		client.WithTokenEndpoint("/oauth/token"),
 		client.WithASMetadata(meta))
 
-	cred, err := authClient.ClientCredentialsToken(clientID, secret, []string{"read"})
+	cred, err := authClient.ClientCredentials(context.Background(), &client.ClientCredentialsRequest{
+		ClientID:     clientID,
+		ClientSecret: secret,
+		Scopes:       []string{"read"},
+	})
 	require.NoError(t, err, "client_credentials with Basic auth should succeed")
 	assert.Contains(t, cred.AccessToken, "e2e-cc-token-"+clientID)
 }
@@ -156,7 +160,10 @@ func TestE2E_ClientCredentials_PostAuth(t *testing.T) {
 		client.WithTokenEndpoint("/oauth/token"),
 		client.WithASMetadata(meta))
 
-	cred, err := authClient.ClientCredentialsToken(clientID, secret, nil)
+	cred, err := authClient.ClientCredentials(context.Background(), &client.ClientCredentialsRequest{
+		ClientID:     clientID,
+		ClientSecret: secret,
+	})
 	require.NoError(t, err, "client_credentials with post auth should succeed")
 	assert.Contains(t, cred.AccessToken, "e2e-cc-token-"+clientID)
 }

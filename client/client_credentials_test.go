@@ -10,6 +10,7 @@ package client
 // `authorization_details` (JSON-encoded form value).
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -58,7 +59,7 @@ func TestClientCredentials_ResourceParamSent(t *testing.T) {
 	defer srv.Close()
 
 	c := NewAuthClient(srv.URL, nil, WithASMetadata(&ASMetadata{TokenEndpoint: srv.URL + "/token"}))
-	cred, err := c.ClientCredentials(&ClientCredentialsRequest{
+	cred, err := c.ClientCredentials(context.Background(), &ClientCredentialsRequest{
 		ClientID:     "demo",
 		ClientSecret: "shh",
 		Resources:    []string{"https://api.example.com", "https://files.example.com"},
@@ -86,7 +87,7 @@ func TestClientCredentials_AuthorizationDetailsSent(t *testing.T) {
 	defer srv.Close()
 
 	c := NewAuthClient(srv.URL, nil, WithASMetadata(&ASMetadata{TokenEndpoint: srv.URL + "/token"}))
-	cred, err := c.ClientCredentials(&ClientCredentialsRequest{
+	cred, err := c.ClientCredentials(context.Background(), &ClientCredentialsRequest{
 		ClientID:             "demo",
 		ClientSecret:         "shh",
 		AuthorizationDetails: want,

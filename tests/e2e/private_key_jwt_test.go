@@ -112,10 +112,14 @@ func TestPrivateKeyJWT_E2E_SDKHelper(t *testing.T) {
 	authClient := client.NewAuthClient(env.BaseURL(), store,
 		client.WithTokenEndpoint("/api/token"))
 
-	cred, err := authClient.ClientCredentialsTokenWithAssertion(clientID, client.ClientAssertionConfig{
-		PrivateKey: priv,
-		SigningAlg: "RS256",
-	}, []string{"read"})
+	cred, err := authClient.ClientCredentials(context.Background(), &client.ClientCredentialsRequest{
+		ClientID: clientID,
+		ClientAssertion: &client.ClientAssertionConfig{
+			PrivateKey: priv,
+			SigningAlg: "RS256",
+		},
+		Scopes: []string{"read"},
+	})
 	require.NoError(t, err)
 	require.NotEmpty(t, cred.AccessToken)
 }

@@ -5,6 +5,7 @@ package client
 // client SDK.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -73,7 +74,7 @@ func TestTokenExchange_AllParameters(t *testing.T) {
 	defer srv.Close()
 
 	c := NewAuthClient(srv.URL, nil, WithASMetadata(&ASMetadata{TokenEndpoint: srv.URL + "/token"}))
-	resp, err := c.TokenExchange(&TokenExchangeRequest{
+	resp, err := c.TokenExchange(context.Background(), &TokenExchangeRequest{
 		ClientID:           "demo",
 		ClientSecret:       "shh",
 		SubjectToken:       "outer-id-token",
@@ -110,7 +111,7 @@ func TestTokenExchange_MinimalRequest(t *testing.T) {
 	defer srv.Close()
 
 	c := NewAuthClient(srv.URL, nil, WithASMetadata(&ASMetadata{TokenEndpoint: srv.URL + "/token"}))
-	resp, err := c.TokenExchange(&TokenExchangeRequest{
+	resp, err := c.TokenExchange(context.Background(), &TokenExchangeRequest{
 		ClientID:         "demo",
 		ClientSecret:     "shh",
 		SubjectToken:     "outer-token",

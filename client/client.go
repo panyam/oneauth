@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -278,7 +279,7 @@ type ClientCredentialsRequest struct {
 // the form-encoded request — including RFC 8707 `resource` indicators
 // and RFC 9396 `authorization_details` when present — and persists the
 // resulting credential.
-func (c *AuthClient) ClientCredentials(req *ClientCredentialsRequest) (*ServerCredential, error) {
+func (c *AuthClient) ClientCredentials(ctx context.Context, req *ClientCredentialsRequest) (*ServerCredential, error) {
 	if req == nil {
 		return nil, fmt.Errorf("ClientCredentials: req is required")
 	}
@@ -312,14 +313,14 @@ func (c *AuthClient) ClientCredentials(req *ClientCredentialsRequest) (*ServerCr
 		err  error
 	)
 	if req.ClientAssertion != nil {
-		cred, err = c.requestTokenFormWithAssertion(tokenEndpoint, data, req.ClientID, tokenEndpoint, *req.ClientAssertion)
+		cred, err = c.requestTokenFormWithAssertion(ctx, tokenEndpoint, data, req.ClientID, tokenEndpoint, *req.ClientAssertion)
 	} else {
 		var asMethods []string
 		if c.cachedASMeta != nil {
 			asMethods = c.cachedASMeta.TokenEndpointAuthMethods
 		}
 		authMethod := SelectAuthMethod(req.ClientSecret, asMethods)
-		cred, err = c.requestTokenForm(tokenEndpoint, data, authMethod, req.ClientID, req.ClientSecret)
+		cred, err = c.requestTokenForm(ctx, tokenEndpoint, data, authMethod, req.ClientID, req.ClientSecret)
 	}
 	if err != nil {
 		return nil, err
@@ -341,8 +342,11 @@ func (c *AuthClient) ClientCredentials(req *ClientCredentialsRequest) (*ServerCr
 //
 // See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4
 // See: https://github.com/panyam/oneauth/issues/72
+//
+// Deprecated: use ClientCredentials directly with a context. This wrapper
+// is retained for compatibility and passes context.Background() under the hood.
 func (c *AuthClient) ClientCredentialsToken(clientID, clientSecret string, scopes []string) (*ServerCredential, error) {
-	return c.ClientCredentials(&ClientCredentialsRequest{
+	return c.ClientCredentials(context.Background(), &ClientCredentialsRequest{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		Scopes:       scopes,
@@ -355,8 +359,11 @@ func (c *AuthClient) ClientCredentialsToken(clientID, clientSecret string, scope
 // detail parameters.
 //
 // See: https://www.rfc-editor.org/rfc/rfc7523#section-2.2
+//
+// Deprecated: use ClientCredentials directly with a context. This wrapper
+// is retained for compatibility and passes context.Background() under the hood.
 func (c *AuthClient) ClientCredentialsTokenWithAssertion(clientID string, cfg ClientAssertionConfig, scopes []string) (*ServerCredential, error) {
-	return c.ClientCredentials(&ClientCredentialsRequest{
+	return c.ClientCredentials(context.Background(), &ClientCredentialsRequest{
 		ClientID:        clientID,
 		ClientAssertion: &cfg,
 		Scopes:          scopes,
@@ -442,11 +449,11 @@ func (c *AuthClient) refreshTokenLocked(cred *ServerCredential) error {
 // avoid circular auth dependencies when obtaining the initial token.
 //
 // See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4.2
-func (c *AuthClient) requestTokenForm(tokenEndpoint string, data url.Values, authMethod TokenEndpointAuthMethod, clientID, clientSecret string) (*ServerCredential, error) {
+func (c *AuthClient) requestTokenForm(ctx context.Context, tokenEndpoint string, data url.Values, authMethod TokenEndpointAuthMethod, clientID, clientSecret string) (*ServerCredential, error) {
 	// Apply client authentication to form data
 	applyAuthToForm(authMethod, clientID, clientSecret, data)
 
-	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", tokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -463,14 +470,14 @@ func (c *AuthClient) requestTokenForm(tokenEndpoint string, data url.Values, aut
 // requestTokenForm. The audience is typically the token endpoint URL
 // (per OIDC Core §9); pass it explicitly so this works with non-default
 // deployments.
-func (c *AuthClient) requestTokenFormWithAssertion(tokenEndpoint string, data url.Values, clientID, audience string, cfg ClientAssertionConfig) (*ServerCredential, error) {
+func (c *AuthClient) requestTokenFormWithAssertion(ctx context.Context, tokenEndpoint string, data url.Values, clientID, audience string, cfg ClientAssertionConfig) (*ServerCredential, error) {
 	assertion, err := MintClientAssertion(clientID, audience, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("mint client_assertion: %w", err)
 	}
 	applyAssertionToForm(clientID, assertion, data)
 
-	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", tokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
