@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,7 +11,7 @@ import (
 	"github.com/panyam/oneauth/accounts"
 )
 
-// FSUser implements the oneauth.User interface
+// FSUser implements the accounts.User interface
 type FSUser struct {
 	UserId      string         `json:"user_id"`
 	IsActive    bool           `json:"is_active"`
@@ -39,26 +40,35 @@ func (s *FSUserStore) getUserPath(userId string) (string, error) {
 	return filepath.Join(s.StoragePath, "users", safeID+".json"), nil
 }
 
-func (s *FSUserStore) CreateUser(userId string, isActive bool, profile map[string]any) (accounts.User, error) {
+func (s *FSUserStore) CreateUser(ctx context.Context, req *accounts.CreateUserRequest) (*accounts.CreateUserResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CreateUser: req is required")
+	}
 	user := &FSUser{
-		UserId:      userId,
-		IsActive:    isActive,
-		UserProfile: profile,
+		UserId:      req.UserID,
+		IsActive:    req.IsActive,
+		UserProfile: req.Profile,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	return user, s.SaveUser(user)
+	if _, err := s.SaveUser(ctx, &accounts.SaveUserRequest{User: user}); err != nil {
+		return nil, err
+	}
+	return &accounts.CreateUserResponse{User: user}, nil
 }
 
-func (s *FSUserStore) GetUserById(userId string) (accounts.User, error) {
-	path, err := s.getUserPath(userId)
+func (s *FSUserStore) GetUserById(ctx context.Context, req *accounts.GetUserByIDRequest) (*accounts.GetUserByIDResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetUserById: req is required")
+	}
+	path, err := s.getUserPath(req.UserID)
 	if err != nil {
 		return nil, err
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("user not found: %s", userId)
+			return nil, fmt.Errorf("user not found: %s", req.UserID)
 		}
 		return nil, err
 	}
@@ -67,19 +77,21 @@ func (s *FSUserStore) GetUserById(userId string) (accounts.User, error) {
 	if err := json.Unmarshal(data, &user); err != nil {
 		return nil, err
 	}
-	return &user, nil
+	return &accounts.GetUserByIDResponse{User: &user}, nil
 }
 
-func (s *FSUserStore) SaveUser(user accounts.User) error {
+func (s *FSUserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest) (*accounts.SaveUserResponse, error) {
+	if req == nil || req.User == nil {
+		return nil, fmt.Errorf("SaveUser: req.User is required")
+	}
+	user := req.User
 	fsUser, ok := user.(*FSUser)
 	if !ok {
-		// Convert if it's a different implementation
 		fsUser = &FSUser{
 			UserId:      user.Id(),
 			UserProfile: user.Profile(),
 			UpdatedAt:   time.Now(),
 		}
-		// Try to preserve created_at if it exists in profile
 		if createdAt, ok := user.Profile()["created_at"].(time.Time); ok {
 			fsUser.CreatedAt = createdAt
 		} else {
@@ -91,16 +103,18 @@ func (s *FSUserStore) SaveUser(user accounts.User) error {
 
 	path, err := s.getUserPath(fsUser.UserId)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
+		return nil, err
 	}
 
 	data, err := json.MarshalIndent(fsUser, "", "  ")
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	return writeAtomicFile(path, data)
+	if err := writeAtomicFile(path, data); err != nil {
+		return nil, err
+	}
+	return &accounts.SaveUserResponse{}, nil
 }

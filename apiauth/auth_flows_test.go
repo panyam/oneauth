@@ -3,6 +3,7 @@
 package apiauth_test
 
 import (
+	"context"
 	"github.com/panyam/oneauth/localauth"
 	"encoding/json"
 	"net/http"
@@ -134,7 +135,9 @@ func TestCompleteSignupFlow(t *testing.T) {
 
 	// Verify user was created in storage
 	t.Run("verify user in storage", func(t *testing.T) {
-		identity, _, err := identityStore.GetIdentity("email", "test@example.com", false)
+		identityResp_, err := identityStore.GetIdentity(context.Background(), &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: "test@example.com", CreateIfMissing: false})
+	var identity *accounts.Identity
+	if identityResp_ != nil { identity = identityResp_.Identity }
 		if err != nil {
 			t.Fatalf("Failed to get identity: %v", err)
 		}
@@ -142,7 +145,7 @@ func TestCompleteSignupFlow(t *testing.T) {
 			t.Error("Identity should have a user ID")
 		}
 
-		user, err := userStore.GetUserById(identity.UserID)
+		user, err := userStore.GetUserById(context.Background(), &accounts.GetUserByIDRequest{UserID: identity.UserID})
 		if err != nil {
 			t.Fatalf("Failed to get user: %v", err)
 		}
@@ -152,7 +155,9 @@ func TestCompleteSignupFlow(t *testing.T) {
 
 		// Verify channel exists
 		identityKey := accounts.IdentityKey("email", "test@example.com")
-		channel, _, err := channelStore.GetChannel("local", identityKey, false)
+		channelResp_, err := channelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "local", IdentityKey: identityKey, CreateIfMissing: false})
+	var channel *accounts.Channel
+	if channelResp_ != nil { channel = channelResp_.Channel }
 		if err != nil {
 			t.Fatalf("Failed to get channel: %v", err)
 		}
@@ -261,7 +266,7 @@ func TestEmailVerificationFlow(t *testing.T) {
 		UserID:   "testuser123",
 		Verified: false,
 	}
-	if err := identityStore.SaveIdentity(identity); err != nil {
+	if _, err := identityStore.SaveIdentity(context.Background(), &accounts.SaveIdentityRequest{Identity: identity}); err != nil {
 		t.Fatalf("Failed to save identity: %v", err)
 	}
 
@@ -315,7 +320,9 @@ func TestEmailVerificationFlow(t *testing.T) {
 				}
 
 				// Verify identity is marked as verified
-				verifiedIdentity, _, err := identityStore.GetIdentity("email", testEmail, false)
+				verifiedIdentityResp_, err := identityStore.GetIdentity(context.Background(), &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: testEmail, CreateIfMissing: false})
+	var verifiedIdentity *accounts.Identity
+	if verifiedIdentityResp_ != nil { verifiedIdentity = verifiedIdentityResp_.Identity }
 				if err != nil {
 					t.Fatalf("Failed to get identity: %v", err)
 				}

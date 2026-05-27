@@ -4,6 +4,7 @@
 package gorm
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -55,35 +56,47 @@ func NewUserStore(db *gorm.DB) *UserStore {
 	return &UserStore{db: db}
 }
 
-func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (accounts.User, error) {
-	model := &UserModel{
-		ID:       userId,
-		IsActive: isActive,
-		Profile:  profile,
+func (s *UserStore) CreateUser(ctx context.Context, req *accounts.CreateUserRequest) (*accounts.CreateUserResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CreateUser: req is required")
 	}
-	if err := s.db.Create(model).Error; err != nil {
+	model := &UserModel{
+		ID:       req.UserID,
+		IsActive: req.IsActive,
+		Profile:  req.Profile,
+	}
+	if err := s.db.WithContext(ctx).Create(model).Error; err != nil {
 		return nil, err
 	}
-	return &GORMUser{model: model}, nil
+	return &accounts.CreateUserResponse{User: &GORMUser{model: model}}, nil
 }
 
-func (s *UserStore) GetUserById(userId string) (accounts.User, error) {
+func (s *UserStore) GetUserById(ctx context.Context, req *accounts.GetUserByIDRequest) (*accounts.GetUserByIDResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetUserById: req is required")
+	}
 	var model UserModel
-	if err := s.db.First(&model, "id = ?", userId).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "id = ?", req.UserID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("user not found: %s", userId)
+			return nil, fmt.Errorf("user not found: %s", req.UserID)
 		}
 		return nil, err
 	}
-	return &GORMUser{model: &model}, nil
+	return &accounts.GetUserByIDResponse{User: &GORMUser{model: &model}}, nil
 }
 
-func (s *UserStore) SaveUser(user accounts.User) error {
-	model := &UserModel{
-		ID:      user.Id(),
-		Profile: user.Profile(),
+func (s *UserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest) (*accounts.SaveUserResponse, error) {
+	if req == nil || req.User == nil {
+		return nil, fmt.Errorf("SaveUser: req.User is required")
 	}
-	return s.db.Save(model).Error
+	model := &UserModel{
+		ID:      req.User.Id(),
+		Profile: req.User.Profile(),
+	}
+	if err := s.db.WithContext(ctx).Save(model).Error; err != nil {
+		return nil, err
+	}
+	return &accounts.SaveUserResponse{}, nil
 }
 
 // =============================================================================
@@ -99,52 +112,76 @@ func NewIdentityStore(db *gorm.DB) *IdentityStore {
 	return &IdentityStore{db: db}
 }
 
-func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*accounts.Identity, bool, error) {
+func (s *IdentityStore) GetIdentity(ctx context.Context, req *accounts.GetIdentityRequest) (*accounts.GetIdentityResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetIdentity: req is required")
+	}
 	var model IdentityModel
-	err := s.db.First(&model, "type = ? AND value = ?", identityType, identityValue).Error
+	err := s.db.WithContext(ctx).First(&model, "type = ? AND value = ?", req.IdentityType, req.IdentityValue).Error
 
 	if err == gorm.ErrRecordNotFound {
-		if createIfMissing {
+		if req.CreateIfMissing {
 			model = IdentityModel{
-				Type:     identityType,
-				Value:    identityValue,
+				Type:     req.IdentityType,
+				Value:    req.IdentityValue,
 				UserID:   "",
 				Verified: false,
 			}
-			if err := s.db.Create(&model).Error; err != nil {
-				return nil, false, err
+			if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
+				return nil, err
 			}
-			return model.ToIdentity(), true, nil
+			return &accounts.GetIdentityResponse{Identity: model.ToIdentity(), NewCreated: true}, nil
 		}
-		return nil, false, fmt.Errorf("identity not found")
+		return nil, fmt.Errorf("identity not found")
 	}
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	return model.ToIdentity(), false, nil
+	return &accounts.GetIdentityResponse{Identity: model.ToIdentity()}, nil
 }
 
-func (s *IdentityStore) SaveIdentity(identity *accounts.Identity) error {
-	model := IdentityToModel(identity)
-	return s.db.Save(model).Error
+func (s *IdentityStore) SaveIdentity(ctx context.Context, req *accounts.SaveIdentityRequest) (*accounts.SaveIdentityResponse, error) {
+	if req == nil || req.Identity == nil {
+		return nil, fmt.Errorf("SaveIdentity: req.Identity is required")
+	}
+	model := IdentityToModel(req.Identity)
+	if err := s.db.WithContext(ctx).Save(model).Error; err != nil {
+		return nil, err
+	}
+	return &accounts.SaveIdentityResponse{}, nil
 }
 
-func (s *IdentityStore) SetUserForIdentity(identityType, identityValue string, newUserId string) error {
-	return s.db.Model(&IdentityModel{}).
-		Where("type = ? AND value = ?", identityType, identityValue).
-		Update("user_id", newUserId).Error
+func (s *IdentityStore) SetUserForIdentity(ctx context.Context, req *accounts.SetUserForIdentityRequest) (*accounts.SetUserForIdentityResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("SetUserForIdentity: req is required")
+	}
+	if err := s.db.WithContext(ctx).Model(&IdentityModel{}).
+		Where("type = ? AND value = ?", req.IdentityType, req.IdentityValue).
+		Update("user_id", req.NewUserID).Error; err != nil {
+		return nil, err
+	}
+	return &accounts.SetUserForIdentityResponse{}, nil
 }
 
-func (s *IdentityStore) MarkIdentityVerified(identityType, identityValue string) error {
-	return s.db.Model(&IdentityModel{}).
-		Where("type = ? AND value = ?", identityType, identityValue).
-		Update("verified", true).Error
+func (s *IdentityStore) MarkIdentityVerified(ctx context.Context, req *accounts.MarkIdentityVerifiedRequest) (*accounts.MarkIdentityVerifiedResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("MarkIdentityVerified: req is required")
+	}
+	if err := s.db.WithContext(ctx).Model(&IdentityModel{}).
+		Where("type = ? AND value = ?", req.IdentityType, req.IdentityValue).
+		Update("verified", true).Error; err != nil {
+		return nil, err
+	}
+	return &accounts.MarkIdentityVerifiedResponse{}, nil
 }
 
-func (s *IdentityStore) GetUserIdentities(userId string) ([]*accounts.Identity, error) {
+func (s *IdentityStore) GetUserIdentities(ctx context.Context, req *accounts.GetUserIdentitiesRequest) (*accounts.GetUserIdentitiesResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetUserIdentities: req is required")
+	}
 	var models []IdentityModel
-	if err := s.db.Where("user_id = ?", userId).Find(&models).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ?", req.UserID).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
@@ -152,7 +189,7 @@ func (s *IdentityStore) GetUserIdentities(userId string) ([]*accounts.Identity, 
 	for i, m := range models {
 		identities[i] = m.ToIdentity()
 	}
-	return identities, nil
+	return &accounts.GetUserIdentitiesResponse{Identities: identities}, nil
 }
 
 // =============================================================================
@@ -168,40 +205,52 @@ func NewChannelStore(db *gorm.DB) *ChannelStore {
 	return &ChannelStore{db: db}
 }
 
-func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*accounts.Channel, bool, error) {
+func (s *ChannelStore) GetChannel(ctx context.Context, req *accounts.GetChannelRequest) (*accounts.GetChannelResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetChannel: req is required")
+	}
 	var model ChannelModel
-	err := s.db.First(&model, "provider = ? AND identity_key = ?", provider, identityKey).Error
+	err := s.db.WithContext(ctx).First(&model, "provider = ? AND identity_key = ?", req.Provider, req.IdentityKey).Error
 
 	if err == gorm.ErrRecordNotFound {
-		if createIfMissing {
+		if req.CreateIfMissing {
 			model = ChannelModel{
-				Provider:    provider,
-				IdentityKey: identityKey,
+				Provider:    req.Provider,
+				IdentityKey: req.IdentityKey,
 				Credentials: make(JSONMap),
 				Profile:     make(JSONMap),
 			}
-			if err := s.db.Create(&model).Error; err != nil {
-				return nil, false, err
+			if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
+				return nil, err
 			}
-			return model.ToChannel(), true, nil
+			return &accounts.GetChannelResponse{Channel: model.ToChannel(), NewCreated: true}, nil
 		}
-		return nil, false, fmt.Errorf("channel not found")
+		return nil, fmt.Errorf("channel not found")
 	}
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	return model.ToChannel(), false, nil
+	return &accounts.GetChannelResponse{Channel: model.ToChannel()}, nil
 }
 
-func (s *ChannelStore) SaveChannel(channel *accounts.Channel) error {
-	model := ChannelToModel(channel)
-	return s.db.Save(model).Error
+func (s *ChannelStore) SaveChannel(ctx context.Context, req *accounts.SaveChannelRequest) (*accounts.SaveChannelResponse, error) {
+	if req == nil || req.Channel == nil {
+		return nil, fmt.Errorf("SaveChannel: req.Channel is required")
+	}
+	model := ChannelToModel(req.Channel)
+	if err := s.db.WithContext(ctx).Save(model).Error; err != nil {
+		return nil, err
+	}
+	return &accounts.SaveChannelResponse{}, nil
 }
 
-func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*accounts.Channel, error) {
+func (s *ChannelStore) GetChannelsByIdentity(ctx context.Context, req *accounts.GetChannelsByIdentityRequest) (*accounts.GetChannelsByIdentityResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetChannelsByIdentity: req is required")
+	}
 	var models []ChannelModel
-	if err := s.db.Where("identity_key = ?", identityKey).Find(&models).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("identity_key = ?", req.IdentityKey).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
@@ -209,7 +258,7 @@ func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*accounts.Ch
 	for i, m := range models {
 		channels[i] = m.ToChannel()
 	}
-	return channels, nil
+	return &accounts.GetChannelsByIdentityResponse{Channels: channels}, nil
 }
 
 // =============================================================================
@@ -637,52 +686,50 @@ func (s *UsernameStore) normalizeUsername(username string) string {
 //
 // Uses database unique constraint on primary key. Concurrent inserts for the
 // same username will have one succeed and one fail with a constraint violation.
-func (s *UsernameStore) ReserveUsername(username string, userID string) error {
-	normalized := s.normalizeUsername(username)
+func (s *UsernameStore) ReserveUsername(ctx context.Context, req *accounts.ReserveUsernameRequest) (*accounts.ReserveUsernameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ReserveUsername: req is required")
+	}
+	normalized := s.normalizeUsername(req.Username)
 
-	// First check if it exists
 	var existing UsernameModel
-	err := s.db.First(&existing, "normalized_username = ?", normalized).Error
+	err := s.db.WithContext(ctx).First(&existing, "normalized_username = ?", normalized).Error
 
 	if err == nil {
-		// Username exists - check if same user
-		if existing.UserID == userID {
-			// Same user - update the case-preserved version if different
-			if existing.Username != username {
-				result := s.db.Model(&UsernameModel{}).
+		if existing.UserID == req.UserID {
+			if existing.Username != req.Username {
+				result := s.db.WithContext(ctx).Model(&UsernameModel{}).
 					Where("normalized_username = ? AND version = ?", normalized, existing.Version).
 					Updates(map[string]any{
-						"username": username,
+						"username": req.Username,
 						"version":  existing.Version + 1,
 					})
 				if result.RowsAffected == 0 {
-					return fmt.Errorf("concurrent modification detected, please retry")
+					return nil, fmt.Errorf("concurrent modification detected, please retry")
 				}
 			}
-			return nil
+			return &accounts.ReserveUsernameResponse{}, nil
 		}
-		return fmt.Errorf("username already taken")
+		return nil, fmt.Errorf("username already taken")
 	}
 
 	if err != gorm.ErrRecordNotFound {
-		return err
+		return nil, err
 	}
 
-	// Create new reservation - rely on primary key constraint for uniqueness
 	model := &UsernameModel{
 		NormalizedUsername: normalized,
-		Username:           username,
-		UserID:             userID,
+		Username:           req.Username,
+		UserID:             req.UserID,
 		Version:            1,
 	}
-	if err := s.db.Create(model).Error; err != nil {
-		// Check if it's a duplicate key error (race condition)
+	if err := s.db.WithContext(ctx).Create(model).Error; err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "UNIQUE") {
-			return fmt.Errorf("username already taken")
+			return nil, fmt.Errorf("username already taken")
 		}
-		return err
+		return nil, err
 	}
-	return nil
+	return &accounts.ReserveUsernameResponse{}, nil
 }
 
 // GetUserByUsername looks up a userID by username (case-insensitive).
@@ -691,29 +738,31 @@ func (s *UsernameStore) ReserveUsername(username string, userID string) error {
 //
 // Called by NewCredentialsValidatorWithUsername during login when
 // user enters a username instead of email.
-func (s *UsernameStore) GetUserByUsername(username string) (string, error) {
-	normalized := s.normalizeUsername(username)
+func (s *UsernameStore) GetUserByUsername(ctx context.Context, req *accounts.GetUserByUsernameRequest) (*accounts.GetUserByUsernameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetUserByUsername: req is required")
+	}
+	normalized := s.normalizeUsername(req.Username)
 
 	var model UsernameModel
-	if err := s.db.First(&model, "normalized_username = ?", normalized).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "normalized_username = ?", normalized).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return "", fmt.Errorf("username not found")
+			return nil, fmt.Errorf("username not found")
 		}
-		return "", err
+		return nil, err
 	}
-	return model.UserID, nil
+	return &accounts.GetUserByUsernameResponse{UserID: model.UserID}, nil
 }
 
-// ReleaseUsername removes a username reservation.
-//
-// # When to Use
-//
-// Call this when:
-//   - User deletes their account
-//   - Admin removes a username (e.g., for policy violations)
-func (s *UsernameStore) ReleaseUsername(username string) error {
-	normalized := s.normalizeUsername(username)
-	return s.db.Delete(&UsernameModel{}, "normalized_username = ?", normalized).Error
+func (s *UsernameStore) ReleaseUsername(ctx context.Context, req *accounts.ReleaseUsernameRequest) (*accounts.ReleaseUsernameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ReleaseUsername: req is required")
+	}
+	normalized := s.normalizeUsername(req.Username)
+	if err := s.db.WithContext(ctx).Delete(&UsernameModel{}, "normalized_username = ?", normalized).Error; err != nil {
+		return nil, err
+	}
+	return &accounts.ReleaseUsernameResponse{}, nil
 }
 
 // ChangeUsername atomically changes a username using optimistic concurrency.
@@ -727,76 +776,71 @@ func (s *UsernameStore) ReleaseUsername(username string) error {
 //
 // Uses version check to detect concurrent modifications. If another process
 // modifies the username between read and update, returns error for retry.
-func (s *UsernameStore) ChangeUsername(oldUsername, newUsername, userID string) error {
-	oldNormalized := s.normalizeUsername(oldUsername)
-	newNormalized := s.normalizeUsername(newUsername)
+func (s *UsernameStore) ChangeUsername(ctx context.Context, req *accounts.ChangeUsernameRequest) (*accounts.ChangeUsernameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ChangeUsername: req is required")
+	}
+	oldNormalized := s.normalizeUsername(req.OldUsername)
+	newNormalized := s.normalizeUsername(req.NewUsername)
 
-	// If same normalized username, just update the case
 	if oldNormalized == newNormalized {
 		var existing UsernameModel
-		if err := s.db.First(&existing, "normalized_username = ?", oldNormalized).Error; err != nil {
-			return fmt.Errorf("username not found")
+		if err := s.db.WithContext(ctx).First(&existing, "normalized_username = ?", oldNormalized).Error; err != nil {
+			return nil, fmt.Errorf("username not found")
 		}
-		if existing.UserID != userID {
-			return fmt.Errorf("username not owned by user")
+		if existing.UserID != req.UserID {
+			return nil, fmt.Errorf("username not owned by user")
 		}
 
-		result := s.db.Model(&UsernameModel{}).
+		result := s.db.WithContext(ctx).Model(&UsernameModel{}).
 			Where("normalized_username = ? AND version = ?", oldNormalized, existing.Version).
 			Updates(map[string]any{
-				"username": newUsername,
+				"username": req.NewUsername,
 				"version":  existing.Version + 1,
 			})
 		if result.RowsAffected == 0 {
-			return fmt.Errorf("concurrent modification detected, please retry")
+			return nil, fmt.Errorf("concurrent modification detected, please retry")
 		}
-		return nil
+		return &accounts.ChangeUsernameResponse{}, nil
 	}
 
-	// Different username - need to delete old and create new
-
-	// First verify old username exists and belongs to user
 	var oldModel UsernameModel
-	if err := s.db.First(&oldModel, "normalized_username = ?", oldNormalized).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&oldModel, "normalized_username = ?", oldNormalized).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("old username not found")
+			return nil, fmt.Errorf("old username not found")
 		}
-		return err
+		return nil, err
 	}
-	if oldModel.UserID != userID {
-		return fmt.Errorf("old username not owned by user")
+	if oldModel.UserID != req.UserID {
+		return nil, fmt.Errorf("old username not owned by user")
 	}
 
-	// Check new username is available
 	var newModel UsernameModel
-	err := s.db.First(&newModel, "normalized_username = ?", newNormalized).Error
+	err := s.db.WithContext(ctx).First(&newModel, "normalized_username = ?", newNormalized).Error
 	if err == nil {
-		return fmt.Errorf("new username already taken")
+		return nil, fmt.Errorf("new username already taken")
 	}
 	if err != gorm.ErrRecordNotFound {
-		return err
+		return nil, err
 	}
 
-	// Delete old with version check
-	result := s.db.Where("normalized_username = ? AND version = ?", oldNormalized, oldModel.Version).
+	result := s.db.WithContext(ctx).Where("normalized_username = ? AND version = ?", oldNormalized, oldModel.Version).
 		Delete(&UsernameModel{})
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("concurrent modification detected, please retry")
+		return nil, fmt.Errorf("concurrent modification detected, please retry")
 	}
 
-	// Create new - rely on primary key constraint
 	newModel = UsernameModel{
 		NormalizedUsername: newNormalized,
-		Username:           newUsername,
-		UserID:             userID,
+		Username:           req.NewUsername,
+		UserID:             req.UserID,
 		Version:            1,
 	}
-	if err := s.db.Create(&newModel).Error; err != nil {
-		// Race condition - someone else took the username. Re-create the old one.
+	if err := s.db.WithContext(ctx).Create(&newModel).Error; err != nil {
 		oldModel.Version++
-		s.db.Create(&oldModel) // Best effort to restore
-		return fmt.Errorf("new username already taken")
+		_ = s.db.WithContext(ctx).Create(&oldModel)
+		return nil, fmt.Errorf("new username already taken")
 	}
 
-	return nil
+	return &accounts.ChangeUsernameResponse{}, nil
 }

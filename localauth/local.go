@@ -583,13 +583,13 @@ func (a *LocalAuth) HandleLinkCredentials(config LinkCredentialsConfig, getUser 
 		}
 
 		// Get user to find their email
-		user, err := config.UserStore.GetUserById(userID)
+		userResp, err := config.UserStore.GetUserById(r.Context(), &accounts.GetUserByIDRequest{UserID: userID})
 		if err != nil {
 			http.Error(w, `{"error": "User not found"}`, http.StatusUnauthorized)
 			return
 		}
 
-		profile := user.Profile()
+		profile := userResp.User.Profile()
 		email, _ := profile["email"].(string)
 		if email == "" {
 			http.Error(w, `{"error": "User has no email identity"}`, http.StatusBadRequest)
@@ -643,8 +643,8 @@ func (a *LocalAuth) HandleLinkCredentials(config LinkCredentialsConfig, getUser 
 
 			// Check username availability if UsernameStore configured
 			if config.UsernameStore != nil {
-				existingUserID, err := config.UsernameStore.GetUserByUsername(username)
-				if err == nil && existingUserID != userID {
+				existingResp, err := config.UsernameStore.GetUserByUsername(r.Context(), &accounts.GetUserByUsernameRequest{Username: username})
+				if err == nil && existingResp.UserID != userID {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusBadRequest)
 					json.NewEncoder(w).Encode(map[string]any{

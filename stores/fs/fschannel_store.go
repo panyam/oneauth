@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -32,50 +33,57 @@ func (s *FSChannelStore) getChannelPath(provider, identityKey string) (string, e
 	return filepath.Join(s.StoragePath, "channels", filename), nil
 }
 
-func (s *FSChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*accounts.Channel, bool, error) {
-	path, err := s.getChannelPath(provider, identityKey)
+func (s *FSChannelStore) GetChannel(ctx context.Context, req *accounts.GetChannelRequest) (*accounts.GetChannelResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetChannel: req is required")
+	}
+	path, err := s.getChannelPath(req.Provider, req.IdentityKey)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	data, err := os.ReadFile(path)
 
 	if err != nil {
-		if os.IsNotExist(err) && createIfMissing {
+		if os.IsNotExist(err) && req.CreateIfMissing {
 			now := time.Now()
 			channel := &accounts.Channel{
-				Provider:    provider,
-				IdentityKey: identityKey,
+				Provider:    req.Provider,
+				IdentityKey: req.IdentityKey,
 				Credentials: make(map[string]any),
 				Profile:     make(map[string]any),
 				CreatedAt:   now,
 				UpdatedAt:   now,
 				Version:     1,
 			}
-			if err := s.SaveChannel(channel); err != nil {
-				return nil, false, err
+			if _, err := s.SaveChannel(ctx, &accounts.SaveChannelRequest{Channel: channel}); err != nil {
+				return nil, err
 			}
-			return channel, true, nil
+			return &accounts.GetChannelResponse{Channel: channel, NewCreated: true}, nil
 		}
 		if os.IsNotExist(err) {
-			return nil, false, fmt.Errorf("channel not found")
+			return nil, fmt.Errorf("channel not found")
 		}
-		return nil, false, err
+		return nil, err
 	}
 
 	var channel accounts.Channel
 	if err := json.Unmarshal(data, &channel); err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	return &channel, false, nil
+	return &accounts.GetChannelResponse{Channel: &channel}, nil
 }
 
-func (s *FSChannelStore) SaveChannel(channel *accounts.Channel) error {
+func (s *FSChannelStore) SaveChannel(ctx context.Context, req *accounts.SaveChannelRequest) (*accounts.SaveChannelResponse, error) {
+	if req == nil || req.Channel == nil {
+		return nil, fmt.Errorf("SaveChannel: req.Channel is required")
+	}
+	channel := req.Channel
 	path, err := s.getChannelPath(channel.Provider, channel.IdentityKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
+		return nil, err
 	}
 
 	channel.UpdatedAt = time.Now()
@@ -88,18 +96,23 @@ func (s *FSChannelStore) SaveChannel(channel *accounts.Channel) error {
 
 	data, err := json.MarshalIndent(channel, "", "  ")
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	return writeAtomicFile(path, data)
+	if err := writeAtomicFile(path, data); err != nil {
+		return nil, err
+	}
+	return &accounts.SaveChannelResponse{}, nil
 }
 
-func (s *FSChannelStore) GetChannelsByIdentity(identityKey string) ([]*accounts.Channel, error) {
+func (s *FSChannelStore) GetChannelsByIdentity(ctx context.Context, req *accounts.GetChannelsByIdentityRequest) (*accounts.GetChannelsByIdentityResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetChannelsByIdentity: req is required")
+	}
 	channelsDir := filepath.Join(s.StoragePath, "channels")
 	entries, err := os.ReadDir(channelsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []*accounts.Channel{}, nil
+			return &accounts.GetChannelsByIdentityResponse{Channels: []*accounts.Channel{}}, nil
 		}
 		return nil, err
 	}
@@ -109,21 +122,17 @@ func (s *FSChannelStore) GetChannelsByIdentity(identityKey string) ([]*accounts.
 		if entry.IsDir() {
 			continue
 		}
-
 		data, err := os.ReadFile(filepath.Join(channelsDir, entry.Name()))
 		if err != nil {
 			continue
 		}
-
 		var channel accounts.Channel
 		if err := json.Unmarshal(data, &channel); err != nil {
 			continue
 		}
-
-		if channel.IdentityKey == identityKey {
+		if channel.IdentityKey == req.IdentityKey {
 			channels = append(channels, &channel)
 		}
 	}
-
-	return channels, nil
+	return &accounts.GetChannelsByIdentityResponse{Channels: channels}, nil
 }
