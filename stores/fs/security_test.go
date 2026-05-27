@@ -64,7 +64,7 @@ func TestSecurity_PathTraversal_UserStore(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("CreateUser_"+tc.name, func(t *testing.T) {
-			_, err := store.CreateUser(tc.input, true, map[string]any{"name": "evil"})
+			_, err := store.CreateUser(context.Background(), &accounts.CreateUserRequest{UserID: tc.input, IsActive: true, Profile: map[string]any{"name": "evil"}})
 			assert.Error(t, err, "CreateUser should reject malicious userId %q", tc.input)
 
 			// Verify no file was created outside the storage directory
@@ -72,7 +72,7 @@ func TestSecurity_PathTraversal_UserStore(t *testing.T) {
 		})
 
 		t.Run("GetUserById_"+tc.name, func(t *testing.T) {
-			_, err := store.GetUserById(tc.input)
+			_, err := store.GetUserById(context.Background(), &accounts.GetUserByIDRequest{UserID: tc.input})
 			assert.Error(t, err, "GetUserById should reject malicious userId %q", tc.input)
 		})
 	}
@@ -125,17 +125,19 @@ func TestSecurity_PathTraversal_ChannelStore_Provider(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("SaveChannel_provider_"+tc.name, func(t *testing.T) {
-			err := store.SaveChannel(&accounts.Channel{
+			_, err := store.SaveChannel(context.Background(), &accounts.SaveChannelRequest{Channel: &accounts.Channel{
 				Provider:    tc.input,
 				IdentityKey: "email:test@example.com",
 				Credentials: map[string]any{},
-			})
+			}})
 			assert.Error(t, err, "SaveChannel should reject malicious provider %q", tc.input)
 			assertNoEscape(t, dir, "channels")
 		})
 
 		t.Run("GetChannel_provider_"+tc.name, func(t *testing.T) {
-			_, _, err := store.GetChannel(tc.input, "email:test@example.com", false)
+			_Resp_, err := store.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: tc.input, IdentityKey: "email:test@example.com", CreateIfMissing: false})
+	var _ *accounts.Channel
+	if _Resp_ != nil { _ = _Resp_.Channel }
 			assert.Error(t, err, "GetChannel should reject malicious provider %q", tc.input)
 		})
 	}
@@ -150,11 +152,11 @@ func TestSecurity_PathTraversal_ChannelStore_IdentityKey(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("SaveChannel_identityKey_"+tc.name, func(t *testing.T) {
-			err := store.SaveChannel(&accounts.Channel{
+			_, err := store.SaveChannel(context.Background(), &accounts.SaveChannelRequest{Channel: &accounts.Channel{
 				Provider:    "local",
 				IdentityKey: tc.input,
 				Credentials: map[string]any{},
-			})
+			}})
 			assert.Error(t, err, "SaveChannel should reject malicious identityKey %q", tc.input)
 		})
 	}
@@ -205,13 +207,15 @@ func TestSecurity_PathTraversal_UsernameStore(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("ReserveUsername_"+tc.name, func(t *testing.T) {
-			err := store.ReserveUsername(tc.input, "user123")
+			_, err := store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: tc.input, UserID: "user123"})
 			assert.Error(t, err, "ReserveUsername should reject malicious username %q", tc.input)
 			assertNoEscape(t, dir, "usernames")
 		})
 
 		t.Run("GetUserByUsername_"+tc.name, func(t *testing.T) {
-			_, err := store.GetUserByUsername(tc.input)
+			_Resp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: tc.input})
+	var _ string
+	if _Resp_ != nil { _ = _Resp_.UserID }
 			assert.Error(t, err, "GetUserByUsername should reject malicious username %q", tc.input)
 		})
 	}
@@ -257,7 +261,7 @@ func TestSecurity_SanitizedInputs_UserStore(t *testing.T) {
 
 	for _, tc := range sanitizedInputs {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := store.CreateUser(tc.input, true, map[string]any{"name": "test"})
+			_, err := store.CreateUser(context.Background(), &accounts.CreateUserRequest{UserID: tc.input, IsActive: true, Profile: map[string]any{"name": "test"}})
 			assert.NoError(t, err, "CreateUser should accept sanitizable input %q", tc.input)
 		})
 	}
@@ -297,7 +301,7 @@ func TestSecurity_PathTraversal_IdentityStore_AlreadySafe(t *testing.T) {
 	// They return "not found" errors (not traversal), which is correct
 	for _, tc := range maliciousInputs {
 		t.Run("GetIdentity_"+tc.name, func(t *testing.T) {
-			_, _, err := store.GetIdentity("email", tc.input, false)
+			_, err := store.GetIdentity(context.Background(), &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: tc.input, CreateIfMissing: false})
 			// Should either error or return safely within storage dir
 			_ = err
 			assertNoEscape(t, dir, "identities")
@@ -335,7 +339,7 @@ func TestSecurity_DirPermissions(t *testing.T) {
 
 	// Create a user to trigger directory creation
 	userStore := NewFSUserStore(dir)
-	_, err := userStore.CreateUser("testuser", true, map[string]any{"name": "test"})
+	_, err := userStore.CreateUser(context.Background(), &accounts.CreateUserRequest{UserID: "testuser", IsActive: true, Profile: map[string]any{"name": "test"}})
 	require.NoError(t, err)
 
 	// Check the users/ directory permissions
@@ -356,7 +360,7 @@ func TestSecurity_FilePermissions(t *testing.T) {
 
 	// Create a user file
 	userStore := NewFSUserStore(dir)
-	_, err := userStore.CreateUser("testuser", true, map[string]any{"name": "test"})
+	_, err := userStore.CreateUser(context.Background(), &accounts.CreateUserRequest{UserID: "testuser", IsActive: true, Profile: map[string]any{"name": "test"}})
 	require.NoError(t, err)
 
 	// Check the file permissions

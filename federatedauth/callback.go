@@ -142,13 +142,14 @@ func (b *OAuthBridge) HandleLinkOAuthCallback(linkingUserID, provider string, us
 		return
 	}
 
-	user, err := b.UserStore.GetUserById(linkingUserID)
+	ctx := r.Context()
+	userResp, err := b.UserStore.GetUserById(ctx, &accounts.GetUserByIDRequest{UserID: linkingUserID})
 	if err != nil {
 		http.Error(w, `{"error": "User not found"}`, http.StatusNotFound)
 		return
 	}
 
-	profile := user.Profile()
+	profile := userResp.User.Profile()
 	userEmail, _ := profile["email"].(string)
 
 	// SECURITY: OAuth email must match user's email
@@ -164,8 +165,8 @@ func (b *OAuthBridge) HandleLinkOAuthCallback(linkingUserID, provider string, us
 
 	identityKey := accounts.IdentityKey("email", userEmail)
 
-	existingChannel, _, err := b.UserStore.GetChannel(provider, identityKey, false)
-	if err == nil && existingChannel != nil {
+	existingResp, err := b.UserStore.GetChannel(ctx, &accounts.GetChannelRequest{Provider: provider, IdentityKey: identityKey})
+	if err == nil && existingResp != nil && existingResp.Channel != nil {
 		log.Printf("Updating existing %s channel for user %s", provider, linkingUserID)
 	}
 
@@ -175,7 +176,7 @@ func (b *OAuthBridge) HandleLinkOAuthCallback(linkingUserID, provider string, us
 		Credentials: make(map[string]any),
 		Profile:     userInfo,
 	}
-	if err := b.UserStore.SaveChannel(channel); err != nil {
+	if _, err := b.UserStore.SaveChannel(ctx, &accounts.SaveChannelRequest{Channel: channel}); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error": "Failed to link OAuth account: %s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
@@ -200,7 +201,7 @@ func (b *OAuthBridge) HandleLinkOAuthCallback(linkingUserID, provider string, us
 		}
 
 		updatedUser := &accounts.BasicUser{ID: linkingUserID, ProfileData: profile}
-		if err := b.UserStore.SaveUser(updatedUser); err != nil {
+		if _, err := b.UserStore.SaveUser(ctx, &accounts.SaveUserRequest{User: updatedUser}); err != nil {
 			log.Printf("Warning: failed to update user profile: %v", err)
 		}
 	}

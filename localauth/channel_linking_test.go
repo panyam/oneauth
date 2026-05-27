@@ -3,6 +3,8 @@
 package localauth_test
 
 import (
+	"github.com/panyam/oneauth/accounts"
+	"context"
 	"github.com/panyam/oneauth/localauth"
 	"os"
 	"testing"
@@ -28,13 +30,15 @@ func TestUsernameStoreReserve(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// Reserve a username
-	err := store.ReserveUsername("JohnDoe", "user123")
+	_, err := store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "JohnDoe", UserID: "user123"})
 	if err != nil {
 		t.Fatalf("Failed to reserve username: %v", err)
 	}
 
 	// Lookup should work (case-insensitive)
-	userID, err := store.GetUserByUsername("johndoe")
+	userIDResp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "johndoe"})
+	var userID string
+	if userIDResp_ != nil { userID = userIDResp_.UserID }
 	if err != nil {
 		t.Fatalf("Failed to lookup username: %v", err)
 	}
@@ -43,7 +47,9 @@ func TestUsernameStoreReserve(t *testing.T) {
 	}
 
 	// Lookup with original case should also work
-	userID, err = store.GetUserByUsername("JohnDoe")
+	userIDResp2, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "JohnDoe"})
+	userID = ""
+	if userIDResp2 != nil { userID = userIDResp2.UserID }
 	if err != nil {
 		t.Fatalf("Failed to lookup username with original case: %v", err)
 	}
@@ -59,19 +65,19 @@ func TestUsernameStoreDuplicateReservation(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// Reserve a username
-	err := store.ReserveUsername("testuser", "user123")
+	_, err := store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "testuser", UserID: "user123"})
 	if err != nil {
 		t.Fatalf("Failed to reserve username: %v", err)
 	}
 
 	// Try to reserve same username for different user
-	err = store.ReserveUsername("testuser", "user456")
+	_, err = store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "testuser", UserID: "user456"})
 	if err == nil {
 		t.Error("Expected error for duplicate username reservation")
 	}
 
 	// Same user can re-reserve (update case)
-	err = store.ReserveUsername("TestUser", "user123")
+	_, err = store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "TestUser", UserID: "user123"})
 	if err != nil {
 		t.Errorf("Same user should be able to update case: %v", err)
 	}
@@ -82,18 +88,18 @@ func TestUsernameStoreCaseInsensitive(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
 
-	err := store.ReserveUsername("TestUser", "user123")
+	_, err := store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "TestUser", UserID: "user123"})
 	if err != nil {
 		t.Fatalf("Failed to reserve username: %v", err)
 	}
 
 	// Try different case variations
-	err = store.ReserveUsername("TESTUSER", "user456")
+	_, err = store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "TESTUSER", UserID: "user456"})
 	if err == nil {
 		t.Error("Should not allow same username with different case for different user")
 	}
 
-	err = store.ReserveUsername("testuser", "user789")
+	_, err = store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "testuser", UserID: "user789"})
 	if err == nil {
 		t.Error("Should not allow same username lowercase for different user")
 	}
@@ -105,14 +111,14 @@ func TestUsernameStoreRelease(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// Reserve and release
-	store.ReserveUsername("releaseme", "user123")
-	err := store.ReleaseUsername("releaseme")
+	store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "releaseme", UserID: "user123"})
+	_, err := store.ReleaseUsername(context.Background(), &accounts.ReleaseUsernameRequest{Username: "releaseme"})
 	if err != nil {
 		t.Fatalf("Failed to release username: %v", err)
 	}
 
 	// Should be available again
-	err = store.ReserveUsername("releaseme", "user456")
+	_, err = store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "releaseme", UserID: "user456"})
 	if err != nil {
 		t.Errorf("Username should be available after release: %v", err)
 	}
@@ -124,25 +130,29 @@ func TestUsernameStoreChange(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// Reserve initial username
-	err := store.ReserveUsername("oldname", "user123")
+	_, err := store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "oldname", UserID: "user123"})
 	if err != nil {
 		t.Fatalf("Failed to reserve username: %v", err)
 	}
 
 	// Change to new username
-	err = store.ChangeUsername("oldname", "newname", "user123")
+	_, err = store.ChangeUsername(context.Background(), &accounts.ChangeUsernameRequest{OldUsername: "oldname", NewUsername: "newname", UserID: "user123"})
 	if err != nil {
 		t.Fatalf("Failed to change username: %v", err)
 	}
 
 	// Old username should be available
-	_, err = store.GetUserByUsername("oldname")
+	_Resp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "oldname"})
+	_ = ""
+	if _Resp_ != nil { _ = _Resp_.UserID }
 	if err == nil {
 		t.Error("Old username should not exist after change")
 	}
 
 	// New username should work
-	userID, err := store.GetUserByUsername("newname")
+	userIDResp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "newname"})
+	var userID string
+	if userIDResp_ != nil { userID = userIDResp_.UserID }
 	if err != nil {
 		t.Fatalf("New username lookup failed: %v", err)
 	}
@@ -156,16 +166,18 @@ func TestUsernameStoreChangeCaseOnly(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
 
-	store.ReserveUsername("myname", "user123")
+	store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "myname", UserID: "user123"})
 
 	// Change case only
-	err := store.ChangeUsername("myname", "MyName", "user123")
+	_, err := store.ChangeUsername(context.Background(), &accounts.ChangeUsernameRequest{OldUsername: "myname", NewUsername: "MyName", UserID: "user123"})
 	if err != nil {
 		t.Fatalf("Failed to change username case: %v", err)
 	}
 
 	// Should still work
-	userID, err := store.GetUserByUsername("myname")
+	userIDResp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "myname"})
+	var userID string
+	if userIDResp_ != nil { userID = userIDResp_.UserID }
 	if err != nil {
 		t.Fatalf("Username lookup failed: %v", err)
 	}
@@ -179,11 +191,11 @@ func TestUsernameStoreChangeToTaken(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
 
-	store.ReserveUsername("name1", "user1")
-	store.ReserveUsername("name2", "user2")
+	store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "name1", UserID: "user1"})
+	store.ReserveUsername(context.Background(), &accounts.ReserveUsernameRequest{Username: "name2", UserID: "user2"})
 
 	// Try to change to taken username
-	err := store.ChangeUsername("name1", "name2", "user1")
+	_, err := store.ChangeUsername(context.Background(), &accounts.ChangeUsernameRequest{OldUsername: "name1", NewUsername: "name2", UserID: "user1"})
 	if err == nil {
 		t.Error("Should not allow changing to a taken username")
 	}
@@ -194,7 +206,9 @@ func TestUsernameStoreNotFound(t *testing.T) {
 	store, tmpDir := setupUsernameStore(t)
 	defer os.RemoveAll(tmpDir)
 
-	_, err := store.GetUserByUsername("nonexistent")
+	_Resp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "nonexistent"})
+	var _ string
+	if _Resp_ != nil { _ = _Resp_.UserID }
 	if err == nil {
 		t.Error("Expected error for non-existent username")
 	}
@@ -360,7 +374,9 @@ func TestLinkLocalCredentials(t *testing.T) {
 	}
 
 	// Verify username was reserved
-	userID, err := config.UsernameStore.GetUserByUsername("newusername")
+	userIDResp_, err := config.UsernameStore.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "newusername"})
+	var userID string
+	if userIDResp_ != nil { userID = userIDResp_.UserID }
 	if err != nil {
 		t.Fatalf("Failed to lookup username: %v", err)
 	}

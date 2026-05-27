@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -21,89 +22,111 @@ func NewFSIdentityStore(storagePath string) *FSIdentityStore {
 
 func (s *FSIdentityStore) getIdentityPath(identityType, identityValue string) string {
 	key := accounts.IdentityKey(identityType, identityValue)
-	// Use safe filename
-	safeKey := filepath.Base(key) // prevents path traversal
+	safeKey := filepath.Base(key)
 	return filepath.Join(s.StoragePath, "identities", safeKey+".json")
 }
 
-func (s *FSIdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*accounts.Identity, bool, error) {
-	path := s.getIdentityPath(identityType, identityValue)
+func (s *FSIdentityStore) GetIdentity(ctx context.Context, req *accounts.GetIdentityRequest) (*accounts.GetIdentityResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetIdentity: req is required")
+	}
+	path := s.getIdentityPath(req.IdentityType, req.IdentityValue)
 	data, err := os.ReadFile(path)
 
 	if err != nil {
-		if os.IsNotExist(err) && createIfMissing {
+		if os.IsNotExist(err) && req.CreateIfMissing {
 			now := time.Now()
 			identity := &accounts.Identity{
-				Type:      identityType,
-				Value:     identityValue,
-				UserID:    "", // Not assigned yet
+				Type:      req.IdentityType,
+				Value:     req.IdentityValue,
+				UserID:    "",
 				Verified:  false,
 				CreatedAt: now,
 				UpdatedAt: now,
 				Version:   1,
 			}
-			if err := s.SaveIdentity(identity); err != nil {
-				return nil, false, err
+			if _, err := s.SaveIdentity(ctx, &accounts.SaveIdentityRequest{Identity: identity}); err != nil {
+				return nil, err
 			}
-			return identity, true, nil
+			return &accounts.GetIdentityResponse{Identity: identity, NewCreated: true}, nil
 		}
 		if os.IsNotExist(err) {
-			return nil, false, fmt.Errorf("identity not found")
+			return nil, fmt.Errorf("identity not found")
 		}
-		return nil, false, err
+		return nil, err
 	}
 
 	var identity accounts.Identity
 	if err := json.Unmarshal(data, &identity); err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	return &identity, false, nil
+	return &accounts.GetIdentityResponse{Identity: &identity}, nil
 }
 
-func (s *FSIdentityStore) SaveIdentity(identity *accounts.Identity) error {
+func (s *FSIdentityStore) SaveIdentity(ctx context.Context, req *accounts.SaveIdentityRequest) (*accounts.SaveIdentityResponse, error) {
+	if req == nil || req.Identity == nil {
+		return nil, fmt.Errorf("SaveIdentity: req.Identity is required")
+	}
+	identity := req.Identity
 	path := s.getIdentityPath(identity.Type, identity.Value)
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
+		return nil, err
 	}
-
 	data, err := json.MarshalIndent(identity, "", "  ")
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	return writeAtomicFile(path, data)
+	if err := writeAtomicFile(path, data); err != nil {
+		return nil, err
+	}
+	return &accounts.SaveIdentityResponse{}, nil
 }
 
-func (s *FSIdentityStore) SetUserForIdentity(identityType, identityValue string, newUserId string) error {
-	identity, _, err := s.GetIdentity(identityType, identityValue, false)
-	if err != nil {
-		return err
+func (s *FSIdentityStore) SetUserForIdentity(ctx context.Context, req *accounts.SetUserForIdentityRequest) (*accounts.SetUserForIdentityResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("SetUserForIdentity: req is required")
 	}
-
-	identity.UserID = newUserId
+	resp, err := s.GetIdentity(ctx, &accounts.GetIdentityRequest{IdentityType: req.IdentityType, IdentityValue: req.IdentityValue})
+	if err != nil {
+		return nil, err
+	}
+	identity := resp.Identity
+	identity.UserID = req.NewUserID
 	identity.UpdatedAt = time.Now()
 	identity.Version++
-	return s.SaveIdentity(identity)
+	if _, err := s.SaveIdentity(ctx, &accounts.SaveIdentityRequest{Identity: identity}); err != nil {
+		return nil, err
+	}
+	return &accounts.SetUserForIdentityResponse{}, nil
 }
 
-func (s *FSIdentityStore) MarkIdentityVerified(identityType, identityValue string) error {
-	identity, _, err := s.GetIdentity(identityType, identityValue, false)
-	if err != nil {
-		return err
+func (s *FSIdentityStore) MarkIdentityVerified(ctx context.Context, req *accounts.MarkIdentityVerifiedRequest) (*accounts.MarkIdentityVerifiedResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("MarkIdentityVerified: req is required")
 	}
-
+	resp, err := s.GetIdentity(ctx, &accounts.GetIdentityRequest{IdentityType: req.IdentityType, IdentityValue: req.IdentityValue})
+	if err != nil {
+		return nil, err
+	}
+	identity := resp.Identity
 	identity.Verified = true
 	identity.UpdatedAt = time.Now()
 	identity.Version++
-	return s.SaveIdentity(identity)
+	if _, err := s.SaveIdentity(ctx, &accounts.SaveIdentityRequest{Identity: identity}); err != nil {
+		return nil, err
+	}
+	return &accounts.MarkIdentityVerifiedResponse{}, nil
 }
 
-func (s *FSIdentityStore) GetUserIdentities(userId string) ([]*accounts.Identity, error) {
+func (s *FSIdentityStore) GetUserIdentities(ctx context.Context, req *accounts.GetUserIdentitiesRequest) (*accounts.GetUserIdentitiesResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetUserIdentities: req is required")
+	}
 	identitiesDir := filepath.Join(s.StoragePath, "identities")
 	entries, err := os.ReadDir(identitiesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []*accounts.Identity{}, nil
+			return &accounts.GetUserIdentitiesResponse{Identities: []*accounts.Identity{}}, nil
 		}
 		return nil, err
 	}
@@ -113,21 +136,17 @@ func (s *FSIdentityStore) GetUserIdentities(userId string) ([]*accounts.Identity
 		if entry.IsDir() {
 			continue
 		}
-
 		data, err := os.ReadFile(filepath.Join(identitiesDir, entry.Name()))
 		if err != nil {
 			continue
 		}
-
 		var identity accounts.Identity
 		if err := json.Unmarshal(data, &identity); err != nil {
 			continue
 		}
-
-		if identity.UserID == userId {
+		if identity.UserID == req.UserID {
 			identities = append(identities, &identity)
 		}
 	}
-
-	return identities, nil
+	return &accounts.GetUserIdentitiesResponse{Identities: identities}, nil
 }

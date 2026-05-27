@@ -35,7 +35,7 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	if creds.Username != "" && a.UsernameStore != nil {
 		policy := a.getSignupPolicy()
 		if policy.EnforceUsernameUnique {
-			if _, err := a.UsernameStore.GetUserByUsername(creds.Username); err == nil {
+			if _, err := a.UsernameStore.GetUserByUsername(r.Context(), &accounts.GetUserByUsernameRequest{Username: creds.Username}); err == nil {
 				authErr := accounts.NewAuthError(accounts.ErrCodeUsernameTaken, "Username is already taken", "username")
 				a.handleSignupError(authErr, w, r)
 				return
@@ -61,7 +61,7 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 
 	// Reserve username if UsernameStore is configured
 	if creds.Username != "" && a.UsernameStore != nil {
-		if err := a.UsernameStore.ReserveUsername(creds.Username, user.Id()); err != nil {
+		if _, err := a.UsernameStore.ReserveUsername(r.Context(), &accounts.ReserveUsernameRequest{Username: creds.Username, UserID: user.Id()}); err != nil {
 			log.Printf("Warning: failed to reserve username %s: %v", creds.Username, err)
 			// Don't fail signup - user was already created
 		}

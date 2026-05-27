@@ -80,43 +80,49 @@ func (s *UserStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
-func (s *UserStore) CreateUser(userId string, isActive bool, profile map[string]any) (accounts.User, error) {
-	key := s.namespacedKey(KindUser, userId)
+func (s *UserStore) CreateUser(ctx context.Context, req *accounts.CreateUserRequest) (*accounts.CreateUserResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CreateUser: req is required")
+	}
+	key := s.namespacedKey(KindUser, req.UserID)
 
 	var profileBytes []byte
-	if profile != nil {
-		profileBytes, _ = json.Marshal(profile)
+	if req.Profile != nil {
+		profileBytes, _ = json.Marshal(req.Profile)
 	}
 
 	now := time.Now()
 	entity := &UserEntity{
 		Key:       key,
-		IsActive:  isActive,
+		IsActive:  req.IsActive,
 		Profile:   profileBytes,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
 
-	if _, err := s.client.Put(s.ctx, key, entity); err != nil {
+	if _, err := s.client.Put(ctx, key, entity); err != nil {
 		return nil, err
 	}
 
-	return &GAEUser{
-		UserID:      userId,
-		Active:      isActive,
-		UserProfile: profile,
+	return &accounts.CreateUserResponse{User: &GAEUser{
+		UserID:      req.UserID,
+		Active:      req.IsActive,
+		UserProfile: req.Profile,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	}, nil
+	}}, nil
 }
 
-func (s *UserStore) GetUserById(userId string) (accounts.User, error) {
-	key := s.namespacedKey(KindUser, userId)
-	log.Println("UserStore Key: ", key, KindUser, userId)
+func (s *UserStore) GetUserById(ctx context.Context, req *accounts.GetUserByIDRequest) (*accounts.GetUserByIDResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetUserById: req is required")
+	}
+	key := s.namespacedKey(KindUser, req.UserID)
+	log.Println("UserStore Key: ", key, KindUser, req.UserID)
 	var entity UserEntity
-	if err := s.client.Get(s.ctx, key, &entity); err != nil {
+	if err := s.client.Get(ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
-			return nil, fmt.Errorf("user not found: %s", userId)
+			return nil, fmt.Errorf("user not found: %s", req.UserID)
 		}
 		return nil, err
 	}
@@ -126,16 +132,20 @@ func (s *UserStore) GetUserById(userId string) (accounts.User, error) {
 		json.Unmarshal(entity.Profile, &profile)
 	}
 
-	return &GAEUser{
-		UserID:      userId,
+	return &accounts.GetUserByIDResponse{User: &GAEUser{
+		UserID:      req.UserID,
 		Active:      entity.IsActive,
 		UserProfile: profile,
 		CreatedAt:   entity.CreatedAt,
 		UpdatedAt:   entity.UpdatedAt,
-	}, nil
+	}}, nil
 }
 
-func (s *UserStore) SaveUser(user accounts.User) error {
+func (s *UserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest) (*accounts.SaveUserResponse, error) {
+	if req == nil || req.User == nil {
+		return nil, fmt.Errorf("SaveUser: req.User is required")
+	}
+	user := req.User
 	key := s.namespacedKey(KindUser, user.Id())
 
 	var profileBytes []byte
@@ -143,16 +153,15 @@ func (s *UserStore) SaveUser(user accounts.User) error {
 		profileBytes, _ = json.Marshal(user.Profile())
 	}
 
-	// Get existing to preserve CreatedAt
 	var existing UserEntity
-	err := s.client.Get(s.ctx, key, &existing)
+	err := s.client.Get(ctx, key, &existing)
 	if err != nil && err != datastore.ErrNoSuchEntity {
-		return err
+		return nil, err
 	}
 
 	entity := &UserEntity{
 		Key:       key,
-		IsActive:  true, // Default to true if not specified
+		IsActive:  true,
 		Profile:   profileBytes,
 		CreatedAt: existing.CreatedAt,
 		UpdatedAt: time.Now(),
@@ -161,13 +170,14 @@ func (s *UserStore) SaveUser(user accounts.User) error {
 		entity.CreatedAt = time.Now()
 	}
 
-	// Check if user implements an isActive method via profile
 	if gaeUser, ok := user.(*GAEUser); ok {
 		entity.IsActive = gaeUser.Active
 	}
 
-	_, err = s.client.Put(s.ctx, key, entity)
-	return err
+	if _, err := s.client.Put(ctx, key, entity); err != nil {
+		return nil, err
+	}
+	return &accounts.SaveUserResponse{}, nil
 }
 
 // ============================================================================
@@ -208,66 +218,84 @@ func (s *IdentityStore) identityKeyName(idType, value string) string {
 	return idType + ":" + value
 }
 
-func (s *IdentityStore) GetIdentity(identityType, identityValue string, createIfMissing bool) (*accounts.Identity, bool, error) {
-	key := s.namespacedKey(KindIdentity, s.identityKeyName(identityType, identityValue))
+func (s *IdentityStore) GetIdentity(ctx context.Context, req *accounts.GetIdentityRequest) (*accounts.GetIdentityResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetIdentity: req is required")
+	}
+	key := s.namespacedKey(KindIdentity, s.identityKeyName(req.IdentityType, req.IdentityValue))
 	var entity IdentityEntity
-	err := s.client.Get(s.ctx, key, &entity)
+	err := s.client.Get(ctx, key, &entity)
 
 	if err == datastore.ErrNoSuchEntity {
-		if createIfMissing {
+		if req.CreateIfMissing {
 			now := time.Now()
 			entity = IdentityEntity{
 				Key:       key,
-				Type:      identityType,
-				Value:     identityValue,
+				Type:      req.IdentityType,
+				Value:     req.IdentityValue,
 				UserID:    "",
 				Verified:  false,
 				CreatedAt: now,
 				UpdatedAt: now,
 				Version:   1,
 			}
-			if _, err := s.client.Put(s.ctx, key, &entity); err != nil {
-				return nil, false, err
+			if _, err := s.client.Put(ctx, key, &entity); err != nil {
+				return nil, err
 			}
-			return entity.ToIdentity(), true, nil
+			return &accounts.GetIdentityResponse{Identity: entity.ToIdentity(), NewCreated: true}, nil
 		}
-		return nil, false, fmt.Errorf("identity not found")
+		return nil, fmt.Errorf("identity not found")
 	}
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	return entity.ToIdentity(), false, nil
+	return &accounts.GetIdentityResponse{Identity: entity.ToIdentity()}, nil
 }
 
-func (s *IdentityStore) SaveIdentity(identity *accounts.Identity) error {
+func (s *IdentityStore) SaveIdentity(ctx context.Context, req *accounts.SaveIdentityRequest) (*accounts.SaveIdentityResponse, error) {
+	if req == nil || req.Identity == nil {
+		return nil, fmt.Errorf("SaveIdentity: req.Identity is required")
+	}
+	identity := req.Identity
 	key := s.namespacedKey(KindIdentity, s.identityKeyName(identity.Type, identity.Value))
 	entity := IdentityToEntity(identity, key)
-	_, err := s.client.Put(s.ctx, key, entity)
-	return err
+	if _, err := s.client.Put(ctx, key, entity); err != nil {
+		return nil, err
+	}
+	return &accounts.SaveIdentityResponse{}, nil
 }
 
-func (s *IdentityStore) SetUserForIdentity(identityType, identityValue string, newUserId string) error {
-	key := s.namespacedKey(KindIdentity, s.identityKeyName(identityType, identityValue))
+func (s *IdentityStore) SetUserForIdentity(ctx context.Context, req *accounts.SetUserForIdentityRequest) (*accounts.SetUserForIdentityResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("SetUserForIdentity: req is required")
+	}
+	key := s.namespacedKey(KindIdentity, s.identityKeyName(req.IdentityType, req.IdentityValue))
 
-	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var entity IdentityEntity
 		if err := tx.Get(key, &entity); err != nil {
 			return err
 		}
-		entity.UserID = newUserId
+		entity.UserID = req.NewUserID
 		entity.UpdatedAt = time.Now()
 		entity.Version++
 		_, err := tx.Put(key, &entity)
 		return err
 	})
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &accounts.SetUserForIdentityResponse{}, nil
 }
 
-func (s *IdentityStore) MarkIdentityVerified(identityType, identityValue string) error {
-	key := s.namespacedKey(KindIdentity, s.identityKeyName(identityType, identityValue))
+func (s *IdentityStore) MarkIdentityVerified(ctx context.Context, req *accounts.MarkIdentityVerifiedRequest) (*accounts.MarkIdentityVerifiedResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("MarkIdentityVerified: req is required")
+	}
+	key := s.namespacedKey(KindIdentity, s.identityKeyName(req.IdentityType, req.IdentityValue))
 
-	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var entity IdentityEntity
 		if err := tx.Get(key, &entity); err != nil {
 			return err
@@ -278,18 +306,24 @@ func (s *IdentityStore) MarkIdentityVerified(identityType, identityValue string)
 		_, err := tx.Put(key, &entity)
 		return err
 	})
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &accounts.MarkIdentityVerifiedResponse{}, nil
 }
 
-func (s *IdentityStore) GetUserIdentities(userId string) ([]*accounts.Identity, error) {
+func (s *IdentityStore) GetUserIdentities(ctx context.Context, req *accounts.GetUserIdentitiesRequest) (*accounts.GetUserIdentitiesResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetUserIdentities: req is required")
+	}
 	query := datastore.NewQuery(KindIdentity).
-		FilterField("user_id", "=", userId)
+		FilterField("user_id", "=", req.UserID)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
 	var identities []*accounts.Identity
-	it := s.client.Run(s.ctx, query)
+	it := s.client.Run(ctx, query)
 	for {
 		var entity IdentityEntity
 		_, err := it.Next(&entity)
@@ -301,7 +335,7 @@ func (s *IdentityStore) GetUserIdentities(userId string) ([]*accounts.Identity, 
 		}
 		identities = append(identities, entity.ToIdentity())
 	}
-	return identities, nil
+	return &accounts.GetUserIdentitiesResponse{Identities: identities}, nil
 }
 
 // ============================================================================
@@ -342,41 +376,44 @@ func (s *ChannelStore) channelKeyName(provider, identityKey string) string {
 	return provider + ":" + identityKey
 }
 
-func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfMissing bool) (*accounts.Channel, bool, error) {
-	key := s.namespacedKey(KindChannel, s.channelKeyName(provider, identityKey))
+func (s *ChannelStore) GetChannel(ctx context.Context, req *accounts.GetChannelRequest) (*accounts.GetChannelResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetChannel: req is required")
+	}
+	key := s.namespacedKey(KindChannel, s.channelKeyName(req.Provider, req.IdentityKey))
 	var entity ChannelEntity
-	err := s.client.Get(s.ctx, key, &entity)
+	err := s.client.Get(ctx, key, &entity)
 
 	if err == datastore.ErrNoSuchEntity {
-		if createIfMissing {
+		if req.CreateIfMissing {
 			now := time.Now()
 			entity = ChannelEntity{
 				Key:         key,
-				Provider:    provider,
-				IdentityKey: identityKey,
+				Provider:    req.Provider,
+				IdentityKey: req.IdentityKey,
 				Credentials: nil,
 				Profile:     nil,
 				CreatedAt:   now,
 				UpdatedAt:   now,
 				Version:     1,
 			}
-			if _, err := s.client.Put(s.ctx, key, &entity); err != nil {
-				return nil, false, err
+			if _, err := s.client.Put(ctx, key, &entity); err != nil {
+				return nil, err
 			}
-			return &accounts.Channel{
-				Provider:    provider,
-				IdentityKey: identityKey,
+			return &accounts.GetChannelResponse{Channel: &accounts.Channel{
+				Provider:    req.Provider,
+				IdentityKey: req.IdentityKey,
 				Credentials: make(map[string]any),
 				Profile:     make(map[string]any),
 				CreatedAt:   now,
 				UpdatedAt:   now,
 				Version:     1,
-			}, true, nil
+			}, NewCreated: true}, nil
 		}
-		return nil, false, fmt.Errorf("channel not found")
+		return nil, fmt.Errorf("channel not found")
 	}
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	var credentials, profile map[string]any
@@ -387,7 +424,7 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 		json.Unmarshal(entity.Profile, &profile)
 	}
 
-	return &accounts.Channel{
+	return &accounts.GetChannelResponse{Channel: &accounts.Channel{
 		Provider:    entity.Provider,
 		IdentityKey: entity.IdentityKey,
 		Credentials: credentials,
@@ -396,10 +433,14 @@ func (s *ChannelStore) GetChannel(provider string, identityKey string, createIfM
 		UpdatedAt:   entity.UpdatedAt,
 		ExpiresAt:   entity.ExpiresAt,
 		Version:     entity.Version,
-	}, false, nil
+	}}, nil
 }
 
-func (s *ChannelStore) SaveChannel(channel *accounts.Channel) error {
+func (s *ChannelStore) SaveChannel(ctx context.Context, req *accounts.SaveChannelRequest) (*accounts.SaveChannelResponse, error) {
+	if req == nil || req.Channel == nil {
+		return nil, fmt.Errorf("SaveChannel: req.Channel is required")
+	}
+	channel := req.Channel
 	key := s.namespacedKey(KindChannel, s.channelKeyName(channel.Provider, channel.IdentityKey))
 
 	var credBytes, profileBytes []byte
@@ -410,11 +451,10 @@ func (s *ChannelStore) SaveChannel(channel *accounts.Channel) error {
 		profileBytes, _ = json.Marshal(channel.Profile)
 	}
 
-	// Get existing to preserve CreatedAt and increment Version
 	var existing ChannelEntity
-	err := s.client.Get(s.ctx, key, &existing)
+	err := s.client.Get(ctx, key, &existing)
 	if err != nil && err != datastore.ErrNoSuchEntity {
-		return err
+		return nil, err
 	}
 
 	now := time.Now()
@@ -434,19 +474,24 @@ func (s *ChannelStore) SaveChannel(channel *accounts.Channel) error {
 		entity.Version = 1
 	}
 
-	_, err = s.client.Put(s.ctx, key, entity)
-	return err
+	if _, err := s.client.Put(ctx, key, entity); err != nil {
+		return nil, err
+	}
+	return &accounts.SaveChannelResponse{}, nil
 }
 
-func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*accounts.Channel, error) {
+func (s *ChannelStore) GetChannelsByIdentity(ctx context.Context, req *accounts.GetChannelsByIdentityRequest) (*accounts.GetChannelsByIdentityResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetChannelsByIdentity: req is required")
+	}
 	query := datastore.NewQuery(KindChannel).
-		FilterField("identity_key", "=", identityKey)
+		FilterField("identity_key", "=", req.IdentityKey)
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
 
 	var channels []*accounts.Channel
-	it := s.client.Run(s.ctx, query)
+	it := s.client.Run(ctx, query)
 	for {
 		var entity ChannelEntity
 		_, err := it.Next(&entity)
@@ -476,7 +521,7 @@ func (s *ChannelStore) GetChannelsByIdentity(identityKey string) ([]*accounts.Ch
 			Version:     entity.Version,
 		})
 	}
-	return channels, nil
+	return &accounts.GetChannelsByIdentityResponse{Channels: channels}, nil
 }
 
 // ============================================================================
@@ -1268,18 +1313,19 @@ func (s *UsernameStore) normalizeUsername(username string) string {
 	return strings.ToLower(username)
 }
 
-func (s *UsernameStore) ReserveUsername(username string, userID string) error {
-	normalizedUsername := s.normalizeUsername(username)
+func (s *UsernameStore) ReserveUsername(ctx context.Context, req *accounts.ReserveUsernameRequest) (*accounts.ReserveUsernameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ReserveUsername: req is required")
+	}
+	normalizedUsername := s.normalizeUsername(req.Username)
 	key := s.namespacedKey(KindUsername, normalizedUsername)
 
-	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var existing UsernameEntity
 		err := tx.Get(key, &existing)
 		if err == nil {
-			// Username already exists
-			if existing.UserID == userID {
-				// Same user, just update the original case
-				existing.Username = username
+			if existing.UserID == req.UserID {
+				existing.Username = req.Username
 				_, err = tx.Put(key, &existing)
 				return err
 			}
@@ -1289,67 +1335,81 @@ func (s *UsernameStore) ReserveUsername(username string, userID string) error {
 			return err
 		}
 
-		// Create new username reservation
 		entity := &UsernameEntity{
 			Key:       key,
-			Username:  username,
-			UserID:    userID,
+			Username:  req.Username,
+			UserID:    req.UserID,
 			CreatedAt: time.Now(),
 		}
 		_, err = tx.Put(key, entity)
 		return err
 	})
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &accounts.ReserveUsernameResponse{}, nil
 }
 
-func (s *UsernameStore) GetUserByUsername(username string) (string, error) {
-	normalizedUsername := s.normalizeUsername(username)
+func (s *UsernameStore) GetUserByUsername(ctx context.Context, req *accounts.GetUserByUsernameRequest) (*accounts.GetUserByUsernameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetUserByUsername: req is required")
+	}
+	normalizedUsername := s.normalizeUsername(req.Username)
 	key := s.namespacedKey(KindUsername, normalizedUsername)
 
 	var entity UsernameEntity
-	if err := s.client.Get(s.ctx, key, &entity); err != nil {
+	if err := s.client.Get(ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
-			return "", fmt.Errorf("username not found")
+			return nil, fmt.Errorf("username not found")
 		}
-		return "", err
+		return nil, err
 	}
-	return entity.UserID, nil
+	return &accounts.GetUserByUsernameResponse{UserID: entity.UserID}, nil
 }
 
-func (s *UsernameStore) ReleaseUsername(username string) error {
-	normalizedUsername := s.normalizeUsername(username)
+func (s *UsernameStore) ReleaseUsername(ctx context.Context, req *accounts.ReleaseUsernameRequest) (*accounts.ReleaseUsernameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ReleaseUsername: req is required")
+	}
+	normalizedUsername := s.normalizeUsername(req.Username)
 	key := s.namespacedKey(KindUsername, normalizedUsername)
-	return s.client.Delete(s.ctx, key)
+	if err := s.client.Delete(ctx, key); err != nil {
+		return nil, err
+	}
+	return &accounts.ReleaseUsernameResponse{}, nil
 }
 
-func (s *UsernameStore) ChangeUsername(oldUsername, newUsername, userID string) error {
-	oldNormalized := s.normalizeUsername(oldUsername)
-	newNormalized := s.normalizeUsername(newUsername)
+func (s *UsernameStore) ChangeUsername(ctx context.Context, req *accounts.ChangeUsernameRequest) (*accounts.ChangeUsernameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ChangeUsername: req is required")
+	}
+	oldNormalized := s.normalizeUsername(req.OldUsername)
+	newNormalized := s.normalizeUsername(req.NewUsername)
 
-	// If same normalized username, just update the case
 	if oldNormalized == newNormalized {
 		key := s.namespacedKey(KindUsername, oldNormalized)
-		_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
+		_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 			var entity UsernameEntity
 			if err := tx.Get(key, &entity); err != nil {
 				return err
 			}
-			if entity.UserID != userID {
+			if entity.UserID != req.UserID {
 				return fmt.Errorf("username not owned by user")
 			}
-			entity.Username = newUsername
+			entity.Username = req.NewUsername
 			_, err := tx.Put(key, &entity)
 			return err
 		})
-		return err
+		if err != nil {
+			return nil, err
+		}
+		return &accounts.ChangeUsernameResponse{}, nil
 	}
 
-	// Different username - need to atomically release old and reserve new
 	oldKey := s.namespacedKey(KindUsername, oldNormalized)
 	newKey := s.namespacedKey(KindUsername, newNormalized)
 
-	_, err := s.client.RunInTransaction(s.ctx, func(tx *datastore.Transaction) error {
-		// Check old username exists and belongs to user
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var oldEntity UsernameEntity
 		if err := tx.Get(oldKey, &oldEntity); err != nil {
 			if err == datastore.ErrNoSuchEntity {
@@ -1357,11 +1417,10 @@ func (s *UsernameStore) ChangeUsername(oldUsername, newUsername, userID string) 
 			}
 			return err
 		}
-		if oldEntity.UserID != userID {
+		if oldEntity.UserID != req.UserID {
 			return fmt.Errorf("old username not owned by user")
 		}
 
-		// Check new username is available
 		var newEntity UsernameEntity
 		err := tx.Get(newKey, &newEntity)
 		if err == nil {
@@ -1371,19 +1430,21 @@ func (s *UsernameStore) ChangeUsername(oldUsername, newUsername, userID string) 
 			return err
 		}
 
-		// Delete old, create new
 		if err := tx.Delete(oldKey); err != nil {
 			return err
 		}
 
 		newEntity = UsernameEntity{
 			Key:       newKey,
-			Username:  newUsername,
-			UserID:    userID,
+			Username:  req.NewUsername,
+			UserID:    req.UserID,
 			CreatedAt: time.Now(),
 		}
 		_, err = tx.Put(newKey, &newEntity)
 		return err
 	})
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &accounts.ChangeUsernameResponse{}, nil
 }
