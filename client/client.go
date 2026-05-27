@@ -205,25 +205,51 @@ func (c *AuthClient) GetCredential() (*ServerCredential, error) {
 	return c.store.GetCredential(c.serverURL)
 }
 
-// Login authenticates with username/password and stores the credential
-func (c *AuthClient) Login(username, password, scope string) (*ServerCredential, error) {
+// LoginRequest is the input to AuthClient.Login. It carries the
+// resource-owner password credentials grant inputs (RFC 6749 §4.3).
+// The ClientID defaults to "cli" if unset, matching the oneauth /api/token
+// endpoint's expected value for first-party CLI clients.
+type LoginRequest struct {
+	// Username is the resource-owner identifier (email / username).
+	Username string
+
+	// Password is the resource-owner secret.
+	Password string
+
+	// Scope is the requested OAuth scope (space-delimited).
+	Scope string
+
+	// ClientID identifies the client. Defaults to "cli" when empty.
+	ClientID string
+}
+
+// Login authenticates with username/password (RFC 6749 §4.3 resource-owner
+// password credentials grant) and stores the resulting credential.
+func (c *AuthClient) Login(ctx context.Context, req *LoginRequest) (*ServerCredential, error) {
+	if req == nil {
+		return nil, fmt.Errorf("Login: req is required")
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	req := OAuth2TokenRequest{
+	clientID := req.ClientID
+	if clientID == "" {
+		clientID = "cli"
+	}
+	tokReq := OAuth2TokenRequest{
 		GrantType: "password",
-		Username:  username,
-		Password:  password,
-		Scope:     scope,
-		ClientID:  "cli",
+		Username:  req.Username,
+		Password:  req.Password,
+		Scope:     req.Scope,
+		ClientID:  clientID,
 	}
 
-	cred, err := c.requestToken(req)
+	cred, err := c.requestToken(ctx, tokReq)
 	if err != nil {
 		return nil, err
 	}
 
-	cred.UserEmail = username
+	cred.UserEmail = req.Username
 
 	if err := c.store.SetCredential(c.serverURL, cred); err != nil {
 		return nil, fmt.Errorf("failed to store credential: %w", err)
@@ -405,7 +431,7 @@ func (c *AuthClient) refreshTokenLocked(cred *ServerCredential) error {
 		ClientID:     "cli",
 	}
 
-	newCred, err := c.requestToken(req)
+	newCred, err := c.requestToken(context.Background(), req)
 	if err != nil {
 		return err
 	}
@@ -535,7 +561,7 @@ func (c *AuthClient) executeTokenRequest(req *http.Request) (*ServerCredential, 
 // requestToken makes a token request to the server using JSON encoding.
 // This is the legacy path used by Login and refreshTokenLocked for the
 // oneauth-specific /auth/cli/token endpoint.
-func (c *AuthClient) requestToken(req OAuth2TokenRequest) (*ServerCredential, error) {
+func (c *AuthClient) requestToken(ctx context.Context, req OAuth2TokenRequest) (*ServerCredential, error) {
 	tokenURL := c.serverURL + c.tokenEndpoint
 
 	jsonBody, err := json.Marshal(req)
@@ -543,9 +569,15 @@ func (c *AuthClient) requestToken(req OAuth2TokenRequest) (*ServerCredential, er
 		return nil, fmt.Errorf("failed to encode request: %w", err)
 	}
 
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", tokenURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
 	// Use base transport directly to avoid auth loop
 	httpClient := &http.Client{Transport: c.baseTransport}
-	resp, err := httpClient.Post(tokenURL, "application/json", bytes.NewReader(jsonBody))
+	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}

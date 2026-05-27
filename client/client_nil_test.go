@@ -9,6 +9,7 @@ package client
 // See: https://github.com/panyam/oneauth/issues/76
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -82,7 +83,7 @@ func TestAuthClient_NilStore_Login(t *testing.T) {
 	defer server.Close()
 
 	c := NewAuthClient(server.URL, nil)
-	cred, err := c.Login("user", "pass", "")
+	cred, err := c.Login(context.Background(), &LoginRequest{Username: "user", Password: "pass", Scope: ""})
 	require.NoError(t, err)
 	assert.Equal(t, "test-token", cred.AccessToken)
 
@@ -125,7 +126,7 @@ func TestAuthClient_NilStore_LoginWithBrowser(t *testing.T) {
 	authSrv := mockAuthServer(t)
 
 	c := NewAuthClient(authSrv.URL, nil)
-	cred, err := c.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := c.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:    "test-cli",
 		Scopes:      []string{"openid"},
 		Timeout:     10 * time.Second,

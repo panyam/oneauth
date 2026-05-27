@@ -3,8 +3,8 @@
 Go client library for OAuth 2.0 authentication: browser-based login (authorization code + PKCE), headless login, client_credentials, AS metadata discovery, credential storage, and automatic token refresh.
 
 ## Contents
-- **client.go** — `AuthClient` (token management, `Login`, `ClientCredentialsToken`, `ClientCredentialsTokenWithAssertion`, `GetToken`, auto-refresh transport), `WithASMetadata`, `WithTokenEndpoint`, `WithHTTPClient`
-- **browser_login.go** — `LoginWithBrowser` (authorization code + PKCE flow, RFC 8252), `FollowRedirects` (headless HTTP redirect mode), `BrowserLoginConfig` (with `ClientSecret` for confidential clients, `TokenEndpointAuthMethods` for explicit endpoint auth method override, `ClientAssertion` for `private_key_jwt`)
+- **client.go** — `AuthClient` (token management, `Login`, `ClientCredentials`, `GetToken`, auto-refresh transport), `WithASMetadata`, `WithTokenEndpoint`, `WithHTTPClient`. `ClientCredentialsToken` / `ClientCredentialsTokenWithAssertion` retained as `// Deprecated:` compat wrappers.
+- **browser_login.go** — `LoginWithBrowser` (authorization code + PKCE flow, RFC 8252), `FollowRedirects` (headless HTTP redirect mode), `BrowserLoginRequest` (with `ClientSecret` for confidential clients, `TokenEndpointAuthMethods` for explicit endpoint auth method override, `ClientAssertion` for `private_key_jwt`)
 - **auth_method.go** — `TokenEndpointAuthMethod` type, `SelectAuthMethod` (negotiates `client_secret_basic` vs `client_secret_post` vs `none` from AS metadata), `applyAuthToForm`
 - **private_key_jwt.go** — `AuthMethodPrivateKeyJWT` constant, `ClientAssertionConfig`, `MintClientAssertion` (RFC 7523 §2.2 / OIDC Core §9 assertion minter — fresh `jti` + bounded lifetime per call)
 - **discovery.go** — `ASMetadata`, `DiscoverAS` (RFC 8414 + OIDC Discovery fallback), `DiscoveryOption`
@@ -26,6 +26,7 @@ Go client library for OAuth 2.0 authentication: browser-based login (authorizati
 ## Recent Changes
 - **Client-side DCR + validation utilities (mcpkit#158)** — `RegisterClient` (client-side RFC 7591 DCR caller), `ValidateHTTPS`/`IsLocalhost`/`ValidateCIMDURL` (OAuth endpoint validation), `ClientCredentialsSource` (RFC 6749 §4.4 grant wrapper with caching). Pushed down from mcpkit/ext/auth as pure-OAuth reusable code. See oneauth#78.
 - **DCR `application_type` (mcpkit#440)** — added `ApplicationType` to `ClientRegistrationRequest` per OpenID Connect Dynamic Client Registration 1.0. `omitempty` so existing oneauth callers stay wire-compatible; consumers whose spec requires it (MCP per SEP-837) set it explicitly to `"native"` or `"web"`.
+- **gRPC-shape convention (#217)** — `AuthClient` token-acquisition methods all follow `MethodName(ctx context.Context, req *XRequest) (..., error)`: `Login(ctx, *LoginRequest)`, `ClientCredentials(ctx, *ClientCredentialsRequest)`, `TokenExchange(ctx, *TokenExchangeRequest)`, `JwtBearerGrant(ctx, *JwtBearerGrantRequest)`, `LoginWithBrowser(ctx, *BrowserLoginRequest)`. Matches the convention adopted across `apiauth/`, `admin/`, and store-layer interfaces (#175 / #172 / #204).
 
 ## Dependencies
 `core/` is imported for `UnionScopes`. Otherwise standalone with only stdlib + `stretchr/testify` (testing).

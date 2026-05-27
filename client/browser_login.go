@@ -16,9 +16,9 @@ import (
 	"time"
 )
 
-// BrowserLoginConfig configures the authorization code + PKCE flow
-// for CLI and headless clients.
-type BrowserLoginConfig struct {
+// BrowserLoginRequest configures the authorization code + PKCE flow
+// for CLI and headless clients (RFC 8252 + RFC 7636).
+type BrowserLoginRequest struct {
 	// AuthorizationEndpoint is the AS authorization URL.
 	// If empty, auto-discovered via DiscoverAS(serverURL) using the
 	// AuthClient's server URL.
@@ -116,7 +116,11 @@ type callbackResult struct {
 //
 // See: https://www.rfc-editor.org/rfc/rfc8252 (OAuth 2.0 for Native Apps)
 // See: https://www.rfc-editor.org/rfc/rfc7636 (PKCE)
-func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential, error) {
+func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequest) (*ServerCredential, error) {
+	if req == nil {
+		return nil, fmt.Errorf("LoginWithBrowser: req is required")
+	}
+	cfg := *req
 	if cfg.ClientID == "" {
 		return nil, fmt.Errorf("ClientID is required")
 	}
@@ -240,14 +244,18 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		return nil, fmt.Errorf("failed to open browser (URL: %s): %w", authURL, err)
 	}
 
-	// Wait for callback or timeout
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	// Wait for callback or timeout — derive from the caller's ctx so
+	// upstream cancellation aborts the browser-login flow too.
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	var result callbackResult
 	select {
 	case result = <-resultCh:
-	case <-ctx.Done():
+	case <-waitCtx.Done():
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, fmt.Errorf("login timed out after %s", timeout)
 	}
 
@@ -270,7 +278,7 @@ func (c *AuthClient) LoginWithBrowser(cfg BrowserLoginConfig) (*ServerCredential
 		httpClient = http.DefaultClient
 	}
 
-	cred, err := c.exchangeCode(exchangeCodeParams{
+	cred, err := c.exchangeCode(ctx, exchangeCodeParams{
 		HTTPClient:    httpClient,
 		TokenEndpoint: tokenEndpoint,
 		Code:          result.Code,
@@ -324,7 +332,7 @@ type exchangeCodeParams struct {
 	Assertion *ClientAssertionConfig
 }
 
-func (c *AuthClient) exchangeCode(p exchangeCodeParams) (*ServerCredential, error) {
+func (c *AuthClient) exchangeCode(ctx context.Context, p exchangeCodeParams) (*ServerCredential, error) {
 	data := url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {p.Code},
@@ -349,7 +357,7 @@ func (c *AuthClient) exchangeCode(p exchangeCodeParams) (*ServerCredential, erro
 		applyAuthToForm(p.AuthMethod, p.ClientID, p.ClientSecret, data)
 	}
 
-	req, err := http.NewRequest("POST", p.TokenEndpoint, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", p.TokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build token request: %w", err)
 	}
@@ -457,7 +465,7 @@ func containsString(slice []string, val string) bool {
 //
 // Usage:
 //
-//	cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+//	cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
 //	    ClientID:    "my-cli",
 //	    OpenBrowser: client.FollowRedirects(nil),
 //	})

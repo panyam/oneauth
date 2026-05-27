@@ -13,6 +13,7 @@ package client
 //   - See: https://github.com/panyam/oneauth/issues/54
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -144,7 +145,7 @@ func TestLoginWithBrowser_FullFlow(t *testing.T) {
 	authClient := NewAuthClient(authSrv.URL, store)
 
 	var capturedAuthURL string
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID: "test-cli",
 		Scopes:   []string{"openid", "read"},
 		Timeout:  5 * time.Second,
@@ -185,7 +186,7 @@ func TestLoginWithBrowser_Timeout(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(authSrv.URL, store)
 
-	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	_, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID: "test-cli",
 		Timeout:  500 * time.Millisecond,
 		OpenBrowser: func(url string) error {
@@ -225,7 +226,7 @@ func TestLoginWithBrowser_StateMismatch(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(srv.URL, store)
 
-	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	_, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID: "test-cli",
 		Timeout:  2 * time.Second,
 		OpenBrowser: func(authURL string) error {
@@ -244,7 +245,7 @@ func TestLoginWithBrowser_MissingClientID(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient("http://localhost", store)
 
-	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{})
+	_, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "ClientID")
 }
@@ -272,7 +273,7 @@ func TestLoginWithBrowser_AuthorizationError(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(srv.URL, store)
 
-	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	_, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID: "test-cli",
 		Timeout:  2 * time.Second,
 		OpenBrowser: func(authURL string) error {
@@ -292,7 +293,7 @@ func TestLoginWithBrowser_ExplicitEndpoints(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(authSrv.URL, store)
 
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:              "test-cli",
 		AuthorizationEndpoint: authSrv.URL + "/authorize",
 		TokenEndpoint:         authSrv.URL + "/token",
@@ -322,7 +323,7 @@ func TestFollowRedirects_FullFlow(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(authSrv.URL, store)
 
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:    "test-cli",
 		Scopes:      []string{"openid", "read"},
 		Timeout:     5 * time.Second,
@@ -351,7 +352,7 @@ func TestFollowRedirects_WithCustomHTTPClient(t *testing.T) {
 	authClient := NewAuthClient(authSrv.URL, store)
 
 	customClient := &http.Client{Timeout: 10 * time.Second}
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:    "test-cli",
 		Timeout:     5 * time.Second,
 		OpenBrowser: FollowRedirects(customClient),
@@ -387,7 +388,7 @@ func TestFollowRedirects_AuthorizationError(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(srv.URL, store)
 
-	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	_, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:    "test-cli",
 		Timeout:     2 * time.Second,
 		OpenBrowser: FollowRedirects(nil),
@@ -433,7 +434,7 @@ func TestLoginWithBrowser_PKCENotSupported(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(srv.URL, store)
 
-	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	_, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID: "test-cli",
 		Timeout:  2 * time.Second,
 		OpenBrowser: func(url string) error {
@@ -466,7 +467,7 @@ func TestLoginWithBrowser_PKCEWrongMethod(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(srv.URL, store)
 
-	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	_, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID: "test-cli",
 		Timeout:  2 * time.Second,
 		OpenBrowser: func(url string) error {
@@ -490,7 +491,7 @@ func TestLoginWithBrowser_PKCESkippedWithExplicitEndpoints(t *testing.T) {
 	authClient := NewAuthClient(authSrv.URL, store)
 
 	// Explicit endpoints — no discovery, no PKCE check
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:              "test-cli",
 		AuthorizationEndpoint: authSrv.URL + "/authorize",
 		TokenEndpoint:         authSrv.URL + "/token",
@@ -521,7 +522,7 @@ func TestLoginWithBrowser_ResourceParameter(t *testing.T) {
 	authClient := NewAuthClient(authSrv.URL, store)
 
 	var capturedAuthURL string
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID: "test-cli",
 		Resource: "https://api.example.com",
 		Timeout:  5 * time.Second,
@@ -657,7 +658,7 @@ func TestLoginWithBrowser_ConfidentialClient_BasicAuth(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(authSrv.URL, store)
 
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:     "confidential-app",
 		ClientSecret: "app-secret",
 		Timeout:      5 * time.Second,
@@ -681,7 +682,7 @@ func TestLoginWithBrowser_ConfidentialClient_PostAuth(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(authSrv.URL, store)
 
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:     "confidential-app",
 		ClientSecret: "app-secret",
 		Timeout:      5 * time.Second,
@@ -705,7 +706,7 @@ func TestLoginWithBrowser_PublicClient_NoneAuth(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(authSrv.URL, store)
 
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:    "public-app",
 		Timeout:     5 * time.Second,
 		OpenBrowser: FollowRedirects(nil),
@@ -717,7 +718,7 @@ func TestLoginWithBrowser_PublicClient_NoneAuth(t *testing.T) {
 }
 
 // =============================================================================
-// #74 — TokenEndpointAuthMethods in BrowserLoginConfig
+// #74 — TokenEndpointAuthMethods in BrowserLoginRequest
 // =============================================================================
 
 // TestLoginWithBrowser_ExplicitEndpoints_PostAuth verifies that when explicit
@@ -738,7 +739,7 @@ func TestLoginWithBrowser_ExplicitEndpoints_PostAuth(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(authSrv.URL, store)
 
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:                 "confidential-app",
 		ClientSecret:             "app-secret",
 		AuthorizationEndpoint:    authSrv.URL + "/authorize",
@@ -767,7 +768,7 @@ func TestLoginWithBrowser_ExplicitEndpoints_DefaultsToBasic(t *testing.T) {
 	store := newMockCredentialStore()
 	authClient := NewAuthClient(authSrv.URL, store)
 
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:              "confidential-app",
 		ClientSecret:          "app-secret",
 		AuthorizationEndpoint: authSrv.URL + "/authorize",
@@ -800,7 +801,7 @@ func TestLoginWithBrowser_ExplicitEndpoints_MethodsOverrideDiscovery(t *testing.
 	// Without explicit TokenEndpointAuthMethods, discovery would return both
 	// and SelectAuthMethod would pick basic (preferred). But we override to
 	// post-only, proving the config field takes effect.
-	cred, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	cred, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID:                 "confidential-app",
 		ClientSecret:             "app-secret",
 		AuthorizationEndpoint:    authSrv.URL + "/authorize",
@@ -824,7 +825,7 @@ func TestLoginWithBrowser_NoResourceParameter(t *testing.T) {
 	authClient := NewAuthClient(authSrv.URL, store)
 
 	var capturedAuthURL string
-	_, err := authClient.LoginWithBrowser(BrowserLoginConfig{
+	_, err := authClient.LoginWithBrowser(context.Background(), &BrowserLoginRequest{
 		ClientID: "test-cli",
 		// No Resource set
 		Timeout: 5 * time.Second,
