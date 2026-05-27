@@ -8,6 +8,7 @@ package e2e_test
 // See: https://www.rfc-editor.org/rfc/rfc9396
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -268,7 +269,7 @@ func TestRAR_ClientCredentials_SDKForm(t *testing.T) {
 
 	authClient := client.NewAuthClient(env.BaseURL(), nil,
 		client.WithTokenEndpoint("/api/token"))
-	cred, err := authClient.ClientCredentials(&client.ClientCredentialsRequest{
+	cred, err := authClient.ClientCredentials(context.Background(), &client.ClientCredentialsRequest{
 		ClientID:             clientID,
 		ClientSecret:         clientSecret,
 		Scopes:               []string{"payments"},

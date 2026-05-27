@@ -7,6 +7,7 @@ package client_test
 // usable ServerCredential.
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
@@ -52,7 +53,7 @@ func TestJwtBearerGrant_E2E_TrustedIssuerRoundTrip(t *testing.T) {
 
 	c := client.NewAuthClient(srv.URL(), nil,
 		client.WithTokenEndpoint("/api/token"))
-	cred, err := c.JwtBearerGrant(&client.JwtBearerGrantRequest{
+	cred, err := c.JwtBearerGrant(context.Background(), &client.JwtBearerGrantRequest{
 		ClientID:  "demo-client",
 		Assertion: assertion,
 	})

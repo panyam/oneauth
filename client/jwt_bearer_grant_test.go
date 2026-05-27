@@ -7,6 +7,7 @@ package client
 // assertion for an access token.
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -58,7 +59,7 @@ func TestJwtBearerGrant_Roundtrip(t *testing.T) {
 	defer srv.Close()
 
 	c := NewAuthClient(srv.URL, nil, WithASMetadata(&ASMetadata{TokenEndpoint: srv.URL + "/token"}))
-	cred, err := c.JwtBearerGrant(&JwtBearerGrantRequest{
+	cred, err := c.JwtBearerGrant(context.Background(), &JwtBearerGrantRequest{
 		ClientID:     "demo",
 		ClientSecret: "shh",
 		Assertion:    "signed-jwt-assertion",
@@ -86,7 +87,7 @@ func TestJwtBearerGrant_ClientAuthBasic(t *testing.T) {
 		TokenEndpoint:            srv.URL + "/token",
 		TokenEndpointAuthMethods: []string{"client_secret_basic"},
 	}))
-	cred, err := c.JwtBearerGrant(&JwtBearerGrantRequest{
+	cred, err := c.JwtBearerGrant(context.Background(), &JwtBearerGrantRequest{
 		ClientID:     "demo",
 		ClientSecret: "shh",
 		Assertion:    "signed-jwt-assertion",
@@ -126,7 +127,7 @@ func TestJwtBearerGrant_ClientAuthPrivateKeyJwt(t *testing.T) {
 		TokenEndpoint:            srv.URL + "/token",
 		TokenEndpointAuthMethods: []string{"private_key_jwt"},
 	}))
-	cred, err := c.JwtBearerGrant(&JwtBearerGrantRequest{
+	cred, err := c.JwtBearerGrant(context.Background(), &JwtBearerGrantRequest{
 		ClientID:  "demo",
 		Assertion: "signed-jwt-assertion",
 		ClientAssertion: &ClientAssertionConfig{

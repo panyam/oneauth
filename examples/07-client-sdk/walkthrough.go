@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -88,8 +89,11 @@ func runDemo() {
 			authClient := client.NewAuthClient(authServer.URL, nil,
 				client.WithASMetadata(meta))
 
-			cred, err := authClient.ClientCredentialsToken(
-				registeredClientID, registeredSecret, []string{"read"})
+			cred, err := authClient.ClientCredentials(context.Background(), &client.ClientCredentialsRequest{
+				ClientID:     registeredClientID,
+				ClientSecret: registeredSecret,
+				Scopes:       []string{"read"},
+			})
 			if err != nil {
 				return demokit.Errf("token: %v", err)
 			}
@@ -217,8 +221,11 @@ curl -s http://localhost:8082/resource -H "Authorization: Bearer $TOKEN" | jq`).
 
 			kcClient := client.NewAuthClient(kcRealmURL, nil,
 				client.WithASMetadata(kcMeta))
-			cred, err := kcClient.ClientCredentialsToken(
-				kcExampleClientID, kcExampleClientSecret, []string{"openid"})
+			cred, err := kcClient.ClientCredentials(context.Background(), &client.ClientCredentialsRequest{
+				ClientID:     kcExampleClientID,
+				ClientSecret: kcExampleClientSecret,
+				Scopes:       []string{"openid"},
+			})
 			if err != nil {
 				fmt.Printf("    ERROR getting KC token: %v\n", err)
 				return nil

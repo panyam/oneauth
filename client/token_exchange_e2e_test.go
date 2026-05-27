@@ -6,6 +6,7 @@ package client_test
 // and the SDK decodes the issued_token_type-bearing response.
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
@@ -51,7 +52,7 @@ func TestTokenExchange_E2E_JWTSubjectToken(t *testing.T) {
 
 	c := client.NewAuthClient(srv.URL(), nil,
 		client.WithTokenEndpoint("/api/token"))
-	resp, err := c.TokenExchange(&client.TokenExchangeRequest{
+	resp, err := c.TokenExchange(context.Background(), &client.TokenExchangeRequest{
 		ClientID:         "demo-client",
 		SubjectToken:     subjectToken,
 		SubjectTokenType: "urn:ietf:params:oauth:token-type:jwt",

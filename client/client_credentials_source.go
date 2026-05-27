@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -156,7 +157,7 @@ func (s *ClientCredentialsSource) fetchTokenLocked() (*ServerCredential, error) 
 			WithASMetadata(&ASMetadata{TokenEndpoint: s.TokenEndpoint}))
 	}
 
-	cred, err := s.client.ClientCredentials(&ClientCredentialsRequest{
+	cred, err := s.client.ClientCredentials(context.Background(), &ClientCredentialsRequest{
 		ClientID:             s.ClientID,
 		ClientSecret:         s.ClientSecret,
 		ClientAssertion:      s.ClientAssertion,
