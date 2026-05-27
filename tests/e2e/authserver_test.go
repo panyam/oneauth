@@ -4,6 +4,7 @@ package e2e_test
 // but uses in-memory stores and no templates.
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -169,9 +170,12 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 			}
 
 			// Validate against KeyStore
-			rec, err := e.KeyStore.GetKey(clientID)
-			keyBytes, _ := rec.Key.([]byte)
-			if err != nil || rec == nil || string(keyBytes) != clientSecret {
+			resp, err := e.KeyStore.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
+			var keyBytes []byte
+			if resp != nil && resp.Record != nil {
+				keyBytes, _ = resp.Record.Key.([]byte)
+			}
+			if err != nil || resp == nil || resp.Record == nil || string(keyBytes) != clientSecret {
 				w.WriteHeader(http.StatusUnauthorized)
 				json.NewEncoder(w).Encode(map[string]string{
 					"error": "invalid_client", "error_description": "bad credentials"})

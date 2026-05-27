@@ -190,8 +190,8 @@ func ExampleAPIMiddleware_kidBasedLookup() {
 
 	// Demonstrate kid-based lookup directly
 	kid := hsParsed.Header["kid"].(string)
-	rec, _ := ks.GetKeyByKid(kid)
-	fmt.Println("kid_lookup_alg:", rec.Algorithm)
+	resp, _ := ks.GetKeyByKid(context.Background(), &keys.GetKeyByKidRequest{Kid: kid})
+	fmt.Println("kid_lookup_alg:", resp.Record.Algorithm)
 
 	// Output:
 	// hs256_has_kid: true
@@ -391,8 +391,8 @@ func ExampleJWKSHandler_multiAlgorithm() {
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}})
-	ids, _ := ks.ListKeyIDs(context.Background(), &keys.ListKeyIDsRequest{})
-	fmt.Println("total_apps:", len(ids))
+	idsResp, _ := ks.ListKeyIDs(context.Background(), &keys.ListKeyIDsRequest{})
+	fmt.Println("total_apps:", len(idsResp.ClientIDs))
 
 	// Serve JWKS (only asymmetric keys appear)
 	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
