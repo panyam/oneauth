@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
@@ -199,12 +200,12 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("testutil: failed to compute kid: %w", err)
 	}
-	if err := ks.PutKey(&keys.KeyRecord{
+	if _, err := ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  cfg.issuer,
 		Key:       pubPEM,
 		Algorithm: "RS256",
 		Kid:       kid,
-	}); err != nil {
+	}}); err != nil {
 		return nil, fmt.Errorf("testutil: failed to store RSA key: %w", err)
 	}
 

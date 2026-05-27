@@ -3,6 +3,7 @@
 package keystoretest
 
 import (
+	"context"
 	"crypto/rsa"
 	"sort"
 	"testing"
@@ -13,6 +14,13 @@ import (
 
 // Factory creates a fresh KeyStorage for each test.
 type Factory func(t *testing.T) keys.KeyStorage
+
+func putKey(t *testing.T, ks keys.KeyStorage, rec *keys.KeyRecord) {
+	t.Helper()
+	if _, err := ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: rec}); err != nil {
+		t.Fatalf("PutKey failed: %v", err)
+	}
+}
 
 // RunAll runs the complete KeyStore test suite against the provided factory.
 func RunAll(t *testing.T, factory Factory) {
@@ -33,17 +41,16 @@ func RunAll(t *testing.T, factory Factory) {
 
 func TestRegisterAndGet(t *testing.T, factory Factory) {
 	ks := factory(t)
+	ctx := context.Background()
 
 	secret := []byte("host-secret-123")
-	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: secret, Algorithm: "HS256"}); err != nil {
-		t.Fatalf("PutKey failed: %v", err)
-	}
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-abc", Key: secret, Algorithm: "HS256"})
 
-	// GetKey should return the secret
-	rec, err := ks.GetKey("host-abc")
+	resp, err := ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "host-abc"})
 	if err != nil {
 		t.Fatalf("GetKey failed: %v", err)
 	}
+	rec := resp.Record
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
 		t.Fatalf("Expected []byte, got %T", rec.Key)
@@ -51,21 +58,6 @@ func TestRegisterAndGet(t *testing.T, factory Factory) {
 	if string(keyBytes) != string(secret) {
 		t.Errorf("Expected secret %q, got %q", secret, keyBytes)
 	}
-
-	// For HS256, signing key and verify key are the same
-	rec2, err := ks.GetKey("host-abc")
-	if err != nil {
-		t.Fatalf("GetKey (signing) failed: %v", err)
-	}
-	sigKeyBytes, ok := rec2.Key.([]byte)
-	if !ok {
-		t.Fatalf("Expected []byte, got %T", rec2.Key)
-	}
-	if string(sigKeyBytes) != string(secret) {
-		t.Errorf("Expected signing key %q, got %q", secret, sigKeyBytes)
-	}
-
-	// Algorithm should be HS256
 	if rec.Algorithm != "HS256" {
 		t.Errorf("Expected alg HS256, got %s", rec.Algorithm)
 	}
@@ -73,8 +65,7 @@ func TestRegisterAndGet(t *testing.T, factory Factory) {
 
 func TestNotFound(t *testing.T, factory Factory) {
 	ks := factory(t)
-
-	_, err := ks.GetKey("nonexistent")
+	_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: "nonexistent"})
 	if err != keys.ErrKeyNotFound {
 		t.Errorf("Expected ErrKeyNotFound, got %v", err)
 	}
@@ -82,61 +73,47 @@ func TestNotFound(t *testing.T, factory Factory) {
 
 func TestMultipleHosts(t *testing.T, factory Factory) {
 	ks := factory(t)
+	ctx := context.Background()
 
 	secret1 := []byte("secret-for-host-1")
 	secret2 := []byte("secret-for-host-2")
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-1", Key: secret1, Algorithm: "HS256"})
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-2", Key: secret2, Algorithm: "HS256"})
 
-	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-1", Key: secret1, Algorithm: "HS256"}); err != nil {
-		t.Fatalf("PutKey host-1 failed: %v", err)
-	}
-	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-2", Key: secret2, Algorithm: "HS256"}); err != nil {
-		t.Fatalf("PutKey host-2 failed: %v", err)
-	}
-
-	rec1, err := ks.GetKey("host-1")
+	resp1, err := ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "host-1"})
 	if err != nil {
 		t.Fatalf("GetKey host-1 failed: %v", err)
 	}
-	rec2, err := ks.GetKey("host-2")
+	resp2, err := ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "host-2"})
 	if err != nil {
 		t.Fatalf("GetKey host-2 failed: %v", err)
 	}
-
-	if string(rec1.Key.([]byte)) != string(secret1) {
+	if string(resp1.Record.Key.([]byte)) != string(secret1) {
 		t.Errorf("host-1 key mismatch")
 	}
-	if string(rec2.Key.([]byte)) != string(secret2) {
+	if string(resp2.Record.Key.([]byte)) != string(secret2) {
 		t.Errorf("host-2 key mismatch")
-	}
-	if string(rec1.Key.([]byte)) == string(rec2.Key.([]byte)) {
-		t.Error("host-1 and host-2 should have different keys")
 	}
 }
 
 func TestDeleteKey(t *testing.T, factory Factory) {
 	ks := factory(t)
-
-	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: []byte("secret"), Algorithm: "HS256"}); err != nil {
-		t.Fatalf("PutKey failed: %v", err)
-	}
-
-	if _, err := ks.GetKey("host-abc"); err != nil {
+	ctx := context.Background()
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-abc", Key: []byte("secret"), Algorithm: "HS256"})
+	if _, err := ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "host-abc"}); err != nil {
 		t.Fatalf("Key should exist: %v", err)
 	}
-
-	if err := ks.DeleteKey("host-abc"); err != nil {
+	if _, err := ks.DeleteKey(ctx, &keys.DeleteKeyRequest{ClientID: "host-abc"}); err != nil {
 		t.Fatalf("DeleteKey failed: %v", err)
 	}
-
-	if _, err := ks.GetKey("host-abc"); err != keys.ErrKeyNotFound {
+	if _, err := ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "host-abc"}); err != keys.ErrKeyNotFound {
 		t.Errorf("Expected ErrKeyNotFound after delete, got %v", err)
 	}
 }
 
 func TestDeleteNonexistent(t *testing.T, factory Factory) {
 	ks := factory(t)
-
-	err := ks.DeleteKey("nonexistent")
+	_, err := ks.DeleteKey(context.Background(), &keys.DeleteKeyRequest{ClientID: "nonexistent"})
 	if err != keys.ErrKeyNotFound {
 		t.Errorf("Expected ErrKeyNotFound, got %v", err)
 	}
@@ -144,99 +121,83 @@ func TestDeleteNonexistent(t *testing.T, factory Factory) {
 
 func TestOverwriteKey(t *testing.T, factory Factory) {
 	ks := factory(t)
-
-	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: []byte("old-secret"), Algorithm: "HS256"}); err != nil {
-		t.Fatalf("PutKey failed: %v", err)
-	}
-
-	if err := ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: []byte("new-secret"), Algorithm: "HS512"}); err != nil {
-		t.Fatalf("PutKey overwrite failed: %v", err)
-	}
-
-	rec, _ := ks.GetKey("host-abc")
-	if string(rec.Key.([]byte)) != "new-secret" {
+	ctx := context.Background()
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-abc", Key: []byte("old-secret"), Algorithm: "HS256"})
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-abc", Key: []byte("new-secret"), Algorithm: "HS512"})
+	resp, _ := ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "host-abc"})
+	if string(resp.Record.Key.([]byte)) != "new-secret" {
 		t.Error("Expected overwritten secret")
 	}
-
-	if rec.Algorithm != "HS512" {
-		t.Errorf("Expected overwritten alg HS512, got %s", rec.Algorithm)
+	if resp.Record.Algorithm != "HS512" {
+		t.Errorf("Expected overwritten alg HS512, got %s", resp.Record.Algorithm)
 	}
 }
 
 func TestListKeys(t *testing.T, factory Factory) {
 	ks := factory(t)
+	ctx := context.Background()
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-alpha", Key: []byte("secret-a"), Algorithm: "HS256"})
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-beta", Key: []byte("secret-b"), Algorithm: "HS256"})
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-gamma", Key: []byte("secret-g"), Algorithm: "HS512"})
 
-	ks.PutKey(&keys.KeyRecord{ClientID: "host-alpha", Key: []byte("secret-a"), Algorithm: "HS256"})
-	ks.PutKey(&keys.KeyRecord{ClientID: "host-beta", Key: []byte("secret-b"), Algorithm: "HS256"})
-	ks.PutKey(&keys.KeyRecord{ClientID: "host-gamma", Key: []byte("secret-g"), Algorithm: "HS512"})
-
-	keys, err := ks.ListKeyIDs()
+	resp, err := ks.ListKeyIDs(ctx, &keys.ListKeyIDsRequest{})
 	if err != nil {
 		t.Fatalf("ListKeyIDs failed: %v", err)
 	}
-	if len(keys) != 3 {
-		t.Fatalf("Expected 3 keys, got %d", len(keys))
+	ids := resp.ClientIDs
+	if len(ids) != 3 {
+		t.Fatalf("Expected 3 keys, got %d", len(ids))
 	}
-
-	sort.Strings(keys)
+	sort.Strings(ids)
 	expected := []string{"host-alpha", "host-beta", "host-gamma"}
 	for i, e := range expected {
-		if keys[i] != e {
-			t.Errorf("Expected keys[%d] = %s, got %s", i, e, keys[i])
+		if ids[i] != e {
+			t.Errorf("Expected ids[%d] = %s, got %s", i, e, ids[i])
 		}
 	}
 }
 
 func TestListKeysEmpty(t *testing.T, factory Factory) {
 	ks := factory(t)
-
-	keys, err := ks.ListKeyIDs()
+	resp, err := ks.ListKeyIDs(context.Background(), &keys.ListKeyIDsRequest{})
 	if err != nil {
 		t.Fatalf("ListKeyIDs failed: %v", err)
 	}
-	if len(keys) != 0 {
-		t.Errorf("Expected 0 keys, got %d", len(keys))
+	if len(resp.ClientIDs) != 0 {
+		t.Errorf("Expected 0 keys, got %d", len(resp.ClientIDs))
 	}
 }
 
 func TestPersistence(t *testing.T, factory Factory) {
-	// This test verifies that two store instances sharing the same backend
-	// see each other's data. For InMemoryKeyStore this is trivially true
-	// (same instance). For persistent stores, the factory should return
-	// stores sharing the same underlying storage.
 	ks := factory(t)
-
-	ks.PutKey(&keys.KeyRecord{ClientID: "host-abc", Key: []byte("persistent-secret"), Algorithm: "HS256"})
-
-	// Re-read from the same store — all backends must support this
-	rec, err := ks.GetKey("host-abc")
+	ctx := context.Background()
+	putKey(t, ks, &keys.KeyRecord{ClientID: "host-abc", Key: []byte("persistent-secret"), Algorithm: "HS256"})
+	resp, err := ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "host-abc"})
 	if err != nil {
 		t.Fatalf("Should see persisted key: %v", err)
 	}
-	if string(rec.Key.([]byte)) != "persistent-secret" {
+	if string(resp.Record.Key.([]byte)) != "persistent-secret" {
 		t.Error("Key material should persist")
 	}
 }
 
 func TestKidResolverBasic(t *testing.T, factory Factory) {
 	ks := factory(t)
+	ctx := context.Background()
 
 	secret := []byte("kid-test-secret")
-	if err := ks.PutKey(&keys.KeyRecord{ClientID: "app-kid", Key: secret, Algorithm: "HS256"}); err != nil {
-		t.Fatalf("PutKey failed: %v", err)
-	}
+	putKey(t, ks, &keys.KeyRecord{ClientID: "app-kid", Key: secret, Algorithm: "HS256"})
 
-	// Compute expected kid
 	expectedKid, err := utils.ComputeKid(secret, "HS256")
 	if err != nil {
 		t.Fatalf("ComputeKid failed: %v", err)
 	}
 
-	// Look up by kid
-	rec, err := ks.GetKeyByKid(expectedKid)
+	resp, err := ks.GetKeyByKid(ctx, &keys.GetKeyByKidRequest{Kid: expectedKid})
 	if err != nil {
 		t.Fatalf("GetKeyByKid failed: %v", err)
 	}
+	rec := resp.Record
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
 		t.Fatalf("Expected []byte, got %T", rec.Key)
@@ -251,8 +212,7 @@ func TestKidResolverBasic(t *testing.T, factory Factory) {
 		t.Errorf("clientID=%s, want app-kid", rec.ClientID)
 	}
 
-	// Unknown kid should fail
-	_, err = ks.GetKeyByKid("nonexistent-kid")
+	_, err = ks.GetKeyByKid(ctx, &keys.GetKeyByKidRequest{Kid: "nonexistent-kid"})
 	if err != keys.ErrKidNotFound {
 		t.Errorf("expected ErrKidNotFound, got %v", err)
 	}
@@ -260,38 +220,33 @@ func TestKidResolverBasic(t *testing.T, factory Factory) {
 
 func TestKidResolverAsymmetric(t *testing.T, factory Factory) {
 	ks := factory(t)
+	ctx := context.Background()
 
 	_, pubPEM, err := utils.GenerateRSAKeyPair(2048)
 	if err != nil {
 		t.Fatal(err)
 	}
+	putKey(t, ks, &keys.KeyRecord{ClientID: "app-rsa-kid", Key: pubPEM, Algorithm: "RS256"})
 
-	if err := ks.PutKey(&keys.KeyRecord{ClientID: "app-rsa-kid", Key: pubPEM, Algorithm: "RS256"}); err != nil {
-		t.Fatal(err)
-	}
-
-	// Compute kid from the public key
 	pubKey, _ := utils.DecodeVerifyKey(pubPEM, "RS256")
 	expectedKid, _ := utils.ComputeKid(pubKey, "RS256")
 
-	// For backends that store []byte PEM, ComputeKid on []byte with RS256
-	// should parse PEM and compute the same thumbprint
 	storedKid, _ := utils.ComputeKid(pubPEM, "RS256")
 	if storedKid != expectedKid {
 		t.Errorf("ComputeKid(PEM) should equal ComputeKid(pubKey): %s != %s", storedKid, expectedKid)
 	}
 
-	rec, err := ks.GetKeyByKid(expectedKid)
+	resp, err := ks.GetKeyByKid(ctx, &keys.GetKeyByKidRequest{Kid: expectedKid})
 	if err != nil {
 		t.Fatalf("GetKeyByKid failed: %v", err)
 	}
+	rec := resp.Record
 	if rec.Algorithm != "RS256" {
 		t.Errorf("alg=%s, want RS256", rec.Algorithm)
 	}
 	if rec.ClientID != "app-rsa-kid" {
 		t.Errorf("clientID=%s, want app-rsa-kid", rec.ClientID)
 	}
-	// Key should be the PEM bytes
 	if keyBytes, ok := rec.Key.([]byte); ok {
 		if string(keyBytes) != string(pubPEM) {
 			t.Error("key material mismatch")
@@ -301,26 +256,25 @@ func TestKidResolverAsymmetric(t *testing.T, factory Factory) {
 
 func TestGetCurrentKid(t *testing.T, factory Factory) {
 	ks := factory(t)
+	ctx := context.Background()
 
 	secret := []byte("kid-getter-secret")
-	ks.PutKey(&keys.KeyRecord{ClientID: "app-kg", Key: secret, Algorithm: "HS256"})
+	putKey(t, ks, &keys.KeyRecord{ClientID: "app-kg", Key: secret, Algorithm: "HS256"})
 
-	rec, err := ks.GetKey("app-kg")
+	resp, err := ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "app-kg"})
 	if err != nil {
 		t.Fatalf("GetKey failed: %v", err)
 	}
-	kid := rec.Kid
+	kid := resp.Record.Kid
 	if kid == "" {
 		t.Error("expected non-empty kid")
 	}
-
 	expectedKid, _ := utils.ComputeKid(secret, "HS256")
 	if kid != expectedKid {
 		t.Errorf("kid=%s, want %s", kid, expectedKid)
 	}
 
-	// Nonexistent client
-	_, err = ks.GetKey("nonexistent")
+	_, err = ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "nonexistent"})
 	if err != keys.ErrKeyNotFound {
 		t.Errorf("expected ErrKeyNotFound, got %v", err)
 	}
@@ -328,22 +282,19 @@ func TestGetCurrentKid(t *testing.T, factory Factory) {
 
 func TestRegisterAndGetAsymmetricKey(t *testing.T, factory Factory) {
 	ks := factory(t)
+	ctx := context.Background()
 
-	// Generate an RSA key pair and store the public key PEM
 	_, pubPEM, err := utils.GenerateRSAKeyPair(2048)
 	if err != nil {
 		t.Fatalf("GenerateRSAKeyPair failed: %v", err)
 	}
+	putKey(t, ks, &keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"})
 
-	if err := ks.PutKey(&keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}); err != nil {
-		t.Fatalf("PutKey failed: %v", err)
-	}
-
-	// GetKey should return the same PEM bytes
-	rec, err := ks.GetKey("app-rsa")
+	resp, err := ks.GetKey(ctx, &keys.GetKeyRequest{ClientID: "app-rsa"})
 	if err != nil {
 		t.Fatalf("GetKey failed: %v", err)
 	}
+	rec := resp.Record
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
 		t.Fatalf("Expected []byte, got %T", rec.Key)
@@ -351,13 +302,10 @@ func TestRegisterAndGetAsymmetricKey(t *testing.T, factory Factory) {
 	if string(keyBytes) != string(pubPEM) {
 		t.Error("Stored PEM should match original")
 	}
-
-	// Algorithm should be RS256
 	if rec.Algorithm != "RS256" {
 		t.Errorf("Expected alg RS256, got %s", rec.Algorithm)
 	}
 
-	// DecodeVerifyKey should parse PEM into *rsa.PublicKey
 	decoded, err := utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 	if err != nil {
 		t.Fatalf("DecodeVerifyKey failed: %v", err)

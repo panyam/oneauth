@@ -5,6 +5,7 @@ package apiauth_test
 // with mixed algorithm support and algorithm confusion attack prevention.
 
 import (
+	"context"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/keys"
@@ -257,8 +258,7 @@ func TestAPIMiddleware_RS256_MultiTenant(t *testing.T) {
 	// Register an RS256 app with its public key
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
-	ks.RegisterKey("app-rsa", pubPEM, "RS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}})
 	// Mint a token with the private key
 	tokenStr, err := admin.MintResourceTokenWithKey("user-1", "app-rsa", privKey, admin.AppQuota{}, []string{"read"}, nil)
 	if err != nil {
@@ -291,8 +291,7 @@ func TestAPIMiddleware_ES256_MultiTenant(t *testing.T) {
 
 	privPEM, pubPEM, _ := utils.GenerateECDSAKeyPair()
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
-	ks.RegisterKey("app-ec", pubPEM, "ES256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-ec", Key: pubPEM, Algorithm: "ES256"}})
 	tokenStr, _ := admin.MintResourceTokenWithKey("user-2", "app-ec", privKey, admin.AppQuota{}, []string{"write"}, nil)
 
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
@@ -316,18 +315,15 @@ func TestAPIMiddleware_MixedAlgorithms(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 
 	// Register HS256 app
-	ks.RegisterKey("app-hs", []byte("hs-secret"), "HS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-hs", Key: []byte("hs-secret"), Algorithm: "HS256"}})
 	// Register RS256 app
 	rsaPrivPEM, rsaPubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	rsaPrivKey, _ := utils.ParsePrivateKeyPEM(rsaPrivPEM)
-	ks.RegisterKey("app-rsa", rsaPubPEM, "RS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rsa", Key: rsaPubPEM, Algorithm: "RS256"}})
 	// Register ES256 app
 	ecPrivPEM, ecPubPEM, _ := utils.GenerateECDSAKeyPair()
 	ecPrivKey, _ := utils.ParsePrivateKeyPEM(ecPrivPEM)
-	ks.RegisterKey("app-ec", ecPubPEM, "ES256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-ec", Key: ecPubPEM, Algorithm: "ES256"}})
 	middleware := &apiauth.APIMiddleware{KeyStore: ks}
 	handler := middleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -362,8 +358,7 @@ func TestAPIMiddleware_AlgorithmConfusion(t *testing.T) {
 
 	// Register app as RS256
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
-	ks.RegisterKey("app-rsa", pubPEM, "RS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}})
 	// Try to forge a token using HS256 with the public key as the HMAC secret
 	// This is the classic algorithm confusion attack
 	forgedToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{

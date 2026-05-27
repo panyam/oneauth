@@ -6,14 +6,16 @@ package keys_test
 // from the auth server's /.well-known/jwks.json endpoint.
 
 import (
-	"github.com/panyam/oneauth/admin"
-	"github.com/panyam/oneauth/apiauth"
-	"github.com/panyam/oneauth/keys"
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/apiauth"
+	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
 
@@ -285,10 +287,10 @@ func TestJWKS_EndToEnd_RS256(t *testing.T) {
 		t.Fatal(err)
 	}
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
-	authKeyStore.RegisterKey("app_rsa_e2e", pubPEM, "RS256")
+	_, _ = authKeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app_rsa_e2e", Key: pubPEM, Algorithm: "RS256"}})
 
 	// Also register an HS256 app (should NOT appear in JWKS)
-	authKeyStore.RegisterKey("app_hmac_e2e", []byte("secret123"), "HS256")
+	_, _ = authKeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app_hmac_e2e", Key: []byte("secret123"), Algorithm: "HS256"}})
 
 	// --- Auth server side: serve JWKS ---
 	jwksHandler := &keys.JWKSHandler{KeyStore: authKeyStore}
@@ -346,7 +348,7 @@ func TestJWKS_EndToEnd_ES256(t *testing.T) {
 		t.Fatal(err)
 	}
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
-	authKeyStore.RegisterKey("app_ec_e2e", pubPEM, "ES256")
+	_, _ = authKeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app_ec_e2e", Key: pubPEM, Algorithm: "ES256"}})
 
 	jwksHandler := &keys.JWKSHandler{KeyStore: authKeyStore}
 	authServer := httptest.NewServer(http.HandlerFunc(jwksHandler.ServeHTTP))
@@ -389,7 +391,7 @@ func TestJWKS_EndToEnd_ES256(t *testing.T) {
 // via JWKS (since HS256 secrets are never exposed).
 func TestJWKS_EndToEnd_HS256Excluded(t *testing.T) {
 	authKeyStore := keys.NewInMemoryKeyStore()
-	authKeyStore.RegisterKey("app_hmac", []byte("supersecret"), "HS256")
+	_, _ = authKeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app_hmac", Key: []byte("supersecret"), Algorithm: "HS256"}})
 
 	jwksHandler := &keys.JWKSHandler{KeyStore: authKeyStore}
 	authServer := httptest.NewServer(http.HandlerFunc(jwksHandler.ServeHTTP))
@@ -431,7 +433,7 @@ func TestJWKS_EndToEnd_HS256Excluded(t *testing.T) {
 func TestJWKS_EndToEnd_WrongPrivateKey(t *testing.T) {
 	authKeyStore := keys.NewInMemoryKeyStore()
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
-	authKeyStore.RegisterKey("app_rsa", pubPEM, "RS256")
+	_, _ = authKeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app_rsa", Key: pubPEM, Algorithm: "RS256"}})
 
 	// Mint with a DIFFERENT private key
 	otherPrivPEM, _, _ := utils.GenerateRSAKeyPair(2048)
@@ -469,14 +471,14 @@ func TestJWKS_EndToEnd_MixedAlgorithms(t *testing.T) {
 
 	rsaPrivPEM, rsaPubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	rsaPrivKey, _ := utils.ParsePrivateKeyPEM(rsaPrivPEM)
-	authKeyStore.RegisterKey("app_rsa_mix", rsaPubPEM, "RS256")
+	_, _ = authKeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app_rsa_mix", Key: rsaPubPEM, Algorithm: "RS256"}})
 
 	ecPrivPEM, ecPubPEM, _ := utils.GenerateECDSAKeyPair()
 	ecPrivKey, _ := utils.ParsePrivateKeyPEM(ecPrivPEM)
-	authKeyStore.RegisterKey("app_ec_mix", ecPubPEM, "ES256")
+	_, _ = authKeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app_ec_mix", Key: ecPubPEM, Algorithm: "ES256"}})
 
 	// Also HS256 (should be invisible to JWKS)
-	authKeyStore.RegisterKey("app_hs_mix", []byte("secret"), "HS256")
+	_, _ = authKeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app_hs_mix", Key: []byte("secret"), Algorithm: "HS256"}})
 
 	jwksHandler := &keys.JWKSHandler{KeyStore: authKeyStore}
 	authServer := httptest.NewServer(http.HandlerFunc(jwksHandler.ServeHTTP))

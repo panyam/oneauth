@@ -1338,8 +1338,9 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (userID string, sc
 		if m.KeyStore != nil {
 			// Try kid-based lookup first (if kid header present)
 			if kid, ok := token.Header["kid"].(string); ok && kid != "" {
-				rec, err := m.KeyStore.GetKeyByKid(kid)
+				kidResp, err := m.KeyStore.GetKeyByKid(context.Background(), &keys.GetKeyByKidRequest{Kid: kid})
 				if err == nil {
+					rec := kidResp.Record
 					if token.Header["alg"] != rec.Algorithm {
 						return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
 					}
@@ -1369,10 +1370,11 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (userID string, sc
 				return nil, fmt.Errorf("missing client_id claim")
 			}
 
-			rec, err := m.KeyStore.GetKey(clientID)
+			getResp, err := m.KeyStore.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
 			if err != nil {
 				return nil, fmt.Errorf("unknown client: %w", err)
 			}
+			rec := getResp.Record
 			if token.Header["alg"] != rec.Algorithm {
 				return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
 			}

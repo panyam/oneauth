@@ -15,6 +15,7 @@ package apiauth_test
 //     in apiauth/client_authenticator.go.
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -56,11 +57,12 @@ func newPKJWTFixture(t *testing.T) *pkjwtFixture {
 
 	ks := keys.NewInMemoryKeyStore()
 	const clientID = "test-app"
-	require.NoError(t, ks.PutKey(&keys.KeyRecord{
+	_, err = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       pubPEM,
 		Algorithm: "RS256",
-	}))
+	}})
+	require.NoError(t, err)
 
 	auth := &apiauth.APIAuth{
 		JWTSecretKey:        "server-jwt-secret-key-32chars!!",

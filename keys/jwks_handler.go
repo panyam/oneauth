@@ -11,6 +11,8 @@ import (
 	"github.com/panyam/oneauth/utils"
 )
 
+
+
 // JWKSHandler serves a JWKS (JSON Web Key Set) endpoint at /.well-known/jwks.json.
 // Only asymmetric keys (RS256/ES256) are included — HS256 secrets are never exposed.
 type JWKSHandler struct {
@@ -20,19 +22,21 @@ type JWKSHandler struct {
 }
 
 func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	clientIDs, err := h.KeyStore.ListKeyIDs()
+	ctx := r.Context()
+	listResp, err := h.KeyStore.ListKeyIDs(ctx, &ListKeyIDsRequest{})
 	if err != nil {
 		http.Error(w, `{"error":"failed to list keys"}`, http.StatusInternalServerError)
 		return
 	}
 
 	var keys []utils.JWK
-	for _, clientID := range clientIDs {
-		rec, err := h.KeyStore.GetKey(clientID)
+	for _, clientID := range listResp.ClientIDs {
+		getResp, err := h.KeyStore.GetKey(ctx, &GetKeyRequest{ClientID: clientID})
 		if err != nil {
 			log.Printf("jwks: failed to get key for %s: %v", clientID, err)
 			continue
 		}
+		rec := getResp.Record
 		if !utils.IsAsymmetricAlg(rec.Algorithm) {
 			continue
 		}

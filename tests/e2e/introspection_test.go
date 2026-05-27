@@ -10,6 +10,7 @@ package e2e_test
 //   - See: https://github.com/panyam/oneauth/issues/47
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -40,11 +41,11 @@ func TestIntrospection_E2E_ActiveToken(t *testing.T) {
 	// Register a resource server client that can call introspection
 	rsClientID := "e2e-resource-server"
 	rsSecret := "rs-introspection-secret"
-	env.KeyStore.PutKey(&keys.KeyRecord{
+	_, _ = env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  rsClientID,
 		Key:       []byte(rsSecret),
 		Algorithm: "HS256",
-	})
+	}})
 
 	// Create a user and get an access token
 	email, password := CreateTestUser(t, env, "introspect-user")
@@ -89,11 +90,11 @@ func TestIntrospection_E2E_RevokedToken(t *testing.T) {
 
 	rsClientID := "e2e-rs-revoke"
 	rsSecret := "rs-revoke-secret"
-	env.KeyStore.PutKey(&keys.KeyRecord{
+	_, _ = env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  rsClientID,
 		Key:       []byte(rsSecret),
 		Algorithm: "HS256",
-	})
+	}})
 
 	// Get a token
 	email, password := CreateTestUser(t, env, "revoke-introspect")

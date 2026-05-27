@@ -75,10 +75,11 @@ func (a *clientAuthenticator) AuthenticateClient(ctx context.Context, req *Authe
 }
 
 func (a *clientAuthenticator) authenticateSecret(req *AuthenticateClientRequest) (*AuthenticateClientResponse, error) {
-	rec, err := a.keyLookup.GetKey(req.ClientID)
-	if err != nil || rec == nil {
+	resp, err := a.keyLookup.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: req.ClientID})
+	if err != nil || resp == nil || resp.Record == nil {
 		return nil, errInvalidClient
 	}
+	rec := resp.Record
 	storedKey, ok := rec.Key.([]byte)
 	if !ok {
 		return nil, errInvalidClient
@@ -142,10 +143,11 @@ func (a *clientAuthenticator) authenticateAssertion(req *AuthenticateClientReque
 		return nil, fmt.Errorf("%w: client_id form param does not match assertion iss/sub", errInvalidClient)
 	}
 
-	rec, err := a.keyLookup.GetKey(clientID)
-	if err != nil || rec == nil {
+	keyResp, err := a.keyLookup.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
+	if err != nil || keyResp == nil || keyResp.Record == nil {
 		return nil, errInvalidClient
 	}
+	rec := keyResp.Record
 	if !utils.IsAsymmetricAlg(rec.Algorithm) {
 		// Symmetric-keyed clients cannot use private_key_jwt.
 		// client_secret_jwt is a separate ticket (#159).

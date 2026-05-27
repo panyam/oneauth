@@ -82,7 +82,7 @@ func newTestOneAuthWithPasswordGrant(t *testing.T) *apiauth.OneAuth {
 	t.Helper()
 	signingSecret := []byte("test-signing-secret-32chars-min!")
 	ks := keys.NewInMemoryKeyStore()
-	ks.PutKey(&keys.KeyRecord{ClientID: "test-issuer", Key: signingSecret, Algorithm: "HS256"})
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "test-issuer", Key: signingSecret, Algorithm: "HS256"}})
 
 	return apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		KeyStore:     ks,

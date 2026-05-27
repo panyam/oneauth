@@ -16,6 +16,7 @@ package e2e_test
 //   - See: https://github.com/panyam/oneauth/issues/72
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -105,11 +106,11 @@ func TestE2E_ClientCredentials_BasicAuth(t *testing.T) {
 	// Register a client
 	clientID := "e2e-basic-auth-client"
 	secret := "e2e-basic-secret"
-	env.KeyStore.PutKey(&keys.KeyRecord{
+	_, _ = env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       []byte(secret),
 		Algorithm: "HS256",
-	})
+	}})
 
 	// Discover AS metadata (includes token_endpoint_auth_methods_supported)
 	meta, err := client.DiscoverAS(env.BaseURL())
@@ -139,11 +140,11 @@ func TestE2E_ClientCredentials_PostAuth(t *testing.T) {
 
 	clientID := "e2e-post-auth-client"
 	secret := "e2e-post-secret"
-	env.KeyStore.PutKey(&keys.KeyRecord{
+	_, _ = env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       []byte(secret),
 		Algorithm: "HS256",
-	})
+	}})
 
 	// Force client_secret_post only
 	meta := &client.ASMetadata{
@@ -174,11 +175,11 @@ func TestE2E_ClientCredentials_FormEncoded(t *testing.T) {
 
 	clientID := "e2e-form-client"
 	secret := "e2e-form-secret"
-	env.KeyStore.PutKey(&keys.KeyRecord{
+	_, _ = env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       []byte(secret),
 		Algorithm: "HS256",
-	})
+	}})
 
 	// Direct form-encoded request to /oauth/token
 	data := url.Values{
@@ -262,11 +263,11 @@ func TestE2E_AuthCodePKCE_ExplicitEndpoints_ConfidentialClient(t *testing.T) {
 	// Register a confidential client
 	clientID := "e2e-explicit-confidential"
 	secret := "e2e-explicit-secret"
-	env.KeyStore.PutKey(&keys.KeyRecord{
+	_, _ = env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       []byte(secret),
 		Algorithm: "HS256",
-	})
+	}})
 
 	store := &memCredentialStore{creds: make(map[string]*client.ServerCredential)}
 	authClient := client.NewAuthClient(env.BaseURL(), store,

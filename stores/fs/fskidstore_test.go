@@ -1,11 +1,7 @@
 package fs
 
-// Tests for the filesystem-based KidStorage implementation. The shared
-// conformance suite is in kidstoretest; the cross-instance restart test
-// below is FS-specific — it's the headline proof that grace-period kids
-// survive a process restart.
-
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -19,24 +15,21 @@ func TestFSKidStore(t *testing.T) {
 	})
 }
 
-// TestFSKidStorePersistsAcrossInstances exercises the actual gap this
-// backend closes: a second store instance opened over the same directory
-// must see kids written by the first. Without this, "survives a process
-// restart" is only an interface-level claim, not a verified behavior.
 func TestFSKidStorePersistsAcrossInstances(t *testing.T) {
 	dir := t.TempDir()
+	ctx := context.Background()
 
 	writer := NewFSKidStore(dir)
-	if err := writer.Add("kid-grace", []byte("retired-secret"), "HS256", "app-1", time.Now().Add(1*time.Hour)); err != nil {
+	if _, err := writer.Add(ctx, &keys.AddKidRequest{Kid: "kid-grace", Key: []byte("retired-secret"), Algorithm: "HS256", ClientID: "app-1", ExpiresAt: time.Now().Add(1 * time.Hour)}); err != nil {
 		t.Fatalf("writer.Add failed: %v", err)
 	}
 
-	// Fresh instance over the same backing directory — simulates a process restart.
 	reader := NewFSKidStore(dir)
-	rec, err := reader.GetKeyByKid("kid-grace")
+	resp, err := reader.GetKeyByKid(ctx, &keys.GetKeyByKidRequest{Kid: "kid-grace"})
 	if err != nil {
 		t.Fatalf("reader.GetKeyByKid failed after restart: %v", err)
 	}
+	rec := resp.Record
 	if string(rec.Key.([]byte)) != "retired-secret" {
 		t.Errorf("key material did not survive restart: got %q", rec.Key)
 	}

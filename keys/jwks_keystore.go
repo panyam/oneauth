@@ -1,6 +1,7 @@
 package keys
 
 import (
+	"context"
 	"crypto"
 	"encoding/json"
 	"fmt"
@@ -12,7 +13,7 @@ import (
 	"github.com/panyam/oneauth/utils"
 )
 
-// JWKSKeyStore implements KeyStore (read-only) by fetching public keys from a remote JWKS endpoint.
+// JWKSKeyStore implements KeyLookup (read-only) by fetching public keys from a remote JWKS endpoint.
 // It caches keys locally and refreshes them periodically.
 type JWKSKeyStore struct {
 	JWKSURL         string
@@ -141,79 +142,34 @@ func (s *JWKSKeyStore) refresh() error {
 	return nil
 }
 
-// GetVerifyKey returns the public key for the given client ID.
-// If the key is not cached, triggers a refresh before returning ErrKeyNotFound.
-func (s *JWKSKeyStore) GetVerifyKey(clientID string) (any, error) {
-	s.mu.RLock()
-	entry, ok := s.keys[clientID]
-	s.mu.RUnlock()
-	if ok {
-		return entry.PublicKey, nil
-	}
-
-	// Cache miss — try refreshing
-	s.refresh()
-
-	s.mu.RLock()
-	entry, ok = s.keys[clientID]
-	s.mu.RUnlock()
-	if ok {
-		return entry.PublicKey, nil
-	}
-	return nil, ErrKeyNotFound
-}
-
-// GetSigningKey always returns an error — JWKS only exposes public keys.
-func (s *JWKSKeyStore) GetSigningKey(clientID string) (any, error) {
-	return nil, fmt.Errorf("jwks keystore is read-only (public keys only)")
-}
-
 // GetKey returns ErrKeyNotFound — JWKSKeyStore only supports kid-based lookup.
 // JWKS doesn't carry clientID→key mappings; use GetKeyByKid instead.
-func (s *JWKSKeyStore) GetKey(clientID string) (*KeyRecord, error) {
+func (s *JWKSKeyStore) GetKey(ctx context.Context, req *GetKeyRequest) (*GetKeyResponse, error) {
 	return nil, ErrKeyNotFound
 }
 
 // GetKeyByKid returns the key record for the given kid.
 // ClientID is empty since JWKS doesn't carry client_id metadata —
 // the middleware skips the cross-app check in this case.
-func (s *JWKSKeyStore) GetKeyByKid(kid string) (*KeyRecord, error) {
+func (s *JWKSKeyStore) GetKeyByKid(ctx context.Context, req *GetKeyByKidRequest) (*GetKeyByKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKeyByKid: req is required")
+	}
 	s.mu.RLock()
-	entry, ok := s.keys[kid]
+	entry, ok := s.keys[req.Kid]
 	s.mu.RUnlock()
 	if ok {
-		return &KeyRecord{Key: entry.PublicKey, Algorithm: entry.Algorithm, Kid: kid}, nil
+		return &GetKeyByKidResponse{Record: &KeyRecord{Key: entry.PublicKey, Algorithm: entry.Algorithm, Kid: req.Kid}}, nil
 	}
 
 	// Cache miss — try refreshing
 	s.refresh()
 
 	s.mu.RLock()
-	entry, ok = s.keys[kid]
+	entry, ok = s.keys[req.Kid]
 	s.mu.RUnlock()
 	if ok {
-		return &KeyRecord{Key: entry.PublicKey, Algorithm: entry.Algorithm, Kid: kid}, nil
+		return &GetKeyByKidResponse{Record: &KeyRecord{Key: entry.PublicKey, Algorithm: entry.Algorithm, Kid: req.Kid}}, nil
 	}
 	return nil, ErrKidNotFound
-}
-
-// GetExpectedAlg returns the algorithm for the given client ID.
-func (s *JWKSKeyStore) GetExpectedAlg(clientID string) (string, error) {
-	s.mu.RLock()
-	entry, ok := s.keys[clientID]
-	s.mu.RUnlock()
-	if ok {
-		return entry.Algorithm, nil
-	}
-
-	// Cache miss — try refreshing
-	s.refresh()
-
-	s.mu.RLock()
-	entry, ok = s.keys[clientID]
-	s.mu.RUnlock()
-	if ok {
-		return entry.Algorithm, nil
-	}
-	return "", ErrKeyNotFound
 }

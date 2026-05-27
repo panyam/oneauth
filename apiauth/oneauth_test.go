@@ -32,17 +32,17 @@ func newTestOneAuth(t *testing.T) *apiauth.OneAuth {
 
 	ks := keys.NewInMemoryKeyStore()
 	// Server's own signing key (for validating self-issued tokens)
-	ks.PutKey(&keys.KeyRecord{
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "test-issuer",
 		Key:       signingSecret,
 		Algorithm: "HS256",
-	})
+	}})
 	// A registered client (for client_credentials tests)
-	ks.PutKey(&keys.KeyRecord{
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "test-client",
 		Key:       []byte("test-client-secret-32chars-min!!"),
 		Algorithm: "HS256",
-	})
+	}})
 
 	return apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		KeyStore:     ks,
@@ -269,7 +269,7 @@ func TestOneAuth_Hooks_OnIssued(t *testing.T) {
 	var firedSubject, firedGrant string
 	secret := []byte("hooks-test-secret-32chars-min!!!")
 	ks := keys.NewInMemoryKeyStore()
-	ks.PutKey(&keys.KeyRecord{ClientID: "test", Key: secret, Algorithm: "HS256"})
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "test", Key: secret, Algorithm: "HS256"}})
 	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		KeyStore:   ks,
 		SigningKey:  secret,
@@ -324,7 +324,7 @@ func TestOneAuth_Hooks_OnBlacklistHit(t *testing.T) {
 	var firedJTI string
 	secret := []byte("hooks-test-secret-32chars-min!!!")
 	ks := keys.NewInMemoryKeyStore()
-	ks.PutKey(&keys.KeyRecord{ClientID: "test", Key: secret, Algorithm: "HS256"})
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "test", Key: secret, Algorithm: "HS256"}})
 	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		KeyStore:   ks,
 		SigningKey:  secret,

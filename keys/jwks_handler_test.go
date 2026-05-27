@@ -4,6 +4,7 @@ package keys
 // key filtering (asymmetric only), response format, Cache-Control, and Content-Type headers.
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,11 +19,11 @@ func TestJWKSHandler_MixedKeys(t *testing.T) {
 	ks := NewInMemoryKeyStore()
 
 	// Register HS256 key (should NOT appear)
-	ks.RegisterKey("app_hmac", []byte("secret"), "HS256")
+	ks.PutKey(context.Background(), &PutKeyRequest{Record: &KeyRecord{ClientID: "app_hmac", Key: []byte("secret"), Algorithm: "HS256"}})
 
 	// Register RS256 key (should appear)
 	_, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
-	ks.RegisterKey("app_rsa", pubPEM, "RS256")
+	ks.PutKey(context.Background(), &PutKeyRequest{Record: &KeyRecord{ClientID: "app_rsa", Key: pubPEM, Algorithm: "RS256"}})
 
 	handler := &JWKSHandler{KeyStore: ks}
 	req := httptest.NewRequest("GET", "/.well-known/jwks.json", nil)
@@ -58,10 +59,10 @@ func TestJWKSHandler_RSAAndECDSA(t *testing.T) {
 	ks := NewInMemoryKeyStore()
 
 	_, rsaPub, _ := utils.GenerateRSAKeyPair(2048)
-	ks.RegisterKey("app_rsa", rsaPub, "RS256")
+	ks.PutKey(context.Background(), &PutKeyRequest{Record: &KeyRecord{ClientID: "app_rsa", Key: rsaPub, Algorithm: "RS256"}})
 
 	_, ecPub, _ := utils.GenerateECDSAKeyPair()
-	ks.RegisterKey("app_ec", ecPub, "ES256")
+	ks.PutKey(context.Background(), &PutKeyRequest{Record: &KeyRecord{ClientID: "app_ec", Key: ecPub, Algorithm: "ES256"}})
 
 	handler := &JWKSHandler{KeyStore: ks}
 	req := httptest.NewRequest("GET", "/.well-known/jwks.json", nil)

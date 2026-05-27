@@ -1,6 +1,7 @@
 package keys
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -61,7 +62,11 @@ func NewEncryptedKeyStorage(inner KeyStorage, masterKeyHex string) (*EncryptedKe
 }
 
 // PutKey computes kid from plaintext, then encrypts HMAC keys before storing.
-func (e *EncryptedKeyStorage) PutKey(rec *KeyRecord) error {
+func (e *EncryptedKeyStorage) PutKey(ctx context.Context, req *PutKeyRequest) (*PutKeyResponse, error) {
+	if req == nil || req.Record == nil {
+		return nil, fmt.Errorf("PutKey: req.Record is required")
+	}
+	rec := req.Record
 	// Compute kid from plaintext BEFORE encryption
 	if rec.Kid == "" {
 		rec.Kid = computeKid(rec.Key, rec.Algorithm)
@@ -70,49 +75,49 @@ func (e *EncryptedKeyStorage) PutKey(rec *KeyRecord) error {
 	if isHMACAlgorithm(rec.Algorithm) {
 		keyBytes, ok := rec.Key.([]byte)
 		if !ok {
-			return fmt.Errorf("HMAC key must be []byte, got %T", rec.Key)
+			return nil, fmt.Errorf("HMAC key must be []byte, got %T", rec.Key)
 		}
 		encrypted, err := e.encrypt(keyBytes)
 		if err != nil {
-			return fmt.Errorf("failed to encrypt key for %s: %w", rec.ClientID, err)
+			return nil, fmt.Errorf("failed to encrypt key for %s: %w", rec.ClientID, err)
 		}
 		// Store with encrypted key but plaintext-derived kid
-		return e.inner.PutKey(&KeyRecord{
+		return e.inner.PutKey(ctx, &PutKeyRequest{Record: &KeyRecord{
 			ClientID:  rec.ClientID,
 			Key:       encrypted,
 			Algorithm: rec.Algorithm,
 			Kid:       rec.Kid,
-		})
+		}})
 	}
-	return e.inner.PutKey(rec)
+	return e.inner.PutKey(ctx, req)
 }
 
 // GetKey retrieves and decrypts the key for the given clientID.
-func (e *EncryptedKeyStorage) GetKey(clientID string) (*KeyRecord, error) {
-	rec, err := e.inner.GetKey(clientID)
+func (e *EncryptedKeyStorage) GetKey(ctx context.Context, req *GetKeyRequest) (*GetKeyResponse, error) {
+	resp, err := e.inner.GetKey(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return e.maybeDecryptRecord(rec), nil
+	return &GetKeyResponse{Record: e.maybeDecryptRecord(resp.Record)}, nil
 }
 
 // GetKeyByKid retrieves and decrypts the key matching the given kid.
-func (e *EncryptedKeyStorage) GetKeyByKid(kid string) (*KeyRecord, error) {
-	rec, err := e.inner.GetKeyByKid(kid)
+func (e *EncryptedKeyStorage) GetKeyByKid(ctx context.Context, req *GetKeyByKidRequest) (*GetKeyByKidResponse, error) {
+	resp, err := e.inner.GetKeyByKid(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return e.maybeDecryptRecord(rec), nil
+	return &GetKeyByKidResponse{Record: e.maybeDecryptRecord(resp.Record)}, nil
 }
 
 // DeleteKey delegates to the inner store.
-func (e *EncryptedKeyStorage) DeleteKey(clientID string) error {
-	return e.inner.DeleteKey(clientID)
+func (e *EncryptedKeyStorage) DeleteKey(ctx context.Context, req *DeleteKeyRequest) (*DeleteKeyResponse, error) {
+	return e.inner.DeleteKey(ctx, req)
 }
 
 // ListKeyIDs delegates to the inner store.
-func (e *EncryptedKeyStorage) ListKeyIDs() ([]string, error) {
-	return e.inner.ListKeyIDs()
+func (e *EncryptedKeyStorage) ListKeyIDs(ctx context.Context, req *ListKeyIDsRequest) (*ListKeyIDsResponse, error) {
+	return e.inner.ListKeyIDs(ctx, req)
 }
 
 // maybeDecryptRecord decrypts the Key field for HMAC algorithms.
@@ -136,50 +141,6 @@ func (e *EncryptedKeyStorage) maybeDecryptRecord(rec *KeyRecord) *KeyRecord {
 		Algorithm: rec.Algorithm,
 		Kid:       rec.Kid,
 	}
-}
-
-// Backward-compatible aliases
-
-// RegisterKey is a convenience method for callers using the old interface.
-func (e *EncryptedKeyStorage) RegisterKey(clientID string, key any, algorithm string) error {
-	return e.PutKey(&KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
-}
-
-// GetVerifyKey is a convenience method for callers using the old interface.
-func (e *EncryptedKeyStorage) GetVerifyKey(clientID string) (any, error) {
-	rec, err := e.GetKey(clientID)
-	if err != nil {
-		return nil, err
-	}
-	return rec.Key, nil
-}
-
-// GetSigningKey is a convenience method for callers using the old interface.
-func (e *EncryptedKeyStorage) GetSigningKey(clientID string) (any, error) {
-	return e.GetVerifyKey(clientID)
-}
-
-// GetExpectedAlg is a convenience method for callers using the old interface.
-func (e *EncryptedKeyStorage) GetExpectedAlg(clientID string) (string, error) {
-	rec, err := e.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Algorithm, nil
-}
-
-// ListKeys is a convenience alias for ListKeyIDs.
-func (e *EncryptedKeyStorage) ListKeys() ([]string, error) {
-	return e.ListKeyIDs()
-}
-
-// GetCurrentKid returns the kid for the given clientID.
-func (e *EncryptedKeyStorage) GetCurrentKid(clientID string) (string, error) {
-	rec, err := e.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Kid, nil
 }
 
 // encrypt produces AES-256-GCM ciphertext with a random 12-byte nonce prepended.

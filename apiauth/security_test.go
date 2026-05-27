@@ -11,6 +11,7 @@ package apiauth_test
 //     JWT security best practices
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -55,8 +56,7 @@ func validateViaMiddleware(t *testing.T, ks keys.KeyLookup, token string) int {
 // See: https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
 func TestSecurity_AlgNone_Rejected(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey("app1", []byte("secret"), "HS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app1", Key: []byte("secret"), Algorithm: "HS256"}})
 	// Craft a token with alg: none
 	token := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{
 		"sub":       "attacker",
@@ -84,8 +84,7 @@ func TestSecurity_AlgConfusion_HS256WithRSAPubKey(t *testing.T) {
 
 	ks := keys.NewInMemoryKeyStore()
 	pubPEM, _ := utils.EncodePublicKeyPEM(&privKey.PublicKey)
-	ks.RegisterKey("app-rsa", pubPEM, "RS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}})
 	// Attacker uses the public key PEM bytes as HMAC secret
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":       "attacker",
@@ -109,8 +108,7 @@ func TestSecurity_RS256Token_AgainstHS256Store(t *testing.T) {
 	require.NoError(t, err)
 
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey("app-hmac", []byte("my-secret"), "HS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-hmac", Key: []byte("my-secret"), Algorithm: "HS256"}})
 	// Sign with RSA but claim the HMAC app's client_id
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"sub":       "attacker",
@@ -295,8 +293,7 @@ func TestSecurity_SigningMethodForAlg_UnknownAlgorithm(t *testing.T) {
 // a kid header still work via client_id claim fallback (legacy compatibility).
 func TestSecurity_NoKidHeader_FallsBackToClientID(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey("app1", []byte("secret"), "HS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app1", Key: []byte("secret"), Algorithm: "HS256"}})
 	// Mint a token WITHOUT kid header
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":       "user1",
@@ -321,8 +318,7 @@ func TestSecurity_CrossAlgorithm_ES256TokenAgainstRS256Store(t *testing.T) {
 	rsaPriv, _ := rsa.GenerateKey(rand.Reader, 2048)
 	ks := keys.NewInMemoryKeyStore()
 	pubPEM, _ := utils.EncodePublicKeyPEM(&rsaPriv.PublicKey)
-	ks.RegisterKey("app-rsa", pubPEM, "RS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rsa", Key: pubPEM, Algorithm: "RS256"}})
 	// Attacker signs with EC key
 	ecPriv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
@@ -344,8 +340,7 @@ func TestSecurity_CrossAlgorithm_ES256TokenAgainstRS256Store(t *testing.T) {
 // via RequireScopes. This test documents that ValidateToken does NOT filter scopes.
 func TestSecurity_ScopeEscalation_Prevented(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey("app1", []byte("secret"), "HS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app1", Key: []byte("secret"), Algorithm: "HS256"}})
 	// Mint with admin scope
 	token, _ := admin.MintResourceToken("user1", "app1", "secret",
 		admin.AppQuota{}, []string{"admin"}, nil)

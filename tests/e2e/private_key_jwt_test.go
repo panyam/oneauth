@@ -6,6 +6,7 @@ package e2e_test
 // signed assertion instead of a shared secret.
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -36,11 +37,11 @@ func TestPrivateKeyJWT_E2E_FullFlow(t *testing.T) {
 	const clientID = "e2e-pkjwt-client"
 	privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
 	require.NoError(t, err)
-	require.NoError(t, env.KeyStore.PutKey(&keys.KeyRecord{
+	_, errPutKey := env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       pubPEM,
 		Algorithm: "RS256",
-	}))
+	}}); require.NoError(t, errPutKey)
 
 	priv, err := utils.ParsePrivateKeyPEM(privPEM)
 	require.NoError(t, err)
@@ -99,11 +100,11 @@ func TestPrivateKeyJWT_E2E_SDKHelper(t *testing.T) {
 	const clientID = "e2e-pkjwt-sdk-client"
 	privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
 	require.NoError(t, err)
-	require.NoError(t, env.KeyStore.PutKey(&keys.KeyRecord{
+	_, errPutKey := env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       pubPEM,
 		Algorithm: "RS256",
-	}))
+	}}); require.NoError(t, errPutKey)
 	priv, err := utils.ParsePrivateKeyPEM(privPEM)
 	require.NoError(t, err)
 
@@ -135,11 +136,11 @@ func TestPrivateKeyJWT_E2E_ClientCredentialsSource(t *testing.T) {
 	const clientID = "e2e-pkjwt-source-client"
 	privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
 	require.NoError(t, err)
-	require.NoError(t, env.KeyStore.PutKey(&keys.KeyRecord{
+	_, errPutKey := env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       pubPEM,
 		Algorithm: "RS256",
-	}))
+	}}); require.NoError(t, errPutKey)
 	priv, err := utils.ParsePrivateKeyPEM(privPEM)
 	require.NoError(t, err)
 

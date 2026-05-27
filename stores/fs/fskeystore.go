@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -62,22 +63,26 @@ func (s *FSKeyStore) loadEntry(clientID string) (*fsKeyEntry, error) {
 	return &entry, nil
 }
 
-func (s *FSKeyStore) PutKey(rec *keys.KeyRecord) error {
+func (s *FSKeyStore) PutKey(ctx context.Context, req *keys.PutKeyRequest) (*keys.PutKeyResponse, error) {
+	if req == nil || req.Record == nil {
+		return nil, fmt.Errorf("PutKey: req.Record is required")
+	}
+	rec := req.Record
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
-		return keys.ErrAlgorithmMismatch
+		return nil, keys.ErrAlgorithmMismatch
 	}
 
 	path, err := s.getKeyPath(rec.ClientID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if err := os.MkdirAll(s.getKeyDir(), 0700); err != nil {
-		return err
+		return nil, err
 	}
 
 	kid := rec.Kid
@@ -92,42 +97,57 @@ func (s *FSKeyStore) PutKey(rec *keys.KeyRecord) error {
 	}
 	data, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return writeAtomicFile(path, data)
+	if err := writeAtomicFile(path, data); err != nil {
+		return nil, err
+	}
+	return &keys.PutKeyResponse{}, nil
 }
 
-func (s *FSKeyStore) DeleteKey(clientID string) error {
+func (s *FSKeyStore) DeleteKey(ctx context.Context, req *keys.DeleteKeyRequest) (*keys.DeleteKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteKey: req is required")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	path, err := s.getKeyPath(clientID)
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return keys.ErrKeyNotFound
-	}
-	return os.Remove(path)
-}
-
-func (s *FSKeyStore) GetKey(clientID string) (*keys.KeyRecord, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	entry, err := s.loadEntry(clientID)
+	path, err := s.getKeyPath(req.ClientID)
 	if err != nil {
 		return nil, err
 	}
-	return &keys.KeyRecord{
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, keys.ErrKeyNotFound
+	}
+	if err := os.Remove(path); err != nil {
+		return nil, err
+	}
+	return &keys.DeleteKeyResponse{}, nil
+}
+
+func (s *FSKeyStore) GetKey(ctx context.Context, req *keys.GetKeyRequest) (*keys.GetKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKey: req is required")
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	entry, err := s.loadEntry(req.ClientID)
+	if err != nil {
+		return nil, err
+	}
+	return &keys.GetKeyResponse{Record: &keys.KeyRecord{
 		ClientID:  entry.ClientID,
 		Key:       entry.Key,
 		Algorithm: entry.Algorithm,
 		Kid:       entry.Kid,
-	}, nil
+	}}, nil
 }
 
-func (s *FSKeyStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
+func (s *FSKeyStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequest) (*keys.GetKeyByKidResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("GetKeyByKid: req is required")
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -149,19 +169,19 @@ func (s *FSKeyStore) GetKeyByKid(kid string) (*keys.KeyRecord, error) {
 		if err := json.Unmarshal(data, &entry); err != nil {
 			continue
 		}
-		if entry.Kid == kid {
-			return &keys.KeyRecord{
+		if entry.Kid == req.Kid {
+			return &keys.GetKeyByKidResponse{Record: &keys.KeyRecord{
 				ClientID:  entry.ClientID,
 				Key:       entry.Key,
 				Algorithm: entry.Algorithm,
 				Kid:       entry.Kid,
-			}, nil
+			}}, nil
 		}
 	}
 	return nil, keys.ErrKidNotFound
 }
 
-func (s *FSKeyStore) ListKeyIDs() ([]string, error) {
+func (s *FSKeyStore) ListKeyIDs(ctx context.Context, req *keys.ListKeyIDsRequest) (*keys.ListKeyIDsResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -169,12 +189,12 @@ func (s *FSKeyStore) ListKeyIDs() ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []string{}, nil
+			return &keys.ListKeyIDsResponse{ClientIDs: []string{}}, nil
 		}
 		return nil, err
 	}
 
-	var keys []string
+	var ids []string
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
@@ -187,45 +207,7 @@ func (s *FSKeyStore) ListKeyIDs() ([]string, error) {
 		if err := json.Unmarshal(data, &entry); err != nil {
 			continue
 		}
-		keys = append(keys, entry.ClientID)
+		ids = append(ids, entry.ClientID)
 	}
-	return keys, nil
-}
-
-// Backward-compatible aliases
-
-func (s *FSKeyStore) RegisterKey(clientID string, key any, algorithm string) error {
-	return s.PutKey(&keys.KeyRecord{ClientID: clientID, Key: key, Algorithm: algorithm})
-}
-
-func (s *FSKeyStore) GetVerifyKey(clientID string) (any, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return nil, err
-	}
-	return rec.Key, nil
-}
-
-func (s *FSKeyStore) GetSigningKey(clientID string) (any, error) {
-	return s.GetVerifyKey(clientID)
-}
-
-func (s *FSKeyStore) GetExpectedAlg(clientID string) (string, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Algorithm, nil
-}
-
-func (s *FSKeyStore) ListKeys() ([]string, error) {
-	return s.ListKeyIDs()
-}
-
-func (s *FSKeyStore) GetCurrentKid(clientID string) (string, error) {
-	rec, err := s.GetKey(clientID)
-	if err != nil {
-		return "", err
-	}
-	return rec.Kid, nil
+	return &keys.ListKeyIDsResponse{ClientIDs: ids}, nil
 }

@@ -3,6 +3,7 @@
 package apiauth_test
 
 import (
+	"context"
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/keys"
@@ -149,9 +150,8 @@ func TestCustomClaimsFunc_NoOverrideStandard(t *testing.T) {
 // are verified with their respective secrets via KeyStore.
 func TestMultiTenantValidation_DifferentHosts(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey("host-alpha", []byte("alpha-secret"), "HS256")
-	ks.RegisterKey("host-beta", []byte("beta-secret"), "HS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "host-alpha", Key: []byte("alpha-secret"), Algorithm: "HS256"}})
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "host-beta", Key: []byte("beta-secret"), Algorithm: "HS256"}})
 	// Mint token for host-alpha
 	alphaToken := mintTestToken(t, "user-1", "host-alpha", "alpha-secret")
 	// Mint token for host-beta
@@ -204,8 +204,7 @@ func TestMultiTenantValidation_DifferentHosts(t *testing.T) {
 // TestMultiTenantValidation_WrongSecret tests that a token signed with wrong secret is rejected
 func TestMultiTenantValidation_WrongSecret(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey("host-alpha", []byte("alpha-secret"), "HS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "host-alpha", Key: []byte("alpha-secret"), Algorithm: "HS256"}})
 	// Mint token claiming to be from host-alpha but signed with wrong secret
 	wrongToken := mintTestToken(t, "user-1", "host-alpha", "wrong-secret")
 
@@ -256,7 +255,7 @@ func TestMultiTenantValidation_UnknownClientID(t *testing.T) {
 // when the KeyStore says the client uses HS512
 func TestMultiTenantValidation_AlgorithmConfusion(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey("host-alpha", []byte("shared-secret"), "HS512") // registered as HS512
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "host-alpha", Key: []byte("shared-secret"), Algorithm: "HS512"}}) // registered as HS512
 
 	// Mint with HS256 (algorithm mismatch)
 	token := mintTestToken(t, "user-1", "host-alpha", "shared-secret")

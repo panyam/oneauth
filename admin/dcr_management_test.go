@@ -482,7 +482,7 @@ func TestDeleteRegistration_HappyPath(t *testing.T) {
 
 	// Signing key is gone — tokens issued under this client_id can no longer
 	// be re-validated against the AS.
-	if _, err := ks.GetKey(clientID); err != keys.ErrKeyNotFound {
+	if _, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); err != keys.ErrKeyNotFound {
 		t.Errorf("expected ErrKeyNotFound after delete, got %v", err)
 	}
 }

@@ -14,6 +14,7 @@ package apiauth_test
 // See: https://www.rfc-editor.org/rfc/rfc7009
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -34,12 +35,11 @@ import (
 func setupRevocation(t *testing.T) (*apiauth.RevocationHandler, *apiauth.APIAuth, *apiauth.IntrospectionHandler) {
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
-	ks.PutKey(&keys.KeyRecord{
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "revoke-client",
 		Key:       []byte("revoke-client-secret"),
 		Algorithm: "HS256",
-	})
-
+	}})
 	blacklist := core.NewInMemoryBlacklist()
 	refreshStore := newInMemoryRefreshStore()
 

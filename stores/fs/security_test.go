@@ -12,6 +12,7 @@ package fs
 // Run with: go test -v -run TestSecurity ./stores/fs/
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -93,17 +94,17 @@ func TestSecurity_PathTraversal_KeyStore(t *testing.T) {
 
 	for _, tc := range maliciousInputs {
 		t.Run("PutKey_"+tc.name, func(t *testing.T) {
-			err := store.PutKey(&keys.KeyRecord{
+			_, err := store.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 				ClientID:  tc.input,
 				Key:       []byte("test-secret"),
 				Algorithm: "HS256",
-			})
+			}})
 			assert.Error(t, err, "PutKey should reject malicious clientID %q", tc.input)
 			assertNoEscape(t, dir, "keys")
 		})
 
 		t.Run("GetKey_"+tc.name, func(t *testing.T) {
-			_, err := store.GetKey(tc.input)
+			_, err := store.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: tc.input})
 			assert.Error(t, err, "GetKey should reject malicious clientID %q", tc.input)
 		})
 	}
@@ -270,11 +271,11 @@ func TestSecurity_SanitizedInputs_KeyStore(t *testing.T) {
 
 	for _, tc := range sanitizedInputs {
 		t.Run(tc.name, func(t *testing.T) {
-			err := store.PutKey(&keys.KeyRecord{
+			_, err := store.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 				ClientID:  tc.input,
 				Key:       []byte("secret"),
 				Algorithm: "HS256",
-			})
+			}})
 			assert.NoError(t, err, "PutKey should accept sanitizable input %q", tc.input)
 		})
 	}
@@ -374,11 +375,11 @@ func TestSecurity_KeyFilePermissions(t *testing.T) {
 	dir := t.TempDir()
 	store := NewFSKeyStore(dir)
 
-	err := store.PutKey(&keys.KeyRecord{
+	_, err := store.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "testapp",
 		Key:       []byte("super-secret-key"),
 		Algorithm: "HS256",
-	})
+	}})
 	require.NoError(t, err)
 
 	// Find the key file (FSKeyStore uses "signing_keys" subdirectory)

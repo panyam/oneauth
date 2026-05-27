@@ -11,6 +11,7 @@ package e2e_test
 //   - See: https://github.com/panyam/oneauth/issues/53
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -44,11 +45,11 @@ func TestClientCredentials_E2E_FullFlow(t *testing.T) {
 	// Step 1: Register an app to get client_id + client_secret
 	secret := "e2e-machine-secret"
 	clientID := "e2e-machine-client"
-	env.KeyStore.PutKey(&keys.KeyRecord{
+	_, _ = env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       []byte(secret),
 		Algorithm: "HS256",
-	})
+	}})
 
 	// Step 2: Get token via client_credentials grant
 	tokenReqBody := `{"grant_type":"client_credentials","client_id":"` + clientID + `","client_secret":"` + secret + `","scope":"read write"}`
@@ -96,11 +97,11 @@ func TestClientCredentials_E2E_WrongSecret(t *testing.T) {
 	}
 
 	// Register a client
-	env.KeyStore.PutKey(&keys.KeyRecord{
+	_, _ = env.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  "e2e-bad-secret-client",
 		Key:       []byte("correct-secret"),
 		Algorithm: "HS256",
-	})
+	}})
 
 	// Try with wrong secret
 	tokenReqBody := `{"grant_type":"client_credentials","client_id":"e2e-bad-secret-client","client_secret":"wrong-secret"}`

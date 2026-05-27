@@ -4,11 +4,12 @@ package admin_test
 // KeyStore-based verification, and rejection of tokens signed with incorrect secrets.
 
 import (
-	"github.com/panyam/oneauth/admin"
-	"github.com/panyam/oneauth/keys"
+	"context"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/keys"
 )
 
 // TestMintResourceToken_Basic verifies that MintResourceToken produces a valid HS256 JWT
@@ -86,8 +87,7 @@ func TestMintResourceToken_VerifiableByMiddleware(t *testing.T) {
 
 	// Resource server verifies using KeyStore
 	ks := keys.NewInMemoryKeyStore()
-	ks.RegisterKey(clientID, []byte(secret), "HS256")
-
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: "HS256"}})
 	// Parse with KeyStore-based keyfunc (mimics what APIMiddleware does)
 	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
 		claims, ok := t.Claims.(jwt.MapClaims)
@@ -95,14 +95,14 @@ func TestMintResourceToken_VerifiableByMiddleware(t *testing.T) {
 			return nil, keys.ErrKeyNotFound
 		}
 		cid, _ := claims["client_id"].(string)
-		expectedAlg, err := ks.GetExpectedAlg(cid)
+		resp, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: cid})
 		if err != nil {
 			return nil, err
 		}
-		if t.Header["alg"] != expectedAlg {
+		if t.Header["alg"] != resp.Record.Algorithm {
 			return nil, keys.ErrAlgorithmMismatch
 		}
-		return ks.GetVerifyKey(cid)
+		return resp.Record.Key, nil
 	})
 	if err != nil {
 		t.Fatalf("KeyStore-based verification failed: %v", err)
