@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"github.com/panyam/oneauth/core"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -16,38 +17,6 @@ import (
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
-
-// AppRegistration holds metadata about a registered App.
-//
-// The DCR / RFC 7592 fields below (ClientName, ClientURI, RedirectURIs,
-// GrantTypes, Scope, TokenEndpointAuthMethod, RegistrationAccessToken,
-// RegistrationClientURI) are persisted starting in issue #165 so that
-// the schema is stable when issue #157 (RFC 7592 Management) populates
-// them. They may be empty for apps registered via the legacy
-// /apps/register endpoint.
-type AppRegistration struct {
-	ClientID                  string    `json:"client_id"`
-	ClientDomain              string    `json:"client_domain"`
-	SigningAlg                string    `json:"signing_alg"`
-	MaxRooms                  int       `json:"max_rooms,omitempty"`
-	MaxMsgRate                float64   `json:"max_msg_rate,omitempty"`
-	AuthorizationDetailsTypes []string  `json:"authorization_details_types,omitempty"` // RFC 9396
-	CreatedAt                 time.Time `json:"created_at"`
-	Revoked                   bool      `json:"revoked"`
-
-	// RFC 7591 / 7592 client metadata (populated by DCR; see #157).
-	ClientName              string   `json:"client_name,omitempty"`
-	ClientURI               string   `json:"client_uri,omitempty"`
-	RedirectURIs            []string `json:"redirect_uris,omitempty"`
-	GrantTypes              []string `json:"grant_types,omitempty"`
-	Scope                   string   `json:"scope,omitempty"`
-	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
-
-	// RFC 7592 management credentials. Issued when the management protocol
-	// is implemented (#168); empty for legacy registrations.
-	RegistrationAccessToken string `json:"registration_access_token,omitempty"`
-	RegistrationClientURI   string `json:"registration_client_uri,omitempty"`
-}
 
 // AppRegistrar is an embeddable HTTP handler for App registration CRUD.
 // Mount it on any admin service's mux to let apps register and obtain signing credentials.
@@ -71,19 +40,19 @@ type AppRegistrar struct {
 	// Store persists app registration metadata. It is the source of truth;
 	// the apps map below is a hot-path cache hydrated on construction and
 	// updated synchronously on every write.
-	Store AppRegistrationStore
+	Store core.AppRegistrationStore
 
 	mu   sync.RWMutex
-	apps map[string]*AppRegistration
+	apps map[string]*core.AppRegistration
 }
 
 // NewAppRegistrar creates an AppRegistrar backed by an in-memory store.
-// Equivalent to NewAppRegistrarWithStore(keyStore, auth, NewInMemoryAppStore()).
+// Equivalent to NewAppRegistrarWithStore(keyStore, auth, core.NewInMemoryAppStore()).
 //
 // For deployments that need registrations to survive restart, use
 // NewAppRegistrarWithStore with a persistent backend (FSAppStore, GORMAppStore).
 func NewAppRegistrar(keyStore keys.KeyStorage, auth AdminAuth) *AppRegistrar {
-	return NewAppRegistrarWithStore(keyStore, auth, NewInMemoryAppStore())
+	return NewAppRegistrarWithStore(keyStore, auth, core.NewInMemoryAppStore())
 }
 
 // NewAppRegistrarWithStore creates an AppRegistrar backed by the given store.
@@ -97,14 +66,14 @@ func NewAppRegistrar(keyStore keys.KeyStorage, auth AdminAuth) *AppRegistrar {
 // process. The error is intentionally swallowed here since there is no
 // caller-visible context to report it through; callers wanting strict
 // startup semantics should call store.ListApps themselves first.)
-func NewAppRegistrarWithStore(keyStore keys.KeyStorage, auth AdminAuth, store AppRegistrationStore) *AppRegistrar {
+func NewAppRegistrarWithStore(keyStore keys.KeyStorage, auth AdminAuth, store core.AppRegistrationStore) *AppRegistrar {
 	r := &AppRegistrar{
 		KeyStore: keyStore,
 		Auth:     auth,
 		Store:    store,
-		apps:     make(map[string]*AppRegistration),
+		apps:     make(map[string]*core.AppRegistration),
 	}
-	if existing, err := store.ListApps(context.Background(), &ListAppsRequest{}); err == nil && existing != nil {
+	if existing, err := store.ListApps(context.Background(), &core.ListAppsRequest{}); err == nil && existing != nil {
 		for _, app := range existing.Apps {
 			clone := *app
 			r.apps[app.ClientID] = &clone
@@ -116,7 +85,7 @@ func NewAppRegistrarWithStore(keyStore keys.KeyStorage, auth AdminAuth, store Ap
 // Register implements ClientRegistrar — RFC 7591 Dynamic Client Registration.
 // Generates a client_id, allocates either a symmetric secret or stores the
 // caller-supplied JWK public key, issues RFC 7592 §3 management credentials,
-// and persists the resulting AppRegistration. Returns an error mapped by
+// and persists the resulting core.AppRegistration. Returns an error mapped by
 // the wrapper:
 //
 //   - ErrInvalidClientMetadata: missing JWKS for private_key_jwt, or invalid JWK → HTTP 400
@@ -207,7 +176,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	if domain == "" {
 		domain = md.ClientName
 	}
-	reg := &AppRegistration{
+	reg := &core.AppRegistration{
 		ClientID:                  clientID,
 		ClientDomain:              domain,
 		SigningAlg:                signingAlg,
@@ -229,84 +198,15 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	return &RegisterResponse{Registration: resp}, nil
 }
 
-// RegisterLegacy implements ClientRegistrar — the proprietary /apps/register
-// path. Distinct from Register because the wire shape diverges and the
-// legacy endpoint carries OneAuth-specific quota fields (MaxRooms /
-// MaxMsgRate) that DCR has no place for.
-//
-// Eventual removal of this surface is tracked under issue #189.
-//
-// Errors:
-//   - ErrPublicKeyRequired: asymmetric alg requested without PublicKey → HTTP 400
-//   - ErrInvalidPublicKey: PublicKey fails PEM parse → HTTP 400
-//   - other errors (KeyStore failures, RNG failures): bubble up → HTTP 500
-func (h *AppRegistrar) RegisterLegacy(ctx context.Context, req *RegisterLegacyRequest) (*RegisterLegacyResponse, error) {
-	if req == nil {
-		return nil, ErrInvalidClientMetadata
-	}
-	signingAlg := req.SigningAlg
-	if signingAlg == "" {
-		signingAlg = "HS256"
-	}
-
-	clientID, err := generateClientID()
-	if err != nil {
-		return nil, fmt.Errorf("generate client_id: %w", err)
-	}
-
-	resp := &RegisterLegacyResponse{
-		ClientID:     clientID,
-		ClientDomain: req.ClientDomain,
-		SigningAlg:   signingAlg,
-		MaxRooms:     req.MaxRooms,
-		MaxMsgRate:   req.MaxMsgRate,
-	}
-
-	if utils.IsAsymmetricAlg(signingAlg) {
-		if req.PublicKey == "" {
-			return nil, fmt.Errorf("%w: %s", ErrPublicKeyRequired, signingAlg)
-		}
-		if _, err := utils.DecodeVerifyKey([]byte(req.PublicKey), signingAlg); err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidPublicKey, err)
-		}
-		if _, err := h.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: clientID, Key: []byte(req.PublicKey), Algorithm: signingAlg}}); err != nil {
-			return nil, fmt.Errorf("store key: %w", err)
-		}
-		// No client_secret in response for asymmetric.
-	} else {
-		secret, err := generateSecret()
-		if err != nil {
-			return nil, fmt.Errorf("generate secret: %w", err)
-		}
-		if _, err := h.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: signingAlg}}); err != nil {
-			return nil, fmt.Errorf("store key: %w", err)
-		}
-		resp.ClientSecret = secret
-	}
-
-	reg := &AppRegistration{
-		ClientID:     clientID,
-		ClientDomain: req.ClientDomain,
-		SigningAlg:   signingAlg,
-		MaxRooms:     req.MaxRooms,
-		MaxMsgRate:   req.MaxMsgRate,
-		CreatedAt:    time.Now(),
-	}
-	if err := h.SaveRegistration(ctx, reg); err != nil {
-		return nil, fmt.Errorf("persist registration: %w", err)
-	}
-	resp.CreatedAt = reg.CreatedAt
-	return resp, nil
-}
 
 // ListClients implements ClientRegistrar — admin read of every registered
-// app. Reads from the in-memory cache hydrated from AppRegistrationStore on
+// app. Reads from the in-memory cache hydrated from core.AppRegistrationStore on
 // construction. Returned entries are clones; callers cannot mutate the
 // cache via this value.
 func (h *AppRegistrar) ListClients(ctx context.Context, req *ListClientsRequest) (*ListClientsResponse, error) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	apps := make([]*AppRegistration, 0, len(h.apps))
+	apps := make([]*core.AppRegistration, 0, len(h.apps))
 	for _, reg := range h.apps {
 		clone := *reg
 		apps = append(apps, &clone)
@@ -315,16 +215,16 @@ func (h *AppRegistrar) ListClients(ctx context.Context, req *ListClientsRequest)
 }
 
 // GetClient implements ClientRegistrar — admin read of a single registration.
-// Returns ErrAppNotFound if the client does not exist.
+// Returns core.ErrAppNotFound if the client does not exist.
 func (h *AppRegistrar) GetClient(ctx context.Context, req *GetClientRequest) (*GetClientResponse, error) {
 	if req == nil || req.ClientID == "" {
-		return nil, ErrAppNotFound
+		return nil, core.ErrAppNotFound
 	}
 	h.mu.RLock()
 	reg, ok := h.apps[req.ClientID]
 	h.mu.RUnlock()
 	if !ok {
-		return nil, ErrAppNotFound
+		return nil, core.ErrAppNotFound
 	}
 	clone := *reg
 	return &GetClientResponse{Registration: &clone}, nil
@@ -332,26 +232,26 @@ func (h *AppRegistrar) GetClient(ctx context.Context, req *GetClientRequest) (*G
 
 // DeleteClient implements ClientRegistrar — admin delete. Removes the
 // registration from Store + in-memory cache and invalidates the KeyStore
-// entry. Returns ErrAppNotFound if the client does not exist.
+// entry. Returns core.ErrAppNotFound if the client does not exist.
 //
 // Distinct from ClientRegistrationManager.DeleteRegistration which
 // authenticates via the client's own registration_access_token. This admin
 // path is reachable only by AdminAuth-passing callers.
 func (h *AppRegistrar) DeleteClient(ctx context.Context, req *DeleteClientRequest) (*DeleteClientResponse, error) {
 	if req == nil || req.ClientID == "" {
-		return nil, ErrAppNotFound
+		return nil, core.ErrAppNotFound
 	}
 	h.mu.RLock()
 	_, ok := h.apps[req.ClientID]
 	h.mu.RUnlock()
 	if !ok {
-		return nil, ErrAppNotFound
+		return nil, core.ErrAppNotFound
 	}
 
 	// Persist the deletion before invalidating the cache or credentials —
 	// same ordering as DeleteRegistration so a store error leaves the
 	// registration intact and the call retryable.
-	if _, err := h.Store.DeleteApp(ctx, &DeleteAppRequest{ClientID: req.ClientID}); err != nil && err != ErrAppNotFound {
+	if _, err := h.Store.DeleteApp(ctx, &core.DeleteAppRequest{ClientID: req.ClientID}); err != nil && err != core.ErrAppNotFound {
 		return nil, fmt.Errorf("delete registration: %w", err)
 	}
 
@@ -377,18 +277,18 @@ func (h *AppRegistrar) DeleteClient(ctx context.Context, req *DeleteClientReques
 // GracePeriod fields are populated only when retention actually happened.
 //
 // Errors:
-//   - ErrAppNotFound: req.ClientID not registered
+//   - core.ErrAppNotFound: req.ClientID not registered
 //   - ErrPublicKeyRequired: asymmetric alg without PublicKey
 //   - ErrInvalidPublicKey: PublicKey fails PEM parse for the registered alg
 func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretRequest) (*RotateSecretResponse, error) {
 	if req == nil || req.ClientID == "" {
-		return nil, ErrAppNotFound
+		return nil, core.ErrAppNotFound
 	}
 	h.mu.RLock()
 	reg, ok := h.apps[req.ClientID]
 	h.mu.RUnlock()
 	if !ok {
-		return nil, ErrAppNotFound
+		return nil, core.ErrAppNotFound
 	}
 
 	gracePeriod := req.GracePeriod
@@ -458,8 +358,8 @@ func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretReques
 // in-memory cache. Used by handleRegister, DCRHandler, and (in #157) the
 // RFC 7592 management endpoints. If the store write fails, the cache is
 // not updated and the error is returned.
-func (h *AppRegistrar) SaveRegistration(ctx context.Context, reg *AppRegistration) error {
-	if _, err := h.Store.SaveApp(ctx, &SaveAppRequest{App: reg}); err != nil {
+func (h *AppRegistrar) SaveRegistration(ctx context.Context, reg *core.AppRegistration) error {
+	if _, err := h.Store.SaveApp(ctx, &core.SaveAppRequest{App: reg}); err != nil {
 		return err
 	}
 	h.mu.Lock()
@@ -489,7 +389,7 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 	if req == nil || req.ClientID == "" || req.AccessToken == "" {
 		return nil, ErrUnauthorized
 	}
-	getResp, err := h.Store.GetApp(ctx, &GetAppRequest{ClientID: req.ClientID})
+	getResp, err := h.Store.GetApp(ctx, &core.GetAppRequest{ClientID: req.ClientID})
 	if err != nil || getResp == nil || getResp.App == nil {
 		return nil, ErrUnauthorized
 	}
@@ -545,7 +445,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if req == nil || req.ClientID == "" || req.AccessToken == "" || req.Metadata == nil {
 		return nil, ErrUnauthorized
 	}
-	getResp, err := h.Store.GetApp(ctx, &GetAppRequest{ClientID: req.ClientID})
+	getResp, err := h.Store.GetApp(ctx, &core.GetAppRequest{ClientID: req.ClientID})
 	if err != nil || getResp == nil || getResp.App == nil {
 		return nil, ErrUnauthorized
 	}
@@ -608,7 +508,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 }
 
 // DeleteRegistration implements ClientRegistrationManager (RFC 7592 §2.3).
-// On success it removes the registration from the AppRegistrationStore (and
+// On success it removes the registration from the core.AppRegistrationStore (and
 // the in-memory cache), and deletes the client's signing key from KeyStore
 // so any tokens already issued under this client_id fail subsequent
 // signature-validation — satisfying the spec requirement that "the
@@ -626,7 +526,7 @@ func (h *AppRegistrar) DeleteRegistration(ctx context.Context, req *DeleteRegist
 	if req == nil || req.ClientID == "" || req.AccessToken == "" {
 		return nil, ErrUnauthorized
 	}
-	getResp, err := h.Store.GetApp(ctx, &GetAppRequest{ClientID: req.ClientID})
+	getResp, err := h.Store.GetApp(ctx, &core.GetAppRequest{ClientID: req.ClientID})
 	if err != nil || getResp == nil || getResp.App == nil {
 		return nil, ErrUnauthorized
 	}
@@ -642,7 +542,7 @@ func (h *AppRegistrar) DeleteRegistration(ctx context.Context, req *DeleteRegist
 	// and KeyStore intact so the client retains a known-consistent state
 	// and the caller can retry; otherwise we'd leave dangling key material
 	// without a registration to bind it.
-	if _, err := h.Store.DeleteApp(ctx, &DeleteAppRequest{ClientID: req.ClientID}); err != nil && err != ErrAppNotFound {
+	if _, err := h.Store.DeleteApp(ctx, &core.DeleteAppRequest{ClientID: req.ClientID}); err != nil && err != core.ErrAppNotFound {
 		return nil, err
 	}
 
@@ -653,14 +553,14 @@ func (h *AppRegistrar) DeleteRegistration(ctx context.Context, req *DeleteRegist
 	// Invalidate the signing credentials. Errors here are non-fatal — the
 	// registration is gone, which is the user-visible deletion contract;
 	// a stranded key is at worst an internal cleanup concern (the KeyStore
-	// entry is unreachable without an AppRegistration to point at it).
+	// entry is unreachable without an core.AppRegistration to point at it).
 	_, _ = h.KeyStore.DeleteKey(ctx, &keys.DeleteKeyRequest{ClientID: req.ClientID})
 
 	return &DeleteRegistrationResponse{}, nil
 }
 
 // RLockApps calls fn with a read-locked view of all registered apps.
-func (h *AppRegistrar) RLockApps(fn func(map[string]*AppRegistration)) {
+func (h *AppRegistrar) RLockApps(fn func(map[string]*core.AppRegistration)) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	fn(h.apps)
@@ -689,7 +589,6 @@ func (h *AppRegistrar) Handler() http.Handler {
 	dcrMgmt := &DCRManagementHandler{Manager: h}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/apps/register", h.withAuth(h.handleRegister))
 	mux.Handle("/apps/dcr", http.HandlerFunc(dcr.ServeHTTP))
 	mux.Handle("/apps/dcr/", http.HandlerFunc(dcrMgmt.ServeHTTP))
 	mux.HandleFunc("/apps/", h.withAuth(h.handleAppByID))
@@ -711,35 +610,6 @@ func (h *AppRegistrar) withAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
-}
-
-// handleRegister is the HTTP wrapper for ClientRegistrar.RegisterLegacy
-// (the proprietary /apps/register path). All registration logic lives behind
-// the interface; this method just parses, calls the manager, maps errors
-// to HTTP status codes, and formats the response.
-func (h *AppRegistrar) handleRegister(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.jsonError(w, "method_not_allowed", "POST required", http.StatusMethodNotAllowed)
-		return
-	}
-	var req RegisterLegacyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.jsonError(w, "invalid_request", "Invalid JSON body", http.StatusBadRequest)
-		return
-	}
-	resp, err := h.RegisterLegacy(r.Context(), &req)
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrPublicKeyRequired), errors.Is(err, ErrInvalidPublicKey), errors.Is(err, ErrInvalidClientMetadata):
-			h.jsonError(w, "invalid_request", err.Error(), http.StatusBadRequest)
-		default:
-			h.jsonError(w, "server_error", err.Error(), http.StatusInternalServerError)
-		}
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
 }
 
 // handleListApps is the HTTP wrapper for ClientRegistrar.ListClients.
@@ -788,7 +658,7 @@ func (h *AppRegistrar) handleAppByID(w http.ResponseWriter, r *http.Request) {
 func (h *AppRegistrar) handleGetApp(w http.ResponseWriter, r *http.Request, clientID string) {
 	resp, err := h.GetClient(r.Context(), &GetClientRequest{ClientID: clientID})
 	if err != nil {
-		if errors.Is(err, ErrAppNotFound) {
+		if errors.Is(err, core.ErrAppNotFound) {
 			h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
 			return
 		}
@@ -802,7 +672,7 @@ func (h *AppRegistrar) handleGetApp(w http.ResponseWriter, r *http.Request, clie
 // handleDeleteApp is the HTTP wrapper for ClientRegistrar.DeleteClient.
 func (h *AppRegistrar) handleDeleteApp(w http.ResponseWriter, r *http.Request, clientID string) {
 	if _, err := h.DeleteClient(r.Context(), &DeleteClientRequest{ClientID: clientID}); err != nil {
-		if errors.Is(err, ErrAppNotFound) {
+		if errors.Is(err, core.ErrAppNotFound) {
 			h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
 			return
 		}
@@ -844,7 +714,7 @@ func (h *AppRegistrar) handleRotateSecret(w http.ResponseWriter, r *http.Request
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, ErrAppNotFound):
+		case errors.Is(err, core.ErrAppNotFound):
 			h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
 		case errors.Is(err, ErrPublicKeyRequired), errors.Is(err, ErrInvalidPublicKey):
 			h.jsonError(w, "invalid_request", err.Error(), http.StatusBadRequest)
@@ -877,15 +747,6 @@ func (h *AppRegistrar) jsonError(w http.ResponseWriter, code, message string, st
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"error": code, "message": message})
-}
-
-// generateClientID creates a random client ID like "app_a1b2c3d4e5f6"
-func generateClientID() (string, error) {
-	b := make([]byte, 12)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to generate client ID: %w", err)
-	}
-	return "app_" + hex.EncodeToString(b), nil
 }
 
 // generateSecret creates a random 32-byte hex-encoded secret

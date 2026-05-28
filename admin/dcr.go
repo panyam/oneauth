@@ -190,7 +190,7 @@ func generateDCRSecret() (string, error) {
 
 // generateRegistrationAccessToken returns a 32-byte (256-bit) hex-encoded random
 // token used as the RFC 7592 management credential for a DCR-registered client.
-// The token is stored on AppRegistration.RegistrationAccessToken and validated
+// The token is stored on core.AppRegistration.RegistrationAccessToken and validated
 // on every /apps/dcr/{client_id} request via DCRManagementHandler.
 func generateRegistrationAccessToken() (string, error) {
 	b := make([]byte, 32)

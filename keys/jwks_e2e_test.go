@@ -34,12 +34,10 @@ func TestFederated_EndToEnd_HS256(t *testing.T) {
 
 	// --- Step 1: Register app via HTTP ---
 	body, _ := json.Marshal(map[string]any{
-		"client_domain": "e2e-symmetric.com",
+		"client_name": "e2e-symmetric.com",
 		"signing_alg":   "HS256",
-		"max_rooms":     10,
-		"max_msg_rate":  30.0,
 	})
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	regHandler.ServeHTTP(rr, req)
@@ -95,8 +93,8 @@ func TestFederated_EndToEnd_HS256_WrongSecret(t *testing.T) {
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	regHandler := registrar.Handler()
 
-	body, _ := json.Marshal(map[string]any{"client_domain": "wrong-secret.com"})
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{"client_name": "wrong-secret.com"})
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	regHandler.ServeHTTP(rr, req)
@@ -134,8 +132,8 @@ func TestFederated_EndToEnd_HS256_CrossAppRejection(t *testing.T) {
 	var clientIDs [2]string
 	var secrets [2]string
 	for i, domain := range []string{"app-a.com", "app-b.com"} {
-		body, _ := json.Marshal(map[string]any{"client_domain": domain})
-		req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+		body, _ := json.Marshal(map[string]any{"client_name": domain})
+		req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 		regHandler.ServeHTTP(rr, req)
@@ -171,8 +169,8 @@ func TestFederated_EndToEnd_HS256_SecretRotation(t *testing.T) {
 	regHandler := registrar.Handler()
 
 	// Register
-	body, _ := json.Marshal(map[string]any{"client_domain": "rotate-e2e.com"})
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{"client_name": "rotate-e2e.com"})
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	regHandler.ServeHTTP(rr, req)
@@ -218,32 +216,23 @@ func TestFederated_EndToEnd_HS256_SecretRotation(t *testing.T) {
 }
 
 // TestFederated_EndToEnd_RS256_ViaRegistrar exercises the full asymmetric flow
-// through the AppRegistrar HTTP API (not just direct KeyStore registration).
+// against a KeyStore populated directly (post-#189 DCR uses JWKS rather than
+// the legacy /apps/register PEM-string surface; direct PutKey is the simplest
+// setup for this e2e validation slice).
 func TestFederated_EndToEnd_RS256_ViaRegistrar(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
-	regHandler := registrar.Handler()
 
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 
-	// Register with RS256 via HTTP
-	body, _ := json.Marshal(map[string]any{
-		"client_domain": "e2e-asymmetric.com",
-		"signing_alg":   "RS256",
-		"public_key":    string(pubPEM),
-	})
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	regHandler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("register: expected 201, got %d: %s", rr.Code, rr.Body.String())
+	clientID := "e2e-asymmetric.com"
+	if _, err := ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
+		ClientID:  clientID,
+		Key:       pubPEM,
+		Algorithm: "RS256",
+	}}); err != nil {
+		t.Fatalf("PutKey: %v", err)
 	}
-	var regResp map[string]any
-	json.NewDecoder(rr.Body).Decode(&regResp)
-	clientID := regResp["client_id"].(string)
 
 	// Mint with private key
 	tokenStr, _ := admin.MintResourceTokenWithKey("alice", clientID, privKey, admin.AppQuota{MaxRooms: 5}, []string{"read"}, nil)
@@ -256,9 +245,9 @@ func TestFederated_EndToEnd_RS256_ViaRegistrar(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req = httptest.NewRequest(http.MethodGet, "/resource", nil)
+	req := httptest.NewRequest(http.MethodGet, "/resource", nil)
 	req.Header.Set("Authorization", "Bearer "+tokenStr)
-	rr = httptest.NewRecorder()
+	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {

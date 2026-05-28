@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/core"
 )
 
 // Factory creates a fresh AppRegistrationStore for each test.
-type Factory func(t *testing.T) admin.AppRegistrationStore
+type Factory func(t *testing.T) core.AppRegistrationStore
 
 // RunAll runs the complete AppRegistrationStore test suite against the provided factory.
 func RunAll(t *testing.T, factory Factory) {
@@ -28,16 +28,16 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("AllFieldsRoundTrip", func(t *testing.T) { TestAllFieldsRoundTrip(t, factory) })
 }
 
-func saveApp(t *testing.T, s admin.AppRegistrationStore, app *admin.AppRegistration) {
+func saveApp(t *testing.T, s core.AppRegistrationStore, app *core.AppRegistration) {
 	t.Helper()
-	if _, err := s.SaveApp(context.Background(), &admin.SaveAppRequest{App: app}); err != nil {
+	if _, err := s.SaveApp(context.Background(), &core.SaveAppRequest{App: app}); err != nil {
 		t.Fatalf("SaveApp failed: %v", err)
 	}
 }
 
-func getApp(t *testing.T, s admin.AppRegistrationStore, clientID string) (*admin.AppRegistration, error) {
+func getApp(t *testing.T, s core.AppRegistrationStore, clientID string) (*core.AppRegistration, error) {
 	t.Helper()
-	resp, err := s.GetApp(context.Background(), &admin.GetAppRequest{ClientID: clientID})
+	resp, err := s.GetApp(context.Background(), &core.GetAppRequest{ClientID: clientID})
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func getApp(t *testing.T, s admin.AppRegistrationStore, clientID string) (*admin
 func TestSaveAndGet(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	app := &admin.AppRegistration{
+	app := &core.AppRegistration{
 		ClientID:     "app_abc",
 		ClientDomain: "example.com",
 		SigningAlg:   "HS256",
@@ -76,8 +76,8 @@ func TestSaveAndGet(t *testing.T, factory Factory) {
 func TestNotFound(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	_, err := s.GetApp(context.Background(), &admin.GetAppRequest{ClientID: "does-not-exist"})
-	if err != admin.ErrAppNotFound {
+	_, err := s.GetApp(context.Background(), &core.GetAppRequest{ClientID: "does-not-exist"})
+	if err != core.ErrAppNotFound {
 		t.Errorf("expected ErrAppNotFound, got %v", err)
 	}
 }
@@ -87,14 +87,14 @@ func TestNotFound(t *testing.T, factory Factory) {
 func TestDeleteApp(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	app := &admin.AppRegistration{ClientID: "app_del", SigningAlg: "HS256", CreatedAt: time.Now()}
+	app := &core.AppRegistration{ClientID: "app_del", SigningAlg: "HS256", CreatedAt: time.Now()}
 	saveApp(t, s, app)
 
-	if _, err := s.DeleteApp(context.Background(), &admin.DeleteAppRequest{ClientID: "app_del"}); err != nil {
+	if _, err := s.DeleteApp(context.Background(), &core.DeleteAppRequest{ClientID: "app_del"}); err != nil {
 		t.Fatalf("DeleteApp failed: %v", err)
 	}
 
-	if _, err := s.GetApp(context.Background(), &admin.GetAppRequest{ClientID: "app_del"}); err != admin.ErrAppNotFound {
+	if _, err := s.GetApp(context.Background(), &core.GetAppRequest{ClientID: "app_del"}); err != core.ErrAppNotFound {
 		t.Errorf("expected ErrAppNotFound after delete, got %v", err)
 	}
 }
@@ -104,8 +104,8 @@ func TestDeleteApp(t *testing.T, factory Factory) {
 func TestDeleteNonexistent(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	_, err := s.DeleteApp(context.Background(), &admin.DeleteAppRequest{ClientID: "never-existed"})
-	if err != admin.ErrAppNotFound {
+	_, err := s.DeleteApp(context.Background(), &core.DeleteAppRequest{ClientID: "never-existed"})
+	if err != core.ErrAppNotFound {
 		t.Errorf("expected ErrAppNotFound, got %v", err)
 	}
 }
@@ -115,8 +115,8 @@ func TestDeleteNonexistent(t *testing.T, factory Factory) {
 func TestOverwriteApp(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	original := &admin.AppRegistration{ClientID: "app_ow", ClientDomain: "old.example", SigningAlg: "HS256", CreatedAt: time.Now()}
-	updated := &admin.AppRegistration{ClientID: "app_ow", ClientDomain: "new.example", SigningAlg: "RS256", CreatedAt: time.Now()}
+	original := &core.AppRegistration{ClientID: "app_ow", ClientDomain: "old.example", SigningAlg: "HS256", CreatedAt: time.Now()}
+	updated := &core.AppRegistration{ClientID: "app_ow", ClientDomain: "new.example", SigningAlg: "RS256", CreatedAt: time.Now()}
 
 	saveApp(t, s, original)
 	saveApp(t, s, updated)
@@ -138,10 +138,10 @@ func TestListApps(t *testing.T, factory Factory) {
 	s := factory(t)
 
 	for _, id := range []string{"app_alpha", "app_beta", "app_gamma"} {
-		saveApp(t, s, &admin.AppRegistration{ClientID: id, SigningAlg: "HS256", CreatedAt: time.Now()})
+		saveApp(t, s, &core.AppRegistration{ClientID: id, SigningAlg: "HS256", CreatedAt: time.Now()})
 	}
 
-	listResp, err := s.ListApps(context.Background(), &admin.ListAppsRequest{})
+	listResp, err := s.ListApps(context.Background(), &core.ListAppsRequest{})
 	if err != nil {
 		t.Fatalf("ListApps failed: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestListApps(t *testing.T, factory Factory) {
 func TestListAppsEmpty(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	listResp, err := s.ListApps(context.Background(), &admin.ListAppsRequest{})
+	listResp, err := s.ListApps(context.Background(), &core.ListAppsRequest{})
 	if err != nil {
 		t.Fatalf("ListApps failed: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestListAppsEmpty(t *testing.T, factory Factory) {
 func TestPersistence(t *testing.T, factory Factory) {
 	s := factory(t)
 
-	app := &admin.AppRegistration{ClientID: "app_persist", ClientDomain: "p.example", SigningAlg: "HS256", CreatedAt: time.Now()}
+	app := &core.AppRegistration{ClientID: "app_persist", ClientDomain: "p.example", SigningAlg: "HS256", CreatedAt: time.Now()}
 	saveApp(t, s, app)
 
 	got, err := getApp(t, s, "app_persist")
@@ -202,12 +202,10 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	s := factory(t)
 
 	created := time.Now().UTC().Truncate(time.Second)
-	app := &admin.AppRegistration{
+	app := &core.AppRegistration{
 		ClientID:                  "app_full",
 		ClientDomain:              "full.example",
 		SigningAlg:                "RS256",
-		MaxRooms:                  42,
-		MaxMsgRate:                3.14,
 		AuthorizationDetailsTypes: []string{"payment_initiation", "account_information"},
 		CreatedAt:                 created,
 		Revoked:                   false,
@@ -254,11 +252,5 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	}
 	if len(got.AuthorizationDetailsTypes) != 2 || got.AuthorizationDetailsTypes[0] != "payment_initiation" {
 		t.Errorf("AuthorizationDetailsTypes=%v", got.AuthorizationDetailsTypes)
-	}
-	if got.MaxRooms != 42 {
-		t.Errorf("MaxRooms=%d", got.MaxRooms)
-	}
-	if got.MaxMsgRate != 3.14 {
-		t.Errorf("MaxMsgRate=%f", got.MaxMsgRate)
 	}
 }

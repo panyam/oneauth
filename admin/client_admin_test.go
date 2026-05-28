@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/keys"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ import (
 // RFC 7592 management credentials and the registration is persisted in the
 // store.
 func TestClientRegistrar_Register_DirectInvocation(t *testing.T) {
-	store := admin.NewInMemoryAppStore()
+	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	r := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
 
@@ -41,61 +42,20 @@ func TestClientRegistrar_Register_DirectInvocation(t *testing.T) {
 	assert.Contains(t, got.RegistrationClientURI, "https://issuer.example/apps/dcr/")
 
 	// Persisted: the same client_id is retrievable from the store directly.
-	stored, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: got.ClientID})
+	stored, err := store.GetApp(context.Background(), &core.GetAppRequest{ClientID: got.ClientID})
 	require.NoError(t, err)
 	assert.Equal(t, "Direct Invoke", stored.App.ClientName)
 }
 
-// TestClientRegistrar_RegisterLegacy_DirectInvocation verifies the proprietary
-// /apps/register path works through the manager interface, including the
-// OneAuth-specific quota fields.
-func TestClientRegistrar_RegisterLegacy_DirectInvocation(t *testing.T) {
-	store := admin.NewInMemoryAppStore()
-	r := admin.NewAppRegistrarWithStore(keys.NewInMemoryKeyStore(), admin.NewNoAuth(), store)
-
-	resp, err := r.RegisterLegacy(context.Background(), &admin.RegisterLegacyRequest{
-		ClientDomain: "legacy.example",
-		MaxRooms:     50,
-		MaxMsgRate:   2.5,
-	})
-	require.NoError(t, err)
-	assert.NotEmpty(t, resp.ClientID)
-	assert.Equal(t, "HS256", resp.SigningAlg, "default alg")
-	assert.NotEmpty(t, resp.ClientSecret, "symmetric → secret issued")
-	assert.Equal(t, 50, resp.MaxRooms, "OneAuth-specific quota field surfaced")
-	assert.Equal(t, 2.5, resp.MaxMsgRate)
-
-	stored, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: resp.ClientID})
-	require.NoError(t, err)
-	assert.Equal(t, 50, stored.App.MaxRooms, "quota persisted on AppRegistration")
-}
-
-// TestClientRegistrar_RegisterLegacy_AsymmetricRequiresPublicKey verifies the
-// validation error path: asymmetric algs without public_key surface as
-// ErrPublicKeyRequired (mapped to HTTP 400 by the wrapper).
-func TestClientRegistrar_RegisterLegacy_AsymmetricRequiresPublicKey(t *testing.T) {
-	r := admin.NewAppRegistrar(keys.NewInMemoryKeyStore(), admin.NewNoAuth())
-
-	_, err := r.RegisterLegacy(context.Background(), &admin.RegisterLegacyRequest{
-		ClientDomain: "rs256.example",
-		SigningAlg:   "RS256",
-		// PublicKey intentionally empty
-	})
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, admin.ErrPublicKeyRequired),
-		"asymmetric register without public_key must return ErrPublicKeyRequired")
-}
-
 // TestClientRegistrar_ListClients_ReflectsRegistrations verifies that
-// successive Register / RegisterLegacy calls show up in ListClients in the
-// expected count, and the returned entries are clones (mutating one does not
-// affect the cache).
+// successive Register calls show up in ListClients in the expected count,
+// and the returned entries are clones (mutating one does not affect the cache).
 func TestClientRegistrar_ListClients_ReflectsRegistrations(t *testing.T) {
 	r := admin.NewAppRegistrar(keys.NewInMemoryKeyStore(), admin.NewNoAuth())
 
 	_, err := r.Register(context.Background(), &admin.RegisterRequest{Metadata: &admin.DCRRequest{ClientName: "A"}})
 	require.NoError(t, err)
-	_, err = r.RegisterLegacy(context.Background(), &admin.RegisterLegacyRequest{ClientDomain: "b.example"})
+	_, err = r.Register(context.Background(), &admin.RegisterRequest{Metadata: &admin.DCRRequest{ClientName: "B"}})
 	require.NoError(t, err)
 
 	resp, err := r.ListClients(context.Background(), &admin.ListClientsRequest{})
@@ -116,26 +76,26 @@ func TestClientRegistrar_GetClient_NotFound(t *testing.T) {
 	r := admin.NewAppRegistrar(keys.NewInMemoryKeyStore(), admin.NewNoAuth())
 
 	_, err := r.GetClient(context.Background(), &admin.GetClientRequest{ClientID: "app_phantom"})
-	assert.True(t, errors.Is(err, admin.ErrAppNotFound))
+	assert.True(t, errors.Is(err, core.ErrAppNotFound))
 }
 
 // TestClientRegistrar_DeleteClient_RemovesFromStoreAndKeyStore verifies the
 // full effect of admin-side delete: registration gone from the store AND
 // signing key gone from KeyStore (so already-issued tokens fail validation).
 func TestClientRegistrar_DeleteClient_RemovesFromStoreAndKeyStore(t *testing.T) {
-	store := admin.NewInMemoryAppStore()
+	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	r := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
 
-	resp, err := r.RegisterLegacy(context.Background(), &admin.RegisterLegacyRequest{ClientDomain: "doomed"})
+	resp, err := r.Register(context.Background(), &admin.RegisterRequest{Metadata: &admin.DCRRequest{ClientName: "doomed"}})
 	require.NoError(t, err)
-	clientID := resp.ClientID
+	clientID := resp.Registration.ClientID
 
 	_, err = r.DeleteClient(context.Background(), &admin.DeleteClientRequest{ClientID: clientID})
 	require.NoError(t, err)
 
 	// Store side: gone.
-	if _, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: clientID}); !errors.Is(err, admin.ErrAppNotFound) {
+	if _, err := store.GetApp(context.Background(), &core.GetAppRequest{ClientID: clientID}); !errors.Is(err, core.ErrAppNotFound) {
 		t.Errorf("store should report ErrAppNotFound after DeleteClient, got %v", err)
 	}
 	// KeyStore side: gone.
@@ -144,7 +104,7 @@ func TestClientRegistrar_DeleteClient_RemovesFromStoreAndKeyStore(t *testing.T) 
 	}
 	// Repeat delete: ErrAppNotFound (idempotency by accident — safe).
 	_, err = r.DeleteClient(context.Background(), &admin.DeleteClientRequest{ClientID: clientID})
-	assert.True(t, errors.Is(err, admin.ErrAppNotFound))
+	assert.True(t, errors.Is(err, core.ErrAppNotFound))
 }
 
 // TestClientRegistrar_RotateSecret_Symmetric verifies that rotating a
@@ -152,12 +112,17 @@ func TestClientRegistrar_DeleteClient_RemovesFromStoreAndKeyStore(t *testing.T) 
 // pre-rotation values.
 func TestClientRegistrar_RotateSecret_Symmetric(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
-	r := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), admin.NewInMemoryAppStore())
+	r := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), core.NewInMemoryAppStore())
 
-	registered, err := r.RegisterLegacy(context.Background(), &admin.RegisterLegacyRequest{ClientDomain: "rotate.me"})
+	regResp, err := r.Register(context.Background(), &admin.RegisterRequest{Metadata: &admin.DCRRequest{ClientName: "rotate.me"}})
 	require.NoError(t, err)
+	registered := regResp.Registration
 
-	preRotateKeyResp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: registered.ClientID}); var preRotateKey *keys.KeyRecord; if preRotateKeyResp_ != nil { preRotateKey = preRotateKeyResp_.Record }
+	preRotateKeyResp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: registered.ClientID})
+	var preRotateKey *keys.KeyRecord
+	if preRotateKeyResp_ != nil {
+		preRotateKey = preRotateKeyResp_.Record
+	}
 	require.NoError(t, err)
 	preRotateKid := preRotateKey.Kid
 

@@ -6,14 +6,14 @@ package admin_test
 import (
 	"testing"
 
-	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/appstoretest"
+	"github.com/panyam/oneauth/core"
 )
 
-// TestInMemoryAppStore verifies that admin.NewInMemoryAppStore satisfies the
+// TestInMemoryAppStore verifies that core.NewInMemoryAppStore satisfies the
 // AppRegistrationStore contract.
 func TestInMemoryAppStore(t *testing.T) {
-	appstoretest.RunAll(t, func(t *testing.T) admin.AppRegistrationStore {
-		return admin.NewInMemoryAppStore()
+	appstoretest.RunAll(t, func(t *testing.T) core.AppRegistrationStore {
+		return core.NewInMemoryAppStore()
 	})
 }

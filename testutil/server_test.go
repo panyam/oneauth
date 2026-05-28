@@ -209,7 +209,7 @@ func TestDiscoverOIDC_Helper(t *testing.T) {
 }
 
 // TestClientCredentialsGrant_ViaHTTP verifies the full client_credentials
-// flow: register an app via /apps/register, then obtain a token via POST
+// flow: register an app via /apps/dcr, then obtain a token via POST
 // /api/token with grant_type=client_credentials using the standard
 // form-encoded helper (RFC 6749 §4.4).
 //
@@ -368,8 +368,8 @@ func TestWithAdminKey_Option(t *testing.T) {
 	srv := testutil.NewTestAuthServer(t, testutil.WithAdminKey("my-secret-key"))
 
 	// Wrong key should fail
-	body := `{"client_domain":"test.com","signing_alg":"HS256"}`
-	req, _ := http.NewRequest("POST", srv.URL()+"/apps/register", strings.NewReader(body))
+	body := `{"client_name":"test.com","signing_alg":"HS256"}`
+	req, _ := http.NewRequest("POST", srv.URL()+"/apps/dcr", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Admin-Key", "wrong-key")
 	resp, err := http.DefaultClient.Do(req)
@@ -379,7 +379,7 @@ func TestWithAdminKey_Option(t *testing.T) {
 		"wrong admin key should be rejected, got %d", resp.StatusCode)
 
 	// Correct key should succeed
-	req, _ = http.NewRequest("POST", srv.URL()+"/apps/register", strings.NewReader(body))
+	req, _ = http.NewRequest("POST", srv.URL()+"/apps/dcr", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Admin-Key", "my-secret-key")
 	resp, err = http.DefaultClient.Do(req)
@@ -388,15 +388,15 @@ func TestWithAdminKey_Option(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 }
 
-// registerTestApp registers an HS256 app via the /apps/register endpoint
+// registerTestApp registers an HS256 app via the /apps/dcr endpoint
 // and returns the client_id and client_secret.
 func registerTestApp(t *testing.T, srv *testutil.TestAuthServer, domain string) (clientID, clientSecret string) {
 	t.Helper()
 	body, _ := json.Marshal(map[string]any{
-		"client_domain": domain,
+		"client_name": domain,
 		"signing_alg":   "HS256",
 	})
-	req, err := http.NewRequest("POST", srv.URL()+"/apps/register", strings.NewReader(string(body)))
+	req, err := http.NewRequest("POST", srv.URL()+"/apps/dcr", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Admin-Key", srv.AdminKey())

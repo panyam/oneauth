@@ -176,13 +176,14 @@ func LoginForTokens(t *testing.T, env *TestEnv, email, password string) (accessT
 	return data["access_token"].(string), data["refresh_token"].(string)
 }
 
-// RegisterApp registers an HS256 app and returns client_id and client_secret.
+// RegisterApp registers an HS256 app via RFC 7591 DCR and returns
+// client_id and client_secret.
 func RegisterApp(t *testing.T, env *TestEnv, domain string) (clientID, clientSecret string) {
 	t.Helper()
 	c := NewTestClient(env)
-	resp := c.PostJSON("/apps/register", map[string]any{
-		"client_domain": domain,
-		"signing_alg":   "HS256",
+	resp := c.PostJSON("/apps/dcr", map[string]any{
+		"client_name": domain,
+		"grant_types": []string{"client_credentials"},
 	})
 	data := ReadJSON(resp)
 	require.Equal(t, 201, resp.StatusCode, "app registration failed")

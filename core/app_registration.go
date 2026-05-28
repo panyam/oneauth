@@ -1,14 +1,44 @@
-package admin
+package core
 
 import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 )
 
 // ErrAppNotFound is returned by AppRegistrationStore.GetApp and DeleteApp
 // when the requested client_id does not exist.
 var ErrAppNotFound = errors.New("app registration not found")
+
+// AppRegistration holds metadata about a registered App (RFC 7591 client).
+//
+// Lives in core/ so storage backends (stores/fs, stores/gorm, stores/gae) can
+// implement AppRegistrationStore without importing admin/. The DCR / RFC 7592
+// management metadata fields are persisted starting in issue 165 so that the
+// schema is stable as RFC 7592 management endpoints (issue 168/169/170) populate
+// them. They may be empty for legacy registrations.
+type AppRegistration struct {
+	ClientID                  string    `json:"client_id"`
+	ClientDomain              string    `json:"client_domain"`
+	SigningAlg                string    `json:"signing_alg"`
+	AuthorizationDetailsTypes []string  `json:"authorization_details_types,omitempty"` // RFC 9396
+	CreatedAt                 time.Time `json:"created_at"`
+	Revoked                   bool      `json:"revoked"`
+
+	// RFC 7591 / 7592 client metadata (populated by DCR; see issue 157).
+	ClientName              string   `json:"client_name,omitempty"`
+	ClientURI               string   `json:"client_uri,omitempty"`
+	RedirectURIs            []string `json:"redirect_uris,omitempty"`
+	GrantTypes              []string `json:"grant_types,omitempty"`
+	Scope                   string   `json:"scope,omitempty"`
+	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
+
+	// RFC 7592 management credentials. Issued when the management protocol
+	// is implemented (issue 168); empty for legacy registrations.
+	RegistrationAccessToken string `json:"registration_access_token,omitempty"`
+	RegistrationClientURI   string `json:"registration_client_uri,omitempty"`
+}
 
 // SaveAppRequest carries the registration to persist.
 type SaveAppRequest struct {
@@ -46,12 +76,12 @@ type DeleteAppResponse struct{}
 
 // AppRegistrationStore persists app registration metadata.
 //
-// It is the source of truth for registered apps; AppRegistrar holds a
-// hot-path in-memory cache that is hydrated from the store on construction
-// and updated on every write.
+// Source of truth for registered apps; admin.AppRegistrar holds a hot-path
+// in-memory cache that is hydrated from the store on construction and updated
+// on every write.
 //
-// Backends: InMemoryAppStore (admin/), FSAppStore (stores/fs/, see issue #166),
-// GORMAppStore (stores/gorm/, see issue #167).
+// Backends: InMemoryAppStore (below), FSAppStore (stores/fs/), GORMAppStore
+// (stores/gorm/), and any future Datastore-backed implementation (issue 228).
 type AppRegistrationStore interface {
 	// SaveApp inserts or replaces the registration for req.App.ClientID.
 	SaveApp(ctx context.Context, req *SaveAppRequest) (*SaveAppResponse, error)
@@ -69,7 +99,7 @@ type AppRegistrationStore interface {
 
 // InMemoryAppStore is a process-local AppRegistrationStore. State is lost on
 // restart — suitable for tests and dev. Production deployments should use a
-// persistent backend (FS, GORM).
+// persistent backend (FS, GORM, GAE).
 type InMemoryAppStore struct {
 	mu   sync.RWMutex
 	apps map[string]*AppRegistration

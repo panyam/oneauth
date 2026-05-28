@@ -124,15 +124,15 @@ func TestSecurity_AccessTokenNotUsableAsRefresh(t *testing.T) {
 // Oversized Body (DoS prevention)
 // =============================================================================
 
-// TestSecurity_OversizedBody verifies that a 10MB body to /apps/register
+// TestSecurity_OversizedBody verifies that a 10MB body to /apps/dcr
 // is rejected (413 or 400), not accepted.
 //
 // See: https://cwe.mitre.org/data/definitions/400.html
 func TestSecurity_OversizedBody(t *testing.T) {
 	env := NewTestEnv(t)
-	largeBody := `{"client_domain":"` + strings.Repeat("x", 10*1024*1024) + `"}`
+	largeBody := `{"client_name":"` + strings.Repeat("x", 10*1024*1024) + `"}`
 
-	req, _ := http.NewRequest("POST", env.BaseURL()+"/apps/register",
+	req, _ := http.NewRequest("POST", env.BaseURL()+"/apps/dcr",
 		strings.NewReader(largeBody))
 	req.Header.Set("X-Admin-Key", env.AdminKey)
 	req.Header.Set("Content-Type", "application/json")

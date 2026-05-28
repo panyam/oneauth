@@ -13,16 +13,15 @@ func TestAppLifecycle_Register(t *testing.T) {
 	env := NewTestEnv(t)
 	c := NewTestClient(env)
 
-	resp := c.PostJSON("/apps/register", map[string]any{
-		"client_domain": "lifecycle-test.example.com",
-		"signing_alg":   "HS256",
+	resp := c.PostJSON("/apps/dcr", map[string]any{
+		"client_name": "lifecycle-test.example.com",
+		"grant_types": []string{"client_credentials"},
 	})
 	require.Equal(t, 201, resp.StatusCode)
 
 	data := ReadJSON(resp)
 	assert.NotEmpty(t, data["client_id"])
 	assert.NotEmpty(t, data["client_secret"])
-	assert.Equal(t, "HS256", data["signing_alg"])
 
 	// Cleanup
 	c.Delete("/apps/" + data["client_id"].(string))
@@ -32,12 +31,12 @@ func TestAppLifecycle_RegisterDefaultAlg(t *testing.T) {
 	env := NewTestEnv(t)
 	c := NewTestClient(env)
 
-	resp := c.PostJSON("/apps/register", map[string]any{
-		"client_domain": "default-alg.example.com",
+	resp := c.PostJSON("/apps/dcr", map[string]any{
+		"client_name": "default-alg.example.com",
 	})
 	require.Equal(t, 201, resp.StatusCode)
 	data := ReadJSON(resp)
-	assert.Equal(t, "HS256", data["signing_alg"])
+	assert.NotEmpty(t, data["client_id"])
 	c.Delete("/apps/" + data["client_id"].(string))
 }
 

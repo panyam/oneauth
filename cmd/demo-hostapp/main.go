@@ -235,15 +235,13 @@ func loadOrRegisterApp(dataDir, appName, oaURL, adminKey string) (*appCredential
 		return nil, fmt.Errorf("ONEAUTH_ADMIN_KEY not set, cannot register app")
 	}
 
-	// Register with oneauth-server
+	// Register with oneauth-server via RFC 7591 DCR.
 	reqBody, _ := json.Marshal(map[string]any{
-		"client_domain": appName + ".localhost",
-		"signing_alg":   "HS256",
-		"max_rooms":     50,
-		"max_msg_rate":  200,
+		"client_name": appName + ".localhost",
+		"grant_types": []string{"client_credentials"},
 	})
 
-	req, err := http.NewRequest("POST", oaURL+"/apps/register", bytes.NewReader(reqBody))
+	req, err := http.NewRequest("POST", oaURL+"/apps/dcr", bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
 	}
