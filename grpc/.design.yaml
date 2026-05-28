@@ -1,87 +1,87 @@
 package: grpc
-purpose: Authentication context utilities and server interceptors that propagate the authenticated user ID across the HTTP-to-gRPC boundary via metadata, with optional auth enforcement and switch-user impersonation.
+purpose: Authentication context utilities and server interceptors that propagate the authenticated subject (RFC 7519 `sub`) across the HTTP-to-gRPC boundary via metadata, with optional per-method auth enforcement and a dev-only switch-user impersonation header.
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
-  - name: DefaultMetadataKeyUserID
+  - name: DefaultMetadataKeySubject
     kind: const
-    role: Default gRPC metadata key ("x-user-id") carrying the authenticated user ID.
-    why: Lowercase by convention since gRPC normalizes metadata keys to lowercase.
+    role: Default gRPC metadata key ("x-subject") carrying the authenticated subject identifier.
+    why: Lowercase because gRPC normalizes metadata keys to lowercase; named "subject" (not "user-id") so it covers both human users and `client_credentials` clients.
   - name: DefaultMetadataKeySwitchUser
     kind: const
     role: Default gRPC metadata key ("x-switch-user") for impersonating another user.
-    why: Only honored when EnableSwitchAuth is set; meant for dev/testing, not production.
+    why: Retains the "user" wording because impersonation is intentionally scoped to human users; only honored when `EnableSwitchAuth` is set, so it stays dev/testing-only.
   - name: Config
     kind: struct
-    role: Holds metadata-key names and the EnableSwitchAuth toggle for context extraction.
-    why: Keys are customizable so callers can avoid collisions with other application metadata.
+    role: Holds the subject and switch-user metadata key names plus the `EnableSwitchAuth` toggle for context extraction.
+    why: Keys are customizable so callers can avoid collisions with other application metadata; switch-auth defaults off so impersonation is never silently available.
   - name: DefaultConfig
     kind: func
-    role: Returns a Config with default keys and switch-auth disabled.
-    why: Safe default posture - impersonation is off unless explicitly opted into.
+    role: Returns a Config with the default keys and switch-auth disabled.
+    why: Safe default posture - impersonation is an opt-in, not a default.
   - name: Config.EnsureDefaults
     kind: method
-    role: Fills empty key fields with their default values in place.
-    why: Lets callers pass a partially populated Config without nil/empty-key bugs.
-  - name: UserIDFromContext
+    role: Fills any empty key fields with their default values in place.
+    why: Lets callers pass a partially populated Config without nil/empty-key bugs - especially important since `md.Get("")` silently returns nothing.
+  - name: SubjectFromContext
     kind: func
-    role: Extracts the authenticated user ID from incoming gRPC metadata using defaults.
-    why: Returns "" rather than erroring so callers decide how to treat anonymous requests.
-  - name: UserIDFromContextWithConfig
+    role: Extracts the authenticated subject from incoming gRPC metadata using default keys.
+    why: Returns "" rather than erroring so callers decide how to treat anonymous requests; the package never panics on missing identity.
+  - name: SubjectFromContextWithConfig
     kind: func
-    role: Same extraction but with a caller-supplied Config (nil falls back to default).
-    why: Switch-user key is checked before the real user ID when EnableSwitchAuth is on.
-  - name: UserIDToOutgoingContext
+    role: Same extraction with a caller-supplied Config (nil falls back to default).
+    why: Honors switch-user precedence (switch key checked first when `EnableSwitchAuth` is on), so a single function captures both modes.
+  - name: SubjectToOutgoingContext
     kind: func
-    role: Appends the user ID to outgoing gRPC metadata using the default key.
-    why: Used by HTTP gateways/clients to forward identity into downstream gRPC calls.
-  - name: UserIDToOutgoingContextWithKey
+    role: Appends the subject to outgoing gRPC metadata under the default key.
+    why: Used by HTTP gateways and clients to forward an already-authenticated subject into downstream gRPC calls.
+  - name: SubjectToOutgoingContextWithKey
     kind: func
     role: Same as above but with a custom metadata key.
-    why: Mirrors the configurable key on the extraction side.
+    why: Mirrors the configurable key on the extraction side so both ends can use a custom name.
   - name: SwitchUserToOutgoingContext
     kind: func
-    role: Appends a switch-user impersonation header to outgoing metadata (default key).
-    why: No effect unless the server has EnableSwitchAuth set - client cannot self-grant.
+    role: Appends a switch-user impersonation header to outgoing metadata using the default key.
+    why: Clients can request impersonation, but it is a no-op unless the server has `EnableSwitchAuth` set - clients cannot self-grant.
   - name: SwitchUserToOutgoingContextWithKey
     kind: func
-    role: Switch-user append with a custom key.
-    why: Pairs with the custom-key extraction path.
+    role: Switch-user append with a caller-supplied key.
+    why: Pairs with the custom-key extraction path so a deployment can rename both ends consistently.
   - name: IsAuthenticated
     kind: func
-    role: Reports whether the context carries a non-empty user ID (default config).
-    why: Convenience predicate built on top of UserIDFromContext.
+    role: Reports whether the context carries a non-empty subject under the default config.
+    why: Convenience predicate built on top of `SubjectFromContext` so callers don't reimplement the empty-string check.
   - name: IsAuthenticatedWithConfig
     kind: func
     role: Authentication predicate with an explicit Config.
-    why: Lets switch-user-aware callers test presence consistently with extraction.
+    why: Lets switch-user-aware callers test presence using the same precedence rules as extraction.
   - name: InterceptorConfig
     kind: struct
-    role: Embeds Config and adds RequireAuth plus a PublicMethods bypass set.
-    why: PublicMethods keys are full "/pkg.Service/Method" names matched against info.FullMethod.
+    role: Embeds `*Config` and adds `RequireAuth` plus a `PublicMethods` bypass set.
+    why: `PublicMethods` keys are full `/pkg.Service/Method` names matched against `info.FullMethod` - a typo silently turns into "auth required" for that method.
   - name: DefaultInterceptorConfig
     kind: func
     role: Returns a config that requires auth on every method with no public bypass.
-    why: Secure-by-default posture for new servers.
+    why: Secure-by-default posture for new servers - opting out is explicit.
   - name: NewPublicMethodsConfig
     kind: func
-    role: Builds a require-auth config seeded with the given public (unauthenticated) methods.
-    why: Common case - most servers expose a few health/login methods without auth.
+    role: Builds a require-auth config seeded with the given unauthenticated methods.
+    why: Common case - most servers expose a few health/login methods without auth and want every other method protected.
   - name: OptionalAuthConfig
     kind: func
     role: Returns a config that lets unauthenticated requests through untouched.
-    why: For services that read identity opportunistically but never reject.
+    why: For services that read identity opportunistically (e.g. personalize for logged-in users, but still serve anonymous).
   - name: UnaryAuthInterceptor
     kind: func
-    role: gRPC unary server interceptor that extracts identity and enforces auth per method.
-    why: Only rejects with Unauthenticated when RequireAuth is set and method is not public; does not inject identity into the context - downstream code uses UserIDFromContext.
+    role: Unary `grpc.UnaryServerInterceptor` that extracts the subject from incoming metadata and enforces per-method auth.
+    why: Only rejects with `codes.Unauthenticated` when `RequireAuth` is set and the method is not in `PublicMethods`; it does not inject the subject into the context - downstream code calls `SubjectFromContext`.
   - name: StreamAuthInterceptor
     kind: func
-    role: Stream-side counterpart enforcing the same per-method auth rules on stream open.
-    why: Checks the stream's ss.Context() once at open; per-message identity is unchanged.
-  - name: extractUserID
+    role: Stream-side `grpc.StreamServerInterceptor` enforcing the same per-method auth rules at stream open.
+    why: Checks `ss.Context()` once when the stream is established; per-message identity is not re-validated.
+  - name: extractSubject
     kind: func
-    role: Internal helper that pulls the user ID from incoming metadata honoring switch-user.
-    why: Shared between the unary and stream interceptors to keep extraction logic in one place.
+    role: Internal helper used by both interceptors to read the subject from incoming metadata, honoring switch-user precedence.
+    why: Single source of truth for switch-user precedence and key lookup - keeps unary and stream paths from drifting apart.
 depends_on: []

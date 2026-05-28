@@ -1,13 +1,21 @@
 package: apiauth
 purpose: API token authentication — token issuance (password / refresh / client_credentials / jwt-bearer / token-exchange), JWT validation middleware, RFC 7662 introspection, RFC 7009 revocation, RFC 8414 / OIDC discovery, and a transport-independent `OneAuth` core that composes focused interfaces (`TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator`).
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: APIAuth
     kind: struct
-    role: HTTP-facing token endpoint — `ServeHTTP` dispatches on `grant_type`, plus `CreateAccessToken` / `ValidateAccessToken` / `ValidateAccessTokenFull` and API-key / session management handlers.
-    why: The legacy entry point still owns the `/api/token` shape (form + JSON, rate limiting, custom claims, callbacks); new core interfaces wrap it rather than replacing it.
+    role: HTTP-facing token endpoint — `ServeHTTP` dispatches `/api/token` on `grant_type` (password / refresh_token / client_credentials / jwt-bearer / token-exchange) plus API-key and session management handlers.
+    why: Owns the legacy `/api/token` shape (form + JSON, rate limiting, custom claims, callbacks); per #218 the token-minting and validation surface routes through `Issuer()` / `Validator()` accessors rather than inline JWT logic.
+  - name: APIAuth.Issuer
+    kind: method
+    role: Lazy-builds (once) the `TokenIssuer` from `APIAuth` fields — signing key/alg, issuer/audience, `ClientKeyStore`, `RefreshTokenStore`, `ValidateCredentials`, `GetSubjectScopes`, `CustomClaimsFunc`.
+    why: Lets callers populate `APIAuth` fields after construction (existing pattern) and still funnel every grant handler through one `TokenIssuer` instance.
+  - name: APIAuth.Validator
+    kind: method
+    role: Lazy-builds (once) the `TokenValidator` from `APIAuth` fields — signing/verify key, alg, blacklist, issuer/audience.
+    why: Same lazy-build pattern as `Issuer()`; `APIMiddleware` reuses the same path when no explicit `Validator` is wired.
   - name: APIMiddleware
     kind: struct
     role: HTTP middleware (`ValidateToken`, `RequireScopes`, `Optional`, `RequireAuthorizationDetails`) that validates Bearer tokens or API keys and sets user info in the request context.
@@ -46,20 +54,20 @@ entities:
     why: Shared by the token, introspection, and revocation handlers; routing by which fields are set in `AuthenticateClientRequest` keeps every endpoint accepting all three OAuth-defined auth channels.
   - name: TokenInfo
     kind: struct
-    role: Validated claims returned from `TokenValidator.ValidateToken` — `UserID`, `Scopes`, `AuthorizationDetails`, `CustomClaims`, `AuthType`.
+    role: Validated claims returned from `TokenValidator.ValidateToken` — `Subject`, `Scopes`, `AuthorizationDetails`, `CustomClaims`, `AuthType`.
     why: Single shape consumed by both the new middleware path and the in-process introspector.
   - name: jwtValidator
     kind: type
-    role: Local JWT validator implementing `TokenValidator`. Resolves keys by `kid` then `client_id` claim, cross-checks kid owner vs claim, validates type/iss/aud/exp/blacklist.
-    why: The kid-vs-`client_id`-claim cross-check prevents cross-app token forgery (app A signing with `client_id`=B).
+    role: Local JWT validator implementing `TokenValidator`. Resolves keys by `kid` then `client_id` claim, cross-checks kid owner vs claim, validates type/iss/aud/exp/blacklist; falls back to `signingKey` when no `KeyLookup` resolves.
+    why: The kid-vs-`client_id`-claim cross-check prevents cross-app token forgery (app A signing with `client_id`=B). Self-validation fallback supports the "APIAuth holds its own key" mode (no KeyStore needed).
   - name: NewJWTValidator
     kind: func
     role: Constructs a `TokenValidator` from `JWTValidatorConfig`.
     why: Shared by `APIMiddleware` (lazy) and `OneAuth`.
   - name: jwtIssuer
     kind: type
-    role: `TokenIssuer` implementation; signs JWTs with HS/RS/ES keys, generates `jti`, embeds RFC 9396 `authorization_details`.
-    why: Transport-free counterpart to `APIAuth.CreateAccessToken`; what `NewOneAuth` wires.
+    role: `TokenIssuer` implementation; signs JWTs with HS/RS/ES keys, generates `jti`, embeds RFC 9396 `authorization_details`, runs theft detection on `RefreshGrant`.
+    why: Transport-free counterpart to per-grant minting; what `NewOneAuth` and `APIAuth.Issuer()` both wire.
   - name: NewJWTIssuer
     kind: func
     role: Constructs a `TokenIssuer` from `JWTIssuerConfig`.
@@ -208,10 +216,18 @@ entities:
     kind: type
     role: Type alias re-exported from `accounts` for the password-grant validator function.
     why: Lets `apiauth`'s field and `localauth`'s host-supplied validator be assignable to each other without conversion.
-  - name: GetUserIDFromAPIContext
+  - name: extractClientCredentials
     kind: func
-    role: Retrieves the JWT subject from a context populated by `APIMiddleware`.
-    why: ""
+    role: Inspects an HTTP request for client credentials across the three OAuth-defined channels — private_key_jwt assertion → Basic header → form post — and populates an `AuthenticateClientRequest`.
+    why: Centralizes precedence (strongest credential wins) so token / introspection / revocation handlers all accept the same three channels identically.
+  - name: derivedAudience
+    kind: func
+    role: Derives the absolute endpoint URL from an HTTP request (honoring `X-Forwarded-Proto` / `X-Forwarded-Host`) as a fallback audience.
+    why: Single-host deployments don't need to configure `AcceptedAudiences` explicitly; behind a path-rewriting proxy this fallback breaks, so production deployments populate the list.
+  - name: GetSubjectFromAPIContext
+    kind: func
+    role: Retrieves the JWT subject (RFC 7519 `sub` — user ID for human flows, client_id for client_credentials) from a context populated by `APIMiddleware`.
+    why: Renamed from `GetUserIDFromAPIContext` to reflect dual usage (user / client_id).
   - name: GetScopesFromAPIContext
     kind: func
     role: Retrieves granted scopes from the request context.
@@ -234,16 +250,10 @@ entities:
     why: Type-level RAR enforcement — finer-grained than scopes.
 depends_on:
   - path: ../accounts
-    entities: [User, BasicUser, Identity, IdentityKey, DetectUsernameType, CredentialsValidator]
-  - path: ../admin
-    entities: [MintResourceToken, MintResourceTokenWithKey, AppQuota]
+    entities: [CredentialsValidator, DetectUsernameType]
   - path: ../core
-    entities: [RefreshToken, TokenPair, TokenRequest, TokenError, RefreshTokenStore, APIKeyStore, TokenBlacklist, InMemoryBlacklist, RateLimiter, AuthorizationDetail, ValidateAll, GenerateSecureToken, GetUserScopesFunc, ParseScopes, JoinScopes, IntersectScopes, ContainsAllScopes, ScopeRead, ScopeWrite, ScopeProfile, ScopeOffline, ScopeAdmin, TokenExpiryAccessToken, TokenExpiryRefreshToken, ErrInvalidGrant, ErrTokenNotFound, ErrTokenReused, ErrAPIKeyNotFound, GetUserIDFromContext, SetUserIDInContext]
+    entities: [APIKeyStore, AuthorizationDetail, ContainsAllScopes, CreateAPIKeyRequest, CreateRefreshTokenRequest, ErrAPIKeyNotFound, ErrTokenNotFound, ErrTokenReused, GenerateSecureToken, GetAPIKeyByIDRequest, GetRefreshTokenRequest, GetSubjectFromContext, GetSubjectScopesFunc, GetSubjectTokensRequest, IntersectScopes, JoinScopes, ListSubjectAPIKeysRequest, ParseScopes, RateLimiter, RefreshTokenStore, RevokeAPIKeyRequest, RevokeRefreshTokenRequest, RevokeSubjectTokensRequest, RevokeTokenFamilyRequest, RotateRefreshTokenRequest, ScopeOffline, ScopeProfile, ScopeRead, ScopeWrite, SetSubjectInContext, TokenBlacklist, TokenError, TokenExpiryAccessToken, TokenPair, TokenRequest, UpdateAPIKeyLastUsedRequest, ValidateAll, ValidateAPIKeyRequest]
   - path: ../keys
-    entities: [KeyRecord, KeyLookup, KeyStorage, InMemoryKeyStore]
-  - path: ../localauth
-    entities: [LocalAuth, Credentials, ConsoleEmailSender, NewCredentialsValidator, NewCreateUserFunc, NewVerifyEmailFunc, NewUpdatePasswordFunc]
-  - path: ../stores/fs
-    entities: [FSUserStore, FSIdentityStore, FSChannelStore, FSTokenStore, FSRefreshTokenStore, FSAPIKeyStore]
+    entities: [GetKeyByKidRequest, GetKeyRequest, KeyLookup, KeyStorage]
   - path: ../utils
-    entities: [GenerateRSAKeyPair, GenerateECDSAKeyPair, ParsePrivateKeyPEM, ParsePublicKeyPEM, EncodePublicKeyPEM, DecodeVerifyKey, IsAsymmetricAlg, SigningMethodForAlg, ComputeKid]
+    entities: [ComputeKid, DecodeVerifyKey, IsAsymmetricAlg, SigningMethodForAlg]

@@ -1,8 +1,8 @@
 package: fs
 purpose: Filesystem-backed CredentialStore that persists per-server ServerCredential entries in a single JSON file with owner-only permissions.
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: FSCredentialStore
     kind: struct
@@ -46,4 +46,6 @@ entities:
     why: After default-path resolution, callers (and logs) need to know where the file actually landed.
 depends_on:
   - path: ../..
-    entities: [ServerCredential]
+    uses:
+      - ServerCredential
+    why: FSCredentialStore implements client.CredentialStore and stores client.ServerCredential values keyed by normalized server URL.

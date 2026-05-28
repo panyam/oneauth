@@ -1,13 +1,13 @@
 package: gorm
-purpose: GORM/SQL-backed implementations of every oneauth store interface (users, identities, channels, verification tokens, refresh tokens, API keys, usernames, signing keys, kid keys, app registrations) plus a single AutoMigrate, portable across SQLite/MySQL/Postgres.
+purpose: GORM/SQL-backed implementations of every oneauth store interface (users, identities, channels, verification tokens, refresh tokens, API keys, usernames, signing keys, kid keys, app registrations), all on the `(ctx, *XRequest) → (*XResponse, error)` gRPC-shape contract, with a single AutoMigrate and portability across SQLite/MySQL/Postgres.
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: AutoMigrate
     kind: func
     role: Runs db.AutoMigrate for all ten oneauth GORM models in one call.
-    why: Single migration entrypoint; callers MUST invoke it (or equivalent SQL migration) before any store is used.
+    why: Single central migration entrypoint; callers MUST invoke it (or equivalent SQL migration) before any store is used.
   - name: JSONMap
     kind: type
     role: map[string]any with driver.Valuer/Scanner that JSON-encodes into a single column.
@@ -22,23 +22,23 @@ entities:
     why: Stores rich authorization details inline on the refresh-token row so rotation copies them by value.
   - name: UserModel
     kind: struct
-    role: GORM model for the users table (ID, IsActive, Profile JSONMap, Version).
+    role: GORM model for the `users` table (ID, IsActive, Profile JSONMap, Version).
     why: Profile is JSON-typed; Version is reserved for future optimistic locking.
   - name: IdentityModel
     kind: struct
-    role: GORM model for identities, keyed by (Type, Value) composite primary key with UserID index.
-    why: Composite PK enforces one row per (type,value); ToIdentity/IdentityToModel bridge to accounts.Identity.
+    role: GORM model for `identities`, keyed by (Type, Value) composite primary key with UserID index.
+    why: Composite PK enforces one row per (type, value); ToIdentity/IdentityToModel bridge to accounts.Identity.
   - name: ChannelModel
     kind: struct
-    role: GORM model for auth channels, keyed by (Provider, IdentityKey); Credentials/Profile JSONMap.
+    role: GORM model for `channels`, keyed by (Provider, IdentityKey); Credentials/Profile JSONMap.
     why: Composite PK matches the in-memory store; ExpiresAt is indexed so channel-auth expiry can be swept.
   - name: VerificationTokenModel
     kind: struct
     role: GORM model for email-verification/password-reset tokens, keyed by the raw Token in table `auth_tokens`.
-    why: Short-lived single-use tokens; stored plaintext (unlike refresh tokens) because they expire fast and are 1-use.
+    why: Short-lived single-use tokens; stored plaintext (unlike refresh tokens) because they expire fast and are one-use.
   - name: RefreshTokenModel
     kind: struct
-    role: GORM model for refresh tokens, keyed by TokenHash with indexed Family/UserID/ExpiresAt/Revoked; the raw `Token` field is gorm-ignored.
+    role: GORM model for refresh tokens, keyed by TokenHash with indexed Family/Subject/ExpiresAt/Revoked; the raw `Token` field is gorm-ignored.
     why: Only the SHA-256 hash is persisted (`gorm:"-"` on Token); supports family-wide revocation for reuse detection.
   - name: APIKeyModel
     kind: struct
@@ -55,10 +55,10 @@ entities:
   - name: KidKeyModel
     kind: struct
     role: GORM model for the kid grace cache, keyed by Kid with a nullable ExpiresAt.
-    why: Nullable ExpiresAt avoids the messy 0001-01-01 zero-date some SQL dialects produce; matches the in-memory KidStore contract.
+    why: Nullable ExpiresAt avoids the 0001-01-01 zero-date some SQL dialects produce; matches the in-memory KidStore contract.
   - name: AppRegistrationModel
     kind: struct
-    role: GORM model for app registrations (RFC 7591/7592) including registration access token + management URI.
+    role: GORM model for app registrations (RFC 7591/7592) including RegistrationAccessToken + RegistrationClientURI.
     why: Slice fields use `serializer:json` so it works identically across SQLite/MySQL/Postgres without DB-specific JSONB quirks.
   - name: GORMUser
     kind: struct
@@ -66,24 +66,24 @@ entities:
     why: Keeps accounts.User interface-only; GORM model stays a pure persistence struct.
   - name: UserStore
     kind: struct
-    role: accounts.UserStore over GORM (CreateUser/GetUserById/SaveUser).
+    role: accounts.UserStore over GORM (CreateUser/GetUserById/SaveUser) on the (ctx, *Req) shape.
     why: Storage-agnostic dependency injection; returns errors as "user not found: <id>" on miss.
   - name: IdentityStore
     kind: struct
-    role: accounts.IdentityStore over GORM with optional create-on-miss semantics.
-    why: GetIdentity(createIfMissing=true) is the upsert path used during signup/OAuth callback.
+    role: accounts.IdentityStore over GORM (GetIdentity/SaveIdentity/SetUserForIdentity/MarkIdentityVerified/GetUserIdentities) with optional create-on-miss semantics.
+    why: GetIdentity(CreateIfMissing=true) is the upsert path used during signup/OAuth callback.
   - name: ChannelStore
     kind: struct
-    role: accounts.ChannelStore over GORM with create-on-miss for new provider/identity pairs.
+    role: accounts.ChannelStore over GORM (GetChannel/SaveChannel/GetChannelsByIdentity) with create-on-miss for new provider/identity pairs.
     why: Mirrors IdentityStore semantics for the (provider, identity_key) authentication channel.
   - name: TokenStore
     kind: struct
-    role: core.TokenStore for short-lived verification/reset tokens (Create/Get/Delete + DeleteUserTokens).
-    why: GetToken auto-deletes expired rows on read (best-effort cleanup without a sweeper).
+    role: localauth.VerificationTokenStore (CreateToken/GetToken/DeleteToken/DeleteSubjectTokens) for short-lived verification/reset tokens.
+    why: GetToken auto-deletes expired rows on read (best-effort cleanup without a sweeper); plaintext storage is justified by the short TTL and side-channel delivery.
   - name: RefreshTokenStore
     kind: struct
-    role: core.RefreshTokenStore over GORM with SHA-256 hashing and transactional rotation.
-    why: Tokens stored hash-only; rotate/revoke/family-revoke operations support RFC 6749 reuse detection.
+    role: core.RefreshTokenStore over GORM (Create/Get/Rotate/Revoke/RevokeSubjectTokens/RevokeTokenFamily/GetSubjectTokens/CleanupExpiredTokens) with SHA-256 hashing and transactional rotation.
+    why: Tokens stored hash-only; rotate/revoke/family-revoke operations support RFC 6749 §10.4 reuse detection under concurrent rotation attempts.
   - name: APIKeyStore
     kind: struct
     role: core.APIKeyStore over GORM; mints `oa_<keyid>_<secret>`, stores bcrypt hash, validates with bcrypt.CompareHashAndPassword.
@@ -91,11 +91,11 @@ entities:
   - name: UsernameStore
     kind: struct
     role: accounts.UsernameStore over GORM with optimistic-concurrency Reserve/Change/Release/GetUserByUsername.
-    why: Uses Version + "WHERE version = ?" updates plus PK uniqueness; ChangeUsername best-effort restores the old row on race.
+    why: Uses Version + `WHERE version = ?` updates plus PK uniqueness; ChangeUsername best-effort restores the old row on race.
   - name: KeyStore
     kind: struct
-    role: keys.KeyStorage over GORM (PutKey/DeleteKey/GetKey/GetKeyByKid/ListKeyIDs) with backward-compat aliases.
-    why: ComputeKid is called automatically if the caller does not supply a kid; unique kid index enforced at the DB.
+    role: keys.KeyStorage over GORM (PutKey/DeleteKey/GetKey/GetKeyByKid/ListKeyIDs).
+    why: utils.ComputeKid is called automatically if the caller does not supply a kid; unique kid index enforced at the DB.
   - name: KidStore
     kind: struct
     role: keys.KidStorage over GORM with Add (upsert), Remove (idempotent), GetKeyByKid (filters expired), CleanExpired.
@@ -107,16 +107,16 @@ entities:
   - name: errClientIDRequired
     kind: var
     role: Sentinel error returned by AppStore.SaveApp when ClientID is empty.
-    why: Wording matches InMemoryAppStore so the shared appstoretest contract suite passes uniformly across backends.
+    why: Wording ("AppRegistration.ClientID required") matches InMemoryAppStore so the shared appstoretest contract suite passes uniformly across backends.
 depends_on:
   - path: ../../accounts
-    why: GORM models bridge to accounts.User/Identity/Channel; UserStore/IdentityStore/ChannelStore/UsernameStore implement the accounts.*Store interfaces.
+    why: GORM models bridge to accounts.User/Identity/Channel; UserStore/IdentityStore/ChannelStore/UsernameStore implement the accounts.*Store interfaces on the (ctx, *Req) → (*Resp, error) contract.
   - path: ../../admin
     why: AppStore implements admin.AppRegistrationStore over admin.AppRegistration and returns admin.ErrAppNotFound on miss.
   - path: ../../appstoretest
     why: appstore_test.go invokes appstoretest.RunAll against a factory that yields an admin.AppRegistrationStore-shaped GORM AppStore.
   - path: ../../core
-    why: RefreshTokenStore/APIKeyStore/TokenStore persist core.RefreshToken/APIKey, mint via core.GenerateSecureToken/GenerateAPIKey*, embed AuthorizationDetailsJSON ([]core.AuthorizationDetail), and surface core.Err{TokenNotFound,TokenReused,TokenExpired,TokenRevoked,APIKeyNotFound} plus core.TokenExpiryRefreshToken.
+    why: RefreshTokenStore/APIKeyStore persist core.RefreshToken/core.APIKey, mint via core.GenerateSecureToken / core.GenerateAPIKeyID / core.GenerateAPIKeySecret, embed AuthorizationDetailsJSON ([]core.AuthorizationDetail), use core.TokenExpiryRefreshToken for default TTL, and surface core.Err{TokenNotFound, TokenReused, TokenExpired, TokenRevoked, APIKeyNotFound}.
   - path: ../../keys
     why: KeyStore implements keys.KeyStorage and KidStore implements keys.KidStorage over keys.KeyRecord; misses return keys.ErrKeyNotFound / keys.ErrKidNotFound, algorithm mismatches return keys.ErrAlgorithmMismatch.
   - path: ../../keystoretest

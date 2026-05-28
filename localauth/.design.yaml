@@ -1,8 +1,8 @@
 package: localauth
 purpose: Local username/password authentication — HTTP handlers and store-backed callbacks for signup, login, email verification, password reset, and credential linking onto OAuth-only users.
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: LocalAuth
     kind: struct
@@ -86,12 +86,44 @@ entities:
     why: Renamed from `core.TokenType` to avoid colliding with OAuth access/refresh token semantics; string values stay stable for persisted data.
   - name: VerificationToken
     kind: struct
-    role: Short-lived email-mediated token — Token, Type, UserID, Email, CreatedAt, ExpiresAt.
-    why: Renamed from `core.AuthToken` to reflect its role as a verification token (not an OAuth token).
+    role: Short-lived email-mediated token — Token, Type, Subject, Email, CreatedAt, ExpiresAt.
+    why: Renamed from `core.AuthToken` to reflect its role as a verification token (not an OAuth token); `Subject` (formerly `UserID`) may be empty for password-reset flows so the AS doesn't have to reveal whether the email belongs to a registered user. JSON tag stays `"subject"` for stable persistence.
   - name: VerificationTokenStore
     kind: interface
-    role: CRUD for verification tokens — CreateToken, GetToken, DeleteToken, DeleteUserTokens.
-    why: Storage-agnostic; backends in stores/ implement it. Renamed from `core.TokenStore`.
+    role: CRUD for verification tokens — CreateToken, GetToken, DeleteToken, DeleteSubjectTokens. Every method follows `(ctx, *Req) → (*Resp, error)`.
+    why: Storage-agnostic; backends in stores/ implement it. Renamed from `core.TokenStore` and migrated to gRPC-shape in #204d so the interface can grow new fields additively without breaking implementations.
+  - name: CreateVerificationTokenRequest
+    kind: struct
+    role: Inputs for CreateToken — Subject, Email, Type, ExpiryDuration.
+    why: Request-shape lets callers pass an empty Subject on password-reset (no user-existence leak) without overloading the signature.
+  - name: CreateVerificationTokenResponse
+    kind: struct
+    role: Wraps the created `*VerificationToken` returned by CreateToken.
+    why: Symmetric typed response per the project-wide gRPC-shape convention (#110/#175).
+  - name: GetVerificationTokenRequest
+    kind: struct
+    role: Single-field request — Token string for lookup.
+    why: Even single-field calls take a typed request so future fields (e.g. expected `Type`) can be added without breaking implementations.
+  - name: GetVerificationTokenResponse
+    kind: struct
+    role: Wraps the looked-up `*VerificationToken`.
+    why: Symmetric typed response shape.
+  - name: DeleteVerificationTokenRequest
+    kind: struct
+    role: Single-field request — Token string for one-time-use deletion.
+    why: Used by both verify-email (after marking the identity verified) and reset-password (after updating the password) to prevent replay.
+  - name: DeleteVerificationTokenResponse
+    kind: struct
+    role: Empty response struct.
+    why: Kept for shape symmetry; future fields (e.g. soft-delete flags) can be added without breaking the interface.
+  - name: DeleteSubjectVerificationTokensRequest
+    kind: struct
+    role: Bulk-delete request — Subject + Type filter.
+    why: Renamed from the older `DeleteUser…`-style name to match the project-wide Subject vocab from PR 2a (cfcb350).
+  - name: DeleteSubjectVerificationTokensResponse
+    kind: struct
+    role: Empty response struct for the bulk-delete call.
+    why: Same shape-symmetry rationale.
   - name: VerificationToken.IsExpired
     kind: method
     role: True if `time.Now()` is after ExpiresAt.

@@ -1,8 +1,8 @@
 package: client
 purpose: Client-side OAuth SDK — discovers authorization servers, drives browser/CLI/M2M login flows, caches and refreshes tokens, and injects them into HTTP requests.
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: AuthClient
     kind: struct
@@ -48,22 +48,38 @@ entities:
     kind: method
     role: Returns the raw stored ServerCredential.
     why: Lets callers inspect refresh token, scope, expiry, or RFC 9396 authorization_details.
+  - name: LoginRequest
+    kind: struct
+    role: Input to AuthClient.Login — username, password, scope, optional clientID (defaults to "cli").
+    why: gRPC-shape request struct so password grant inputs gain new fields without breaking the call signature.
   - name: AuthClient.Login
     kind: method
     role: Performs the OAuth `password` grant against the legacy JSON `/auth/cli/token` endpoint and stores the credential.
-    why: First-party username/password login for OneAuth's own server.
+    why: First-party username/password login for OneAuth's own server, now ctx-shaped (#217) for cancellation.
+  - name: ClientCredentialsRequest
+    kind: struct
+    role: Single request struct for the client_credentials grant — clientID, secret or assertion, scopes, resources, RFC 9396 authorization_details.
+    why: One place to add new RFC 6749 §4.4 parameters; legacy wrappers reduce to 3-line shims.
+  - name: AuthClient.ClientCredentials
+    kind: method
+    role: Consolidated client_credentials entry — negotiates client_secret_basic / client_secret_post / private_key_jwt, emits RFC 8707 resource indicators and RFC 9396 authorization_details, persists the credential.
+    why: Single chokepoint for §4.4 so client-auth negotiation and standards extensions live in one place.
   - name: AuthClient.ClientCredentialsToken
     kind: method
-    role: Performs the RFC 6749 §4.4 `client_credentials` grant with form-encoded body and negotiated client auth.
-    why: Machine-to-machine token acquisition that respects AS-advertised auth methods.
+    role: Deprecated compat shim — 3-line wrapper that calls ClientCredentials with context.Background().
+    why: Keeps pre-#217 callers compiling while #169 funnels new code through the request-struct method.
   - name: AuthClient.ClientCredentialsTokenWithAssertion
     kind: method
-    role: `client_credentials` grant variant that uses `private_key_jwt` (RFC 7523 §2.2) instead of a shared secret.
-    why: Strongest standard client auth — no shared secret to leak; required by FAPI-class deployments.
+    role: Deprecated compat shim — `private_key_jwt` variant that calls ClientCredentials with context.Background().
+    why: Same rationale as ClientCredentialsToken; preserves the old positional signature for existing callers.
   - name: AuthClient.LoginWithBrowser
     kind: method
-    role: Drives the RFC 8252 + RFC 7636 authorization-code-with-PKCE flow with a loopback callback server.
+    role: Drives the RFC 8252 + RFC 7636 authorization-code-with-PKCE flow with a loopback callback server; ctx-shaped (#217).
     why: CLI/headless apps still need user-context tokens; PKCE makes the flow safe without a client secret.
+  - name: BrowserLoginRequest
+    kind: struct
+    role: All inputs to `LoginWithBrowser` — endpoints (optional, auto-discovered), client identity, scopes, resource, optional ClientAssertion, browser-opener hook.
+    why: Renamed from BrowserLoginConfig in #217 to match the (ctx, *XRequest) → (..., error) convention; explicit fields make defaults discoverable.
   - name: AuthClient.Logout
     kind: method
     role: Removes the credential for this server and persists.
@@ -76,14 +92,66 @@ entities:
     kind: field
     role: Callback fired after a successful `refresh_token` grant, with the freshly stored credential.
     why: Hook for external persistence and metrics; only the auto-refresh path fires it (initial logins return directly).
+  - name: TokenExchangeGrantType
+    kind: const
+    role: RFC 8693 grant_type URN (`urn:ietf:params:oauth:grant-type:token-exchange`).
+    why: One place owns the spec literal so the form value can't drift.
+  - name: TokenExchangeRequest
+    kind: struct
+    role: Inputs to RFC 8693 token exchange — subject token + type (required), optional actor token, audience, resource, scope, and client auth (secret or assertion).
+    why: Captures every §2.1 parameter behind one ctx-shaped method so delegation flows compose cleanly.
+  - name: TokenExchangeResponse
+    kind: struct
+    role: Parsed RFC 8693 §2.2 response — includes `issued_token_type` and scope split into a slice.
+    why: Promotes the wire string into a Go-friendly slice so callers don't re-parse space-delimited scope.
+  - name: rawTokenExchangeResponse
+    kind: struct
+    role: Wire-shape mirror of TokenExchangeResponse with snake_case JSON tags.
+    why: Keeps space-delimited scope decoding internal so the public type stays slice-shaped.
+  - name: AuthClient.TokenExchange
+    kind: method
+    role: Performs an RFC 8693 token exchange via the negotiated client auth; does not persist (it's a fan-out grant).
+    why: Delegation / impersonation flows need exchange access without polluting the cached refresh-token state.
+  - name: JwtBearerGrantType
+    kind: const
+    role: RFC 7523 §2.1 grant_type URN (`urn:ietf:params:oauth:grant-type:jwt-bearer`).
+    why: Distinct from the private_key_jwt CLIENT authentication method — both can coexist in the same form.
+  - name: JwtBearerGrantRequest
+    kind: struct
+    role: Inputs to RFC 7523 §2.1 — bearer Assertion, optional Scope and Resources, plus client authentication (secret or assertion).
+    why: Trusted-IdP token bridge; ctx-shaped so cancellation and tracing propagate.
+  - name: AuthClient.JwtBearerGrant
+    kind: method
+    role: Performs an RFC 7523 §2.1 jwt-bearer grant exchange and returns a ServerCredential.
+    why: Lets a client present a third-party-issued JWT (e.g. from federation) as the authorization grant.
+  - name: AuthClient.buildTokenRequest
+    kind: method
+    role: Builds the form-encoded token-endpoint POST with negotiated client auth; shared by TokenExchange and JwtBearerGrant.
+    why: Same form/auth shape as ClientCredentials but the two need shape-specific response decoding, so the request side is the only thing that can be deduped.
   - name: refreshTransport
     kind: struct
     role: http.RoundTripper that fetches the current token, sets the Bearer header, and retries once on 401 after refresh.
     why: Makes auth invisible to callers — they use the wrapped *http.Client like any other.
-  - name: refreshTokenLocked
+  - name: AuthClient.refreshTokenLocked
     kind: method
     role: Exchanges the stored refresh token for a new credential and persists it.
     why: Single chokepoint for refresh so the lock contract and OnToken callback ordering stay consistent.
+  - name: AuthClient.requestToken
+    kind: method
+    role: JSON-encoded token request against the legacy `/auth/cli/token` endpoint.
+    why: Used by Login + refresh; kept separate from the form path so the two can't drift.
+  - name: AuthClient.requestTokenForm
+    kind: method
+    role: Form-encoded token request with applyAuthToForm + optional SetBasicAuth.
+    why: The RFC-correct path used by ClientCredentials and exchangeCode.
+  - name: AuthClient.requestTokenFormWithAssertion
+    kind: method
+    role: Form-encoded token request that mints a private_key_jwt and posts it as client_assertion.
+    why: Splits the assertion path off from the secret path so call sites stay readable.
+  - name: AuthClient.executeTokenRequest
+    kind: method
+    role: Dispatches a prepared token request and decodes the OAuth response into a ServerCredential.
+    why: Shared by the two form-path builders so JSON decoding + error mapping live in one place.
   - name: OAuth2TokenRequest
     kind: struct
     role: JSON body shape for the legacy `/auth/cli/token` endpoint.
@@ -150,12 +218,20 @@ entities:
     why: io.Closer compliance and clean shutdown for long-lived processes.
   - name: ClientCredentialsSource.fetchTokenLocked
     kind: method
-    role: Lazily constructs the underlying AuthClient and calls ClientCredentialsToken under the source's lock.
+    role: Lazily constructs the underlying AuthClient and calls ClientCredentials under the source's lock.
     why: Keeps token fetch + cache update atomic; returns the credential so OnToken can fire outside the lock.
+  - name: ClientCredentialsSource.fireOnToken
+    kind: method
+    role: Invokes OnToken with a defensive copy of the credential, outside the source's mutex.
+    why: Keeps callbacks free to re-enter Token() without deadlock and prevents mutation of cached state.
   - name: ClientCredentialsSource.backgroundRefresh
     kind: method
     role: Goroutine that sleeps until (expiry − Refresher.Buffer) and refreshes proactively.
     why: Tail-latency hiding for predictable token rotation; failure falls through to reactive refresh on next Token().
+  - name: ClientCredentialsSource.doBackgroundRefresh
+    kind: method
+    role: Performs one proactive fetch under lock, logs and swallows failures.
+    why: Reactive path is the safety net — a logged proactive failure is preferred to a goroutine that exits silently.
   - name: ClientCredentialsSource.OnToken
     kind: field
     role: Callback fired after every successful fetch (initial, reactive, or proactive).
@@ -247,18 +323,18 @@ entities:
   - name: SelectAuthMethod
     kind: func
     role: Picks the best supported method given a secret and the AS's advertised list (preferring Basic over Post).
-    why: One source of truth for negotiation, used by both LoginWithBrowser and ClientCredentialsToken.
+    why: One source of truth for negotiation, used by both LoginWithBrowser and ClientCredentials.
   - name: applyAuthToForm
     kind: func
     role: Writes the correct client auth parameters onto a url.Values for the negotiated method.
     why: Pairs with `req.SetBasicAuth` so Basic credentials never leak into the body alongside the header.
   - name: ClientAssertionConfig
     kind: struct
-    role: Carries the private key, alg, optional kid, and lifetime needed to mint a `client_assertion`.
-    why: One value to thread through both browser login and client_credentials paths.
+    role: Carries the private key, alg, optional kid, lifetime, and override audience needed to mint a `client_assertion`.
+    why: One value to thread through browser login, client_credentials, token exchange, and jwt-bearer paths.
   - name: MintClientAssertion
     kind: func
-    role: Signs a fresh JWT (`iss`/`sub`=clientID, `aud`=endpoint, random `jti`, short `exp`) for `client_assertion`.
+    role: Signs a fresh JWT (`iss`/`sub`=clientID, `aud`=cfg.Audience || endpoint, random `jti`, short `exp`) for `client_assertion`.
     why: Centralizes claim shape + signing so every call site emits a spec-compliant assertion.
   - name: applyAssertionToForm
     kind: func
@@ -272,14 +348,10 @@ entities:
     kind: const
     role: 60-second default assertion lifetime.
     why: Matches OIDC Core §9's short-lived recommendation; well under OneAuth's server cap.
-  - name: BrowserLoginConfig
-    kind: struct
-    role: All inputs to `LoginWithBrowser` — endpoints (optional, auto-discovered), client identity, scopes, resource, optional ClientAssertion, browser-opener hook.
-    why: One struct beats a growing positional signature; explicit fields make defaults discoverable.
   - name: exchangeCodeParams
     kind: struct
     role: Internal bundle of inputs to `AuthClient.exchangeCode`.
-    why: Same rationale as BrowserLoginConfig — call signature was getting too long; new fields go here.
+    why: Same rationale as BrowserLoginRequest — call signature was getting too long; new fields go here.
   - name: AuthClient.exchangeCode
     kind: method
     role: Exchanges an auth code for tokens using the negotiated client auth (Basic / Post / none / private_key_jwt) and optional RFC 8707 `resource`.
@@ -338,7 +410,7 @@ entities:
     why: Clone-before-mutate is required by the http.RoundTripper contract.
   - name: ClientRegistrationRequest
     kind: struct
-    role: RFC 7591 DCR / RFC 7592 update body — client metadata the AS will assign or replace.
+    role: RFC 7591 DCR / RFC 7592 update body — client metadata the AS will assign or replace, including OIDC `application_type`.
     why: One struct both for initial registration and update; `ClientID` only used on update.
   - name: ClientRegistrationResponse
     kind: struct

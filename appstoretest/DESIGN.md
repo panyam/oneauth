@@ -1,10 +1,11 @@
 # appstoretest
 
-A backend-agnostic contract test suite for `admin.AppRegistrationStore`. Each storage backend (inmem, fs, gorm) supplies a `Factory` that returns a fresh store, then calls `RunAll` to execute every test under a named subtest. New contract guarantees are added once here and immediately apply to every backend, keeping the three implementations behaviorally interchangeable for DCR and admin flows.
+A backend-agnostic conformance test suite for `admin.AppRegistrationStore`. Each storage backend (InMem, FS, GORM) supplies a `Factory` that returns a fresh store, then calls `RunAll` to execute every contract test under a named subtest. Centralizing the contract here means a new guarantee added once immediately applies to every backend, keeping the three implementations behaviorally interchangeable for DCR and admin flows.
 
 ## Contents
 
 - [Entities](#entities)
+- [Flows](#flows)
 - [Gotchas](#gotchas)
 - [Depends on](#depends-on)
 
@@ -24,9 +25,34 @@ A backend-agnostic contract test suite for `admin.AppRegistrationStore`. Each st
 | `TestPersistence` | func | Read-after-write on the same handle must see the write. | Catches buffered-write or uncommitted-transaction bugs in FS/GORM. |
 | `TestAllFieldsRoundTrip` | func | Populates every `AppRegistration` field and verifies each on read-back. | Catches serialization gaps (e.g., GORM forgetting to JSON-encode `RedirectURIs`, `GrantTypes`, `AuthorizationDetailsTypes`). |
 
+## Flows
+
+### Backend wiring its tests into the shared suite
+
+```mermaid
+sequenceDiagram
+    participant Backend as Backend _test.go
+    participant Suite as appstoretest
+    participant Factory as Factory
+    participant Store as AppRegistrationStore
+
+    Backend->>Suite: RunAll(t, factory)
+    loop for each TestXxx
+        Suite->>Suite: t.Run("Xxx", ...)
+        Suite->>Factory: factory(t)
+        Factory->>Store: construct (temp dir / fresh DB)
+        Factory-->>Suite: fresh store
+        Suite->>Store: SaveApp / GetApp / DeleteApp / ListApps
+        Store-->>Suite: result or ErrAppNotFound
+        Suite->>Suite: assert contract
+    end
+```
+
+The backend test file only needs to declare a `Factory` closure (with its own `t.Cleanup` for temp resources) and hand it to `RunAll`. The suite drives the rest — each `Test*` calls `factory(t)` at the top, so subtests are isolated from one another without the suite knowing anything about how the backend builds or tears down state.
+
 ## Gotchas
 
-- **Each test gets a fresh store.** Every `Test*` function calls `factory(t)` at the top, so no state leaks between subtests. Backends must build that isolation into the factory (temp dirs, fresh DB schemas).
+- **Each test gets a fresh store.** Every `Test*` function calls `factory(t)` at the top, so no state leaks between subtests. Backends must build that isolation into the factory (temp dirs, fresh DB schemas, `t.Cleanup`).
 - **Sentinel-error identity, not just type.** Tests use `err != admin.ErrAppNotFound` (exact comparison), so backends must return the canonical sentinel — wrapping with `fmt.Errorf("%w", ErrAppNotFound)` will fail the suite.
 - **Delete-of-missing returns `ErrAppNotFound`, not nil.** Counterintuitive but deliberate — matches the `KeyStorage.DeleteKey` contract and lets callers detect already-deleted state.
 - **`TestListApps` sorts results before comparing.** Backends are free to return in any order; the suite normalizes. Don't add tests that depend on a specific order.
@@ -34,4 +60,4 @@ A backend-agnostic contract test suite for `admin.AppRegistrationStore`. Each st
 
 ## Depends on
 
-- [`admin/`](../admin/DESIGN.md) — `AppRegistrationStore`, `AppRegistration`, `ErrAppNotFound`
+- **`admin/`** — drives `admin.AppRegistrationStore` (with its `SaveAppRequest` / `GetAppRequest` / `ListAppsRequest` / `DeleteAppRequest` gRPC-shape wrappers) and round-trips `admin.AppRegistration` values; asserts the `admin.ErrAppNotFound` sentinel by identity so every backend honors admin's persistence contract uniformly.

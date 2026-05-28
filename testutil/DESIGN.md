@@ -112,5 +112,5 @@ sequenceDiagram
 - [../apiauth/DESIGN.md](../apiauth/DESIGN.md) — `APIAuth` (token endpoint), `TrustedAssertionIssuer` plus `JwtBearerGrantType` / `TokenExchangeGrantType` constants, `NewIntrospectionHandler`, and `MountASMetadata` / `ASServerMetadata` to wire the full AS surface.
 - [../core/DESIGN.md](../core/DESIGN.md) — `GenerateSecureToken` for JWT `jti` claim generation in minted tokens.
 - [../httpauth/DESIGN.md](../httpauth/DESIGN.md) — `LimitBody` middleware and `DefaultMaxBodySize` wrap the registrar's `/apps` routes.
-- [../keys/DESIGN.md](../keys/DESIGN.md) — `KeyStorage` / `KeyRecord` / `NewInMemoryKeyStore` hold the server's RSA key and any app keys; `JWKSHandler` serves `/.well-known/jwks.json`.
+- [../keys/DESIGN.md](../keys/DESIGN.md) — `KeyStorage` / `KeyRecord` / `NewInMemoryKeyStore` / `PutKeyRequest` hold the server's RSA key and any app keys; `JWKSHandler` serves `/.well-known/jwks.json`.
 - [../utils/DESIGN.md](../utils/DESIGN.md) — `ComputeKid` derives RFC 7638 thumbprints for the JWT `kid` header; `EncodePublicKeyPEM` serialises the generated RSA public key for `KeyRecord`.

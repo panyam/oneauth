@@ -1,45 +1,173 @@
 package: core
-purpose: Transport-level foundation types — tokens, scopes, RFC 9396 authorization details, blacklist/rate-limit primitives, and a tiny user-id context shim — shared across every OneAuth subpackage.
+purpose: Transport-level foundation types — tokens, scopes, RFC 9396 authorization details, blacklist / rate-limit primitives, and a typed subject context shim — shared across every OneAuth subpackage.
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: RefreshToken
     kind: struct
-    role: Long-lived OAuth refresh token with family/generation rotation lineage, RAR details, and revocation flag.
-    why: Rotation detection (token reuse / family revocation) requires per-token lineage state that lives outside any JWT claim.
+    role: Long-lived OAuth refresh token with Subject (RFC 7519 sub), Family / Generation rotation lineage, RAR details, and revocation flag.
+    why: Rotation detection (token reuse / family revocation) requires per-token lineage state that lives outside any JWT claim; storing the bare bearer token alongside the SHA256 hash lets the rotate path return a fresh value without making the caller re-hash.
+  - name: RefreshToken.IsExpired
+    kind: method
+    role: Wall-clock check against ExpiresAt.
+    why: Keeps every grant handler from duplicating the same time.Now().After comparison and getting the timezone wrong.
+  - name: RefreshToken.IsValid
+    kind: method
+    role: True iff token is not revoked AND not expired.
+    why: Two-line composite that callers want at almost every read site; centralising it avoids subtle "forgot to check Revoked" bugs.
   - name: APIKey
     kind: struct
-    role: Long-lived programmatic credential split into public KeyID + bcrypt-hashed secret.
+    role: Long-lived programmatic credential split into public KeyID + bcrypt-hashed secret, bound to a Subject.
     why: Bearer-style alternative to OAuth flows for service-to-service callers that can rotate independently of user tokens.
+  - name: APIKey.IsExpired
+    kind: method
+    role: Wall-clock check against ExpiresAt; nil ExpiresAt means never expires.
+    why: API keys differ from refresh tokens in that expiry is optional; encoding that asymmetry on the type stops callers from inventing their own nil-handling.
+  - name: APIKey.IsValid
+    kind: method
+    role: True iff key is not revoked AND not expired.
+    why: Matches RefreshToken.IsValid so callers have one mental model for "is this credential usable right now".
   - name: TokenPair
     kind: struct
     role: OAuth token-endpoint response payload (access + refresh + scope + RAR + RFC 8693 IssuedTokenType).
     why: One shape for every grant the AS supports, so handlers don't fork response builders per grant_type.
   - name: TokenRequest
     kind: struct
-    role: Union of every field the token endpoint accepts across password, refresh, client_credentials, jwt-bearer (RFC 7523), and token-exchange (RFC 8693) grants.
-    why: Single struct keeps the transport-agnostic TokenIssuer signature stable as new grant types arrive.
+    role: Union of every field the token endpoint accepts across password, refresh_token, client_credentials, jwt-bearer (RFC 7523), and token-exchange (RFC 8693) grants.
+    why: Single struct keeps the transport-agnostic TokenIssuer signature stable as new grant types arrive; client_assertion fields stay distinct from the resource-owner assertion field because RFC 7523 §2.2 + OIDC Core §9 treat them as separate concerns.
   - name: TokenError
     kind: struct
-    role: OAuth 2.0 compliant error/error_description response body.
+    role: OAuth 2.0 compliant error / error_description response body.
     why: Matches the wire shape RFC 6749 §5.2 mandates so handlers can json-encode directly.
+  - name: CreateRefreshTokenRequest
+    kind: struct
+    role: Inputs for RefreshTokenStore.CreateRefreshToken — Subject, ClientID, DeviceInfo, Scopes.
+    why: gRPC-shape convention — wrapping arguments in a request struct keeps the interface stable when new optional fields appear (e.g., RAR details, audience).
+  - name: CreateRefreshTokenResponse
+    kind: struct
+    role: Carries the issued *RefreshToken.
+    why: Symmetric with the request; a response struct gives room to grow without breaking signatures.
+  - name: GetRefreshTokenRequest
+    kind: struct
+    role: Lookup by bare token value.
+    why: Stores hash internally if they want, but the public lookup contract is "by token" because that is what clients present.
+  - name: GetRefreshTokenResponse
+    kind: struct
+    role: Carries the looked-up *RefreshToken.
+    why: gRPC-shape parity.
+  - name: RotateRefreshTokenRequest
+    kind: struct
+    role: Identifies the old token to rotate.
+    why: Keeping the rotate path as its own request/response makes the theft-detection contract (ErrTokenReused) easy to spot at the call site.
+  - name: RotateRefreshTokenResponse
+    kind: struct
+    role: Carries the freshly minted *RefreshToken (same Family, Generation + 1).
+    why: Returning the new token lets handlers issue it without a second store round-trip.
+  - name: RevokeRefreshTokenRequest
+    kind: struct
+    role: Identifies a single token to revoke by value.
+    why: Single-token revoke is its own request so backends can implement it differently from family / subject revocation.
+  - name: RevokeRefreshTokenResponse
+    kind: struct
+    role: Empty acknowledgement.
+    why: gRPC-shape parity — an empty response leaves room to add fields (e.g., revoked_count) later.
+  - name: RevokeSubjectTokensRequest
+    kind: struct
+    role: Identifies the Subject whose tokens are to be revoked en masse.
+    why: Subject-wide revoke is a common admin / "log out everywhere" operation; separating it from family revoke documents intent.
+  - name: RevokeSubjectTokensResponse
+    kind: struct
+    role: Empty acknowledgement.
+    why: Same as RevokeRefreshTokenResponse.
+  - name: RevokeTokenFamilyRequest
+    kind: struct
+    role: Identifies the Family to revoke (theft-detection trigger).
+    why: Family revoke is qualitatively different from subject revoke — only Family lets you scope to "this rotation chain only" without nuking other devices.
+  - name: RevokeTokenFamilyResponse
+    kind: struct
+    role: Empty acknowledgement.
+    why: gRPC-shape parity.
+  - name: GetSubjectTokensRequest
+    kind: struct
+    role: Subject whose active refresh tokens are being enumerated.
+    why: Used by admin / session-management UI ("which devices are logged in") and for cleanup before issuing a fresh subject-wide credential.
+  - name: GetSubjectTokensResponse
+    kind: struct
+    role: Carries the slice of active *RefreshToken values.
+    why: gRPC-shape parity.
+  - name: CleanupExpiredTokensRequest
+    kind: struct
+    role: Empty request — maintenance trigger.
+    why: gRPC-shape parity even when no inputs exist; future versions can add a max-rows knob without breaking callers.
+  - name: CleanupExpiredTokensResponse
+    kind: struct
+    role: Empty acknowledgement.
+    why: Same.
   - name: RefreshTokenStore
     kind: interface
-    role: CRUD + rotation/revocation/family-revoke/cleanup operations over refresh tokens.
-    why: Split from APIKeyStore so backends can implement one without the other; rotation semantics encoded in the interface (RotateRefreshToken returns ErrTokenReused).
+    role: CRUD + rotation / revocation / family-revoke / subject-revoke / cleanup operations over refresh tokens; gRPC-shape — every method takes ctx + *XRequest and returns *XResponse, error.
+    why: Split from APIKeyStore so backends can implement one without the other; the request/response wrappers let the contract evolve without breaking signatures; rotation semantics encoded in the interface (RotateRefreshToken returns ErrTokenReused).
+  - name: CreateAPIKeyRequest
+    kind: struct
+    role: Inputs for APIKeyStore.CreateAPIKey — Subject, Name, Scopes, optional ExpiresAt.
+    why: gRPC-shape parity with refresh-token store; nil ExpiresAt encodes "never expires".
+  - name: CreateAPIKeyResponse
+    kind: struct
+    role: Carries FullKey (keyID + "_" + secret, shown exactly once) and the *APIKey record.
+    why: Returning both lets handlers persist the record server-side AND hand the plaintext to the user in the same call — a second fetch would not include the secret.
+  - name: GetAPIKeyByIDRequest
+    kind: struct
+    role: Lookup by public KeyID.
+    why: Admin / introspection paths don't have the secret; they identify keys by KeyID.
+  - name: GetAPIKeyByIDResponse
+    kind: struct
+    role: Carries the matched *APIKey or nil.
+    why: gRPC-shape parity.
+  - name: ValidateAPIKeyRequest
+    kind: struct
+    role: Inputs for verifying a presented FullKey.
+    why: Validation needs the secret portion (to bcrypt-compare), so it is distinct from a lookup-by-id request.
+  - name: ValidateAPIKeyResponse
+    kind: struct
+    role: Carries the matched *APIKey when validation succeeds.
+    why: Validators usually need the record's scopes / subject right after, so returning the whole struct saves a follow-up Get call.
+  - name: RevokeAPIKeyRequest
+    kind: struct
+    role: Identifies the KeyID to revoke.
+    why: Mirrors RevokeRefreshTokenRequest but addresses by KeyID rather than bare token.
+  - name: RevokeAPIKeyResponse
+    kind: struct
+    role: Empty acknowledgement.
+    why: gRPC-shape parity.
+  - name: ListSubjectAPIKeysRequest
+    kind: struct
+    role: Subject whose API keys are being enumerated.
+    why: Used by user-facing "manage your API keys" UIs; the response intentionally excludes secrets.
+  - name: ListSubjectAPIKeysResponse
+    kind: struct
+    role: Carries the []*APIKey slice (no secrets).
+    why: gRPC-shape parity; the comment in the interface makes the no-secrets rule explicit so future fields don't accidentally leak.
+  - name: UpdateAPIKeyLastUsedRequest
+    kind: struct
+    role: Identifies the KeyID whose LastUsedAt timestamp is being bumped.
+    why: Keeps the LastUsed write path as its own RPC so backends can batch / debounce it independently of validation.
+  - name: UpdateAPIKeyLastUsedResponse
+    kind: struct
+    role: Empty acknowledgement.
+    why: gRPC-shape parity.
   - name: APIKeyStore
     kind: interface
-    role: CRUD + validation over API keys; CreateAPIKey returns the plaintext fullKey exactly once.
-    why: Mirror of RefreshTokenStore but with secret-shown-once semantics callers must not forget.
+    role: CRUD + validation over API keys; gRPC-shape — every method takes ctx + *XRequest and returns *XResponse, error; CreateAPIKey returns the plaintext FullKey exactly once.
+    why: Mirror of RefreshTokenStore but with secret-shown-once semantics callers must not forget; the request/response wrappers leave room to add fields (e.g., per-key metadata) without breaking signatures.
   - name: GenerateSecureToken
     kind: func
-    role: Crypto/rand-backed 32-byte → 64-char hex token generator.
+    role: crypto/rand-backed 32-byte → 64-char hex token generator.
     why: One audited entry point for "give me an opaque token" so callers can't roll their own with math/rand.
   - name: GenerateAPIKeyID
     kind: func
     role: Generates the public half of an API key with the "oa_" prefix.
-    why: Prefix makes leaked keys greppable in logs/secret scanners; centralised so the prefix is unmissable.
+    why: Prefix makes leaked keys greppable in logs / secret scanners; centralised so the prefix is unmissable.
   - name: GenerateAPIKeySecret
     kind: func
     role: Generates the secret half of an API key (32 random bytes hex-encoded).
@@ -47,7 +175,7 @@ entities:
   - name: ErrTokenNotFound
     kind: var
     role: Sentinel for store lookups that find nothing.
-    why: Stable sentinel lets upper layers map storage misses to OAuth invalid_grant without type assertions on store-specific errors.
+    why: Stable sentinel lets upper layers map storage misses to OAuth invalid_grant without type-asserting on store-specific errors.
   - name: ErrTokenExpired
     kind: var
     role: Sentinel for tokens past their ExpiresAt.
@@ -58,19 +186,19 @@ entities:
     why: Separate from ErrTokenExpired so revocation observability (counts, alerts) stays clean.
   - name: ErrTokenReused
     kind: var
-    role: Sentinel returned by RotateRefreshToken when a revoked token is presented for rotation.
+    role: Sentinel returned by RefreshTokenStore.RotateRefreshToken when a revoked token is presented for rotation.
     why: Theft-detection trigger — handlers must respond by revoking the whole family, not just the one token.
   - name: ErrInvalidGrant
     kind: var
-    role: Sentinel for grant validation failures inside grant handlers.
-    why: Maps directly to RFC 6749 §5.2 "invalid_grant"; avoids re-creating it in every grant handler.
+    role: Sentinel for grant-validation failures inside grant handlers.
+    why: Maps directly to RFC 6749 §5.2 invalid_grant; avoids re-creating it in every grant handler.
   - name: ErrInvalidScope
     kind: var
     role: Sentinel for unsupported / disallowed scopes.
-    why: Lets ValidateRequestedScopes' caller produce RFC 6749 "invalid_scope" without depending on the scopes file's helpers.
+    why: Lets ValidateRequestedScopes' caller produce RFC 6749 invalid_scope without depending on the scope helpers themselves.
   - name: ErrAPIKeyNotFound
     kind: var
-    role: Sentinel for APIKeyStore.GetAPIKeyByID / ValidateAPIKey misses.
+    role: Sentinel for APIKeyStore.GetAPIKeyByID / APIKeyStore.ValidateAPIKey misses.
     why: Distinct from ErrTokenNotFound so API-key flows don't accidentally share error-handling branches with refresh tokens.
   - name: TokenExpiryAccessToken
     kind: const
@@ -82,7 +210,7 @@ entities:
     why: Same as above — single knob the rest of the lib can override per-deployment.
   - name: AuthorizationDetail
     kind: struct
-    role: One RFC 9396 authorization_details object; common fields (type/locations/actions/datatypes/identifier/privileges) plus a typed Extra map for API-specific extensions.
+    role: One RFC 9396 authorization_details object; common fields (type / locations / actions / datatypes / identifier / privileges) plus a typed Extra map for API-specific extensions.
     why: RFC 9396 mandates a flat JSON shape where extensions live alongside common fields; the Extra map + custom marshallers preserve that shape without forcing each consumer to reimplement it.
   - name: AuthorizationDetail.MarshalJSON
     kind: method
@@ -91,7 +219,7 @@ entities:
   - name: AuthorizationDetail.UnmarshalJSON
     kind: method
     role: Two-pass decode that lifts unknown fields into Extra while keeping common fields strongly typed.
-    why: Lets handlers downcast known fields (Locations/Actions) without losing API-specific extensions they don't know about.
+    why: Lets handlers downcast known fields (Locations / Actions) without losing API-specific extensions they don't know about.
   - name: AuthorizationDetail.Validate
     kind: method
     role: Enforces the one hard requirement from RFC 9396 §2 — non-empty type.
@@ -102,11 +230,11 @@ entities:
     why: Token issuers process []AuthorizationDetail; a single-call validator keeps grant handlers clean.
   - name: FilterByType
     kind: func
-    role: Selects RAR entries whose type matches a string.
+    role: Selects RAR entries whose Type matches a string.
     why: API resource servers care only about their own type; this is the canonical way to slice the bag.
   - name: ErrInvalidAuthorizationDetails
     kind: var
-    role: Sentinel mapped to the RFC 9396 §5.2 "invalid_authorization_details" OAuth error code.
+    role: Sentinel mapped to the RFC 9396 §5.2 invalid_authorization_details OAuth error code.
     why: Wraps every RAR validation failure so transport layers can detect it via errors.Is and emit the right OAuth error code.
   - name: ScopeRead
     kind: const
@@ -123,7 +251,7 @@ entities:
   - name: ScopeOffline
     kind: const
     role: Built-in "offline" scope; presence enables refresh-token issuance.
-    why: Encodes the OIDC convention that "offline_access" / "offline" gates long-lived sessions, so issuers don't need to hardcode the string.
+    why: Encodes the OIDC convention that offline_access / offline gates long-lived sessions, so issuers don't need to hardcode the string.
   - name: ScopeAdmin
     kind: const
     role: Built-in "admin" scope identifier.
@@ -131,14 +259,14 @@ entities:
   - name: AllBuiltinScopes
     kind: func
     role: Returns the canonical slice of built-in scope names.
-    why: Lets discovery/metadata handlers advertise the same set the validator accepts without manual sync.
-  - name: GetUserScopesFunc
+    why: Lets discovery / metadata handlers advertise the same set the validator accepts without manual sync.
+  - name: GetSubjectScopesFunc
     kind: type
-    role: Callback signature an application implements to declare what scopes a user is allowed to request.
-    why: Keeps scope-authorization policy in app code (roles, plans, groups) without core having to model any of it.
-  - name: DefaultGetUserScopes
+    role: Callback signature an application implements to declare what scopes a Subject (user ID or client_id) is allowed to request.
+    why: Keeps scope-authorization policy in app code (roles, plans, groups) without core having to model any of it; the Subject argument unifies user-bound and client_credentials flows under one signature.
+  - name: DefaultGetSubjectScopes
     kind: func
-    role: Pre-baked GetUserScopesFunc granting read/write/profile/offline to every user.
+    role: Pre-baked GetSubjectScopesFunc granting read / write / profile / offline to every subject.
     why: Sensible default so demos and the reference server work out of the box; production deployments override it.
   - name: ParseScopes
     kind: func
@@ -166,7 +294,7 @@ entities:
     why: Used by middleware deciding whether a token satisfies an endpoint's scope requirement.
   - name: ValidateRequestedScopes
     kind: func
-    role: Partitions requested scopes into valid/invalid relative to an allowed set.
+    role: Partitions requested scopes into valid / invalid relative to an allowed set.
     why: Lets the AS return both — issue the valid subset and report the invalid ones in error_description.
   - name: ScopesEqual
     kind: func
@@ -178,12 +306,16 @@ entities:
     why: JWTs are self-contained — without a blacklist there is no way to revoke a still-valid access token mid-flight; pluggable so single-node and Redis-backed deployments share callers.
   - name: InMemoryBlacklist
     kind: struct
-    role: Thread-safe map-of-jti-to-expiry TokenBlacklist implementation.
+    role: Thread-safe map[jti]expiry TokenBlacklist implementation.
     why: Zero-dep default that lets single-process deployments revoke without external infrastructure.
   - name: InMemoryBlacklist.CleanupExpired
     kind: method
     role: Removes entries whose expiry has passed.
     why: Without periodic cleanup the map grows forever; entries past expiry are already inert but waste memory.
+  - name: InMemoryBlacklist.Len
+    kind: method
+    role: Reports the current entry count including stale entries not yet swept.
+    why: Useful for tests and observability; documenting "includes expired" prevents users from treating it as live revocation count.
   - name: RateLimiter
     kind: interface
     role: One-method Allow(key) bool primitive.
@@ -199,7 +331,7 @@ entities:
   - name: AccountLockout
     kind: struct
     role: Tracks consecutive auth failures per key and locks accounts after MaxAttempts for LockDuration.
-    why: Distinct from rate-limiting — lockout is binary (locked/unlocked) and gets reset on success, where a rate limiter only smooths request bursts.
+    why: Distinct from rate-limiting — lockout is binary (locked / unlocked) and gets reset on success, where a rate limiter only smooths request bursts.
   - name: AccountLockout.IsLocked
     kind: method
     role: Returns whether key is currently locked; auto-expires entries past LockDuration.
@@ -216,16 +348,16 @@ entities:
     kind: method
     role: Admin-action unlock.
     why: Operators need an out-of-band way to clear a lockout (e.g., user recovered their password); distinct method name documents intent.
-  - name: GetUserIDFromContext
+  - name: GetSubjectFromContext
     kind: func
-    role: Reads the logged-in user ID from context.Context under a private key.
-    why: Private context key type prevents accidental collisions with other libraries; helper avoids exposing the key type itself.
-  - name: SetUserIDInContext
+    role: Reads the authenticated Subject from context.Context under a private key.
+    why: Private context-key type prevents accidental collisions with other libraries; helper avoids exposing the key type itself; "Subject" not "UserID" because the same context slot carries both user IDs and client_credentials client_ids.
+  - name: SetSubjectInContext
     kind: func
-    role: Writes the user ID into context.Context using the same private key.
-    why: Symmetric with GetUserIDFromContext; centralising the key means middleware and handlers stay in sync.
-  - name: DefaultUserParamName
+    role: Writes the Subject into context.Context using the same private key.
+    why: Symmetric with GetSubjectFromContext; centralising the key means middleware and handlers stay in sync.
+  - name: DefaultSubjectParamName
     kind: const
-    role: The string ("loggedInUserId") used as the context-key value.
+    role: The string ("loggedInSubject") used as the context-key value.
     why: Exposed for templates / external code that need to reference the same name — but real lookups still go through the typed helpers.
 depends_on: []

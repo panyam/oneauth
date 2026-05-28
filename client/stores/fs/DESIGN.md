@@ -29,9 +29,9 @@ Filesystem-backed implementation of the oneauth client's `CredentialStore`. Hold
 - **URL normalization is lossy and intentional.** `normalizeURL` discards path, query, and userinfo — only `scheme://host` (with `https` defaulted) survives as the key. `http://localhost:8080/v1` and `http://localhost:8080/v2` therefore share one credential entry, which is the intended dedup behavior but surprising if you expected path-scoped tokens.
 - **`GetCredential` signals "missing" as `(nil, nil)`.** The error return is reserved for URL-parsing failures; a successful lookup that finds nothing returns no error. Callers that only check `err` will silently treat an unauthenticated server as authenticated with a nil credential.
 - **Malformed files abort construction.** A corrupt `credentials.json` makes `NewFSCredentialStore` return an error rather than starting fresh, so a single bad file can lock a user out of their CLI until they delete it manually. Only `os.IsNotExist` is tolerated.
-- **Whole-file rewrite, single-writer by design.** Every `Save` serializes and overwrites the entire file with `os.WriteFile` — there is no per-key partial write and no file lock, so two processes pointing at the same path will clobber each other.
+- **Whole-file rewrite, no atomic swap, single-writer by design.** Every `Save` serializes and overwrites the entire file with `os.WriteFile` — there is no per-key partial write, no temp-file-and-rename, and no file lock, so a crash mid-write can truncate the file and two processes pointing at the same path will clobber each other.
 - **Default-path discovery silently falls back.** If `os.UserConfigDir` fails, the constructor falls back to `~/.config` via `os.UserHomeDir`. On platforms where the user config dir differs (notably macOS, where it is `~/Library/Application Support`), the actual location can differ from what tests or docs assume — `Path()` is the source of truth.
 
 ## Depends on
 
-- [`client/`](../../DESIGN.md) — `ServerCredential`
+- [`client/`](../../DESIGN.md) — `ServerCredential`: FSCredentialStore implements `client.CredentialStore` and stores `client.ServerCredential` values keyed by normalized server URL.

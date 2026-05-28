@@ -42,7 +42,7 @@ What it owns is the channel-aware bookkeeping that sits *between* a provider cal
 
 ### First-time OAuth login or returning user
 
-The headline flow — what runs when a user clicks "Login with Google". `SaveUserAndRedirect` is the post-token-exchange entry; the new-vs-existing decision happens inside `EnsureAuthUser` based on whether the email identity already exists.
+The headline flow — what runs when a user clicks "Login with Google". `OAuthBridge.SaveUserAndRedirect` is the post-token-exchange entry; the new-vs-existing decision happens inside `EnsureAuthUser` based on whether the email identity already exists.
 
 ```mermaid
 sequenceDiagram
@@ -63,10 +63,10 @@ sequenceDiagram
   CB->>Provider: fetch userInfo (email, name, picture)
   CB->>Bridge: SaveUserAndRedirect(authtype, provider, token, userInfo)
   Bridge->>Ensure: EnsureAuthUser(...)
-  Ensure->>IS: GetIdentity("email", email)
+  Ensure->>IS: GetIdentity(ctx, &GetIdentityRequest{IdentityType:"email", IdentityValue:email})
   alt identity exists
-    Ensure->>US: GetUserById(identity.UserID)
-    Ensure->>CS: GetChannel(provider, identityKey, createIfMissing=true)
+    Ensure->>US: GetUserById(ctx, &GetUserByIDRequest{UserID})
+    Ensure->>CS: GetChannel(ctx, &GetChannelRequest{Provider, IdentityKey, CreateIfMissing:true})
     Ensure->>CS: SaveChannel (merge userInfo into channel.Profile)
     opt provider not in profile["channels"]
       Ensure->>US: SaveUser (append channel, backfill name/picture)
@@ -74,19 +74,19 @@ sequenceDiagram
     Ensure-->>Bridge: existing user
   else identity is new
     Ensure->>Ensure: newSecureUserId()
-    Ensure->>US: CreateUser(userId, profile)
+    Ensure->>US: CreateUser(ctx, &CreateUserRequest{UserID, IsActive:true, Profile})
     Ensure->>IS: SaveIdentity(Verified = authtype=="oauth")
     Ensure->>CS: SaveChannel
     Ensure-->>Bridge: new user
   end
-  Bridge->>OA: SetLoggedInUserID(user.Id(), w, r)
+  Bridge->>OA: SetLoggedInSubject(user.Id(), w, r)
   Bridge->>Browser: 302 to oauthCallbackURL cookie (or "/")
   Bridge->>Browser: clear oauthCallbackURL cookie
 ```
 
 ### Linking a new provider to an existing user
 
-The branch a provider callback takes when `GetLinkingUserID` returns non-empty — the user is *already* logged in and is adding (say) Google to a local-only account. Critically, this path never calls `EnsureAuthUser`; it bypasses the new-user creation logic entirely and enforces an email-match check.
+The branch a provider callback takes when `OAuthBridge.GetLinkingUserID` returns non-empty — the user is *already* logged in and is adding (say) Google to a local-only account. Critically, this path never calls `EnsureAuthUser`; it bypasses the new-user creation logic entirely and enforces an email-match check.
 
 ```mermaid
 sequenceDiagram
@@ -110,12 +110,12 @@ sequenceDiagram
   Bridge->>Sess: PopString("linkingUserID")
   Bridge-->>CB: userID (non-empty → linking mode)
   CB->>Bridge: HandleLinkOAuthCallback(userID, provider, userInfo, w, r)
-  Bridge->>US: GetUserById(userID)
-  Bridge->>Bridge: compare oauthEmail vs user.Profile()["email"]
+  Bridge->>US: GetUserById(ctx, &GetUserByIDRequest{UserID})
+  Bridge->>Bridge: compare oauthEmail vs user.Profile()["email"] (EqualFold)
   alt emails mismatch
     Bridge->>Browser: 403 "OAuth email does not match"
   else emails match
-    Bridge->>US: SaveChannel(provider, identityKey, userInfo)
+    Bridge->>US: SaveChannel(ctx, &SaveChannelRequest{Channel{Provider, IdentityKey, Profile:userInfo}})
     opt provider not in profile["channels"]
       Bridge->>US: SaveUser (append channel, backfill name/picture)
     end
@@ -125,23 +125,27 @@ sequenceDiagram
 
 ## Gotchas
 
-- **Why `EnsureAuthUser` is separate from the callback handler.** `SaveUserAndRedirect` is HTTP plumbing — read a cookie, set a cookie, redirect. `EnsureAuthUser` is store orchestration — three-store transactional-ish bookkeeping with new/existing branching. Keeping them on opposite sides of `AuthUserStore` means localauth's password flow can reuse the same orchestrator without touching anything HTTP-shaped, and tests can drive the orchestrator directly without spinning up a server.
+- **Why `EnsureAuthUser` is separate from the callback handler.** `OAuthBridge.SaveUserAndRedirect` is HTTP plumbing — read a cookie, set a cookie, redirect. `EnsureAuthUser` is store orchestration — three-store transactional-from-the-caller's-view bookkeeping with new/existing branching. Keeping them on opposite sides of `AuthUserStore` means `localauth`'s password flow can reuse the same orchestrator without touching anything HTTP-shaped, and tests can drive the orchestrator directly without spinning up a server.
 
 - **Email is the join key for channel linking.** Two channels with the same email (e.g., `local` + `google` both for `alice@example.com`) deliberately collapse onto one `User` via the shared email `Identity`. This is the whole point of the channel model. The consequence: a user who signed up locally and then clicks "Login with Google" with the same email lands on their *existing* account, not a new one. `profile["channels"]` tracks which providers have been linked.
 
 - **`Verified = authtype == "oauth"` is load-bearing.** New-user creation in `handleNewUser` trusts OAuth providers to have verified the email (Google, GitHub, etc., all return verified email). Local signups create the identity with `Verified=false` and must go through the email-verification flow before the identity is trusted for linking. If you ever add an OAuth provider that doesn't verify emails, this flag has to flip — otherwise it's an account-takeover vector.
 
-- **Account-linking requires email match — strictly.** `HandleLinkOAuthCallback` refuses to link a Google account whose email differs from the logged-in user's email (case-insensitive compare, but otherwise exact). Without this, a logged-in user could link an attacker's Google account and then "Login with Google" would give the attacker the user's session. The `EqualFold` check at `callback.go` is the hijack-prevention point.
+- **Account-linking requires email match — strictly.** `OAuthBridge.HandleLinkOAuthCallback` refuses to link a Google account whose email differs from the logged-in user's email (case-insensitive compare via `strings.EqualFold`, but otherwise exact). Without this, a logged-in user could link an attacker's Google account and then "Login with Google" would give the attacker the user's session. The `EqualFold` check in `callback.go` is the hijack-prevention point.
 
-- **`GetLinkingUserID` uses `PopString`, not `GetString`.** The linking user ID is single-use — once a callback consumes it, the session slot is cleared. Without pop semantics a stale `linkingUserID` could redirect a normal login into the linking path on the next OAuth round-trip.
+- **`OAuthBridge.GetLinkingUserID` uses `PopString`, not `GetString`.** The linking user ID is single-use — once a callback consumes it, the session slot is cleared. Without pop semantics a stale `linkingUserID` could redirect a normal login into the linking path on the next OAuth round-trip.
 
 - **`oauthCallbackURL` cookie carries return-to state across the OAuth round-trip.** Set by the caller before kicking off OAuth, read on the way back, and explicitly cleared on success. If the cookie is missing or empty, the redirect falls back to `"/"`. Scheme-less URLs get prefixed with `OAUTH2_BASE_URL` — relative paths are accepted, but an attacker-controlled fully-qualified URL is not normalised (this is an open-redirect surface to be aware of when wiring up the cookie source).
 
 - **`AuthUserStore.EnsureAuthUser` is a method on the store interface, not on the bridge.** Counter-intuitive — you might expect orchestration to live on the bridge. But the store impl is where the three sub-stores (`UserStore`, `IdentityStore`, `ChannelStore`) all live together, so the closure produced by `NewEnsureAuthUserFunc` naturally attaches to the store-impl-side. The bridge is then dependency-light: just call `b.UserStore.EnsureAuthUser(...)`.
 
-- **`OAUTH2_BASE_URL` is read from the process environment inside `SaveUserAndRedirect`.** Not from config, not from `OneAuth`. If you're standing up a new deployment and the redirect after login ends up scheme-less, this is the env var to set.
+- **`OAUTH2_BASE_URL` is read from the process environment inside `OAuthBridge.SaveUserAndRedirect`.** Not from config, not from `OneAuth`. If you're standing up a new deployment and the redirect after login ends up scheme-less, this is the env var to set.
+
+- **Session-setter is `OneAuth.SetLoggedInSubject`, not `SetLoggedInUserID`.** The vocab is "subject" everywhere in `httpauth` after the Subject-rename refactor. The user ID minted in `handleNewUser` *is* the subject — they're the same string — but the API surface uses "subject" because OneAuth issues tokens for machine subjects too, not just human users.
+
+- **Stores speak `(ctx, *Request)`, not positional args.** All four store interfaces (`UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`) follow the gRPC-shape convention from the project's architectural decisions. The orchestrator passes through a `context.Background()` from `EnsureAuthUserFunc` (since the func signature doesn't take a context); the link-path passes `r.Context()`. If you ever need to plumb deadlines or cancellation through `EnsureAuthUser`, the signature of `EnsureAuthUserFunc` is the place to widen.
 
 ## Depends on
 
-- `../accounts` — `User`, `BasicUser`, `Identity`, `Channel`, `IdentityKey`, `LinkedChannels`, `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore` (the account model and store interfaces composed into `AuthUserStore` and consumed by `EnsureAuthUserFunc`).
-- `../httpauth` — `OneAuth` (held on `OAuthBridge` for session/cookie lifecycle via `SetLoggedInUserID` and the `linkingUserID` session round-trip).
+- `../accounts` — `User`, `BasicUser`, `Identity`, `Channel`, `IdentityKey`, `LinkedChannels`, `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`, and the `(ctx, *Req)`-shape request types (`GetUserByIDRequest`, `SaveUserRequest`, `CreateUserRequest`, `GetIdentityRequest`, `SaveIdentityRequest`, `GetChannelRequest`, `SaveChannelRequest`). The whole account model that `AuthUserStore` composes and `EnsureAuthUserFunc` consumes.
+- `../httpauth` — `OneAuth` (held on `OAuthBridge` for session/cookie lifecycle via `SetLoggedInSubject` and the `linkingUserID` session round-trip).

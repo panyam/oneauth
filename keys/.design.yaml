@@ -1,8 +1,8 @@
 package: keys
 purpose: Signing-key storage, kid-indexed lookup, encryption-at-rest, grace-period rotation, and JWKS publication/consumption for OneAuth.
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: KeyRecord
     kind: struct
@@ -10,7 +10,7 @@ entities:
     why: Collapses what used to be four per-field accessors into one value so decorators forward one record, not many getters.
   - name: KeyLookup
     kind: interface
-    role: Read-only two-method contract — GetKey(clientID) and GetKeyByKid(kid).
+    role: Read-only two-method contract — GetKey(ctx, *GetKeyRequest) and GetKeyByKid(ctx, *GetKeyByKidRequest).
     why: Lets read-only sources like a remote JWKS plug in without faking write methods, and is the unit CompositeKeyLookup composes.
   - name: KeyStorage
     kind: interface
@@ -20,16 +20,80 @@ entities:
     kind: interface
     role: KeyLookup plus Add, Remove, and CleanExpired, keyed by kid with an optional expiry.
     why: Lets retired grace-period keys persist across process restarts in stores/ backends rather than living only in memory.
+  - name: GetKeyRequest
+    kind: struct
+    role: Request type carrying ClientID into KeyLookup.GetKey.
+    why: gRPC-shape lets middleware swap implementations without touching call sites.
+  - name: GetKeyResponse
+    kind: struct
+    role: Response wrapping a *KeyRecord for KeyLookup.GetKey.
+    why: Pointer return lets nil-on-error stay consistent with the gRPC-shape convention.
+  - name: GetKeyByKidRequest
+    kind: struct
+    role: Request type carrying Kid into KeyLookup.GetKeyByKid.
+    why: First-class Kid request makes it impossible to confuse with a clientID lookup at call sites.
+  - name: GetKeyByKidResponse
+    kind: struct
+    role: Response wrapping a *KeyRecord for KeyLookup.GetKeyByKid.
+    why: Symmetric with GetKeyResponse so validators handle both lookups identically.
+  - name: PutKeyRequest
+    kind: struct
+    role: Request carrying a *KeyRecord into KeyStorage.PutKey.
+    why: Pointer-to-record lets the implementation mutate Kid (auto-compute) without an extra return value.
+  - name: PutKeyResponse
+    kind: struct
+    role: Empty response for KeyStorage.PutKey.
+    why: Empty body still keeps the (ctx, *XRequest) → (*XResponse, error) shape uniform.
+  - name: DeleteKeyRequest
+    kind: struct
+    role: Request carrying ClientID into KeyStorage.DeleteKey.
+    why: Symmetric request shape with the rest of the API.
+  - name: DeleteKeyResponse
+    kind: struct
+    role: Empty response for KeyStorage.DeleteKey.
+    why: Empty body preserves the gRPC-shape convention.
+  - name: ListKeyIDsRequest
+    kind: struct
+    role: Empty request for KeyStorage.ListKeyIDs.
+    why: Empty request exists so the shape rule has no exceptions.
+  - name: ListKeyIDsResponse
+    kind: struct
+    role: Response carrying []string of clientIDs.
+    why: Drives JWKSHandler iteration without coupling it to InMemoryKeyStore internals.
+  - name: AddKidRequest
+    kind: struct
+    role: Request carrying Kid, Key, Algorithm, ClientID, and ExpiresAt into KidStorage.Add.
+    why: ExpiresAt zero-value means no expiry, so the same call covers current-key registration and grace-period entries.
+  - name: AddKidResponse
+    kind: struct
+    role: Empty response for KidStorage.Add.
+    why: Keeps the shape uniform across the package.
+  - name: RemoveKidRequest
+    kind: struct
+    role: Request carrying Kid into KidStorage.Remove.
+    why: Idempotent shape — removing an absent kid is not an error.
+  - name: RemoveKidResponse
+    kind: struct
+    role: Empty response for KidStorage.Remove.
+    why: gRPC-shape uniformity.
+  - name: CleanExpiredRequest
+    kind: struct
+    role: Empty request for KidStorage.CleanExpired.
+    why: Reserved for future filters (e.g. dry-run) without breaking signature.
+  - name: CleanExpiredResponse
+    kind: struct
+    role: Response carrying Removed int — number of entries reclaimed.
+    why: Surfaces lazy-GC effect so callers can log how many entries the sweep dropped.
   - name: ErrKeyNotFound
-    kind: const
+    kind: var
     role: Sentinel returned when a clientID lookup misses.
     why: Stable signal middleware branches on instead of parsing error strings.
   - name: ErrAlgorithmMismatch
-    kind: const
+    kind: var
     role: Sentinel returned when a stored key's algorithm differs from the JWT alg header.
     why: Lets validators reject alg-substitution attacks distinctly from a missing key.
   - name: ErrKidNotFound
-    kind: const
+    kind: var
     role: Sentinel returned when a kid is unknown or has passed its grace expiry.
     why: Distinguishes "grace period elapsed" from "client never registered" for callers.
   - name: InMemoryKeyStore
@@ -50,8 +114,8 @@ entities:
     why: RWMutex keeps lookups concurrent with each other; writes serialise via Lock.
   - name: InMemoryKeyStore.GetKeyByKid
     kind: method
-    role: Resolves kid through the secondary index, then validates the entry still matches.
-    why: Re-checking entry.Kid==kid defends against a stale index slot after a rotation overwrite.
+    role: Resolves kid through the secondary index, then re-validates entry.Kid == kid.
+    why: Re-check defends against a stale index slot after a rotation overwrite.
   - name: InMemoryKeyStore.DeleteKey
     kind: method
     role: Removes a clientID and drops its kid from the secondary index.
@@ -60,30 +124,6 @@ entities:
     kind: method
     role: Returns all registered clientIDs.
     why: Drives JWKSHandler's iteration to publish public keys.
-  - name: InMemoryKeyStore.RegisterKey
-    kind: method
-    role: Legacy shim that calls PutKey with a freshly built KeyRecord.
-    why: Kept so pre-KeyRecord callers compile during migration.
-  - name: InMemoryKeyStore.GetVerifyKey
-    kind: method
-    role: Legacy shim returning just the Key field from GetKey.
-    why: Preserves the old field-accessor API while the codebase migrates to KeyRecord.
-  - name: InMemoryKeyStore.GetSigningKey
-    kind: method
-    role: Legacy shim aliasing GetVerifyKey.
-    why: Old callers distinguished sign vs verify; in-memory store treats them the same.
-  - name: InMemoryKeyStore.GetExpectedAlg
-    kind: method
-    role: Legacy shim returning just the Algorithm field.
-    why: Old validators called this directly before KeyRecord existed.
-  - name: InMemoryKeyStore.ListKeys
-    kind: method
-    role: Legacy alias for ListKeyIDs.
-    why: Older callers used this name; keeps them compiling.
-  - name: InMemoryKeyStore.GetCurrentKid
-    kind: method
-    role: Legacy shim returning the Kid field.
-    why: Old rotation code asked for the kid by name; KeyRecord now carries it.
   - name: EncryptedKeyStorage
     kind: struct
     role: KeyStorage decorator that transparently AES-256-GCM-encrypts HMAC secrets at rest; asymmetric keys pass through.
@@ -138,7 +178,7 @@ entities:
     why: Expired-as-missing keeps callers from accidentally using a key whose grace period has elapsed.
   - name: KidStore.CleanExpired
     kind: method
-    role: Removes all entries whose ExpiresAt has passed.
+    role: Removes all entries whose ExpiresAt has passed; returns count.
     why: Lazy GC — callers (or a background sweeper) decide when to reclaim memory.
   - name: KidStore.Len
     kind: method
@@ -180,26 +220,14 @@ entities:
     kind: method
     role: Stops the background refresh goroutine via stopCh.
     why: Lets tests and shutdown paths reclaim the ticker without leaking.
-  - name: JWKSKeyStore.GetVerifyKey
-    kind: method
-    role: Returns a cached public key for a clientID, refreshing on miss.
-    why: On-demand refresh (rate-limited by MinRefreshGap) covers fresh keys without waiting for the next tick.
-  - name: JWKSKeyStore.GetSigningKey
-    kind: method
-    role: Always returns an error because JWKS exposes only public keys.
-    why: Hard-fails callers that try to sign with a remote-keys-only store rather than silently doing the wrong thing.
   - name: JWKSKeyStore.GetKey
     kind: method
     role: Always returns ErrKeyNotFound since JWKS carries no clientID mapping.
     why: Forces validation paths to use kid (which is what JWKS provides) instead of guessing a clientID.
   - name: JWKSKeyStore.GetKeyByKid
     kind: method
-    role: Returns a cached public key by kid, refreshing on miss.
-    why: Matches the protocol — kids are the actual lookup primitive in JWKS-driven federation.
-  - name: JWKSKeyStore.GetExpectedAlg
-    kind: method
-    role: Returns the algorithm associated with a clientID (key in the cache map).
-    why: Symmetric with GetVerifyKey for legacy callers; will return ErrKeyNotFound on cache miss after a refresh attempt.
+    role: Returns a cached public key by kid; on cache miss, calls refresh() and retries before erroring.
+    why: Matches the protocol — kids are the actual lookup primitive in JWKS-driven federation — and miss-driven refresh (rate-limited by MinRefreshGap) covers freshly rotated keys without waiting for the tick.
   - name: JWKSOption
     kind: type
     role: Functional option type for JWKSKeyStore configuration.
@@ -216,5 +244,11 @@ entities:
     kind: func
     role: Option to set the minimum interval between any two refreshes.
     why: Prevents on-demand-miss refreshes from stampeding the upstream JWKS endpoint.
+flows:
+  - name: Kid-based verification across current and grace stores
+    why: Validator must resolve a JWT kid to a KeyRecord whether the key is current (KeyStorage), retired-but-in-grace (KidStore), or remote (JWKSKeyStore); CompositeKeyLookup hides which store served it.
+  - name: Key rotation with grace period
+    why: Zero-downtime rotation requires KidStore.Add (with future ExpiresAt) before KeyStorage.PutKey so in-flight tokens signed by the previous key still verify until grace lapses.
 depends_on:
-  - utils
+  - path: ../utils
+    entities: [ComputeKid, DecodeVerifyKey, IsAsymmetricAlg, JWK, JWKSet, JWKToPublicKey, PublicKeyToJWK]

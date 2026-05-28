@@ -1,16 +1,16 @@
 # apiauth
 
-`apiauth` is OneAuth's API-token core. It owns every standard OAuth 2.0 grant served at `POST /api/token` (password, refresh_token, client_credentials, RFC 7523 `urn:...:jwt-bearer`, RFC 8693 `urn:...:token-exchange`), the three token-endpoint client-auth methods (`client_secret_basic`, `client_secret_post`, RFC 7523 §2.2 / OIDC Core §9 `private_key_jwt`), the resource-server `APIMiddleware` (JWT, API keys, introspection fallback), RFC 7662 introspection (both server and client sides), RFC 7009 revocation, RFC 8414 / OIDC discovery and the matching upstream-proxy bridge, RFC 9728 protected-resource metadata, and end-to-end RFC 9396 `authorization_details` plumbing. Two entry points coexist by design: the legacy `APIAuth` struct (still the production token-endpoint handler whose `ServeHTTP` dispatches all five grants) and the newer composition root `OneAuth` (built by `NewOneAuth`, the path new transports — gRPC, MCP — should adopt). The split is deliberate: every transport-independent interface (`TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator`) follows the gRPC-shape convention from issue 175 (`(ctx, *XRequest) → (*XResponse, error)`), and the HTTP handlers in this package are thin wrappers — refresh-token *creation* with transport metadata stays in `APIAuth` rather than being pushed into the core so device info / IP / user-agent leakage stops at the HTTP boundary.
+`apiauth` is OneAuth's API-token core. It owns every standard OAuth 2.0 grant served at `POST /api/token` (password, refresh_token, client_credentials, RFC 7523 `urn:...:jwt-bearer`, RFC 8693 `urn:...:token-exchange`), the three token-endpoint client-auth methods (`client_secret_basic`, `client_secret_post`, RFC 7523 §2.2 / OIDC Core §9 `private_key_jwt`), the resource-server `APIMiddleware` (JWT, API keys, introspection fallback), RFC 7662 introspection (both server and client sides), RFC 7009 revocation, RFC 8414 / OIDC discovery and the matching upstream-proxy bridge, RFC 9728 protected-resource metadata, and end-to-end RFC 9396 `authorization_details` plumbing. Two entry points coexist by design: the legacy `APIAuth` struct (still the production token-endpoint handler whose `ServeHTTP` dispatches all five grants) and the newer composition root `OneAuth` (built by `NewOneAuth`, the path new transports — gRPC, MCP — should adopt). Per #218 these are no longer parallel implementations: `APIAuth.Issuer()` and `APIAuth.Validator()` lazy-build the same gRPC-shape interfaces that `NewOneAuth` wires (`(ctx, *XRequest) → (*XResponse, error)` per #175), and the old inline `CreateAccessToken` / `ValidateAccessToken*` / `VerifyTokenFunc` methods on `APIAuth` have been removed — every grant handler funnels through the `Issuer()` accessor and every middleware path through the `Validator()` accessor. HTTP handlers in this package are thin wrappers — refresh-token *creation* with transport metadata stays in `APIAuth` rather than being pushed into the core so device info / IP / user-agent leakage stops at the HTTP boundary.
 
 ## Contents
 
 - [Entities](#entities)
 - [Flows](#flows)
   - [Password grant via APIAuth](#password-grant-via-apiauth)
-  - [client_credentials with private_key_jwt](#client_credentials-with-private_key_jwt)
   - [Refresh token rotation with theft detection](#refresh-token-rotation-with-theft-detection)
-  - [Middleware token validation with introspection fallback](#middleware-token-validation-with-introspection-fallback)
-  - [Token revocation](#token-revocation)
+  - [client_credentials with private_key_jwt](#client_credentials-with-private_key_jwt)
+  - [Token introspection RFC 7662](#token-introspection-rfc-7662)
+  - [Token revocation RFC 7009](#token-revocation-rfc-7009)
 - [Gotchas](#gotchas)
 - [Depends on](#depends-on)
 
@@ -18,20 +18,22 @@
 
 | Entity | Kind | Role | Why |
 |---|---|---|---|
-| `APIAuth` | struct | `/api/token` handler — `ServeHTTP` dispatches on `grant_type`, plus `CreateAccessToken` / `ValidateAccessToken` / `ValidateAccessTokenFull` and API-key + session management endpoints | Owns the legacy `/api/token` shape (form + JSON, rate limiting, custom claims, callbacks); still the production handler. |
-| `APIMiddleware` | struct | Bearer-token middleware (`ValidateToken`, `RequireScopes`, `Optional`, `RequireAuthorizationDetails`) | Resource-server entry point; chains JWT (single- or multi-tenant), `oa_`-prefixed API keys, and `IntrospectionValidator` fallback. |
+| `APIAuth` | struct | `/api/token` HTTP handler — `ServeHTTP` dispatches on `grant_type` (password / refresh_token / client_credentials / jwt-bearer / token-exchange); also hosts API-key and session management endpoints | Legacy entry point still owns the `/api/token` shape (form + JSON, rate limiting, custom claims, callbacks); per #218 it routes token minting and validation through `Issuer()` / `Validator()` instead of inline JWT logic. |
+| `APIAuth.Issuer` | method | Lazy-builds the `TokenIssuer` from `APIAuth` fields (signing key/alg, issuer/audience, `ClientKeyStore`, `RefreshTokenStore`, `ValidateCredentials`, `GetSubjectScopes`, `CustomClaimsFunc`) | Callers populate `APIAuth` fields after construction (existing pattern); the `sync.Once` cache funnels every grant handler through one issuer instance. |
+| `APIAuth.Validator` | method | Lazy-builds the `TokenValidator` from `APIAuth` fields (signing/verify key, alg, blacklist, issuer/audience) | Same lazy-build pattern as `Issuer()`; `APIMiddleware` reuses the same path when no explicit `Validator` is wired. |
+| `APIMiddleware` | struct | Bearer-token middleware (`ValidateToken`, `RequireScopes`, `Optional`, `RequireAuthorizationDetails`) | Resource-server entry point; chains JWT (single- or multi-tenant via `KeyStore`), `oa_`-prefixed API keys, and `IntrospectionValidator` fallback in one path. |
 | `OneAuth` | struct | Transport-independent composition root with `Issuer` / `Validator` / `Introspector` / `Revoker` / `Authenticator` + shared `KeyStore` / `Blacklist` / `RefreshStore` + grouped `Hooks` | Issue 110's no-god-object refactor; `IntrospectionHTTPHandler` / `RevocationHTTPHandler` / `HTTPMiddleware` return thin HTTP wrappers. |
 | `NewOneAuth` | func | Builds a fully wired `*OneAuth` from `OneAuthConfig` | Each composed implementation receives only the deps it actually needs. |
 | `OneAuthConfig` | struct | Single config surface (KeyStore, signing key/alg, issuer/audience, expiry, Blacklist, RefreshStore, password-grant callbacks, Hooks) | Fans out into `NewJWTIssuer` / `NewJWTValidator` / `NewTokenRevoker` / `NewClientAuthenticator`. |
-| `TokenIssuer` | interface | `CreateAccessToken` / `ClientCredentials` / `RefreshGrant` / `PasswordGrant` | gRPC-shape convention (issue 175); transport bindings call these instead of `APIAuth`. |
+| `TokenIssuer` | interface | `CreateAccessToken` / `ClientCredentials` / `RefreshGrant` / `PasswordGrant` — all `(ctx, *XRequest) → (*XResponse, error)` | gRPC-shape convention (#175); transport bindings call these instead of `APIAuth`. |
 | `TokenValidator` | interface | `ValidateToken` / `CheckScopes` / `CheckAuthorizationDetails` | Shared by middleware and introspector. |
 | `TokenIntrospector` | interface | RFC 7662 `Introspect` returning `{Active: false}` for any invalid token | Decouples introspection from the validation backend; in-process impl delegates to a `TokenValidator`. |
 | `TokenRevoker` | interface | RFC 7009 `Revoke` with `token_type_hint` | Separates revocation policy from the HTTP wrapper. |
 | `ClientAuthenticator` | interface | `AuthenticateClient` covering `client_secret_basic` / `client_secret_post` / `private_key_jwt` | Shared by token + introspection + revocation handlers via `extractClientCredentials`. |
-| `TokenInfo` | struct | Validated claims: `UserID`, `Scopes`, `AuthorizationDetails`, `CustomClaims`, `AuthType` | Single shape consumed by middleware and the in-process introspector. |
-| `jwtValidator` | type | Local JWT validator: resolves keys by `kid` then `client_id` claim; cross-checks kid owner vs claim; validates type/iss/aud/exp/blacklist | The kid-vs-`client_id`-claim cross-check prevents cross-app token forgery. |
+| `TokenInfo` | struct | Validated claims: `Subject`, `Scopes`, `AuthorizationDetails`, `CustomClaims`, `AuthType` | Single shape consumed by middleware and the in-process introspector. |
+| `jwtValidator` | type | Local JWT validator: resolves keys by `kid` then `client_id` claim; cross-checks kid owner vs claim; validates type/iss/aud/exp/blacklist; self-validates against `signingKey` when no `KeyLookup` resolves | The kid-vs-`client_id`-claim cross-check prevents cross-app token forgery; self-validation fallback supports the "APIAuth holds its own key" mode (no KeyStore needed). |
 | `NewJWTValidator` | func | Constructor for `jwtValidator` | Shared by `APIMiddleware` (lazy) and `OneAuth`. |
-| `jwtIssuer` | type | `TokenIssuer` signing HS/RS/ES JWTs with `jti` + RFC 9396 `authorization_details` | Transport-free counterpart to `APIAuth.CreateAccessToken`. |
+| `jwtIssuer` | type | `TokenIssuer` signing HS/RS/ES JWTs with `jti` + RFC 9396 `authorization_details`; runs theft detection on `RefreshGrant` | Transport-free counterpart to per-grant minting; what both `NewOneAuth` and `APIAuth.Issuer()` wire. |
 | `NewJWTIssuer` | func | Constructor for `jwtIssuer` | |
 | `tokenRevoker` | type | `TokenRevoker` over `RefreshTokenStore` + `core.TokenBlacklist` | No hint → tries refresh first (cheaper), then access — matches RFC 7009's permissive behaviour. |
 | `NewTokenRevoker` | func | Constructor for `tokenRevoker` | |
@@ -69,7 +71,9 @@
 | `ClientHooks` | struct | `OnRegistered` / `OnDeleted` / `OnKeyRotated` | |
 | `SecurityHooks` | struct | `OnTokenRejected` / `OnBlacklistHit` / `OnAlgorithmMismatch` | `OnAlgorithmMismatch` flags CVE-2015-9235. |
 | `CredentialsValidator` | type | Type alias re-exported from `accounts` for the password-grant validator | Cross-package assignability with `localauth` without conversion. |
-| `GetUserIDFromAPIContext` | func | Retrieves the JWT subject from the request context | |
+| `extractClientCredentials` | func | Inspects an HTTP request for client credentials across the three OAuth-defined channels (assertion → Basic → form) and populates an `AuthenticateClientRequest` | Centralizes precedence (strongest credential wins) so token / introspection / revocation accept the same channels identically. |
+| `derivedAudience` | func | Derives the absolute endpoint URL from a request (honoring `X-Forwarded-*`) as audience fallback | Single-host deployments don't need explicit `AcceptedAudiences`; production behind a path-rewriting proxy must populate the list. |
+| `GetSubjectFromAPIContext` | func | Retrieves the JWT subject (RFC 7519 `sub` — user ID for human flows, client_id for client_credentials) from the request context | Renamed from `GetUserIDFromAPIContext` to reflect dual usage. |
 | `GetScopesFromAPIContext` | func | Retrieves granted scopes from the request context | |
 | `GetAuthTypeFromAPIContext` | func | Retrieves `"jwt"` / `"api_key"` / `"introspection"` | Lets handlers behave differently for opaque API keys vs JWTs. |
 | `GetCustomClaimsFromContext` | func | Retrieves non-standard JWT claims | |
@@ -80,207 +84,189 @@
 
 ### Password grant via APIAuth
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant APIAuth as APIAuth.ServeHTTP
-    participant RL as RateLimiter
-    participant CV as ValidateCredentials
-    participant US as GetUserScopes
-    participant RTS as RefreshTokenStore
-    participant Sign as CreateAccessToken
-
-    Client->>APIAuth: POST /api/token (grant_type=password)
-    APIAuth->>APIAuth: parse form or JSON body
-    APIAuth->>RL: Allow(ip+username)
-    RL-->>APIAuth: ok
-    APIAuth->>CV: validate(username, password, type)
-    CV-->>APIAuth: User
-    APIAuth->>US: GetUserScopes(userID)
-    US-->>APIAuth: allowedScopes
-    APIAuth->>APIAuth: intersect requested with allowed
-    APIAuth->>RTS: CreateRefreshToken(userID, clientID, deviceInfo, scopes)
-    RTS-->>APIAuth: refreshToken
-    APIAuth->>APIAuth: ValidateAll(authorization_details)
-    APIAuth->>Sign: CreateAccessToken(userID, scopes, authzDetails)
-    Sign-->>APIAuth: jwt, expiresIn
-    APIAuth-->>Client: 200 {access_token, refresh_token, expires_in, scope, authorization_details}
-```
-
-### client_credentials with private_key_jwt
+`POST /api/token` with `grant_type=password`. `APIAuth.ServeHTTP` dispatches to `handlePasswordGrant`, which authenticates credentials, intersects requested vs allowed scopes, creates a refresh token in the store (so transport metadata — device, IP, user-agent — stays at the HTTP boundary), and then routes through `APIAuth.Issuer().CreateAccessToken` for the signed JWT.
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant APIAuth as APIAuth.handleClientCredentialsGrant
-    participant Extract as extractClientCredentials
-    participant CA as clientAuthenticator
-    participant Keys as keys.KeyLookup
-    participant JTI as JTIStore
-    participant Sign as CreateAccessToken
-
-    Client->>APIAuth: POST /api/token (client_assertion_type, client_assertion)
-    APIAuth->>Extract: pick channel (assertion > basic > post)
-    Extract-->>APIAuth: AuthenticateClientRequest{ClientAssertion=...}
-    APIAuth->>APIAuth: set Audiences = AcceptedAudiences or derivedAudience(r)
-    APIAuth->>CA: AuthenticateClient(req)
-    CA->>CA: ParseUnverified → iss/sub/jti
-    CA->>CA: require iss == sub (RFC 7521 §4.1)
-    CA->>Keys: GetKey(iss)
-    Keys-->>CA: key + alg
-    CA->>CA: jwt.WithValidMethods(alg) — alg-confusion lock
-    CA->>CA: verify signature, aud, exp, lifetime <= 5 min
-    CA->>JTI: SeenWithin(jti, replayWindow)
-    JTI-->>CA: false (first time)
-    CA-->>APIAuth: AuthenticateClientResponse{ClientID, Method="private_key_jwt"}
-    APIAuth->>Sign: CreateAccessToken(clientID, scopes, authzDetails)
-    Sign-->>APIAuth: jwt, expiresIn
-    APIAuth-->>Client: 200 {access_token, expires_in, scope} — NO refresh token
+    participant C as Client
+    participant H as APIAuth.ServeHTTP
+    participant V as ValidateCredentials
+    participant RS as RefreshTokenStore
+    participant I as APIAuth.Issuer()
+    C->>H: POST /api/token (grant_type=password, username, password, scope, authorization_details?)
+    H->>H: RateLimiter.Allow(ip:username)
+    H->>V: ValidateCredentials(username, password, type)
+    V-->>H: user (or invalid_grant)
+    H->>H: intersect requested with GetSubjectScopes(user.Id())
+    H->>RS: CreateRefreshToken({Subject, ClientID, DeviceInfo, Scopes})
+    RS-->>H: refresh token (with Family)
+    H->>I: CreateAccessToken({Subject, Scopes, AuthorizationDetails})
+    I-->>H: {Token, ExpiresIn}
+    H-->>C: 200 {access_token, refresh_token, scope, authorization_details}
 ```
 
 ### Refresh token rotation with theft detection
 
+`grant_type=refresh_token` rotates the refresh token (issues a new one, invalidates the old). The reuse-detection trick: if the presented token is already `Revoked`, the entire `Family` (every token descended from the same original login) is revoked, not just this one — token reuse signals theft. Same logic appears in both `APIAuth.handleRefreshTokenGrant` and `jwtIssuer.RefreshGrant`; the HTTP handler keeps it because the transport response needs `tokenResponse` formatting.
+
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant APIAuth as APIAuth.handleRefreshTokenGrant
-    participant RTS as RefreshTokenStore
-    participant Sign as CreateAccessToken
-
-    Client->>APIAuth: POST /api/token (grant_type=refresh_token, refresh_token=...)
-    APIAuth->>RTS: GetRefreshToken(token)
-    alt token already revoked
-        RTS-->>APIAuth: rt{Revoked=true}
-        APIAuth->>RTS: RevokeTokenFamily(rt.Family)
-        APIAuth-->>Client: 401 invalid_grant (token reuse detected)
+    participant C as Client
+    participant H as APIAuth.handleRefreshTokenGrant
+    participant RS as RefreshTokenStore
+    participant I as APIAuth.Issuer()
+    C->>H: POST /api/token (grant_type=refresh_token, refresh_token)
+    H->>RS: GetRefreshToken(token)
+    alt token already Revoked
+        RS-->>H: token{Revoked: true, Family}
+        H->>RS: RevokeTokenFamily(Family)
+        H-->>C: 401 invalid_grant (token reuse — all sessions revoked)
     else token expired
-        RTS-->>APIAuth: rt{IsExpired=true}
-        APIAuth-->>Client: 401 invalid_grant (token has expired)
-    else healthy
-        RTS-->>APIAuth: rt
-        APIAuth->>RTS: RotateRefreshToken(token)
-        alt ErrTokenReused
-            RTS-->>APIAuth: ErrTokenReused
-            APIAuth->>RTS: RevokeTokenFamily(rt.Family)
-            APIAuth-->>Client: 401 invalid_grant
+        H-->>C: 401 invalid_grant
+    else valid
+        H->>RS: RotateRefreshToken(OldToken)
+        alt rotate returns ErrTokenReused
+            H->>RS: RevokeTokenFamily(Family)
+            H-->>C: 401 invalid_grant
         else success
-            RTS-->>APIAuth: newRT
-            APIAuth->>Sign: CreateAccessToken(rt.UserID, rt.Scopes, rt.AuthzDetails)
-            Sign-->>APIAuth: jwt, expiresIn
-            APIAuth-->>Client: 200 {access_token, refresh_token=newRT, ...}
+            RS-->>H: newRefreshToken (same Family)
+            H->>I: CreateAccessToken({rt.Subject, rt.Scopes, rt.AuthorizationDetails})
+            I-->>H: {Token, ExpiresIn}
+            H-->>C: 200 {new access_token, new refresh_token}
         end
     end
 ```
 
-### Middleware token validation with introspection fallback
+### client_credentials with private_key_jwt
+
+`grant_type=client_credentials` with a signed JWT in `client_assertion` (RFC 7523 §2.2). `APIAuth.authenticateTokenEndpointClient` runs the request through `ClientAuthenticator` (the only channel that supports assertions), which parses the assertion, looks up the registered client key, locks the algorithm to what the client registered, and verifies signature + audience + lifetime + `jti` replay-window before the token is minted. Symmetric-keyed clients are rejected (`private_key_jwt` is asymmetric-only; `client_secret_jwt` lives in a separate ticket).
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Mw as APIMiddleware.ValidateToken
+    participant C as Client
+    participant H as APIAuth.handleClientCredentialsGrant
+    participant E as extractClientCredentials
+    participant A as ClientAuthenticator (clientAuthenticator)
+    participant K as keys.KeyLookup
+    participant J as JTIStore
+    participant I as APIAuth.Issuer()
+    C->>H: POST /api/token (grant_type=client_credentials, client_assertion_type=urn:...:jwt-bearer, client_assertion=JWT)
+    H->>E: extractClientCredentials(r, req)
+    E-->>H: AuthenticateClientRequest{ClientAssertion, ClientAssertionType, Audiences}
+    H->>A: AuthenticateClient(creds)
+    A->>A: ParseUnverified — pull iss, sub, jti
+    A->>A: require iss == sub == implicit client_id; require client_id form param matches if set
+    A->>K: GetKey(ClientID=iss)
+    K-->>A: KeyRecord{Algorithm, Key}
+    A->>A: reject symmetric algs (private_key_jwt is asymmetric-only)
+    A->>A: jwt.Parse with WithValidMethods(rec.Algorithm) — locks alg, defeats CVE-2016-10555
+    A->>A: matchesAudience(verified aud, Audiences)
+    A->>A: enforce lifetime <= MaxClientAssertionLifetime
+    A->>J: SeenWithin(jti, replayWindow)
+    alt jti already seen
+        J-->>A: true
+        A-->>H: invalid_client (assertion replayed)
+        H-->>C: 401 invalid_client
+    else first time
+        J-->>A: false (now marked seen)
+        A-->>H: {ClientID, Method: "private_key_jwt"}
+        H->>I: CreateAccessToken({Subject: ClientID, Scopes, AuthorizationDetails})
+        I-->>H: {Token, ExpiresIn}
+        H-->>C: 200 {access_token, scope, authorization_details}
+    end
+```
+
+### Token introspection RFC 7662
+
+`POST /oauth/introspect`. `IntrospectionHandler` authenticates the caller (resource server) via `ClientAuthenticator`, then delegates the token check to a `TokenIntrospector`. Per RFC 7662 §2.2 invalid tokens return `{"active": false}` — never an error, never a reason. The legacy bridge `apiauthIntrospector` runs the introspection through `APIAuth.Validator()` so single-host deployments share one validation path with `APIMiddleware`.
+
+```mermaid
+sequenceDiagram
+    participant RS as Resource Server (caller)
+    participant H as IntrospectionHandler.ServeHTTP
+    participant E as extractClientCredentials
+    participant A as ClientAuthenticator
+    participant Ti as TokenIntrospector
     participant V as TokenValidator
-    participant IV as IntrospectionValidator
-    participant AS as Upstream AS
-
-    Client->>Mw: Authorization: Bearer <token>
-    alt token starts with "oa_"
-        Mw->>Mw: validateAPIKey(token)
-        Mw-->>Client: next handler with userID + scopes
-    else JWT path
-        Mw->>V: ValidateToken(token)
-        alt local validation ok
-            V-->>Mw: TokenInfo{UserID, Scopes, AuthzDetails, CustomClaims}
-            Mw->>Mw: setAuthContext(ctx, ...)
-            Mw-->>Client: next handler
-        else local validation failed AND Introspection != nil
-            Mw->>IV: ValidateForMiddleware(token)
-            IV->>AS: POST /oauth/introspect (Basic auth)
-            AS-->>IV: {active: true, sub, scope, ...}
-            IV-->>Mw: userID, scopes, "introspection", customClaims
-            Mw->>Mw: setAuthContext(ctx, ...)
-            Mw-->>Client: next handler
-        else no fallback
-            Mw-->>Client: 401 unauthorized
+    RS->>H: POST /oauth/introspect (token, client_secret_basic | private_key_jwt)
+    H->>E: extractClientCredentials(r, nil)
+    E-->>H: creds (or 401 if missing)
+    H->>H: creds.Audiences = AcceptedAudiences or [derivedAudience(r)]
+    H->>A: AuthenticateClient(creds)
+    alt auth failed
+        A-->>H: error
+        H-->>RS: 401 with WWW-Authenticate: Basic
+    else authenticated
+        H->>Ti: Introspect({Token})
+        Ti->>V: ValidateToken({Token})
+        alt validation fails
+            V-->>Ti: error
+            Ti-->>H: {Result: {Active: false}}
+            H-->>RS: 200 {"active": false}
+        else valid
+            V-->>Ti: TokenInfo{Subject, Scopes, AuthorizationDetails, ...}
+            Ti->>Ti: parseRawJWTClaims — pull iss, exp, iat, jti, aud, client_id
+            Ti-->>H: IntrospectionResult{Active, Sub, Scope, Iss, Exp, Iat, Jti, Aud, ClientID, TokenType}
+            H->>H: include raw authorization_details if present (RFC 9396 §9.1)
+            H-->>RS: 200 {active:true, sub, scope, iss, exp, jti, ...}
         end
     end
 ```
 
-### Token revocation
+### Token revocation RFC 7009
+
+`POST /oauth/revoke`. `RevocationHandler` authenticates the caller, then hands off to `TokenRevoker`. Per RFC 7009 §2.2 the response is always 200 OK with no body — error responses would leak token existence. The revoker picks refresh-store-first / blacklist-first based on `token_type_hint`; with no hint, it tries refresh first (cheaper lookup), then access.
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant RH as RevocationHandler.ServeHTTP
-    participant CA as ClientAuthenticator
-    participant TR as tokenRevoker
-    participant RTS as RefreshTokenStore
-    participant BL as core.TokenBlacklist
-
-    Client->>RH: POST /oauth/revoke (token, token_type_hint)
-    RH->>RH: extractClientCredentials(r, nil)
-    RH->>CA: AuthenticateClient(creds)
-    CA-->>RH: ClientID
-    RH->>TR: Revoke(token, hint)
-    alt hint == "refresh_token" or no hint
-        TR->>RTS: GetRefreshToken(token)
-        alt refresh token found
-            TR->>RTS: RevokeRefreshToken(token)
-        else not found (no hint case)
-            TR->>TR: fall through to access path
+    participant C as Client
+    participant H as RevocationHandler.ServeHTTP
+    participant A as ClientAuthenticator
+    participant R as TokenRevoker (tokenRevoker)
+    participant RS as RefreshTokenStore
+    participant BL as TokenBlacklist
+    C->>H: POST /oauth/revoke (token, token_type_hint?, client auth)
+    H->>A: AuthenticateClient(creds)
+    alt auth failed
+        A-->>H: error
+        H-->>C: 401 invalid_client
+    else authenticated
+        H->>R: Revoke({Token, TokenTypeHint})
+        alt hint == "refresh_token"
+            R->>RS: GetRefreshToken / RevokeRefreshToken
+        else hint == "access_token"
+            R->>R: parse JWT (unverified) for jti + exp
+            R->>BL: Revoke(jti, expiry)
+        else no hint
+            R->>RS: try GetRefreshToken
+            alt found
+                R->>RS: RevokeRefreshToken
+            else not in refresh store
+                R->>R: parse JWT for jti
+                R->>BL: Revoke(jti, expiry)
+            end
         end
+        R-->>H: RevokeResponse{} (always)
+        H-->>C: 200 OK (always, even for unknown token)
     end
-    alt hint == "access_token" or refresh not found
-        TR->>TR: ParseUnverified → jti, exp
-        TR->>BL: Revoke(jti, exp)
-    end
-    TR-->>RH: ok (always)
-    RH-->>Client: 200 OK (RFC 7009 §2.2 — always)
 ```
 
 ## Gotchas
 
-- **`APIAuth` and `OneAuth` both exist by design.** `APIAuth.ServeHTTP` is still the production token endpoint. `OneAuth` (issue 110) is the new no-god-object composition root that wires the interface implementations. The HTTP introspection / revocation handlers in this package can be built either way — `NewIntrospectionHandler(auth, kl)` (legacy bridge) or `oa.IntrospectionHTTPHandler()` (new). New transports (gRPC, MCP) should call the interfaces directly, not `APIAuth`.
-
-- **Token-endpoint client auth lives in a single helper.** `extractClientCredentials` is shared by the token, introspection, and revocation handlers. It picks the *strongest* credential channel present (`private_key_jwt` > `client_secret_basic` > `client_secret_post`) even when the caller violates RFC 6749 §2.3 by sending multiple. The `_post` path on the token endpoint also reads from the already-decoded `core.TokenRequest` when the request was JSON (since `http.Request.FormValue` can't see the JSON body).
-
-- **`APIAuth.lazyAuthenticator` must be cached.** When `ClientAuthenticator` isn't wired but `ClientKeyStore` is, `APIAuth` lazily builds one — guarded by `sync.Once`. A fresh authenticator per request would mean a fresh in-memory `JTIStore`, defeating `jti` replay protection for `private_key_jwt` assertions. This is the one piece of mutable state in `APIAuth` that *cannot* be reset without breaking security.
-
-- **`private_key_jwt` algorithm is locked at verification.** `clientAuthenticator.authenticateAssertion` calls `jwt.NewParser(jwt.WithValidMethods([]string{rec.Algorithm}))` — using only the algorithm the client registered. Without this, an attacker who knows a client registered RS256 could submit an HS256-signed assertion using the public key as the HMAC secret (CVE-2016-10555 class). The same defence applies in `jwtValidator.resolveKey` via the algorithm cross-check + `SecurityHooks.OnAlgorithmMismatch`.
-
-- **`kid` resolution cross-checks `client_id`.** In `jwtValidator.resolveKey` (and the inline middleware fallback), once a key record is fetched by `kid`, its owning `ClientID` is compared against the token's `client_id` claim. If they disagree, the token is rejected — this stops app A from minting a token claiming to be app B by signing with its own key but setting a different `client_id`. The check is skipped when the key record has no `ClientID` (e.g., `JWKSKeyStore` which doesn't carry that metadata).
-
-- **`JWTAudience` accepts both string and array `aud` claims.** `matchesAudience` handles `string`, `[]interface{}`, and `[]string` shapes (RFC 7519 §4.1.3, issue 52). Real-world IdPs differ — Keycloak emits arrays, others emit strings — so accepting both is required for interop.
-
-- **`standardClaims` cannot be overridden by `CustomClaimsFunc`.** The standard JWT claims (`sub`, `iss`, `aud`, `exp`, `iat`, `type`, `scopes`, `jti`, `authorization_details`) are protected against host code that tries to inject them — overrides are logged and ignored. This is what lets `CustomClaimsFunc` be wired without auditing every host application.
-
-- **`type` claim asymmetry.** OneAuth-minted tokens carry `"type": "access"` to prevent refresh tokens from being used as access tokens. External IdP tokens (Keycloak, Auth0) don't include this claim — the validators *only* reject if `type` is set to something other than `"access"`. Missing `type` is accepted. This is what makes the multi-tenant `KeyStore` path work with upstream IdPs.
-
-- **Introspection fallback ordering.** `APIMiddleware.validateRequest` tries local JWT validation first; only if local validation fails (and `Introspection != nil`) does it call the upstream introspection endpoint. When local validation isn't even configured (no `JWTSecretKey`, no `KeyStore`), introspection becomes the *only* validation path. The `lazyValidator` in `APIMiddleware` is `nil` for the single-tenant `JWTSecretKey` case — `validateJWTInline` is the fallback because `jwtValidator` needs `kid`/`client_id` lookup that single-key configs don't provide.
-
-- **`RevocationHandler` always returns 200.** RFC 7009 §2.2 explicitly forbids revealing whether a token existed — so even missing tokens, malformed JWTs, and unknown `jti` values return 200 OK. The only 401 path is failed *client* auth (which is per-RFC the correct response).
-
-- **`token-exchange` is Phase 1.** Only `subject_token_type=urn:ietf:params:oauth:token-type:jwt` and `requested_token_type=urn:ietf:params:oauth:token-type:access_token` are honored; `audience` / `resource` parameters are accepted but currently *advisory* (logged so the gap is visible in production). The response shape includes the RFC 8693 §2.2-required `issued_token_type`, which is *not* in the standard `tokenResponse` helper — `handleTokenExchangeGrant` encodes the response inline.
-
-- **`jwt-bearer` does not issue refresh tokens.** RFC 7523 treats the assertion itself as the renewable credential — the client re-presents a fresh assertion from the upstream IdP rather than holding a refresh token. Returning one would muddle session semantics. (Same for `client_credentials` — RFC 6749 §4.4.3 says SHOULD NOT.)
-
-- **`MountProtectedResource` can proxy AS metadata.** When `proxyASMetadata=true`, the resource server registers an `ASMetadataProxy` at its own `/.well-known/oauth-authorization-server` for each upstream AS. This bridges OIDC-only providers (Keycloak) for clients that only try RFC 8414 (VS Code MCP). The proxy tries RFC 8414 first, then OIDC discovery — same fallback as `client.DiscoverAS`.
-
-- **`ASMetadataProxy` is lazy.** Metadata isn't fetched at construction — only on the first request. Combined with the per-request TTL check (default 1 hour), startup is decoupled from upstream AS availability. A 502 propagates if upstream is unreachable on a cold cache.
-
-- **`Audiences` on assertion auth is mandatory.** `clientAuthenticator.authenticateAssertion` returns an explicit error (not `invalid_client`) if `req.Audiences` is empty — that's a *handler misconfiguration*, not a client problem. Each HTTP handler (`APIAuth`, `IntrospectionHandler`, `RevocationHandler`) sets `creds.Audiences = AcceptedAudiences` or falls back to `derivedAudience(r)` (the request URL). The fallback only works for single-host deployments — production should populate `AcceptedAudiences` explicitly.
-
-- **`MaxClientAssertionLifetime` is 5 minutes.** Both as a security cap (RFC 7523 §3 item 4) and as the upper bound on JTIStore memory growth. An assertion with `exp - iat > 5min` is rejected. Absent `iat` is treated as `exp - MaxClientAssertionLifetime` (i.e., assume the worst case). The JTIStore window is `exp + 30s skew` to outlive the assertion itself.
-
-- **`__authz_details` is a private context-passing key.** `APIMiddleware` stashes RFC 9396 `authorization_details` under a `__`-prefixed key inside `customClaims` so `setAuthContext` can hoist it into a dedicated context value (and delete it from the bag) before handlers see it. This keeps the public `GetCustomClaimsFromContext` API clean — RAR is first-class via `GetAuthorizationDetailsFromContext`, not a custom claim.
-
-- **Hooks groups are pointer-safe but not nil-safe at the field level.** `(*TokenHooks).fireOnIssued` checks `h != nil` and `h.OnIssued != nil` — both individual callbacks and the entire group can be absent. Callers wire only what they care about.
+- **Two entry points, one core.** `APIAuth` (legacy) and `OneAuth` (new) are not parallel implementations any more — per #218, `APIAuth.Issuer()` / `APIAuth.Validator()` lazy-build the same gRPC-shape interfaces `NewOneAuth` wires. Don't add new minting/validation logic to `APIAuth` directly; extend the `TokenIssuer` / `TokenValidator` implementations.
+- **Removed methods.** `APIAuth.CreateAccessToken`, `APIAuth.ValidateAccessToken`, `APIAuth.ValidateAccessTokenFull`, and `APIAuth.VerifyTokenFunc` were deleted in #218. Existing callers must move to `APIAuth.Issuer().CreateAccessToken(ctx, &CreateAccessTokenRequest{...})` and `APIAuth.Validator().ValidateToken(ctx, &ValidateTokenRequest{...})`.
+- **`GetUserIDFromAPIContext` renamed.** It's now `GetSubjectFromAPIContext` — the same context key is reused but the name reflects that the value is `client_id` for `client_credentials` tokens, not just a user ID.
+- **`derivedAudience` fallback is single-host only.** When `AcceptedAudiences` is empty the handlers fall back to building the audience from the request URL (honoring `X-Forwarded-*`). Behind a path-rewriting proxy this breaks — populate `AcceptedAudiences` explicitly in production.
+- **`private_key_jwt` is asymmetric-only.** The authenticator rejects symmetric-keyed clients on the assertion path; `client_secret_jwt` is a separate ticket. Don't try to "make it work" by treating an HMAC key as a public key — that's exactly the CVE-2016-10555 alg-confusion attack the authenticator blocks.
+- **JTIStore must be cached across requests.** A fresh authenticator per request means a fresh in-memory `JTIStore`, which defeats replay protection. `APIAuth.authenticateTokenEndpointClient` uses `sync.Once` to cache the lazily-built authenticator for exactly this reason; multi-node deployments should wire `NewClientAuthenticatorWithJTIStore` with a distributed store (Redis SETNX).
+- **Refresh token *creation* lives in `APIAuth`, not `jwtIssuer.PasswordGrant`.** Device info / IP / user-agent metadata stops at the HTTP boundary. `jwtIssuer.PasswordGrant` returns the access token + subject + scopes; the caller decides whether to create a refresh token and what device context to attach.
+- **Token-exchange `audience` / `resource` params are advisory.** Phase 1 issues access tokens with the AS's default `JWTAudience`; audience-targeting is future work. The handler logs when these params are set so the gap surfaces in production.
 
 ## Depends on
 
-- [`accounts/`](../accounts/DESIGN.md) — `User`, `BasicUser`, `Identity`, `IdentityKey`, `DetectUsernameType`, `CredentialsValidator`
-- [`admin/`](../admin/DESIGN.md) — `MintResourceToken`, `MintResourceTokenWithKey`, `AppQuota`
-- [`core/`](../core/DESIGN.md) — `RefreshToken`, `TokenPair`, `TokenRequest`, `TokenError`, `RefreshTokenStore`, `APIKeyStore`, `TokenBlacklist`, `InMemoryBlacklist`, `RateLimiter`, `AuthorizationDetail`, `ValidateAll`, `GenerateSecureToken`, `GetUserScopesFunc`, `ParseScopes`, `JoinScopes`, `IntersectScopes`, `ContainsAllScopes`, `ScopeRead`, `ScopeWrite`, `ScopeProfile`, `ScopeOffline`, `ScopeAdmin`, `TokenExpiryAccessToken`, `TokenExpiryRefreshToken`, `ErrInvalidGrant`, `ErrTokenNotFound`, `ErrTokenReused`, `ErrAPIKeyNotFound`, `GetUserIDFromContext`, `SetUserIDInContext`
-- [`keys/`](../keys/DESIGN.md) — `KeyRecord`, `KeyLookup`, `KeyStorage`, `InMemoryKeyStore`
-- [`localauth/`](../localauth/DESIGN.md) — `LocalAuth`, `Credentials`, `ConsoleEmailSender`, `NewCredentialsValidator`, `NewCreateUserFunc`, `NewVerifyEmailFunc`, `NewUpdatePasswordFunc`
-- [`stores/fs/`](../stores/fs/DESIGN.md) — `FSUserStore`, `FSIdentityStore`, `FSChannelStore`, `FSTokenStore`, `FSRefreshTokenStore`, `FSAPIKeyStore`
-- [`utils/`](../utils/DESIGN.md) — `GenerateRSAKeyPair`, `GenerateECDSAKeyPair`, `ParsePrivateKeyPEM`, `ParsePublicKeyPEM`, `EncodePublicKeyPEM`, `DecodeVerifyKey`, `IsAsymmetricAlg`, `SigningMethodForAlg`, `ComputeKid`
+| Sibling | Entities |
+|---|---|
+| [`../accounts`](../accounts/DESIGN.md) | `CredentialsValidator`, `DetectUsernameType` |
+| [`../core`](../core/DESIGN.md) | `APIKeyStore`, `AuthorizationDetail`, `ContainsAllScopes`, `CreateAPIKeyRequest`, `CreateRefreshTokenRequest`, `ErrAPIKeyNotFound`, `ErrTokenNotFound`, `ErrTokenReused`, `GenerateSecureToken`, `GetAPIKeyByIDRequest`, `GetRefreshTokenRequest`, `GetSubjectFromContext`, `GetSubjectScopesFunc`, `GetSubjectTokensRequest`, `IntersectScopes`, `JoinScopes`, `ListSubjectAPIKeysRequest`, `ParseScopes`, `RateLimiter`, `RefreshTokenStore`, `RevokeAPIKeyRequest`, `RevokeRefreshTokenRequest`, `RevokeSubjectTokensRequest`, `RevokeTokenFamilyRequest`, `RotateRefreshTokenRequest`, `ScopeOffline`, `ScopeProfile`, `ScopeRead`, `ScopeWrite`, `SetSubjectInContext`, `TokenBlacklist`, `TokenError`, `TokenExpiryAccessToken`, `TokenPair`, `TokenRequest`, `UpdateAPIKeyLastUsedRequest`, `ValidateAll`, `ValidateAPIKeyRequest` |
+| [`../keys`](../keys/DESIGN.md) | `GetKeyByKidRequest`, `GetKeyRequest`, `KeyLookup`, `KeyStorage` |
+| [`../utils`](../utils/DESIGN.md) | `ComputeKid`, `DecodeVerifyKey`, `IsAsymmetricAlg`, `SigningMethodForAlg` |

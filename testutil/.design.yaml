@@ -1,8 +1,8 @@
 package: testutil
 purpose: Shared test setup helpers for oneauth — an in-process RS256 OAuth AS plus OIDC discovery, token-grant, JWKS, and JWT introspection fixtures used across package test suites.
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: TestAuthServer
     kind: struct
@@ -134,6 +134,6 @@ depends_on:
   - path: ../httpauth
     entities: [LimitBody, DefaultMaxBodySize]
   - path: ../keys
-    entities: [KeyStorage, KeyRecord, NewInMemoryKeyStore, JWKSHandler]
+    entities: [KeyStorage, KeyRecord, NewInMemoryKeyStore, PutKeyRequest, JWKSHandler]
   - path: ../utils
     entities: [ComputeKid, EncodePublicKeyPEM]

@@ -1,8 +1,8 @@
 package: httpauth
-purpose: HTTP-layer plumbing for session-based auth — a session/JWT-aware login mux, a pluggable user-resolution middleware, and standalone CSRF / body-limit / security-header middlewares.
+purpose: HTTP-layer plumbing for session-based auth — a session/JWT-aware login mux, a pluggable subject-resolution middleware, and standalone CSRF / body-limit / security-header middlewares.
 language: go
-last_rebuilt: 0f92ff8dc5535ee2072db8f45cfc272788d41263
-last_rebuilt_at: 2026-05-26T07:42:23Z
+last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
+last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: OneAuth
     kind: struct
@@ -24,29 +24,29 @@ entities:
     kind: method
     role: Mounts a sub-handler under a prefix with subtree matching plus a 308 redirect from the bare prefix.
     why: Uses 308 (not 301) to preserve POST method; reads r.RequestURI to recover the path lost by a parent StripPrefix.
-  - name: OneAuth.SetLoggedInUserID
+  - name: OneAuth.SetLoggedInSubject
     kind: method
-    role: Sets (or clears, on empty userID) the loggedInUserId cookie + JWT cookie + scs session entries across every configured CookieDomain.
-    why: Owns the entire login/logout cookie lifecycle so callers in federatedauth/localauth only need a user-id string.
+    role: Sets (or clears, on empty subject) the loggedInSubject cookie + JWT cookie + scs session entries across every configured CookieDomain.
+    why: Owns the entire login/logout cookie lifecycle so callers in federatedauth/localauth only need an RFC 7519 sub string (user ID or client_id).
   - name: Middleware
     kind: struct
-    role: Request-scoped user resolver reading user ID from context, session, or Authorization header/cookie via a pluggable VerifyToken.
+    role: Request-scoped subject resolver reading the sub from context, session, or Authorization header/cookie via a pluggable VerifyToken.
     why: VerifyToken is injected to keep JWT specifics out of the middleware (decoupling TODO noted in source).
   - name: Middleware.EnsureReasonableDefaults
     kind: method
     role: Backfills param/header names to sensible defaults before use.
     why: Lets a zero-value Middleware work without explicit config.
-  - name: Middleware.GetLoggedInUserId
+  - name: Middleware.GetLoggedInSubject
     kind: method
-    role: Resolves the current user ID, checking context, then SessionGetter, then bearer tokens/cookies.
+    role: Resolves the current subject, checking context, then SessionGetter, then bearer tokens/cookies.
     why: Truncates token to 20 chars in warn logs to avoid leaking full credentials.
   - name: Middleware.ExtractUser
     kind: method
-    role: Middleware that loads the user ID into request context without enforcing presence.
-    why: Non-redirecting variant for pages that work for both anonymous and logged-in users.
+    role: Middleware that loads the subject into request context without enforcing presence.
+    why: Non-redirecting variant for pages that work for both anonymous and authenticated callers.
   - name: Middleware.EnsureUser
     kind: method
-    role: Middleware that requires a logged-in user, redirecting (302) to login or returning 401.
+    role: Middleware that requires an authenticated subject, redirecting (302) to login or returning 401.
     why: Redirect only fires if GetRedirURL is set, else falls back to a hard 401.
   - name: CSRFMiddleware
     kind: struct
@@ -97,4 +97,3 @@ entities:
     role: Middleware applying a caller-supplied header configuration.
     why: Skips any header left empty so disabling is explicit and per-field; X-Content-Type-Options is unconditional.
 depends_on: []
-

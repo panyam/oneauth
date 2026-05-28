@@ -99,4 +99,4 @@ sequenceDiagram
 
 ## Depends on
 
-*(no sibling-folder dependencies)*
+*(no internal dependencies)*

@@ -90,8 +90,7 @@ sequenceDiagram
 - **`AuthErrorHandler` returning `false` falls back to default JSON.** A handler that writes the response *and* returns `false` will double-write headers. The bool is the contract; honor it.
 - **`UserStore.SaveUser` is an upsert, not an update.** Calling it with a fresh `User` whose ID collides with an existing record will overwrite — federated linking flows depend on this, but local signup paths must check uniqueness via `IdentityStore`/`UsernameStore` first.
 - **`CredentialsValidator` is `func`-typed, not an interface.** Multiple consumers (localauth login form, apiauth password-grant) share one callback — wrapping it in an adapter struct defeats the point of the type.
-- **`SUMMARY.md` lists a `CreateUserFunc` that does not exist in this package.** Treat `DESIGN.md` / `.design.yaml` as authoritative; `SUMMARY.md` is stale on that line.
 
 ## Depends on
 
-*(no sibling-folder dependencies)*
+*(no internal dependencies)*
