@@ -99,7 +99,7 @@ func newAuthServer(ks keys.KeyStorage, issuer string) http.Handler {
 			TokenEndpoint:                 issuer + "/api/token",
 			JWKSURI:                       issuer + "/.well-known/jwks.json",
 			IntrospectionEndpoint:         issuer + "/oauth/introspect",
-			RegistrationEndpoint:          issuer + "/apps/register",
+			RegistrationEndpoint:          issuer + "/apps/dcr",
 			ScopesSupported:               []string{"read", "write", "admin"},
 			GrantTypesSupported:           []string{"client_credentials"},
 			ResponseTypesSupported:        []string{"token"},

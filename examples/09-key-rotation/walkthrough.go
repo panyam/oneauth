@@ -66,16 +66,16 @@ func runDemo() {
 
 	demo.Step("Register an app and mint a token with the original key").
 		Ref(refs.RFC7519).
-		Arrow("Admin", "AS", "POST /apps/register").
+		Arrow("Admin", "AS", "POST /apps/dcr").
 		DashedArrow("AS", "Admin", "{client_id, client_secret}").
 		Arrow("Admin", "Admin", "MintResourceToken(alice, oldSecret)").
 		Note("The app gets a client_secret (HS256). We mint a token for Alice — this token's kid header is derived from the old key.").
-		VerbatimLang("Reproduce on the wire", "bash", `curl -s -X POST http://localhost:8081/apps/register \
+		VerbatimLang("Reproduce on the wire", "bash", `curl -s -X POST http://localhost:8081/apps/dcr \
   -H 'Content-Type: application/json' \
-  -d '{"client_domain":"rotate.example.com"}' | jq`).
+  -d '{"client_name":"rotate.example.com","grant_types":["client_credentials"]}' | jq`).
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
-			body, _ := json.Marshal(map[string]any{"client_domain": "rotate.example.com"})
-			resp, err := http.Post(authServer.URL+"/apps/register", "application/json",
+			body, _ := json.Marshal(map[string]any{"client_name": "rotate.example.com"})
+			resp, err := http.Post(authServer.URL+"/apps/dcr", "application/json",
 				bytes.NewReader(body))
 			if err != nil {
 				return demokit.Errf("register: %v", err)

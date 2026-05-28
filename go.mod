@@ -6,7 +6,7 @@ require (
 	github.com/alexedwards/scs/v2 v2.8.0
 	github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/panyam/demokit v0.0.21
+	github.com/panyam/demokit v0.0.25
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.46.0
 	golang.org/x/oauth2 v0.34.0
@@ -38,7 +38,7 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
-	github.com/panyam/demokit/notebook v0.0.1 // indirect
+	github.com/panyam/demokit/notebook v0.0.25 // indirect
 	github.com/panyam/gocurrent v0.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect

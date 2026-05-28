@@ -36,9 +36,8 @@ func runDemo() {
 
 	// Pre-register a client — the SDK is about token acquisition, not
 	// registration (covered in Example 06).
-	regResp := postJSON(authServer.URL+"/apps/register", map[string]any{
-		"client_domain": "sdk-demo.example.com",
-		"signing_alg":   "HS256",
+	regResp := postJSON(authServer.URL+"/apps/dcr", map[string]any{
+		"client_name": "sdk-demo.example.com",
 	})
 	registeredClientID := regResp["client_id"].(string)
 	registeredSecret := regResp["client_secret"].(string)
@@ -78,7 +77,7 @@ func runDemo() {
 		Ref(refs.RFC6749_ClientCredentials).
 		Ref(refs.RFC8414).
 		Arrow("App", "AS", "client.DiscoverAS(serverURL)").
-		Arrow("App", "AS", "authClient.ClientCredentialsToken(id, secret, scopes)").
+		Arrow("App", "AS", "authClient.ClientCredentials(ctx, &ClientCredentialsRequest{...})").
 		DashedArrow("AS", "App", "ServerCredential{AccessToken, ExpiresAt, Scope}").
 		Note("AuthClient is the low-level SDK: discover endpoints, then make a single token request. Good for one-off calls. Uses discovery to find the token endpoint automatically.").
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
@@ -110,7 +109,7 @@ func runDemo() {
 		"| **Use case** | One-shot token requests | Long-running services |",
 		"| **Caching** | None — new request every time | Automatic — reuses valid tokens |",
 		"| **Refresh** | Manual | Automatic (on next Token() call) |",
-		"| **Interface** | `ClientCredentialsToken()` | `Token() string` (TokenSource) |",
+		"| **Interface** | `ClientCredentials(ctx, *Req)` | `Token() string` (TokenSource) |",
 		"| **Scope step-up** | Manual | `TokenForScopes()` |",
 	)
 
@@ -199,7 +198,7 @@ curl -s http://localhost:8082/resource -H "Authorization: Bearer $TOKEN" | jq`).
 		Ref(refs.RFC8414).
 		Ref(refs.RFC6749_ClientCredentials).
 		Arrow("App", "AS", "client.DiscoverAS(keycloakRealmURL)").
-		Arrow("App", "AS", "authClient.ClientCredentialsToken(...)").
+		Arrow("App", "AS", "authClient.ClientCredentials(ctx, &Req)").
 		DashedArrow("AS", "App", "ServerCredential from Keycloak").
 		Note("Same SDK code, pointed at Keycloak. DiscoverAS finds the KC token endpoint automatically. If KC isn't running, this step is skipped.").
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
@@ -255,7 +254,10 @@ curl -s http://localhost:8082/resource -H "Authorization: Bearer $TOKEN" | jq`).
 // postJSON POSTs JSON and returns the decoded response.
 func postJSON(url string, body any) map[string]any {
 	data, _ := json.Marshal(body)
-	resp, _ := http.Post(url, "application/json", bytes.NewReader(data))
+	resp, err := http.Post(url, "application/json", bytes.NewReader(data))
+	if err != nil {
+		return map[string]any{"error": err.Error()}
+	}
 	defer resp.Body.Close()
 	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)

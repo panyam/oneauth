@@ -20,7 +20,7 @@ sequenceDiagram
     participant RS as Resource Server
 
     Note over App,RS: Step 1: Register a client and get an access token
-    App->>AS: POST /apps/register → POST /api/token
+    App->>AS: POST /apps/dcr → POST /api/token
     AS-->>App: {client_id, client_secret, access_token}
 
     Note over App,RS: Step 2: Introspect a valid token
@@ -174,9 +174,9 @@ no admin dashboard needed. This is how third-party integrations onboard.
 
 ## References
 
+- [RFC 7662 — Token Introspection](https://www.rfc-editor.org/rfc/rfc7662)
 - [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 - [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
-- [RFC 7662 — Token Introspection](https://www.rfc-editor.org/rfc/rfc7662)
 
 ## Run it
 

@@ -1,4 +1,4 @@
-    Pre-registered client: app_4dd102007ec8baa29823fa8f
+    Pre-registered client: app_646dd92b41d2d6194a27d6eb
 
 # 07: Client SDK — Production Patterns
 
@@ -21,7 +21,7 @@ sequenceDiagram
 
     Note over App,RS: Step 1: One-shot token with AuthClient
     App->>AS: client.DiscoverAS(serverURL)
-    App->>AS: authClient.ClientCredentialsToken(id, secret, scopes)
+    App->>AS: authClient.ClientCredentials(ctx, &ClientCredentialsRequest{...})
     AS-->>App: ServerCredential{AccessToken, ExpiresAt, Scope}
 
     Note over App,RS: Step 2: Cached token with ClientCredentialsSource
@@ -36,7 +36,7 @@ sequenceDiagram
 
     Note over App,RS: Step 4: Use the SDK against Keycloak (optional)
     App->>AS: client.DiscoverAS(keycloakRealmURL)
-    App->>AS: authClient.ClientCredentialsToken(...)
+    App->>AS: authClient.ClientCredentials(ctx, &Req)
     AS-->>App: ServerCredential from Keycloak
 ```
 
@@ -73,7 +73,7 @@ AuthClient is the low-level SDK: discover endpoints, then make a single token re
 | **Use case** | One-shot token requests | Long-running services |
 | **Caching** | None — new request every time | Automatic — reuses valid tokens |
 | **Refresh** | Manual | Automatic (on next Token() call) |
-| **Interface** | `ClientCredentialsToken()` | `Token() string` (TokenSource) |
+| **Interface** | `ClientCredentials(ctx, *Req)` | `Token() string` (TokenSource) |
 | **Scope step-up** | Manual | `TokenForScopes()` |
 
 ### Step 2: Cached token with ClientCredentialsSource

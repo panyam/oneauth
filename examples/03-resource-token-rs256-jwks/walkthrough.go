@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -70,34 +70,22 @@ func runDemo() {
 			return nil
 		})
 
-	demo.Step("Register app with RS256 public key").
+	demo.Step("Register RS256 public key with the auth server").
 		Ref(refs.RFC7517).
-		Arrow("App", "AS", "POST /apps/register {domain, signing_alg: RS256, public_key}").
-		DashedArrow("AS", "App", "{client_id} (no client_secret — asymmetric!)").
-		Note("Unlike HS256 registration, no secret is returned. The auth server stores the public key and serves it via JWKS.").
-		VerbatimLang("Reproduce on the wire", "bash", `PUB=$(cat your-public-key.pem)
-curl -s -X POST http://localhost:8081/apps/register \
-  -H 'Content-Type: application/json' \
-  -d "{\"client_domain\":\"myapp.example.com\",\"signing_alg\":\"RS256\",\"public_key\":$(jq -Rs . <<<"$PUB")}"`).
+		Arrow("App", "AS", "KeyStore.PutKey(clientID, pubPEM, RS256)").
+		Note("In production the public key arrives via RFC 7591 DCR with a JWKS body. Here we call the KeyStore directly to keep the focus on the JWKS discovery flow; either path lands the same KeyRecord in the AS's KeyStore.").
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
 			pubPEM, _ := utils.EncodePublicKeyPEM(&privKey.PublicKey)
-			body, _ := json.Marshal(map[string]any{
-				"client_domain": "myapp.example.com",
-				"signing_alg":   "RS256",
-				"public_key":    string(pubPEM),
-			})
-			resp, err := http.Post(authServer.URL+"/apps/register", "application/json",
-				bytes.NewReader(body))
-			if err != nil {
-				return demokit.Errf("register: %v", err)
+			clientID = "myapp.example.com"
+			if _, err := ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
+				ClientID:  clientID,
+				Key:       pubPEM,
+				Algorithm: "RS256",
+			}}); err != nil {
+				return demokit.Errf("PutKey: %v", err)
 			}
-			var reg map[string]any
-			json.NewDecoder(resp.Body).Decode(&reg)
-			resp.Body.Close()
-
-			clientID = reg["client_id"].(string)
 			fmt.Printf("    client_id:     %s\n", clientID)
-			fmt.Printf("    client_secret: (none — RS256 uses key pair)\n")
+			fmt.Printf("    client_secret: (none — RS256 uses a key pair)\n")
 			return nil
 		})
 

@@ -6,7 +6,7 @@ Non-UI | No infrastructure needed | Builds on Examples 01-03
 
 - **Fetch the discovery document (raw HTTP)** — The discovery document is a JSON object listing every endpoint the server supports. This is the same format Keycloak, Auth0, and Google use.
 - **Discover using the client SDK (client.DiscoverAS)** — client.DiscoverAS() fetches and parses the metadata into a typed Go struct. Production code should use this — no manual JSON parsing needed.
-- **Register a client (using discovered URL)** — Instead of hardcoding /apps/register, we use the registration_endpoint from discovery. The same code works against OneAuth, Keycloak, or any RFC 8414-compliant server.
+- **Register a client (using discovered URL)** — Instead of hardcoding /apps/dcr, we use the registration_endpoint from discovery. The same code works against OneAuth, Keycloak, or any RFC 8414-compliant server.
 - **Get a token (using discovered token endpoint)** — We use discoveredMeta.TokenEndpoint instead of hardcoding /api/token. This is the key benefit — the same client code works against any compliant AS.
 - **Use the token on a resource server** — The resource server validates the token as in previous examples. Discovery doesn't change how tokens work — it only changes how the client finds the endpoints.
 - **Discover Keycloak endpoints (optional)** — Same DiscoverAS() call, completely different server. If Keycloak isn't running, this step is skipped — run 'make upkcl' in examples/ to start it.
@@ -101,7 +101,7 @@ client.DiscoverAS() fetches and parses the metadata into a typed Go struct. Prod
 
 ### Step 3: Register a client (using discovered URL)
 
-Instead of hardcoding /apps/register, we use the registration_endpoint from discovery. The same code works against OneAuth, Keycloak, or any RFC 8414-compliant server.
+Instead of hardcoding /apps/dcr, we use the registration_endpoint from discovery. The same code works against OneAuth, Keycloak, or any RFC 8414-compliant server.
 
 #### Reproduce on the wire
 
@@ -110,7 +110,7 @@ Instead of hardcoding /apps/register, we use the registration_endpoint from disc
 REG=$(curl -s http://localhost:8081/.well-known/openid-configuration | jq -r .registration_endpoint)
 curl -s -X POST "$REG" \
   -H 'Content-Type: application/json' \
-  -d '{"client_domain":"discovery-demo.example.com","signing_alg":"HS256"}' | jq
+  -d '{"client_name":"discovery-demo.example.com","grant_types":["client_credentials"]}' | jq
 ```
 
 ### Step 4: Get a token (using discovered token endpoint)
@@ -173,9 +173,9 @@ for opaque tokens.
 
 ## References
 
+- [RFC 6750 — Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750)
 - [RFC 8414 — AS Metadata Discovery](https://www.rfc-editor.org/rfc/rfc8414)
 - [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
-- [RFC 6750 — Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750)
 
 ## Run it
 

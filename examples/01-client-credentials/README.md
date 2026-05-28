@@ -23,9 +23,9 @@ make demo
 # Or run the servers yourself and drive them with curl / your own client
 make serve            # auth :8081, resource :8082
 # in another terminal:
-curl -s -X POST http://localhost:8081/apps/register \
+curl -s -X POST http://localhost:8081/apps/dcr \
   -H 'Content-Type: application/json' \
-  -d '{"client_domain":"my.example.com","signing_alg":"HS256"}'
+  -d '{"client_name":"my.example.com","grant_types":["client_credentials"]}'
 ```
 
 See [WALKTHROUGH.md](WALKTHROUGH.md) for the full step-by-step with
