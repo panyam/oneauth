@@ -62,7 +62,7 @@ func serve() {
 		}
 	}()
 	log.Printf("[example-02] auth server listening on %s", *asAddr)
-	log.Printf("[example-02] register: curl -X POST http://localhost%s/apps/register -d '{\"client_domain\":\"my.example.com\",\"signing_alg\":\"HS256\"}'", *asAddr)
+	log.Printf("[example-02] register: curl -X POST http://localhost%s/apps/dcr -d '{\"client_name\":\"my.example.com\",\"grant_types\":[\"client_credentials\"]}'", *asAddr)
 	if err := http.ListenAndServe(*asAddr, asMux); err != nil {
 		log.Fatalf("auth server: %v", err)
 	}

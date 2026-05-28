@@ -18,7 +18,7 @@ sequenceDiagram
     participant RS as Resource Server
 
     Note over App,RS: Step 1: Register a client
-    App->>AS: POST /apps/register {domain, signing_alg}
+    App->>AS: POST /apps/dcr {client_name, grant_types}
     AS-->>App: {client_id, client_secret}
 
     Note over App,RS: Step 2: Request an access token
@@ -62,9 +62,9 @@ The client receives credentials it will use to authenticate in the next step. Op
 #### Reproduce on the wire
 
 ```bash
-curl -s -X POST http://localhost:8081/apps/register \
+curl -s -X POST http://localhost:8081/apps/dcr \
   -H 'Content-Type: application/json' \
-  -d '{"client_domain":"my-service.example.com","signing_alg":"HS256"}'
+  -d '{"client_name":"my-service.example.com","grant_types":["client_credentials"]}'
 ```
 
 ### Step 2: Request an access token
@@ -129,11 +129,11 @@ multi-app architecture.
 
 ## References
 
-- [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591)
-- [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 - [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 - [RFC 6750 — Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750)
 - [RFC 7515 — JSON Web Signature (JWS)](https://www.rfc-editor.org/rfc/rfc7515)
+- [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591)
+- [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 
 ## Run it
 

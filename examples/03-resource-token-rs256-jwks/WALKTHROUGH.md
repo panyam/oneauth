@@ -5,7 +5,7 @@ Non-UI | No infrastructure needed | Builds on Example 02
 ## What you'll learn
 
 - **App generates an RSA key pair** — The app generates a 2048-bit RSA key pair. The private key stays with the app. The public key will be registered with the auth server.
-- **Register app with RS256 public key** — Unlike HS256 registration, no secret is returned. The auth server stores the public key and serves it via JWKS.
+- **Register RS256 public key with the auth server** — In production the public key arrives via RFC 7591 DCR with a JWKS body. Here we call the KeyStore directly to keep the focus on the JWKS discovery flow; either path lands the same KeyRecord in the AS's KeyStore.
 - **Verify the public key appears in JWKS** — The JWKS endpoint serves only public keys — HS256 secrets are never exposed. Each key includes a kid (Key ID) computed from the key thumbprint (RFC 7638).
 - **Mint a token with the private key and validate via JWKS** — The token's kid header tells the resource server which key to use. The signature is verified with the public key — the private key was never shared.
 - **Token signed with a different private key is rejected** — Even though the token is a valid JWT, its kid doesn't match any key in JWKS, or the signature doesn't verify with the registered public key.
@@ -20,9 +20,8 @@ sequenceDiagram
 
     Note over App,RS: Step 1: App generates an RSA key pair
 
-    Note over App,RS: Step 2: Register app with RS256 public key
-    App->>AS: POST /apps/register {domain, signing_alg: RS256, public_key}
-    AS-->>App: {client_id} (no client_secret — asymmetric!)
+    Note over App,RS: Step 2: Register RS256 public key with the auth server
+    App->>AS: KeyStore.PutKey(clientID, pubPEM, RS256)
 
     Note over App,RS: Step 3: Verify the public key appears in JWKS
     App->>AS: GET /.well-known/jwks.json
@@ -67,20 +66,11 @@ With RS256 (asymmetric):
 
 The app generates a 2048-bit RSA key pair. The private key stays with the app. The public key will be registered with the auth server.
 
-### Step 2: Register app with RS256 public key
+### Step 2: Register RS256 public key with the auth server
 
 > **References:** [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 
-Unlike HS256 registration, no secret is returned. The auth server stores the public key and serves it via JWKS.
-
-#### Reproduce on the wire
-
-```bash
-PUB=$(cat your-public-key.pem)
-curl -s -X POST http://localhost:8081/apps/register \
-  -H 'Content-Type: application/json' \
-  -d "{\"client_domain\":\"myapp.example.com\",\"signing_alg\":\"RS256\",\"public_key\":$(jq -Rs . <<<"$PUB")}"
-```
+In production the public key arrives via RFC 7591 DCR with a JWKS body. Here we call the KeyStore directly to keep the focus on the JWKS discovery flow; either path lands the same KeyRecord in the AS's KeyStore.
 
 ### Step 3: Verify the public key appears in JWKS
 
@@ -155,10 +145,10 @@ with external IdPs like Keycloak and Auth0.
 
 ## References
 
-- [RFC 7638 — JWK Thumbprint (kid)](https://www.rfc-editor.org/rfc/rfc7638)
-- [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 - [RFC 7515 — JSON Web Signature (JWS)](https://www.rfc-editor.org/rfc/rfc7515)
 - [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
+- [RFC 7638 — JWK Thumbprint (kid)](https://www.rfc-editor.org/rfc/rfc7638)
+- [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 
 ## Run it
 

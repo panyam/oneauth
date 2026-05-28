@@ -72,15 +72,14 @@ func runDemo() {
 	demo.Step("Register a client and get an access token").
 		Ref(refs.RFC6749_ClientCredentials).
 		Ref(refs.RFC7519).
-		Arrow("App", "AS", "POST /apps/register → POST /api/token").
+		Arrow("App", "AS", "POST /apps/dcr → POST /api/token").
 		DashedArrow("AS", "App", "{client_id, client_secret, access_token}").
 		Note("Same as Example 01 — register, then client_credentials grant. The token includes a jti (JWT ID) claim used for revocation.").
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
 			body, _ := json.Marshal(map[string]any{
-				"client_domain": "introspect-demo.example.com",
-				"signing_alg":   "HS256",
+				"client_name": "introspect-demo.example.com",
 			})
-			regResp, err := http.Post(authServer.URL+"/apps/register",
+			regResp, err := http.Post(authServer.URL+"/apps/dcr",
 				"application/json", strings.NewReader(string(body)))
 			if err != nil {
 				return demokit.Errf("register: %v", err)
@@ -294,7 +293,10 @@ func introspect(endpointURL, token, callerID, callerSecret string) map[string]an
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(callerID, callerSecret)
 
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return map[string]any{"error": err.Error()}
+	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 

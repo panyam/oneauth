@@ -1,7 +1,7 @@
     KeyStore pre-seeded with two apps:
       app-rsa  — RS256 (public key registered)
       app-hmac — HS256 (shared secret registered)
-    Resource server: http://127.0.0.1:60347
+    Resource server: http://127.0.0.1:57689
 
 # 10: Security — Attack Prevention
 

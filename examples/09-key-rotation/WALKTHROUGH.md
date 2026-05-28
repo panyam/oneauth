@@ -1,5 +1,5 @@
-    Auth server:     http://127.0.0.1:60343
-    Resource server: http://127.0.0.1:60344
+    Auth server:     http://127.0.0.1:57686
+    Resource server: http://127.0.0.1:57687
     Grace period:    100ms (short for demo)
 
 # 09: Key Rotation with Grace Periods
@@ -22,7 +22,7 @@ sequenceDiagram
     participant RS as Resource Server
 
     Note over Admin,RS: Step 1: Register an app and mint a token with the original key
-    Admin->>AS: POST /apps/register
+    Admin->>AS: POST /apps/dcr
     AS-->>Admin: {client_id, client_secret}
     Admin->>Admin: MintResourceToken(alice, oldSecret)
 
@@ -73,9 +73,9 @@ The app gets a client_secret (HS256). We mint a token for Alice — this token's
 #### Reproduce on the wire
 
 ```bash
-curl -s -X POST http://localhost:8081/apps/register \
+curl -s -X POST http://localhost:8081/apps/dcr \
   -H 'Content-Type: application/json' \
-  -d '{"client_domain":"rotate.example.com"}' | jq
+  -d '{"client_name":"rotate.example.com","grant_types":["client_credentials"]}' | jq
 ```
 
 ### Step 2: Rotate the key
@@ -142,9 +142,9 @@ JWKS security properties.
 
 ## References
 
+- [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 - [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 - [RFC 7638 — JWK Thumbprint (kid)](https://www.rfc-editor.org/rfc/rfc7638)
-- [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 
 ## Run it
 

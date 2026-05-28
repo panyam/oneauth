@@ -12,7 +12,7 @@
 //
 // In --serve mode an admin can drive rotation by hand:
 //
-//	POST /apps/register            → returns client_id + client_secret (kv1)
+//	POST /apps/dcr            → returns client_id + client_secret (kv1)
 //	POST /apps/{id}/rotate         → returns new client_secret (kv2),
 //	                                 old key sticks in KidStore for grace period
 //	GET  /resource (Bearer token)  → validates against KeyStore + KidStore

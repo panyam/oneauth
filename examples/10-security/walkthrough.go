@@ -107,8 +107,8 @@ func runDemo() {
 			var clientIDs [2]string
 			var secrets [2]string
 			for i, domain := range []string{"app-a.com", "app-b.com"} {
-				body, _ := json.Marshal(map[string]any{"client_domain": domain})
-				resp, err := http.Post(authServer.URL+"/apps/register", "application/json",
+				body, _ := json.Marshal(map[string]any{"client_name": domain})
+				resp, err := http.Post(authServer.URL+"/apps/dcr", "application/json",
 					bytes.NewReader(body))
 				if err != nil {
 					return demokit.Errf("register: %v", err)

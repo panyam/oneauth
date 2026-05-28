@@ -61,16 +61,16 @@ sequenceDiagram
 Think: a developer builds a new Slack bot and registers it via API — no admin dashboard needed.
 [What are these?](../README.md#cast-of-characters)
 
-In Examples 01-05, we registered via `/apps/register` — OneAuth's proprietary
-endpoint. RFC 7591 defines a standard registration API that works across providers:
+RFC 7591 Dynamic Client Registration defines a standard registration API
+that works across providers. Examples 01-05 used the same `/apps/dcr`
+endpoint; this walkthrough zooms in on the full DCR metadata surface
+(client_name, client_uri, redirect_uris, grant_types, auth method, scope).
 
-| Endpoint | Standard | Works with |
-|----------|----------|-----------|
-| `/apps/register` | OneAuth proprietary | OneAuth only |
-| `/apps/dcr` | RFC 7591 | OneAuth, Keycloak, Auth0, any compliant AS |
+Because the endpoint is RFC 7591, the same DCR request body works against
+OneAuth, Keycloak, Auth0, or any compliant AS.
 
-DCR lets apps self-register by posting their metadata (name, redirect URIs,
-grant types, auth method). The AS creates the client and returns credentials.
+DCR lets apps self-register by posting their metadata. The AS creates the
+client and returns credentials (plus RFC 7592 §3 management credentials).
 
 ### DCR request format (RFC 7591 §2)
 
@@ -244,10 +244,10 @@ configuration — all wrapped in a simple `TokenSource` interface.
 
 ## References
 
+- [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 - [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 - [RFC 7591 — Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591)
 - [RFC 7592 — Dynamic Client Registration Management](https://www.rfc-editor.org/rfc/rfc7592)
-- [RFC 6749 §4.4 — Client Credentials Grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.4)
 
 ## Run it
 

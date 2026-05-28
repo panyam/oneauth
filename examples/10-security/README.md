@@ -10,7 +10,7 @@ the strict middleware so you see both attack and defense fire.
 ## Two-process architecture
 
 `main.go` boots:
-- An auth/JWKS server on `:8081` (`/apps/register`, `/.well-known/jwks.json`)
+- An auth/JWKS server on `:8081` (`/apps/dcr`, `/.well-known/jwks.json`)
 - A protected resource on `:8082` validating with the strict middleware
 
 In `--serve` mode you can fuzz the resource endpoint with crafted

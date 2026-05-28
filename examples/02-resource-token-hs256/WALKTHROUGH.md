@@ -20,7 +20,7 @@ sequenceDiagram
     participant RS as Resource Server
 
     Note over App,RS: Step 1: Register an app with HS256 signing
-    App->>AS: POST /apps/register {domain: myapp.example.com, signing_alg: HS256}
+    App->>AS: POST /apps/dcr {client_name: myapp.example.com}
     AS-->>App: {client_id, client_secret}
 
     Note over App,RS: Step 2: Mint a resource token for user Alice
@@ -75,9 +75,9 @@ The app gets a client_id and a shared secret. The secret is stored in the KeySto
 #### Reproduce on the wire
 
 ```bash
-curl -s -X POST http://localhost:8081/apps/register \
+curl -s -X POST http://localhost:8081/apps/dcr \
   -H 'Content-Type: application/json' \
-  -d '{"client_domain":"myapp.example.com","signing_alg":"HS256"}'
+  -d '{"client_name":"myapp.example.com","grant_types":["client_credentials"]}'
 ```
 
 ### MintResourceToken vs client_credentials
@@ -152,10 +152,10 @@ secrets — the resource server never sees the private key.
 
 ## References
 
-- [RFC 7515 — JSON Web Signature (JWS)](https://www.rfc-editor.org/rfc/rfc7515)
 - [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 - [RFC 7638 — JWK Thumbprint (kid)](https://www.rfc-editor.org/rfc/rfc7638)
 - [RFC 6750 — Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750)
+- [RFC 7515 — JSON Web Signature (JWS)](https://www.rfc-editor.org/rfc/rfc7515)
 
 ## Run it
 

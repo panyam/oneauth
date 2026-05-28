@@ -63,18 +63,17 @@ func runDemo() {
 
 	demo.Step("Register a client").
 		Ref(refs.RFC7591).
-		Arrow("App", "AS", "POST /apps/register {domain, signing_alg}").
+		Arrow("App", "AS", "POST /apps/dcr {client_name, grant_types}").
 		DashedArrow("AS", "App", "{client_id, client_secret}").
 		Note("The client receives credentials it will use to authenticate in the next step. Open registration (`NewNoAuth`) is for the demo only — gate this in production.").
-		VerbatimLang("Reproduce on the wire", "bash", `curl -s -X POST http://localhost:8081/apps/register \
+		VerbatimLang("Reproduce on the wire", "bash", `curl -s -X POST http://localhost:8081/apps/dcr \
   -H 'Content-Type: application/json' \
-  -d '{"client_domain":"my-service.example.com","signing_alg":"HS256"}'`).
+  -d '{"client_name":"my-service.example.com","grant_types":["client_credentials"]}'`).
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
 			body, _ := json.Marshal(map[string]any{
-				"client_domain": "my-service.example.com",
-				"signing_alg":   "HS256",
+				"client_name": "my-service.example.com",
 			})
-			resp, err := http.Post(authServer.URL+"/apps/register", "application/json",
+			resp, err := http.Post(authServer.URL+"/apps/dcr", "application/json",
 				strings.NewReader(string(body)))
 			if err != nil {
 				return demokit.Errf("register: %v", err)

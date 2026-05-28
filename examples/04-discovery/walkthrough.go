@@ -129,18 +129,17 @@ func runDemo() {
 	demo.Step("Register a client (using discovered URL)").
 		Arrow("App", "AS", "POST {discovered_registration_endpoint}").
 		DashedArrow("AS", "App", "{client_id, client_secret}").
-		Note("Instead of hardcoding /apps/register, we use the registration_endpoint from discovery. The same code works against OneAuth, Keycloak, or any RFC 8414-compliant server.").
+		Note("Instead of hardcoding /apps/dcr, we use the registration_endpoint from discovery. The same code works against OneAuth, Keycloak, or any RFC 8414-compliant server.").
 		VerbatimLang("Reproduce on the wire", "bash", `# Discover the registration endpoint, then use it
 REG=$(curl -s http://localhost:8081/.well-known/openid-configuration | jq -r .registration_endpoint)
 curl -s -X POST "$REG" \
   -H 'Content-Type: application/json' \
-  -d '{"client_domain":"discovery-demo.example.com","signing_alg":"HS256"}' | jq`).
+  -d '{"client_name":"discovery-demo.example.com","grant_types":["client_credentials"]}' | jq`).
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
 			body, _ := json.Marshal(map[string]any{
-				"client_domain": "discovery-demo.example.com",
-				"signing_alg":   "HS256",
+				"client_name": "discovery-demo.example.com",
 			})
-			resp, err := http.Post(authServer.URL+"/apps/register",
+			resp, err := http.Post(authServer.URL+"/apps/dcr",
 				"application/json", strings.NewReader(string(body)))
 			if err != nil {
 				return demokit.Errf("register: %v", err)
