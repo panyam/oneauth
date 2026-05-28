@@ -17,6 +17,11 @@ demo-plain: ## Run the walkthrough with the plain renderer
 demo-ci: ## Run the walkthrough non-interactively (no pauses)
 	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --non-interactive
 
+# Cell-based notebook UI (demokit/notebookbridge). Good for
+# step-through-and-explore demos with persistent output cells.
+note: ## Run the walkthrough in notebook mode (cell-based UI)
+	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --mode=notebook
+
 # Run just the auth server + resource server on real ports. Use this
 # when driving the example from curl, your own client, or a different
 # walkthrough binary.
@@ -27,5 +32,5 @@ serve: ## Start auth server (:8081) + resource server (:8082) and block
 walkthrough: ## Regenerate WALKTHROUGH.md (mermaid + steps + run-it commands)
 	cd ../.. && go run -buildvcs=false ./examples/$(EXAMPLE_DIR)/ --doc md > examples/$(EXAMPLE_DIR)/WALKTHROUGH.md
 
-.PHONY: demo demo-plain demo-ci serve walkthrough
+.PHONY: demo demo-plain demo-ci serve walkthrough note
 .DEFAULT_GOAL := demo
