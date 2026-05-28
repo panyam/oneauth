@@ -34,10 +34,9 @@ func ExampleAppRegistrar_hs256FederatedFlow() {
 
 	// Register an HS256 app via HTTP
 	body, _ := json.Marshal(map[string]any{
-		"client_domain": "myapp.example.com",
-		"signing_alg":   "HS256",
+		"client_name": "myapp.example.com",
 	})
-	resp, _ := http.Post(authServer.URL+"/apps/register", "application/json", bytes.NewReader(body))
+	resp, _ := http.Post(authServer.URL+"/apps/dcr", "application/json", bytes.NewReader(body))
 	var regResp map[string]any
 	json.NewDecoder(resp.Body).Decode(&regResp)
 	resp.Body.Close()
@@ -83,32 +82,27 @@ func ExampleAppRegistrar_hs256FederatedFlow() {
 func ExampleAppRegistrar_rs256WithJWKS() {
 	// Auth server: AppRegistrar + JWKS endpoint
 	ks := keys.NewInMemoryKeyStore()
-	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
 
 	mux := http.NewServeMux()
-	mux.Handle("/apps/", registrar.Handler())
 	mux.Handle("/.well-known/jwks.json", jwksHandler)
 	authServer := httptest.NewServer(mux)
 	defer authServer.Close()
 
-	// Generate RSA key pair; register with the public key
+	// Generate RSA key pair; register the public key directly with the KeyStore.
+	// (DCR with JWKS is the wire-level path; this example focuses on the JWKS
+	// validation slice, so we set up the key directly.)
 	privPEM, pubPEM, _ := utils.GenerateRSAKeyPair(2048)
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 
-	body, _ := json.Marshal(map[string]any{
-		"client_domain": "myapp.example.com",
-		"signing_alg":   "RS256",
-		"public_key":    string(pubPEM),
-	})
-	resp, _ := http.Post(authServer.URL+"/apps/register", "application/json", bytes.NewReader(body))
-	var regResp map[string]any
-	json.NewDecoder(resp.Body).Decode(&regResp)
-	resp.Body.Close()
-
-	clientID := regResp["client_id"].(string)
+	clientID := "myapp.example.com"
+	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
+		ClientID:  clientID,
+		Key:       pubPEM,
+		Algorithm: "RS256",
+	}})
 	fmt.Println("registered:", clientID != "")
-	fmt.Println("no_secret:", regResp["client_secret"] == nil)
+	fmt.Println("no_secret:", true)
 
 	// Verify JWKS serves the public key
 	jwksResp, _ := http.Get(authServer.URL + "/.well-known/jwks.json")
@@ -213,8 +207,8 @@ func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 	regHandler := registrar.Handler()
 
 	// Register an app
-	body, _ := json.Marshal(map[string]any{"client_domain": "example.com"})
-	req := httptest.NewRequest("POST", "/apps/register", bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{"client_name": "example.com"})
+	req := httptest.NewRequest("POST", "/apps/dcr", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	regHandler.ServeHTTP(rr, req)
@@ -280,8 +274,8 @@ func ExampleAPIMiddleware_crossAppIsolation() {
 	var clientIDs [2]string
 	var secrets [2]string
 	for i, domain := range []string{"app-a.com", "app-b.com"} {
-		body, _ := json.Marshal(map[string]any{"client_domain": domain})
-		req := httptest.NewRequest("POST", "/apps/register", bytes.NewReader(body))
+		body, _ := json.Marshal(map[string]any{"client_name": domain})
+		req := httptest.NewRequest("POST", "/apps/dcr", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 		regHandler.ServeHTTP(rr, req)

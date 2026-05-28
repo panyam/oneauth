@@ -37,7 +37,7 @@ const (
 //	POST /oauth/introspect                    — token introspection (RFC 7662)
 //	GET  /.well-known/jwks.json               — JWKS public key (RFC 7517)
 //	GET  /.well-known/openid-configuration    — AS metadata (RFC 8414)
-//	POST /apps/register                       — app registration
+//	POST /apps/dcr                       — app registration
 //	POST /apps/dcr                            — dynamic client registration (RFC 7591)
 type TestAuthServer struct {
 	// Server is the underlying httptest.Server. Use URL() for the base URL.
@@ -168,7 +168,7 @@ func WithTrustedAssertionIssuers(issuers []apiauth.TrustedAssertionIssuer) Optio
 // t.Cleanup when the test completes.
 //
 // The server signs JWTs with RS256 and serves the public key via JWKS.
-// Apps can be registered via /apps/register or /apps/dcr (RFC 7591),
+// Apps can be registered via /apps/dcr or /apps/dcr (RFC 7591),
 // and tokens can be obtained via /api/token (client_credentials grant).
 // NewAuthServer creates an in-process OAuth authorization server without
 // requiring *testing.T. Use this in standalone examples, benchmarks, or
@@ -252,7 +252,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		TokenEndpoint:                 baseURL + "/api/token",
 		JWKSURI:                       baseURL + "/.well-known/jwks.json",
 		IntrospectionEndpoint:         baseURL + "/oauth/introspect",
-		RegistrationEndpoint:          baseURL + "/apps/register",
+		RegistrationEndpoint:          baseURL + "/apps/dcr",
 		ScopesSupported:               cfg.scopes,
 		ClaimsSupported:               cfg.claimsSupported,
 		GrantTypesSupported:           grants,

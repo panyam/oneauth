@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"github.com/panyam/oneauth/core"
 	"context"
 	"errors"
 	"time"
@@ -38,26 +39,19 @@ type ClientRegistrar interface {
 	// (extended with the RFC 7592 §3 management credentials).
 	Register(ctx context.Context, req *RegisterRequest) (*RegisterResponse, error)
 
-	// RegisterLegacy handles the proprietary /apps/register path. Distinct
-	// from Register because the wire shapes diverge — the legacy endpoint
-	// carries OneAuth-specific quota fields (MaxRooms / MaxMsgRate) that
-	// RFC 7591 has no place for. Eventual removal of this endpoint is
-	// tracked under issue #189.
-	RegisterLegacy(ctx context.Context, req *RegisterLegacyRequest) (*RegisterLegacyResponse, error)
-
 	// ListClients returns every registration in the registry. Reads from
-	// the in-memory cache hydrated from the AppRegistrationStore on
+	// the in-memory cache hydrated from the core.AppRegistrationStore on
 	// AppRegistrar construction.
 	ListClients(ctx context.Context, req *ListClientsRequest) (*ListClientsResponse, error)
 
 	// GetClient returns the registration for req.ClientID, or
-	// ErrAppNotFound. This is the ADMIN read — distinct from
+	// core.ErrAppNotFound. This is the ADMIN read — distinct from
 	// ClientRegistrationManager.GetRegistration which authenticates with
 	// the client's own registration_access_token.
 	GetClient(ctx context.Context, req *GetClientRequest) (*GetClientResponse, error)
 
 	// DeleteClient removes the registration for req.ClientID and
-	// invalidates its KeyStore entry. Returns ErrAppNotFound if the
+	// invalidates its KeyStore entry. Returns core.ErrAppNotFound if the
 	// client does not exist. This is the ADMIN delete — distinct from
 	// ClientRegistrationManager.DeleteRegistration which authenticates
 	// with the client's own token.
@@ -94,36 +88,6 @@ type RegisterResponse struct {
 }
 
 // ----------------------------------------------------------------------------
-// RegisterLegacy (proprietary /apps/register)
-// ----------------------------------------------------------------------------
-
-// RegisterLegacyRequest carries the field set that the proprietary
-// /apps/register endpoint accepts. Notable differences from RegisterRequest:
-//   - ClientDomain replaces ClientName / ClientURI as the primary metadata
-//   - MaxRooms / MaxMsgRate carry OneAuth-specific quota that DCR cannot express
-//   - PublicKey is a raw PEM string for asymmetric algs (DCR uses JWKS instead)
-type RegisterLegacyRequest struct {
-	ClientDomain string  `json:"client_domain"`
-	SigningAlg   string  `json:"signing_alg"` // empty → defaults to HS256
-	PublicKey    string  `json:"public_key"`  // PEM-encoded; required for RS256/ES256
-	MaxRooms     int     `json:"max_rooms"`
-	MaxMsgRate   float64 `json:"max_msg_rate"`
-}
-
-// RegisterLegacyResponse wraps the proprietary response. Captured as
-// concrete fields rather than a map so the wire shape is reviewable in one
-// place; the HTTP wrapper marshals each field with the right name.
-type RegisterLegacyResponse struct {
-	ClientID     string    `json:"client_id"`
-	ClientDomain string    `json:"client_domain"`
-	SigningAlg   string    `json:"signing_alg"`
-	ClientSecret string    `json:"client_secret,omitempty"` // present only for symmetric algs
-	MaxRooms     int       `json:"max_rooms"`
-	MaxMsgRate   float64   `json:"max_msg_rate"`
-	CreatedAt    time.Time `json:"created_at"`
-}
-
-// ----------------------------------------------------------------------------
 // ListClients
 // ----------------------------------------------------------------------------
 
@@ -136,7 +100,7 @@ type ListClientsRequest struct{}
 // ListClientsResponse returns every registration. Each entry is a clone —
 // callers cannot mutate the in-memory cache via this value.
 type ListClientsResponse struct {
-	Apps []*AppRegistration
+	Apps []*core.AppRegistration
 }
 
 // ----------------------------------------------------------------------------
@@ -150,7 +114,7 @@ type GetClientRequest struct {
 
 // GetClientResponse is the registration metadata for the requested client.
 type GetClientResponse struct {
-	Registration *AppRegistration
+	Registration *core.AppRegistration
 }
 
 // ----------------------------------------------------------------------------

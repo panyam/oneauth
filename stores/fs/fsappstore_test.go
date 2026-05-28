@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/appstoretest"
 	"github.com/panyam/oneauth/stores/fs"
 )
@@ -23,7 +23,7 @@ import (
 // against the filesystem backend. Each sub-test gets a fresh tempdir so
 // state cannot leak between cases.
 func TestFSAppStore_Contract(t *testing.T) {
-	appstoretest.RunAll(t, func(t *testing.T) admin.AppRegistrationStore {
+	appstoretest.RunAll(t, func(t *testing.T) core.AppRegistrationStore {
 		return fs.NewFSAppStore(t.TempDir())
 	})
 }
@@ -45,16 +45,16 @@ func TestFSAppStore_PathTraversalRejected(t *testing.T) {
 		".",
 	} {
 		t.Run(badID, func(t *testing.T) {
-			_, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{ClientID: badID, SigningAlg: "HS256", CreatedAt: time.Now()}})
+			_, err := store.SaveApp(ctx, &core.SaveAppRequest{App: &core.AppRegistration{ClientID: badID, SigningAlg: "HS256", CreatedAt: time.Now()}})
 			if err == nil {
 				t.Fatalf("SaveApp(%q) should have rejected the traversal attempt", badID)
 			}
 			// Same defense at read + delete time so we never load a path
 			// composed by a non-safeName route.
-			if _, err := store.GetApp(ctx, &admin.GetAppRequest{ClientID: badID}); err == nil {
+			if _, err := store.GetApp(ctx, &core.GetAppRequest{ClientID: badID}); err == nil {
 				t.Errorf("GetApp(%q) should have rejected the traversal attempt", badID)
 			}
-			if _, err := store.DeleteApp(ctx, &admin.DeleteAppRequest{ClientID: badID}); err == nil {
+			if _, err := store.DeleteApp(ctx, &core.DeleteAppRequest{ClientID: badID}); err == nil {
 				t.Errorf("DeleteApp(%q) should have rejected the traversal attempt", badID)
 			}
 		})
@@ -72,7 +72,7 @@ func TestFSAppStore_CorruptFile_GetReturnsError(t *testing.T) {
 	ctx := context.Background()
 
 	// Save a real entry to materialize the apps/ directory.
-	if _, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{ClientID: "good", SigningAlg: "HS256", CreatedAt: time.Now()}}); err != nil {
+	if _, err := store.SaveApp(ctx, &core.SaveAppRequest{App: &core.AppRegistration{ClientID: "good", SigningAlg: "HS256", CreatedAt: time.Now()}}); err != nil {
 		t.Fatalf("SaveApp: %v", err)
 	}
 	// Drop a hand-corrupted file alongside it.
@@ -81,17 +81,17 @@ func TestFSAppStore_CorruptFile_GetReturnsError(t *testing.T) {
 		t.Fatalf("seed corrupt file: %v", err)
 	}
 
-	_, err := store.GetApp(ctx, &admin.GetAppRequest{ClientID: "corrupt"})
+	_, err := store.GetApp(ctx, &core.GetAppRequest{ClientID: "corrupt"})
 	if err == nil {
 		t.Fatalf("GetApp on corrupt file should have errored")
 	}
-	if errors.Is(err, admin.ErrAppNotFound) {
+	if errors.Is(err, core.ErrAppNotFound) {
 		t.Fatalf("GetApp on corrupt file must NOT return ErrAppNotFound — got %v", err)
 	}
 
 	// Good entry still readable — corruption of one file does not poison
 	// the rest of the store.
-	got, err := store.GetApp(ctx, &admin.GetAppRequest{ClientID: "good"})
+	got, err := store.GetApp(ctx, &core.GetAppRequest{ClientID: "good"})
 	if err != nil {
 		t.Fatalf("GetApp(good): %v", err)
 	}
@@ -109,7 +109,7 @@ func TestFSAppStore_CorruptFile_ListSkips(t *testing.T) {
 	ctx := context.Background()
 
 	for _, id := range []string{"alpha", "beta"} {
-		if _, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{ClientID: id, SigningAlg: "HS256", CreatedAt: time.Now()}}); err != nil {
+		if _, err := store.SaveApp(ctx, &core.SaveAppRequest{App: &core.AppRegistration{ClientID: id, SigningAlg: "HS256", CreatedAt: time.Now()}}); err != nil {
 			t.Fatalf("SaveApp(%s): %v", id, err)
 		}
 	}
@@ -117,7 +117,7 @@ func TestFSAppStore_CorruptFile_ListSkips(t *testing.T) {
 		t.Fatalf("seed trash file: %v", err)
 	}
 
-	resp, err := store.ListApps(ctx, &admin.ListAppsRequest{})
+	resp, err := store.ListApps(ctx, &core.ListAppsRequest{})
 	if err != nil {
 		t.Fatalf("ListApps: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestFSAppStore_LazyDirectoryCreation(t *testing.T) {
 	}
 
 	// First write must succeed and materialize the directory.
-	if _, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{ClientID: "lazy", SigningAlg: "HS256", CreatedAt: time.Now()}}); err != nil {
+	if _, err := store.SaveApp(ctx, &core.SaveAppRequest{App: &core.AppRegistration{ClientID: "lazy", SigningAlg: "HS256", CreatedAt: time.Now()}}); err != nil {
 		t.Fatalf("SaveApp: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "apps")); err != nil {
@@ -150,7 +150,7 @@ func TestFSAppStore_LazyDirectoryCreation(t *testing.T) {
 	// Pre-condition for ListApps on a fresh store with no writes: returns
 	// an empty slice, not an error. Verify against a separate path.
 	emptyStore := fs.NewFSAppStore(filepath.Join(t.TempDir(), "another-fresh-dir"))
-	emptyResp, err := emptyStore.ListApps(ctx, &admin.ListAppsRequest{})
+	emptyResp, err := emptyStore.ListApps(ctx, &core.ListAppsRequest{})
 	if err != nil {
 		t.Errorf("ListApps on fresh store: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestFSAppStore_OverwriteIsAtomicallyVisible(t *testing.T) {
 
 	const id = "overwriter"
 	for i, name := range []string{"first", "second", "third"} {
-		if _, err := store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{
+		if _, err := store.SaveApp(ctx, &core.SaveAppRequest{App: &core.AppRegistration{
 			ClientID: id, ClientName: name, SigningAlg: "HS256", CreatedAt: time.Now(),
 		}}); err != nil {
 			t.Fatalf("SaveApp #%d: %v", i, err)
@@ -187,7 +187,7 @@ func TestFSAppStore_OverwriteIsAtomicallyVisible(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read after SaveApp #%d: %v", i, err)
 		}
-		var got admin.AppRegistration
+		var got core.AppRegistration
 		if err := json.Unmarshal(data, &got); err != nil {
 			t.Fatalf("file unparseable after SaveApp #%d: %v", i, err)
 		}

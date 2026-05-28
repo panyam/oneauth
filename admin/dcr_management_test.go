@@ -108,8 +108,8 @@ func TestGetRegistration_LegacyRegistrationCannotBeRead(t *testing.T) {
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 
 	// Register through the legacy endpoint — no management token issued.
-	body := `{"client_domain":"legacy.example","signing_alg":"HS256"}`
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", strings.NewReader(body))
+	body := `{"client_name":"legacy.example","signing_alg":"HS256"}`
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
 	rr := httptest.NewRecorder()
 	registrar.Handler().ServeHTTP(rr, req)
 	require.Equal(t, http.StatusCreated, rr.Code)
@@ -533,8 +533,8 @@ func TestDeleteRegistration_LegacyRegistrationCannotBeDeleted(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 
-	body := `{"client_domain":"legacy.example","signing_alg":"HS256"}`
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", strings.NewReader(body))
+	body := `{"client_name":"legacy.example","signing_alg":"HS256"}`
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
 	rr := httptest.NewRecorder()
 	registrar.Handler().ServeHTTP(rr, req)
 	require.Equal(t, http.StatusCreated, rr.Code)

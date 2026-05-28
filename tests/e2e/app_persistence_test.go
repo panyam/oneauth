@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ import (
 // also persisted (i.e., a revoked app does NOT come back after restart). This
 // is the canonical regression test for the bug behind issue #20.
 func TestAppRegistrar_PersistsAcrossRestart(t *testing.T) {
-	store := admin.NewInMemoryAppStore()
+	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 
 	// --- Phase 1: first AppRegistrar instance (the "before-restart" world).
@@ -81,8 +82,8 @@ func TestAppRegistrar_PersistsAcrossRestart(t *testing.T) {
 
 func registerApp(t *testing.T, baseURL, domain string) string {
 	t.Helper()
-	body, _ := json.Marshal(map[string]any{"client_domain": domain, "signing_alg": "HS256"})
-	resp, err := http.Post(baseURL+"/apps/register", "application/json", bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{"client_name": domain, "grant_types": []string{"client_credentials"}})
+	resp, err := http.Post(baseURL+"/apps/dcr", "application/json", bytes.NewReader(body))
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusCreated, resp.StatusCode)

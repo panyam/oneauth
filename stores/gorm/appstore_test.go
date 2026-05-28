@@ -9,7 +9,7 @@ package gorm
 import (
 	"testing"
 
-	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/appstoretest"
 )
 
@@ -18,7 +18,7 @@ import (
 // connection (and, for Postgres, an isolated schema) so state cannot leak
 // between cases.
 func TestGORMAppStore(t *testing.T) {
-	appstoretest.RunAll(t, func(t *testing.T) admin.AppRegistrationStore {
+	appstoretest.RunAll(t, func(t *testing.T) core.AppRegistrationStore {
 		return NewAppStore(setupTestDB(t))
 	})
 }

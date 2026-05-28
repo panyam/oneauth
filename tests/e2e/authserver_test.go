@@ -270,7 +270,7 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		JWKSURI:                        baseURL + "/.well-known/jwks.json",
 		IntrospectionEndpoint:          baseURL + "/oauth/introspect",
 		RevocationEndpoint:            baseURL + "/oauth/revoke",
-		RegistrationEndpoint:           baseURL + "/apps/register",
+		RegistrationEndpoint:           baseURL + "/apps/dcr",
 		ScopesSupported:                []string{"read", "write", "admin"},
 		GrantTypesSupported:            []string{"authorization_code", "password", "refresh_token", "client_credentials"},
 		ResponseTypesSupported:         []string{"code", "token"},

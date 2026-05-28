@@ -394,8 +394,8 @@ func TestAppRegistrar_RotateWithGrace(t *testing.T) {
 	registrar.KidStore = kidStore
 	regHandler := registrar.Handler()
 
-	body, _ := json.Marshal(map[string]any{"client_domain": "grace-test.com"})
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{"client_name": "grace-test.com"})
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	regHandler.ServeHTTP(rr, req)
@@ -456,8 +456,8 @@ func TestAppRegistrar_RotateExpiredGrace(t *testing.T) {
 	registrar.DefaultGracePeriod = 1 * time.Millisecond
 	regHandler := registrar.Handler()
 
-	body, _ := json.Marshal(map[string]any{"client_domain": "expire-test.com"})
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{"client_name": "expire-test.com"})
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	regHandler.ServeHTTP(rr, req)

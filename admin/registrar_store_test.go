@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/keys"
 )
@@ -23,15 +24,15 @@ import (
 // guards the "registrations survive restart" property: dropping and rebuilding
 // the registrar over the same store is the in-process simulation of restart.
 func TestAppRegistrar_HydratesFromStore(t *testing.T) {
-	store := admin.NewInMemoryAppStore()
+	store := core.NewInMemoryAppStore()
 	ctx := context.Background()
-	store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{
+	store.SaveApp(ctx, &core.SaveAppRequest{App: &core.AppRegistration{
 		ClientID:     "app_pre_existing",
 		ClientDomain: "example.com",
 		SigningAlg:   "HS256",
 		CreatedAt:    time.Now(),
 	}})
-	store.SaveApp(ctx, &admin.SaveAppRequest{App: &admin.AppRegistration{
+	store.SaveApp(ctx, &core.SaveAppRequest{App: &core.AppRegistration{
 		ClientID:   "app_revoked",
 		SigningAlg: "RS256",
 		Revoked:    true,
@@ -49,7 +50,7 @@ func TestAppRegistrar_HydratesFromStore(t *testing.T) {
 		t.Fatalf("GET /apps: status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	var resp struct {
-		Apps []*admin.AppRegistration `json:"apps"`
+		Apps []*core.AppRegistration `json:"apps"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -63,11 +64,11 @@ func TestAppRegistrar_HydratesFromStore(t *testing.T) {
 // writes through to the underlying store, not just the in-memory cache. Without
 // this, registrations would be lost on restart even with a persistent backend.
 func TestAppRegistrar_SaveRegistration_PersistsToStore(t *testing.T) {
-	store := admin.NewInMemoryAppStore()
+	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
 
-	app := &admin.AppRegistration{
+	app := &core.AppRegistration{
 		ClientID:     "app_via_save",
 		ClientDomain: "save.example",
 		SigningAlg:   "HS256",
@@ -78,7 +79,7 @@ func TestAppRegistrar_SaveRegistration_PersistsToStore(t *testing.T) {
 		t.Fatalf("SaveRegistration: %v", err)
 	}
 
-	got, err := store.GetApp(ctx, &admin.GetAppRequest{ClientID: "app_via_save"})
+	got, err := store.GetApp(ctx, &core.GetAppRequest{ClientID: "app_via_save"})
 	if err != nil {
 		t.Fatalf("store.GetApp: %v", err)
 	}
@@ -90,12 +91,12 @@ func TestAppRegistrar_SaveRegistration_PersistsToStore(t *testing.T) {
 // TestAppRegistrar_HandleRegister_PersistsToStore verifies that POST /apps/register
 // persists the new registration to the store, not only to the in-memory cache.
 func TestAppRegistrar_HandleRegister_PersistsToStore(t *testing.T) {
-	store := admin.NewInMemoryAppStore()
+	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
 
-	body, _ := json.Marshal(map[string]any{"client_domain": "register.example", "signing_alg": "HS256"})
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{"client_name": "register.example", "signing_alg": "HS256"})
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 	reg.Handler().ServeHTTP(rr, req)
 
@@ -109,7 +110,7 @@ func TestAppRegistrar_HandleRegister_PersistsToStore(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	got, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: resp.ClientID})
+	got, err := store.GetApp(context.Background(), &core.GetAppRequest{ClientID: resp.ClientID})
 	if err != nil {
 		t.Fatalf("store.GetApp(%s): %v", resp.ClientID, err)
 	}
@@ -122,13 +123,13 @@ func TestAppRegistrar_HandleRegister_PersistsToStore(t *testing.T) {
 // removes the registration from the store. Without this, a deleted (revoked) app
 // would be resurrected on restart from stale store contents.
 func TestAppRegistrar_HandleDeleteApp_PersistsDeletion(t *testing.T) {
-	store := admin.NewInMemoryAppStore()
+	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
 
 	// Register, then delete, both via HTTP.
-	body, _ := json.Marshal(map[string]any{"client_domain": "delete.example", "signing_alg": "HS256"})
-	req := httptest.NewRequest(http.MethodPost, "/apps/register", bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{"client_name": "delete.example", "signing_alg": "HS256"})
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 	reg.Handler().ServeHTTP(rr, req)
 	if rr.Code != http.StatusCreated {
@@ -146,7 +147,7 @@ func TestAppRegistrar_HandleDeleteApp_PersistsDeletion(t *testing.T) {
 		t.Fatalf("delete: status=%d body=%s", delRR.Code, delRR.Body.String())
 	}
 
-	if _, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: registered.ClientID}); err != admin.ErrAppNotFound {
+	if _, err := store.GetApp(context.Background(), &core.GetAppRequest{ClientID: registered.ClientID}); err != core.ErrAppNotFound {
 		t.Errorf("store should not contain deleted app, got err=%v", err)
 	}
 }
@@ -155,7 +156,7 @@ func TestAppRegistrar_HandleDeleteApp_PersistsDeletion(t *testing.T) {
 // through the AppRegistrar.SaveRegistration path so the registration lands in
 // the store. Without this, DCR-registered clients would be lost on restart.
 func TestDCR_PersistsViaRegistrar(t *testing.T) {
-	store := admin.NewInMemoryAppStore()
+	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
 
@@ -178,7 +179,7 @@ func TestDCR_PersistsViaRegistrar(t *testing.T) {
 	}
 	json.Unmarshal(rr.Body.Bytes(), &resp)
 
-	getResp, err := store.GetApp(context.Background(), &admin.GetAppRequest{ClientID: resp.ClientID})
+	getResp, err := store.GetApp(context.Background(), &core.GetAppRequest{ClientID: resp.ClientID})
 	if err != nil {
 		t.Fatalf("store.GetApp(%s): %v", resp.ClientID, err)
 	}

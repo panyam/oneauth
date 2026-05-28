@@ -230,8 +230,8 @@ func main() {
 		email := getUserEmailFromCookie(r, cfg.JWT.SecretKey)
 
 		// Get registered apps from registrar
-		var apps []*admin.AppRegistration
-		registrar.RLockApps(func(a map[string]*admin.AppRegistration) {
+		var apps []*core.AppRegistration
+		registrar.RLockApps(func(a map[string]*core.AppRegistration) {
 			for _, reg := range a {
 				apps = append(apps, reg)
 			}
@@ -323,7 +323,7 @@ func main() {
 		JWKSURI:                            baseURL + "/.well-known/jwks.json",
 		IntrospectionEndpoint:              baseURL + "/oauth/introspect",
 		RevocationEndpoint:                 baseURL + "/oauth/revoke",
-		RegistrationEndpoint:               baseURL + "/apps/register",
+		RegistrationEndpoint:               baseURL + "/apps/dcr",
 		GrantTypesSupported:                        []string{"password", "refresh_token", "client_credentials"},
 		ResponseTypesSupported:                     []string{"token"},
 		TokenEndpointAuthMethods:                   []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
@@ -536,11 +536,11 @@ func loadOrGenerateSigningKey(cfg JWTConfig, alg string) (priv crypto.PrivateKey
 	return priv, pubPEM, nil
 }
 
-func buildAppStore(cfg *Config, sharedDB *gorm.DB) (admin.AppRegistrationStore, error) {
+func buildAppStore(cfg *Config, sharedDB *gorm.DB) (core.AppRegistrationStore, error) {
 	switch cfg.AppStore.Type {
 	case "memory":
 		log.Println("Using in-memory AppStore (registrations lost on restart)")
-		return admin.NewInMemoryAppStore(), nil
+		return core.NewInMemoryAppStore(), nil
 
 	case "fs":
 		log.Printf("Using filesystem AppStore at %s", cfg.AppStore.FS.Path)
