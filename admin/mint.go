@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -11,24 +12,29 @@ import (
 	"github.com/panyam/oneauth/utils"
 )
 
-// AppQuota contains per-app quota limits embedded as custom claims in resource-scoped JWTs.
-type AppQuota struct {
-	MaxRooms   int     `json:"max_rooms,omitempty"`
-	MaxMsgRate float64 `json:"max_msg_rate,omitempty"`
+// mintStandardClaims are the JWT claim keys MintResourceToken owns. Custom
+// claims passed in via the customClaims map cannot overwrite these — collisions
+// are logged and ignored.
+var mintStandardClaims = map[string]bool{
+	"sub": true, "iss": true, "aud": true, "exp": true,
+	"iat": true, "type": true, "scopes": true, "jti": true,
+	"client_id":             true,
+	"authorization_details": true, // RFC 9396
 }
 
-// MintResourceToken creates a resource-scoped JWT for a user on behalf of a registered App,
-// signed with the app's shared secret (HS256). This is the backwards-compatible API.
-func MintResourceToken(userID, appClientID, appSecret string, quota AppQuota, scopes []string, authzDetails []core.AuthorizationDetail) (string, error) {
-	return MintResourceTokenWithKey(userID, appClientID, []byte(appSecret), quota, scopes, authzDetails)
-}
-
-// MintResourceTokenWithKey creates a resource-scoped JWT signed with the provided key.
-// The signing algorithm is auto-detected from the key type:
+// MintResourceToken creates a resource-scoped JWT for a user on behalf of a
+// registered App, signed with the app's own signing key (federated token
+// pattern — the resource server verifies with the same key, no AS callback
+// needed). The signing algorithm is auto-detected from the key's Go type:
+//
 //   - []byte → HS256
 //   - *rsa.PrivateKey → RS256
 //   - *ecdsa.PrivateKey → ES256
-func MintResourceTokenWithKey(userID, appClientID string, signingKey any, quota AppQuota, scopes []string, authzDetails []core.AuthorizationDetail) (string, error) {
+//
+// customClaims is merged into the JWT alongside the standard claims (sub,
+// client_id, type, scopes, iat, exp). Keys colliding with standard claims
+// are logged and dropped — standard claims are owned by the minter.
+func MintResourceToken(userID, appClientID string, signingKey any, customClaims map[string]any, scopes []string, authzDetails []core.AuthorizationDetail) (string, error) {
 	method, err := signingMethodFromKey(signingKey)
 	if err != nil {
 		return "", err
@@ -48,11 +54,12 @@ func MintResourceTokenWithKey(userID, appClientID string, signingKey any, quota 
 		claims["authorization_details"] = authzDetails
 	}
 
-	if quota.MaxRooms > 0 {
-		claims["max_rooms"] = quota.MaxRooms
-	}
-	if quota.MaxMsgRate > 0 {
-		claims["max_msg_rate"] = quota.MaxMsgRate
+	for k, v := range customClaims {
+		if mintStandardClaims[k] {
+			log.Printf("MintResourceToken: customClaims attempted to override standard claim %q (ignored)", k)
+			continue
+		}
+		claims[k] = v
 	}
 
 	token := jwt.NewWithClaims(method, claims)

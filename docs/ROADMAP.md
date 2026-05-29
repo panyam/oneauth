@@ -221,7 +221,7 @@ The `(ctx context.Context, *XRequest) → (*XResponse, error)` convention adopte
 ### What this track does NOT change
 - Core library architecture (embeddable, not a service)
 - `KeyStore` / `KeyLookup` / `KeyStorage` interfaces
-- `MintResourceToken` / `MintResourceTokenWithKey`
+- `MintResourceToken` (single entry point; auto-selects HS256/RS256/ES256 from the key type)
 - `AdminAuth` interface
 - Three-backend store pattern (FS, GORM, GAE)
 - E2e test suite (`make e2e`)

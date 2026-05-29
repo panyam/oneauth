@@ -173,8 +173,8 @@ func main() {
 		token, err := admin.MintResourceToken(
 			user,
 			creds.ClientID,
-			creds.ClientSecret,
-			admin.AppQuota{MaxRooms: 10, MaxMsgRate: 100},
+			[]byte(creds.ClientSecret),
+			map[string]any{"max_rooms": 10, "max_msg_rate": 100},
 			[]string{"collab"}, nil,
 		)
 		if err != nil {

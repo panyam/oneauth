@@ -46,8 +46,8 @@ func ExampleAppRegistrar_hs256FederatedFlow() {
 	fmt.Println("registered:", clientID != "" && clientSecret != "")
 
 	// App mints a resource token for user "alice"
-	token, err := admin.MintResourceToken("alice", clientID, clientSecret,
-		admin.AppQuota{MaxRooms: 10}, []string{"read", "write"}, nil)
+	token, err := admin.MintResourceToken("alice", clientID, []byte(clientSecret),
+		map[string]any{"max_rooms": 10}, []string{"read", "write"}, nil)
 	fmt.Println("token_minted:", err == nil && token != "")
 
 	// Resource server validates tokens using the same KeyStore
@@ -123,7 +123,7 @@ func ExampleAppRegistrar_rs256WithJWKS() {
 	defer resSrv.Close()
 
 	// App mints token with its private key
-	token, _ := admin.MintResourceTokenWithKey("bob", clientID, privKey, admin.AppQuota{}, []string{"read"}, nil)
+	token, _ := admin.MintResourceToken("bob", clientID, privKey, nil, []string{"read"}, nil)
 
 	req, _ := http.NewRequest("GET", resSrv.URL+"/data", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -155,8 +155,8 @@ func ExampleAPIMiddleware_kidBasedLookup() {
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "app-rs256", Key: pubPEM, Algorithm: "RS256"}})
 	// Mint tokens — both get kid headers automatically
-	hsToken, _ := admin.MintResourceToken("alice", "app-hs256", "my-secret", admin.AppQuota{}, []string{"read"}, nil)
-	rsToken, _ := admin.MintResourceTokenWithKey("bob", "app-rs256", privKey, admin.AppQuota{}, []string{"read"}, nil)
+	hsToken, _ := admin.MintResourceToken("alice", "app-hs256", []byte("my-secret"), nil, []string{"read"}, nil)
+	rsToken, _ := admin.MintResourceToken("bob", "app-rs256", privKey, nil, []string{"read"}, nil)
 
 	// Verify kid headers are present
 	parser := jwt.NewParser()
@@ -219,7 +219,7 @@ func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 	oldSecret := regResp["client_secret"].(string)
 
 	// Mint token with old secret
-	oldToken, _ := admin.MintResourceToken("alice", clientID, oldSecret, admin.AppQuota{}, []string{"read"}, nil)
+	oldToken, _ := admin.MintResourceToken("alice", clientID, []byte(oldSecret), nil, []string{"read"}, nil)
 
 	// Rotate key (uses DefaultGracePeriod of 50ms)
 	req = httptest.NewRequest("POST", "/apps/"+clientID+"/rotate", nil)
@@ -229,7 +229,7 @@ func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 	var rotResp map[string]any
 	json.NewDecoder(rr.Body).Decode(&rotResp)
 	newSecret := rotResp["client_secret"].(string)
-	newToken, _ := admin.MintResourceToken("alice", clientID, newSecret, admin.AppQuota{}, []string{"read"}, nil)
+	newToken, _ := admin.MintResourceToken("alice", clientID, []byte(newSecret), nil, []string{"read"}, nil)
 
 	// Build composite: current keys + grace period keys
 	composite := &keys.CompositeKeyLookup{Lookups: []keys.KeyLookup{ks, kidStore}}
@@ -300,11 +300,11 @@ func ExampleAPIMiddleware_crossAppIsolation() {
 
 	// Cross-app forgery: mint with app A's secret but claim app B's client_id.
 	// The kid is derived from app A's secret, so kid owner != client_id claim.
-	crossToken, _ := admin.MintResourceToken("eve", clientIDs[1], secrets[0], admin.AppQuota{}, []string{"read"}, nil)
+	crossToken, _ := admin.MintResourceToken("eve", clientIDs[1], []byte(secrets[0]), nil, []string{"read"}, nil)
 	fmt.Println("cross_app_token:", checkToken(crossToken))
 
 	// Correct token: app A's secret with app A's client_id
-	correctToken, _ := admin.MintResourceToken("alice", clientIDs[0], secrets[0], admin.AppQuota{}, []string{"read"}, nil)
+	correctToken, _ := admin.MintResourceToken("alice", clientIDs[0], []byte(secrets[0]), nil, []string{"read"}, nil)
 	fmt.Println("correct_token:", checkToken(correctToken))
 
 	// Output:
@@ -411,7 +411,7 @@ func ExampleJWKSHandler_multiAlgorithm() {
 	defer resSrv.Close()
 
 	// RS256 token validates via JWKS
-	rsToken, _ := admin.MintResourceTokenWithKey("alice", "app-rsa", privKey, admin.AppQuota{}, []string{"read"}, nil)
+	rsToken, _ := admin.MintResourceToken("alice", "app-rsa", privKey, nil, []string{"read"}, nil)
 	req, _ := http.NewRequest("GET", resSrv.URL, nil)
 	req.Header.Set("Authorization", "Bearer "+rsToken)
 	res, _ := http.DefaultClient.Do(req)
@@ -419,7 +419,7 @@ func ExampleJWKSHandler_multiAlgorithm() {
 	fmt.Println("rs256_via_jwks:", res.StatusCode)
 
 	// HS256 token fails via JWKS (secrets are never exposed)
-	hsToken, _ := admin.MintResourceToken("bob", "app-hmac", "shared-secret", admin.AppQuota{}, []string{"read"}, nil)
+	hsToken, _ := admin.MintResourceToken("bob", "app-hmac", []byte("shared-secret"), nil, []string{"read"}, nil)
 	req, _ = http.NewRequest("GET", resSrv.URL, nil)
 	req.Header.Set("Authorization", "Bearer "+hsToken)
 	res, _ = http.DefaultClient.Do(req)

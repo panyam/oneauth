@@ -141,7 +141,7 @@ func runDemo() {
 		Ref(refs.RFC7519).
 		Ref(refs.RFC7515).
 		Ref(refs.RFC7638).
-		Arrow("App", "App", "MintResourceTokenWithKey(alice, privKey)").
+		Arrow("App", "App", "MintResourceToken(alice, privKey)").
 		Arrow("App", "RS", "GET /resource (Bearer: RS256 token)").
 		Arrow("RS", "AS", "GET /.well-known/jwks.json (cached)").
 		Arrow("RS", "RS", "Verify RS256 signature with public key from JWKS").
@@ -150,9 +150,9 @@ func runDemo() {
 		VerbatimLang("Reproduce on the wire", "bash", `curl -s http://localhost:8082/resource \
   -H "Authorization: Bearer <RS256 token>"`).
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
-			tok, err := admin.MintResourceTokenWithKey(
+			tok, err := admin.MintResourceToken(
 				"alice", clientID, privKey,
-				admin.AppQuota{}, []string{"read", "write"}, nil,
+				nil, []string{"read", "write"}, nil,
 			)
 			if err != nil {
 				return demokit.Errf("mint: %v", err)
@@ -179,7 +179,7 @@ func runDemo() {
 
 	demo.Step("Token signed with a different private key is rejected").
 		Ref(refs.RFC7515).
-		Arrow("App", "App", "MintResourceTokenWithKey(eve, differentPrivKey)").
+		Arrow("App", "App", "MintResourceToken(eve, differentPrivKey)").
 		Arrow("App", "RS", "GET /resource (Bearer: bad token)").
 		DashedArrow("RS", "App", "401 Unauthorized").
 		Note("Even though the token is a valid JWT, its kid doesn't match any key in JWKS, or the signature doesn't verify with the registered public key.").
@@ -190,9 +190,9 @@ func runDemo() {
 			otherPrivPEM, _, _ := utils.GenerateRSAKeyPair(2048)
 			otherPrivKey, _ := utils.ParsePrivateKeyPEM(otherPrivPEM)
 
-			badToken, _ := admin.MintResourceTokenWithKey(
+			badToken, _ := admin.MintResourceToken(
 				"eve", clientID, otherPrivKey,
-				admin.AppQuota{}, []string{"admin"}, nil,
+				nil, []string{"admin"}, nil,
 			)
 			req, _ := http.NewRequest("GET", resourceServer.URL+"/resource", nil)
 			req.Header.Set("Authorization", "Bearer "+badToken)

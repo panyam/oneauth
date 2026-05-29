@@ -121,12 +121,12 @@ func runDemo() {
 			}
 
 			crossToken, _ := admin.MintResourceToken(
-				"eve", clientIDs[1], secrets[0], admin.AppQuota{}, []string{"read"}, nil)
+				"eve", clientIDs[1], []byte(secrets[0]), nil, []string{"read"}, nil)
 			fmt.Printf("    Cross-app token (A's key, B's id): %d (blocked — kid/client_id mismatch)\n",
 				callRS(resourceServer.URL, crossToken))
 
 			correctToken, _ := admin.MintResourceToken(
-				"alice", clientIDs[0], secrets[0], admin.AppQuota{}, []string{"read"}, nil)
+				"alice", clientIDs[0], []byte(secrets[0]), nil, []string{"read"}, nil)
 			fmt.Printf("    Correct token (A's key, A's id):   %d ✓\n",
 				callRS(resourceServer.URL, correctToken))
 			return nil

@@ -1,5 +1,5 @@
-    Auth server:     http://127.0.0.1:57686
-    Resource server: http://127.0.0.1:57687
+    Auth server:     http://127.0.0.1:63856
+    Resource server: http://127.0.0.1:63857
     Grace period:    100ms (short for demo)
 
 # 09: Key Rotation with Grace Periods
@@ -142,9 +142,9 @@ JWKS security properties.
 
 ## References
 
+- [RFC 7638 — JWK Thumbprint (kid)](https://www.rfc-editor.org/rfc/rfc7638)
 - [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 - [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
-- [RFC 7638 — JWK Thumbprint (kid)](https://www.rfc-editor.org/rfc/rfc7638)
 
 ## Run it
 

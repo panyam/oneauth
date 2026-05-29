@@ -28,14 +28,14 @@ sequenceDiagram
     AS-->>App: {keys: [{kty: RSA, alg: RS256, kid: ..., n: ..., e: ...}]}
 
     Note over App,RS: Step 4: Mint a token with the private key and validate via JWKS
-    App->>App: MintResourceTokenWithKey(alice, privKey)
+    App->>App: MintResourceToken(alice, privKey)
     App->>RS: GET /resource (Bearer: RS256 token)
     RS->>AS: GET /.well-known/jwks.json (cached)
     RS->>RS: Verify RS256 signature with public key from JWKS
     RS-->>App: 200 {user: alice}
 
     Note over App,RS: Step 5: Token signed with a different private key is rejected
-    App->>App: MintResourceTokenWithKey(eve, differentPrivKey)
+    App->>App: MintResourceToken(eve, differentPrivKey)
     App->>RS: GET /resource (Bearer: bad token)
     RS-->>App: 401 Unauthorized
 ```
@@ -145,10 +145,10 @@ with external IdPs like Keycloak and Auth0.
 
 ## References
 
+- [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 - [RFC 7515 — JSON Web Signature (JWS)](https://www.rfc-editor.org/rfc/rfc7515)
 - [RFC 7517 — JSON Web Key (JWK)](https://www.rfc-editor.org/rfc/rfc7517)
 - [RFC 7638 — JWK Thumbprint (kid)](https://www.rfc-editor.org/rfc/rfc7638)
-- [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
 
 ## Run it
 

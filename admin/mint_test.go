@@ -1,7 +1,8 @@
 package admin_test
 
-// Tests for MintResourceToken: HS256 token minting, claim population, quota handling,
-// KeyStore-based verification, and rejection of tokens signed with incorrect secrets.
+// Tests for MintResourceToken: HS256 token minting, claim population,
+// custom-claims pass-through, the standard-claim override guard,
+// KeyStore-based verification, and rejection of tokens signed with the wrong key.
 
 import (
 	"context"
@@ -13,12 +14,15 @@ import (
 )
 
 // TestMintResourceToken_Basic verifies that MintResourceToken produces a valid HS256 JWT
-// with the correct sub, client_id, type, and quota claims.
+// with the correct sub, client_id, type, and that arbitrary customClaims round-trip.
 func TestMintResourceToken_Basic(t *testing.T) {
-	token, err := admin.MintResourceToken("user-123", "app-abc", "my-secret", admin.AppQuota{
-		MaxRooms:   10,
-		MaxMsgRate: 30.0,
-	}, []string{"read", "write"}, nil)
+	token, err := admin.MintResourceToken("user-123", "app-abc", []byte("my-secret"),
+		map[string]any{
+			"tier":         "gold",
+			"feature_flag": true,
+			"max_rooms":    10,
+		},
+		[]string{"read", "write"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceToken failed: %v", err)
 	}
@@ -26,7 +30,6 @@ func TestMintResourceToken_Basic(t *testing.T) {
 		t.Fatal("Expected non-empty token")
 	}
 
-	// Parse and verify
 	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
 		return []byte("my-secret"), nil
 	})
@@ -44,17 +47,21 @@ func TestMintResourceToken_Basic(t *testing.T) {
 	if claims["type"] != "access" {
 		t.Errorf("Expected type access, got %v", claims["type"])
 	}
-	if claims["max_rooms"] != float64(10) {
-		t.Errorf("Expected max_rooms 10, got %v", claims["max_rooms"])
+	if claims["tier"] != "gold" {
+		t.Errorf("Expected custom tier=gold, got %v", claims["tier"])
 	}
-	if claims["max_msg_rate"] != float64(30) {
-		t.Errorf("Expected max_msg_rate 30, got %v", claims["max_msg_rate"])
+	if claims["feature_flag"] != true {
+		t.Errorf("Expected custom feature_flag=true, got %v", claims["feature_flag"])
+	}
+	if claims["max_rooms"] != float64(10) {
+		t.Errorf("Expected custom max_rooms=10, got %v", claims["max_rooms"])
 	}
 }
 
-// TestMintResourceToken_NoQuota verifies that zero-value quota fields are omitted from JWT claims.
-func TestMintResourceToken_NoQuota(t *testing.T) {
-	token, err := admin.MintResourceToken("user-1", "app-1", "secret", admin.AppQuota{}, []string{"read"}, nil)
+// TestMintResourceToken_NoCustomClaims verifies that a nil customClaims map
+// leaves only the standard claims present.
+func TestMintResourceToken_NoCustomClaims(t *testing.T) {
+	token, err := admin.MintResourceToken("user-1", "app-1", []byte("secret"), nil, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceToken failed: %v", err)
 	}
@@ -64,12 +71,85 @@ func TestMintResourceToken_NoQuota(t *testing.T) {
 	})
 	claims := parsed.Claims.(jwt.MapClaims)
 
-	// Zero-value quotas should not be in claims
-	if _, exists := claims["max_rooms"]; exists {
-		t.Error("Zero max_rooms should not be in claims")
+	for _, k := range []string{"tier", "feature_flag", "max_rooms", "max_msg_rate"} {
+		if _, exists := claims[k]; exists {
+			t.Errorf("expected absent claim %q when no customClaims passed; got %v", k, claims[k])
+		}
 	}
-	if _, exists := claims["max_msg_rate"]; exists {
-		t.Error("Zero max_msg_rate should not be in claims")
+}
+
+// TestMintResourceToken_StandardClaimOverrideGuard proves that customClaims
+// CANNOT overwrite the JWT standard claims that MintResourceToken owns
+// (sub, client_id, type, scopes, iat, exp, jti, iss, aud,
+// authorization_details). Collisions are silently dropped (and logged).
+//
+// Red-before-green: remove the guard loop in admin/mint.go, run this test,
+// confirm it fails (because user-attempted overrides would land in the JWT),
+// then restore the guard and confirm it passes.
+func TestMintResourceToken_StandardClaimOverrideGuard(t *testing.T) {
+	token, err := admin.MintResourceToken("real-user", "real-app", []byte("k"),
+		map[string]any{
+			"sub":                   "attacker",
+			"client_id":             "evil-app",
+			"type":                  "refresh",
+			"scopes":                []string{"admin"},
+			"iat":                   int64(0),
+			"exp":                   int64(0),
+			"jti":                   "spoofed",
+			"iss":                   "evil-issuer",
+			"aud":                   "evil-audience",
+			"authorization_details": []any{map[string]any{"type": "spoof"}},
+			"tier":                  "gold", // benign custom claim must still pass through
+		},
+		[]string{"read"}, nil)
+	if err != nil {
+		t.Fatalf("MintResourceToken failed: %v", err)
+	}
+
+	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
+		return []byte("k"), nil
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	claims := parsed.Claims.(jwt.MapClaims)
+
+	if claims["sub"] != "real-user" {
+		t.Errorf("sub overridden: got %v, want real-user", claims["sub"])
+	}
+	if claims["client_id"] != "real-app" {
+		t.Errorf("client_id overridden: got %v, want real-app", claims["client_id"])
+	}
+	if claims["type"] != "access" {
+		t.Errorf("type overridden: got %v, want access", claims["type"])
+	}
+	if claims["jti"] == "spoofed" {
+		t.Errorf("jti overridden: got spoofed")
+	}
+	if claims["iss"] == "evil-issuer" {
+		t.Errorf("iss overridden: got evil-issuer")
+	}
+	if claims["aud"] == "evil-audience" {
+		t.Errorf("aud overridden: got evil-audience")
+	}
+	if claims["exp"] == float64(0) {
+		t.Errorf("exp overridden to 0 — token would not expire correctly")
+	}
+	if claims["iat"] == float64(0) {
+		t.Errorf("iat overridden to 0")
+	}
+	// authorization_details must not be set from customClaims (the param is nil here).
+	if _, present := claims["authorization_details"]; present {
+		t.Errorf("authorization_details overridden via customClaims; should have come from the dedicated parameter only")
+	}
+	// scopes must reflect the dedicated parameter, not the override attempt.
+	scopes, _ := claims["scopes"].([]any)
+	if len(scopes) != 1 || scopes[0] != "read" {
+		t.Errorf("scopes overridden: got %v, want [read]", claims["scopes"])
+	}
+	// Benign custom claim is still merged.
+	if claims["tier"] != "gold" {
+		t.Errorf("benign custom claim dropped: tier=%v, want gold", claims["tier"])
 	}
 }
 
@@ -79,16 +159,13 @@ func TestMintResourceToken_VerifiableByMiddleware(t *testing.T) {
 	secret := "shared-secret-between-app-and-resource-server"
 	clientID := "app-excaliframe"
 
-	// App mints token
-	token, err := admin.MintResourceToken("user-42", clientID, secret, admin.AppQuota{}, []string{"read"}, nil)
+	token, err := admin.MintResourceToken("user-42", clientID, []byte(secret), nil, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("MintResourceToken failed: %v", err)
 	}
 
-	// Resource server verifies using KeyStore
 	ks := keys.NewInMemoryKeyStore()
 	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: clientID, Key: []byte(secret), Algorithm: "HS256"}})
-	// Parse with KeyStore-based keyfunc (mimics what APIMiddleware does)
 	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
 		claims, ok := t.Claims.(jwt.MapClaims)
 		if !ok {
@@ -115,9 +192,8 @@ func TestMintResourceToken_VerifiableByMiddleware(t *testing.T) {
 // TestMintResourceToken_WrongSecretRejected verifies that a token signed with one secret
 // is rejected when verified with a different secret.
 func TestMintResourceToken_WrongSecretRejected(t *testing.T) {
-	token, _ := admin.MintResourceToken("user-1", "app-1", "correct-secret", admin.AppQuota{}, []string{"read"}, nil)
+	token, _ := admin.MintResourceToken("user-1", "app-1", []byte("correct-secret"), nil, []string{"read"}, nil)
 
-	// Verify with wrong secret should fail
 	_, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
 		return []byte("wrong-secret"), nil
 	})
