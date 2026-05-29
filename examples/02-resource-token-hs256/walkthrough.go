@@ -103,8 +103,8 @@ func runDemo() {
 		Note("The app creates a JWT with sub=alice, signed with its HS256 secret. The token includes quota claims (max_rooms) for resource-level enforcement.").
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
 			tok, err := admin.MintResourceToken(
-				"alice", clientID, clientSecret,
-				admin.AppQuota{MaxRooms: 10, MaxMsgRate: 30.0},
+				"alice", clientID, []byte(clientSecret),
+				map[string]any{"max_rooms": 10, "max_msg_rate": 30.0},
 				[]string{"read", "write"}, nil,
 			)
 			if err != nil {
@@ -121,8 +121,8 @@ func runDemo() {
 		Note("Same app, different user, different permissions. Bob gets read-only access with a lower room quota.").
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
 			tok, err := admin.MintResourceToken(
-				"bob", clientID, clientSecret,
-				admin.AppQuota{MaxRooms: 3},
+				"bob", clientID, []byte(clientSecret),
+				map[string]any{"max_rooms": 3},
 				[]string{"read"}, nil,
 			)
 			if err != nil {
@@ -195,8 +195,8 @@ func runDemo() {
   -H "Authorization: Bearer <token signed with a different secret>"`).
 		Run(func(ctx demokit.StepContext) *demokit.StepResult {
 			badToken, _ := admin.MintResourceToken(
-				"eve", clientID, "wrong-secret",
-				admin.AppQuota{}, []string{"admin"}, nil,
+				"eve", clientID, []byte("wrong-secret"),
+				nil, []string{"admin"}, nil,
 			)
 			req, _ := http.NewRequest("GET", resourceServer.URL+"/resource", nil)
 			req.Header.Set("Authorization", "Bearer "+badToken)

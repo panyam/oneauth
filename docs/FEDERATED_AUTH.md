@@ -73,14 +73,15 @@ After authenticating a user, the App mints a resource-scoped JWT using `MintReso
 import oa "github.com/panyam/oneauth"
 
 token, err := oa.MintResourceToken(
-    "user-42",              // userID (goes to JWT "sub" claim)
-    "app_a1b2c3d4e5f6",    // appClientID (goes to "client_id" claim)
-    "64-char-hex-string",   // appSecret (HS256 signing key)
-    oa.AppQuota{            // embedded as custom claims
-        MaxRooms:   10,
-        MaxMsgRate: 30.0,
+    "user-42",                          // userID (goes to JWT "sub" claim)
+    "app_a1b2c3d4e5f6",                 // appClientID (goes to "client_id" claim)
+    []byte("64-char-hex-string"),       // signing key — []byte → HS256
+    map[string]any{                     // customClaims merged into the JWT
+        "max_rooms":    10,
+        "max_msg_rate": 30.0,
     },
     []string{"relay:connect", "relay:publish"},  // scopes
+    nil,                                          // RFC 9396 authorization_details
 )
 ```
 
@@ -251,28 +252,26 @@ auth := oa.NewNoAuth()
 
 ## MintResourceToken
 
-Helper function for Apps to mint resource-scoped JWTs after authenticating their users.
+Helper function for Apps to mint resource-scoped JWTs after authenticating their users. One entry point covers HS256 / RS256 / ES256 — the signing alg is auto-selected from the Go type of `signingKey`:
+
+| Go type | Alg |
+|---|---|
+| `[]byte` | HS256 |
+| `*rsa.PrivateKey` | RS256 |
+| `*ecdsa.PrivateKey` | ES256 |
 
 ```go
 func MintResourceToken(
     userID string,
     appClientID string,
-    appSecret string,
-    quota AppQuota,
+    signingKey any,
+    customClaims map[string]any,
     scopes []string,
+    authzDetails []core.AuthorizationDetail,
 ) (string, error)
 ```
 
-### AppQuota
-
-```go
-type AppQuota struct {
-    MaxRooms   int     `json:"max_rooms,omitempty"`
-    MaxMsgRate float64 `json:"max_msg_rate,omitempty"`
-}
-```
-
-Quota values are embedded as custom claims in the JWT. Zero values are omitted.
+`customClaims` ride alongside the standard JWT claims (`sub`, `iss`, `aud`, `exp`, `iat`, `type`, `scopes`, `jti`, `client_id`, `authorization_details`). Any collision with that standard set is logged and dropped — the minter owns those keys.
 
 ### Example: App-Side Token Minting
 
@@ -281,13 +280,14 @@ func mintTokenForUser(w http.ResponseWriter, r *http.Request) {
     // 1. Get the authenticated user from your session
     userID := getLoggedInUserID(r)
 
-    // 2. Mint a resource token
+    // 2. Mint a resource token (HS256 — pass []byte)
     token, err := oa.MintResourceToken(
         userID,
         os.Getenv("APP_CLIENT_ID"),
-        os.Getenv("APP_CLIENT_SECRET"),
-        oa.AppQuota{MaxRooms: 10, MaxMsgRate: 30.0},
+        []byte(os.Getenv("APP_CLIENT_SECRET")),
+        map[string]any{"max_rooms": 10, "max_msg_rate": 30.0},
         []string{"relay:connect"},
+        nil,
     )
     if err != nil {
         http.Error(w, "failed to mint token", http.StatusInternalServerError)
@@ -379,8 +379,10 @@ clientSecret := os.Getenv("APP_CLIENT_SECRET")
 // After authenticating a user locally:
 func handleConnect(w http.ResponseWriter, r *http.Request) {
     userID := getLoggedInUserID(r)
-    token, _ := oa.MintResourceToken(userID, clientID, clientSecret,
-        oa.AppQuota{MaxRooms: 10}, []string{"relay:connect", "relay:publish"})
+    token, _ := oa.MintResourceToken(userID, clientID, []byte(clientSecret),
+        map[string]any{"max_rooms": 10},
+        []string{"relay:connect", "relay:publish"},
+        nil)
 
     json.NewEncoder(w).Encode(map[string]string{"resource_token": token})
 }
@@ -436,7 +438,7 @@ curl -X POST https://auth.example.com/apps/register \
 
 ```go
 privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
-token, err := oa.MintResourceTokenWithKey("user-42", "app_abc", privKey, quota, scopes)
+token, err := oa.MintResourceToken("user-42", "app_abc", privKey, customClaims, scopes, nil)
 ```
 
 For the full guide on key generation, algorithm selection, APIAuth configuration, key rotation, `DecodeVerifyKey`, and algorithm confusion prevention, see **[JWT_SIGNING.md](JWT_SIGNING.md)**.

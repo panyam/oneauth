@@ -87,8 +87,8 @@ func runDemo() {
 			oldSecret = reg["client_secret"].(string)
 
 			oldToken, _ = admin.MintResourceToken(
-				"alice", clientID, oldSecret,
-				admin.AppQuota{}, []string{"read"}, nil)
+				"alice", clientID, []byte(oldSecret),
+				nil, []string{"read"}, nil)
 
 			parser := jwt.NewParser()
 			parsed, _, _ := parser.ParseUnverified(oldToken, jwt.MapClaims{})
@@ -116,8 +116,8 @@ func runDemo() {
 			newSecret = rot["client_secret"].(string)
 
 			newToken, _ = admin.MintResourceToken(
-				"alice", clientID, newSecret,
-				admin.AppQuota{}, []string{"read"}, nil)
+				"alice", clientID, []byte(newSecret),
+				nil, []string{"read"}, nil)
 
 			fmt.Printf("    new secret:  %s...\n", newSecret[:16])
 			fmt.Printf("    different:   %v\n", oldSecret != newSecret)

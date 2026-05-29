@@ -65,31 +65,33 @@ pubPEM, err = utils.EncodePublicKeyPEM(pubKey)       // PKIX format
 
 ## Minting Tokens
 
-### HS256 (symmetric — existing API)
+`MintResourceToken` is the single entry point for all three algorithms. The signing alg is auto-detected from the Go type of `signingKey` — no separate `alg` parameter needed. `customClaims` ride alongside the standard JWT claims; collisions with the standard set are logged and dropped.
+
+### HS256 (symmetric)
 
 ```go
 token, err := oneauth.MintResourceToken(
     "user-42", "app_abc123",
-    "shared-secret",              // string → []byte internally
-    oneauth.AppQuota{MaxRooms: 10},
+    []byte("shared-secret"),       // []byte → HS256
+    map[string]any{"max_rooms": 10},
     []string{"relay:connect"},
+    nil,                            // RFC 9396 authorization_details
 )
 ```
 
-### RS256/ES256 (asymmetric — new API)
+### RS256/ES256 (asymmetric)
 
 ```go
 privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 
-token, err := oneauth.MintResourceTokenWithKey(
+token, err := oneauth.MintResourceToken(
     "user-42", "app_abc123",
     privKey,                       // *rsa.PrivateKey → RS256, *ecdsa.PrivateKey → ES256
-    oneauth.AppQuota{MaxRooms: 10},
+    map[string]any{"max_rooms": 10},
     []string{"relay:connect"},
+    nil,
 )
 ```
-
-Algorithm is auto-detected from the key type. No separate `alg` parameter needed.
 
 ## APIAuth Configuration
 
@@ -187,7 +189,7 @@ All minted JWTs now include a `kid` (Key ID) header, computed as an RFC 7638 JWK
 
 ### How It Works
 
-1. **At mint time**: `MintResourceToken` and `MintResourceTokenWithKey` compute the JWK Thumbprint (SHA-256, base64url-encoded) of the signing key and set it as the JWT `kid` header.
+1. **At mint time**: `MintResourceToken` computes the JWK Thumbprint (SHA-256, base64url-encoded) of the signing key and sets it as the JWT `kid` header.
 2. **At validation time**: The middleware reads the `kid` header and calls `KeyLookup.GetKeyByKid(kid)` to find the matching key record.
 3. **Thumbprint computation**: Uses `utils.JWKThumbprint(key)` which implements RFC 7638 — canonical JSON serialization of the JWK's required members, then SHA-256 hash.
 

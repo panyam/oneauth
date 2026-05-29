@@ -295,18 +295,14 @@ entities:
     role: Extracts client_id from the path, dispatches by method, returns 405 with an Allow header for unsupported verbs.
     why: 405 path is auth-independent so it leaks no per-client info — every unknown method gets the same response regardless of credentials.
 
-  - name: AppQuota
-    kind: struct
-    role: Per-app quota limits (MaxRooms, MaxMsgRate) embedded as custom claims when minting resource-scoped JWTs.
-    why: Quota lives on the App registration (legacy schema), then rides inside the resource JWT so downstream resource servers do not need a registry callback.
   - name: MintResourceToken
     kind: func
-    role: Mints a resource-scoped HS256 JWT (legacy convenience wrapper).
-    why: Backwards-compatible signature for callers that only ever used symmetric keys before MintResourceTokenWithKey existed.
-  - name: MintResourceTokenWithKey
-    kind: func
-    role: Mints a resource-scoped JWT using any supported key type ([]byte / *rsa.PrivateKey / *ecdsa.PrivateKey); algorithm auto-detected.
-    why: Key-type-driven signing-method selection avoids a separate "algorithm" parameter that could be set inconsistently with the supplied key.
+    role: Mints a resource-scoped JWT using any supported key type ([]byte / *rsa.PrivateKey / *ecdsa.PrivateKey); algorithm auto-detected. Caller-supplied customClaims map rides alongside the standard claims; collisions with the standard set are dropped + logged.
+    why: Single entry point replaces the old MintResourceToken / MintResourceTokenWithKey pair and the bespoke AppQuota struct — arbitrary custom claims keep this primitive policy-free.
+  - name: mintStandardClaims
+    kind: var
+    role: Set of JWT claim keys MintResourceToken owns; collisions in customClaims are dropped + logged.
+    why: Mirrors the standard-claim guard in apiauth/auth.go so a misbehaving caller cannot smuggle sub/client_id/exp overrides through the custom-claims map.
 depends_on:
   - path: ../core
     entities: [AuthorizationDetail]
