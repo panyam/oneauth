@@ -64,6 +64,10 @@ func (s *GAEAppStore) appKey(clientID string) *datastore.Key {
 	return key
 }
 
+// SaveApp inserts or replaces the registration for req.App.ClientID. Empty
+// client_id is rejected with the same error message as InMemoryAppStore /
+// FSAppStore / GORMAppStore so the shared appstoretest contract passes
+// uniformly across backends.
 func (s *GAEAppStore) SaveApp(ctx context.Context, req *core.SaveAppRequest) (*core.SaveAppResponse, error) {
 	if req == nil || req.App == nil || req.App.ClientID == "" {
 		return nil, errors.New("AppRegistration.ClientID required")
@@ -75,6 +79,10 @@ func (s *GAEAppStore) SaveApp(ctx context.Context, req *core.SaveAppRequest) (*c
 	return &core.SaveAppResponse{}, nil
 }
 
+// GetApp returns the registration for req.ClientID, or core.ErrAppNotFound
+// when the entity is absent. Other Datastore errors (network, auth, quota)
+// surface unwrapped so callers can distinguish "not registered" from
+// "infrastructure problem."
 func (s *GAEAppStore) GetApp(ctx context.Context, req *core.GetAppRequest) (*core.GetAppResponse, error) {
 	if req == nil {
 		return nil, errors.New("GetApp: req is required")
@@ -89,6 +97,11 @@ func (s *GAEAppStore) GetApp(ctx context.Context, req *core.GetAppRequest) (*cor
 	return &core.GetAppResponse{App: entityToAppReg(&entity)}, nil
 }
 
+// ListApps returns every registration in this namespace. Order is unspecified
+// (Datastore queries without an explicit Order return results in key order,
+// which is implementation-defined). Returns an empty slice (not an error)
+// for an empty namespace, matching the other backends' "fresh store has no
+// apps" shape.
 func (s *GAEAppStore) ListApps(ctx context.Context, req *core.ListAppsRequest) (*core.ListAppsResponse, error) {
 	q := datastore.NewQuery(KindAppRegistration).Namespace(s.namespace)
 	it := s.client.Run(ctx, q)
@@ -107,6 +120,12 @@ func (s *GAEAppStore) ListApps(ctx context.Context, req *core.ListAppsRequest) (
 	return &core.ListAppsResponse{Apps: out}, nil
 }
 
+// DeleteApp removes the registration for req.ClientID. Returns
+// core.ErrAppNotFound if no such registration exists, matching the
+// other AppRegistrationStore backends — Datastore's bare Delete is
+// idempotent and silently succeeds on missing keys, so we Get-then-Delete
+// to honor the contract (the conformance suite's TestDeleteNonexistent
+// asserts on ErrAppNotFound).
 func (s *GAEAppStore) DeleteApp(ctx context.Context, req *core.DeleteAppRequest) (*core.DeleteAppResponse, error) {
 	if req == nil {
 		return nil, errors.New("DeleteApp: req is required")
