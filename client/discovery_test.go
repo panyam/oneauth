@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,16 +32,35 @@ import (
 )
 
 // newDiscoveryServer creates a test HTTP server that serves AS metadata
-// at the given path with the given metadata fields.
+// at the given path. The "issuer" field is auto-filled with the live
+// httptest URL so DiscoverAS's RFC 8414 §3.3 issuer-match check passes.
+// Tests that want to exercise a mismatch supply their own server inline.
 func newDiscoveryServer(t *testing.T, path string, meta map[string]any) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(meta)
-	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Mutate a copy so concurrent test runs don't race on the shared map.
+		// Legacy fixtures hardcode "https://auth.example.com" — rewrite every
+		// string value to point at the live srv.URL so DiscoverAS's RFC 8414
+		// §3.3 issuer-equality check passes. Tests that want to exercise a
+		// mismatch should build their server inline rather than going through
+		// this helper.
+		emit := make(map[string]any, len(meta)+1)
+		for k, v := range meta {
+			if s, ok := v.(string); ok {
+				emit[k] = strings.ReplaceAll(s, "https://auth.example.com", srv.URL)
+			} else {
+				emit[k] = v
+			}
+		}
+		if _, present := emit["issuer"]; !present {
+			emit["issuer"] = srv.URL
+		}
+		json.NewEncoder(w).Encode(emit)
+	})
 	return srv
 }
 
@@ -67,11 +87,11 @@ func TestDiscoverAS_OIDCEndpoint(t *testing.T) {
 	result, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
 	require.NoError(t, err)
 
-	assert.Equal(t, "https://auth.example.com", result.Issuer)
-	assert.Equal(t, "https://auth.example.com/token", result.TokenEndpoint)
-	assert.Equal(t, "https://auth.example.com/authorize", result.AuthorizationEndpoint)
-	assert.Equal(t, "https://auth.example.com/.well-known/jwks.json", result.JWKSURI)
-	assert.Equal(t, "https://auth.example.com/introspect", result.IntrospectionEndpoint)
+	assert.Equal(t, srv.URL, result.Issuer)
+	assert.Equal(t, srv.URL+"/token", result.TokenEndpoint)
+	assert.Equal(t, srv.URL+"/authorize", result.AuthorizationEndpoint)
+	assert.Equal(t, srv.URL+"/.well-known/jwks.json", result.JWKSURI)
+	assert.Equal(t, srv.URL+"/introspect", result.IntrospectionEndpoint)
 	assert.Contains(t, result.ScopesSupported, "read")
 	assert.Contains(t, result.GrantTypesSupported, "client_credentials")
 	assert.Contains(t, result.ResponseTypesSupported, "code")
@@ -93,7 +113,7 @@ func TestDiscoverAS_RFC8414Endpoint(t *testing.T) {
 
 	result, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
 	require.NoError(t, err)
-	assert.Equal(t, "https://auth.example.com/token", result.TokenEndpoint)
+	assert.Equal(t, srv.URL+"/token", result.TokenEndpoint)
 }
 
 // TestDiscoverAS_FallbackToOIDC verifies that when the RFC 8414 endpoint
@@ -110,7 +130,7 @@ func TestDiscoverAS_FallbackToOIDC(t *testing.T) {
 
 	result, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
 	require.NoError(t, err)
-	assert.Equal(t, "https://auth.example.com/token", result.TokenEndpoint)
+	assert.Equal(t, srv.URL+"/token", result.TokenEndpoint)
 }
 
 // TestDiscoverAS_PathBasedIssuer verifies that discovery works for
@@ -128,7 +148,7 @@ func TestDiscoverAS_PathBasedIssuer(t *testing.T) {
 
 	result, err := DiscoverAS(srv.URL+"/tenant1", WithHTTPClientForDiscovery(srv.Client()))
 	require.NoError(t, err)
-	assert.Equal(t, "https://auth.example.com/tenant1/token", result.TokenEndpoint)
+	assert.Equal(t, srv.URL+"/tenant1/token", result.TokenEndpoint)
 }
 
 // TestDiscoverAS_Unreachable verifies that DiscoverAS returns an error
@@ -172,9 +192,33 @@ func TestDiscoverAS_MinimalMetadata(t *testing.T) {
 
 	result, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
 	require.NoError(t, err)
-	assert.Equal(t, "https://auth.example.com", result.Issuer)
-	assert.Equal(t, "https://auth.example.com/token", result.TokenEndpoint)
+	assert.Equal(t, srv.URL, result.Issuer)
+	assert.Equal(t, srv.URL+"/token", result.TokenEndpoint)
 	assert.Empty(t, result.JWKSURI)
 	assert.Empty(t, result.IntrospectionEndpoint)
 	assert.Empty(t, result.ScopesSupported)
+}
+
+// TestDiscoverAS_MetadataIssuerMismatch_Rejected verifies that DiscoverAS
+// rejects a metadata document whose `issuer` field does not match the URL
+// it was fetched from (RFC 8414 §3.3). Mirrors the `metadata-issuer-mismatch`
+// failure scenario in the mcpkit SEP-2468 audit (#235).
+func TestDiscoverAS_MetadataIssuerMismatch_Rejected(t *testing.T) {
+	// Inline server — bypass newDiscoveryServer's auto-substitution so we
+	// can serve a deliberately mismatched issuer.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"issuer":         "https://attacker.example.com",
+			"token_endpoint": "https://attacker.example.com/token",
+		})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	_, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrMetadataIssuerMismatch,
+		"metadata claiming a different issuer than the fetch URL must be rejected per RFC 8414 §3.3")
 }

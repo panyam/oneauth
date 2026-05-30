@@ -93,12 +93,45 @@ type BrowserLoginRequest struct {
 	// instead of using ClientSecret. Mutually exclusive with
 	// ClientSecret — when both are set, ClientAssertion wins.
 	ClientAssertion *ClientAssertionConfig
+
+	// OnCallback, when non-nil, fires after the loopback receives the
+	// authorization-code redirect and after state validation, but BEFORE
+	// the token exchange. Consumers use it to apply per-policy validation
+	// of the RFC 9207 `iss` query parameter (which oneauth surfaces but
+	// deliberately does not enforce — the spec leaves enforcement to the
+	// client per §2.4). Returning a non-nil error aborts the flow and the
+	// error is returned (wrapped) from LoginWithBrowser; no token exchange
+	// is performed.
+	OnCallback func(ctx context.Context, params CallbackParams) error
+}
+
+// CallbackParams carries the loopback-redirect query parameters that the
+// authorization server sent on the success path. Passed to
+// BrowserLoginRequest.OnCallback so the caller can apply policy (e.g.,
+// RFC 9207 iss-issuer matching) before the code is exchanged.
+type CallbackParams struct {
+	// Iss is the RFC 9207 `iss` query parameter — the issuer identifier of
+	// the authorization response. Empty when the AS does not send it (legacy
+	// ASes pre-dating RFC 9207). Consumers MAY treat absence as a hard
+	// failure for high-assurance flows; oneauth itself does not enforce.
+	Iss string
+
+	// Code is the OAuth 2.0 `code` query parameter (the authorization code
+	// to be exchanged at the token endpoint). Non-empty by the time the
+	// hook fires.
+	Code string
+
+	// State is the OAuth 2.0 `state` query parameter as echoed back by the
+	// AS. Already validated against the client-issued state before the hook
+	// fires — exposed for logging / audit only.
+	State string
 }
 
 // callbackResult holds the result received on the loopback redirect.
 type callbackResult struct {
 	Code  string
 	State string
+	Iss   string // RFC 9207 — see CallbackParams.Iss
 	Err   error
 }
 
@@ -170,7 +203,8 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		}
 		code := q.Get("code")
 		callbackState := q.Get("state")
-		resultCh <- callbackResult{Code: code, State: callbackState}
+		iss := q.Get("iss")
+		resultCh <- callbackResult{Code: code, State: callbackState, Iss: iss}
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, "<html><body><h1>Login Successful</h1><p>You can close this tab and return to the terminal.</p></body></html>")
 	})
@@ -270,6 +304,20 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 
 	if result.Code == "" {
 		return nil, fmt.Errorf("no authorization code received")
+	}
+
+	// RFC 9207 hook (#235): hand the iss / code / state to the caller so
+	// they can apply policy (typically: assert Iss matches the discovered
+	// issuer) BEFORE the code is exchanged. We deliberately don't enforce
+	// here — RFC 9207 §2.4 leaves the policy to the client.
+	if cfg.OnCallback != nil {
+		if err := cfg.OnCallback(ctx, CallbackParams{
+			Iss:   result.Iss,
+			Code:  result.Code,
+			State: result.State,
+		}); err != nil {
+			return nil, fmt.Errorf("callback hook rejected authorization response: %w", err)
+		}
 	}
 
 	// Exchange code for tokens
