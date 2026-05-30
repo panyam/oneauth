@@ -1,8 +1,8 @@
 package: gae
-purpose: Google Cloud Datastore-backed implementations of oneauth's account/identity/channel/token/key/username stores, with namespacing, JSON-blob payloads, and transactional rotation/revocation flows.
+purpose: Google Cloud Datastore-backed implementations of oneauth's account/identity/channel/token/key/username and app-registration stores, all sharing a single `namespace` + `NameKey(Kind, name, nil)` pattern.
 language: go
-last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
-last_rebuilt_at: 2026-05-27T20:17:38Z
+last_rebuilt: 57a84270971b503a5e26dec841a214d21228c212
+last_rebuilt_at: 2026-05-30T00:00:00Z
 entities:
   - name: UserEntity
     kind: struct
@@ -40,6 +40,10 @@ entities:
     kind: struct
     role: Datastore model for kid→key grace entries (KidKey kind) — kid is the key name, ExpiresAt unindexed.
     why: Grace store for verification during key rotation; CleanExpired scans in Go because Datastore can't combine "not zero" with "less than".
+  - name: AppRegistrationEntity
+    kind: struct
+    role: Datastore model for DCR app registrations (AppRegistration kind) — client_id is the key name, every field noindex, CreatedAt stored as unix nanos.
+    why: All fields noindex sidesteps Datastore's 1500-byte property index limit (which would reject long registration_client_uri values or large redirect_uris arrays); unix-nano CreatedAt avoids the microsecond truncation Datastore applies to time.Time properties so the conformance suite's equality check passes.
   - name: GAEUser
     kind: struct
     role: Concrete accounts.User implementation returned by UserStore — id, profile, active flag, timestamps.
@@ -80,53 +84,86 @@ entities:
     kind: struct
     role: keys.KidStorage implementation — Add / Remove (idempotent) / GetKeyByKid (honours ExpiresAt) / CleanExpired for the kid-grace store; GetKey deliberately returns ErrKeyNotFound.
     why: Verification-only grace cache for old kids during rotation; intentionally not a primary-key store.
-  - name: WithContext-shim
-    kind: idiom
-    role: Every store exposes a `WithContext(ctx)` clone method that returns a copy with an embedded ctx field.
-    why: Backward-compat shim after #204c/d — every request method now takes ctx as a parameter, so the embedded field is unread. The shim survives to keep older call sites compiling.
+  - name: GAEAppStore
+    kind: struct
+    role: core.AppRegistrationStore implementation — SaveApp / GetApp / ListApps / DeleteApp over the AppRegistration kind, completing the gae parity story with FS and GORM.
+    why: New in this PR; shared Datastore client + namespace pattern means cmd/oneauth-server can switch backends by swapping a single dial and reusing the appstoretest conformance suite.
+  - name: NewUserStore
+    kind: func
+    role: Constructor — returns a UserStore bound to a datastore client + namespace.
+    why: Constructor-injection of the shared *datastore.Client keeps the store agnostic to dial/credentials wiring.
+  - name: NewIdentityStore
+    kind: func
+    role: Constructor — returns an IdentityStore bound to a datastore client + namespace.
+    why: Same shared-client pattern across every store in this package.
+  - name: NewChannelStore
+    kind: func
+    role: Constructor — returns a ChannelStore bound to a datastore client + namespace.
+    why: Same shared-client pattern across every store in this package.
+  - name: NewTokenStore
+    kind: func
+    role: Constructor — returns a TokenStore bound to a datastore client + namespace.
+    why: Same shared-client pattern across every store in this package.
+  - name: NewRefreshTokenStore
+    kind: func
+    role: Constructor — returns a RefreshTokenStore bound to a datastore client + namespace.
+    why: Same shared-client pattern across every store in this package.
+  - name: NewAPIKeyStore
+    kind: func
+    role: Constructor — returns an APIKeyStore bound to a datastore client + namespace.
+    why: Same shared-client pattern across every store in this package.
+  - name: NewUsernameStore
+    kind: func
+    role: Constructor — returns a UsernameStore bound to a datastore client + namespace.
+    why: Same shared-client pattern across every store in this package.
+  - name: NewKeyStore
+    kind: func
+    role: Constructor — returns a GAEKeyStore bound to a datastore client + namespace.
+    why: Same shared-client pattern across every store in this package.
+  - name: NewKidStore
+    kind: func
+    role: Constructor — returns a GAEKidStore bound to a datastore client + namespace.
+    why: Same shared-client pattern across every store in this package.
+  - name: NewAppStore
+    kind: func
+    role: Constructor — returns a GAEAppStore bound to a datastore client + namespace.
+    why: Same shared-client pattern; lets cmd/oneauth-server slot the gae app backend in with a one-line dial just like every other store here.
+  - name: IdentityToEntity
+    kind: func
+    role: Converts a public accounts.Identity into an IdentityEntity bound to the supplied key.
+    why: Per-row Datastore key cannot be derived from the value alone (it depends on namespace), so callers must pass the key in.
+  - name: VerificationTokenToEntity
+    kind: func
+    role: Converts a localauth.VerificationToken into a VerificationTokenEntity bound to the supplied key.
+    why: Same key-injection pattern as IdentityToEntity for namespace-aware writes.
+  - name: IdentityEntity.ToIdentity
+    kind: method
+    role: Round-trips an IdentityEntity back into accounts.Identity (no key fields).
+    why: Public store API hands out interface values, never entity structs.
+  - name: VerificationTokenEntity.ToVerificationToken
+    kind: method
+    role: Round-trips a VerificationTokenEntity back into localauth.VerificationToken (token name carried as Key.Name).
+    why: Public store API hands out interface values, never entity structs.
+  - name: GAEUser.Id
+    kind: method
+    role: accounts.User implementation — returns the UserID.
+    why: Implements the User interface as a plain struct (no DB round-trip on read).
+  - name: GAEUser.Profile
+    kind: method
+    role: accounts.User implementation — returns the user profile map.
+    why: Implements the User interface as a plain struct (no DB round-trip on read).
   - name: Kind constants
-    kind: const-group
-    role: KindUser / KindIdentity / KindChannel / KindAuthToken / KindRefreshToken / KindAPIKey / KindUsername / KindSigningKey / KindKidKey.
+    kind: const
+    role: KindUser / KindIdentity / KindChannel / KindAuthToken / KindRefreshToken / KindAPIKey / KindUsername / KindSigningKey / KindKidKey / KindAppRegistration.
     why: Single source of truth for Datastore kind names referenced from queries, keys, and tests.
 depends_on:
-  - path: ../../accounts
-    uses:
-      - accounts.User
-      - accounts.UserStore
-      - accounts.Identity
-      - accounts.IdentityStore
-      - accounts.Channel
-      - accounts.ChannelStore
-      - accounts.UsernameStore
   - path: ../../core
-    uses:
-      - core.TokenStore
-      - core.RefreshToken
-      - core.RefreshTokenStore
-      - core.APIKey
-      - core.APIKeyStore
-      - core.AuthorizationDetail
-      - core.GenerateSecureToken
-      - core.GenerateAPIKeyID
-      - core.GenerateAPIKeySecret
-      - core.TokenExpiryRefreshToken
-      - core.ErrTokenNotFound
-      - core.ErrTokenReused
-      - core.ErrTokenExpired
-      - core.ErrTokenRevoked
-      - core.ErrAPIKeyNotFound
+    entities: [AppRegistration, AppRegistrationStore, SaveAppRequest, SaveAppResponse, GetAppRequest, GetAppResponse, ListAppsRequest, ListAppsResponse, DeleteAppRequest, DeleteAppResponse, ErrAppNotFound, RefreshToken, RefreshTokenStore, CreateRefreshTokenRequest, CreateRefreshTokenResponse, GetRefreshTokenRequest, GetRefreshTokenResponse, RotateRefreshTokenRequest, RotateRefreshTokenResponse, RevokeRefreshTokenRequest, RevokeRefreshTokenResponse, RevokeSubjectTokensRequest, RevokeSubjectTokensResponse, RevokeTokenFamilyRequest, RevokeTokenFamilyResponse, GetSubjectTokensRequest, GetSubjectTokensResponse, CleanupExpiredTokensRequest, CleanupExpiredTokensResponse, APIKey, APIKeyStore, CreateAPIKeyRequest, CreateAPIKeyResponse, GetAPIKeyByIDRequest, GetAPIKeyByIDResponse, ValidateAPIKeyRequest, ValidateAPIKeyResponse, RevokeAPIKeyRequest, RevokeAPIKeyResponse, ListSubjectAPIKeysRequest, ListSubjectAPIKeysResponse, UpdateAPIKeyLastUsedRequest, UpdateAPIKeyLastUsedResponse, ErrAPIKeyNotFound, ErrTokenNotFound, ErrTokenExpired, ErrTokenRevoked, ErrTokenReused, GenerateSecureToken, GenerateAPIKeyID, GenerateAPIKeySecret, TokenExpiryRefreshToken, AuthorizationDetail]
   - path: ../../keys
-    uses:
-      - keys.KeyStorage
-      - keys.KidStorage
-      - keys.KeyRecord
-      - keys.ErrKeyNotFound
-      - keys.ErrKidNotFound
-      - keys.ErrAlgorithmMismatch
-  - path: ../../localauth
-    uses:
-      - localauth.VerificationType
-      - localauth.VerificationToken
+    entities: [KeyStorage, KidStorage, KeyRecord, PutKeyRequest, PutKeyResponse, GetKeyRequest, GetKeyResponse, GetKeyByKidRequest, GetKeyByKidResponse, DeleteKeyRequest, DeleteKeyResponse, ListKeyIDsRequest, ListKeyIDsResponse, AddKidRequest, AddKidResponse, RemoveKidRequest, RemoveKidResponse, CleanExpiredRequest, CleanExpiredResponse, ErrKeyNotFound, ErrKidNotFound, ErrAlgorithmMismatch]
   - path: ../../utils
-    uses:
-      - utils.ComputeKid
+    entities: [ComputeKid]
+  - path: ../../accounts
+    entities: [User, UserStore, IdentityStore, ChannelStore, UsernameStore, Identity, Channel, CreateUserRequest, CreateUserResponse, GetUserByIDRequest, GetUserByIDResponse, SaveUserRequest, SaveUserResponse, GetIdentityRequest, GetIdentityResponse, SaveIdentityRequest, SaveIdentityResponse, SetUserForIdentityRequest, SetUserForIdentityResponse, MarkIdentityVerifiedRequest, MarkIdentityVerifiedResponse, GetUserIdentitiesRequest, GetUserIdentitiesResponse, GetChannelRequest, GetChannelResponse, SaveChannelRequest, SaveChannelResponse, GetChannelsByIdentityRequest, GetChannelsByIdentityResponse, ReserveUsernameRequest, ReserveUsernameResponse, GetUserByUsernameRequest, GetUserByUsernameResponse, ReleaseUsernameRequest, ReleaseUsernameResponse, ChangeUsernameRequest, ChangeUsernameResponse]
+  - path: ../../localauth
+    entities: [VerificationToken, VerificationType, CreateVerificationTokenRequest, CreateVerificationTokenResponse, GetVerificationTokenRequest, GetVerificationTokenResponse, DeleteVerificationTokenRequest, DeleteVerificationTokenResponse, DeleteSubjectVerificationTokensRequest, DeleteSubjectVerificationTokensResponse]

@@ -565,6 +565,15 @@ func buildAppStore(cfg *Config, sharedDB *gorm.DB) (core.AppRegistrationStore, e
 		log.Printf("Using GORM AppStore (driver=%s)", cfg.AppStore.GORM.Driver)
 		return gormstore.NewAppStore(db), nil
 
+	case "gae":
+		ctx := context.Background()
+		client, err := datastore.NewClient(ctx, cfg.AppStore.GAE.Project)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("Using GAE Datastore AppStore (project=%s, namespace=%s)", cfg.AppStore.GAE.Project, cfg.AppStore.GAE.Namespace)
+		return gaestore.NewAppStore(client, cfg.AppStore.GAE.Namespace), nil
+
 	default:
 		return nil, fmt.Errorf("unknown app_store type: %s", cfg.AppStore.Type)
 	}

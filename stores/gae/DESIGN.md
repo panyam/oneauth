@@ -1,20 +1,11 @@
 # gae
 
-Google Cloud Datastore-backed implementation of every persistence interface OneAuth needs: signing keys, kid-grace entries, users, identities, channels, verification tokens, refresh tokens, API keys, and username reservations. Each store is an independent struct (no god object) that takes a `*datastore.Client` plus a per-tenant namespace, and every method already follows the request-response shape — `(ctx, *XRequest) → (*XResponse, error)`. The legacy `WithContext(ctx)` clone method is retained for backward compatibility but is now dead code: `ctx` flows through the call parameter, and the embedded `s.ctx` field is never read. The package is its own Go sub-module so consumers that don't run on GCP don't pay the Datastore dependency cost.
-
-Two stylistic conventions thread through the file:
-
-- **JSON-in-noindex-blob for sub-records.** Anything map- or slice-shaped (`profile`, `credentials`, `device_info`, `scopes`, `authorization_details`) is `json.Marshal`-ed into a `[]byte` field tagged `datastore:"...,noindex"`. This keeps schema churn out of Datastore indexes and side-steps Datastore's flat-property model. Top-level scalars that callers actually filter on (`subject`, `family`, `identity_key`, `kid`, `revoked`, `expires_at`) stay indexed.
-- **Composite key names instead of ancestor keys.** Identity keys are `"type:value"`, channel keys are `"provider:identityKey"`, username keys are the lowercased username. No entity groups are used, so every write is a single-key write and queries are flat (no strong-consistency window to worry about).
+Google Cloud Datastore implementations of oneauth's storage interfaces — accounts (User / Identity / Channel / Username), credentials (verification tokens, refresh tokens, API keys), signing-key material (`keys.KeyStorage` + `keys.KidStorage`), and as of this PR DCR app registrations (`core.AppRegistrationStore`). Every store takes the same `(*datastore.Client, namespace)` pair and routes through `datastore.NameKey(Kind, name, nil)` with `key.Namespace = s.namespace`, so a single Datastore client services all of oneauth in one project and tests can sandbox themselves to a per-suite namespace. All files carry the `//go:build !wasm` tag because the cloud Datastore client is not available under wasm.
 
 ## Contents
 
 - [Entities](#entities)
 - [Flows](#flows)
-  - [Refresh-token rotation with reuse detection](#refresh-token-rotation-with-reuse-detection)
-  - [Username reservation with case-insensitive normalisation](#username-reservation-with-case-insensitive-normalisation)
-  - [Kid grace-store cleanup](#kid-grace-store-cleanup)
-  - [Verification-token lookup with lazy expiry](#verification-token-lookup-with-lazy-expiry)
 - [Gotchas](#gotchas)
 - [Depends on](#depends-on)
 
@@ -22,172 +13,117 @@ Two stylistic conventions thread through the file:
 
 | Entity | Kind | Role | Why |
 |---|---|---|---|
-| `UserEntity` | struct | Datastore model for the `User` kind — `IsActive`, JSON `profile` blob, timestamps, version. | Persistent shape decoupled from the public `accounts.User` interface so JSON profiles can be unindexed. |
-| `IdentityEntity` | struct | Datastore model for the `Identity` kind — keyed `"type:value"`, indexed `user_id` for reverse lookup. | `IdentityStore.GetUserIdentities` is a reverse query, so `user_id` is the only field that must stay indexed. |
-| `ChannelEntity` | struct | Datastore model for the `Channel` kind — keyed `"provider:identityKey"`, JSON `credentials`/`profile`. | One row per `(provider, identityKey)` lets `identity_key` be queried to fan-out "all channels for this identity". |
-| `VerificationTokenEntity` | struct | Datastore model for the `AuthToken` kind — token string is the key name. | Direct key lookup avoids any index; bulk delete is filterable by `subject` + `type`. |
-| `RefreshTokenEntity` | struct | Datastore model for the `RefreshToken` kind — token-hash key, `family` + `generation`, JSON `scopes` and `authorization_details` (RFC 9396). | Hash-keyed for O(1) lookup; indexed `family` so a reuse attack can revoke the whole family. |
-| `APIKeyEntity` | struct | Datastore model for the `APIKey` kind — `KeyID` is the key, bcrypt `KeyHash` unindexed, `HasExpiry` flag. | `HasExpiry` avoids ambiguity around `time.Time` zero values when an API key has no expiry. |
-| `UsernameEntity` | struct | Datastore model for the `Username` kind — keyed by lowercased username, original case preserved in a field. | Case-insensitive uniqueness via normalised key, while still allowing the original casing to be displayed. |
-| `SigningKeyEntity` | struct | Datastore model for the `SigningKey` kind — clientID key, indexed `kid`. | Two-way lookup (by clientID for signing, by `kid` for verification) on the same row. |
-| `KidKeyEntity` | struct | Datastore model for the `KidKey` kind — `kid` is the key, `ExpiresAt` unindexed. | Grace store for verification during key rotation; cleanup scans in Go because Datastore can't combine "not zero" with "less than". |
-| `GAEUser` | struct | Concrete `accounts.User` implementation returned by `UserStore`. | Plain DTO returned from `CreateUser`/`GetUserById`; `SaveUser` checks this type to read back `IsActive`. |
-| `UserStore` | struct | `accounts.UserStore` impl — `UserStore.CreateUser`, `UserStore.GetUserById`, `UserStore.SaveUser`. | Maps the public store interface onto a single `User` kind. |
-| `IdentityStore` | struct | `accounts.IdentityStore` impl — `IdentityStore.GetIdentity`, `IdentityStore.SaveIdentity`, `IdentityStore.SetUserForIdentity`, `IdentityStore.MarkIdentityVerified`, `IdentityStore.GetUserIdentities`. | Transactions on `SetUserForIdentity`/`MarkIdentityVerified` keep `Version` monotonic. |
-| `ChannelStore` | struct | `accounts.ChannelStore` impl — `ChannelStore.GetChannel`, `ChannelStore.SaveChannel`, `ChannelStore.GetChannelsByIdentity`. | Composite key plus indexed `identity_key` for the fan-out query. |
-| `TokenStore` | struct | `core.TokenStore` impl for localauth verification tokens — `TokenStore.CreateToken`, `TokenStore.GetToken` (auto-deletes expired), `TokenStore.DeleteToken`, `TokenStore.DeleteSubjectTokens`. | Keys-only filter + `DeleteMulti` gives a single batched purge for "all reset tokens for this subject". |
-| `RefreshTokenStore` | struct | `core.RefreshTokenStore` impl — `RefreshTokenStore.CreateRefreshToken`, `RefreshTokenStore.GetRefreshToken`, `RefreshTokenStore.RotateRefreshToken`, `RefreshTokenStore.RevokeRefreshToken`, `RefreshTokenStore.RevokeSubjectTokens`, `RefreshTokenStore.RevokeTokenFamily`, `RefreshTokenStore.GetSubjectTokens`, `RefreshTokenStore.CleanupExpiredTokens`. | Implements RFC 6749 §10.4 rotation with family-wide revocation on reuse. |
-| `APIKeyStore` | struct | `core.APIKeyStore` impl — `APIKeyStore.CreateAPIKey`, `APIKeyStore.GetAPIKeyByID`, `APIKeyStore.ValidateAPIKey`, `APIKeyStore.RevokeAPIKey`, `APIKeyStore.ListSubjectAPIKeys`, `APIKeyStore.UpdateAPIKeyLastUsed`. | Tracks both `KeyID` (lookup) and a bcrypt hash of the secret (validation); `HasExpiry` flag avoids `omitempty` time.Time pitfalls. |
-| `UsernameStore` | struct | `accounts.UsernameStore` impl — `UsernameStore.ReserveUsername`, `UsernameStore.GetUserByUsername`, `UsernameStore.ReleaseUsername`, `UsernameStore.ChangeUsername`. | `ChangeUsername` does Get-then-Put in one transaction to prevent races between two users grabbing the same name. |
-| `GAEKeyStore` | struct | `keys.KeyStorage` impl — `GAEKeyStore.PutKey`, `GAEKeyStore.GetKey`, `GAEKeyStore.GetKeyByKid`, `GAEKeyStore.DeleteKey`, `GAEKeyStore.ListKeyIDs`. | One row per client; either direction (clientID or `kid`) resolves a key. |
-| `GAEKidStore` | struct | `keys.KidStorage` impl — `GAEKidStore.Add`, `GAEKidStore.Remove` (idempotent), `GAEKidStore.GetKeyByKid` (honours `ExpiresAt`), `GAEKidStore.CleanExpired`; `GAEKidStore.GetKey` deliberately returns `ErrKeyNotFound`. | Verification-only grace cache for old kids during rotation; intentionally not a primary-key store. |
-| `Kind` constants | const-group | `KindUser`, `KindIdentity`, `KindChannel`, `KindAuthToken`, `KindRefreshToken`, `KindAPIKey`, `KindUsername`, `KindSigningKey`, `KindKidKey`. | Single source of truth for Datastore kind names referenced from queries, keys, and tests. |
-| `WithContext` shim | idiom | Every store still exposes a `Store.WithContext(ctx)` clone method. | Backward-compat shim after #204c/d — `ctx` already flows through the request methods, so this is now dead code that survives only to keep old call sites compiling. |
+| `UserEntity` | struct | Datastore model for users (User kind) — IsActive flag, JSON profile blob (noindex), timestamps, version. | Persistent shape decoupled from `accounts.User` so JSON profiles can be unindexed. |
+| `IdentityEntity` | struct | Datastore model for identities (Identity kind) — keyed by `"type:value"`, indexed `user_id` for reverse lookups. | Allows `GetUserIdentities` reverse-index queries while keeping the key human-readable. |
+| `ChannelEntity` | struct | Datastore model for auth channels (Channel kind) — keyed by `"provider:identityKey"`, carries credentials/profile JSON. | One row per (provider, identity); indexed `identity_key` enables "all channels for this identity". |
+| `VerificationTokenEntity` | struct | Datastore model for localauth verification tokens (AuthToken kind) — token is the key name. | Direct key lookup avoids indexes; bulk delete is filterable by subject + type. |
+| `RefreshTokenEntity` | struct | Datastore model for refresh tokens — token-hash key, family/generation, JSON scopes + RFC 9396 `authorization_details`. | Hash-keyed for O(1) lookup; family field indexed so a reuse attack can revoke the whole family. |
+| `APIKeyEntity` | struct | Datastore model for API keys — KeyID is the key, bcrypt KeyHash unindexed, HasExpiry flag. | `HasExpiry` bool avoids omitempty pitfalls on `time.Time` zero-value when `ExpiresAt` is unset. |
+| `UsernameEntity` | struct | Datastore model for username→userID reservations — keyed by lowercased username, original case preserved in a field. | Case-insensitive uniqueness via normalised key, but original casing is retained for display. |
+| `SigningKeyEntity` | struct | Datastore model for per-client signing keys (SigningKey kind) — clientID key, kid indexed for JWKS lookup. | Two-way lookup (by clientID for signing, by kid for verification) on the same row. |
+| `KidKeyEntity` | struct | Datastore model for kid→key grace entries (KidKey kind) — kid is the key name, `ExpiresAt` unindexed. | Grace store for verification during key rotation; `CleanExpired` scans in Go because Datastore can't combine "not zero" with "less than". |
+| `AppRegistrationEntity` | struct | Datastore model for DCR app registrations (AppRegistration kind) — client_id is the key name, every field `noindex`, CreatedAt stored as unix nanos. | All fields `noindex` sidesteps Datastore's 1500-byte property index limit (which would reject long `registration_client_uri` values or large `redirect_uris` arrays); unix-nano `CreatedAt` avoids the microsecond truncation Datastore applies to `time.Time` properties so the conformance suite's equality check passes. |
+| `GAEUser` | struct | Concrete `accounts.User` returned by `UserStore` — id, profile, active flag, timestamps. | Plain DTO returned from CreateUser/GetUserById; `SaveUser` type-asserts on this to read back `IsActive`. |
+| `UserStore` | struct | `accounts.UserStore` impl — CreateUser / GetUserById / SaveUser keyed by userId in the configured namespace. | Maps the public store interface onto a single User kind. |
+| `IdentityStore` | struct | `accounts.IdentityStore` impl — Get/Save identities, set UserID, mark verified, reverse-lookup by user_id. | Transactions guard `SetUserForIdentity` and `MarkIdentityVerified` to keep `Version` monotonic. |
+| `ChannelStore` | struct | `accounts.ChannelStore` impl — Get/Save channels and list channels for an identity key. | Single Channel kind with composite name plus indexed `identity_key` for fan-out. |
+| `TokenStore` | struct | `core.TokenStore` impl for localauth verification tokens — CreateToken / GetToken (auto-deletes if expired) / DeleteToken / DeleteSubjectTokens. | Keys-only filter + `DeleteMulti` gives a single batched purge for "all reset tokens for this subject". |
+| `RefreshTokenStore` | struct | `core.RefreshTokenStore` impl — Create / Get / Rotate (transactional, reuse-detection) / Revoke{Refresh,Subject,Family} / GetSubjectTokens / CleanupExpired. | Implements RFC 6749 §10.4 refresh-token rotation with family-wide revocation on reuse. |
+| `APIKeyStore` | struct | `core.APIKeyStore` impl — Create (bcrypt hash, `"oa_keyid_secret"` format) / GetByID / Validate / Revoke / ListSubject / UpdateLastUsed. | Tracks both KeyID (lookup) and a bcrypt hash of the secret (validation); `HasExpiry` flag avoids omitempty on `time.Time`. |
+| `UsernameStore` | struct | `accounts.UsernameStore` impl — Reserve / Get / Release / Change with case-insensitive normalisation. | `ChangeUsername` runs Get-then-Put in one transaction to prevent races between two users grabbing the same name. |
+| `GAEKeyStore` | struct | `keys.KeyStorage` impl — PutKey / GetKey / GetKeyByKid / DeleteKey / ListKeyIDs over the SigningKey kind. | One row per client lets either direction (clientID or kid) resolve a key via composite indexing. |
+| `GAEKidStore` | struct | `keys.KidStorage` impl — Add / Remove (idempotent) / GetKeyByKid (honours `ExpiresAt`) / CleanExpired; `GetKey` deliberately returns `ErrKeyNotFound`. | Verification-only grace cache for old kids during rotation; intentionally not a primary-key store. |
+| `GAEAppStore` | struct | `core.AppRegistrationStore` impl — SaveApp / GetApp / ListApps / DeleteApp over the AppRegistration kind. | New in this PR; shared client + namespace pattern means `cmd/oneauth-server` can swap backends with one line and reuse the `appstoretest` conformance suite. |
+| `NewUserStore` | func | Constructor — returns a `UserStore` bound to a datastore client + namespace. | Constructor injection of the shared `*datastore.Client` keeps the store agnostic to dial/credentials wiring. |
+| `NewIdentityStore` | func | Constructor — returns an `IdentityStore` bound to a datastore client + namespace. | Same shared-client pattern across every store in this package. |
+| `NewChannelStore` | func | Constructor — returns a `ChannelStore` bound to a datastore client + namespace. | Same shared-client pattern across every store in this package. |
+| `NewTokenStore` | func | Constructor — returns a `TokenStore` bound to a datastore client + namespace. | Same shared-client pattern across every store in this package. |
+| `NewRefreshTokenStore` | func | Constructor — returns a `RefreshTokenStore` bound to a datastore client + namespace. | Same shared-client pattern across every store in this package. |
+| `NewAPIKeyStore` | func | Constructor — returns an `APIKeyStore` bound to a datastore client + namespace. | Same shared-client pattern across every store in this package. |
+| `NewUsernameStore` | func | Constructor — returns a `UsernameStore` bound to a datastore client + namespace. | Same shared-client pattern across every store in this package. |
+| `NewKeyStore` | func | Constructor — returns a `GAEKeyStore` bound to a datastore client + namespace. | Same shared-client pattern across every store in this package. |
+| `NewKidStore` | func | Constructor — returns a `GAEKidStore` bound to a datastore client + namespace. | Same shared-client pattern across every store in this package. |
+| `NewAppStore` | func | Constructor — returns a `GAEAppStore` bound to a datastore client + namespace. | Same shared-client pattern; lets `cmd/oneauth-server` slot the gae app backend in with a one-line dial just like every other store here. |
+| `IdentityToEntity` | func | Converts a public `accounts.Identity` into an `IdentityEntity` bound to the supplied key. | Datastore key depends on namespace, so callers must pass it in rather than have the converter derive it. |
+| `VerificationTokenToEntity` | func | Converts a `localauth.VerificationToken` into a `VerificationTokenEntity` bound to the supplied key. | Same key-injection pattern as `IdentityToEntity` for namespace-aware writes. |
+| `IdentityEntity.ToIdentity` | method | Round-trips an `IdentityEntity` back into `accounts.Identity` (no key fields). | Public store API hands out interface values, never entity structs. |
+| `VerificationTokenEntity.ToVerificationToken` | method | Round-trips a `VerificationTokenEntity` back into `localauth.VerificationToken` (token name carried as `Key.Name`). | Public store API hands out interface values, never entity structs. |
+| `GAEUser.Id` | method | `accounts.User` impl — returns the UserID. | Implements the `User` interface as a plain struct (no DB round-trip on read). |
+| `GAEUser.Profile` | method | `accounts.User` impl — returns the user profile map. | Implements the `User` interface as a plain struct (no DB round-trip on read). |
+| `KindUser`, `KindIdentity`, `KindChannel`, `KindAuthToken`, `KindRefreshToken`, `KindAPIKey`, `KindUsername`, `KindSigningKey`, `KindKidKey`, `KindAppRegistration` | const | Datastore "kind" names for every entity type in this package. | Single source of truth referenced from queries, keys, and tests. |
 
 ## Flows
 
 ### Refresh-token rotation with reuse detection
 
-`RefreshTokenStore.RotateRefreshToken` is the centerpiece: a single Datastore transaction that revokes the old token and writes the next-generation token while preserving `Family`, plus an out-of-transaction family revocation if reuse is detected. Holding the old-revoke and new-create in one `RunInTransaction` closure is what makes the rotation atomic — neither side is observable on its own.
-
-```mermaid
-sequenceDiagram
-    participant Caller as apiauth.OneAuth
-    participant Store as RefreshTokenStore
-    participant Tx as Datastore Tx
-    participant DS as Datastore
-
-    Caller->>Store: RotateRefreshToken(ctx, oldToken)
-    Store->>Store: hashToken(oldToken)
-    Store->>Tx: RunInTransaction
-    Tx->>DS: Get(oldHash)
-    alt ErrNoSuchEntity
-        Tx-->>Store: ErrTokenNotFound
-    else Already revoked
-        Tx-->>Store: ErrTokenReused
-        Store->>DS: Get(oldHash) (outside tx, read family)
-        Store->>Store: RevokeTokenFamily(family)
-        Store-->>Caller: nil, ErrTokenReused
-    else Expired
-        Tx-->>Store: ErrTokenExpired
-    else Valid
-        Tx->>DS: Put(old: Revoked=true, RevokedAt=now)
-        Store->>Store: GenerateSecureToken()
-        Tx->>DS: Put(new: Generation+1, same Family)
-        Tx-->>Store: ok
-        Store-->>Caller: newRefreshToken, nil
-    end
-```
-
-### Username reservation with case-insensitive normalisation
-
-`UsernameStore.ReserveUsername` and `UsernameStore.ChangeUsername` collapse the same lowercased username to the same key, while still preserving the original casing in the entity body.
-
 ```mermaid
 sequenceDiagram
     participant Caller
-    participant US as UsernameStore
-    participant Tx as Datastore Tx
+    participant RTS as RefreshTokenStore
+    participant TX as Datastore Tx
+    participant DS as Datastore
 
-    Caller->>US: ReserveUsername(ctx, "Alice", uid)
-    US->>US: normalize → "alice"
-    US->>Tx: RunInTransaction
-    Tx->>Tx: Get("alice")
-    alt Exists, same userID
-        Tx->>Tx: Put({Username:"Alice", UserID:uid})
-        Tx-->>US: nil
-    else Exists, different userID
-        Tx-->>US: "username already taken"
-    else Not found
-        Tx->>Tx: Put(new UsernameEntity)
-        Tx-->>US: nil
+    Caller->>RTS: RotateRefreshToken(oldToken)
+    RTS->>RTS: hash := sha256(oldToken)
+    RTS->>TX: RunInTransaction(key=hash)
+    TX->>DS: Get(key)
+    alt entity.Revoked
+        TX-->>RTS: return ErrTokenReused
+        RTS->>RTS: Get(family) outside tx
+        RTS->>DS: RevokeTokenFamily(family) — bulk revoke
+        RTS-->>Caller: ErrTokenReused
+    else expired
+        TX-->>RTS: ErrTokenExpired
+        RTS-->>Caller: ErrTokenExpired
+    else fresh
+        TX->>DS: Put(old, Revoked=true)
+        RTS->>RTS: newToken := GenerateSecureToken()
+        TX->>DS: Put(newHash, Generation+1, same family, scopes, authzDetails)
+        TX-->>RTS: ok
+        RTS-->>Caller: new RefreshToken
     end
-    US-->>Caller: result
 ```
 
-### Kid grace-store cleanup
-
-`GAEKidStore.CleanExpired` scans the whole `KidKey` kind in the namespace and filters in Go, because `ExpiresAt` is `noindex` and Datastore can't combine an "is non-zero" predicate with a "less-than" range filter in one query. The iterator terminates on `iterator.Done` — that sentinel is end-of-query, not an error.
+### App registration round-trip
 
 ```mermaid
 sequenceDiagram
-    participant Caller
-    participant KS as GAEKidStore
+    participant Admin as DCR Handler
+    participant AS as GAEAppStore
     participant DS as Datastore
 
-    Caller->>KS: CleanExpired(ctx)
-    KS->>DS: GetAll(query KindKidKey, namespace)
-    DS-->>KS: entities[], keys[]
-    loop for each entity
-        KS->>KS: if !ExpiresAt.IsZero() && now > ExpiresAt
-        KS->>KS:   append key to toDelete
-    end
-    alt toDelete non-empty
-        KS->>DS: DeleteMulti(toDelete)
-    end
-    KS-->>Caller: {Removed: len(toDelete)}
-```
+    Admin->>AS: SaveApp(AppRegistration{ClientID,...})
+    AS->>AS: appKey(ClientID) with namespace
+    AS->>AS: appRegToEntity(key, app) — CreatedAt.UnixNano()
+    AS->>DS: Put(key, entity)
+    DS-->>AS: ok
+    AS-->>Admin: SaveAppResponse{}
 
-### Verification-token lookup with lazy expiry
-
-`TokenStore.GetToken` self-heals: if the token row exists but is past its `ExpiresAt`, it is deleted on the read path. This means a background cleanup job is not required for correctness, only for storage hygiene.
-
-```mermaid
-sequenceDiagram
-    participant Caller as localauth
-    participant TS as TokenStore
-    participant DS as Datastore
-
-    Caller->>TS: GetToken(ctx, token)
-    TS->>DS: Get(KindAuthToken, token)
+    Admin->>AS: GetApp(ClientID)
+    AS->>DS: Get(appKey)
     alt ErrNoSuchEntity
-        TS-->>Caller: "token not found"
-    else Found, !IsExpired
-        TS-->>Caller: *VerificationToken
-    else Found, IsExpired
-        TS->>DS: Delete(token)
-        TS-->>Caller: "token expired"
+        AS-->>Admin: core.ErrAppNotFound
+    else found
+        AS->>AS: entityToAppReg — unixNanosToTime(CreatedAt)
+        AS-->>Admin: AppRegistration
     end
 ```
 
 ## Gotchas
 
-- **`WithContext` is dead code post-#204c/d.** Every store still embeds a `ctx context.Context` field and exposes `WithContext`. None of the request methods read `s.ctx` — they all take `ctx` as a parameter. The shim survives only to keep older call sites compiling; do not add new code that depends on it. It will be removed once consumers are migrated.
-
-- **JSON-in-blob payloads cannot be queried.** `profile`, `credentials`, `device_info`, `scopes`, `authorization_details` are all `[]byte` with `noindex`. You can't filter "all refresh tokens with scope X" at the Datastore level — you have to scan and decode. This is deliberate (Datastore's flat-property indexes are expensive), but a real surprise if you try.
-
-- **Composite key names, not ancestors.** Identity keys are literally `"type:value"`, channel keys are `"provider:identityKey"`. There are no entity groups, so cross-entity transactions (`SetUserForIdentity`, `ChangeUsername`, refresh-token rotation) are cross-group writes and rely on Datastore's XG transaction limit (25 entity groups). Inside any single transaction in this package we only touch one or two rows, so this is fine — but if you add a flow that touches dozens of refresh tokens transactionally, you'll hit the cap.
-
-- **Namespace prefix on every key.** Every `namespacedKey` helper does `key.Namespace = s.namespace` after `datastore.NameKey(...)`. Datastore namespaces are how this package multi-tenants; forget the namespace assignment on a new key constructor or new query (`q.Namespace(s.namespace)`) and the store will silently read or write across tenants. There's no single helper that handles both — copy from an existing call site.
-
-- **`iterator.Done` is end-of-query, not an error.** Every `client.Run(ctx, query)` loop checks `if err == iterator.Done { break }` before treating `err` as fatal. This is the `google.golang.org/api/iterator` sentinel, not `datastore.ErrNoSuchEntity` (which is the per-key Get sentinel). Mixing them up will either eat real errors or short-circuit on success.
-
-- **`HasExpiry` flag for nullable timestamps.** Datastore stores `time.Time` zero-values as a real timestamp (the epoch), and `omitempty` on `time.Time` doesn't behave like it does for pointers. `APIKeyEntity.HasExpiry` is an explicit bool so the round-trip back to `*core.APIKey.ExpiresAt *time.Time` can decide whether to set the pointer at all. The same idiom is used for `RevokedAt` via `IsZero()` checks.
-
-- **`omitempty` on bool fields does nothing.** Several entity fields use `datastore:"...,omitempty"` (e.g. `RefreshTokenEntity.ClientID`, `RefreshTokenEntity.RevokedAt`, `APIKeyEntity.ExpiresAt`, `APIKeyEntity.RevokedAt`). For zero-value `time.Time` and empty string this saves index entries; for bool zero values (`Revoked`) it does not, which is why we always write `Revoked` explicitly.
-
-- **Kid cleanup scans the kind.** `GAEKidStore.CleanExpired` fetches every entity in the namespace, filters in Go, and `DeleteMulti`s the survivors. This works because kid grace stores stay small (a handful of entries per client during rotation), but it would not work as the design for a production refresh-token cleanup — which is why `RefreshTokenStore.CleanupExpiredTokens` uses indexed `expires_at` and `revoked`/`revoked_at` range filters instead.
-
-- **Refresh-token reuse revokes the family outside the transaction.** When `RotateRefreshToken` detects a previously-revoked token, the rotation transaction returns `ErrTokenReused`, then a separate `Get` + `RevokeTokenFamily` runs outside the tx. The window between detection and family revocation is unprotected — if an attacker burns all generations in parallel, the family revocation will catch up but the race exists. This is the same tradeoff GORM-store makes; the alternative (looping every family member into the rotation tx) blows past the entity-group limit.
-
-- **`RotateRefreshToken` builds the response inside the closure.** Watch the assignment to the outer `newRefreshToken *core.RefreshToken` inside `RunInTransaction` — if the transaction retries (Datastore can retry the closure on contention), the variable is overwritten on each attempt, which is fine, but if you ever add a side-effect that depends on `newRefreshToken` being final, it must run after the outer `err` check.
-
-- **`UserStore.SaveUser` re-reads the row to preserve `CreatedAt`.** It does a Get-then-Put without a transaction; two concurrent `SaveUser` calls can both observe the same `CreatedAt` and both write — last writer wins. There's no `Version` check on the user row (unlike `IdentityEntity`/`ChannelEntity`), so user updates are last-writer-wins by design.
-
-- **`SaveUser` only round-trips `IsActive` for `*GAEUser`.** If a caller passes some other `accounts.User` implementation, the entity is written with `IsActive: true` regardless of the actual state, because the value can only be read out via a type assertion.
-
-- **`stores.go` has a stray `log.Println` in `GetUserById`.** It logs every user lookup including the userId. Noise in production; harmless but worth knowing.
-
-- **`!wasm` build tag is on every `.go` file.** The package is excluded from WASM builds entirely. If you add a new file here, copy the `//go:build !wasm` header — without it the WASM build will try to compile Datastore.
-
-- **Sub-module, replace directives.** This folder is its own Go module (`go.mod`/`go.sum` live here). When developing against an unreleased main-module change, the consumer needs a `replace` directive — see `docs/MIGRATION.md` and the project `go.work` for the canonical layout. Do not edit `go.mod` / `go.sum` as part of a design pass.
-
-- **`GAEKidStore.GetKey` is intentionally broken.** It returns `ErrKeyNotFound` unconditionally because the kid store is a kid-indexed view, not a clientID-indexed primary store. The interface forces the method to exist; the implementation refuses to lie about it. Read `keys/SUMMARY.md` if this looks like a bug.
+- **AppRegistration timestamps stored as unix nanos.** Datastore truncates `time.Time` properties to microseconds, which breaks equality checks the `appstoretest` conformance suite makes against the in-memory result. `AppRegistrationEntity.CreatedAt` is therefore `int64` (nanos), and `unixNanosToTime` round-trips zero → `time.Time{}` so a never-set timestamp doesn't appear as `1970-01-01` (matching the GORM/FS/InMemory zero-default).
+- **Every AppRegistration field is `noindex`.** Datastore rejects indexed properties larger than 1500 bytes; a long `registration_client_uri` or a `redirect_uris` array with many entries would hit that limit. Because the only access pattern is "lookup by `client_id` (the key)", nothing in the value needs to be indexed, so all fields are marked `noindex`.
+- **`GAEKidStore.GetKey` is intentionally stubbed.** It satisfies the interface but always returns `ErrKeyNotFound` — `KidStorage` is a verification-only grace cache keyed by kid, not by clientID. Routing a clientID lookup here would silently miss; this is by design.
+- **`CleanExpired` (kid) and `CleanupExpiredTokens` (refresh) scan in Go, not in the query.** Datastore can't express "field is not the zero time AND field < now" in one inequality filter, so both methods fetch candidates and filter on the client. The refresh-token version does run two separate queries (one for `expires_at < now`, one for `revoked = true AND revoked_at < cutoff`), each as a keys-only + `DeleteMulti`.
+- **`RotateRefreshToken` family revocation happens outside the transaction.** When reuse is detected the tx returns `ErrTokenReused`, then `RevokeTokenFamily` runs as a separate write loop. If the process crashes between the two calls the attacker's reused token is already failed (tx returned the error), but the family is still live until the next reuse attempt or a manual revoke — acceptable because reuse detection is the trigger, not a separate guarantee.
+- **`UserStore.GetUserById` logs the key on every call.** `log.Println("UserStore Key: ", key, ...)` in `stores.go` is dev-leftover noise that ends up in production logs — worth cleaning up but not load-bearing.
+- **`RotateRefreshToken` updates `LastUsedAt` only on the new entity.** The old (now-revoked) entity keeps its prior `LastUsedAt`; only `RevokedAt` records when rotation happened. Audit consumers should read `RevokedAt`, not `LastUsedAt`, to see when rotation occurred.
+- **Sub-test cleanup runs before each conformance sub-test.** `keystore_test.go` / `kidstore_test.go` / `appstore_test.go` each call their cleanup closure inside the `RunAll` factory so every sub-test sees an empty namespace — necessary because the conformance suites reuse the same client across sub-tests.
 
 ## Depends on
 
-- [`../../accounts/DESIGN.md`](../../accounts/DESIGN.md) — the public account-side store interfaces this package implements: `accounts.UserStore` (with `accounts.User`), `accounts.IdentityStore` (with `accounts.Identity`), `accounts.ChannelStore` (with `accounts.Channel`), and `accounts.UsernameStore`. `GAEUser` is the concrete `accounts.User` returned by `UserStore.CreateUser` / `UserStore.GetUserById`.
-- [`../../core/DESIGN.md`](../../core/DESIGN.md) — token-side primitives: `core.TokenStore`, `core.RefreshTokenStore` (`core.RefreshToken`, `core.AuthorizationDetail`, `core.TokenExpiryRefreshToken`), `core.APIKeyStore` (`core.APIKey`), the secure-token helpers `core.GenerateSecureToken` / `core.GenerateAPIKeyID` / `core.GenerateAPIKeySecret`, and the sentinel errors `core.ErrTokenNotFound`, `core.ErrTokenReused`, `core.ErrTokenExpired`, `core.ErrTokenRevoked`, `core.ErrAPIKeyNotFound` returned from `RefreshTokenStore.RotateRefreshToken` / `APIKeyStore.ValidateAPIKey`.
-- [`../../keys/DESIGN.md`](../../keys/DESIGN.md) — the key-storage interfaces and DTO: `GAEKeyStore` implements `keys.KeyStorage`, `GAEKidStore` implements `keys.KidStorage`, both round-trip `keys.KeyRecord`, and they return `keys.ErrKeyNotFound` / `keys.ErrKidNotFound` / `keys.ErrAlgorithmMismatch` per the contract.
-- [`../../localauth/DESIGN.md`](../../localauth/DESIGN.md) — the verification-token shape: `VerificationTokenEntity` persists `localauth.VerificationType` plus a `localauth.VerificationToken` round-trip, and `TokenStore.CreateToken` / `TokenStore.GetToken` / `TokenStore.DeleteSubjectTokens` expose those types directly.
-- [`../../utils/DESIGN.md`](../../utils/DESIGN.md) — `utils.ComputeKid` derives the kid that `GAEKeyStore.PutKey` writes to `SigningKeyEntity.Kid` when the caller did not supply one.
+- [`core/`](../../core/DESIGN.md) — `AppRegistration`, `AppRegistrationStore`, `SaveAppRequest`/`Response`, `GetAppRequest`/`Response`, `ListAppsRequest`/`Response`, `DeleteAppRequest`/`Response`, `ErrAppNotFound`, `RefreshToken`, `RefreshTokenStore` + its Create/Get/Rotate/Revoke{,Subject,Family}/GetSubjectTokens/CleanupExpiredTokens request/response pairs, `APIKey`, `APIKeyStore` + its Create/GetByID/Validate/Revoke/ListSubject/UpdateLastUsed request/response pairs, `ErrAPIKeyNotFound`, `ErrTokenNotFound` / `ErrTokenExpired` / `ErrTokenRevoked` / `ErrTokenReused`, `GenerateSecureToken`, `GenerateAPIKeyID`, `GenerateAPIKeySecret`, `TokenExpiryRefreshToken`, `AuthorizationDetail`.
+- [`keys/`](../../keys/DESIGN.md) — `KeyStorage`, `KidStorage`, `KeyRecord`, `PutKey`/`GetKey`/`GetKeyByKid`/`DeleteKey`/`ListKeyIDs` request/response pairs, `AddKid`/`RemoveKid`/`CleanExpired` request/response pairs, `ErrKeyNotFound`, `ErrKidNotFound`, `ErrAlgorithmMismatch`.
+- [`utils/`](../../utils/DESIGN.md) — `ComputeKid`.
+- [`accounts/`](../../accounts/DESIGN.md) — `User`, `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`, `Identity`, `Channel`, plus all the Create/Get/Save/SetUserForIdentity/MarkIdentityVerified/GetUserIdentities/Reserve/Release/Change request and response types for those stores.
+- [`localauth/`](../../localauth/DESIGN.md) — `VerificationToken`, `VerificationType`, and the Create/Get/Delete/DeleteSubject verification-token request/response pairs implemented by `TokenStore`.

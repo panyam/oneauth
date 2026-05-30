@@ -24,9 +24,10 @@ type Config struct {
 // (issue 167 — closes parent 20). Mirrors KeyStoreConfig so deployments
 // see consistent shape.
 type AppStoreConfig struct {
-	Type string     `yaml:"type"` // memory, fs, gorm (defaults to memory)
+	Type string     `yaml:"type"` // memory, fs, gorm, gae (defaults to memory)
 	FS   FSConfig   `yaml:"fs"`
 	GORM GORMConfig `yaml:"gorm"`
+	GAE  GAEConfig  `yaml:"gae"`
 }
 
 // UserStoresConfig configures persistent stores for users, identities, channels, tokens.
