@@ -1,6 +1,7 @@
 package client
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -96,13 +97,14 @@ func TestDiscoverASUsesCache(t *testing.T) {
 	var fetchCount atomic.Int32
 
 	mux := http.NewServeMux()
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
 	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
 		fetchCount.Add(1)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"issuer":"http://test","token_endpoint":"http://test/token"}`))
+		// Issuer must match the fetched URL per RFC 8414 §3.3 (DiscoverAS rejects mismatches).
+		fmt.Fprintf(w, `{"issuer":%q,"token_endpoint":%q}`, ts.URL, ts.URL+"/token")
 	})
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
 
 	store := NewMemoryASMetadataStore(0)
 
@@ -111,7 +113,7 @@ func TestDiscoverASUsesCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first DiscoverAS failed: %v", err)
 	}
-	if md1.Issuer != "http://test" {
+	if md1.Issuer != ts.URL {
 		t.Errorf("unexpected issuer: %q", md1.Issuer)
 	}
 	if got := fetchCount.Load(); got != 1 {
@@ -123,7 +125,7 @@ func TestDiscoverASUsesCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second DiscoverAS failed: %v", err)
 	}
-	if md2.Issuer != "http://test" {
+	if md2.Issuer != ts.URL {
 		t.Errorf("unexpected issuer on second call: %q", md2.Issuer)
 	}
 	if got := fetchCount.Load(); got != 1 {
@@ -138,13 +140,14 @@ func TestDiscoverASCacheMissOnExpiry(t *testing.T) {
 	var fetchCount atomic.Int32
 
 	mux := http.NewServeMux()
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
 	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
 		fetchCount.Add(1)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"issuer":"http://test","token_endpoint":"http://test/token"}`))
+		// Issuer must match the fetched URL per RFC 8414 §3.3 (DiscoverAS rejects mismatches).
+		fmt.Fprintf(w, `{"issuer":%q,"token_endpoint":%q}`, ts.URL, ts.URL+"/token")
 	})
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
 
 	store := NewMemoryASMetadataStore(10 * time.Millisecond)
 
@@ -177,13 +180,14 @@ func TestDiscoverASNoCache(t *testing.T) {
 	var fetchCount atomic.Int32
 
 	mux := http.NewServeMux()
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
 	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
 		fetchCount.Add(1)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"issuer":"http://test","token_endpoint":"http://test/token"}`))
+		// Issuer must match the fetched URL per RFC 8414 §3.3 (DiscoverAS rejects mismatches).
+		fmt.Fprintf(w, `{"issuer":%q,"token_endpoint":%q}`, ts.URL, ts.URL+"/token")
 	})
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
 
 	_, _ = DiscoverAS(ts.URL)
 	_, _ = DiscoverAS(ts.URL)

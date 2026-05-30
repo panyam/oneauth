@@ -2,11 +2,22 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 )
+
+// ErrMetadataIssuerMismatch is returned by DiscoverAS when the AS metadata
+// document's `issuer` field does not match the URL the document was fetched
+// from (RFC 8414 §3.3 — the issuer identifier MUST be identical to the URL
+// used to construct the well-known URL). A mismatch means a server is
+// claiming an identity it doesn't control at the discovery URL; the
+// document MUST be rejected per the spec.
+//
+// See: https://www.rfc-editor.org/rfc/rfc8414#section-3.3
+var ErrMetadataIssuerMismatch = errors.New("AS metadata issuer does not match discovery URL")
 
 // ASMetadata holds OAuth 2.0 Authorization Server metadata discovered from
 // a well-known endpoint. Fields follow RFC 8414 and OpenID Connect Discovery 1.0.
@@ -94,6 +105,12 @@ func WithASCacheTTL(ttl time.Duration) DiscoveryOption {
 //
 // Returns the first successful response. Returns an error if all attempts fail.
 //
+// The returned metadata's `issuer` field is validated against the fetch URL
+// per RFC 8414 §3.3 — a document claiming an issuer different from the URL
+// it was served at is rejected with ErrMetadataIssuerMismatch (no fallback
+// to the next discovery URL on this failure, since a malicious well-known
+// response shouldn't get a retry).
+//
 // See: https://www.rfc-editor.org/rfc/rfc8414#section-3
 func DiscoverAS(issuerURL string, opts ...DiscoveryOption) (*ASMetadata, error) {
 	cfg := &discoveryConfig{
@@ -120,6 +137,16 @@ func DiscoverAS(issuerURL string, opts ...DiscoveryOption) (*ASMetadata, error) 
 	for _, u := range urls {
 		meta, err := fetchMetadata(cfg.httpClient, u)
 		if err == nil {
+			// RFC 8414 §3.3: the issuer identifier in the metadata MUST
+			// equal the URL used to construct the well-known URL.
+			// A mismatch is a security failure (server claiming an
+			// identity it doesn't control at the discovery URL) — reject
+			// rather than fall through to the next URL, since a malicious
+			// well-known response shouldn't get a retry.
+			if strings.TrimRight(meta.Issuer, "/") != issuerURL {
+				return nil, fmt.Errorf("%w: fetched from %q, document claims issuer %q",
+					ErrMetadataIssuerMismatch, issuerURL, meta.Issuer)
+			}
 			// Store in cache if configured
 			if cfg.store != nil {
 				cfg.store.Put(issuerURL, meta, cfg.cacheTTL)
