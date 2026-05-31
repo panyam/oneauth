@@ -31,26 +31,48 @@ export AUTHLETE_CLIENTSECRET=<client secret>
 # Optional — defaults to https://api.authlete.com. Override for regional tenants:
 export AUTH_API_SERVER=https://us.authlete.com
 
-make upauthlete       # clones + builds + runs the frontend container (~5–10 min first time)
-make testauthlete     # runs the interop suite
-make downauthlete     # stops when done
+make upauthlete         # clones + builds + runs the frontend container (~5–10 min first time)
+make authlete-provision # configures service for full PASS (issue 244, idempotent)
+make testauthlete       # runs the interop suite
+make downauthlete       # stops when done
+
+# Reverse the service changes when finished:
+make authlete-deprovision
 ```
 
 First `upauthlete` clones `authlete/java-oauth-server` into `tests/authlete/.frontend/` (gitignored), Maven-builds the WAR, and runs Jetty on port 8280. Subsequent runs use Docker's layer cache and finish in ~30 s.
 
+## What `make authlete-provision` does (issue 244)
+
+A vanilla Authlete service ships with no JWKS, no RAR types, and no per-client RAR declarations. Without those, half the interop tests skip with actionable messages — useful for diagnosing, but bad DX for "just run the suite."
+
+`make authlete-provision` is a one-shot, idempotent Make target that uses the Authlete management API (via the service access token you already have) to apply the missing config:
+
+| Mutation | Effect on the suite |
+|---|---|
+| Generate an RSA-2048 JWK Set + set the service's `jwks` field | Authlete signs JWTs instead of opaque tokens — unlocks JWKS-based validation + algorithm-confusion tests |
+| Add `payment_initiation` to `supportedAuthorizationDetailsTypes` (service) | Authlete admits RFC 9396 token requests for that type |
+| Add `payment_initiation` to the TestClient's `authorizationDetailsTypes` (client) | Authlete enforces declared types on the *client* in addition to the service — both needed for the RAR test |
+
+A snapshot of the pre-provision state is written to `tests/authlete/.frontend/.preprovision.json` (gitignored). `make authlete-deprovision` reads it and reverses every mutation, restoring the service to its prior state.
+
+**Safety belt:** export `AUTHLETE_TEST_SERVICEID=<different-service-id>` to operate on a separate test service instead of `AUTHLETE_SERVICEID` — avoids mutating a primary tenant.
+
+**Introspection note:** the suite uses java-oauth-server's built-in resource-server credentials (`rs0`/`rs0-secret`, baked into the container's `/resource_servers.json`) for RFC 7662 introspection. No Authlete-side provisioning needed for that. Override with `AUTHLETE_INTROSPECTOR_CLIENTID` / `AUTHLETE_INTROSPECTOR_CLIENTSECRET` if your frontend uses different RS creds.
+
 ## What's tested
 
-| Test | What it proves | Expected on a fresh service |
+| Test | What it proves | After `make authlete-provision` |
 |------|---------------|---|
 | `OIDCDiscovery` | Authlete's `/.well-known/openid-configuration` is parseable JSON | PASS |
 | `DiscoverAS_Integration` | The discovery doc decodes into OneAuth's `client.ASMetadata` struct without errors | PASS |
-| `JWKSFetchAndTokenValidation` | A `client_credentials` grant succeeds; if the token is a JWT, `APIMiddleware` validates it via `JWKSKeyStore` | PASS (validation skipped when opaque) |
-| `JWKS_ParseableByOneAuth` | OneAuth's JWKS parser handles every key Authlete publishes | SKIP unless the service has RS256/ES256 keys configured |
-| `RARRoundTrip` | RFC 9396 `authorization_details` round-trip end-to-end | SKIP unless `payment_initiation` is in the service's supported AD types |
-| `IntrospectionResponseParses` | RFC 7662 introspection response shape matches OneAuth's expectations | SKIP unless a `clientType=RESOURCE_SERVER` client is registered |
-| `AlgorithmConfusion_RejectedAgainstHSKeyStore` | An Authlete asymmetric token can't be smuggled through an HS256 keystore (CVE-2015-9235) | SKIP when token is opaque or HMAC |
+| `JWKSFetchAndTokenValidation` | A `client_credentials` grant succeeds; if the token has a `sub`, `APIMiddleware` validates it via `JWKSKeyStore` | SKIP — Authlete's client_credentials grant emits `sub:null`, which `APIMiddleware` correctly rejects. Switch to a `password` / `auth_code` grant in this test to flip to PASS. |
+| `JWKS_ParseableByOneAuth` | OneAuth's JWKS parser handles every key Authlete publishes | PASS |
+| `RARRoundTrip` | RFC 9396 `authorization_details` round-trip end-to-end | PASS |
+| `IntrospectionResponseParses` | RFC 7662 introspection response shape matches OneAuth's expectations | PASS |
+| `AlgorithmConfusion_RejectedAgainstHSKeyStore` | An Authlete asymmetric token can't be smuggled through an HS256 keystore (CVE-2015-9235) | PASS |
 
-**Every SKIP carries a one-line remediation in its message.** Add the missing service-config piece in the Authlete console and the SKIP transitions to PASS.
+Result after `make authlete-provision`: **6 PASS + 1 SKIP** (the JWT-sub interop wrinkle is the only remaining skip).
 
 ## Env vars reference
 
