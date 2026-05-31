@@ -1,12 +1,97 @@
 package provisioner
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 )
+
+// generateJWKSetForAlg dispatches to the appropriate key-type generator
+// based on alg's RFC 7518 family:
+//
+//   - RS256 / RS384 / RS512 → RSA-2048 (a single RSA key serves all three
+//     RS variants; only the hash algorithm differs at sign-time).
+//   - ES256 → ECDSA P-256
+//   - ES384 → ECDSA P-384
+//   - ES512 → ECDSA P-521 (note: 521, not 512 — RFC 7518 §3.4)
+//
+// Returns the JWK Set as a JSON string suitable for Authlete's
+// `service.jwks` field, plus the kid embedded in the key so the caller
+// can verify token headers later.
+func generateJWKSetForAlg(kid, alg string) (jwksJSON string, err error) {
+	switch alg {
+	case "RS256", "RS384", "RS512":
+		jwksJSON, _, err = generateRSAJWKSet(kid, alg)
+		return
+	case "ES256":
+		return generateECDSAJWKSet(kid, alg, elliptic.P256())
+	case "ES384":
+		return generateECDSAJWKSet(kid, alg, elliptic.P384())
+	case "ES512":
+		return generateECDSAJWKSet(kid, alg, elliptic.P521())
+	default:
+		return "", fmt.Errorf("unsupported alg for JWKS generation: %q (want RS256/384/512 or ES256/384/512)", alg)
+	}
+}
+
+// generateECDSAJWKSet produces a JWK Set JSON string containing a single
+// freshly-generated ECDSA private key on the requested curve. Authlete
+// needs the PRIVATE key parameter (d) so it can sign tokens; the
+// existing utils.ECDSAPublicKeyToJWK only emits public coordinates.
+func generateECDSAJWKSet(kid, alg string, curve elliptic.Curve) (string, error) {
+	priv, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		return "", fmt.Errorf("generate ECDSA key on %s: %w", curve.Params().Name, err)
+	}
+	jwk := ecdsaPrivateKeyToJWK(kid, alg, priv)
+	set := map[string]any{"keys": []any{jwk}}
+	buf, err := json.Marshal(set)
+	if err != nil {
+		return "", fmt.Errorf("marshal JWK set: %w", err)
+	}
+	return string(buf), nil
+}
+
+// ecdsaPrivateKeyToJWK serializes an ECDSA private key to its RFC 7518
+// JWK form. The "crv" value is the JWK-spec curve name (P-256 / P-384 /
+// P-521), not Authlete's alg name. x/y/d are fixed-width per the curve
+// (RFC 7518 §6.2.1.2).
+//
+// Uses ecdsa.PrivateKey.Bytes() and PublicKey.Bytes() rather than the
+// deprecated direct .X/.Y/.D access — these accessors return SEC1-
+// encoded byte slices with the spec-mandated fixed width baked in (no
+// manual zero-padding needed).
+func ecdsaPrivateKeyToJWK(kid, alg string, priv *ecdsa.PrivateKey) map[string]any {
+	// priv.Bytes() returns the raw private scalar at curve.byteSize.
+	dBytes, _ := priv.Bytes()
+	// priv.PublicKey.Bytes() returns SEC1 uncompressed: 0x04 || X || Y,
+	// with X and Y each at curve.byteSize. Split into halves.
+	pubBytes, _ := priv.PublicKey.Bytes()
+	byteLen := (priv.Curve.Params().BitSize + 7) / 8
+	// pubBytes layout: [0x04][X (byteLen bytes)][Y (byteLen bytes)]
+	xBytes := pubBytes[1 : 1+byteLen]
+	yBytes := pubBytes[1+byteLen:]
+
+	return map[string]any{
+		"kty": "EC",
+		"use": "sig",
+		"alg": alg,
+		"kid": kid,
+		"crv": priv.Curve.Params().Name,
+		"x":   b64u(xBytes),
+		"y":   b64u(yBytes),
+		"d":   b64u(dBytes),
+	}
+}
+
+// _ keeps math/big imported for the RSA path (which references it via
+// the big.Int type on rsa.PrivateKey fields).
+var _ = big.NewInt
 
 // generateRSAJWKSet produces a JWK Set JSON string containing a single
 // freshly-generated RSA-2048 private key suitable for Authlete's `jwks`

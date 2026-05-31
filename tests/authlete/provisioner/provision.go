@@ -112,7 +112,7 @@ func (p *Provisioner) Provision(ctx context.Context) (*ProvisionReport, error) {
 	// 1. JWKS — Authlete won't emit JWTs without one.
 	if existing, _ := svc["jwks"].(string); existing == "" {
 		kid := fmt.Sprintf("oneauth-test-%s-%d", p.Opts.SignAlg, time.Now().Unix())
-		jwkSet, _, err := generateRSAJWKSet(kid, p.Opts.SignAlg)
+		jwkSet, err := generateJWKSetForAlg(kid, p.Opts.SignAlg)
 		if err != nil {
 			return nil, fmt.Errorf("generate JWKS: %w", err)
 		}
@@ -166,6 +166,44 @@ func (p *Provisioner) Provision(ctx context.Context) (*ProvisionReport, error) {
 	}
 
 	return report, nil
+}
+
+// SetSignAlg flips the service's accessTokenSignAlg to alg and regenerates
+// the JWKS with a key appropriate for the new alg's family (RSA for
+// RS256/384/512, ECDSA for ES256/384/512). Idempotent: if the service is
+// already configured for alg, returns immediately without mutating.
+//
+// Intended for matrix-mode interop testing (issue 244 phase 2) — callers
+// loop through algs, calling SetSignAlg per iteration before running
+// alg-sensitive tests. The original alg + JWKS are preserved in the
+// Provision snapshot (so Deprovision restores the pre-matrix state, not
+// the last matrix iteration's alg).
+//
+// Side-effect note: changing the JWKS invalidates any tokens previously
+// minted under the old key. The downstream java-oauth-server frontend
+// fetches JWKS per-token from Authlete (no caching), so the new key is
+// visible immediately — no container restart needed.
+func (p *Provisioner) SetSignAlg(ctx context.Context, alg string) error {
+	svc, err := p.Client.GetService(ctx)
+	if err != nil {
+		return fmt.Errorf("get service: %w", err)
+	}
+	currentAlg, _ := svc["accessTokenSignAlg"].(string)
+	if currentAlg == alg {
+		return nil
+	}
+
+	kid := fmt.Sprintf("oneauth-test-%s-%d", alg, time.Now().Unix())
+	jwkSet, err := generateJWKSetForAlg(kid, alg)
+	if err != nil {
+		return fmt.Errorf("generate JWKS for %s: %w", alg, err)
+	}
+	svc["accessTokenSignAlg"] = alg
+	svc["jwks"] = jwkSet
+	if _, err := p.Client.UpdateService(ctx, svc); err != nil {
+		return fmt.Errorf("update service with alg=%s: %w", alg, err)
+	}
+	return nil
 }
 
 // updateTestClientRARTypes finds the configured TestClient and extends

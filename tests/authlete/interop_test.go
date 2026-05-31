@@ -153,7 +153,6 @@ func TestAuthlete_JWKSFetchAndTokenValidation(t *testing.T) {
 // independently of whether a current token uses each key.
 func TestAuthlete_JWKS_ParseableByOneAuth(t *testing.T) {
 	skipIfAuthleteNotConfigured(t)
-
 	jwks := fetchJWKS(t, jwksURI())
 	if jwks == nil {
 		t.Skip("Authlete service exposes no JWKS (HTTP 204) — enable RS256/ES256 signing in Service Settings to exercise this test")
