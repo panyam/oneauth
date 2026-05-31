@@ -199,6 +199,63 @@ func TestDiscoverAS_MinimalMetadata(t *testing.T) {
 	assert.Empty(t, result.ScopesSupported)
 }
 
+// TestDiscoverAS_IssParamSupported_AdvertisedTrue verifies that DiscoverAS
+// surfaces a non-nil pointer to true when the AS metadata document advertises
+// RFC 9207 support. Consumers use this to enforce the §2.4 rule that an
+// empty `iss` on an advertised AS MUST be rejected.
+//
+// See: https://www.rfc-editor.org/rfc/rfc9207#section-3
+func TestDiscoverAS_IssParamSupported_AdvertisedTrue(t *testing.T) {
+	meta := map[string]any{
+		"issuer":         "https://auth.example.com",
+		"token_endpoint": "https://auth.example.com/token",
+		"authorization_response_iss_parameter_supported": true,
+	}
+	srv := newDiscoveryServer(t, "/.well-known/openid-configuration", meta)
+
+	result, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
+	require.NoError(t, err)
+	require.NotNil(t, result.AuthorizationResponseIssParameterSupported,
+		"advertised=true must decode to a non-nil pointer")
+	assert.True(t, *result.AuthorizationResponseIssParameterSupported)
+}
+
+// TestDiscoverAS_IssParamSupported_AdvertisedFalse verifies that DiscoverAS
+// preserves the distinction between explicit `false` and absent — both
+// allow consumers to skip iss enforcement under the default policy, but a
+// strict-mode validator may want to know "AS told us no" vs "AS didn't say."
+func TestDiscoverAS_IssParamSupported_AdvertisedFalse(t *testing.T) {
+	meta := map[string]any{
+		"issuer":         "https://auth.example.com",
+		"token_endpoint": "https://auth.example.com/token",
+		"authorization_response_iss_parameter_supported": false,
+	}
+	srv := newDiscoveryServer(t, "/.well-known/openid-configuration", meta)
+
+	result, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
+	require.NoError(t, err)
+	require.NotNil(t, result.AuthorizationResponseIssParameterSupported,
+		"advertised=false must decode to a non-nil pointer (distinguishable from absent)")
+	assert.False(t, *result.AuthorizationResponseIssParameterSupported)
+}
+
+// TestDiscoverAS_IssParamSupported_Absent verifies that an AS metadata
+// document omitting the field decodes to nil — so consumers can treat the
+// AS as legacy (pre-RFC-9207) and skip iss enforcement under the default
+// policy.
+func TestDiscoverAS_IssParamSupported_Absent(t *testing.T) {
+	meta := map[string]any{
+		"issuer":         "https://auth.example.com",
+		"token_endpoint": "https://auth.example.com/token",
+	}
+	srv := newDiscoveryServer(t, "/.well-known/openid-configuration", meta)
+
+	result, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
+	require.NoError(t, err)
+	assert.Nil(t, result.AuthorizationResponseIssParameterSupported,
+		"absent field must decode to nil so consumers can detect a legacy AS")
+}
+
 // TestDiscoverAS_MetadataIssuerMismatch_Rejected verifies that DiscoverAS
 // rejects a metadata document whose `issuer` field does not match the URL
 // it was fetched from (RFC 8414 §3.3). Mirrors the `metadata-issuer-mismatch`
