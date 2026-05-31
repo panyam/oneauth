@@ -26,6 +26,16 @@ import (
 	"github.com/panyam/oneauth/testutil"
 )
 
+// java-oauth-server ships a hardcoded resource server in its bundled
+// /resource_servers.json that the /api/introspection endpoint
+// authenticates against. We use those creds by default — the user can
+// override with AUTHLETE_INTROSPECTOR_CLIENTID/SECRET if their frontend
+// has a different RS registered.
+const (
+	defaultIntrospectorClientID     = "rs0"
+	defaultIntrospectorClientSecret = "rs0-secret"
+)
+
 const (
 	defaultAuthleteASURL = "http://localhost:8280"
 
@@ -77,6 +87,56 @@ func authleteClientID() string {
 // client_id above. Empty when AUTHLETE_CLIENTSECRET is unset.
 func authleteClientSecret() string {
 	return os.Getenv("AUTHLETE_CLIENTSECRET")
+}
+
+// introspectorClientID returns the resource-server credential used to
+// authenticate RFC 7662 introspection calls against java-oauth-server's
+// /api/introspection endpoint. Defaults to the frontend's built-in
+// rs0/rs0-secret (hardcoded in the container's /resource_servers.json);
+// overridable via AUTHLETE_INTROSPECTOR_CLIENTID for non-default frontends.
+//
+// Note: this is NOT an OAuth client_id in the conventional sense —
+// java-oauth-server's introspection endpoint uses a separate "resource
+// server" identity registered in a static JSON file, not the Authlete
+// service's client database.
+func introspectorClientID() string {
+	if v := os.Getenv("AUTHLETE_INTROSPECTOR_CLIENTID"); v != "" {
+		return v
+	}
+	return defaultIntrospectorClientID
+}
+
+// introspectorClientSecret pairs with introspectorClientID. Defaults to
+// the frontend's built-in rs0-secret; overridable via env.
+func introspectorClientSecret() string {
+	if v := os.Getenv("AUTHLETE_INTROSPECTOR_CLIENTSECRET"); v != "" {
+		return v
+	}
+	return defaultIntrospectorClientSecret
+}
+
+// matrixAlgs returns the signing algorithms tests should exercise.
+// When AUTHLETE_TEST_ALGS is set (comma-separated, e.g. "RS256,ES256"),
+// returns those algs. When unset, returns a single-element slice with
+// the empty string — meaning "use whatever the service is provisioned
+// for, no per-alg loop". Callers wrap alg-sensitive assertions in
+// t.Run(alg, ...) when len(matrixAlgs()) > 1 or when entry != "".
+func matrixAlgs() []string {
+	raw := os.Getenv("AUTHLETE_TEST_ALGS")
+	if raw == "" {
+		return []string{""}
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
 }
 
 // skipIfAuthleteNotConfigured skips the test unless:

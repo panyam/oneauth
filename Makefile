@@ -552,6 +552,27 @@ downauthlete:
 authletelogs:
 	@docker logs -f $(AUTH_CONTAINER_NAME)
 
+# Configure the Authlete service for full PASS on the interop suite
+# (issue 244). Idempotent: re-running is safe and reports already-provisioned.
+# Mutates the service identified by AUTHLETE_SERVICEID (override with
+# AUTHLETE_TEST_SERVICEID for safety on shared tenants).
+authlete-provision:
+	@if [ -z "$$AUTHLETE_SERVICEID" ] || [ -z "$$AUTHLETE_ACCESS_TOKEN" ]; then \
+		echo "Error: AUTHLETE_SERVICEID and AUTHLETE_ACCESS_TOKEN must be exported"; \
+		exit 1; \
+	fi
+	AUTHLETE_API_SERVER=$(AUTH_API_SERVER) go run -buildvcs=false ./tests/authlete/cmd/provision/
+
+# Restore the Authlete service to its pre-provision state, reading the
+# snapshot written by authlete-provision. Idempotent: missing snapshot is
+# reported but not an error.
+authlete-deprovision:
+	@if [ -z "$$AUTHLETE_SERVICEID" ] || [ -z "$$AUTHLETE_ACCESS_TOKEN" ]; then \
+		echo "Error: AUTHLETE_SERVICEID and AUTHLETE_ACCESS_TOKEN must be exported"; \
+		exit 1; \
+	fi
+	AUTHLETE_API_SERVER=$(AUTH_API_SERVER) go run -buildvcs=false ./tests/authlete/cmd/deprovision/
+
 # Run Authlete interop tests (starts container if not running).
 testauthlete:
 	@if [ -z "$$AUTHLETE_CLIENTID" ] || [ -z "$$AUTHLETE_CLIENTSECRET" ]; then \
