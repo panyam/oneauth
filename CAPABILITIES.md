@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-0.0.83
+v0.1.13
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
@@ -24,7 +24,8 @@
 - private-key-jwt-client-auth: RFC 7521 §4.2 + RFC 7523 §2.2 + OIDC Core §9 token-endpoint client authentication via signed JWT (`client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`). Server-side `ClientAuthenticator` validates iss == sub == client_id, audience, lifetime ≤ 5min, replay-protection via pluggable `JTIStore`, alg-confusion lock against the alg registered for the client. Token + introspection + revocation handlers all accept the assertion via a shared `extractClientCredentials` helper. Client SDK ships `MintClientAssertion`, `ClientCredentialsTokenWithAssertion`, and `BrowserLoginConfig.ClientAssertion`. AS metadata advertises `private_key_jwt` in `token_endpoint_auth_methods_supported` and the new `token_endpoint_auth_signing_alg_values_supported`. Closes issue 158.
 - token-introspection: RFC 7662 endpoint for centralized token validation
 - as-discovery-server: RFC 8414 / OIDC Discovery metadata endpoint
-- as-discovery-client: Client-side AS metadata discovery with fallback chain
+- as-discovery-client: Client-side AS metadata discovery with fallback chain. `client.ASMetadata.AuthorizationResponseIssParameterSupported` surfaces the RFC 9207 advertisement (pointer-typed for absent / explicit-false / explicit-true tristate, issue 239). `client/as_metadata_interop_test.go` pins the apiauth↔client wire contract.
+- rfc-9207-iss-enforcement: Mix-up-attack defence end-to-end. `BrowserLoginRequest.OnCallback` surfaces the RFC 9207 `iss` query parameter via `CallbackParams.Iss` (issue 235). `client.ValidateIss(iss, expectedIssuer, asAdvertisedSupport, strict)` implements the §2.4 truth table with `errors.Is`-safe `ErrIssMismatch` / `ErrIssMissing` sentinels (issue 238). Strict-mode flag enforces iss regardless of AS advertisement for FAPI 2.0 / Open Banking / mixed-IdP environments. Issuer comparison applies the subset of RFC 3986 §6.2 syntax-based normalization relevant to OAuth identifiers.
 - protected-resource-metadata: RFC 9728 resource server capability advertisement
 - browser-login: OAuth authorization code + PKCE for CLI/headless clients (RFC 8252)
 - dynamic-client-registration: RFC 7591 DCR endpoint alongside AppRegistrar
@@ -54,7 +55,7 @@ newstack/oneauth/main
 ### Go Module
 ```go
 // go.mod
-require github.com/panyam/oneauth v0.0.62
+require github.com/panyam/oneauth v0.1.13
 
 // Local development
 replace github.com/panyam/oneauth => ~/newstack/oneauth/main
