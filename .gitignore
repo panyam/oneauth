@@ -53,3 +53,6 @@ cmd/oneauth-server/oneauth-server
 /09-key-rotation
 /10-security
 /oneauth-server
+
+# Authlete interop scaffold — upstream java-oauth-server clone (issue 162)
+tests/authlete/.frontend/
