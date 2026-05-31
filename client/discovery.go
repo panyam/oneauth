@@ -45,6 +45,26 @@ type ASMetadata struct {
 	CodeChallengeMethodsSupported              []string `json:"code_challenge_methods_supported,omitempty"`
 	TokenEndpointAuthMethods                   []string `json:"token_endpoint_auth_methods_supported,omitempty"`
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
+
+	// AuthorizationResponseIssParameterSupported surfaces the RFC 9207
+	// advertisement value from the AS metadata document. Pointer semantics
+	// are load-bearing for the §2.4 enforcement rules a consumer applies
+	// after `BrowserLoginRequest.OnCallback` runs:
+	//
+	//   - non-nil pointing to true  → AS commits to including `iss` on every
+	//     authorization response; a callback with empty `iss` MUST be rejected.
+	//   - non-nil pointing to false → AS explicitly disclaims support;
+	//     consumers may skip iss enforcement (legacy-AS posture).
+	//   - nil (field absent)        → AS predates RFC 9207 / didn't advertise;
+	//     consumers may treat as legacy-AS unless a stricter policy (e.g.
+	//     FAPI 2.0) demands enforcement regardless.
+	//
+	// The distinction between explicit false and absent is preserved so a
+	// strict-mode validator can tell "AS told us no" from "AS didn't say."
+	//
+	// RFC 9207 §3:
+	//   https://www.rfc-editor.org/rfc/rfc9207#section-3
+	AuthorizationResponseIssParameterSupported *bool `json:"authorization_response_iss_parameter_supported,omitempty"`
 }
 
 // DiscoveryOption configures the discovery request.
