@@ -122,6 +122,20 @@ keycloak:
 		echo "[keycloak] SKIP: not ready at localhost:$(KC_PORT) (run 'make upkcl' first)"; \
 	fi
 
+# Authlete interop tests (skip cleanly when env not configured)
+authlete:
+	@echo "[authlete] Checking credentials..."
+	@if [ -z "$$AUTHLETE_SERVICEID" ] || [ -z "$$AUTHLETE_ACCESS_TOKEN" ] || \
+	    [ -z "$$AUTHLETE_CLIENTID" ] || [ -z "$$AUTHLETE_CLIENTSECRET" ]; then \
+		echo "[authlete] SKIP: AUTHLETE_SERVICEID / ACCESS_TOKEN / CLIENTID / CLIENTSECRET env vars not all set"; \
+	elif ! docker ps --format '{{.Names}}' | grep -q '^$(AUTH_CONTAINER_NAME)$$'; then \
+		echo "[authlete] SKIP: frontend container not running (run 'make upauthlete' first)"; \
+	else \
+		echo "[authlete] Running interop tests..."; \
+		cd tests/authlete && AUTHLETE_AS_URL=http://localhost:$(AUTH_PORT) GOWORK=off \
+			go test -count=1 ./...; \
+	fi
+
 # Secret scanning via gitleaks
 secrets:
 	@echo "[secrets] Scanning for leaked secrets..."
@@ -193,15 +207,16 @@ testall:
 		$(KC_IMAGE) start-dev --import-realm >> $(REPORT_DIR)/run.log 2>&1
 	@sleep 3
 	@PASS=0; FAIL=0; STAGES=""; \
-	$(call RUN_STAGE,[1/9] Lint (staticcheck),lint,lint); \
-	$(call RUN_STAGE,[2/9] Unit tests + coverage (core + sub-modules),cover-html,unit+coverage); \
-	$(call RUN_STAGE,[3/9] E2E tests (in-process race detector),e2e,e2e); \
-	$(call RUN_STAGE,[4/9] PostgreSQL / GORM tests,postgres,postgres); \
-	$(call RUN_STAGE,[5/9] Datastore tests,datastore,datastore); \
-	$(call RUN_STAGE,[6/9] Keycloak interop tests,keycloak,keycloak); \
-	$(call RUN_STAGE,[7/9] Secret scanning,secrets,secrets); \
-	$(call RUN_STAGE,[8/9] Vulnerability check,vulncheck,vulncheck); \
-	$(call RUN_STAGE,[9/9] ZAP baseline scan,zap,zap); \
+	$(call RUN_STAGE,[1/10] Lint (staticcheck),lint,lint); \
+	$(call RUN_STAGE,[2/10] Unit tests + coverage (core + sub-modules),cover-html,unit+coverage); \
+	$(call RUN_STAGE,[3/10] E2E tests (in-process race detector),e2e,e2e); \
+	$(call RUN_STAGE,[4/10] PostgreSQL / GORM tests,postgres,postgres); \
+	$(call RUN_STAGE,[5/10] Datastore tests,datastore,datastore); \
+	$(call RUN_STAGE,[6/10] Keycloak interop tests,keycloak,keycloak); \
+	$(call RUN_STAGE,[7/10] Authlete interop tests,authlete,authlete); \
+	$(call RUN_STAGE,[8/10] Secret scanning,secrets,secrets); \
+	$(call RUN_STAGE,[9/10] Vulnerability check,vulncheck,vulncheck); \
+	$(call RUN_STAGE,[10/10] ZAP baseline scan,zap,zap); \
 	\
 	echo "" | tee -a $(REPORT_DIR)/run.log; \
 	echo "=== Summary: $$PASS passed, $$FAIL failed ===" | tee -a $(REPORT_DIR)/run.log; \
@@ -443,6 +458,111 @@ downkcl:
 # Tail the logs of the running Keycloak container
 kcllogs:
 	@docker logs -f $(KC_CONTAINER_NAME)
+
+# =============================================================================
+# Authlete interop test configuration (issue 162)
+# =============================================================================
+# Tests live in tests/authlete/. They exercise the OneAuth client SDK +
+# APIMiddleware against a locally-running authlete/java-oauth-server
+# frontend, which back-channels to Authlete cloud — proving that
+# Authlete-issued tokens validate correctly through OneAuth's machinery.
+#
+# Authlete does not publish java-oauth-server to Docker Hub, so we clone
+# the upstream repo at a pinned commit and build the image locally. The
+# clone lives in tests/authlete/.frontend/ (gitignored). First build is
+# slow (Maven downloads + Java compile); subsequent runs use the cached
+# image.
+#
+# Required env vars (all four must be set):
+#   AUTHLETE_SERVICEID     — numeric service ID (your Authlete tenant)
+#   AUTHLETE_ACCESS_TOKEN  — service access token (back-channel auth)
+#   AUTHLETE_CLIENTID      — numeric OAuth client_id registered in the service
+#   AUTHLETE_CLIENTSECRET  — paired client_secret
+#
+# Optional:
+#   AUTHLETE_API_SERVER    — Authlete cloud endpoint; defaults to https://api.authlete.com
+#
+# Tests skip cleanly when these are unset, so the suite stays safe under
+# the default `go test ./...` invocation.
+AUTH_CONTAINER_NAME := oneauth-test-authlete
+AUTH_PORT := 8280
+AUTH_FRONTEND_REF := 799440548fb8
+AUTH_FRONTEND_DIR := tests/authlete/.frontend
+AUTH_IMAGE := oneauth-test/authlete-frontend:$(AUTH_FRONTEND_REF)
+AUTH_API_SERVER ?= https://api.authlete.com
+
+# Clone upstream authlete/java-oauth-server at the pinned commit (idempotent).
+$(AUTH_FRONTEND_DIR):
+	@echo "Cloning authlete/java-oauth-server@$(AUTH_FRONTEND_REF)..."
+	@git clone --quiet https://github.com/authlete/java-oauth-server $(AUTH_FRONTEND_DIR)
+	@cd $(AUTH_FRONTEND_DIR) && git checkout --quiet $(AUTH_FRONTEND_REF)
+
+# Build the Authlete frontend image from the pinned source (idempotent — uses
+# Docker's layer cache to skip rebuilds when the source hasn't changed).
+authlete-image: $(AUTH_FRONTEND_DIR)
+	@if ! docker image inspect $(AUTH_IMAGE) > /dev/null 2>&1; then \
+		echo "Building $(AUTH_IMAGE) from source (~5–10 min first time)..."; \
+		docker build -t $(AUTH_IMAGE) $(AUTH_FRONTEND_DIR); \
+	fi
+
+# Bump the pinned upstream ref. Usage:
+#   make upauthlete-refresh AUTH_FRONTEND_REF=<new-sha>
+# Removes the cached clone + image so the next upauthlete picks the new SHA up.
+upauthlete-refresh:
+	@echo "Refreshing Authlete frontend to $(AUTH_FRONTEND_REF)..."
+	@rm -rf $(AUTH_FRONTEND_DIR)
+	@docker image rm $(AUTH_IMAGE) 2>/dev/null || true
+	@echo "Done. Run 'make upauthlete' to rebuild against $(AUTH_FRONTEND_REF)."
+
+# Start the Authlete frontend pointed at Authlete cloud.
+upauthlete: authlete-image
+	@if [ -z "$$AUTHLETE_SERVICEID" ] || [ -z "$$AUTHLETE_ACCESS_TOKEN" ]; then \
+		echo "Error: AUTHLETE_SERVICEID and AUTHLETE_ACCESS_TOKEN must be exported"; \
+		echo "  Get them from https://console.authlete.com/"; \
+		exit 1; \
+	fi
+	@echo "Generating authlete.properties from env..."
+	@# api_version is a top-level key (not under service.) per the upstream
+	@# template's commented note. service.access_token is V3-specific Bearer
+	@# auth; service.api_key remains the numeric service identifier even in V3.
+	@printf 'base_url=%s\napi_version=V3\nservice.api_key=%s\nservice.access_token=%s\n' \
+		"$(AUTH_API_SERVER)" "$$AUTHLETE_SERVICEID" "$$AUTHLETE_ACCESS_TOKEN" \
+		> $(AUTH_FRONTEND_DIR)/authlete.properties.runtime
+	@echo "Starting Authlete frontend container..."
+	@docker run --rm -d \
+		--name $(AUTH_CONTAINER_NAME) \
+		-p $(AUTH_PORT):8080 \
+		-v $(PWD)/$(AUTH_FRONTEND_DIR)/authlete.properties.runtime:/authlete/app/authlete.properties \
+		$(AUTH_IMAGE)
+	@echo "Waiting for AS to be ready (Jetty warmup ~30s)..."
+	@until curl -sf http://localhost:$(AUTH_PORT)/.well-known/openid-configuration > /dev/null 2>&1; do sleep 3; done
+	@echo ""
+	@echo "Authlete-backed AS is running!"
+	@echo "  Discovery: http://localhost:$(AUTH_PORT)/.well-known/openid-configuration"
+	@echo "  Token:     http://localhost:$(AUTH_PORT)/api/token"
+	@echo "To run interop tests: make testauthlete"
+	@echo "To stop: make downauthlete"
+
+# Stop the Authlete frontend container.
+downauthlete:
+	@echo "Stopping Authlete frontend container..."
+	@docker stop $(AUTH_CONTAINER_NAME) 2>/dev/null || echo "Container not running"
+
+# Tail logs of the running Authlete frontend container.
+authletelogs:
+	@docker logs -f $(AUTH_CONTAINER_NAME)
+
+# Run Authlete interop tests (starts container if not running).
+testauthlete:
+	@if [ -z "$$AUTHLETE_CLIENTID" ] || [ -z "$$AUTHLETE_CLIENTSECRET" ]; then \
+		echo "Error: AUTHLETE_CLIENTID and AUTHLETE_CLIENTSECRET must be exported for tests"; \
+		exit 1; \
+	fi
+	@if ! docker ps --format '{{.Names}}' | grep -q '^$(AUTH_CONTAINER_NAME)$$'; then \
+		$(MAKE) upauthlete; \
+	fi
+	AUTHLETE_AS_URL=http://localhost:$(AUTH_PORT) \
+		go test -v ./tests/authlete/...
 
 # =============================================================================
 # OIDF conformance harness (issue 197)

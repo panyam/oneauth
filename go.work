@@ -10,6 +10,7 @@ use (
 	./saml
 	./stores/gae
 	./stores/gorm
+	./tests/authlete
 	./tests/conformance
 	./tests/keycloak
 )
