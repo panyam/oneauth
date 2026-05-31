@@ -295,3 +295,96 @@ func TestDeprovision_MissingSnapshot(t *testing.T) {
 	assert.ErrorIs(t, err, ErrSnapshotNotFound,
 		"absent snapshot should surface as ErrSnapshotNotFound")
 }
+
+// TestSetSignAlg_RSAToECDSA flips the service from RS256 (the default
+// provision alg) to ES256 and verifies both the alg field and the JWKS
+// blob were rewritten. ECDSA-vs-RSA is the most-divergent alg switch
+// (different key type, different JWK fields) so it's the highest-value
+// happy-path case.
+func TestSetSignAlg_RSAToECDSA(t *testing.T) {
+	p, fake := newTestProvisioner(t)
+	_, err := p.Provision(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "RS256", fake.service["accessTokenSignAlg"])
+
+	err = p.SetSignAlg(context.Background(), "ES256")
+	require.NoError(t, err)
+	assert.Equal(t, "ES256", fake.service["accessTokenSignAlg"])
+	jwks, ok := fake.service["jwks"].(string)
+	require.True(t, ok, "jwks should be a string after alg switch")
+	assert.Contains(t, jwks, `"kty":"EC"`, "JWKS should contain an EC key after ES256 switch")
+	assert.Contains(t, jwks, `"crv":"P-256"`)
+	assert.Contains(t, jwks, `"alg":"ES256"`)
+	assert.NotContains(t, jwks, `"kty":"RSA"`, "RSA key from RS256 provision should be replaced, not appended")
+}
+
+// TestSetSignAlg_Idempotent re-asserts the documented contract: calling
+// SetSignAlg with the current alg is a no-op (no API mutation). Catches
+// the regression where we'd PUT-on-every-call even when nothing changed —
+// in matrix mode that would churn keys and invalidate in-flight tokens
+// for no reason.
+func TestSetSignAlg_Idempotent(t *testing.T) {
+	p, fake := newTestProvisioner(t)
+	_, err := p.Provision(context.Background())
+	require.NoError(t, err)
+	jwksAfterProvision := fake.service["jwks"]
+	callsAfterProvision := fake.calls.Load()
+
+	err = p.SetSignAlg(context.Background(), "RS256")
+	require.NoError(t, err)
+	assert.Equal(t, jwksAfterProvision, fake.service["jwks"],
+		"JWKS should not be regenerated when alg is unchanged")
+	// Idempotent path: a single GET service, no UpdateService call.
+	assert.Equal(t, callsAfterProvision+1, fake.calls.Load(),
+		"idempotent SetSignAlg should make exactly one API call (the GET)")
+}
+
+// TestSetSignAlg_AllAsymmetricAlgs exercises the full matrix surface
+// (RS256/384/512 + ES256/384/512). Each iteration mutates the service
+// and we verify the alg landed + JWKS shape matches the alg's key
+// family. Mirrors what the live interop suite does per-alg, in unit
+// form so failures land in CI rather than depending on Authlete creds.
+func TestSetSignAlg_AllAsymmetricAlgs(t *testing.T) {
+	p, fake := newTestProvisioner(t)
+	_, err := p.Provision(context.Background())
+	require.NoError(t, err)
+
+	tests := []struct {
+		alg     string
+		wantKty string
+		wantCrv string // empty for RSA
+	}{
+		{"RS256", "RSA", ""},
+		{"RS384", "RSA", ""},
+		{"RS512", "RSA", ""},
+		{"ES256", "EC", "P-256"},
+		{"ES384", "EC", "P-384"},
+		{"ES512", "EC", "P-521"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.alg, func(t *testing.T) {
+			require.NoError(t, p.SetSignAlg(context.Background(), tt.alg))
+			assert.Equal(t, tt.alg, fake.service["accessTokenSignAlg"])
+			jwks := fake.service["jwks"].(string)
+			assert.Contains(t, jwks, `"kty":"`+tt.wantKty+`"`)
+			assert.Contains(t, jwks, `"alg":"`+tt.alg+`"`)
+			if tt.wantCrv != "" {
+				assert.Contains(t, jwks, `"crv":"`+tt.wantCrv+`"`)
+			}
+		})
+	}
+}
+
+// TestSetSignAlg_UnsupportedAlg returns an error rather than silently
+// generating an inappropriate key. The error wraps the bad alg name so
+// the matrix-mode loop's failure points at the typo rather than a
+// downstream JWKS-validation error.
+func TestSetSignAlg_UnsupportedAlg(t *testing.T) {
+	p, _ := newTestProvisioner(t)
+	_, err := p.Provision(context.Background())
+	require.NoError(t, err)
+
+	err = p.SetSignAlg(context.Background(), "HS256")
+	require.Error(t, err, "HMAC algs aren't valid for asymmetric token signing — should reject")
+	assert.Contains(t, err.Error(), "HS256")
+}

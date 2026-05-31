@@ -583,6 +583,7 @@ testauthlete:
 		$(MAKE) upauthlete; \
 	fi
 	AUTHLETE_AS_URL=http://localhost:$(AUTH_PORT) \
+	AUTHLETE_API_SERVER=$(AUTH_API_SERVER) \
 		go test -v ./tests/authlete/...
 
 # =============================================================================

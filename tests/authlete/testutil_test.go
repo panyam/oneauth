@@ -115,30 +115,6 @@ func introspectorClientSecret() string {
 	return defaultIntrospectorClientSecret
 }
 
-// matrixAlgs returns the signing algorithms tests should exercise.
-// When AUTHLETE_TEST_ALGS is set (comma-separated, e.g. "RS256,ES256"),
-// returns those algs. When unset, returns a single-element slice with
-// the empty string — meaning "use whatever the service is provisioned
-// for, no per-alg loop". Callers wrap alg-sensitive assertions in
-// t.Run(alg, ...) when len(matrixAlgs()) > 1 or when entry != "".
-func matrixAlgs() []string {
-	raw := os.Getenv("AUTHLETE_TEST_ALGS")
-	if raw == "" {
-		return []string{""}
-	}
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	if len(out) == 0 {
-		return []string{""}
-	}
-	return out
-}
-
 // skipIfAuthleteNotConfigured skips the test unless:
 //   - AUTHLETE_CLIENTID and AUTHLETE_CLIENTSECRET are set in env, AND
 //   - the AS frontend at AUTHLETE_AS_URL responds to discovery.
