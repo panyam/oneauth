@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AppRegistrar, MintResourceToken, AdminAuth.">
+    <title>Federated auth · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Federated auth</h1>
+        
+        <p class="lead">AppRegistrar, MintResourceToken, AdminAuth.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/FEDERATED_AUTH.md"><code>docs/FEDERATED_AUTH.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="federated-authentication">Federated Authentication <a class="anchor" href="#federated-authentication">¶</a></h1>
+<p>OneAuth supports a federated authentication model where multiple Apps register with a central auth service, obtain credentials, and mint scoped JWTs that downstream resource servers (e.g., a WebSocket relay like massrelay) validate using a shared KeyStore.</p>
+<h2 id="architecture-overview">Architecture Overview <a class="anchor" href="#architecture-overview">¶</a></h2>
+<p>Three projects collaborate in a federated deployment:</p>
+<ol>
+<li><strong>oneauth</strong> (this repo) — shared auth library + App Registration API</li>
+<li><strong>Resource server</strong> (e.g., massrelay) — validates resource-scoped JWTs using KeyStore</li>
+<li><strong>App</strong> (e.g., excaliframe) — registers as an App, authenticates users locally, mints resource tokens</li>
+</ol>
+<pre><code>┌───────────────┐     1. register         ┌───────────────────┐
+│     App       │ ──────────────────────→ │  OneAuth Server   │
+│ (excaliframe) │ ←─────────────────────  │  (AppRegistrar)   │
+│               │  client_id + secret     │                   │
+└───────┬───────┘                         └────────┬──────────┘
+        │                                          │
+        │ 2. authenticate user locally             │ shared KeyStore
+        │ 3. mint resource-scoped JWT              │ (GORM, FS, GAE)
+        │                                          │
+        ▼                                          ▼
+┌───────────────┐  4. connect with JWT    ┌───────────────────┐
+│   End User    │ ──────────────────────→ │ Resource Server   │
+│   (browser)   │                         │ (APIMiddleware +  │
+│               │                         │  KeyStore)        │
+└───────────────┘                         └───────────────────┘
+</code></pre>
+<h2 id="end-to-end-flow">End-to-End Flow <a class="anchor" href="#end-to-end-flow">¶</a></h2>
+<h3 id="step-1-app-registers-with-oneauth-server">Step 1: App Registers with OneAuth Server <a class="anchor" href="#step-1-app-registers-with-oneauth-server">¶</a></h3>
+<p>The App sends a registration request to the OneAuth server, protected by admin authentication.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/register <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;X-Admin-Key: your-admin-key&#34;</span> <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Content-Type: application/json&#34;</span> <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_domain&#34;: &#34;excaliframe.com&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;signing_alg&#34;: &#34;HS256&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;max_rooms&#34;: 10,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;max_msg_rate&#34;: 30.0
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  }&#39;</span>
+</span></span></code></pre><p>Response (201 Created):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_id&#34;</span>: <span style="color:#d14">&#34;app_a1b2c3d4e5f6&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_secret&#34;</span>: <span style="color:#d14">&#34;64-char-hex-string...&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_domain&#34;</span>: <span style="color:#d14">&#34;excaliframe.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;signing_alg&#34;</span>: <span style="color:#d14">&#34;HS256&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;max_rooms&#34;</span>: <span style="color:#099">10</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;max_msg_rate&#34;</span>: <span style="color:#099">30.0</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;created_at&#34;</span>: <span style="color:#d14">&#34;2026-03-15T10:30:00Z&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The <code>client_secret</code> is stored in the <code>KeyStorage</code> and shared with the resource server.</p>
+<h3 id="step-2-app-authenticates-users-locally">Step 2: App Authenticates Users Locally <a class="anchor" href="#step-2-app-authenticates-users-locally">¶</a></h3>
+<p>The App uses its own authentication system (could be oneauth&rsquo;s <code>LocalAuth</code>, OAuth, or anything else) to verify the user&rsquo;s identity.</p>
+<h3 id="step-3-app-mints-a-resource-token">Step 3: App Mints a Resource Token <a class="anchor" href="#step-3-app-mints-a-resource-token">¶</a></h3>
+<p>After authenticating a user, the App mints a resource-scoped JWT using <code>MintResourceToken</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> oa <span style="color:#d14">&#34;github.com/panyam/oneauth&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>token, err <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">MintResourceToken</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;user-42&#34;</span>,                          <span style="color:#998;font-style:italic">// userID (goes to JWT &#34;sub&#34; claim)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#d14">&#34;app_a1b2c3d4e5f6&#34;</span>,                 <span style="color:#998;font-style:italic">// appClientID (goes to &#34;client_id&#34; claim)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    []<span style="color:#0086b3">byte</span>(<span style="color:#d14">&#34;64-char-hex-string&#34;</span>),       <span style="color:#998;font-style:italic">// signing key — []byte → HS256
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{                     <span style="color:#998;font-style:italic">// customClaims merged into the JWT
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>        <span style="color:#d14">&#34;max_rooms&#34;</span>:    <span style="color:#099">10</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#d14">&#34;max_msg_rate&#34;</span>: <span style="color:#099">30.0</span>,
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;relay:connect&#34;</span>, <span style="color:#d14">&#34;relay:publish&#34;</span>},  <span style="color:#998;font-style:italic">// scopes
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#000;font-weight:bold">nil</span>,                                          <span style="color:#998;font-style:italic">// RFC 9396 authorization_details
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>)
+</span></span></code></pre><p>The resulting JWT contains:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;sub&#34;</span>: <span style="color:#d14">&#34;user-42&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_id&#34;</span>: <span style="color:#d14">&#34;app_a1b2c3d4e5f6&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;type&#34;</span>: <span style="color:#d14">&#34;access&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scopes&#34;</span>: [<span style="color:#d14">&#34;relay:connect&#34;</span>, <span style="color:#d14">&#34;relay:publish&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;max_rooms&#34;</span>: <span style="color:#099">10</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;max_msg_rate&#34;</span>: <span style="color:#099">30.0</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iat&#34;</span>: <span style="color:#099">1710500000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;exp&#34;</span>: <span style="color:#099">1710500900</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Token TTL is 15 minutes, signed with HS256.</p>
+<h3 id="step-4-user-connects-to-resource-server">Step 4: User Connects to Resource Server <a class="anchor" href="#step-4-user-connects-to-resource-server">¶</a></h3>
+<p>The user presents the JWT when connecting to the resource server:</p>
+<pre><code>Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+</code></pre>
+<p>Or via query parameter for WebSocket connections:</p>
+<pre><code>wss://relay.example.com/ws?token=eyJhbGciOiJIUzI1NiIs...
+</code></pre>
+<h3 id="step-5-resource-server-validates-the-token">Step 5: Resource Server Validates the Token <a class="anchor" href="#step-5-resource-server-validates-the-token">¶</a></h3>
+<p>The resource server uses <code>APIMiddleware</code> with a shared <code>KeyStore</code> to validate:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>middleware <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oa.APIMiddleware{
+</span></span><span style="display:flex;"><span>    KeyStore:        keyStore,  <span style="color:#998;font-style:italic">// shared with OneAuth server
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    TokenQueryParam: <span style="color:#d14">&#34;token&#34;</span>,  <span style="color:#998;font-style:italic">// for WebSocket clients
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/ws&#34;</span>, middleware.<span style="color:#900;font-weight:bold">ValidateToken</span>(wsHandler))
+</span></span></code></pre><p>Validation flow:</p>
+<ol>
+<li>Parse token without verifying signature</li>
+<li>Extract <code>kid</code> from JWT header (or fall back to <code>client_id</code> from unverified payload)</li>
+<li>Call <code>KeyStore.GetKeyByKid(kid)</code> or <code>KeyStore.GetKey(clientID)</code> — returns <code>*KeyRecord</code></li>
+<li>Reject if JWT&rsquo;s <code>alg</code> header doesn&rsquo;t match <code>rec.Algorithm</code></li>
+<li>Verify JWT signature with <code>rec.Key</code></li>
+<li>Store userID, scopes, and custom claims in request context</li>
+</ol>
+<h2 id="app-registration-api">App Registration API <a class="anchor" href="#app-registration-api">¶</a></h2>
+<p>The <code>AppRegistrar</code> provides a complete CRUD API for managing app registrations.</p>
+<h3 id="setup">Setup <a class="anchor" href="#setup">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> oa <span style="color:#d14">&#34;github.com/panyam/oneauth&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>registrar <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oa.AppRegistrar{
+</span></span><span style="display:flex;"><span>    KeyStore: keyStore,                          <span style="color:#998;font-style:italic">// KeyStorage
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    Auth:     oa.<span style="color:#900;font-weight:bold">NewAPIKeyAuth</span>(<span style="color:#d14">&#34;admin-secret&#34;</span>),  <span style="color:#998;font-style:italic">// or oa.NewNoAuth() for dev
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/&#34;</span>, registrar.<span style="color:#900;font-weight:bold">Handler</span>())
+</span></span></code></pre><h3 id="endpoints">Endpoints <a class="anchor" href="#endpoints">¶</a></h3>
+<p>All endpoints require admin authentication via <code>X-Admin-Key</code> header (when using <code>APIKeyAuth</code>).</p>
+<h4 id="register-app">Register App <a class="anchor" href="#register-app">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /apps/register
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Content-Type: application/json
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">X-Admin-Key: admin-secret
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">{
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;client_domain&#34;: &#34;myapp.example.com&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;signing_alg&#34;: &#34;HS256&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;max_rooms&#34;: 10,
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;max_msg_rate&#34;: 30.0
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">}
+</span></span></span></code></pre><p>Returns <code>201 Created</code> with <code>client_id</code> (format: <code>app_&lt;12-byte-hex&gt;</code>) and <code>client_secret</code> (32-byte hex).</p>
+<h4 id="list-apps">List Apps <a class="anchor" href="#list-apps">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">GET /apps
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">X-Admin-Key: admin-secret
+</span></span></span></code></pre><p>Returns JSON with <code>&quot;apps&quot;</code> key containing an array of <code>AppRegistration</code> objects (secrets are not included).</p>
+<h4 id="get-app">Get App <a class="anchor" href="#get-app">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">GET /apps/{client_id}
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">X-Admin-Key: admin-secret
+</span></span></span></code></pre><p>Returns the app&rsquo;s metadata (secret not included).</p>
+<h4 id="delete-app">Delete App <a class="anchor" href="#delete-app">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">DELETE /apps/{client_id}
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">X-Admin-Key: admin-secret
+</span></span></span></code></pre><p>Removes the app and its key from the KeyStore. Existing tokens signed with the old secret will fail validation.</p>
+<h4 id="rotate-secret">Rotate Secret <a class="anchor" href="#rotate-secret">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /apps/{client_id}/rotate
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">X-Admin-Key: admin-secret
+</span></span></span></code></pre><p>Generates a new <code>client_secret</code>, updates the KeyStore. Returns the new secret. Old tokens become invalid.</p>
+<h3 id="error-responses">Error Responses <a class="anchor" href="#error-responses">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>401 Unauthorized</code></td>
+<td>Missing <code>X-Admin-Key</code> header</td>
+</tr>
+<tr>
+<td><code>403 Forbidden</code></td>
+<td>Wrong admin key</td>
+</tr>
+<tr>
+<td><code>404 Not Found</code></td>
+<td>App not found</td>
+</tr>
+<tr>
+<td><code>405 Method Not Allowed</code></td>
+<td>Wrong HTTP method</td>
+</tr>
+</tbody>
+</table>
+<h2 id="adminauth-interface">AdminAuth Interface <a class="anchor" href="#adminauth-interface">¶</a></h2>
+<p>Pluggable authentication for the App Registration API.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> AdminAuth <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Authenticate</span>(r <span style="color:#000;font-weight:bold">*</span>http.Request) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="apikeyauth-production">APIKeyAuth (Production) <a class="anchor" href="#apikeyauth-production">¶</a></h3>
+<p>Reads <code>X-Admin-Key</code> header and compares using <code>crypto/subtle.ConstantTimeCompare</code> to prevent timing attacks.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>auth <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">NewAPIKeyAuth</span>(<span style="color:#d14">&#34;your-secret-admin-key&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>registrar <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oa.AppRegistrar{
+</span></span><span style="display:flex;"><span>    KeyStore: keyStore,
+</span></span><span style="display:flex;"><span>    Auth:     auth,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="noauth-development-only">NoAuth (Development Only) <a class="anchor" href="#noauth-development-only">¶</a></h3>
+<p>Allows all requests without authentication. Never use in production.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>auth <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">NewNoAuth</span>()
+</span></span></code></pre><h2 id="mintresourcetoken">MintResourceToken <a class="anchor" href="#mintresourcetoken">¶</a></h2>
+<p>Helper function for Apps to mint resource-scoped JWTs after authenticating their users. One entry point covers HS256 / RS256 / ES256 — the signing alg is auto-selected from the Go type of <code>signingKey</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Go type</th>
+<th>Alg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[]byte</code></td>
+<td>HS256</td>
+</tr>
+<tr>
+<td><code>*rsa.PrivateKey</code></td>
+<td>RS256</td>
+</tr>
+<tr>
+<td><code>*ecdsa.PrivateKey</code></td>
+<td>ES256</td>
+</tr>
+</tbody>
+</table>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">MintResourceToken</span>(
+</span></span><span style="display:flex;"><span>    userID <span style="color:#458;font-weight:bold">string</span>,
+</span></span><span style="display:flex;"><span>    appClientID <span style="color:#458;font-weight:bold">string</span>,
+</span></span><span style="display:flex;"><span>    signingKey any,
+</span></span><span style="display:flex;"><span>    customClaims <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any,
+</span></span><span style="display:flex;"><span>    scopes []<span style="color:#458;font-weight:bold">string</span>,
+</span></span><span style="display:flex;"><span>    authzDetails []core.AuthorizationDetail,
+</span></span><span style="display:flex;"><span>) (<span style="color:#458;font-weight:bold">string</span>, <span style="color:#458;font-weight:bold">error</span>)
+</span></span></code></pre><p><code>customClaims</code> ride alongside the standard JWT claims (<code>sub</code>, <code>iss</code>, <code>aud</code>, <code>exp</code>, <code>iat</code>, <code>type</code>, <code>scopes</code>, <code>jti</code>, <code>client_id</code>, <code>authorization_details</code>). Any collision with that standard set is logged and dropped — the minter owns those keys.</p>
+<h3 id="example-app-side-token-minting">Example: App-Side Token Minting <a class="anchor" href="#example-app-side-token-minting">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">mintTokenForUser</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// 1. Get the authenticated user from your session
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    userID <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">getLoggedInUserID</span>(r)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// 2. Mint a resource token (HS256 — pass []byte)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    token, err <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">MintResourceToken</span>(
+</span></span><span style="display:flex;"><span>        userID,
+</span></span><span style="display:flex;"><span>        os.<span style="color:#900;font-weight:bold">Getenv</span>(<span style="color:#d14">&#34;APP_CLIENT_ID&#34;</span>),
+</span></span><span style="display:flex;"><span>        []<span style="color:#0086b3">byte</span>(os.<span style="color:#900;font-weight:bold">Getenv</span>(<span style="color:#d14">&#34;APP_CLIENT_SECRET&#34;</span>)),
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{<span style="color:#d14">&#34;max_rooms&#34;</span>: <span style="color:#099">10</span>, <span style="color:#d14">&#34;max_msg_rate&#34;</span>: <span style="color:#099">30.0</span>},
+</span></span><span style="display:flex;"><span>        []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;relay:connect&#34;</span>},
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">nil</span>,
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>        http.<span style="color:#900;font-weight:bold">Error</span>(w, <span style="color:#d14">&#34;failed to mint token&#34;</span>, http.StatusInternalServerError)
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// 3. Return the token to the client
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    json.<span style="color:#900;font-weight:bold">NewEncoder</span>(w).<span style="color:#900;font-weight:bold">Encode</span>(<span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]<span style="color:#458;font-weight:bold">string</span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#d14">&#34;resource_token&#34;</span>: token,
+</span></span><span style="display:flex;"><span>    })
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="multi-tenant-jwt-validation">Multi-Tenant JWT Validation <a class="anchor" href="#multi-tenant-jwt-validation">¶</a></h2>
+<p>The resource server validates tokens from multiple apps using a shared <code>KeyStore</code>. See <a href="API_AUTH.md#multi-tenant-jwt-validation-keystore">API_AUTH.md</a> for the full <code>KeyStore</code> interface and validation details.</p>
+<p>Key security feature: <strong>algorithm confusion prevention</strong>. The <code>KeyRecord.Algorithm</code> field ensures an app registered with <code>HS256</code> can&rsquo;t send a token with <code>alg: none</code> or <code>alg: RS256</code>.</p>
+<h2 id="keystore-implementations">KeyStore Implementations <a class="anchor" href="#keystore-implementations">¶</a></h2>
+<p>All persistent implementations satisfy <code>KeyStorage</code> (which embeds <code>KeyLookup</code>). Each stores <code>KeyRecord</code> values containing the client ID, key material, and algorithm. A shared test suite in <code>keystoretest/</code> ensures consistent behavior.</p>
+<table>
+<thead>
+<tr>
+<th>Implementation</th>
+<th>Location</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>InMemoryKeyStore</code></td>
+<td><code>keystore.go</code></td>
+<td>Testing, simple deployments</td>
+</tr>
+<tr>
+<td><code>FSKeyStore</code></td>
+<td><code>stores/fs/</code></td>
+<td>Single-node deployments</td>
+</tr>
+<tr>
+<td><code>GORMKeyStore</code></td>
+<td><code>stores/gorm/</code></td>
+<td>Production (PostgreSQL, MySQL)</td>
+</tr>
+<tr>
+<td><code>GAEKeyStore</code></td>
+<td><code>stores/gae/</code></td>
+<td>Google Cloud / serverless</td>
+</tr>
+</tbody>
+</table>
+<p>All minted JWTs include a <code>kid</code> header (RFC 7638 thumbprint), enabling <code>GetKeyByKid()</code> lookups without parsing unverified claims.</p>
+<p>For store setup details, see <a href="STORES.md#keystore--writablekeystore">STORES.md</a>.</p>
+<h2 id="reference-server">Reference Server <a class="anchor" href="#reference-server">¶</a></h2>
+<p>The <code>cmd/oneauth-server/</code> directory contains a config-driven reference server that bundles <code>AppRegistrar</code>, <code>AdminAuth</code>, and KeyStore wiring.</p>
+<h3 id="yaml-configuration">YAML Configuration <a class="anchor" href="#yaml-configuration">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000080">server</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">port</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;8080&#34;</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">host</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;0.0.0.0&#34;</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb"></span><span style="color:#000080">keystore</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">type</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;gorm&#34;</span><span style="color:#bbb">  </span><span style="color:#998;font-style:italic"># memory, fs, gorm, gae</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">gorm</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">    </span><span style="color:#000080">driver</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;postgres&#34;</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">    </span><span style="color:#000080">dsn</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;${DATABASE_URL:-postgres://localhost/oneauth}&#34;</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb"></span><span style="color:#000080">admin_auth</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">type</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;api-key&#34;</span><span style="color:#bbb">  </span><span style="color:#998;font-style:italic"># none, api-key</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">api_key</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">    </span><span style="color:#000080">key</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;${ADMIN_API_KEY}&#34;</span><span style="color:#bbb">
+</span></span></span></code></pre><p>Environment variable substitution: <code>${VAR_NAME}</code> or <code>${VAR_NAME:-default_value}</code>.</p>
+<h3 id="deployment-options">Deployment Options <a class="anchor" href="#deployment-options">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GAE</td>
+<td><code>go124</code> runtime, Secret Manager for admin key, <code>/_ah/health</code> endpoint</td>
+</tr>
+<tr>
+<td>Docker</td>
+<td>See <code>cmd/oneauth-server/deploy-examples/</code></td>
+</tr>
+<tr>
+<td>Kubernetes</td>
+<td>See <code>cmd/oneauth-server/deploy-examples/</code></td>
+</tr>
+</tbody>
+</table>
+<p>On GAE without a config file, the server falls back to <code>configFromEnv()</code> which reads all configuration from environment variables.</p>
+<h2 id="complete-example-three-service-setup">Complete Example: Three-Service Setup <a class="anchor" href="#complete-example-three-service-setup">¶</a></h2>
+<h3 id="1-oneauth-server-central-auth">1. OneAuth Server (Central Auth) <a class="anchor" href="#1-oneauth-server-central-auth">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// cmd/oneauth-server wired with:
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>keyStore <span style="color:#000;font-weight:bold">:=</span> gormstore.<span style="color:#900;font-weight:bold">NewKeyStore</span>(db)
+</span></span><span style="display:flex;"><span>adminAuth <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">NewAPIKeyAuth</span>(os.<span style="color:#900;font-weight:bold">Getenv</span>(<span style="color:#d14">&#34;ADMIN_API_KEY&#34;</span>))
+</span></span><span style="display:flex;"><span>registrar <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oa.AppRegistrar{KeyStore: keyStore, Auth: adminAuth}
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/&#34;</span>, registrar.<span style="color:#900;font-weight:bold">Handler</span>())
+</span></span></code></pre><h3 id="2-app-eg-document-editor">2. App (e.g., Document Editor) <a class="anchor" href="#2-app-eg-document-editor">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// On startup: register with OneAuth server (or use pre-registered credentials)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>clientID <span style="color:#000;font-weight:bold">:=</span> os.<span style="color:#900;font-weight:bold">Getenv</span>(<span style="color:#d14">&#34;APP_CLIENT_ID&#34;</span>)
+</span></span><span style="display:flex;"><span>clientSecret <span style="color:#000;font-weight:bold">:=</span> os.<span style="color:#900;font-weight:bold">Getenv</span>(<span style="color:#d14">&#34;APP_CLIENT_SECRET&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// After authenticating a user locally:
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">handleConnect</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    userID <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">getLoggedInUserID</span>(r)
+</span></span><span style="display:flex;"><span>    token, _ <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">MintResourceToken</span>(userID, clientID, []<span style="color:#0086b3">byte</span>(clientSecret),
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{<span style="color:#d14">&#34;max_rooms&#34;</span>: <span style="color:#099">10</span>},
+</span></span><span style="display:flex;"><span>        []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;relay:connect&#34;</span>, <span style="color:#d14">&#34;relay:publish&#34;</span>},
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">nil</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    json.<span style="color:#900;font-weight:bold">NewEncoder</span>(w).<span style="color:#900;font-weight:bold">Encode</span>(<span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;resource_token&#34;</span>: token})
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="3-resource-server-eg-websocket-relay">3. Resource Server (e.g., WebSocket Relay) <a class="anchor" href="#3-resource-server-eg-websocket-relay">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Shares the same KeyStore as OneAuth server (or a read replica)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>keyStore <span style="color:#000;font-weight:bold">:=</span> gormstore.<span style="color:#900;font-weight:bold">NewKeyStore</span>(db)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>middleware <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oa.APIMiddleware{
+</span></span><span style="display:flex;"><span>    KeyStore:        keyStore,
+</span></span><span style="display:flex;"><span>    TokenQueryParam: <span style="color:#d14">&#34;token&#34;</span>,  <span style="color:#998;font-style:italic">// for WebSocket: ws://relay?token=...
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/ws&#34;</span>, middleware.<span style="color:#900;font-weight:bold">ValidateToken</span>(<span style="color:#000;font-weight:bold">func</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    userID <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">GetUserIDFromAPIContext</span>(r.<span style="color:#900;font-weight:bold">Context</span>())
+</span></span><span style="display:flex;"><span>    scopes <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">GetScopesFromAPIContext</span>(r.<span style="color:#900;font-weight:bold">Context</span>())
+</span></span><span style="display:flex;"><span>    custom <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">GetCustomClaimsFromContext</span>(r.<span style="color:#900;font-weight:bold">Context</span>())
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    maxRooms <span style="color:#000;font-weight:bold">:=</span> <span style="color:#0086b3">int</span>(custom[<span style="color:#d14">&#34;max_rooms&#34;</span>].(<span style="color:#458;font-weight:bold">float64</span>))
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// ... proceed with scoped access
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}))
+</span></span></code></pre><h2 id="security-considerations">Security Considerations <a class="anchor" href="#security-considerations">¶</a></h2>
+<ol>
+<li><strong>Admin key protection</strong>: Store the admin API key in a secrets manager (e.g., GCP Secret Manager). Use <code>APIKeyAuth</code> in production, never <code>NoAuth</code>.</li>
+<li><strong>Secret rotation</strong>: Use <code>POST /apps/{client_id}/rotate</code> to rotate compromised secrets. Old tokens become invalid immediately.</li>
+<li><strong>Token lifetime</strong>: Resource tokens expire after 15 minutes. Apps should mint fresh tokens for each connection.</li>
+<li><strong>Algorithm confusion</strong>: <code>KeyRecord.Algorithm</code> prevents attacks where a token&rsquo;s <code>alg</code> header is manipulated.</li>
+<li><strong>Constant-time comparison</strong>: <code>APIKeyAuth</code> uses <code>crypto/subtle.ConstantTimeCompare</code> to prevent timing attacks on the admin key.</li>
+<li><strong>Encryption at rest</strong>: HS256 client secrets can be encrypted at rest using <code>EncryptedKeyStorage</code> with AES-256-GCM. Set <code>ONEAUTH_MASTER_KEY</code> (64 hex chars) on all services sharing the same KeyStore DB. See <a href="JWT_SIGNING.md#encryption-at-rest-encryptedkeystorage">JWT_SIGNING.md</a> for details.</li>
+</ol>
+<h2 id="asymmetric-signing-rs256es256">Asymmetric Signing (RS256/ES256) <a class="anchor" href="#asymmetric-signing-rs256es256">¶</a></h2>
+<p>OneAuth supports asymmetric JWT signing alongside HS256. With asymmetric keys, apps keep their private key secret and register only the public key. Resource servers verify tokens using the public key without ever knowing the signing secret.</p>
+<p><strong>Quick example</strong> — register with RS256:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/register <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;X-Admin-Key: your-admin-key&#34;</span> <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_domain&#34;: &#34;excaliframe.com&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;signing_alg&#34;: &#34;RS256&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;public_key&#34;: &#34;-----BEGIN PUBLIC KEY-----\nMIIBI...\n-----END PUBLIC KEY-----&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  }&#39;</span>
+</span></span></code></pre><p><strong>Quick example</strong> — mint with asymmetric key:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>privKey, _ <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">ParsePrivateKeyPEM</span>(privPEM)
+</span></span><span style="display:flex;"><span>token, err <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">MintResourceToken</span>(<span style="color:#d14">&#34;user-42&#34;</span>, <span style="color:#d14">&#34;app_abc&#34;</span>, privKey, customClaims, scopes, <span style="color:#000;font-weight:bold">nil</span>)
+</span></span></code></pre><p>For the full guide on key generation, algorithm selection, APIAuth configuration, key rotation, <code>DecodeVerifyKey</code>, and algorithm confusion prevention, see <strong><a href="JWT_SIGNING.md">JWT_SIGNING.md</a></strong>.</p>
+<h2 id="jwks-public-key-discovery">JWKS Public Key Discovery <a class="anchor" href="#jwks-public-key-discovery">¶</a></h2>
+<p>Resource servers can auto-discover asymmetric public keys via a standard JWKS endpoint instead of sharing database access with the auth server.</p>
+<h3 id="auth-server-serving-jwks">Auth Server: Serving JWKS <a class="anchor" href="#auth-server-serving-jwks">¶</a></h3>
+<p>The oneauth-server exposes <code>GET /.well-known/jwks.json</code> — a public endpoint (no auth required) that returns all registered asymmetric keys (RS256/ES256) in JWK format. HS256 secrets are never included.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl https://auth.example.com/.well-known/jwks.json
+</span></span></code></pre><p>Response:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;keys&#34;</span>: [
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;kty&#34;</span>: <span style="color:#d14">&#34;RSA&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;kid&#34;</span>: <span style="color:#d14">&#34;app_a1b2c3d4e5f6&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;alg&#34;</span>: <span style="color:#d14">&#34;RS256&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;use&#34;</span>: <span style="color:#d14">&#34;sig&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;n&#34;</span>: <span style="color:#d14">&#34;0vx7agoebG...&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;e&#34;</span>: <span style="color:#d14">&#34;AQAB&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;kty&#34;</span>: <span style="color:#d14">&#34;EC&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;kid&#34;</span>: <span style="color:#d14">&#34;app_x9y8z7w6v5u4&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;alg&#34;</span>: <span style="color:#d14">&#34;ES256&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;use&#34;</span>: <span style="color:#d14">&#34;sig&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;crv&#34;</span>: <span style="color:#d14">&#34;P-256&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;x&#34;</span>: <span style="color:#d14">&#34;f83OJ3D2xF...&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;y&#34;</span>: <span style="color:#d14">&#34;x_FEzRu9m3...&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The response includes <code>Cache-Control: public, max-age=3600</code> for efficient caching.</p>
+<h3 id="resource-server-fetching-keys-via-jwks">Resource Server: Fetching Keys via JWKS <a class="anchor" href="#resource-server-fetching-keys-via-jwks">¶</a></h3>
+<p>Instead of connecting to the auth server&rsquo;s database, resource servers can use <code>JWKSKeyStore</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>keyStore <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">NewJWKSKeyStore</span>(<span style="color:#d14">&#34;https://auth.example.com/.well-known/jwks.json&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">:=</span> keyStore.<span style="color:#900;font-weight:bold">Start</span>(); err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>    log.<span style="color:#900;font-weight:bold">Fatal</span>(err)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">defer</span> keyStore.<span style="color:#900;font-weight:bold">Stop</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>middleware <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oa.APIMiddleware{
+</span></span><span style="display:flex;"><span>    KeyStore: keyStore,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><code>JWKSKeyStore</code> implements <code>KeyLookup</code> (read-only) with:</p>
+<ul>
+<li><strong>Background refresh</strong>: Keys are re-fetched every hour (configurable via <code>WithRefreshInterval</code>)</li>
+<li><strong>Cache-miss refresh</strong>: Unknown <code>client_id</code> triggers an immediate refresh attempt</li>
+<li><strong>Resilience</strong>: If the JWKS endpoint is down, cached keys continue to work</li>
+<li><strong>Stampede protection</strong>: <code>MinRefreshGap</code> (default 5s) prevents thundering herd on cache misses</li>
+</ul>
+<h3 id="demo-resource-server-with-jwks">Demo Resource Server with JWKS <a class="anchor" href="#demo-resource-server-with-jwks">¶</a></h3>
+<p>The demo resource server supports <code>JWKS_URL</code> as an alternative to <code>DATABASE_URL</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Before (shared database):</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">DATABASE_URL</span><span style="color:#000;font-weight:bold">=</span>postgres://... ./demo-resource-server
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># After (JWKS — no database needed):</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">JWKS_URL</span><span style="color:#000;font-weight:bold">=</span>http://localhost:9999/.well-known/jwks.json ./demo-resource-server
+</span></span></code></pre><h3 id="limitations">Limitations <a class="anchor" href="#limitations">¶</a></h3>
+<ul>
+<li><strong>HS256 apps are not discoverable via JWKS</strong> — symmetric secrets cannot be safely exposed over HTTP. HS256 apps still require shared database access.</li>
+<li><strong>JWKS is read-only</strong> — <code>JWKSKeyStore</code> implements <code>KeyLookup</code> only, not <code>KeyStorage</code>. It cannot register or delete keys.</li>
+<li><strong>Propagation delay</strong> — newly registered asymmetric apps may take up to the refresh interval to appear in resource servers. Cache-miss refresh reduces this for initial lookups.</li>
+</ul>
+<h2 id="protected-resource-metadata-rfc-9728">Protected Resource Metadata (RFC 9728) <a class="anchor" href="#protected-resource-metadata-rfc-9728">¶</a></h2>
+<p>Resource servers can advertise their capabilities at <code>GET /.well-known/oauth-protected-resource</code>, enabling clients to auto-discover which authorization servers are trusted, what scopes are supported, and what token formats are accepted — without hardcoding.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>meta <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.ProtectedResourceMetadata{
+</span></span><span style="display:flex;"><span>    Resource:              <span style="color:#d14">&#34;https://relay.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>    AuthorizationServers:  []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;https://auth.example.com&#34;</span>},
+</span></span><span style="display:flex;"><span>    ScopesSupported:       []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;relay:connect&#34;</span>, <span style="color:#d14">&#34;relay:publish&#34;</span>},
+</span></span><span style="display:flex;"><span>    TokenFormatsSupported: []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;jwt&#34;</span>},
+</span></span><span style="display:flex;"><span>    SigningAlgsSupported:  []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;RS256&#34;</span>, <span style="color:#d14">&#34;ES256&#34;</span>, <span style="color:#d14">&#34;HS256&#34;</span>},
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;GET /.well-known/oauth-protected-resource&#34;</span>,
+</span></span><span style="display:flex;"><span>    apiauth.<span style="color:#900;font-weight:bold">NewProtectedResourceHandler</span>(meta))
+</span></span></code></pre><p>This completes the standards-based discovery chain: clients discover the resource server&rsquo;s requirements via PRM, then discover the authorization server&rsquo;s endpoints via OIDC Discovery or AS Metadata (RFC 8414), then obtain tokens and present them to the resource server.</p>
+<p>See <a href="API_AUTH.md#protected-resource-metadata-rfc-9728">API_AUTH.md</a> for the full API reference.</p>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

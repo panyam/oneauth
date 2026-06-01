@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Decision trees, user journeys, edge cases.">
+    <title>Auth flows · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Auth flows</h1>
+        
+        <p class="lead">Decision trees, user journeys, edge cases.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/AUTH_FLOWS.md"><code>docs/AUTH_FLOWS.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oneauth-authentication-flows">OneAuth Authentication Flows <a class="anchor" href="#oneauth-authentication-flows">¶</a></h1>
+<p>This document describes the authentication flows, data model, and patterns provided by the oneauth library.</p>
+<h2 id="architecture-overview">Architecture Overview <a class="anchor" href="#architecture-overview">¶</a></h2>
+<h3 id="core-components">Core Components <a class="anchor" href="#core-components">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OneAuth</code></td>
+<td>Main auth orchestrator, routes to providers</td>
+</tr>
+<tr>
+<td><code>AuthService</code></td>
+<td>User/Identity/Channel CRUD operations</td>
+</tr>
+<tr>
+<td><code>UsernameStore</code></td>
+<td>Optional username → userID mapping</td>
+</tr>
+<tr>
+<td><code>LocalAuth</code></td>
+<td>Email/password authentication handler</td>
+</tr>
+<tr>
+<td><code>OAuth2</code></td>
+<td>OAuth2 provider handlers (Google, GitHub, etc.)</td>
+</tr>
+<tr>
+<td><code>TokenStore</code></td>
+<td>Email verification, password reset tokens</td>
+</tr>
+</tbody>
+</table>
+<h3 id="data-model">Data Model <a class="anchor" href="#data-model">¶</a></h3>
+<pre><code>User (id: abc123)
+├── Profile: {email, username, nickname, avatar, ...}
+├── Identity: email → user@example.com (verified: true/false)
+├── Channel: local → email:user@example.com (password_hash)
+├── Channel: google → email:user@example.com (oauth_token)
+└── Channel: github → email:user@example.com (oauth_token)
+</code></pre>
+<p><strong>Key Concepts:</strong></p>
+<ul>
+<li><strong>User</strong>: The account entity with a profile map</li>
+<li><strong>Identity</strong>: A verified contact method (email, phone) - unique per value</li>
+<li><strong>Channel</strong>: An authentication method pointing to an Identity</li>
+<li><strong>Username</strong>: An optional login alias stored in UsernameStore (separate from Identity)</li>
+</ul>
+<p>Multiple channels can share the same Identity (email), enabling multi-provider login for the same account.</p>
+<h2 id="login-decision-tree">Login Decision Tree <a class="anchor" href="#login-decision-tree">¶</a></h2>
+<p>When a login attempt occurs, here&rsquo;s how the system determines identity:</p>
+<pre><code>LOGIN ATTEMPT
+     │
+     ▼
+┌─────────────────────────────────────┐
+│ What type of login?                 │
+└─────────────────────────────────────┘
+     │
+     ├─── OAuth (Google/GitHub) ──────────────────────────────────┐
+     │                                                            │
+     │    ┌─────────────────────────────────────────────────────┐ │
+     │    │ 1. OAuth provider authenticates user                │ │
+     │    │ 2. Callback receives: email, name, avatar           │ │
+     │    │ 3. Look up Identity by email                        │ │
+     │    └─────────────────────────────────────────────────────┘ │
+     │         │                                                  │
+     │         ├── Identity NOT found ────────────────────────────┤
+     │         │         │                                        │
+     │         │         ▼                                        │
+     │         │   Create new User, Identity, Channel             │
+     │         │   (New account)                                  │
+     │         │                                                  │
+     │         └── Identity FOUND ────────────────────────────────┤
+     │                   │                                        │
+     │                   ▼                                        │
+     │             Get User who owns this Identity                │
+     │             Add/update OAuth Channel                       │
+     │             (Existing account, maybe adding provider)      │
+     │                                                            │
+     └─── Email/Username + Password ──────────────────────────────┤
+                   │                                              │
+     ┌─────────────────────────────────────────────────────┐      │
+     │ Does input contain &quot;@&quot;?                             │      │
+     └─────────────────────────────────────────────────────┘      │
+          │                                                       │
+          ├── YES (treat as email) ───────────────────────────────┤
+          │         │                                             │
+          │         ▼                                             │
+          │   Look up Identity by email                           │
+          │         │                                             │
+          │         ├── NOT found → &quot;Invalid credentials&quot;         │
+          │         │                                             │
+          │         └── FOUND → Get local Channel                 │
+          │                         │                             │
+          │                         ├── No local Channel          │
+          │                         │   → &quot;Invalid credentials&quot;   │
+          │                         │   (OAuth-only user)         │
+          │                         │                             │
+          │                         └── Has local Channel         │
+          │                             → Verify password         │
+          │                                                       │
+          └── NO (treat as username) ─────────────────────────────┤
+                    │                                             │
+                    ▼                                             │
+              UsernameStore.GetUserByUsername()                   │
+                    │                                             │
+                    ├── NOT found → &quot;Invalid credentials&quot;         │
+                    │                                             │
+                    └── FOUND → Get userID                        │
+                              → Get User                          │
+                              → Get email from Profile            │
+                              → Continue as email login ──────────┘
+                                                                  │
+                                                                  ▼
+                                                         ┌───────────────┐
+                                                         │ LOGIN SUCCESS │
+                                                         │ Create Session│
+                                                         └───────────────┘
+</code></pre>
+<h2 id="signup-decision-tree">Signup Decision Tree <a class="anchor" href="#signup-decision-tree">¶</a></h2>
+<pre><code>SIGNUP ATTEMPT (email + password)
+     │
+     ▼
+┌─────────────────────────────────────┐
+│ Validate SignupPolicy               │
+│ - Email required? (configurable)    │
+│ - Password min length? (default: 8) │
+│ - Username required? (configurable) │
+└─────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────┐
+│ Check if Identity exists for email  │
+└─────────────────────────────────────┘
+     │
+     ├── Identity EXISTS ──────────────────────────────────────────┐
+     │         │                                                   │
+     │         ▼                                                   │
+     │   ERROR: &quot;Email already registered&quot;                         │
+     │   → OnSignupError callback                                  │
+     │   → Flash message + redirect (if configured)                │
+     │                                                             │
+     └── Identity NOT found ───────────────────────────────────────┤
+               │                                                   │
+               ▼                                                   │
+         Create User                                               │
+         Profile: {email: &quot;...&quot;, username: null}                   │
+               │                                                   │
+               ▼                                                   │
+         Create Identity                                           │
+         type: &quot;email&quot;, value: &quot;...&quot;, verified: false              │
+               │                                                   │
+               ▼                                                   │
+         Create Channel                                            │
+         provider: &quot;local&quot;, identityKey: &quot;email:...&quot;,              │
+         credentials: {password_hash: bcrypt(...)}                 │
+               │                                                   │
+               ▼                                                   │
+         (Optional) Send verification email                        │
+               │                                                   │
+               ▼                                                   │
+         Create session, login user                                │
+               │                                                   │
+               ▼                                                   │
+         Redirect to callbackURL or &quot;/&quot; ───────────────────────────┘
+</code></pre>
+<h2 id="provider-linking-matrix">Provider Linking Matrix <a class="anchor" href="#provider-linking-matrix">¶</a></h2>
+<p>This shows what happens when a user with existing auth tries another method:</p>
+<pre><code>                          ┌────────────────────────────────────────────────────────┐
+                          │              SECOND AUTH ATTEMPT                       │
+                          ├─────────────┬─────────────┬─────────────┬──────────────┤
+                          │ Local Email │   Google    │   GitHub    │  Different   │
+                          │  + Password │   OAuth     │   OAuth     │   Email      │
+┌─────────────────────────┼─────────────┼─────────────┼─────────────┼──────────────┤
+│                         │             │             │             │              │
+│  No existing account    │ Create new  │ Create new  │ Create new  │ Create new   │
+│                         │ account     │ account     │ account     │ account      │
+│                         │             │             │             │              │
+├─────────────────────────┼─────────────┼─────────────┼─────────────┼──────────────┤
+│                         │             │             │             │              │
+│  Has Local (same email) │ Login to    │ Link Google │ Link GitHub │ N/A - diff   │
+│                         │ existing    │ to existing │ to existing │ email is     │
+│                         │             │             │             │ new account  │
+├─────────────────────────┼─────────────┼─────────────┼─────────────┼──────────────┤
+│                         │             │             │             │              │
+│  Has Google (same email)│ Fails*      │ Login to    │ Link GitHub │ N/A - diff   │
+│                         │             │ existing    │ to existing │ email is     │
+│                         │             │             │             │ new account  │
+├─────────────────────────┼─────────────┼─────────────┼─────────────┼──────────────┤
+│                         │             │             │             │              │
+│  Has GitHub (same email)│ Fails*      │ Link Google │ Login to    │ N/A - diff   │
+│                         │             │ to existing │ existing    │ email is     │
+│                         │             │             │             │ new account  │
+└─────────────────────────┴─────────────┴─────────────┴─────────────┴──────────────┘
+
+* &quot;Fails&quot; = Signup with email fails because Identity exists, but no local Channel.
+  User should use OAuth to login, then set password via Profile page or password reset.
+</code></pre>
+<p><strong>Key insight</strong>: Same email = same account (via Identity), regardless of how you authenticate.</p>
+<h2 id="signuppolicy-configuration">SignupPolicy Configuration <a class="anchor" href="#signuppolicy-configuration">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> SignupPolicy <span style="color:#000;font-weight:bold">struct</span> {
+</span></span><span style="display:flex;"><span>    RequireUsername       <span style="color:#458;font-weight:bold">bool</span>   <span style="color:#998;font-style:italic">// Is username required at signup?
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    RequireEmail          <span style="color:#458;font-weight:bold">bool</span>   <span style="color:#998;font-style:italic">// Is email required?
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    RequirePhone          <span style="color:#458;font-weight:bold">bool</span>   <span style="color:#998;font-style:italic">// Is phone required?
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    RequirePassword       <span style="color:#458;font-weight:bold">bool</span>   <span style="color:#998;font-style:italic">// Is password required for local auth?
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    EnforceUsernameUnique <span style="color:#458;font-weight:bold">bool</span>   <span style="color:#998;font-style:italic">// Check UsernameStore for uniqueness?
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    EnforceEmailUnique    <span style="color:#458;font-weight:bold">bool</span>   <span style="color:#998;font-style:italic">// Check IdentityStore for uniqueness?
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    MinPasswordLength     <span style="color:#458;font-weight:bold">int</span>    <span style="color:#998;font-style:italic">// Minimum password length
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    UsernamePattern       <span style="color:#458;font-weight:bold">string</span> <span style="color:#998;font-style:italic">// Regex pattern for username validation
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Preset policies
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">var</span> PolicyUsernameRequired = SignupPolicy{RequireUsername: <span style="color:#000;font-weight:bold">true</span>, RequireEmail: <span style="color:#000;font-weight:bold">true</span>, <span style="color:#000;font-weight:bold">...</span>}
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">var</span> PolicyEmailOnly = SignupPolicy{RequireUsername: <span style="color:#000;font-weight:bold">false</span>, RequireEmail: <span style="color:#000;font-weight:bold">true</span>, <span style="color:#000;font-weight:bold">...</span>}
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">var</span> PolicyFlexible = SignupPolicy{RequireUsername: <span style="color:#000;font-weight:bold">false</span>, RequireEmail: <span style="color:#000;font-weight:bold">false</span>, <span style="color:#000;font-weight:bold">...</span>}
+</span></span></code></pre><h2 id="supported-flows">Supported Flows <a class="anchor" href="#supported-flows">¶</a></h2>
+<h3 id="1-emailpassword-signup">1. Email/Password Signup <a class="anchor" href="#1-emailpassword-signup">¶</a></h3>
+<p><strong>Handler:</strong> <code>LocalAuth.HandleSignup</code></p>
+<p><strong>Flow:</strong></p>
+<ol>
+<li>User submits: email, password (and optionally username)</li>
+<li>Validate per SignupPolicy</li>
+<li>Create User with profile</li>
+<li>Create Identity: type=email</li>
+<li>Create Channel: provider=local with password_hash</li>
+<li>If UsernameStore configured and username provided, reserve it</li>
+<li>Auto-login user (session created)</li>
+<li>Redirect to callbackURL</li>
+</ol>
+<p><strong>Error Handling via callbacks:</strong></p>
+<ul>
+<li><code>OnSignupError</code>: Called with AuthError, can redirect with flash message</li>
+<li><code>OnSignupSuccess</code>: Called after successful signup</li>
+</ul>
+<h3 id="2-emailpassword-login">2. Email/Password Login <a class="anchor" href="#2-emailpassword-login">¶</a></h3>
+<p><strong>Handler:</strong> <code>LocalAuth.HandleLogin</code></p>
+<p><strong>Flow:</strong></p>
+<ol>
+<li>User submits: email (or username), password</li>
+<li>Auto-detect input type (contains &ldquo;@&rdquo; = email, otherwise username)</li>
+<li>If username, resolve via UsernameStore to get userID, then email</li>
+<li>Find Identity by email</li>
+<li>Find local Channel for that Identity</li>
+<li>Verify password hash (bcrypt)</li>
+<li>Create session</li>
+<li>Redirect to callbackURL</li>
+</ol>
+<h3 id="3-username-login-alias">3. Username Login (Alias) <a class="anchor" href="#3-username-login-alias">¶</a></h3>
+<p>When UsernameStore is configured, usernames can be used as login aliases:</p>
+<ol>
+<li>Input has no &ldquo;@&rdquo; symbol → treated as username</li>
+<li><code>UsernameStore.GetUserByUsername(input)</code> → userID</li>
+<li>Get User by userID</li>
+<li>Get email from User.Profile[&ldquo;email&rdquo;]</li>
+<li>Continue with standard email/password validation</li>
+</ol>
+<p><strong>Helper:</strong> <code>NewCredentialsValidatorWithUsername</code> creates a validator that auto-detects email vs username.</p>
+<h3 id="4-oauth2-login">4. OAuth2 Login <a class="anchor" href="#4-oauth2-login">¶</a></h3>
+<p><strong>Handlers:</strong> OAuth2 provider handlers (Google, GitHub, etc.)</p>
+<p><strong>Flow (New User):</strong></p>
+<ol>
+<li>User initiates OAuth flow</li>
+<li>Provider authenticates and returns userInfo (email, name, picture)</li>
+<li>Check if Identity exists for this email</li>
+<li>If not: Create User, Identity (verified=true), OAuth Channel</li>
+<li>Create session</li>
+<li>Redirect to callbackURL</li>
+</ol>
+<p><strong>Flow (Existing User - Same Email):</strong></p>
+<ol>
+<li>OAuth callback finds existing Identity by email</li>
+<li>Create/update OAuth Channel for existing Identity</li>
+<li>Login existing user (channels are linked)</li>
+</ol>
+<h3 id="5-setting-password-oauth-only-users">5. Setting Password (OAuth-Only Users) <a class="anchor" href="#5-setting-password-oauth-only-users">¶</a></h3>
+<p><strong>Handler:</strong> <code>LocalAuth.HandleLinkCredentials</code></p>
+<p>For users who signed up via OAuth and want to add email/password login:</p>
+<ol>
+<li>OAuth user is authenticated</li>
+<li>User submits new password</li>
+<li>Get email from User.Profile</li>
+<li>Create local Channel with password_hash</li>
+<li>User can now login with email/password OR OAuth</li>
+</ol>
+<h3 id="6-email-verification">6. Email Verification <a class="anchor" href="#6-email-verification">¶</a></h3>
+<p><strong>Handler:</strong> <code>LocalAuth.HandleVerifyEmail</code></p>
+<ol>
+<li>After signup, verification email sent (if enabled)</li>
+<li>Email contains link with token</li>
+<li>User clicks link, token validated</li>
+<li>Identity.Verified = true</li>
+</ol>
+<h3 id="7-password-reset">7. Password Reset <a class="anchor" href="#7-password-reset">¶</a></h3>
+<p><strong>Handlers:</strong> <code>HandleForgotPasswordForm</code> (GET), <code>HandleForgotPassword</code> (POST), <code>HandleResetPasswordForm</code> (GET), <code>HandleResetPassword</code> (POST)</p>
+<ol>
+<li>User submits email</li>
+<li>Create password reset token (time-limited)</li>
+<li>Email link with token</li>
+<li>User clicks link, enters new password</li>
+<li>Update password hash in local Channel (or create local Channel if user is OAuth-only)</li>
+</ol>
+<p><strong>OAuth-Only Users:</strong> If the user signed up via OAuth and has no local Channel,<br />
+<code>NewUpdatePasswordFunc</code> automatically creates a local Channel with the new password.<br />
+This enables OAuth users to add email/password login via the standard password reset flow.</p>
+<p><strong>Two Response Modes:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>When</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JSON (default)</td>
+<td><code>ForgotPasswordURL</code> / <code>ResetPasswordURL</code> empty</td>
+<td>GET renders basic HTML form, POST returns JSON</td>
+</tr>
+<tr>
+<td>Redirect</td>
+<td>URLs set</td>
+<td>GET redirects to app page, POST redirects with query params</td>
+</tr>
+</tbody>
+</table>
+<p>In redirect mode, the application renders its own themed pages at the configured URLs,<br />
+reading query parameters (<code>?sent=true</code>, <code>?token=...</code>, <code>?success=true</code>, <code>?error=...</code>) to<br />
+determine what state to display. This keeps all presentation in the application layer.</p>
+<h2 id="channel-linking-summary">Channel Linking Summary <a class="anchor" href="#channel-linking-summary">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Starting State</th>
+<th>Action</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New user</td>
+<td>Email signup</td>
+<td>User + local channel</td>
+</tr>
+<tr>
+<td>New user</td>
+<td>OAuth login</td>
+<td>User + OAuth channel</td>
+</tr>
+<tr>
+<td>Local user</td>
+<td>OAuth login (same email)</td>
+<td>Adds OAuth channel</td>
+</tr>
+<tr>
+<td>OAuth user</td>
+<td>Set password</td>
+<td>Adds local channel</td>
+</tr>
+<tr>
+<td>OAuth user</td>
+<td>Password reset</td>
+<td>Creates local channel</td>
+</tr>
+<tr>
+<td>Any user</td>
+<td>Set username</td>
+<td>Updates UsernameStore</td>
+</tr>
+</tbody>
+</table>
+<p>All channels pointing to the same email Identity = same user account.</p>
+<h2 id="user-journeys">User Journeys <a class="anchor" href="#user-journeys">¶</a></h2>
+<h3 id="journey-1-multiple-oauth-providers-same-email">Journey 1: Multiple OAuth Providers (Same Email) <a class="anchor" href="#journey-1-multiple-oauth-providers-same-email">¶</a></h3>
+<p>User logs in with Google, later logs in with GitHub using the same email.</p>
+<pre><code>Day 1: User clicks &quot;Continue with Google&quot;
+  - Email from Google: alice@gmail.com
+  - No existing Identity for alice@gmail.com
+  - Creates: User(id: user_001), Identity(email: alice@gmail.com), Channel(google)
+
+Day 7: Same user clicks &quot;Continue with GitHub&quot;
+  - Email from GitHub: alice@gmail.com (same email)
+  - Identity ALREADY EXISTS for alice@gmail.com → belongs to user_001
+  - Creates: Channel(github) pointing to same Identity
+  - User is logged in as user_001 (SAME account!)
+
+Result: User can now login with Google OR GitHub
+Data structure:
+  User (id: user_001)
+  ├── Profile: {email: &quot;alice@gmail.com&quot;}
+  ├── Identity: email → alice@gmail.com
+  ├── Channel: google → email:alice@gmail.com
+  └── Channel: github → email:alice@gmail.com
+</code></pre>
+<h3 id="journey-2-oauth-user-adds-username--password">Journey 2: OAuth User Adds Username + Password <a class="anchor" href="#journey-2-oauth-user-adds-username--password">¶</a></h3>
+<p>User logs in with Google, then sets a username and password.</p>
+<pre><code>Day 1: User clicks &quot;Continue with Google&quot;
+  - Creates: User(id: user_002), Identity, Channel(google)
+  - Profile: {email: &quot;bob@gmail.com&quot;} -- no username yet!
+
+Day 3: User sets username and password
+  Step 1: Reserve username &quot;bobsmith&quot; via UsernameStore
+  Step 2: Create local Channel with password_hash
+
+Result: User can now login THREE ways:
+  1. Google OAuth button
+  2. Email &quot;bob@gmail.com&quot; + password
+  3. Username &quot;bobsmith&quot; + password
+</code></pre>
+<h3 id="journey-3-email-signup-then-link-oauth">Journey 3: Email Signup, Then Link OAuth <a class="anchor" href="#journey-3-email-signup-then-link-oauth">¶</a></h3>
+<p>User signs up with email/password, later links Google account.</p>
+<pre><code>Day 1: User signs up with email
+  - Creates: User, Identity, Channel(local)
+
+Day 5: User clicks &quot;Continue with Google&quot;
+  - Email from Google matches existing Identity
+  - Creates: Channel(google) pointing to same Identity
+
+Result: User can login with email+password OR Google
+</code></pre>
+<h3 id="journey-4-username-as-primary-login">Journey 4: Username as Primary Login <a class="anchor" href="#journey-4-username-as-primary-login">¶</a></h3>
+<pre><code>Setup: User has:
+  - Profile: {email: &quot;dave@company.com&quot;, username: &quot;davec&quot;}
+  - Local channel with password
+
+Login with email:
+  - POST /auth/login {email: &quot;dave@company.com&quot;, password: &quot;pass&quot;}
+  - ✓ Success
+
+Login with username:
+  - POST /auth/login {email: &quot;davec&quot;, password: &quot;pass&quot;}
+  - Input has no &quot;@&quot; → treated as username
+  - UsernameStore.GetUserByUsername(&quot;davec&quot;) → userID
+  - Get User profile → email is &quot;dave@company.com&quot;
+  - Validate password against local channel
+  - ✓ Success (same user!)
+</code></pre>
+<h3 id="journey-5-different-emails-on-different-oauth-providers">Journey 5: Different Emails on Different OAuth Providers <a class="anchor" href="#journey-5-different-emails-on-different-oauth-providers">¶</a></h3>
+<p>User has personal Gmail and work GitHub with different emails.</p>
+<pre><code>Day 1: User logs in with Google
+  - Email from Google: alice@gmail.com
+  - Creates: User(id: user_005), Identity, Channel(google)
+
+Day 3: Same person logs in with GitHub (different email!)
+  - Email from GitHub: alice@company.com (work email)
+  - No existing Identity for alice@company.com
+  - Creates: NEW User(id: user_006), Identity, Channel(github)
+
+Result: TWO SEPARATE ACCOUNTS!
+  - user_005 accessible via Google (alice@gmail.com)
+  - user_006 accessible via GitHub (alice@company.com)
+
+This is BY DESIGN - we can't assume different emails belong to same person.
+</code></pre>
+<h3 id="journey-6-password-change">Journey 6: Password Change <a class="anchor" href="#journey-6-password-change">¶</a></h3>
+<p>User changes their existing password.</p>
+<pre><code>Step 1: User visits profile, enters current password + new password
+Step 2: Verify current password matches
+Step 3: Update password hash in local Channel
+</code></pre>
+<h3 id="journey-7-username-change">Journey 7: Username Change <a class="anchor" href="#journey-7-username-change">¶</a></h3>
+<p>User changes their username.</p>
+<pre><code>Step 1: User has username &quot;oldname&quot;
+Step 2: Enter new username &quot;newname&quot;
+Step 3: UsernameStore.ChangeUsername(&quot;oldname&quot;, &quot;newname&quot;, userID)
+  - This is ATOMIC: reserves new, releases old, or fails entirely
+Step 4: Update Profile[&quot;username&quot;] = &quot;newname&quot;
+Step 5: User can now login with &quot;newname&quot; (not &quot;oldname&quot;)
+</code></pre>
+<h3 id="journey-8-oauth-user-resets-password-no-local-channel">Journey 8: OAuth User Resets Password (No Local Channel) <a class="anchor" href="#journey-8-oauth-user-resets-password-no-local-channel">¶</a></h3>
+<p>OAuth-only user uses &ldquo;Forgot Password&rdquo; to establish local auth.</p>
+<pre><code>Day 1: User clicks &quot;Continue with Google&quot;
+  - Creates: User(id: user_008), Identity, Channel(google)
+  - No local Channel exists (no password set)
+
+Day 2: User clicks &quot;Forgot Password&quot;, enters email
+  - Reset token created and emailed
+  - User clicks link, enters new password
+  - NewUpdatePasswordFunc detects no local Channel
+  - Creates: Channel(local) with password_hash
+
+Result: User can now login TWO ways:
+  1. Google OAuth button
+  2. Email + password
+</code></pre>
+<h2 id="edge-cases">Edge Cases <a class="anchor" href="#edge-cases">¶</a></h2>
+<h3 id="race-condition-in-username-reservation">Race Condition in Username Reservation <a class="anchor" href="#race-condition-in-username-reservation">¶</a></h3>
+<p>Two users try to reserve same username simultaneously.</p>
+<p>UsernameStore.ReserveUsername is atomic (database transaction):</p>
+<ul>
+<li>One succeeds, one fails with &ldquo;already exists&rdquo;</li>
+<li>No data corruption possible</li>
+</ul>
+<h3 id="case-sensitivity">Case Sensitivity <a class="anchor" href="#case-sensitivity">¶</a></h3>
+<p><strong>Username handling:</strong></p>
+<ul>
+<li>Stored lowercase: &ldquo;BobSmith&rdquo; → &ldquo;bobsmith&rdquo;</li>
+<li>Login input lowercased before lookup</li>
+<li>&ldquo;BOBSMITH&rdquo;, &ldquo;bobsmith&rdquo;, &ldquo;BobSmith&rdquo; all work</li>
+</ul>
+<p><strong>Email handling:</strong></p>
+<ul>
+<li>Comparison should be case-insensitive</li>
+<li>&ldquo;<a href="mailto:Bob@Gmail.com">Bob@Gmail.com</a>&rdquo; and &ldquo;<a href="mailto:bob@gmail.com">bob@gmail.com</a>&rdquo; should match same Identity</li>
+</ul>
+<h3 id="email-already-registered-signup">Email Already Registered (Signup) <a class="anchor" href="#email-already-registered-signup">¶</a></h3>
+<p>User tries to sign up with existing email:</p>
+<ol>
+<li>Check Identity exists for email</li>
+<li>Identity found → Error via OnSignupError callback</li>
+<li>User should use &ldquo;Forgot Password&rdquo; or login with OAuth if they have it</li>
+</ol>
+<h3 id="oauth-returns-email-that-exists">OAuth Returns Email That Exists <a class="anchor" href="#oauth-returns-email-that-exists">¶</a></h3>
+<p>Someone logs in with OAuth, provider returns email that already exists:</p>
+<ol>
+<li>Check Identity exists</li>
+<li>Identity exists, belongs to user_001</li>
+<li>Create/update OAuth Channel for user_001</li>
+<li>Login as user_001</li>
+</ol>
+<p>This is correct behavior - if you control the email on the OAuth provider, you should have access to the account.</p>
+<h3 id="concurrent-profile-updates">Concurrent Profile Updates <a class="anchor" href="#concurrent-profile-updates">¶</a></h3>
+<p>User has two tabs open, updates username in both:</p>
+<ul>
+<li>Tab A changes &ldquo;alice&rdquo; to &ldquo;alice2&rdquo; → Success</li>
+<li>Tab B tries to change &ldquo;alice&rdquo; to &ldquo;alice3&rdquo; (stale view)</li>
+<li>&ldquo;alice&rdquo; no longer exists in UsernameStore!</li>
+<li>Error: Username change failed</li>
+</ul>
+<h3 id="expired-tokens">Expired Tokens <a class="anchor" href="#expired-tokens">¶</a></h3>
+<p>Verification/reset link from weeks ago:</p>
+<ul>
+<li>Token found but ExpiresAt &lt; now</li>
+<li>Error: &ldquo;Link has expired&rdquo;</li>
+<li>User prompted to request new email</li>
+</ul>
+<h3 id="single-use-tokens">Single-Use Tokens <a class="anchor" href="#single-use-tokens">¶</a></h3>
+<p>Tokens are deleted after successful use:</p>
+<ol>
+<li>Token created, stored in TokenStore</li>
+<li>User uses token</li>
+<li>Token DELETED from TokenStore</li>
+<li>Replay attempt → Token not found → Error</li>
+</ol>
+<h2 id="security-considerations">Security Considerations <a class="anchor" href="#security-considerations">¶</a></h2>
+<h3 id="current-protections">Current Protections <a class="anchor" href="#current-protections">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Protection</th>
+<th>Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Password Hashing</td>
+<td>bcrypt</td>
+</tr>
+<tr>
+<td>Single-Use Tokens</td>
+<td>Deleted after use</td>
+</tr>
+<tr>
+<td>Token Expiration</td>
+<td>Time-limited</td>
+</tr>
+<tr>
+<td>Generic Login Errors</td>
+<td>&ldquo;Invalid credentials&rdquo;</td>
+</tr>
+</tbody>
+</table>
+<h3 id="recommended-for-applications">Recommended for Applications <a class="anchor" href="#recommended-for-applications">¶</a></h3>
+<ol>
+<li><strong>Rate Limiting</strong>: Per-IP and per-account limits</li>
+<li><strong>Account Lockout</strong>: Lock after N failed attempts</li>
+<li><strong>CSRF Tokens</strong>: On all auth forms</li>
+<li><strong>Session Security</strong>: HttpOnly, Secure, SameSite cookies</li>
+<li><strong>HTTPS</strong>: Required for OAuth callbacks</li>
+<li><strong>Audit Logging</strong>: Log all auth events</li>
+</ol>
+<h3 id="attack-vectors-to-consider">Attack Vectors to Consider <a class="anchor" href="#attack-vectors-to-consider">¶</a></h3>
+<ul>
+<li><strong>Brute Force</strong>: Rate limit login attempts</li>
+<li><strong>Enumeration</strong>: Use generic error messages</li>
+<li><strong>Session Fixation</strong>: Regenerate session on login</li>
+<li><strong>CSRF</strong>: Use SameSite cookies + CSRF tokens</li>
+<li><strong>Timing Attacks</strong>: Constant-time password comparison</li>
+</ul>
+<h2 id="store-interfaces">Store Interfaces <a class="anchor" href="#store-interfaces">¶</a></h2>
+<h3 id="userstore">UserStore <a class="anchor" href="#userstore">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> UserStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Create</span>(user <span style="color:#000;font-weight:bold">*</span>User) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Get</span>(id <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>User, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Save</span>(user <span style="color:#000;font-weight:bold">*</span>User) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Delete</span>(id <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="identitystore">IdentityStore <a class="anchor" href="#identitystore">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> IdentityStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Create</span>(identity <span style="color:#000;font-weight:bold">*</span>Identity) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Get</span>(identityType, value <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>Identity, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetByUser</span>(userID <span style="color:#458;font-weight:bold">string</span>) ([]<span style="color:#000;font-weight:bold">*</span>Identity, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Save</span>(identity <span style="color:#000;font-weight:bold">*</span>Identity) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Delete</span>(identityType, value <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="channelstore">ChannelStore <a class="anchor" href="#channelstore">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> ChannelStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Create</span>(channel <span style="color:#000;font-weight:bold">*</span>Channel) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Get</span>(provider, identityKey <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>Channel, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetByIdentity</span>(identityKey <span style="color:#458;font-weight:bold">string</span>) ([]<span style="color:#000;font-weight:bold">*</span>Channel, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Save</span>(channel <span style="color:#000;font-weight:bold">*</span>Channel) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Delete</span>(provider, identityKey <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="usernamestore-optional">UsernameStore (Optional) <a class="anchor" href="#usernamestore-optional">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> UsernameStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ReserveUsername</span>(username <span style="color:#458;font-weight:bold">string</span>, userID <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetUserByUsername</span>(username <span style="color:#458;font-weight:bold">string</span>) (userID <span style="color:#458;font-weight:bold">string</span>, err <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ReleaseUsername</span>(username <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ChangeUsername</span>(oldUsername, newUsername, userID <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="tokenstore">TokenStore <a class="anchor" href="#tokenstore">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> TokenStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Create</span>(token <span style="color:#000;font-weight:bold">*</span>Token) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Get</span>(tokenValue <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>Token, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Delete</span>(tokenValue <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">DeleteExpired</span>() <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="integration-example">Integration Example <a class="anchor" href="#integration-example">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> (
+</span></span><span style="display:flex;"><span>    oa <span style="color:#d14">&#34;github.com/panyam/oneauth&#34;</span>
+</span></span><span style="display:flex;"><span>    oagae <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/gae&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">SetupAuth</span>(dsClient <span style="color:#000;font-weight:bold">*</span>datastore.Client, session <span style="color:#000;font-weight:bold">*</span>scs.SessionManager) <span style="color:#000;font-weight:bold">*</span>oa.OneAuth {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Create stores
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    userStore <span style="color:#000;font-weight:bold">:=</span> oagae.<span style="color:#900;font-weight:bold">NewUserStore</span>(dsClient, <span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span>    identityStore <span style="color:#000;font-weight:bold">:=</span> oagae.<span style="color:#900;font-weight:bold">NewIdentityStore</span>(dsClient, <span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span>    channelStore <span style="color:#000;font-weight:bold">:=</span> oagae.<span style="color:#900;font-weight:bold">NewChannelStore</span>(dsClient, <span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span>    tokenStore <span style="color:#000;font-weight:bold">:=</span> oagae.<span style="color:#900;font-weight:bold">NewTokenStore</span>(dsClient, <span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span>    usernameStore <span style="color:#000;font-weight:bold">:=</span> oagae.<span style="color:#900;font-weight:bold">NewUsernameStore</span>(dsClient, <span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Create OneAuth
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    oneauth <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">New</span>(<span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span>    oneauth.Session = session
+</span></span><span style="display:flex;"><span>    oneauth.UserStore = userStore
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Create user handler for OAuth
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    oneauth.HandleUser = oa.<span style="color:#900;font-weight:bold">NewEnsureAuthUserFunc</span>(oa.EnsureAuthUserConfig{
+</span></span><span style="display:flex;"><span>        UserStore:     userStore,
+</span></span><span style="display:flex;"><span>        IdentityStore: identityStore,
+</span></span><span style="display:flex;"><span>        ChannelStore:  channelStore,
+</span></span><span style="display:flex;"><span>        UsernameStore: usernameStore,
+</span></span><span style="display:flex;"><span>    })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Add local auth
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    localAuth <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">NewLocalAuth</span>(oa.LocalAuthConfig{
+</span></span><span style="display:flex;"><span>        Session:       session,
+</span></span><span style="display:flex;"><span>        UserStore:     userStore,
+</span></span><span style="display:flex;"><span>        IdentityStore: identityStore,
+</span></span><span style="display:flex;"><span>        ChannelStore:  channelStore,
+</span></span><span style="display:flex;"><span>        TokenStore:    tokenStore,
+</span></span><span style="display:flex;"><span>        UsernameStore: usernameStore,
+</span></span><span style="display:flex;"><span>        SignupPolicy: <span style="color:#000;font-weight:bold">&amp;</span>oa.SignupPolicy{
+</span></span><span style="display:flex;"><span>            RequireEmail:      <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>            RequirePassword:   <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>            RequireUsername:   <span style="color:#000;font-weight:bold">false</span>,
+</span></span><span style="display:flex;"><span>            MinPasswordLength: <span style="color:#099">8</span>,
+</span></span><span style="display:flex;"><span>        },
+</span></span><span style="display:flex;"><span>    })
+</span></span><span style="display:flex;"><span>    oneauth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/local&#34;</span>, localAuth)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Add OAuth providers
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    oneauth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/google&#34;</span>, oa2.<span style="color:#900;font-weight:bold">NewGoogleOAuth2</span>(<span style="color:#000;font-weight:bold">...</span>))
+</span></span><span style="display:flex;"><span>    oneauth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/github&#34;</span>, oa2.<span style="color:#900;font-weight:bold">NewGithubOAuth2</span>(<span style="color:#000;font-weight:bold">...</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> oneauth
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre>
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HS256/RS256/ES256, key management, crypto helpers.">
+    <title>JWT signing · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>JWT signing</h1>
+        
+        <p class="lead">HS256/RS256/ES256, key management, crypto helpers.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/JWT_SIGNING.md"><code>docs/JWT_SIGNING.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="jwt-signing--key-verification">JWT Signing &amp; Key Verification <a class="anchor" href="#jwt-signing--key-verification">¶</a></h1>
+<p>OneAuth supports three JWT signing algorithms. Each can be used per-app in the same deployment — HS256, RS256, and ES256 apps coexist in a shared KeyStore.</p>
+<h2 id="algorithm-overview">Algorithm Overview <a class="anchor" href="#algorithm-overview">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>Type</th>
+<th>Key Type</th>
+<th>When to Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>HS256</strong></td>
+<td>Symmetric (HMAC-SHA256)</td>
+<td>Shared <code>[]byte</code> secret</td>
+<td>Simple setups where all parties are trusted. App and resource server share the same secret.</td>
+</tr>
+<tr>
+<td><strong>RS256</strong></td>
+<td>Asymmetric (RSA-SHA256)</td>
+<td><code>*rsa.PrivateKey</code> / <code>*rsa.PublicKey</code></td>
+<td>Federated auth where apps keep private keys secret. Resource servers only get the public key. Wider ecosystem compatibility.</td>
+</tr>
+<tr>
+<td><strong>ES256</strong></td>
+<td>Asymmetric (ECDSA-P256-SHA256)</td>
+<td><code>*ecdsa.PrivateKey</code> / <code>*ecdsa.PublicKey</code></td>
+<td>Same as RS256 but with smaller keys and faster signatures. Preferred for new deployments.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="when-to-use-asymmetric-rs256es256">When to Use Asymmetric (RS256/ES256) <a class="anchor" href="#when-to-use-asymmetric-rs256es256">¶</a></h3>
+<ul>
+<li>Resource servers should not be able to forge tokens</li>
+<li>Multiple resource servers validate tokens from the same app</li>
+<li>You want to rotate keys without coordinating secret distribution</li>
+<li>Compliance requires separation of signing and verification</li>
+</ul>
+<h3 id="when-hs256-is-fine">When HS256 Is Fine <a class="anchor" href="#when-hs256-is-fine">¶</a></h3>
+<ul>
+<li>Single app + single resource server, both fully trusted</li>
+<li>Internal services behind a VPN</li>
+<li>Simplest possible setup (no key pair management)</li>
+</ul>
+<h2 id="key-generation">Key Generation <a class="anchor" href="#key-generation">¶</a></h2>
+<h3 id="using-go-utilscrypto-helpersgo">Using Go (<code>utils/crypto_helpers.go</code>) <a class="anchor" href="#using-go-utilscrypto-helpersgo">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/utils&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// RSA (2048-bit minimum, 4096 for high security)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>privPEM, pubPEM, err <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">GenerateRSAKeyPair</span>(<span style="color:#099">2048</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// ECDSA P-256 (smaller keys, faster)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>privPEM, pubPEM, err <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">GenerateECDSAKeyPair</span>()
+</span></span></code></pre><h3 id="using-openssl">Using OpenSSL <a class="anchor" href="#using-openssl">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic"># RSA</span>
+</span></span><span style="display:flex;"><span>openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out app-private.pem
+</span></span><span style="display:flex;"><span>openssl pkey -in app-private.pem -pubout -out app-public.pem
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># ECDSA P-256</span>
+</span></span><span style="display:flex;"><span>openssl ecparam -genkey -name prime256v1 -noout -out app-private.pem
+</span></span><span style="display:flex;"><span>openssl pkey -in app-private.pem -pubout -out app-public.pem
+</span></span></code></pre><h2 id="pem-encodedecode">PEM Encode/Decode <a class="anchor" href="#pem-encodedecode">¶</a></h2>
+<p>All key material is stored and transmitted as PEM-encoded bytes. The <code>utils</code> package provides round-trip helpers:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Parse PEM → crypto key
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>privKey, err <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">ParsePrivateKeyPEM</span>(privPEM)  <span style="color:#998;font-style:italic">// → *rsa.PrivateKey or *ecdsa.PrivateKey
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>pubKey, err <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">ParsePublicKeyPEM</span>(pubPEM)      <span style="color:#998;font-style:italic">// → *rsa.PublicKey or *ecdsa.PublicKey
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Encode crypto key → PEM
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>privPEM = utils.<span style="color:#900;font-weight:bold">EncodePrivateKeyPEM</span>(privKey)         <span style="color:#998;font-style:italic">// PKCS8 format
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>pubPEM, err = utils.<span style="color:#900;font-weight:bold">EncodePublicKeyPEM</span>(pubKey)       <span style="color:#998;font-style:italic">// PKIX format
+</span></span></span></code></pre><h2 id="minting-tokens">Minting Tokens <a class="anchor" href="#minting-tokens">¶</a></h2>
+<p><code>MintResourceToken</code> is the single entry point for all three algorithms. The signing alg is auto-detected from the Go type of <code>signingKey</code> — no separate <code>alg</code> parameter needed. <code>customClaims</code> ride alongside the standard JWT claims; collisions with the standard set are logged and dropped.</p>
+<h3 id="hs256-symmetric">HS256 (symmetric) <a class="anchor" href="#hs256-symmetric">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>token, err <span style="color:#000;font-weight:bold">:=</span> oneauth.<span style="color:#900;font-weight:bold">MintResourceToken</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;user-42&#34;</span>, <span style="color:#d14">&#34;app_abc123&#34;</span>,
+</span></span><span style="display:flex;"><span>    []<span style="color:#0086b3">byte</span>(<span style="color:#d14">&#34;shared-secret&#34;</span>),       <span style="color:#998;font-style:italic">// []byte → HS256
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{<span style="color:#d14">&#34;max_rooms&#34;</span>: <span style="color:#099">10</span>},
+</span></span><span style="display:flex;"><span>    []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;relay:connect&#34;</span>},
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">nil</span>,                            <span style="color:#998;font-style:italic">// RFC 9396 authorization_details
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>)
+</span></span></code></pre><h3 id="rs256es256-asymmetric">RS256/ES256 (asymmetric) <a class="anchor" href="#rs256es256-asymmetric">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>privKey, _ <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">ParsePrivateKeyPEM</span>(privPEM)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>token, err <span style="color:#000;font-weight:bold">:=</span> oneauth.<span style="color:#900;font-weight:bold">MintResourceToken</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;user-42&#34;</span>, <span style="color:#d14">&#34;app_abc123&#34;</span>,
+</span></span><span style="display:flex;"><span>    privKey,                       <span style="color:#998;font-style:italic">// *rsa.PrivateKey → RS256, *ecdsa.PrivateKey → ES256
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{<span style="color:#d14">&#34;max_rooms&#34;</span>: <span style="color:#099">10</span>},
+</span></span><span style="display:flex;"><span>    []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;relay:connect&#34;</span>},
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">nil</span>,
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre><h2 id="apiauth-configuration">APIAuth Configuration <a class="anchor" href="#apiauth-configuration">¶</a></h2>
+<h3 id="symmetric-hs256">Symmetric (HS256) <a class="anchor" href="#symmetric-hs256">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>auth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oneauth.APIAuth{
+</span></span><span style="display:flex;"><span>    JWTSecretKey: <span style="color:#d14">&#34;my-secret&#34;</span>,  <span style="color:#998;font-style:italic">// shared secret
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    JWTIssuer:    <span style="color:#d14">&#34;myapp&#34;</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="asymmetric-rs256es256">Asymmetric (RS256/ES256) <a class="anchor" href="#asymmetric-rs256es256">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>auth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oneauth.APIAuth{
+</span></span><span style="display:flex;"><span>    JWTSigningAlg: <span style="color:#d14">&#34;RS256&#34;</span>,
+</span></span><span style="display:flex;"><span>    JWTSigningKey: privKey,    <span style="color:#998;font-style:italic">// *rsa.PrivateKey for signing
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    JWTVerifyKey:  pubKey,     <span style="color:#998;font-style:italic">// *rsa.PublicKey for verification
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    JWTIssuer:     <span style="color:#d14">&#34;myapp&#34;</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>When <code>JWTSigningKey</code>/<code>JWTVerifyKey</code> are set, they take precedence over <code>JWTSecretKey</code>. The <code>jwtKeyFunc</code> validates that the token&rsquo;s algorithm matches the key type, preventing algorithm confusion.</p>
+<h2 id="app-registration">App Registration <a class="anchor" href="#app-registration">¶</a></h2>
+<h3 id="symmetric-hs256--default">Symmetric (HS256) — default <a class="anchor" href="#symmetric-hs256--default">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/register <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;X-Admin-Key: admin-key&#34;</span> <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{&#34;client_domain&#34;: &#34;myapp.com&#34;, &#34;signing_alg&#34;: &#34;HS256&#34;}&#39;</span>
+</span></span></code></pre><p>Response includes <code>client_secret</code> (shown only once).</p>
+<h3 id="asymmetric-rs256es256-1">Asymmetric (RS256/ES256) <a class="anchor" href="#asymmetric-rs256es256-1">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/register <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;X-Admin-Key: admin-key&#34;</span> <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_domain&#34;: &#34;myapp.com&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;signing_alg&#34;: &#34;RS256&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;public_key&#34;: &#34;-----BEGIN PUBLIC KEY-----\nMIIBI...\n-----END PUBLIC KEY-----&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  }&#39;</span>
+</span></span></code></pre><p>Response omits <code>client_secret</code> — the app keeps its private key.</p>
+<h3 id="key-rotation">Key Rotation <a class="anchor" href="#key-rotation">¶</a></h3>
+<p><strong>Symmetric</strong>: <code>POST /apps/{client_id}/rotate</code> — generates a new secret, returns it.</p>
+<p><strong>Asymmetric</strong>: <code>POST /apps/{client_id}/rotate</code> with <code>{&quot;public_key&quot;: &quot;...&quot;}</code> — replaces the stored public key.</p>
+<h2 id="keystore--decodeverifykey">KeyStore &amp; DecodeVerifyKey <a class="anchor" href="#keystore--decodeverifykey">¶</a></h2>
+<p>All KeyStore backends (InMemory, FS, GORM, GAE) store key material as <code>[]byte</code>:</p>
+<ul>
+<li>HS256: raw shared secret bytes</li>
+<li>RS256/ES256: PEM-encoded public key bytes</li>
+</ul>
+<p>No storage schema changes are needed for asymmetric keys.</p>
+<p>At validation time, <code>utils.DecodeVerifyKey(rawKey, alg)</code> converts stored bytes to the appropriate type:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// In APIMiddleware.validateJWT (automatic):
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>rec, _ <span style="color:#000;font-weight:bold">:=</span> m.KeyStore.<span style="color:#900;font-weight:bold">GetKey</span>(clientID)  <span style="color:#998;font-style:italic">// returns *KeyRecord
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>verifyKey, _ <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">DecodeVerifyKey</span>(rec.Key, rec.Algorithm)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// HS256 → returns []byte as-is
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// RS256 → parses PEM → *rsa.PublicKey
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// ES256 → parses PEM → *ecdsa.PublicKey
+</span></span></span></code></pre><h2 id="algorithm-confusion-prevention">Algorithm Confusion Prevention <a class="anchor" href="#algorithm-confusion-prevention">¶</a></h2>
+<p>OneAuth prevents algorithm confusion attacks at multiple levels:</p>
+<ol>
+<li>
+<p><strong>KeyRecord.Algorithm</strong>: Every client has a registered algorithm (stored in <code>KeyRecord</code>). The middleware rejects tokens whose <code>alg</code> header doesn&rsquo;t match.</p>
+</li>
+<li>
+<p><strong>APIAuth.jwtKeyFunc()</strong>: Validates that the token&rsquo;s signing method matches the configured key type (RSA method for RSA key, ECDSA method for ECDSA key, HMAC method for symmetric key).</p>
+</li>
+<li>
+<p><strong>DecodeVerifyKey type checking</strong>: RS256 keys must parse to <code>*rsa.PublicKey</code>, ES256 to <code>*ecdsa.PublicKey</code>. A PEM containing the wrong key type is rejected.</p>
+</li>
+</ol>
+<p>This means an attacker cannot:</p>
+<ul>
+<li>Send <code>alg: none</code> to skip verification</li>
+<li>Send <code>alg: HS256</code> with a public key as the HMAC secret</li>
+<li>Send <code>alg: RS256</code> for an app registered with HS256</li>
+</ul>
+<h2 id="key-id-kid">Key ID (kid) <a class="anchor" href="#key-id-kid">¶</a></h2>
+<p>All minted JWTs now include a <code>kid</code> (Key ID) header, computed as an RFC 7638 JWK Thumbprint of the signing key. This enables resource servers to look up the correct verification key without parsing unverified claims first.</p>
+<h3 id="how-it-works">How It Works <a class="anchor" href="#how-it-works">¶</a></h3>
+<ol>
+<li><strong>At mint time</strong>: <code>MintResourceToken</code> computes the JWK Thumbprint (SHA-256, base64url-encoded) of the signing key and sets it as the JWT <code>kid</code> header.</li>
+<li><strong>At validation time</strong>: The middleware reads the <code>kid</code> header and calls <code>KeyLookup.GetKeyByKid(kid)</code> to find the matching key record.</li>
+<li><strong>Thumbprint computation</strong>: Uses <code>utils.JWKThumbprint(key)</code> which implements RFC 7638 — canonical JSON serialization of the JWK&rsquo;s required members, then SHA-256 hash.</li>
+</ol>
+<h3 id="kidstore">KidStore <a class="anchor" href="#kidstore">¶</a></h3>
+<p><code>KidStore</code> maintains a mapping from <code>kid</code> (thumbprint) to <code>clientID</code>. This supports key rotation grace periods where both old and new keys are valid simultaneously:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> KidStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetClientIDByKid</span>(kid <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#458;font-weight:bold">string</span>, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">SetKidMapping</span>(kid, clientID <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">DeleteKidMapping</span>(kid <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="compositekeylookup">CompositeKeyLookup <a class="anchor" href="#compositekeylookup">¶</a></h3>
+<p><code>CompositeKeyLookup</code> combines multiple <code>KeyLookup</code> sources (e.g., a local <code>KeyStorage</code> and a <code>JWKSKeyStore</code>) into a single lookup that tries each source in order. This is useful for resource servers that need to validate tokens from both local and federated issuers:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>lookup <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">NewCompositeKeyLookup</span>(localKeyStore, jwksKeyStore)
+</span></span><span style="display:flex;"><span>middleware <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oa.APIMiddleware{
+</span></span><span style="display:flex;"><span>    KeyStore: lookup,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="signingmethodforalg--isasymmetricalg">SigningMethodForAlg / IsAsymmetricAlg <a class="anchor" href="#signingmethodforalg--isasymmetricalg">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>utils.<span style="color:#900;font-weight:bold">SigningMethodForAlg</span>(<span style="color:#d14">&#34;RS256&#34;</span>)    <span style="color:#998;font-style:italic">// → jwt.SigningMethodRS256
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>utils.<span style="color:#900;font-weight:bold">SigningMethodForAlg</span>(<span style="color:#d14">&#34;ES256&#34;</span>)    <span style="color:#998;font-style:italic">// → jwt.SigningMethodES256
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>utils.<span style="color:#900;font-weight:bold">SigningMethodForAlg</span>(<span style="color:#d14">&#34;HS256&#34;</span>)    <span style="color:#998;font-style:italic">// → jwt.SigningMethodHS256 (default)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>utils.<span style="color:#900;font-weight:bold">IsAsymmetricAlg</span>(<span style="color:#d14">&#34;RS256&#34;</span>)       <span style="color:#998;font-style:italic">// → true
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>utils.<span style="color:#900;font-weight:bold">IsAsymmetricAlg</span>(<span style="color:#d14">&#34;ES256&#34;</span>)       <span style="color:#998;font-style:italic">// → true
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>utils.<span style="color:#900;font-weight:bold">IsAsymmetricAlg</span>(<span style="color:#d14">&#34;HS256&#34;</span>)       <span style="color:#998;font-style:italic">// → false
+</span></span></span></code></pre><h2 id="jwks-json-web-key-set">JWKS (JSON Web Key Set) <a class="anchor" href="#jwks-json-web-key-set">¶</a></h2>
+<p>OneAuth supports standard JWKS (RFC 7517) for public key discovery. The auth server exposes asymmetric keys at <code>/.well-known/jwks.json</code>, and resource servers can fetch them via <code>JWKSKeyStore</code>.</p>
+<h3 id="jwk-conversion-utilsjwkgo">JWK Conversion (<code>utils/jwk.go</code>) <a class="anchor" href="#jwk-conversion-utilsjwkgo">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/utils&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Convert public key → JWK
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>jwk, err <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">PublicKeyToJWK</span>(<span style="color:#d14">&#34;app_abc&#34;</span>, <span style="color:#d14">&#34;RS256&#34;</span>, rsaPublicKey)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Convert JWK → public key
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>pubKey, alg, err <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">JWKToPublicKey</span>(jwk)
+</span></span></code></pre><p>Supported key types: RSA (<code>kty: &quot;RSA&quot;</code>) and ECDSA P-256 (<code>kty: &quot;EC&quot;</code>, <code>crv: &quot;P-256&quot;</code>).</p>
+<h3 id="serving-jwks-jwkshandler">Serving JWKS (<code>JWKSHandler</code>) <a class="anchor" href="#serving-jwks-jwkshandler">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>handler <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oa.JWKSHandler{
+</span></span><span style="display:flex;"><span>    KeyStore:    keyStore,  <span style="color:#998;font-style:italic">// KeyStorage (needs ListKeyIDs)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    CacheMaxAge: <span style="color:#099">3600</span>,      <span style="color:#998;font-style:italic">// Cache-Control max-age (default: 3600)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;GET /.well-known/jwks.json&#34;</span>, handler.ServeHTTP)
+</span></span></code></pre><p>Only asymmetric keys (RS256/ES256) are included. HS256 secrets are never exposed.</p>
+<h3 id="fetching-jwks-jwkskeystore">Fetching JWKS (<code>JWKSKeyStore</code>) <a class="anchor" href="#fetching-jwks-jwkskeystore">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>ks <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">NewJWKSKeyStore</span>(<span style="color:#d14">&#34;https://auth.example.com/.well-known/jwks.json&#34;</span>,
+</span></span><span style="display:flex;"><span>    oa.<span style="color:#900;font-weight:bold">WithRefreshInterval</span>(<span style="color:#099">30</span> <span style="color:#000;font-weight:bold">*</span> time.Minute),
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>ks.<span style="color:#900;font-weight:bold">Start</span>()
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">defer</span> ks.<span style="color:#900;font-weight:bold">Stop</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Use as a read-only KeyLookup
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>rec, _ <span style="color:#000;font-weight:bold">:=</span> ks.<span style="color:#900;font-weight:bold">GetKey</span>(<span style="color:#d14">&#34;app_abc&#34;</span>)       <span style="color:#998;font-style:italic">// → *KeyRecord with Key and Algorithm
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>rec, _ = ks.<span style="color:#900;font-weight:bold">GetKeyByKid</span>(kid)          <span style="color:#998;font-style:italic">// → lookup by kid header from JWT
+</span></span></span></code></pre><p>See <a href="FEDERATED_AUTH.md#jwks-public-key-discovery">FEDERATED_AUTH.md</a> for the full JWKS guide.</p>
+<h2 id="encryption-at-rest-encryptedkeystorage">Encryption at Rest (EncryptedKeyStorage) <a class="anchor" href="#encryption-at-rest-encryptedkeystorage">¶</a></h2>
+<p>HS256 <code>client_secret</code> values are stored in the KeyStore as raw <code>[]byte</code>. To protect them at rest (e.g., against database dumps), wrap any <code>KeyStorage</code> with <code>EncryptedKeyStorage</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> oa <span style="color:#d14">&#34;github.com/panyam/oneauth&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>inner <span style="color:#000;font-weight:bold">:=</span> gormstore.<span style="color:#900;font-weight:bold">NewKeyStore</span>(db)
+</span></span><span style="display:flex;"><span>encrypted, err <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">NewEncryptedKeyStorage</span>(inner, os.<span style="color:#900;font-weight:bold">Getenv</span>(<span style="color:#d14">&#34;ONEAUTH_MASTER_KEY&#34;</span>))
+</span></span></code></pre><h3 id="master-key">Master Key <a class="anchor" href="#master-key">¶</a></h3>
+<ul>
+<li>64-character hex string (32 bytes): <code>openssl rand -hex 32</code></li>
+<li>Set via <code>ONEAUTH_MASTER_KEY</code> env var or <code>keystore.master_key</code> in YAML config</li>
+<li>Never stored alongside the data it protects</li>
+<li>The raw master key is not used directly — HKDF-SHA256 derives an encryption-specific key with info string <code>&quot;oneauth-keystore-encryption-v1&quot;</code></li>
+</ul>
+<h3 id="what-gets-encrypted">What Gets Encrypted <a class="anchor" href="#what-gets-encrypted">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>Key Type</th>
+<th>Encrypted?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HS256/HS384/HS512</td>
+<td>Shared <code>[]byte</code> secret</td>
+<td>Yes (AES-256-GCM)</td>
+</tr>
+<tr>
+<td>RS256</td>
+<td><code>[]byte</code> PEM (public key)</td>
+<td>No (not sensitive)</td>
+</tr>
+<tr>
+<td>ES256</td>
+<td><code>[]byte</code> PEM (public key)</td>
+<td>No (not sensitive)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="migration">Migration <a class="anchor" href="#migration">¶</a></h3>
+<p>If you enable encryption on an existing deployment, existing plaintext secrets remain readable. The wrapper attempts GCM decryption on read; if it fails, it returns the raw bytes as plaintext. New writes are always encrypted.</p>
+<h3 id="reference-server-configuration">Reference Server Configuration <a class="anchor" href="#reference-server-configuration">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000080">keystore</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">type</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;gorm&#34;</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">master_key</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;${ONEAUTH_MASTER_KEY}&#34;</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">gorm</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">    </span><span style="color:#000080">driver</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;postgres&#34;</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">    </span><span style="color:#000080">dsn</span>:<span style="color:#bbb"> </span><span style="color:#d14">&#34;${DATABASE_URL}&#34;</span><span style="color:#bbb">
+</span></span></span></code></pre><p>Or via environment variable (e.g., GAE):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#0086b3">export</span> <span style="color:#008080">ONEAUTH_MASTER_KEY</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;</span><span style="color:#000;font-weight:bold">$(</span>openssl rand -hex 32<span style="color:#000;font-weight:bold">)</span><span style="color:#d14">&#34;</span>
+</span></span></code></pre><h3 id="shared-keystore-requirement">Shared KeyStore Requirement <a class="anchor" href="#shared-keystore-requirement">¶</a></h3>
+<p>When resource servers share the same KeyStore database as the auth server, they must also have the same <code>ONEAUTH_MASTER_KEY</code> to decrypt HS256 secrets. Resource servers using JWKS discovery are unaffected (JWKS only serves asymmetric keys).</p>
+<h2 id="see-also">See Also <a class="anchor" href="#see-also">¶</a></h2>
+<ul>
+<li><a href="FEDERATED_AUTH.md">FEDERATED_AUTH.md</a> — end-to-end federated auth flow with registration, minting, and validation</li>
+<li><a href="API_AUTH.md">API_AUTH.md</a> — APIAuth and APIMiddleware configuration</li>
+<li><a href="STORES.md">STORES.md</a> — KeyLookup and KeyStorage interface details</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

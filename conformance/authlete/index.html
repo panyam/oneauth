@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="What `tests/authlete/` proves, the provisioner architecture, and what stays blocked on missing OneAuth surface.">
+    <title>Authlete interop · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Authlete interop</h1>
+        
+        <p class="lead">What `tests/authlete/` proves, the provisioner architecture, and what stays blocked on missing OneAuth surface.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/conformance/authlete.md"><code>docs/conformance/authlete.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="authlete-interop">Authlete interop <a class="anchor" href="#authlete-interop">¶</a></h1>
+<p>Hand-authored audit of what <a href="https://github.com/panyam/oneauth/tree/main/tests/authlete"><code>tests/authlete/</code></a> proves about OneAuth&rsquo;s interoperability with <a href="https://www.authlete.com/">Authlete</a> — the semi-hosted OAuth/OIDC token engine that powers several commercial deployments and the FAPI conformance suite.</p>
+<p>The pitch is the same as for <a href="keycloak.md">Keycloak</a>: OneAuth has to validate, introspect, and round-trip tokens minted by a real implementation. Authlete is more interesting than Keycloak for one specific reason — it ships RFC 9396 (Rich Authorization Requests) end-to-end, which means we can verify our middleware against authoritative RAR tokens, not just against ourselves. See also: the <a href="../gaps/AUTHLETE_GAP_ANALYSIS.md">Authlete gap analysis</a>.</p>
+<h2 id="architecture">Architecture <a class="anchor" href="#architecture">¶</a></h2>
+<p>Authlete is <em>not</em> a self-contained AS. The local Docker container we run (<code>authlete/java-oauth-server</code>) is the AS <strong>frontend</strong> only — it serves wire endpoints (<code>/api/token</code>, <code>/.well-known/openid-configuration</code>, etc.) and back-channels every token operation over HTTPS to Authlete&rsquo;s cloud REST API:</p>
+<pre><code>test → java-oauth-server (local container) → HTTPS → Authlete cloud
+       (frontend wire layer)                          (engine, signing keys, client store)
+</code></pre>
+<p>You need both a (free dev tier) Authlete cloud account <em>and</em> the local container; neither runs alone. The <a href="https://github.com/panyam/oneauth/tree/main/tests/authlete/provisioner"><code>tests/authlete/provisioner/</code></a> helper drives the cloud-side setup (registering clients, switching signing algorithms) via Authlete&rsquo;s management API so test runs are reproducible.</p>
+<h2 id="how-it-runs">How it runs <a class="anchor" href="#how-it-runs">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Command</td>
+<td><code>make testauthlete</code> (requires the env vars below)</td>
+</tr>
+<tr>
+<td>Container</td>
+<td><code>authlete/java-oauth-server</code> (frontend)</td>
+</tr>
+<tr>
+<td>Cloud</td>
+<td><code>us.authlete.com</code> / <code>api.authlete.com</code> (free dev tier)</td>
+</tr>
+<tr>
+<td>Source</td>
+<td><code>tests/authlete/{interop,testutil}_test.go</code></td>
+</tr>
+<tr>
+<td>Required env</td>
+<td><code>AUTHLETE_SERVICEID</code>, <code>AUTHLETE_ACCESS_TOKEN</code>, <code>AUTHLETE_CLIENTID</code>, <code>AUTHLETE_CLIENTSECRET</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>make testauthlete</code> skips the suite cleanly when the env isn&rsquo;t set, so the default repo build is unaffected.</p>
+<h2 id="coverage-map">Coverage map <a class="anchor" href="#coverage-map">¶</a></h2>
+<p>OneAuth surface × Authlete behavior. ✅ = test exists and passes; ⛌ = deliberately deferred (linked to issue).</p>
+<h3 id="discovery--metadata">Discovery + metadata <a class="anchor" href="#discovery--metadata">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>OneAuth</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>client.DiscoverAS</code> parses Authlete&rsquo;s <code>/.well-known/openid-configuration</code></td>
+<td><code>TestAuthlete_OIDCDiscovery</code>, <code>TestAuthlete_DiscoverAS_Integration</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jwks--token-validation">JWKS + token validation <a class="anchor" href="#jwks--token-validation">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>OneAuth</th>
+<th>Test</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>JWKSKeyStore</code> parses Authlete&rsquo;s published JWKS</td>
+<td><code>TestAuthlete_JWKS_ParseableByOneAuth</code></td>
+<td>The kind of validation that catches &ldquo;Authlete uses an alg/curve we mis-decode.&rdquo;</td>
+</tr>
+<tr>
+<td><code>APIMiddleware</code> accepts Authlete-issued tokens</td>
+<td><code>TestAuthlete_JWKSFetchAndTokenValidation</code></td>
+<td>Full mint-token-then-validate round trip.</td>
+</tr>
+<tr>
+<td><code>IntrospectionValidator</code> against Authlete</td>
+<td><code>TestAuthlete_IntrospectionResponseParses</code></td>
+<td>We accept the response shape Authlete returns.</td>
+</tr>
+<tr>
+<td>Algorithm confusion (RS-signed token rejected against HS keystore)</td>
+<td><code>TestAuthlete_AlgorithmConfusion_RejectedAgainstHSKeyStore</code></td>
+<td>Defense-in-depth: same posture we enforce in the Go-native ratchet.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rich-authorization-requests-rfc-9396">Rich Authorization Requests (RFC 9396) <a class="anchor" href="#rich-authorization-requests-rfc-9396">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flow</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>End-to-end RAR round trip: client requests <code>authorization_details</code>, Authlete mints, OneAuth validates</td>
+<td><code>TestAuthlete_RARRoundTrip</code></td>
+</tr>
+</tbody>
+</table>
+<p>The RAR round trip is the suite&rsquo;s load-bearing claim. The Go-native ratchet exercises <code>core/authorization_details.go</code> in isolation; this test runs it against Authlete&rsquo;s real RAR machinery so we catch shape drift that an in-process test wouldn&rsquo;t see.</p>
+<h2 id="what-this-suite-deliberately-does-not-prove">What this suite deliberately does <em>not</em> prove <a class="anchor" href="#what-this-suite-deliberately-does-not-prove">¶</a></h2>
+<ul>
+<li><strong>FAPI 2.0 / mTLS / DPoP.</strong> Authlete supports them; we don&rsquo;t yet. The matrix-mode runner that attempted to flip signing algs was abandoned in <a href="https://github.com/panyam/oneauth/pull/249">PR 249</a> because Authlete&rsquo;s cloud takes minutes to settle after <code>SetSignAlg</code> PUTs — not worth the runtime tax until we have surface to test.</li>
+<li><strong>Issuance from OneAuth that Authlete consumes.</strong> Same one-way arrow as the Keycloak suite: tokens flow Authlete → OneAuth, not the reverse.</li>
+<li><strong>Authlete-specific extensions</strong> beyond what the Authlete gap analysis lists as &ldquo;in scope.&rdquo; See <a href="../gaps/AUTHLETE_GAP_ANALYSIS.md"><code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code></a> for the full inventory of &ldquo;stays blocked on missing OneAuth surface.&rdquo;</li>
+</ul>
+<h2 id="how-this-page-is-published">How this page is published <a class="anchor" href="#how-this-page-is-published">¶</a></h2>
+<p>Source of truth lives here. The docs site at <code>docs/site/content/conformance/authlete.html</code> renders it verbatim via <code>renderMarkdownFile</code>. The published <code>/conformance/authlete/</code> page picks up changes on the next build.</p>
+<h2 id="follow-ups">Follow-ups <a class="anchor" href="#follow-ups">¶</a></h2>
+<ul>
+<li><strong>Auto-regenerate from <code>go test -json</code>.</strong> Same future work flagged in <a href="keycloak.md">keycloak.md</a> — when the curation cost gets painful, parse the test stream and emit this table mechanically.</li>
+<li><strong>Re-attempt matrix-mode signing-alg sweep</strong> once Authlete&rsquo;s settle-time becomes a smaller fraction of total runtime, or once <code>SetSignAlg</code> can be batched.</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

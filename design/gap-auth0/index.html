@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Feature gap analysis against Auth0.">
+    <title>vs Auth0 · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>vs Auth0</h1>
+        
+        <p class="lead">Feature gap analysis against Auth0.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/gaps/AUTH0_GAP_ANALYSIS.md"><code>docs/gaps/AUTH0_GAP_ANALYSIS.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="auth0-vs-oneauth--gap-analysis">Auth0 vs OneAuth — Gap Analysis <a class="anchor" href="#auth0-vs-oneauth--gap-analysis">¶</a></h1>
+<p><strong>Original:</strong> 2026-03-17<br />
+<strong>Updated:</strong> 2026-05-06<br />
+<strong>Purpose:</strong> Comprehensive comparison of Auth0&rsquo;s feature set against OneAuth to identify gaps, strengths, and roadmap priorities.</p>
+<hr />
+<h2 id="executive-summary">Executive Summary <a class="anchor" href="#executive-summary">¶</a></h2>
+<p>Auth0 is a mature, enterprise-grade identity platform with 100+ features spanning authentication, authorization, user management, security, extensibility, and compliance. OneAuth is a focused Go authentication library that has grown from ~30% coverage (March 2026) to <strong>~55% coverage</strong> (May 2026) after adding RFC 9396 RAR, token revocation, transport-independent core, interactive examples, and Keycloak/RAR interop tests.</p>
+<p><strong>Key remaining gaps:</strong> MFA, OIDC provider (ID tokens), authorization code grant as AS, brute force protection, RBAC, user management API, frontend SDKs.</p>
+<p><strong>Key OneAuth advantages over Auth0:</strong> RFC 9396 RAR on standard OAuth flows (Auth0 doesn&rsquo;t have this), embeddable Go library (no SaaS dependency), transport-independent core (works in gRPC/MCP, not just HTTP), federated resource token pattern, no per-user pricing.</p>
+<hr />
+<h2 id="whats-been-closed-since-the-original-analysis-march--may-2026">What&rsquo;s been CLOSED since the original analysis (March → May 2026) <a class="anchor" href="#whats-been-closed-since-the-original-analysis-march--may-2026">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Gap</th>
+<th>Status</th>
+<th>What was done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Authorization Code + PKCE</td>
+<td><strong>DONE</strong></td>
+<td><code>client/</code> module with <code>LoginWithBrowser</code>, PKCE, auth method negotiation</td>
+</tr>
+<tr>
+<td>Client Credentials Flow</td>
+<td><strong>DONE</strong></td>
+<td><code>APIAuth.ClientKeyStore</code> enables grant_type=client_credentials</td>
+</tr>
+<tr>
+<td>OIDC Discovery</td>
+<td><strong>DONE</strong></td>
+<td><code>ASServerMetadata</code> + <code>NewASMetadataHandler</code> at <code>/.well-known/openid-configuration</code></td>
+</tr>
+<tr>
+<td>Token Introspection (RFC 7662)</td>
+<td><strong>DONE</strong></td>
+<td><code>IntrospectionHandler</code> + <code>IntrospectionValidator</code> (client-side with caching)</td>
+</tr>
+<tr>
+<td>Token Revocation (RFC 7009)</td>
+<td><strong>DONE</strong></td>
+<td><code>RevocationHandler</code> at <code>POST /oauth/revoke</code> (issue 100, PR 109)</td>
+</tr>
+<tr>
+<td>DCR (RFC 7591)</td>
+<td><strong>DONE</strong></td>
+<td><code>DCRHandler</code> at <code>POST /apps/dcr</code></td>
+</tr>
+<tr>
+<td>Protected Resource Metadata (RFC 9728)</td>
+<td><strong>DONE</strong></td>
+<td><code>NewProtectedResourceHandler</code></td>
+</tr>
+<tr>
+<td><strong>RFC 9396 RAR</strong></td>
+<td><strong>DONE</strong></td>
+<td>Full implementation — Auth0 doesn&rsquo;t have this on standard OAuth flows</td>
+</tr>
+<tr>
+<td>Transport-independent core</td>
+<td><strong>DONE</strong></td>
+<td><code>OneAuth</code> struct with <code>TokenIssuer</code>, <code>TokenValidator</code>, <code>TokenIntrospector</code>, <code>TokenRevoker</code> interfaces (issue 110)</td>
+</tr>
+<tr>
+<td>Lifecycle hooks</td>
+<td><strong>DONE</strong></td>
+<td>Grouped hooks: <code>TokenHooks</code>, <code>AuthHooks</code>, <code>ClientHooks</code>, <code>SecurityHooks</code></td>
+</tr>
+<tr>
+<td>PKCE (server-side enforcement)</td>
+<td><strong>Partial</strong></td>
+<td>E2E stub exists; full AS-side authorization code grant not yet production</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="auth0-new-features-2025-2026--not-in-original-analysis">Auth0 New Features (2025-2026) — Not in Original Analysis <a class="anchor" href="#auth0-new-features-2025-2026--not-in-original-analysis">¶</a></h2>
+<p>Auth0 has shipped several new capabilities since our original analysis:</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Auth0 Status</th>
+<th>OneAuth Status</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Auth0 for AI Agents</strong> (MCP OAuth, CIMD, token refresh for long-running agents)</td>
+<td>GA</td>
+<td>Partial — mcpkit integration, CIMD validation, ClientCredentialsSource with auto-refresh. Missing: MRRT, scope step-up during agent execution</td>
+<td>issue 131</td>
+</tr>
+<tr>
+<td><strong>Multi-Resource Refresh Tokens (MRRT)</strong></td>
+<td>GA (Aug 2025)</td>
+<td>None</td>
+<td>issue 148</td>
+</tr>
+<tr>
+<td><strong>DPoP for Enterprise Connections</strong></td>
+<td>Early Access</td>
+<td>None</td>
+<td>issue 94</td>
+</tr>
+<tr>
+<td><strong>Organization Discovery by Domain</strong></td>
+<td>GA</td>
+<td>None (part of multi-org)</td>
+<td>issue 128</td>
+</tr>
+<tr>
+<td><strong>OAuth 2.1 alignment</strong> (enforce PKCE, deprecate implicit, tighten defaults)</td>
+<td>In progress (Oct 2026 enforcement)</td>
+<td>None</td>
+<td>issue 149</td>
+</tr>
+<tr>
+<td><strong>Multiple Custom Domains</strong></td>
+<td>GA</td>
+<td>N/A (self-hosted)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Passkey enrollment on custom domains</strong></td>
+<td>GA</td>
+<td>No passkey support</td>
+<td>issue 127</td>
+</tr>
+<tr>
+<td><strong>Custom Prompts Dashboard Editor</strong></td>
+<td>GA</td>
+<td>Basic templates only</td>
+<td>issue 140</td>
+</tr>
+<tr>
+<td><strong>Akamai Bot Detection integration</strong></td>
+<td>GA</td>
+<td>No bot detection</td>
+<td>issue 136</td>
+</tr>
+<tr>
+<td><strong>Self-Service Enterprise SSO Suite</strong> (domain verification, SCIM, Google Directory Sync)</td>
+<td>GA</td>
+<td>None</td>
+<td>issues 130, 133</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="comparison-matrix-updated-may-2026">Comparison Matrix (Updated May 2026) <a class="anchor" href="#comparison-matrix-updated-may-2026">¶</a></h2>
+<h3 id="legend">Legend <a class="anchor" href="#legend">¶</a></h3>
+<ul>
+<li><strong>Full</strong> = Feature parity or equivalent</li>
+<li><strong>Partial</strong> = Some capability exists but incomplete</li>
+<li><strong>None</strong> = Not implemented</li>
+<li><strong>NEW</strong> = Closed since original analysis</li>
+<li><strong>N/A</strong> = Not applicable (managed service feature)</li>
+</ul>
+<hr />
+<h2 id="1-authentication-api">1. Authentication API <a class="anchor" href="#1-authentication-api">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Auth0</th>
+<th>OneAuth</th>
+<th>Gap</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Username/Password Login</td>
+<td>POST /oauth/token (ROPC)</td>
+<td>POST /api/token (password)</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Signup</td>
+<td>POST /dbconnections/signup</td>
+<td>POST /auth/signup</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Email Verification</td>
+<td>POST /jobs/verification-email</td>
+<td>GET /auth/verify-email</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Password Reset</td>
+<td>Hosted page + token</td>
+<td>POST /auth/forgot-password + reset</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Credential Linking</td>
+<td>POST /api/v2/users/{id}/identities</td>
+<td>POST /auth/link-credentials</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Authorization Code + PKCE</strong></td>
+<td>Full</td>
+<td><strong>NEW</strong> — client-side via <code>AuthClient.LoginWithBrowser</code></td>
+<td>Full (client)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Client Credentials Flow</strong></td>
+<td>Full</td>
+<td><strong>NEW</strong> — <code>APIAuth.ClientKeyStore</code></td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Device Authorization Flow</td>
+<td>POST /oauth/device/code</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 117</td>
+</tr>
+<tr>
+<td>Passwordless (Email)</td>
+<td>POST /passwordless/start</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 126</td>
+</tr>
+<tr>
+<td>Passwordless (SMS)</td>
+<td>POST /passwordless/start</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 126</td>
+</tr>
+<tr>
+<td>Passkeys / WebAuthn</td>
+<td>Native passkey mgmt</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 127</td>
+</tr>
+<tr>
+<td>Social Login (Google)</td>
+<td>Via connections</td>
+<td>oauth2/google.go</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Social Login (GitHub)</td>
+<td>Via connections</td>
+<td>oauth2/github.go</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Social Login (Apple/MS/FB/LinkedIn/X)</td>
+<td>Via connections</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 132</td>
+</tr>
+<tr>
+<td>Enterprise SSO (SAML)</td>
+<td>Via connections</td>
+<td>saml/saml.go</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Enterprise SSO (generic OIDC)</td>
+<td>Via connections</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 133</td>
+</tr>
+<tr>
+<td>Enterprise SSO (LDAP/AD)</td>
+<td>Via AD Connector</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 135</td>
+</tr>
+<tr>
+<td>Enterprise SSO (WS-Federation)</td>
+<td>Via connections</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 134</td>
+</tr>
+<tr>
+<td>SCIM Provisioning</td>
+<td>Built-in</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 130</td>
+</tr>
+<tr>
+<td>Refresh Token Rotation</td>
+<td>Automatic + theft detection</td>
+<td>Family-based rotation + theft detection</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Token Revocation</strong></td>
+<td>POST /oauth/revoke</td>
+<td><strong>NEW</strong> — <code>RevocationHandler</code> (RFC 7009)</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Logout (local)</td>
+<td>GET /v2/logout</td>
+<td>POST /api/logout + /api/logout-all</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Logout (federated)</td>
+<td>GET /v2/logout?federated</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 129</td>
+</tr>
+<tr>
+<td>DPoP</td>
+<td>Supported (2025)</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 94</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-token--jwt-management">2. Token &amp; JWT Management <a class="anchor" href="#2-token--jwt-management">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Auth0</th>
+<th>OneAuth</th>
+<th>Gap</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Access Tokens (JWT)</td>
+<td>RS256 default</td>
+<td>HS256, RS256, ES256</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>ID Tokens (OIDC)</td>
+<td>Standard id_token</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 115</td>
+</tr>
+<tr>
+<td>Refresh Tokens</td>
+<td>Configurable rotation</td>
+<td>Family-based, 7-day default</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>API Keys</td>
+<td>Via Management API</td>
+<td>oa_ prefix, bcrypt hash, scopes</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Custom Claims</td>
+<td>Actions/Rules pipeline</td>
+<td>CustomClaimsFunc callback</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Token Introspection (RFC 7662)</strong></td>
+<td>Not standard</td>
+<td><strong>NEW</strong> — Full (<code>IntrospectionHandler</code> + caching client)</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Token Exchange (RFC 8693)</td>
+<td>Supported</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 116</td>
+</tr>
+<tr>
+<td><strong>Rich Authorization Requests (RFC 9396)</strong></td>
+<td>None on standard flows</td>
+<td><strong>NEW</strong> — Full (token endpoint, introspection, middleware, discovery)</td>
+<td><strong>OneAuth ahead</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Multi-tenant Key Management</td>
+<td>Per-tenant keys</td>
+<td>Per-client KeyStore</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JWKS Endpoint</td>
+<td>/.well-known/jwks.json</td>
+<td>JWKSHandler + JWKSKeyStore</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>OIDC Discovery</strong></td>
+<td>/.well-known/openid-configuration</td>
+<td><strong>NEW</strong> — <code>ASServerMetadata</code> + handler</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>MRRT (Multi-Resource Refresh Tokens)</td>
+<td>GA (2025)</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 148</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-user-management">3. User Management <a class="anchor" href="#3-user-management">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Auth0</th>
+<th>OneAuth</th>
+<th>Gap</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Create User</td>
+<td>POST /api/v2/users</td>
+<td>NewCreateUserFunc</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Get User by ID</td>
+<td>GET /api/v2/users/{id}</td>
+<td>UserStore.GetUserById</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Update User</td>
+<td>PATCH /api/v2/users/{id}</td>
+<td>UserStore.SaveUser</td>
+<td>Partial</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Delete User</td>
+<td>DELETE /api/v2/users/{id}</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 123</td>
+</tr>
+<tr>
+<td>List/Search Users</td>
+<td>GET /api/v2/users (paginated, Lucene)</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 123</td>
+</tr>
+<tr>
+<td>User Blocking</td>
+<td>PATCH blocked: true</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 123</td>
+</tr>
+<tr>
+<td>User Roles</td>
+<td>GET/POST /api/v2/users/{id}/roles</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 124</td>
+</tr>
+<tr>
+<td>User Permissions</td>
+<td>GET /api/v2/users/{id}/permissions</td>
+<td>Scopes only</td>
+<td><strong>None</strong></td>
+<td>issue 124</td>
+</tr>
+<tr>
+<td>Username Management</td>
+<td>Built into user model</td>
+<td>UsernameStore (reserve/change/release)</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>User Identities</td>
+<td>Multiple linked identities</td>
+<td>IdentityStore (email/phone)</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Channels / Providers</td>
+<td>Connections per identity</td>
+<td>ChannelStore (local/oauth/saml)</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-authorization--rbac">4. Authorization &amp; RBAC <a class="anchor" href="#4-authorization--rbac">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Auth0</th>
+<th>OneAuth</th>
+<th>Gap</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Roles</td>
+<td>Full RBAC</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 124</td>
+</tr>
+<tr>
+<td>Permissions</td>
+<td>Fine-grained per-API</td>
+<td>Scopes only</td>
+<td><strong>None</strong></td>
+<td>issue 124</td>
+</tr>
+<tr>
+<td>Organizations</td>
+<td>Multi-org, per-org roles</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 128</td>
+</tr>
+<tr>
+<td>Scopes</td>
+<td>OAuth2 standard</td>
+<td>Custom scope system</td>
+<td>Partial</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Scope Enforcement</strong></td>
+<td>Via API settings</td>
+<td><code>RequireScopes</code> + <strong>NEW</strong> <code>RequireAuthorizationDetails</code> middleware</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Resource Server Registration</td>
+<td>POST /api/v2/resource-servers</td>
+<td>POST /apps/register + /apps/dcr</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-security-features">5. Security Features <a class="anchor" href="#5-security-features">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Auth0</th>
+<th>OneAuth</th>
+<th>Gap</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MFA - TOTP</td>
+<td>Built-in</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 120</td>
+</tr>
+<tr>
+<td>MFA - SMS/Push/Email OTP/WebAuthn</td>
+<td>Built-in</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 120</td>
+</tr>
+<tr>
+<td>Brute Force Protection</td>
+<td>Auto-block after N failures</td>
+<td>AccountLockout struct (not wired)</td>
+<td><strong>None</strong></td>
+<td>issue 121</td>
+</tr>
+<tr>
+<td>Rate Limiting</td>
+<td>Built-in, per-endpoint</td>
+<td>Interface only, no built-in impl</td>
+<td><strong>None</strong></td>
+<td>issue 121</td>
+</tr>
+<tr>
+<td>Bot Detection</td>
+<td>CAPTCHA on suspicious logins</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 136</td>
+</tr>
+<tr>
+<td>Breached Password Detection</td>
+<td>External DB</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 137</td>
+</tr>
+<tr>
+<td>Password Complexity</td>
+<td>Configurable (length, chars, history)</td>
+<td>MinPasswordLength only</td>
+<td><strong>None</strong></td>
+<td>issue 122</td>
+</tr>
+<tr>
+<td>Anomaly Detection</td>
+<td>Multi-signal + alerts</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 138</td>
+</tr>
+<tr>
+<td>IP Allowlisting</td>
+<td>Per-feature allowlists</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 139</td>
+</tr>
+<tr>
+<td>Password Bcrypt Hashing</td>
+<td>bcrypt</td>
+<td>bcrypt</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Constant-time Comparison</td>
+<td>Standard practice</td>
+<td>crypto/subtle for API keys</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>CSRF Protection</td>
+<td>Built-in state</td>
+<td>CSRFMiddleware</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Refresh Token Theft Detection</td>
+<td>Family revocation</td>
+<td>Family-based rotation + revocation</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Algorithm Confusion Prevention</td>
+<td>N/A (managed)</td>
+<td>Per-client GetExpectedAlg</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Lifecycle Security Hooks</strong></td>
+<td>N/A</td>
+<td><strong>NEW</strong> — <code>SecurityHooks.OnBlacklistHit</code>, <code>OnAlgorithmMismatch</code>, <code>OnTokenRejected</code></td>
+<td><strong>OneAuth unique</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-ux-components--sdks">6. UX Components &amp; SDKs <a class="anchor" href="#6-ux-components--sdks">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Auth0</th>
+<th>OneAuth</th>
+<th>Gap</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Universal Login</td>
+<td>Full-featured, customizable</td>
+<td>Basic HTML templates</td>
+<td><strong>None</strong></td>
+<td>issue 140</td>
+</tr>
+<tr>
+<td>React/Angular/Vue/Next.js SDKs</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 141</td>
+</tr>
+<tr>
+<td>iOS/Android/Flutter SDKs</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 142</td>
+</tr>
+<tr>
+<td>Go SDK (server)</td>
+<td>go-auth0 (Management API)</td>
+<td>Full library (this IS the SDK)</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Client SDK (Go)</strong></td>
+<td>N/A</td>
+<td>AuthClient with auto-refresh, discovery, scope step-up</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>gRPC Interceptors</strong></td>
+<td>N/A</td>
+<td>Unary + Stream interceptors</td>
+<td><strong>OneAuth unique</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>HTTP Middleware</td>
+<td>N/A</td>
+<td>ValidateToken, RequireScopes, RequireAuthorizationDetails</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Email Templates</td>
+<td>Customizable HTML</td>
+<td>ConsoleEmailSender (logging only)</td>
+<td><strong>None</strong></td>
+<td>issue 125</td>
+</tr>
+<tr>
+<td>CLI Tool</td>
+<td>auth0 CLI</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 143</td>
+</tr>
+<tr>
+<td><strong>Interactive Examples</strong></td>
+<td>API docs</td>
+<td><strong>NEW</strong> — 10 progressive examples with demokit framework, mermaid diagrams</td>
+<td><strong>OneAuth unique</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="7-extensibility--integrations">7. Extensibility &amp; Integrations <a class="anchor" href="#7-extensibility--integrations">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Auth0</th>
+<th>OneAuth</th>
+<th>Gap</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Actions (post-login, etc.)</td>
+<td>18+ triggers, Node.js</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Webhooks</td>
+<td>Via Actions + Log Streaming</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 147</td>
+</tr>
+<tr>
+<td>Log Streaming</td>
+<td>Datadog, Splunk, AWS</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 145</td>
+</tr>
+<tr>
+<td>Custom Social Connections</td>
+<td>OAuth2 generic</td>
+<td>BaseOAuth2 (extensible)</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Custom DB Connections</td>
+<td>SQL/REST migration scripts</td>
+<td>Three-backend store pattern</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Custom Claims Pipeline</td>
+<td>Via Actions</td>
+<td>CustomClaimsFunc callback</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Email Providers</td>
+<td>SendGrid, Mailgun, SES</td>
+<td>Pluggable EmailSender interface</td>
+<td>Partial</td>
+<td>issue 125</td>
+</tr>
+<tr>
+<td><strong>Lifecycle Hooks</strong></td>
+<td>N/A</td>
+<td><strong>NEW</strong> — <code>TokenHooks</code>, <code>AuthHooks</code>, <code>ClientHooks</code>, <code>SecurityHooks</code></td>
+<td><strong>OneAuth unique</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Config-driven Server</td>
+<td>Dashboard (no config files)</td>
+<td>YAML + ${ENV_VAR} substitution</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8-management--operations">8. Management &amp; Operations <a class="anchor" href="#8-management--operations">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Auth0</th>
+<th>OneAuth</th>
+<th>Gap</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Admin Dashboard</td>
+<td>Full web UI</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 144</td>
+</tr>
+<tr>
+<td>Audit Logs</td>
+<td>Searchable event log</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 32</td>
+</tr>
+<tr>
+<td>Log Streaming</td>
+<td>Datadog, New Relic</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 145</td>
+</tr>
+<tr>
+<td>Metrics / Analytics</td>
+<td>Built-in</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 146</td>
+</tr>
+<tr>
+<td>CLI Tool</td>
+<td>auth0 CLI</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 143</td>
+</tr>
+<tr>
+<td>Health Endpoint</td>
+<td>Managed (SLA)</td>
+<td>/_ah/health</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Memory Mode</strong></td>
+<td>N/A</td>
+<td><strong>NEW</strong> — <code>oneauth-server --config memory.yaml</code> for dev/test</td>
+<td><strong>OneAuth unique</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-standards-compliance">9. Standards Compliance <a class="anchor" href="#9-standards-compliance">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Standard</th>
+<th>Auth0</th>
+<th>OneAuth</th>
+<th>Gap</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OAuth 2.0 (RFC 6749)</strong></td>
+<td>Full</td>
+<td><strong>Improved</strong> — password, refresh, client_credentials, auth code (client-side)</td>
+<td>Partial (no AS-side auth code)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>OpenID Connect (OIDC)</strong></td>
+<td>Full</td>
+<td>None (discovery only)</td>
+<td><strong>None</strong></td>
+<td>issue 115</td>
+</tr>
+<tr>
+<td>SAML 2.0</td>
+<td>Full (IdP + SP)</td>
+<td>SP only</td>
+<td>Partial</td>
+<td>—</td>
+</tr>
+<tr>
+<td>WS-Federation</td>
+<td>Supported</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 134</td>
+</tr>
+<tr>
+<td>SCIM 2.0</td>
+<td>Supported</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 130</td>
+</tr>
+<tr>
+<td><strong>JWKS (RFC 7517)</strong></td>
+<td>Full</td>
+<td>Full</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Token Revocation (RFC 7009)</strong></td>
+<td>Full</td>
+<td><strong>NEW</strong> — Full</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Token Introspection (RFC 7662)</strong></td>
+<td>N/A</td>
+<td><strong>NEW</strong> — Full</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>AS Metadata (RFC 8414)</strong></td>
+<td>Full</td>
+<td><strong>NEW</strong> — Full</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>DCR (RFC 7591)</strong></td>
+<td>Full</td>
+<td><strong>NEW</strong> — Full</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>RFC 9396 RAR</strong></td>
+<td>None on standard flows</td>
+<td><strong>NEW</strong> — Full</td>
+<td><strong>OneAuth ahead</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>RFC 9728 PRM</strong></td>
+<td>N/A</td>
+<td><strong>NEW</strong> — Full</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>DPoP (RFC 9449)</td>
+<td>Supported</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 94</td>
+</tr>
+<tr>
+<td>PKCE (RFC 7636)</td>
+<td>Full</td>
+<td>Client-side only</td>
+<td>Partial</td>
+<td>—</td>
+</tr>
+<tr>
+<td>PAR (RFC 9126)</td>
+<td>Supported</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 97</td>
+</tr>
+<tr>
+<td>mTLS (RFC 8705)</td>
+<td>Supported</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 101</td>
+</tr>
+<tr>
+<td>FAPI 2.0</td>
+<td>Supported</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 98</td>
+</tr>
+<tr>
+<td>CIBA</td>
+<td>Supported</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 99</td>
+</tr>
+<tr>
+<td>OAuth 2.1</td>
+<td>In progress</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 149</td>
+</tr>
+<tr>
+<td>JWT (RFC 7519)</td>
+<td>Full</td>
+<td>Full (HS256, RS256, ES256)</td>
+<td>Full</td>
+<td>—</td>
+</tr>
+<tr>
+<td>FIDO2/WebAuthn</td>
+<td>Supported</td>
+<td>None</td>
+<td><strong>None</strong></td>
+<td>issue 127</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="oneauth-competitive-advantages-vs-auth0">OneAuth Competitive Advantages (vs Auth0) <a class="anchor" href="#oneauth-competitive-advantages-vs-auth0">¶</a></h2>
+<ol>
+<li>
+<p><strong>RFC 9396 RAR on standard OAuth flows</strong> — Auth0 doesn&rsquo;t have this. OneAuth can express &ldquo;transfer 45 EUR to Merchant A&rdquo; in token requests. Banking differentiator.</p>
+</li>
+<li>
+<p><strong>Self-hosted / No vendor lock-in</strong> — Full control over data, deployment. No per-user pricing ($35/mo for 500 MAU on Auth0).</p>
+</li>
+<li>
+<p><strong>Go-native embeddable library</strong> — Import as a package, not a SaaS dependency. Type-safe callbacks vs Auth0&rsquo;s JS Actions runtime.</p>
+</li>
+<li>
+<p><strong>Transport-independent core</strong> — <code>OneAuth</code> struct works in HTTP, gRPC, MCP, CLI — not just HTTP handlers. Auth0 is HTTP-only.</p>
+</li>
+<li>
+<p><strong>Federated Resource Token model</strong> — <code>MintResourceToken</code> / per-app KeyStore for multi-service architectures. No Auth0 equivalent.</p>
+</li>
+<li>
+<p><strong>Lifecycle hooks</strong> — <code>TokenHooks</code>, <code>AuthHooks</code>, <code>ClientHooks</code>, <code>SecurityHooks</code> for in-process callbacks. More flexible than Auth0&rsquo;s webhook-only model.</p>
+</li>
+<li>
+<p><strong>gRPC support</strong> — First-class interceptors. Auth0 has no native gRPC support.</p>
+</li>
+<li>
+<p><strong>Interactive examples</strong> — 10 progressive step-through examples with mermaid diagrams, generated READMEs, RFC references. Auth0 has API docs; OneAuth teaches concepts.</p>
+</li>
+<li>
+<p><strong>Algorithm confusion prevention</strong> — Explicit per-client algorithm enforcement exposed to the developer. Auth0 handles internally.</p>
+</li>
+<li>
+<p><strong>Three storage backends</strong> — FS (dev), GORM (SQL), GAE (serverless) with shared test suites. Auth0 is opaque.</p>
+</li>
+<li>
+<p><strong>Memory mode</strong> — <code>oneauth-server --config memory.yaml</code> for instant dev/test. Auth0 requires tenant setup.</p>
+</li>
+</ol>
+<hr />
+<h2 id="updated-summary-statistics">Updated Summary Statistics <a class="anchor" href="#updated-summary-statistics">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Auth0 Features</th>
+<th>OneAuth Features</th>
+<th>Coverage (Mar 2026)</th>
+<th>Coverage (May 2026)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Authentication Methods</td>
+<td>~15</td>
+<td>4 → 6</td>
+<td>~27%</td>
+<td>~40%</td>
+</tr>
+<tr>
+<td>OAuth2 Grant Types</td>
+<td>6</td>
+<td>2 → 4 (password, refresh, client_credentials, auth code client-side)</td>
+<td>33%</td>
+<td>67%</td>
+</tr>
+<tr>
+<td>User Management</td>
+<td>~15</td>
+<td>6</td>
+<td>40%</td>
+<td>40%</td>
+</tr>
+<tr>
+<td>Security Features</td>
+<td>~12</td>
+<td>3 → 5 (+ revocation, hooks, algorithm guard)</td>
+<td>25%</td>
+<td>42%</td>
+</tr>
+<tr>
+<td>UX Components</td>
+<td>~12 SDKs + Universal Login</td>
+<td>1 SDK + templates + 10 examples</td>
+<td>~8%</td>
+<td>~15%</td>
+</tr>
+<tr>
+<td>Token Types</td>
+<td>4</td>
+<td>3</td>
+<td>75%</td>
+<td>75%</td>
+</tr>
+<tr>
+<td>Standards</td>
+<td>10+</td>
+<td>4 → 11 (JWT, JWKS, OAuth2, SAML, introspection, revocation, discovery, DCR, PRM, RAR, RFC 9728)</td>
+<td>~33%</td>
+<td>~73%</td>
+</tr>
+<tr>
+<td>Extensibility</td>
+<td>Actions, Rules, Hooks, Webhooks</td>
+<td>Callbacks + hooks + config-driven</td>
+<td>~15%</td>
+<td>~25%</td>
+</tr>
+<tr>
+<td><strong>Overall Estimated Coverage</strong></td>
+<td></td>
+<td></td>
+<td><strong>~30%</strong></td>
+<td><strong>~55%</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="all-open-gap-issues">All Open Gap Issues <a class="anchor" href="#all-open-gap-issues">¶</a></h2>
+<h3 id="p0--critical">P0 — Critical <a class="anchor" href="#p0--critical">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>issue 88</td>
+<td>Security &amp; RFC compliance audit</td>
+</tr>
+<tr>
+<td>issue 120</td>
+<td>MFA / TOTP</td>
+</tr>
+</tbody>
+</table>
+<h3 id="p1--important">P1 — Important <a class="anchor" href="#p1--important">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>issue 108</td>
+<td>Registration approval workflows</td>
+</tr>
+<tr>
+<td>issue 118</td>
+<td>Redis distributed stores</td>
+</tr>
+<tr>
+<td>issue 121</td>
+<td>Brute force protection + rate limiting</td>
+</tr>
+<tr>
+<td>issue 122</td>
+<td>Password complexity policies</td>
+</tr>
+<tr>
+<td>issue 123</td>
+<td>User management API</td>
+</tr>
+<tr>
+<td>issue 124</td>
+<td>RBAC (roles + permissions)</td>
+</tr>
+<tr>
+<td>issue 125</td>
+<td>Email delivery</td>
+</tr>
+<tr>
+<td>issue 131</td>
+<td>Auth0 AI Agents parity (MCP)</td>
+</tr>
+<tr>
+<td>issue 132</td>
+<td>Social login (Apple, MS, FB, LinkedIn, X)</td>
+</tr>
+<tr>
+<td>issue 133</td>
+<td>Generic OIDC IdP</td>
+</tr>
+<tr>
+<td>issue 32</td>
+<td>Audit logging</td>
+</tr>
+</tbody>
+</table>
+<h3 id="p2--nice-to-have">P2 — Nice to have <a class="anchor" href="#p2--nice-to-have">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>issue 94</td>
+<td>DPoP (RFC 9449)</td>
+</tr>
+<tr>
+<td>issue 97</td>
+<td>PAR (RFC 9126)</td>
+</tr>
+<tr>
+<td>issue 101</td>
+<td>mTLS (RFC 8705)</td>
+</tr>
+<tr>
+<td>issue 115</td>
+<td>Full OIDC (ID tokens, userinfo)</td>
+</tr>
+<tr>
+<td>issue 116</td>
+<td>Token Exchange (RFC 8693)</td>
+</tr>
+<tr>
+<td>issue 117</td>
+<td>Device Authorization (RFC 8628)</td>
+</tr>
+<tr>
+<td>issue 119</td>
+<td>Identity brokering improvements</td>
+</tr>
+<tr>
+<td>issue 126</td>
+<td>Passwordless (magic link, OTP)</td>
+</tr>
+<tr>
+<td>issue 127</td>
+<td>Passkeys / WebAuthn</td>
+</tr>
+<tr>
+<td>issue 128</td>
+<td>Organizations / multi-org</td>
+</tr>
+<tr>
+<td>issue 129</td>
+<td>Federated logout</td>
+</tr>
+<tr>
+<td>issue 136</td>
+<td>Bot detection / CAPTCHA</td>
+</tr>
+<tr>
+<td>issue 137</td>
+<td>Breached password detection</td>
+</tr>
+<tr>
+<td>issue 138</td>
+<td>Anomaly detection + alerts</td>
+</tr>
+<tr>
+<td>issue 139</td>
+<td>IP allowlisting</td>
+</tr>
+<tr>
+<td>issue 140</td>
+<td>Universal Login (customizable pages)</td>
+</tr>
+<tr>
+<td>issue 141</td>
+<td>Frontend SDKs</td>
+</tr>
+<tr>
+<td>issue 142</td>
+<td>Mobile SDKs</td>
+</tr>
+<tr>
+<td>issue 143</td>
+<td>CLI management tool</td>
+</tr>
+<tr>
+<td>issue 144</td>
+<td>Admin dashboard</td>
+</tr>
+<tr>
+<td>issue 145</td>
+<td>Log streaming</td>
+</tr>
+<tr>
+<td>issue 146</td>
+<td>Metrics and analytics</td>
+</tr>
+<tr>
+<td>issue 147</td>
+<td>Webhooks / event system</td>
+</tr>
+<tr>
+<td>issue 148</td>
+<td>MRRT</td>
+</tr>
+<tr>
+<td>issue 149</td>
+<td>OAuth 2.1 alignment</td>
+</tr>
+</tbody>
+</table>
+<h3 id="p3--enterprise--specialized">P3 — Enterprise / specialized <a class="anchor" href="#p3--enterprise--specialized">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>issue 98</td>
+<td>FAPI 2.0 certification</td>
+</tr>
+<tr>
+<td>issue 99</td>
+<td>CIBA</td>
+</tr>
+<tr>
+<td>issue 130</td>
+<td>SCIM 2.0</td>
+</tr>
+<tr>
+<td>issue 134</td>
+<td>WS-Federation</td>
+</tr>
+<tr>
+<td>issue 135</td>
+<td>LDAP/AD</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>Sources: <a href="https://auth0.com/docs/api">Auth0 API Documentation</a>, <a href="https://auth0.com/changelog">Auth0 Changelog</a>, <a href="https://auth0.com/ai">Auth0 for AI Agents</a>, <a href="https://auth0.com/blog/mcp-and-auth0-an-agentic-match-made-in-heaven/">Auth0 MCP blog</a></em></p>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

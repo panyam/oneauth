@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="What `tests/keycloak/` proves, what it doesn&#39;t, and what passes today.">
+    <title>Keycloak interop · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Keycloak interop</h1>
+        
+        <p class="lead">What `tests/keycloak/` proves, what it doesn&#39;t, and what passes today.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/conformance/keycloak.md"><code>docs/conformance/keycloak.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="keycloak-interop">Keycloak interop <a class="anchor" href="#keycloak-interop">¶</a></h1>
+<p>Hand-authored audit of what <a href="https://github.com/panyam/oneauth/tree/main/tests/keycloak"><code>tests/keycloak/</code></a> proves about OneAuth&rsquo;s interoperability with <a href="https://www.keycloak.org/">Keycloak</a> — a battle-tested OAuth/OIDC server widely deployed as a corporate IdP.</p>
+<p>The pitch: OneAuth has to behave correctly when <em>both</em> sides of the conversation are real implementations. That includes accepting Keycloak-minted tokens at our middleware, talking to Keycloak&rsquo;s discovery / JWKS / introspection / DCR endpoints from our client SDK, and surviving the wire-level quirks (audience as string-or-array, kid lookup, rotated registration access tokens). This page is the audit trail of <em>what we actually check</em> — distinct from the Go-native conformance ratchet at <a href="native.md"><code>docs/conformance/native.md</code></a>, which exercises OneAuth as an AS without a third party in the loop.</p>
+<h2 id="how-it-runs">How it runs <a class="anchor" href="#how-it-runs">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Command</td>
+<td><code>make testkcl</code> (auto-starts the container if needed)</td>
+</tr>
+<tr>
+<td>Container</td>
+<td><code>keycloak/keycloak</code> started by <code>make upkcl</code></td>
+</tr>
+<tr>
+<td>Realm</td>
+<td><code>tests/keycloak/realm.json</code> (imported on startup)</td>
+</tr>
+<tr>
+<td>Default ports</td>
+<td>KC=<code>8180</code>, RAR sidecar=<code>8181</code> (<code>KC_PORT</code> / <code>RAR_PORT</code> override)</td>
+</tr>
+<tr>
+<td>Source</td>
+<td><code>tests/keycloak/{interop,private_key_jwt,dcr_management,rar_interop}_test.go</code></td>
+</tr>
+</tbody>
+</table>
+<p>The container takes ~15 seconds to come up and import the realm. Tests are fully in-process: they fetch Keycloak&rsquo;s discovery doc, mint tokens, and assert OneAuth&rsquo;s middleware / client behavior against them.</p>
+<h2 id="coverage-map">Coverage map <a class="anchor" href="#coverage-map">¶</a></h2>
+<p>OneAuth surface × Keycloak behavior. ✅ = test exists and passes; ⛌ = deliberately deferred (linked to issue).</p>
+<h3 id="discovery--metadata">Discovery + metadata <a class="anchor" href="#discovery--metadata">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>OneAuth</th>
+<th>Test</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>client.DiscoverAS</code> parses Keycloak&rsquo;s <code>/.well-known/openid-configuration</code></td>
+<td><code>TestKeycloak_OIDCDiscovery</code>, <code>TestKeycloak_DiscoverAS_Integration</code></td>
+<td>Both raw HTTP parse and SDK helper.</td>
+</tr>
+<tr>
+<td>Metadata field compatibility (issuer, endpoints, alg lists)</td>
+<td><code>TestKeycloak_ASMetadataFieldCompatibility</code></td>
+<td>Sanity check on the field surface OneAuth depends on.</td>
+</tr>
+<tr>
+<td>RFC 8414 metadata proxying</td>
+<td><code>TestKeycloak_RFC8414Proxy</code></td>
+<td>Confirms our handler can stand in front of an upstream Keycloak.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-handling">Key handling <a class="anchor" href="#key-handling">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>OneAuth</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>JWKSKeyStore</code> fetches + parses Keycloak JWKS</td>
+<td><code>TestKeycloak_JWKS_FetchAndParse</code>, <code>TestKeycloak_JWKSKeyStore_Integration</code></td>
+</tr>
+<tr>
+<td><code>utils.JWKToPublicKey</code> handles Keycloak&rsquo;s RSA JWKs</td>
+<td><code>TestKeycloak_JWKS_ParseViaJWKToPublicKey</code></td>
+</tr>
+<tr>
+<td><code>kid</code>-header → key lookup via <code>GetKeyByKid</code></td>
+<td><code>TestKeycloak_ValidateToken_KidLookup</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="token-validation-apimiddleware-accepts-keycloak-tokens">Token validation (APIMiddleware accepts Keycloak tokens) <a class="anchor" href="#token-validation-apimiddleware-accepts-keycloak-tokens">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Grant / scenario</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>client_credentials</td>
+<td><code>TestKeycloak_ValidateToken_ClientCredentials</code></td>
+</tr>
+<tr>
+<td>password grant</td>
+<td><code>TestKeycloak_ValidateToken_PasswordGrant</code></td>
+</tr>
+<tr>
+<td><code>aud</code> as string or array</td>
+<td><code>TestKeycloak_ValidateToken_AudienceArray</code> (issue 52)</td>
+</tr>
+<tr>
+<td>Tampered token rejected</td>
+<td><code>TestKeycloak_InvalidToken_Rejected</code></td>
+</tr>
+<tr>
+<td>Wrong client_secret rejected</td>
+<td><code>TestKeycloak_WrongSecret_Rejected</code></td>
+</tr>
+<tr>
+<td>Authorization code + PKCE end-to-end</td>
+<td><code>TestKeycloak_AuthorizationCodePKCE_FullFlow</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="client-authentication-negotiation">Client authentication negotiation <a class="anchor" href="#client-authentication-negotiation">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>client_secret_basic</code></td>
+<td><code>TestKeycloak_AuthMethodNegotiation_Basic</code>, <code>TestKeycloak_ClientCredentials_WithAuthMethod</code></td>
+</tr>
+<tr>
+<td><code>client_secret_post</code></td>
+<td><code>TestKeycloak_AuthMethodNegotiation_Post</code></td>
+</tr>
+<tr>
+<td><code>private_key_jwt</code></td>
+<td><code>tests/keycloak/private_key_jwt_test.go</code> (full set)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="introspection">Introspection <a class="anchor" href="#introspection">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>OneAuth</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>client.Introspect</code> against Keycloak&rsquo;s <code>/protocol/openid-connect/token/introspect</code></td>
+<td><code>TestKeycloak_IntrospectionClient</code></td>
+</tr>
+<tr>
+<td>Negative path: invalid token returns <code>active:false</code></td>
+<td><code>TestKeycloak_IntrospectionClient_InvalidToken</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="dynamic-client-registration">Dynamic Client Registration <a class="anchor" href="#dynamic-client-registration">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RFC 7592 lifecycle (Get / Update / Delete)</td>
+<td><code>TestKeycloak_DCRManagement_Lifecycle</code> (issue 171)</td>
+</tr>
+<tr>
+<td><code>registration_access_token</code> rotation on PUT</td>
+<td>covered by the same test</td>
+</tr>
+<tr>
+<td>Rotated-out token rejected</td>
+<td>covered by the same test</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rich-authorization-requests-rfc-9396">Rich Authorization Requests (RFC 9396) <a class="anchor" href="#rich-authorization-requests-rfc-9396">¶</a></h3>
+<p>RAR conformance is tested against a sidecar issuer (<code>cmd/oneauth-server/deploy-examples/rar-test.yaml</code>) rather than Keycloak directly — Keycloak&rsquo;s RAR support is partial. See <a href="https://github.com/panyam/oneauth/tree/main/tests/keycloak/rar_interop_test.go"><code>tests/keycloak/rar_interop_test.go</code></a>; the RAR-specific scorecard is the Go-native ratchet plus the OIDF Phase 2 plan.</p>
+<h2 id="what-this-suite-deliberately-does-not-prove">What this suite deliberately does <em>not</em> prove <a class="anchor" href="#what-this-suite-deliberately-does-not-prove">¶</a></h2>
+<ul>
+<li><strong>Issuance from OneAuth that Keycloak accepts.</strong> The arrow is one-way: tokens flow <code>Keycloak → OneAuth.APIMiddleware</code>. The reverse path (Keycloak accepting OneAuth-minted tokens) isn&rsquo;t a meaningful interop story because Keycloak isn&rsquo;t a resource server for our tokens in any real deployment.</li>
+<li><strong>End-user UI flows.</strong> Discovery / token / introspection are wire tests; the browser-driven login flows live in <code>examples/</code> walkthroughs, not here.</li>
+<li><strong>High-availability / clustering quirks.</strong> Single container, single realm, single key.</li>
+</ul>
+<h2 id="how-this-page-is-published">How this page is published <a class="anchor" href="#how-this-page-is-published">¶</a></h2>
+<p>This file is the source of truth. The docs site at <code>docs/site/content/conformance/keycloak.html</code> renders it verbatim via <code>renderMarkdownFile</code>. Update this <code>.md</code> and the published <code>/conformance/keycloak/</code> page picks the change up on the next build.</p>
+<h2 id="follow-ups">Follow-ups <a class="anchor" href="#follow-ups">¶</a></h2>
+<ul>
+<li><strong>Auto-regenerate from <code>go test -json</code>.</strong> Today this page is hand-curated; future work parses the test stream so the table stays in lockstep with the suite. Tracked alongside the same idea for the Authlete suite — file an issue when the duplication gets painful enough.</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

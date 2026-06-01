@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Spec-completeness gap analysis against Authlete.">
+    <title>vs Authlete · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>vs Authlete</h1>
+        
+        <p class="lead">Spec-completeness gap analysis against Authlete.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/gaps/AUTHLETE_GAP_ANALYSIS.md"><code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="authlete-vs-oneauth--gap-analysis">Authlete vs OneAuth — Gap Analysis <a class="anchor" href="#authlete-vs-oneauth--gap-analysis">¶</a></h1>
+<p><strong>Date:</strong> 2026-04-28<br />
+<strong>Purpose:</strong> Compare Authlete&rsquo;s OAuth/OIDC backend service against OneAuth to identify gaps, surface architectural differences, and decide which (if any) to close.</p>
+<hr />
+<h2 id="executive-summary">Executive Summary <a class="anchor" href="#executive-summary">¶</a></h2>
+<p>Authlete and OneAuth answer different questions. Auth0 (covered in <a href="AUTH0_GAP_ANALYSIS.md">AUTH0_GAP_ANALYSIS.md</a>) is a full IdP-as-a-service. <strong>Authlete is a semi-hosted OAuth/OIDC <em>protocol engine</em></strong> — its customer builds an authorization-server frontend (login UI, consent screens, user store, sessions) and delegates all the protocol-correct token issuance, validation, and lifecycle work to Authlete via REST APIs. Authlete does not see end users.</p>
+<p>OneAuth is a <strong>Go library</strong> that bundles user/identity/channel management <em>and</em> a transport-independent token engine into one importable package. It overlaps with Authlete in the token-engine layer; it overlaps with Auth0 in the user-mgmt layer.</p>
+<p><strong>Headline gap:</strong> Authlete is the leading <strong>spec-completeness</strong> play — FAPI 1 &amp; 2, JAR, JARM, PAR, RAR, CIBA, DPoP, mTLS, OpenID Federation 1.0, OID4VCI, Token Exchange, Device Flow, multiple regional Open Banking profiles. OneAuth covers a much narrower surface: bearer JWT issuance via password/client_credentials/refresh, RAR on the token endpoint, RFC-compliant introspection/revocation/discovery/DCR/JWKS metadata, and Keycloak interop. <strong>No /authorize endpoint, no id_token, no DPoP/mTLS/PAR/JAR/JARM/CIBA/Federation/OID4VC.</strong></p>
+<p>The honest framing: <strong>OneAuth doesn&rsquo;t compete with Authlete and shouldn&rsquo;t try to.</strong> Authlete is engineered to pass conformance suites for regulated industries (UK/AU/BR/KSA Open Banking, EUDI Wallet, GAIN, FAPI). OneAuth is engineered to make Go services easy to authenticate against an existing IdP (Keycloak, Authlete, Auth0, etc.). The right strategic posture is: pick a small set of Authlete-grade specs that have value <em>for the resource-server / federated-app niche</em> and adopt those; ignore the rest.</p>
+<hr />
+<h2 id="1-architectural-model-comparison">1. Architectural Model Comparison <a class="anchor" href="#1-architectural-model-comparison">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Authlete</th>
+<th>OneAuth</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Form factor</strong></td>
+<td>Hosted (or self-hosted enterprise) backend; integrate via REST APIs</td>
+<td>Go library, embedded in your binary</td>
+</tr>
+<tr>
+<td><strong>What customer builds</strong></td>
+<td>The AS frontend: <code>/authorize</code>, login UI, consent UI, user store, sessions</td>
+<td>Your application — OneAuth provides <code>/api/token</code>, login handlers, middleware, optional reference server (<code>cmd/oneauth-server</code>)</td>
+</tr>
+<tr>
+<td><strong>Where token data lives</strong></td>
+<td>Authlete&rsquo;s database (DB-less for the customer)</td>
+<td>Your database, via <code>TokenStore</code>, <code>RefreshTokenStore</code>, <code>KeyStorage</code> (FS / GORM / GAE)</td>
+</tr>
+<tr>
+<td><strong>Where user data lives</strong></td>
+<td>Customer&rsquo;s database (Authlete never sees users)</td>
+<td>OneAuth&rsquo;s stores (<code>UserStore</code>, <code>IdentityStore</code>, <code>ChannelStore</code>) — <strong>you can replace these</strong></td>
+</tr>
+<tr>
+<td><strong>Protocol scope</strong></td>
+<td>Comprehensive — designed to pass FAPI / Open Banking / EUDI conformance</td>
+<td>Pragmatic — JWT bearer flows, federated resource tokens, Keycloak interop</td>
+</tr>
+<tr>
+<td><strong>Pricing model</strong></td>
+<td>Per-API-call SaaS (or licensed self-host)</td>
+<td>OSS / no per-user cost</td>
+</tr>
+<tr>
+<td><strong>Language</strong></td>
+<td>Java reference + customer-written frontends in any language</td>
+<td>Go (only)</td>
+</tr>
+<tr>
+<td><strong>Audit &amp; compliance</strong></td>
+<td>SOC2 / ISO certified service</td>
+<td>You self-host; your problem</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The single most important consequence:</strong> Authlete <em>intentionally</em> does not own the user. OneAuth does (User → Identity → Channel). If you want to combine them you&rsquo;d use OneAuth&rsquo;s user model on the AS frontend and Authlete on the protocol backend — they&rsquo;re not redundant in that configuration.</p>
+<hr />
+<h2 id="2-use-case-comparison">2. Use-Case Comparison <a class="anchor" href="#2-use-case-comparison">¶</a></h2>
+<h3 id="authletes-sweet-spot">Authlete&rsquo;s sweet spot <a class="anchor" href="#authletes-sweet-spot">¶</a></h3>
+<ol>
+<li><strong>Regulated AS operators</strong> that must pass FAPI / Open Banking / FAPI-CIBA conformance and don&rsquo;t want to maintain spec-compliant code themselves.</li>
+<li><strong>VC issuers</strong> (governments, banks, universities) standing up OID4VCI / SD-JWT VC / mDL endpoints.</li>
+<li><strong>National digital-identity programs</strong> (EUDI, Trusted Web, GAIN POC) where every spec change must be tracked.</li>
+<li><strong>Banks doing Open Banking</strong> in UK / AU / BR / KSA — Authlete ships profile-specific certified configurations.</li>
+<li><strong>CIBA / decoupled-auth flows</strong> for high-assurance financial APIs.</li>
+<li><strong>mTLS / DPoP sender-constrained tokens</strong> for clients that legally can&rsquo;t accept bearer-only.</li>
+</ol>
+<h3 id="oneauths-sweet-spot">OneAuth&rsquo;s sweet spot <a class="anchor" href="#oneauths-sweet-spot">¶</a></h3>
+<ol>
+<li><strong>Go services</strong> that need user signup / login / OAuth social link without a SaaS dependency.</li>
+<li><strong>Federated multi-service systems</strong> (the <code>MintResourceToken</code> / per-app KeyStore pattern from massrelay/excaliframe) where one host app vouches for tokens consumed by other resource servers.</li>
+<li><strong>Resource servers validating tokens from external IdPs</strong> (Keycloak, Auth0, Authlete) via JWKS / introspection / RFC 9728 protected-resource-metadata.</li>
+<li><strong>CLI tools</strong> — <code>AuthClient</code> with auto-refresh, browser-launched Authorization Code + PKCE against any RFC 8414 / OIDC-Discovery AS.</li>
+<li><strong>Internal / dev / SMB SaaS</strong> where Auth0 pricing is unjustified and FAPI is overkill.</li>
+<li><strong>gRPC services</strong> — first-class interceptors, no Authlete equivalent.</li>
+</ol>
+<h3 id="what-neither-targets">What neither targets <a class="anchor" href="#what-neither-targets">¶</a></h3>
+<ul>
+<li>Authlete: turnkey IdP for an SMB app (no UI / user mgmt / MFA / SDKs).</li>
+<li>OneAuth: regulated finance / sovereign-identity programs (insufficient spec breadth).</li>
+</ul>
+<hr />
+<h2 id="3-standards-coverage-matrix">3. Standards Coverage Matrix <a class="anchor" href="#3-standards-coverage-matrix">¶</a></h2>
+<p>Legend: <strong>Full</strong> = implemented and conformance-tested · <strong>Partial</strong> = implemented at one layer only · <strong>None</strong> = not implemented · <strong>N/A</strong> = doesn&rsquo;t apply to OneAuth&rsquo;s posture</p>
+<table>
+<thead>
+<tr>
+<th>Spec</th>
+<th>RFC / link</th>
+<th>Authlete</th>
+<th>OneAuth</th>
+<th>Gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OAuth 2.0 framework</strong></td>
+<td>RFC 6749</td>
+<td>Full (all grants)</td>
+<td>Partial (<code>password</code>, <code>refresh_token</code>, <code>client_credentials</code> — <strong>no <code>authorization_code</code></strong>, no implicit)</td>
+<td>Partial</td>
+</tr>
+<tr>
+<td><strong>Bearer Token Usage</strong></td>
+<td>RFC 6750</td>
+<td>Full</td>
+<td>Full</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><strong>PKCE</strong></td>
+<td>RFC 7636</td>
+<td>Full (server + enforces)</td>
+<td>Partial — <strong>client-side only</strong> (<code>AuthClient</code> uses PKCE against external AS); OneAuth as AS doesn&rsquo;t issue authorization codes</td>
+<td>Partial</td>
+</tr>
+<tr>
+<td><strong>Token Introspection</strong></td>
+<td>RFC 7662</td>
+<td>Full</td>
+<td>Full (<code>/oauth/introspect</code>, <code>IntrospectionHandler</code> + caching client)</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><strong>Token Revocation</strong></td>
+<td>RFC 7009</td>
+<td>Full</td>
+<td>Full (<code>/oauth/revoke</code>, <code>RevocationHandler</code>)</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><strong>Token Exchange</strong></td>
+<td>RFC 8693</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>Device Authorization Grant</strong></td>
+<td>RFC 8628</td>
+<td>Full</td>
+<td>None (CLI uses browser-loopback PKCE instead)</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>AS Metadata</strong></td>
+<td>RFC 8414</td>
+<td>Full</td>
+<td>Full (<code>/.well-known/oauth-authorization-server</code>, <code>NewASMetadataHandler</code>)</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><strong>OIDC Discovery</strong></td>
+<td>OIDC-Discovery 1.0</td>
+<td>Full</td>
+<td>Partial — serves the doc, but no OIDC primitives behind it (no id_token / userinfo)</td>
+<td>Partial</td>
+</tr>
+<tr>
+<td><strong>JWKS</strong></td>
+<td>RFC 7517</td>
+<td>Full</td>
+<td>Full (<code>JWKSHandler</code> + <code>JWKSKeyStore</code> client)</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><strong>JWT</strong></td>
+<td>RFC 7519</td>
+<td>Full</td>
+<td>Full (HS256 / RS256 / ES256, algorithm-confusion prevention)</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><strong>DCR</strong></td>
+<td>RFC 7591</td>
+<td>Full</td>
+<td>Full (<code>DCRHandler</code> at <code>/apps/dcr</code>)</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><strong>DCR Management</strong></td>
+<td>RFC 7592</td>
+<td>Full</td>
+<td>None (no PUT/DELETE on registered clients via DCR)</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>Protected Resource Metadata</strong></td>
+<td>RFC 9728</td>
+<td>Full</td>
+<td>Full (<code>NewProtectedResourceHandler</code>)</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><strong>Rich Authorization Requests (RAR)</strong></td>
+<td>RFC 9396</td>
+<td>Full</td>
+<td>Full on <code>/api/token</code>, introspection, middleware enforcement</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><strong>Resource Indicators</strong></td>
+<td>RFC 8707</td>
+<td>Full</td>
+<td>Partial (via <code>MintResourceToken</code> audience)</td>
+<td>Partial</td>
+</tr>
+<tr>
+<td><strong>PAR (Pushed Authorization Requests)</strong></td>
+<td>RFC 9126</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>JAR (JWT-Secured Authz Request)</strong></td>
+<td>RFC 9101</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>JARM (JWT-Secured Authz Response Mode)</strong></td>
+<td>OpenID FAPI JARM</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>DPoP</strong></td>
+<td>RFC 9449</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>mTLS Client Auth + Cert-Bound Tokens</strong></td>
+<td>RFC 8705</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>HTTP Message Signatures</strong></td>
+<td>RFC 9421 (FAPI 2.0 MS)</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>CIBA Core</strong></td>
+<td>OpenID CIBA 1.0</td>
+<td>Full (since 2019)</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>OpenID Connect Core</strong></td>
+<td>OIDC Core 1.0</td>
+<td>Full</td>
+<td>None — <strong>no id_token, no userinfo, no <code>/authorize</code></strong></td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>OIDC Session Management / Front-Channel / Back-Channel Logout</strong></td>
+<td>OIDC suite</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>OIDC Federation 1.0</strong></td>
+<td>OpenID Federation 1.0</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>OID4VCI (VC Issuance)</strong></td>
+<td>OID4VCI</td>
+<td>Full (SD-JWT VC, mdoc / mDL)</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>OID4VP (VC Presentation)</strong></td>
+<td>OID4VP</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>FAPI 1.0 baseline + advanced</strong></td>
+<td>FAPI 1.0</td>
+<td>Full (certified)</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>FAPI 2.0 Security Profile</strong></td>
+<td>FAPI 2.0</td>
+<td>Full (certified)</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>FAPI 2.0 Message Signing</strong></td>
+<td>FAPI 2.0 MS</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>FAPI-CIBA</strong></td>
+<td>OpenID FAPI-CIBA</td>
+<td>Full (certified)</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>UK / AU / BR / KSA Open Banking profiles</strong></td>
+<td>regional</td>
+<td>Full</td>
+<td>None</td>
+<td><strong>None</strong></td>
+</tr>
+<tr>
+<td><strong>WebAuthn / FIDO2</strong></td>
+<td>W3C / FIDO2</td>
+<td>N/A (Authlete delegates auth to frontend)</td>
+<td>None</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td><strong>MFA (TOTP, push, SMS)</strong></td>
+<td>—</td>
+<td>N/A (frontend concern)</td>
+<td>None</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td><strong>SAML 2.0</strong></td>
+<td>OASIS</td>
+<td>Out of scope</td>
+<td>Partial (SP only via <code>crewjam/saml</code>)</td>
+<td>n/a vs Authlete</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-client-authentication-method-coverage">4. Client Authentication Method Coverage <a class="anchor" href="#4-client-authentication-method-coverage">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Authlete</th>
+<th>OneAuth</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code> (public client)</td>
+<td>Full</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><code>client_secret_basic</code></td>
+<td>Full</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><code>client_secret_post</code></td>
+<td>Full</td>
+<td>Full</td>
+</tr>
+<tr>
+<td><code>client_secret_jwt</code></td>
+<td>Full</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>private_key_jwt</code></td>
+<td>Full</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>tls_client_auth</code></td>
+<td>Full</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>self_signed_tls_client_auth</code></td>
+<td>Full</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>attest_jwt_client_auth</code> (FAPI 2.0 attest)</td>
+<td>Full</td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+<p>OneAuth client SDK (<code>client/auth_method.go</code>) <strong>negotiates</strong> auth methods from AS metadata and falls back when the AS only advertises ones it doesn&rsquo;t support — so it&rsquo;s aware of <code>private_key_jwt</code> and <code>tls_client_auth</code>, but doesn&rsquo;t implement them.</p>
+<hr />
+<h2 id="5-where-oneauth-has-things-authlete-does-not">5. Where OneAuth Has Things Authlete Does Not <a class="anchor" href="#5-where-oneauth-has-things-authlete-does-not">¶</a></h2>
+<p>These are not gaps in OneAuth — they are scope choices Authlete made deliberately.</p>
+<ol>
+<li><strong>Embedded Go library, no service to operate.</strong> Authlete is always a network call (or a self-hosted Java service).</li>
+<li><strong>Three-layer User → Identity → Channel model.</strong> Authlete has no opinion on user data — that&rsquo;s the customer&rsquo;s problem.</li>
+<li><strong>Federated resource-token pattern (<code>MintResourceToken</code>).</strong> Per-app KeyStore + JWKS-based discovery for multi-service architectures. Authlete supports the underlying RFCs but doesn&rsquo;t ship this opinionated pattern.</li>
+<li><strong>Per-app quotas in JWT claims</strong> (<code>max_rooms</code>, <code>max_msg_rate</code>).</li>
+<li><strong>gRPC interceptors.</strong> No Authlete equivalent.</li>
+<li><strong>Algorithm-confusion prevention exposed per-client</strong> (<code>GetExpectedAlg</code>). Authlete does this internally, doesn&rsquo;t expose it.</li>
+<li><strong>Three storage backends with shared test suite</strong> (FS / GORM / GAE).</li>
+<li><strong>Config-driven reference server</strong> (<code>cmd/oneauth-server</code>) with YAML + <code>${ENV_VAR}</code> substitution.</li>
+<li><strong>No per-call cost.</strong> Authlete&rsquo;s pricing scales with token-endpoint traffic.</li>
+<li><strong>Local/social login + OAuth providers built in.</strong> Authlete is downstream of all of this.</li>
+</ol>
+<hr />
+<h2 id="6-strategic-read">6. Strategic Read <a class="anchor" href="#6-strategic-read">¶</a></h2>
+<p>Authlete and OneAuth are <em>layer-different</em>. A production deployment could legitimately be <strong>OneAuth (user + AS frontend) → Authlete (protocol engine)</strong> if the customer needs FAPI/CIBA/OID4VCI compliance but wants OneAuth&rsquo;s user model and Go ergonomics. We don&rsquo;t need to &ldquo;catch up&rdquo; to Authlete to be useful.</p>
+<p>That said, a few Authlete capabilities have value for OneAuth&rsquo;s actual niche (resource servers, federated multi-service apps) and are worth considering:</p>
+<h3 id="worth-picking-up-would-benefit-oneauths-users">Worth picking up (would benefit OneAuth&rsquo;s users) <a class="anchor" href="#worth-picking-up-would-benefit-oneauths-users">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Capability</th>
+<th>Why it fits OneAuth&rsquo;s niche</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>DPoP (RFC 9449)</strong> for access tokens</td>
+<td>Sender-constrained tokens — useful for federated multi-service architectures where a token leak shouldn&rsquo;t let an attacker replay. Validation is cheap; issuance is moderate.</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong><code>private_key_jwt</code> client auth</strong></td>
+<td>Removes shared-secret distribution for the federated <code>MintResourceToken</code> flow; aligns with what Keycloak / Authlete / Auth0 already accept.</td>
+<td>Small</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Token Exchange (RFC 8693)</strong></td>
+<td>Useful for service-to-service downscoping in federated systems; <code>MintResourceToken</code> is already philosophically close.</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong><code>authorization_code</code> grant + <code>/authorize</code> endpoint + id_token</strong></td>
+<td>Would make OneAuth a real (minimal) OIDC provider, not just a metadata advertiser. Big lift but is the door to &ldquo;use OneAuth instead of Keycloak for small deployments.&rdquo; Carefully decide if this is in scope vs. the stated &ldquo;we are not a full OIDC IdP&rdquo; position in <a href="../ROADMAP.md">ROADMAP.md</a>.</td>
+<td>Large</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>PAR (RFC 9126)</strong></td>
+<td>Only valuable if (4) lands.</td>
+<td>Small once (4) exists</td>
+</tr>
+</tbody>
+</table>
+<h3 id="probably-not-worth-it-out-of-niche">Probably not worth it (out of niche) <a class="anchor" href="#probably-not-worth-it-out-of-niche">¶</a></h3>
+<ul>
+<li><strong>FAPI 1/2 conformance, FAPI-CIBA, JARM, mTLS cert-bound tokens, OpenID Federation, OID4VCI, regional Open Banking profiles</strong> — these are Authlete&rsquo;s moat. Pursuing them means re-targeting OneAuth at regulated industries, which conflicts with the &ldquo;embeddable Go library&rdquo; identity in <a href="../ROADMAP.md">ROADMAP.md</a>.</li>
+<li><strong>CIBA</strong> — only relevant if you&rsquo;re issuing tokens for high-assurance decoupled flows.</li>
+<li><strong>Token Introspection of Authlete-issued tokens</strong> — already supported via <code>IntrospectionValidator</code>, no work needed.</li>
+</ul>
+<h3 id="clear-non-goals-already-settled-in-the-roadmap">Clear non-goals (already settled in the roadmap) <a class="anchor" href="#clear-non-goals-already-settled-in-the-roadmap">¶</a></h3>
+<ul>
+<li>Hosted multi-tenant SaaS form factor</li>
+<li>Conformance certification programs</li>
+<li>VC issuance / digital wallet support</li>
+</ul>
+<hr />
+<h2 id="7-recommended-position-statement">7. Recommended Position Statement <a class="anchor" href="#7-recommended-position-statement">¶</a></h2>
+<blockquote>
+<p>&ldquo;OneAuth is a Go library for building authenticated services and federated resource servers. For protocol-engine work that requires regulatory-grade conformance — FAPI, Open Banking, EUDI Wallet, OID4VCI, CIBA — pair OneAuth&rsquo;s user model and middleware with a dedicated AS backend like Authlete or Keycloak. OneAuth&rsquo;s Keycloak interop suite (<a href="../../tests/keycloak/"><code>tests/keycloak/</code></a>) demonstrates this pattern; an Authlete equivalent could be added if a real consumer needs it.&rdquo;</p>
+</blockquote>
+<p>If we eventually want to make this concrete, an <code>tests/authlete/</code> interop suite (mirroring <code>tests/keycloak/</code>) would prove the pairing the same way and give us the same one-liner credibility for regulated-industry conversations.</p>
+<hr />
+<h2 id="sources">Sources <a class="anchor" href="#sources">¶</a></h2>
+<ul>
+<li><a href="https://www.authlete.com/developers/overview/">Authlete Overview</a></li>
+<li><a href="https://www.authlete.com/legal/spec_sheet/">Authlete Spec Sheet</a></li>
+<li><a href="https://www.authlete.com/developers/fapi/">Authlete FAPI Compliance</a></li>
+<li><a href="https://www.authlete.com/developers/ciba/">Authlete CIBA</a></li>
+<li><a href="https://www.prnewswire.com/news-releases/authlete-introduces-support-for-openid-for-verifiable-credential-issuance-with-authlete-3-0--302296725.html">Authlete OID4VCI announcement (Authlete 3.0)</a></li>
+<li><a href="https://www.authlete.com/developers/api_protection/">Authlete API Protection Overview</a></li>
+<li><a href="https://www.authlete.com/kb/oauth-and-openid-connect/proof-of-possession-pop-tokens/dpop/">Authlete DPoP guide</a></li>
+<li><a href="https://kb.authlete.com/en/s/oauth-and-openid-connect/a/enabling-jarm">Authlete JARM guide</a></li>
+<li>OneAuth: <a href="../../README.md">README.md</a> · <a href="../../CAPABILITIES.md">CAPABILITIES.md</a> · <a href="../ROADMAP.md">ROADMAP.md</a> · <a href="../ARCHITECTURE.md">ARCHITECTURE.md</a> · <a href="AUTH0_GAP_ANALYSIS.md">AUTH0_GAP_ANALYSIS.md</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

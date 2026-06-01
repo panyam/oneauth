@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="High-level overview and design principles.">
+    <title>Architecture · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Architecture</h1>
+        
+        <p class="lead">High-level overview and design principles.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/ARCHITECTURE.md"><code>docs/ARCHITECTURE.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oneauth-architecture">OneAuth Architecture <a class="anchor" href="#oneauth-architecture">¶</a></h1>
+<h2 id="overview">Overview <a class="anchor" href="#overview">¶</a></h2>
+<p>OneAuth is a Go authentication library that provides unified local and OAuth-based authentication, multi-tenant JWT management, and federated auth for distributed services. It&rsquo;s designed as an embeddable library (not a standalone service) that integrates directly into Go applications. A reference server (<code>cmd/oneauth-server/</code>) is provided for standalone deployment.</p>
+<p><strong>Go version</strong>: 1.24.0+</p>
+<h2 id="core-design-principles">Core Design Principles <a class="anchor" href="#core-design-principles">¶</a></h2>
+<ol>
+<li><strong>Separation of Concerns</strong>: Users, Identities, and Channels as distinct layers</li>
+<li><strong>Framework Agnostic</strong>: Works with net/http and any router</li>
+<li><strong>Storage Agnostic</strong>: Interface-based stores with multiple implementations</li>
+<li><strong>Callback-Based</strong>: Application controls session management, email delivery, etc.</li>
+</ol>
+<h2 id="three-layer-data-model">Three-Layer Data Model <a class="anchor" href="#three-layer-data-model">¶</a></h2>
+<pre><code>┌─────────────────────────────────────────────────────────┐
+│                         User                            │
+│  - Unique account in the system                         │
+│  - Contains profile data                                │
+│  - Has multiple identities                              │
+└────────────────────────┬────────────────────────────────┘
+                         │
+           ┌─────────────┼──────────────┐
+           │             │              │
+           ▼             ▼              ▼
+┌──────────────┐ ┌──────────────┐  ┌──────────────┐
+│   Identity   │ │   Identity   │  │   Identity   │
+│  email:...   │ │  phone:...   │  │  email:...   │
+│  (verified)  │ │ (unverified) │  │  (verified)  │
+└──────┬───────┘ └──────────────┘  └──────┬───────┘
+       │                                  │
+       │         ┌────────────────────────┤
+       │         │                        │
+       ▼         ▼                        ▼
+┌──────────┐ ┌──────────┐          ┌──────────┐
+│ Channel  │ │ Channel  │          │ Channel  │
+│  local   │ │  google  │          │  github  │
+│(password)│ │ (oauth)  │          │ (oauth)  │
+└──────────┘ └──────────┘          └──────────┘
+</code></pre>
+<ul>
+<li><strong>User</strong>: Unique account identified by user ID. Contains profile information.</li>
+<li><strong>Identity</strong>: Contact method (email, phone) with verification status. Shared across auth channels.</li>
+<li><strong>Channel</strong>: Authentication mechanism (local, google, github) with provider-specific credentials.</li>
+<li><strong>UsernameStore</strong> (Optional): Username uniqueness enforcement and username-based login.</li>
+</ul>
+<p>Multiple channels can point to the same user via shared email identity, enabling multi-provider login.</p>
+<h2 id="three-authentication-modes">Three Authentication Modes <a class="anchor" href="#three-authentication-modes">¶</a></h2>
+<p>OneAuth supports three authentication modes, each targeting a different client type:</p>
+<pre><code>┌─────────────────────┬───────────────────────┬───────────────────────────┐
+│   Browser Auth      │   API Auth            │   Federated Auth          │
+│   (LocalAuth)       │   (APIAuth)           │   (AppRegistrar +         │
+│                     │                       │    MintResourceToken)     │
+│   Form login/signup │   JWT access tokens   │   App registers,          │
+│   Email verify      │   Refresh tokens      │   mints scoped JWTs,      │
+│   Password reset    │   API keys            │   resource server         │
+│   Session cookies   │   Scope enforcement   │   validates via KeyStore  │
+└─────────────────────┴───────────────────────┴───────────────────────────┘
+</code></pre>
+<p>Each mode has its own detailed documentation:</p>
+<ul>
+<li><strong><a href="BROWSER_AUTH.md">Browser Auth</a></strong> — Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error handling</li>
+<li><strong><a href="API_AUTH.md">API Auth</a></strong> — JWT access tokens, refresh tokens with rotation and theft detection, API keys, scope-based access control, custom claims, multi-tenant JWT validation via KeyStore</li>
+<li><strong><a href="FEDERATED_AUTH.md">Federated Auth</a></strong> — App Registration API (AdminAuth, AppRegistrar), resource token minting (MintResourceToken), multi-service architecture with shared KeyStore</li>
+<li><strong><a href="AUTH_FLOWS.md">Auth Flows</a></strong> — Detailed decision trees for login/signup, provider linking matrix, user journeys, edge cases</li>
+</ul>
+<h2 id="package-organization">Package Organization <a class="anchor" href="#package-organization">¶</a></h2>
+<pre><code>              core/          ← Foundation types, interfaces, zero internal deps
+            / | \  \
+           /  |  \  \
+        keys/ |  localauth/  ← Key mgmt, local auth
+        / \   |
+       /   \  |
+    admin/ apiauth/          ← Admin API, JWT auth
+              |
+           httpauth/         ← HTTP middleware, CSRF, session mux
+</code></pre>
+<p>Each subpackage has a <code>SUMMARY.md</code> for quick orientation.</p>
+<h2 id="store-architecture">Store Architecture <a class="anchor" href="#store-architecture">¶</a></h2>
+<pre><code>┌──────────────────────────────────────────────────────────────┐
+│  core/ — Store Interfaces                                    │
+│  UserStore | IdentityStore | ChannelStore | TokenStore       │
+│  RefreshTokenStore | APIKeyStore | UsernameStore (opt)       │
+├──────────────────────────────────────────────────────────────┤
+│  keys/ — Key Interfaces                                      │
+│  KeyStorage | KeyLookup (multi-tenant JWT + kid lookup)      │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+        ▼                  ▼                  ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│   stores/fs   │   │  stores/gorm  │   │  stores/gae   │
+│  File-based   │   │  SQL (GORM)   │   │  Datastore    │
+│  Development  │   │  Production   │   │  Google Cloud │
+└───────────────┘   └───────────────┘   └───────────────┘
+</code></pre>
+<p>For store interfaces, implementations, and KeyStore details, see <strong><a href="STORES.md">Stores</a></strong>.</p>
+<h2 id="demos">Demos <a class="anchor" href="#demos">¶</a></h2>
+<p>See <strong><a href="DEMOS.md">DEMOS.md</a></strong> for runnable demos that exercise key scenarios end-to-end, including what each demo simplifies vs. production usage.</p>
+<h2 id="client-sdk">Client SDK <a class="anchor" href="#client-sdk">¶</a></h2>
+<p>For CLI tools and programmatic clients consuming oneauth-protected APIs:</p>
+<pre><code>AuthClient → Login/Logout → CredentialStore (persists tokens)
+           → HTTPClient() → refreshTransport (auto-refresh on 401)
+</code></pre>
+<p>See <strong><a href="CLIENT_SDK.md">Client SDK</a></strong> for full details.</p>
+<h2 id="security-architecture">Security Architecture <a class="anchor" href="#security-architecture">¶</a></h2>
+<h3 id="password-security">Password Security <a class="anchor" href="#password-security">¶</a></h3>
+<ul>
+<li>bcrypt hashing with cost 10</li>
+<li>Constant-time comparison</li>
+</ul>
+<h3 id="token-security">Token Security <a class="anchor" href="#token-security">¶</a></h3>
+<ul>
+<li>Cryptographically secure random generation (32 bytes)</li>
+<li>Single-use verification tokens (deleted after use)</li>
+<li>Expiry enforcement with lazy cleanup</li>
+</ul>
+<h3 id="jwt-security">JWT Security <a class="anchor" href="#jwt-security">¶</a></h3>
+<ul>
+<li>HS256, RS256, and ES256 signing (per-app algorithm choice, all coexist in the same KeyStore)</li>
+<li>Asymmetric signing: apps keep private keys, register only public keys; resource servers verify without knowing signing secrets</li>
+<li>JWKS endpoint (<code>/.well-known/jwks.json</code>) for public key discovery — resource servers can fetch asymmetric keys via HTTP instead of sharing database access</li>
+<li><code>JWKSKeyStore</code> — read-only KeyStore that fetches from a remote JWKS URL with background refresh, caching, and resilience</li>
+<li>Protected Resource Metadata (<code>/.well-known/oauth-protected-resource</code>, RFC 9728) — resource servers advertise their capabilities for client auto-discovery</li>
+<li>Audience and issuer validation (string and array <code>aud</code> per RFC 7519 §4.1.3)</li>
+<li><code>kid</code> (Key ID) in all JWT headers — RFC 7638 thumbprint enables JWKS-based key discovery</li>
+<li>Algorithm confusion prevention via <code>KeyRecord.Algorithm</code> check</li>
+<li><code>utils.DecodeVerifyKey</code> converts stored PEM bytes to <code>crypto.PublicKey</code> at read time</li>
+</ul>
+<h3 id="key-id-kid-in-jwts">Key ID (kid) in JWTs <a class="anchor" href="#key-id-kid-in-jwts">¶</a></h3>
+<ul>
+<li>All minted JWTs include <code>kid</code> header (RFC 7638 thumbprint computed from key material)</li>
+<li><code>APIMiddleware</code> tries kid-based lookup first (<code>GetKeyByKid</code>), falls back to <code>client_id</code> claim (<code>GetKey</code>)</li>
+<li><code>KidStore</code> retains old keys during rotation with configurable grace period</li>
+<li><code>CompositeKeyLookup</code> chains multiple <code>KeyLookup</code> sources (KeyStorage for current + KidStore for rotated)</li>
+<li>Cross-app token forgery prevented via <code>KeyRecord.ClientID</code> cross-check against <code>client_id</code> claim</li>
+</ul>
+<h3 id="encryption-at-rest">Encryption at Rest <a class="anchor" href="#encryption-at-rest">¶</a></h3>
+<ul>
+<li><code>EncryptedKeyStorage</code> — decorator that wraps any <code>KeyStorage</code> to encrypt HS256 client secrets at rest using AES-256-GCM</li>
+<li>Master key: 32-byte hex string (<code>ONEAUTH_MASTER_KEY</code> env var), derived via HKDF-SHA256 with a versioned info string</li>
+<li>Asymmetric keys (RS256/ES256 public keys) pass through unencrypted since they are not sensitive</li>
+<li>Migration: if GCM decryption fails on read, falls back to treating stored bytes as plaintext (backward compat with pre-encryption data)</li>
+<li>Optional: no master key configured = no encryption (with log warning)</li>
+</ul>
+<h3 id="pkce-proof-key-for-code-exchange">PKCE (Proof Key for Code Exchange) <a class="anchor" href="#pkce-proof-key-for-code-exchange">¶</a></h3>
+<ul>
+<li>All OAuth2 flows use PKCE (RFC 7636) by default — prevents authorization code interception</li>
+<li><code>code_challenge</code> (S256) sent with authorization URL, <code>code_verifier</code> sent on token exchange</li>
+<li>Verifier stored in HttpOnly cookie during the OAuth round-trip</li>
+<li><code>DisablePKCE</code> opt-out for providers that don&rsquo;t support PKCE (logs warning)</li>
+<li>Required by OAuth 2.1 for all clients (not just public)</li>
+</ul>
+<h3 id="csrf-protection">CSRF Protection <a class="anchor" href="#csrf-protection">¶</a></h3>
+<ul>
+<li><code>CSRFMiddleware</code> — double-submit cookie pattern, opt-in per-endpoint</li>
+<li>Constant-time token comparison (<code>crypto/subtle</code>)</li>
+<li>Bearer-token requests exempt by default</li>
+<li>Per-session tokens (not per-request) for back button / multi-tab compatibility</li>
+</ul>
+<h3 id="refresh-token-security">Refresh Token Security <a class="anchor" href="#refresh-token-security">¶</a></h3>
+<ul>
+<li>Rotation on use</li>
+<li>Family-based theft detection (reuse → revoke entire family)</li>
+<li>Immediate revocation capability</li>
+</ul>
+<h2 id="extension-points">Extension Points <a class="anchor" href="#extension-points">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Extension</th>
+<th>Purpose</th>
+<th>Doc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SignupPolicy</code></td>
+<td>Configurable signup requirements</td>
+<td><a href="BROWSER_AUTH.md#signuppolicy-recommended">Browser Auth</a></td>
+</tr>
+<tr>
+<td><code>OnSignupError</code> / <code>OnLoginError</code></td>
+<td>Custom error handlers</td>
+<td><a href="BROWSER_AUTH.md#custom-error-handlers">Browser Auth</a></td>
+</tr>
+<tr>
+<td><code>ValidateSignup</code> (legacy)</td>
+<td>Custom signup validation</td>
+<td><a href="BROWSER_AUTH.md#custom-validator-legacy">Browser Auth</a></td>
+</tr>
+<tr>
+<td><code>GetUserScopes</code></td>
+<td>Custom scope resolution</td>
+<td><a href="API_AUTH.md#scopes">API Auth</a></td>
+</tr>
+<tr>
+<td><code>CustomClaimsFunc</code></td>
+<td>Inject custom JWT claims</td>
+<td><a href="API_AUTH.md#custom-claims">API Auth</a></td>
+</tr>
+<tr>
+<td><code>EmailSender</code></td>
+<td>Custom email delivery</td>
+<td><a href="BROWSER_AUTH.md#email-integration">Browser Auth</a></td>
+</tr>
+<tr>
+<td><code>AdminAuth</code></td>
+<td>Pluggable admin authentication</td>
+<td><a href="FEDERATED_AUTH.md#adminauth-interface">Federated Auth</a></td>
+</tr>
+<tr>
+<td>Store interfaces</td>
+<td>Custom database backends</td>
+<td><a href="STORES.md#custom-store-implementation">Stores</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="positioning">Positioning <a class="anchor" href="#positioning">¶</a></h2>
+<p>OneAuth differentiates from alternatives by being:</p>
+<ul>
+<li><strong>Embeddable library</strong> (not a service to run)</li>
+<li><strong>Go-native</strong> (not language-agnostic)</li>
+<li><strong>Simple model</strong> (User → Identity → Channel)</li>
+<li><strong>Multiple store options</strong> (file, SQL, NoSQL)</li>
+<li><strong>Callback-based</strong> (app controls sessions)</li>
+<li><strong>Federated-ready</strong> (multi-tenant KeyStore, app registration, resource token minting)</li>
+<li><strong>Standards-compliant</strong> (RFC 7662 introspection, RFC 8414 AS discovery, RFC 9728 PRM, RFC 8252 native app auth, RFC 7636 PKCE)</li>
+<li><strong>Keycloak-tested</strong> (interop test suite validates against real IdP)</li>
+</ul>
+<p>Closest alternatives:</p>
+<ul>
+<li><code>go-pkgz/auth</code> — Similar middleware focus, less flexible model</li>
+<li><code>Ory Kratos</code> — Full IAM platform, more complex</li>
+<li><code>Authelia</code> — Reverse proxy companion, different architecture</li>
+</ul>
+<h2 id="documentation-index">Documentation Index <a class="anchor" href="#documentation-index">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Document</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="ARCHITECTURE.md">ARCHITECTURE.md</a></td>
+<td>This file — high-level overview</td>
+</tr>
+<tr>
+<td><a href="BROWSER_AUTH.md">BROWSER_AUTH.md</a></td>
+<td>Browser-based authentication (LocalAuth, OAuth, sessions)</td>
+</tr>
+<tr>
+<td><a href="API_AUTH.md">API_AUTH.md</a></td>
+<td>API authentication (JWT, refresh tokens, API keys, KeyStore)</td>
+</tr>
+<tr>
+<td><a href="FEDERATED_AUTH.md">FEDERATED_AUTH.md</a></td>
+<td>Federated auth (AppRegistrar, MintResourceToken, AdminAuth)</td>
+</tr>
+<tr>
+<td><a href="AUTH_FLOWS.md">AUTH_FLOWS.md</a></td>
+<td>Detailed decision trees, user journeys, edge cases</td>
+</tr>
+<tr>
+<td><a href="CLIENT_SDK.md">CLIENT_SDK.md</a></td>
+<td>Client SDK for CLI/programmatic access</td>
+</tr>
+<tr>
+<td><a href="STORES.md">STORES.md</a></td>
+<td>Store interfaces and implementations</td>
+</tr>
+<tr>
+<td><a href="GETTING_STARTED.md">GETTING_STARTED.md</a></td>
+<td>Quick start guide</td>
+</tr>
+<tr>
+<td><a href="USER_GUIDE.md">USER_GUIDE.md</a></td>
+<td>User guide</td>
+</tr>
+<tr>
+<td><a href="DEVELOPER_GUIDE.md">DEVELOPER_GUIDE.md</a></td>
+<td>Developer guide</td>
+</tr>
+<tr>
+<td><a href="DEMOS.md">DEMOS.md</a></td>
+<td>Runnable demos &amp; production vs. demo comparison</td>
+</tr>
+<tr>
+<td><a href="TESTING.md">TESTING.md</a></td>
+<td>Testing guide</td>
+</tr>
+<tr>
+<td><a href="GRPC.md">GRPC.md</a></td>
+<td>gRPC integration</td>
+</tr>
+</tbody>
+</table>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

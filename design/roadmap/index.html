@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="What&#39;s shipped, what&#39;s in flight.">
+    <title>Roadmap · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Roadmap</h1>
+        
+        <p class="lead">What&#39;s shipped, what&#39;s in flight.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/ROADMAP.md"><code>docs/ROADMAP.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oneauth-roadmap">OneAuth Roadmap <a class="anchor" href="#oneauth-roadmap">¶</a></h1>
+<h2 id="vision">Vision <a class="anchor" href="#vision">¶</a></h2>
+<p>OneAuth is an <strong>embeddable Go authentication library</strong> — not an identity server. It handles local auth, API auth (JWT/refresh/API keys), and federated resource auth (app registration, scoped token minting, multi-tenant validation via KeyStore/JWKS).</p>
+<p><strong>What we are not building:</strong> A full OIDC Identity Provider (that&rsquo;s Keycloak&rsquo;s job). Instead, we <strong>interoperate</strong> with real IdPs and focus on making resource servers and apps easy to secure in Go.</p>
+<hr />
+<h2 id="standards--interop-track">Standards &amp; Interop Track <a class="anchor" href="#standards--interop-track">¶</a></h2>
+<p>This track moves OneAuth from custom-protocol federated auth toward <strong>standards-compliant interoperability</strong> with the broader OAuth2/OIDC ecosystem. The guiding principle: <strong>prove interop with real-world tools (Keycloak) instead of reimplementing them.</strong></p>
+<h3 id="phase-1-resource-server-standards-short-term">Phase 1: Resource Server Standards (Short-term) <a class="anchor" href="#phase-1-resource-server-standards-short-term">¶</a></h3>
+<p>These are low-effort, high-value additions that make OneAuth resource servers self-describing and interoperable.</p>
+<h4 id="protected-resource-metadata--rfc-9728-46--complete">Protected Resource Metadata — RFC 9728 (#46) ✅ COMPLETE <a class="anchor" href="#protected-resource-metadata--rfc-9728-46--complete">¶</a></h4>
+<p><code>ProtectedResourceMetadata</code> struct + <code>NewProtectedResourceHandler()</code> in <code>apiauth/</code>. Serves JSON at <code>GET /.well-known/oauth-protected-resource</code> with <code>Cache-Control</code> headers. 7 unit tests + 3 e2e tests. Wired into demo resource server and e2e test environment.</p>
+<h4 id="token-introspection--rfc-7662-47--complete">Token Introspection — RFC 7662 (#47) ✅ COMPLETE <a class="anchor" href="#token-introspection--rfc-7662-47--complete">¶</a></h4>
+<p><code>IntrospectionHandler</code> in <code>apiauth/introspection.go</code>. Resource servers POST tokens to <code>POST /oauth/introspect</code> (authenticated via client_credentials). Returns RFC 7662 response with <code>active</code>, <code>sub</code>, <code>scope</code>, <code>exp</code>, <code>iss</code>, <code>jti</code>. Checks <code>TokenBlacklist</code>. Cache-Control: no-store. 9 unit + 3 e2e tests. Wired into reference server and e2e auth server.</p>
+<h3 id="phase-2-client-registration-standards-medium-term">Phase 2: Client Registration Standards (Medium-term) <a class="anchor" href="#phase-2-client-registration-standards-medium-term">¶</a></h3>
+<h4 id="dcr-conformance-wrapper--rfc-7591-48--complete">DCR Conformance Wrapper — RFC 7591 (#48) ✅ COMPLETE <a class="anchor" href="#dcr-conformance-wrapper--rfc-7591-48--complete">¶</a></h4>
+<p><code>DCRHandler</code> in <code>admin/dcr.go</code>, served at <code>POST /apps/dcr</code> via <code>AppRegistrar.Handler()</code>. Maps JWK→PEM, <code>client_uri</code>→<code>client_domain</code>, <code>token_endpoint_auth_method</code>→<code>signing_alg</code>. Returns RFC 7591 response format. Supports both <code>X-Admin-Key</code> and Bearer auth. 6 unit + 2 e2e tests. Custom <code>/apps/*</code> endpoints continue working unchanged.</p>
+<h3 id="phase-3-keycloak-interop-test-suite-49--complete">Phase 3: Keycloak Interop Test Suite (#49) ✅ COMPLETE <a class="anchor" href="#phase-3-keycloak-interop-test-suite-49--complete">¶</a></h3>
+<p>10 interop tests in <code>tests/keycloak/</code> proving <code>APIMiddleware</code> + <code>JWKSKeyStore</code> validate Keycloak-issued tokens. Pre-baked realm JSON, <code>make upkcl/testkcl/downkcl</code>, manual-trigger CI workflow. Separate Go module (<code>tests/keycloak/go.mod</code>).</p>
+<p><strong>Architecture:</strong></p>
+<pre><code>tests/keycloak/
+├── realm.json          # Pre-baked Keycloak realm config (imported on startup)
+├── keycloak_test.go    # Go tests using testcontainers or Docker
+└── README.md
+</code></pre>
+<p><strong>Realm config (checked in as JSON):</strong></p>
+<ul>
+<li>Realm with RS256 signing</li>
+<li>Confidential client (for client_credentials flow)</li>
+<li>Public client (for PKCE testing)</li>
+<li>Test user with known credentials</li>
+</ul>
+<p><strong>Test categories:</strong></p>
+<ol>
+<li>
+<p><strong>Interop tests</strong> (OneAuth as resource server validating Keycloak tokens):</p>
+<ul>
+<li><code>JWKSKeyStore</code> fetches Keycloak&rsquo;s JWKS via <code>/.well-known/openid-configuration</code></li>
+<li><code>APIMiddleware</code> validates Keycloak-issued JWT</li>
+<li>Scopes, audience, expiry, kid lookup all work</li>
+<li>Algorithm confusion: Keycloak RS256 token rejected when validated as HS256</li>
+</ul>
+</li>
+<li>
+<p><strong>Standards conformance tests:</strong></p>
+<ul>
+<li>Keycloak JWKS response parses through <code>JWKToPublicKey</code></li>
+<li>Keycloak <code>kid</code> values resolve via <code>GetKeyByKid</code></li>
+<li>Token introspection (when built) matches Keycloak&rsquo;s response format</li>
+</ul>
+</li>
+<li>
+<p><strong>What we skip:</strong></p>
+<ul>
+<li>Keycloak&rsquo;s login flows through LocalAuth (different layers)</li>
+<li>Keycloak admin API testing (their problem)</li>
+</ul>
+</li>
+</ol>
+<p><strong>Infrastructure:</strong></p>
+<ul>
+<li><code>make testkcl</code> — starts Keycloak container, runs interop tests</li>
+<li>Keycloak image: <code>quay.io/keycloak/keycloak</code> with <code>start-dev</code> + realm import (~10-15s startup)</li>
+<li>Separate from <code>make e2e</code> (which stays fast at ~2s)</li>
+<li>Optional in CI (like <code>testpg</code> / <code>testds</code>)</li>
+</ul>
+<p><strong>Adoption story:</strong> &ldquo;OneAuth middleware validates Keycloak-issued tokens correctly&rdquo; — one-line pitch.</p>
+<h3 id="phase-4-oidc-discovery-metadata-long-term-optional">Phase 4: OIDC Discovery Metadata (Long-term, Optional) <a class="anchor" href="#phase-4-oidc-discovery-metadata-long-term-optional">¶</a></h3>
+<h4 id="oidc-discovery--rfc-8414-50--complete">OIDC Discovery — RFC 8414 (#50) ✅ COMPLETE <a class="anchor" href="#oidc-discovery--rfc-8414-50--complete">¶</a></h4>
+<p><code>ASServerMetadata</code> + <code>NewASMetadataHandler</code> in <code>apiauth/as_metadata.go</code>. Serves <code>GET /.well-known/openid-configuration</code> with token, JWKS, introspection, registration endpoints. Metadata-only — does NOT make us a full OIDC server. 6 unit + 3 e2e tests (incl. <code>DiscoverAS</code> round-trip) + Keycloak field compatibility test. Wired into reference server and e2e auth server.</p>
+<hr />
+<h2 id="oauth-client-capabilities-5155">OAuth Client Capabilities (#51–#55) <a class="anchor" href="#oauth-client-capabilities-5155">¶</a></h2>
+<p>These issues complete the OAuth client story — making OneAuth useful not just for building auth servers, but for building OAuth-aware clients and resource servers that interoperate with any AS.</p>
+<h3 id="prerequisites">Prerequisites <a class="anchor" href="#prerequisites">¶</a></h3>
+<h4 id="fix-aud-array-validation--52-p0-bug--complete">Fix <code>aud</code> array validation — #52 (P0, Bug) ✅ COMPLETE <a class="anchor" href="#fix-aud-array-validation--52-p0-bug--complete">¶</a></h4>
+<p><code>matchesAudience()</code> helper handles both string and <code>[]interface{}</code> aud formats at all 3 validation sites. 8 new tests covering array accepted/rejected for ValidateAccessToken, ValidateAccessTokenFull, and APIMiddleware.</p>
+<h3 id="client-side-oauth">Client-Side OAuth <a class="anchor" href="#client-side-oauth">¶</a></h3>
+<h4 id="client-credentials-grant--53-p1--complete"><code>client_credentials</code> grant — #53 (P1) ✅ COMPLETE <a class="anchor" href="#client-credentials-grant--53-p1--complete">¶</a></h4>
+<p>Server: <code>handleClientCredentialsGrant</code> in <code>APIAuth</code> with <code>ClientKeyStore</code> field. Client: <code>ClientCredentialsToken()</code> on <code>AuthClient</code>. Supports <code>client_secret_post</code> and <code>client_secret_basic</code>. 8 unit + 2 e2e tests.</p>
+<h4 id="headless-oauth--pkce-for-cli--54-p1--complete">Headless OAuth + PKCE for CLI — #54 (P1) ✅ COMPLETE <a class="anchor" href="#headless-oauth--pkce-for-cli--54-p1--complete">¶</a></h4>
+<p><code>LoginWithBrowser()</code> on <code>AuthClient</code>. Loopback redirect server, PKCE, state validation, auto-discovery via DiscoverAS (#51). 6 unit tests + Keycloak interop test. Supersedes old Phase 3.</p>
+<h4 id="as-metadata-discovery-client--51-p1--complete">AS Metadata Discovery client — #51 (P1) ✅ COMPLETE <a class="anchor" href="#as-metadata-discovery-client--51-p1--complete">¶</a></h4>
+<p><code>DiscoverAS()</code> in <code>client/discovery.go</code>. Fallback chain: RFC 8414 → OIDC Discovery. Path-based issuer support. 8 unit tests + Keycloak interop test.</p>
+<h4 id="token-introspection-client--55-p2--complete">Token Introspection client — #55 (P2) ✅ COMPLETE <a class="anchor" href="#token-introspection-client--55-p2--complete">¶</a></h4>
+<p><code>IntrospectionValidator</code> in <code>apiauth/introspection_client.go</code>. Integrates into <code>APIMiddleware.Introspection</code> as fallback when local JWT validation fails. Response caching with configurable TTL. 7 unit + 1 e2e + 2 Keycloak interop tests.</p>
+<h3 id="bug-fixes">Bug Fixes <a class="anchor" href="#bug-fixes">¶</a></h3>
+<h4 id="fix-auth-method-negotiation-with-explicit-endpoints--74-p1-bug--complete">Fix auth method negotiation with explicit endpoints — #74 (P1, Bug) ✅ COMPLETE <a class="anchor" href="#fix-auth-method-negotiation-with-explicit-endpoints--74-p1-bug--complete">¶</a></h4>
+<p><code>BrowserLoginConfig.TokenEndpointAuthMethods</code> field. When explicit endpoints are provided (discovery skipped), callers can pass <code>token_endpoint_auth_methods_supported</code> from their own discovery so <code>SelectAuthMethod</code> negotiates correctly instead of defaulting to <code>client_secret_basic</code>. Found by MCPKit conformance test. 3 unit + 2 e2e tests.</p>
+<hr />
+<h2 id="rfc-9207--issuer-identification-in-authorization-response--complete">RFC 9207 — Issuer Identification in Authorization Response ✅ COMPLETE <a class="anchor" href="#rfc-9207--issuer-identification-in-authorization-response--complete">¶</a></h2>
+<p>Closes the mix-up-attack defence story end-to-end across three PRs. Each surfaced one half of the wire contract before the consumer-side enforcement helper landed — the metadata-as-promises-board pattern in action.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Surface</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>235</td>
+<td>Surface <code>iss</code> query parameter on the loopback callback (<code>BrowserLoginRequest.OnCallback</code> receives <code>CallbackParams.Iss</code>).</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>239</td>
+<td>Surface <code>authorization_response_iss_parameter_supported</code> on <code>client.ASMetadata</code> (pointer-typed <code>*bool</code> preserves the advertised-true / advertised-false / absent tristate; mirrors the existing server-side field on <code>apiauth.ASServerMetadata</code>). Adds <code>client/as_metadata_interop_test.go</code> pinning the server↔client wire contract.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>238</td>
+<td><code>client.ValidateIss(iss, expectedIssuer, asAdvertisedSupport, strict)</code> consolidates the §2.4 truth table. Two <code>errors.Is</code>-safe sentinels (<code>ErrIssMismatch</code>, <code>ErrIssMissing</code>). RFC 3986 §6.2 normalization (scheme + host lowercase, trailing-slash strip) kept unexported pending the shared primitive ticket post mcpkit#380.</td>
+<td>Merged</td>
+</tr>
+</tbody>
+</table>
+<p>Shipped in <code>v0.1.13</code>. Downstream <code>mcpkit#380</code> can drop its in-tree <code>ValidateIss</code> copy.</p>
+<hr />
+<h2 id="execution-order">Execution Order <a class="anchor" href="#execution-order">¶</a></h2>
+<pre><code>Bug Fixes
+    #52 Fix aud array (P0) ◄── blocks everything
+
+                    ┌─────────────────────────┐
+                    │ Phase 1: Resource Server │
+                    │ Standards                │
+                    ├─────────────────────────┤
+                    │ #46 PRM (RFC 9728)      │◄── Smallest, do first
+                    │ #47 Introspection (7662)│◄── Already on roadmap
+                    └───────────┬─────────────┘
+                                │
+              ┌─────────────────┼─────────────────┐
+              ▼                                   ▼
+┌─────────────────────────┐         ┌─────────────────────────┐
+│ Phase 2: DCR Wrapper    │         │ Phase 3: Keycloak Tests │
+│ #48 (RFC 7591/7592)     │         │ #49                     │◄── Can start in parallel
+└─────────────────────────┘         └─────────────┬───────────┘
+                                                  │
+              ┌───────────────────────────────────┘
+              ▼
+OAuth Client Capabilities (parallel track)
+    #53 client_credentials ◄── foundational grant
+    #54 Headless OAuth + PKCE ◄── supersedes old Phase 3
+    #51 AS Discovery client ◄── enhances #54
+    #55 Introspection client ◄── requires #47 + #53
+    #50 OIDC Discovery server (optional)
+</code></pre>
+<p><strong>Recommended order:</strong></p>
+<ol>
+<li><del><strong>#52 Fix aud array</strong> (P0 bug)</del> ✅ DONE</li>
+<li><del><strong>#46 PRM</strong></del> ✅ DONE</li>
+<li><del><strong>#49 Keycloak tests</strong></del> ✅ DONE</li>
+<li><del><strong>#53 client_credentials</strong></del> ✅ DONE</li>
+<li><del><strong>#54 Headless OAuth + PKCE</strong></del> ✅ DONE</li>
+<li><del><strong>#47 Token Introspection server</strong></del> ✅ DONE</li>
+<li><del><strong>#51 AS Discovery client</strong></del> ✅ DONE</li>
+<li><del><strong>#48 DCR wrapper</strong></del> ✅ DONE</li>
+<li><del><strong>#55 Introspection client</strong></del> ✅ DONE</li>
+<li><del><strong>#50 OIDC Discovery server</strong></del> ✅ DONE</li>
+</ol>
+<hr />
+<h2 id="mcpkit-pushdown--generic-oauth-code-78">MCPKit Pushdown — Generic OAuth Code (#78) <a class="anchor" href="#mcpkit-pushdown--generic-oauth-code-78">¶</a></h2>
+<p>Pure-OAuth code pushed down from mcpkit/ext/auth (mcpkit#158) into oneauth for broader reusability.</p>
+<h3 id="client-side-dcr--validation-utilities-78--complete">Client-Side DCR + Validation Utilities (#78) ✅ COMPLETE <a class="anchor" href="#client-side-dcr--validation-utilities-78--complete">¶</a></h3>
+<ul>
+<li><code>client/dcr.go</code> — <code>RegisterClient</code> (RFC 7591 client-side DCR caller), <code>ClientRegistrationRequest</code>, <code>ClientRegistrationResponse</code>. Note: server-side DCR was already in <code>admin/dcr.go</code>; this is the client-side counterpart.</li>
+<li><code>client/validation.go</code> — <code>ValidateHTTPS</code> (RFC 6749 §3.1.2.1 HTTPS enforcement with localhost exemption), <code>IsLocalhost</code> (loopback detection), <code>ValidateCIMDURL</code> (draft-ietf-oauth-client-id-metadata-document validation)</li>
+<li><code>client/client_credentials_source.go</code> — <code>ClientCredentialsSource</code> (RFC 6749 §4.4 grant wrapper with token caching and scope step-up), <code>TokenSource</code> and <code>ScopeAwareTokenSource</code> interfaces</li>
+<li><code>core/scopes.go</code> — <code>UnionScopes</code> (sorted, deduplicated scope union, complement to <code>IntersectScopes</code>)</li>
+<li>20+ tests across <code>client/dcr_test.go</code>, <code>client/validation_test.go</code>, <code>client/client_credentials_source_test.go</code>, <code>core/scopes_test.go</code></li>
+</ul>
+<hr />
+<h2 id="app-registrar-persistence--complete">App Registrar Persistence ✅ COMPLETE <a class="anchor" href="#app-registrar-persistence--complete">¶</a></h2>
+<p>Closed parent issue 20 (Persist AppRegistrar state) via three shippable chunks. Schema additions for the RFC 7592 management track were baked in upfront so subsequent tickets did not churn the table layout.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scope</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>165</td>
+<td><code>AppRegistrationStore</code> interface + <code>InMemoryAppStore</code> + AppRegistrar refactor (cache + write-through) + <code>appstoretest</code> contract suite + e2e simulated-restart test</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>166</td>
+<td><code>FSAppStore</code> (filesystem backend) — file-per-app, atomic writes, safeName traversal defense, partial recovery on corrupt files</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>167</td>
+<td><code>GORMAppStore</code> (multi-node — Postgres/MySQL/SQLite) + <code>app_store</code> config block in <code>cmd/oneauth-server</code>. <strong>Closed parent #20.</strong></td>
+<td>Merged</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rfc-7592--dcr-management--complete">RFC 7592 — DCR Management ✅ COMPLETE <a class="anchor" href="#rfc-7592--dcr-management--complete">¶</a></h2>
+<p>Closed parent issue 157 via four vertical verb-by-verb slices. Each ticket shipped a server handler, a client SDK helper, tests, and a walkthrough step in <code>examples/06-dynamic-client-registration/</code>. The <code>ClientRegistrationManager</code> interface introduced in 168 is the blueprint for the convention-port track below.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Slice</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>168</td>
+<td>Foundation + GET — registration_access_token + registration_client_uri issuance, <code>ClientRegistrationManager</code> interface, <code>DCRManagementHandler</code>, <code>client.GetRegistration</code>, walkthrough step</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>169</td>
+<td>PUT — full-replace update + token re-issuance + <code>client.UpdateRegistration</code> + walkthrough steps; <strong>manager interface and client SDK adopt the <code>(ctx, *Req) → (*Resp, error)</code> convention</strong> (blueprint for 172 / 175)</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>170</td>
+<td>DELETE — registration removal + KeyStore credential invalidation + <code>client.DeleteRegistration</code> + walkthrough step. Closes the verb trio.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>171</td>
+<td>Keycloak interop — full lifecycle test against Keycloak&rsquo;s RFC 7592 endpoints; validates the wire format of 168/169/170 against a real-world AS</td>
+<td>Merged</td>
+</tr>
+</tbody>
+</table>
+<h2 id="convention-ports--complete">Convention Ports ✅ COMPLETE <a class="anchor" href="#convention-ports--complete">¶</a></h2>
+<p>The <code>(ctx context.Context, *XRequest) → (*XResponse, error)</code> convention adopted in 169 has propagated through the library. Every transport-agnostic interface in <code>apiauth/</code> and <code>admin/</code> now follows the gRPC-shape signature.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Surface</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>172</td>
+<td>Legacy <code>admin/</code> — <code>ClientRegistrar</code> interface for register / list / get / delete / rotate. HTTP handlers reduced to thin wrappers. Wire format unchanged.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>175</td>
+<td><code>apiauth/</code> — <code>TokenIssuer</code> / <code>TokenValidator</code> / <code>TokenIntrospector</code> / <code>TokenRevoker</code> / <code>ClientAuthenticator</code>. HTTP handlers (auth.go, introspection.go, revocation.go) reduced to thin wrappers. Wire format unchanged.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>189</td>
+<td><strong>Pending</strong> — remove <code>/apps/register</code> once a quota story for <code>MaxRooms</code> / <code>MaxMsgRate</code> is decided. Blocked on the design call, not implementation.</td>
+<td>Pending</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reference-server-cmdoneauth-server">Reference Server (cmd/oneauth-server) <a class="anchor" href="#reference-server-cmdoneauth-server">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Item</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>184</td>
+<td>Issuer URL fix (drop iss=0.0.0.0 leak) + RS256 token signing mode (<code>jwt.signing_alg: RS256</code>) so JWKS-based remote validation works. Test/dev opts into ephemeral keys via explicit <code>jwt.ephemeral_signing_key: true</code>; production sets <code>jwt.private_key_path</code>.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>194</td>
+<td><strong>Meta-tracker</strong> — promote <code>cmd/oneauth-server</code> from POC to production-grade reference deployment. Catalogs feature gaps (admin UI, MFA, full /authorize, multi-tenant, WebAuthn, etc.) and what&rsquo;s <em>intentionally</em> not on the roadmap. Living document; not a single PR.</td>
+<td>Open</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="relationship-to-existing-work">Relationship to Existing Work <a class="anchor" href="#relationship-to-existing-work">¶</a></h2>
+<h3 id="what-this-track-does-not-change">What this track does NOT change <a class="anchor" href="#what-this-track-does-not-change">¶</a></h3>
+<ul>
+<li>Core library architecture (embeddable, not a service)</li>
+<li><code>KeyStore</code> / <code>KeyLookup</code> / <code>KeyStorage</code> interfaces</li>
+<li><code>MintResourceToken</code> (single entry point; auto-selects HS256/RS256/ES256 from the key type)</li>
+<li><code>AdminAuth</code> interface</li>
+<li>Three-backend store pattern (FS, GORM, GAE)</li>
+<li>E2e test suite (<code>make e2e</code>)</li>
+</ul>
+<h3 id="what-this-track-complements">What this track complements <a class="anchor" href="#what-this-track-complements">¶</a></h3>
+<ul>
+<li><strong>OAuth for non-browser clients</strong> — #54 (headless OAuth + PKCE) and #53 (client_credentials) cover CLI/agent and machine-to-machine flows</li>
+<li><strong>Redis-backed distributed stores</strong> (#115) — introspection endpoint benefits from fast token lookup</li>
+<li><strong>Token blacklist</strong> — introspection checks the blacklist</li>
+<li><strong>Persist AppRegistrar state</strong> (#20) — DCR wrapper benefits from persistent registrations</li>
+<li><strong>Authlete-superset tracker</strong> (#163) — meta-issue aggregating gap-closure work, see <a href="gaps/AUTHLETE_GAP_ANALYSIS.md">docs/gaps/AUTHLETE_GAP_ANALYSIS.md</a></li>
+</ul>
+<h3 id="positioning-vs-keycloak">Positioning vs Keycloak <a class="anchor" href="#positioning-vs-keycloak">¶</a></h3>
+<p>OneAuth and Keycloak are <strong>complementary, not competing:</strong></p>
+<ul>
+<li>Keycloak <strong>is</strong> the authorization server / IdP</li>
+<li>OneAuth <strong>helps you build</strong> Go services that validate tokens from Keycloak (or any OIDC provider)</li>
+<li>The Keycloak test suite (#49) makes this relationship explicit and tested</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Overview of every conformance and interop suite OneAuth runs.">
+    <title>Conformance · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Conformance</h1>
+        
+        <p class="lead">Overview of every conformance and interop suite OneAuth runs.</p>
+        
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<p>OneAuth runs four conformance / interop suites today. Each has its own scorecard or audit document; this page is the index.</p>
+
+<div class="pillars">
+    <div class="pillar">
+        <h3><a href="/oneauth/conformance/oidf/">OIDF conformance</a></h3>
+        <p><strong>Auto-regenerated.</strong> The OpenID Foundation conformance suite's discovery plan run against <code>cmd/oneauth-server</code>. Per-check FAIL/WARN outcomes diffed against <a href="https://github.com/panyam/oneauth/blob/main/tests/conformance/known-gaps.yaml"><code>known-gaps.yaml</code></a>. Ratchet enforced — regressions and ratchet-ups both turn CI red.</p>
+        <p><em>Updated by:</em> <code>make testoidf</code></p>
+    </div>
+
+    <div class="pillar">
+        <h3><a href="/oneauth/conformance/native/">Go-native ratchet</a></h3>
+        <p><strong>Auto-regenerated.</strong> Cross-spec conformance fixtures (AS metadata RFC 8414, client authentication, introspection RFC 7662) written as Go tests. Same ratchet model as OIDF; pass/fail tracked against <code>known-gaps.yaml</code>.</p>
+        <p><em>Updated by:</em> <code>make testconformance</code></p>
+    </div>
+
+    <div class="pillar">
+        <h3><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></h3>
+        <p><strong>Hand-curated audit.</strong> Documents what <code>tests/keycloak/</code> covers, what passes, and what's deliberately not covered. Updated when the test suite changes. Tracked separately from OIDF because Keycloak interop is "OneAuth validates Keycloak-issued tokens" — a different surface than "OneAuth passes OIDF cert plans."</p>
+        <p><em>Updated by:</em> hand, when <code>tests/keycloak/</code> changes</p>
+    </div>
+
+    <div class="pillar">
+        <h3><a href="/oneauth/conformance/authlete/">Authlete interop</a></h3>
+        <p><strong>Hand-curated audit.</strong> Documents what <code>tests/authlete/</code> covers, the test client + provisioner architecture, and what remains gated on missing OneAuth surface (e.g., <code>/authorize</code>).</p>
+        <p><em>Updated by:</em> hand, when <code>tests/authlete/</code> changes</p>
+    </div>
+</div>
+
+<section class="why">
+    <h2>Why two flavors of "conformance"?</h2>
+    <p>
+        <strong>Spec-defined plans</strong> (OIDF) measure us against a public test plan the spec authors themselves endorse. Passing the OIDF discovery plan means we serve a valid <code>/.well-known/openid-configuration</code> by the OIDC working group's own definition. That's the substitutability claim — same plans Authlete, Auth0, Keycloak, Curity certify against.
+    </p>
+    <p>
+        <strong>Per-IdP interop</strong> (Keycloak, Authlete) measures something different: <em>OneAuth's middleware validates tokens issued by IdP X</em>. Useful for "you can stick OneAuth's resource-server middleware in front of an existing Keycloak deployment without changing your auth server" claims; <em>not</em> a substitute for spec-defined conformance.
+    </p>
+</section>
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>
