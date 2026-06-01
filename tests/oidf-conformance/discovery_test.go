@@ -74,8 +74,12 @@ func TestOIDF_OIDCC_ConfigCert_Discovery(t *testing.T) {
 	}
 	summary := harness.Summarize(logEntries)
 
-	// 2. Load the manifest, filtering for this plan.
-	expected := loadExpectedFails(t, planName)
+	// 2. Load the manifest entries for this plan.
+	expectedEntries := loadExpectedEntries(t, planName)
+	expected := map[string]bool{}
+	for k := range expectedEntries {
+		expected[k] = true
+	}
 
 	// 3. Diff.
 	observed := map[string]bool{}
@@ -104,6 +108,14 @@ func TestOIDF_OIDCC_ConfigCert_Discovery(t *testing.T) {
 	if t.Failed() {
 		t.Logf("baseline check srcs from latest run: failures=%d warnings=%d",
 			len(summary.Failures), len(summary.Warnings))
+	}
+
+	// 4. Regenerate SCORECARD.md from the latest harness output (runs
+	// unconditionally — even on diff failure, the scorecard reflects
+	// reality and the PR diff makes the drift visible).
+	totals, rows := buildScorecard(logEntries, expectedEntries)
+	if err := writeScorecard(findWorkspaceRoot(t), planName, testName, totals, rows); err != nil {
+		t.Errorf("scorecard write failed: %v", err)
 	}
 }
 
@@ -174,6 +186,31 @@ func planConfig() map[string]any {
 	}
 }
 
+// loadExpectedEntries parses tests/conformance/known-gaps.yaml and
+// returns the full manifestEntry for each (suite=oidf, plan, status=
+// expected-fail) tuple, keyed by `test` (check src). The scorecard
+// uses the Issue + Reason fields; the diff logic uses only the keys.
+func loadExpectedEntries(t *testing.T, plan string) map[string]manifestEntry {
+	t.Helper()
+	root := findWorkspaceRoot(t)
+	path := filepath.Join(root, "tests", "conformance", "known-gaps.yaml")
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var entries []manifestEntry
+	if err := yaml.Unmarshal(buf, &entries); err != nil {
+		t.Fatalf("parse manifest: %v", err)
+	}
+	out := map[string]manifestEntry{}
+	for _, e := range entries {
+		if e.Suite == "oidf" && e.Plan == plan && e.Status == "expected-fail" {
+			out[e.Test] = e
+		}
+	}
+	return out
+}
+
 // loadExpectedFails parses tests/conformance/known-gaps.yaml and returns
 // the set of `test` (check src) values for the specified plan, suite=oidf,
 // status=expected-fail. Path is resolved relative to the workspace root
@@ -201,11 +238,14 @@ func loadExpectedFails(t *testing.T, plan string) map[string]bool {
 
 // manifestEntry mirrors the schema in tests/conformance/cmd/runner/manifest.go
 // but is local to this package because the runner is a separate Go submodule.
+// Issue + Reason are read for SCORECARD.md rendering.
 type manifestEntry struct {
 	Suite  string `yaml:"suite"`
 	Plan   string `yaml:"plan,omitempty"`
 	Test   string `yaml:"test,omitempty"`
 	Status string `yaml:"status"`
+	Issue  int    `yaml:"issue,omitempty"`
+	Reason string `yaml:"reason,omitempty"`
 }
 
 // findWorkspaceRoot walks up from the test file's CWD to find go.work.
