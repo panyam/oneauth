@@ -128,6 +128,15 @@ func Diff(results []Result, manifest map[string]Entry) []Issue {
 		if seenKeys[k] {
 			continue
 		}
+		// External-suite entries (Plan + Test set; ID empty) are
+		// enforced by separate adapters (e.g., tests/oidf-conformance
+		// runs its own discovery_test.go against the same manifest).
+		// The Go-test-driven runner must not flag them as stale just
+		// because it didn't see them — they belong to a different
+		// enforcement mechanism that's responsible for their lifecycle.
+		if e.ID == "" {
+			continue
+		}
 		issues = append(issues, Issue{
 			Kind: IssueStaleManifest,
 			Key:  k,

@@ -1,0 +1,52 @@
+name: OIDF Conformance
+
+# Manual trigger only — the OIDF harness is slow to bring up (Java app +
+# MongoDB + nginx, ~30-60s) and the discovery test produces structured
+# results meant for human review when the ratchet shifts. Not per-commit
+# material; matches the `testkcl` posture in keycloak-interop.yml.
+# Run via: Actions → OIDF Conformance → Run workflow
+on:
+  workflow_dispatch:
+
+jobs:
+  oidf-discovery:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.26'
+
+      - name: Start OIDF conformance harness
+        run: |
+          docker compose -f tests/oidf-conformance/docker-compose-prebuilt.yml up -d
+          # Wait for the harness UI to come online — host.docker.internal
+          # needs to resolve (it does on Mac/Win Docker; on Linux CI we add the host gateway).
+          until curl -ksf -o /dev/null https://localhost.emobix.co.uk:8443/; do sleep 2; done
+
+      - name: Start oneauth-server
+        run: |
+          # Backgrounded; the test waits for /.well-known to come online.
+          # On Linux CI Docker doesn't auto-resolve host.docker.internal, so
+          # we add the route here for the harness container.
+          docker network inspect bridge >/dev/null 2>&1
+          go run -buildvcs=false ./cmd/oneauth-server \
+            --config tests/oidf-conformance/oneauth-server.yaml > /tmp/oneauth-server.log 2>&1 &
+          until curl -sf -o /dev/null http://localhost:8888/.well-known/openid-configuration; do sleep 1; done
+          echo "AS ready."
+
+      - name: Run OIDF conformance ratchet
+        env:
+          GOWORK: "off"
+        working-directory: tests/oidf-conformance
+        run: go test -v -count=1 ./...
+
+      - name: Capture oneauth-server logs on failure
+        if: failure()
+        run: |
+          echo "=== oneauth-server log ==="
+          cat /tmp/oneauth-server.log || true
+          echo "=== harness server log ==="
+          docker compose -f tests/oidf-conformance/docker-compose-prebuilt.yml logs --tail=200 server || true
