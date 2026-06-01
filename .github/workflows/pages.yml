@@ -1,0 +1,66 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/site/**'
+      - 'docs/**.md'
+      - 'docs/conformance/**.md'
+      - 'docs/gaps/**.md'
+      - 'tests/oidf-conformance/SCORECARD.md'
+      - 'README.md'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: docs/site/go.mod
+
+      - name: Build site
+        working-directory: docs/site
+        run: make build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: docs/site/dist/docs
+          retention-days: 7
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: docs-site
+          path: dist
+
+      - name: Publish to gh-pages branch
+        # Third-party action pinned by commit SHA (v4.1.0). Bump only
+        # via Dependabot/Renovate or a deliberate manual review — never
+        # by floating tag.
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          commit_message: 'Deploy OneAuth docs site (${{ github.sha }})'

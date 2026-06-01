@@ -9,7 +9,7 @@ for the full strategy; this README covers mechanics.
 From the repo root:
 
 ```bash
-make testconformance         # full run + report at test-reports/conformance.md
+make testconformance         # full run + report at docs/conformance/native.md
 ```
 
 Reports are always written. The filename is derived from the package
@@ -18,9 +18,9 @@ run in parallel without clobbering:
 
 | Command | Report path |
 |---|---|
-| `make testconformance` | `test-reports/conformance.md` |
-| `go run ./cmd/runner -package ./as_metadata/...` | `test-reports/conformance-as_metadata.md` |
-| `go run ./cmd/runner -package ./prm/...` | `test-reports/conformance-prm.md` |
+| `make testconformance` | `docs/conformance/native.md` |
+| `go run ./cmd/runner -package ./as_metadata/...` | `docs/conformance/native-as_metadata.md` |
+| `go run ./cmd/runner -package ./prm/...` | `docs/conformance/native-prm.md` |
 
 Scoped runs go through the runner binary directly:
 
@@ -29,9 +29,10 @@ cd tests/conformance
 GOWORK=off go run ./cmd/runner -package ./as_metadata/...
 ```
 
-The runner finds `test-reports/` by walking up to the workspace root
-(the directory containing `go.work`), so it works the same from any
-subdirectory.
+The runner finds `docs/conformance/` by walking up to the workspace
+root (the directory containing `go.work`), so it works the same from
+any subdirectory. The published docs site (`docs/site/`) renders
+`native.md` verbatim under `/conformance/native/`.
 
 ## The model
 
@@ -111,13 +112,13 @@ fails until the entry is removed.
 runner [flags]
   -manifest string     path to known-gaps.yaml (default ./known-gaps.yaml)
   -package string      Go package pattern (default ./...)
-  -report-dir string   directory for reports (default: <workspace>/test-reports)
+  -report-dir string   directory for reports (default: <workspace>/docs/conformance)
   -report string       explicit report path (overrides -report-dir)
   -no-report           skip writing a report
 ```
 
 Default behavior: every run writes to
-`<workspace>/test-reports/conformance[-<scope>].md`. Use `-report` to
+`<workspace>/docs/conformance/native[-<scope>].md`. Use `-report` to
 override the path, `-report-dir` to redirect just the directory, or
 `-no-report` to skip.
 

@@ -1,0 +1,7 @@
+{
+  "siteName": "OneAuth",
+  "siteDescription": "Go authentication library with unified local/OAuth auth, multi-tenant JWT, federated resource server auth, and measured OAuth/OIDC conformance.",
+  "repository": "https://github.com/panyam/oneauth",
+  "issues": "https://github.com/panyam/oneauth/issues",
+  "license": "Apache-2.0"
+}
