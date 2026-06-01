@@ -29,10 +29,10 @@ func TestScopeFromPackage(t *testing.T) {
 
 func TestReportFilename(t *testing.T) {
 	tests := map[string]string{
-		"./...":             "conformance.md",
-		"./as_metadata/...": "conformance-as_metadata.md",
-		"./prm":             "conformance-prm.md",
-		"./a,./b":           "conformance.md",
+		"./...":             "native.md",
+		"./as_metadata/...": "native-as_metadata.md",
+		"./prm":             "native-prm.md",
+		"./a,./b":           "native.md",
 	}
 	for in, want := range tests {
 		if got := reportFilename(in); got != want {
@@ -69,13 +69,13 @@ func TestResolveReportPath(t *testing.T) {
 			name: "report-dir + full run",
 			pkg:  "./...",
 			dir:  tmp,
-			want: filepath.Join(tmp, "conformance.md"),
+			want: filepath.Join(tmp, "native.md"),
 		},
 		{
 			name: "report-dir + scoped run",
 			pkg:  "./as_metadata/...",
 			dir:  tmp,
-			want: filepath.Join(tmp, "conformance-as_metadata.md"),
+			want: filepath.Join(tmp, "native-as_metadata.md"),
 		},
 	}
 	for _, tt := range tests {

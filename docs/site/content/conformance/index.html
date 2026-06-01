@@ -1,0 +1,42 @@
+---
+title: "Conformance"
+description: "Overview of every conformance and interop suite OneAuth runs."
+---
+
+<p>OneAuth runs four conformance / interop suites today. Each has its own scorecard or audit document; this page is the index.</p>
+
+<div class="pillars">
+    <div class="pillar">
+        <h3><a href="{{ .Site.PathPrefix }}/conformance/oidf/">OIDF conformance</a></h3>
+        <p><strong>Auto-regenerated.</strong> The OpenID Foundation conformance suite's discovery plan run against <code>cmd/oneauth-server</code>. Per-check FAIL/WARN outcomes diffed against <a href="{{ (json "SiteMetadata.json" "repository") }}/blob/main/tests/conformance/known-gaps.yaml"><code>known-gaps.yaml</code></a>. Ratchet enforced — regressions and ratchet-ups both turn CI red.</p>
+        <p><em>Updated by:</em> <code>make testoidf</code></p>
+    </div>
+
+    <div class="pillar">
+        <h3><a href="{{ .Site.PathPrefix }}/conformance/native/">Go-native ratchet</a></h3>
+        <p><strong>Auto-regenerated.</strong> Cross-spec conformance fixtures (AS metadata RFC 8414, client authentication, introspection RFC 7662) written as Go tests. Same ratchet model as OIDF; pass/fail tracked against <code>known-gaps.yaml</code>.</p>
+        <p><em>Updated by:</em> <code>make testconformance</code></p>
+    </div>
+
+    <div class="pillar">
+        <h3><a href="{{ .Site.PathPrefix }}/conformance/keycloak/">Keycloak interop</a></h3>
+        <p><strong>Hand-curated audit.</strong> Documents what <code>tests/keycloak/</code> covers, what passes, and what's deliberately not covered. Updated when the test suite changes. Tracked separately from OIDF because Keycloak interop is "OneAuth validates Keycloak-issued tokens" — a different surface than "OneAuth passes OIDF cert plans."</p>
+        <p><em>Updated by:</em> hand, when <code>tests/keycloak/</code> changes</p>
+    </div>
+
+    <div class="pillar">
+        <h3><a href="{{ .Site.PathPrefix }}/conformance/authlete/">Authlete interop</a></h3>
+        <p><strong>Hand-curated audit.</strong> Documents what <code>tests/authlete/</code> covers, the test client + provisioner architecture, and what remains gated on missing OneAuth surface (e.g., <code>/authorize</code>).</p>
+        <p><em>Updated by:</em> hand, when <code>tests/authlete/</code> changes</p>
+    </div>
+</div>
+
+<section class="why">
+    <h2>Why two flavors of "conformance"?</h2>
+    <p>
+        <strong>Spec-defined plans</strong> (OIDF) measure us against a public test plan the spec authors themselves endorse. Passing the OIDF discovery plan means we serve a valid <code>/.well-known/openid-configuration</code> by the OIDC working group's own definition. That's the substitutability claim — same plans Authlete, Auth0, Keycloak, Curity certify against.
+    </p>
+    <p>
+        <strong>Per-IdP interop</strong> (Keycloak, Authlete) measures something different: <em>OneAuth's middleware validates tokens issued by IdP X</em>. Useful for "you can stick OneAuth's resource-server middleware in front of an existing Keycloak deployment without changing your auth server" claims; <em>not</em> a substitute for spec-defined conformance.
+    </p>
+</section>

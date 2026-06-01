@@ -648,9 +648,10 @@ testoidf:
 # Runs every known conformance test (passing AND expected-fail) and diffs
 # the outcome against tests/conformance/known-gaps.yaml. Exits non-zero on
 # any drift: regression, ratchet-up, stale entry, or t.Skip(). Also writes
-# a Markdown report at test-reports/conformance.md — scoped runs derive
-# distinct filenames (e.g., conformance-as_metadata.md), so parallel runs
-# of different suites don't clobber each other.
+# a Markdown report at docs/conformance/native.md — scoped runs derive
+# distinct filenames (e.g., native-as_metadata.md), so parallel runs of
+# different suites don't clobber each other. The docs site renders that
+# native.md verbatim under /conformance/native/.
 testconformance:
 	@cd tests/conformance && GOWORK=off go run ./cmd/runner -package ./...
 

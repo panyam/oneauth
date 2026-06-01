@@ -5,6 +5,7 @@ use (
 	./cmd/demo-hostapp
 	./cmd/demo-resource-server
 	./cmd/oneauth-server
+	./docs/site
 	./grpc
 	./oauth2
 	./saml

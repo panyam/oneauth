@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Conformance",
+    "url": "conformance/",
+    "children": [
+      { "name": "Overview",          "url": "conformance/" },
+      { "name": "OIDF scorecard",    "url": "conformance/oidf/" },
+      { "name": "Go-native ratchet", "url": "conformance/native/" },
+      { "name": "Keycloak interop",  "url": "conformance/keycloak/" },
+      { "name": "Authlete interop",  "url": "conformance/authlete/" }
+    ]
+  },
+  {
+    "name": "Architecture",
+    "url": "design/architecture/",
+    "children": [
+      { "name": "Architecture",   "url": "design/architecture/" },
+      { "name": "Roadmap",        "url": "design/roadmap/" },
+      { "name": "Auth flows",     "url": "design/auth-flows/" },
+      { "name": "Federated auth", "url": "design/federated-auth/" },
+      { "name": "JWT signing",    "url": "design/jwt-signing/" }
+    ]
+  },
+  {
+    "name": "Gap analyses",
+    "url": "design/gap-authlete/",
+    "children": [
+      { "name": "vs Authlete", "url": "design/gap-authlete/" },
+      { "name": "vs Auth0",    "url": "design/gap-auth0/" }
+    ]
+  }
+]

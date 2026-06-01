@@ -18,7 +18,7 @@ Three invariants govern every suite under this strategy:
 
 1. **Every known test runs every time.** No `t.Skip()` for "not implemented yet". A test we deliberately don't pass is still executed; its expected result is "fail", recorded in a manifest.
 2. **CI fails on diff, not absolute count.** The runner asserts `actual_failures == expected_failures` for conformance and adversarial suites, and `actual_metrics ≤ baseline * margin` for load. Movement in either direction breaks the build.
-3. **Suppression has metadata.** Every entry in a `known-gaps` / `baseline` / `suppressions` file carries a tracking issue, an owner, a reason, and an `expires:` date. The ratchet itself is the strongest staleness signal — a gap silently shipped will already break CI as a "ratchet up" failure. For human review of long-lived gaps, `make testconformance-report` writes a Markdown summary to `test-reports/` sorted by `expires:` so old entries surface on demand. The `expires:` field is advisory: the gating runner does not fail on past dates.
+3. **Suppression has metadata.** Every entry in a `known-gaps` / `baseline` / `suppressions` file carries a tracking issue, an owner, a reason, and an `expires:` date. The ratchet itself is the strongest staleness signal — a gap silently shipped will already break CI as a "ratchet up" failure. For human review of long-lived gaps, `make testconformance` writes a Markdown summary to `docs/conformance/native.md` sorted by `expires:` so old entries surface on demand. The published docs site renders that file under `/conformance/native/`. The `expires:` field is advisory: the gating runner does not fail on past dates.
 
 The result: when a feature PR lands and a previously-failing conformance test starts passing, CI breaks immediately ("you forgot to remove `oidc-discovery-required-fields` from `known-gaps.yaml`"). The author flips the entry, the test moves from "known gap" to "regression-protected", and the gap count drops by one. There is no scenario where a passing test silently gets credit it didn't earn, and no scenario where a regression on something we already supported gets dismissed.
 
@@ -288,7 +288,7 @@ These need a call before issues are opened:
 - ~~**Where does the runner contract live?**~~ **Resolved.** Small Go binary in a new `tests/conformance/` submodule (mirrors `tests/keycloak/`). Make targets wrap it (`testconformance` for gating, `testconformance-report` for the human review).
 - **Do we publish self-written conformance fixtures as a separate Go module?** Defer until the fixtures stabilize against ≥1 non-OneAuth target. Keep them inside `tests/conformance/` for now.
 - **Self-hosted runner for load tests — cloud or workstation?** Tail-latency gating needs a stable machine. Cheapest path: a single dedicated cloud VM that GH Actions reserves via runner labels. Doesn't gate item 1.
-- ~~**Frequency of quarterly suppression review**~~ **Resolved.** No cron. The `make testconformance-report` target is run on demand; the report is checked into `test-reports/`. The ratchet itself catches the most important staleness case (gap silently shipped) without any review.
+- ~~**Frequency of quarterly suppression review**~~ **Resolved.** No cron. `make testconformance` writes the report on every run; the result is checked into `docs/conformance/native.md` and published via the docs site. The ratchet itself catches the most important staleness case (gap silently shipped) without any review.
 
 ---
 

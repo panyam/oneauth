@@ -5,10 +5,11 @@
 // non-zero on any diff. See tests/conformance/README.md and
 // docs/CONFORMANCE.md §1 for the model.
 //
-// Reports: every run writes a Markdown summary by default. The path is
-// derived from the -package pattern so a full run and a scoped run
-// produce distinct files (e.g., conformance.md vs conformance-as_metadata.md).
-// Use -report to override the path explicitly, or -no-report to skip.
+// Reports: every run writes a Markdown summary by default into
+// <workspace>/docs/conformance/. The path is derived from the -package
+// pattern so a full run and a scoped run produce distinct files
+// (e.g., native.md vs native-as_metadata.md). Use -report to override
+// the path explicitly, or -no-report to skip.
 //
 // Exit codes:
 //
@@ -34,7 +35,7 @@ import (
 func main() {
 	manifestPath := flag.String("manifest", "known-gaps.yaml", "path to known-gaps manifest")
 	pkg := flag.String("package", "./...", "Go package pattern to test (excludes ./cmd/...)")
-	reportDir := flag.String("report-dir", "", "directory for reports (default: <workspace>/test-reports)")
+	reportDir := flag.String("report-dir", "", "directory for reports (default: <workspace>/docs/conformance)")
 	report := flag.String("report", "", "explicit report path (overrides -report-dir)")
 	noReport := flag.Bool("no-report", false, "skip writing a report")
 	flag.Parse()
@@ -78,9 +79,10 @@ func main() {
 // when no report should be written (i.e., -no-report).
 //
 // Precedence: -no-report > -report > derived from -report-dir + -package.
-// When -report-dir is unset, defaults to <workspace>/test-reports where
-// <workspace> is the nearest ancestor containing go.work; falls back to
-// ./test-reports relative to CWD if no workspace is found.
+// When -report-dir is unset, defaults to <workspace>/docs/conformance where
+// <workspace> is the nearest ancestor containing go.work — that's the
+// path the published docs site renders. Falls back to ./docs/conformance
+// relative to CWD if no workspace is found.
 func resolveReportPath(pkg, reportDir, reportFile string, noReport bool) string {
 	if noReport {
 		return ""
@@ -90,23 +92,24 @@ func resolveReportPath(pkg, reportDir, reportFile string, noReport bool) string 
 	}
 	if reportDir == "" {
 		if root := findWorkspaceRoot(); root != "" {
-			reportDir = filepath.Join(root, "test-reports")
+			reportDir = filepath.Join(root, "docs", "conformance")
 		} else {
-			reportDir = "test-reports"
+			reportDir = filepath.Join("docs", "conformance")
 		}
 	}
 	return filepath.Join(reportDir, reportFilename(pkg))
 }
 
 // reportFilename derives the report basename from a Go package pattern.
-// "./..." (full run) → "conformance.md"; "./<suite>/..." or "./<suite>" →
-// "conformance-<suite>.md". Anything more complex (multi-pattern, nested
-// path, glob) falls back to "conformance.md".
+// "./..." (full run) → "native.md" (the file the docs site renders for the
+// Go-native suite); "./<suite>/..." or "./<suite>" → "native-<suite>.md".
+// Anything more complex (multi-pattern, nested path, glob) falls back to
+// "native.md".
 func reportFilename(pkg string) string {
 	if scope := scopeFromPackage(pkg); scope != "" {
-		return "conformance-" + scope + ".md"
+		return "native-" + scope + ".md"
 	}
-	return "conformance.md"
+	return "native.md"
 }
 
 // scopeFromPackage extracts a single suite name when the pattern targets
