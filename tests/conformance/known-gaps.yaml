@@ -10,15 +10,150 @@
 # Schema:
 #   suite     — required; package basename for Go-native, suite name for external
 #   id        — Go-native: full Go test name including subtest path
-#   plan/test — external suites only (OIDF, MCP); paired
+#   plan/test — external suites only (OIDF, MCP); paired. For OIDF, `test`
+#               carries the harness check-class identifier (`src` in the
+#               log JSON), which is the stable per-check identifier across runs.
 #   status    — must be "expected-fail"
 #   issue     — required GitHub issue number tracking the gap
 #   owner     — GitHub handle responsible for closing the gap
 #   reason    — multi-line; what is missing and why this is filed instead of fixed
 #   expires   — ISO date; advisory only (consumed by the report, not the ratchet)
+#
+# External-suite entries (Plan + Test, no ID) are NOT enforced by this
+# directory's Go-test runner — they belong to separate adapters that
+# read this same manifest. For OIDF: tests/oidf-conformance/discovery_test.go
+# runs the harness and diffs results. The Go-test runner skips external
+# entries when checking for stale entries to avoid spurious red.
 
-# (No expected-fail entries.) The first ratchet entry was
+# (No Go-native expected-fail entries.) The first ratchet entry was
 # `introspection/TestIntrospectClientAuth/post_auth_accepted` — the
 # introspection endpoint accepting client_secret_post creds in the form
 # body alongside Basic. Closed by issue 158 (private_key_jwt) which
 # routed all three protected handlers through extractClientCredentials.
+
+# =============================================================================
+# OIDF conformance (external suite — driven by tests/oidf-conformance/)
+# =============================================================================
+# Each entry pins one of the OpenID Foundation conformance suite's per-check
+# results. The `test` field carries the harness's check-class identifier
+# (`src` in the harness log JSON), which is the stable identifier across runs.
+# The discovery plan baseline + per-check rationale lives in
+# `tests/oidf-conformance/baselines/2026-05-09/BASELINE.md`.
+
+# Substantive metadata gaps gated on issue 116 (full OIDC Provider).
+
+- suite: oidf
+  plan: oidcc-config-certification-test-plan
+  test: OIDCCCheckDiscEndpointResponseTypesSupported
+  status: expected-fail
+  issue: 116
+  owner: panyam
+  reason: |
+    OneAuth does not implement /authorize and therefore advertises no
+    response_types_supported that matches OIDC (we serve `token` only,
+    which is for the resource-token API surface; OIDC checks expect at
+    least one of `code`, `id_token`, etc.). Closes when issue 116 ships.
+  expires: 2026-12-31
+
+- suite: oidf
+  plan: oidcc-config-certification-test-plan
+  test: OIDCCCheckDiscEndpointIdTokenSigningAlgValuesSupported
+  status: expected-fail
+  issue: 116
+  owner: panyam
+  reason: |
+    id_token_signing_alg_values_supported is gated on issue 116 issuing
+    id_tokens. We could advertise the alg list standalone, but the field
+    is semantically about id_token signing and there are currently no
+    id_tokens to sign.
+  expires: 2026-12-31
+
+- suite: oidf
+  plan: oidcc-config-certification-test-plan
+  test: CheckDiscEndpointAuthorizationEndpoint
+  status: expected-fail
+  issue: 116
+  owner: panyam
+  reason: |
+    authorization_endpoint is not advertised because /authorize isn't
+    implemented. Single biggest gap to the OIDC IdP claim; tracked
+    under issue 116.
+  expires: 2026-12-31
+
+# Note on metadata-advertisement quick wins: the baseline (2026-05-09)
+# also flagged `OIDCCCheckDiscEndpointClaimsSupported` and
+# `CheckDiscEndpointScopesSupportedContainsOpenId` as warnings. Both
+# closed organically between the baseline date and the Phase 2 wiring
+# (cmd/oneauth-server now populates both fields in default AS metadata).
+# Cluster A of issue 250 is therefore already done — only the TLS-
+# fronted-variant cluster (B) remains under 250.
+
+- suite: oidf
+  plan: oidcc-config-certification-test-plan
+  test: CheckDiscEndpointUserinfoEndpoint
+  status: expected-fail
+  issue: 116
+  owner: panyam
+  reason: |
+    userinfo_endpoint is absent. Gated on issue 116 (the userinfo
+    endpoint is part of the OIDC IdP surface).
+  expires: 2026-12-31
+
+# Deployment-mode failures — Phase 1 baseline runs HTTP-only, the harness
+# expects HTTPS in production-mode plans. These say nothing about spec
+# compliance, only about how we're hosting locally. Filed as #250 — wire a
+# TLS-fronted variant once we're ready for an apples-to-apples run.
+
+- suite: oidf
+  plan: oidcc-config-certification-test-plan
+  test: CheckDiscEndpointDiscoveryUrl
+  status: expected-fail
+  issue: 250
+  owner: panyam
+  reason: |
+    Expected https protocol for server.discoveryUrl. We run HTTP-only
+    locally. Tracked as deployment-mode noise under #250 (TLS-fronted
+    variant).
+  expires: 2026-12-31
+
+- suite: oidf
+  plan: oidcc-config-certification-test-plan
+  test: CheckDiscEndpointTokenEndpoint
+  status: expected-fail
+  issue: 250
+  owner: panyam
+  reason: |
+    Expected https protocol for token_endpoint. Deployment-mode; see #250.
+  expires: 2026-12-31
+
+- suite: oidf
+  plan: oidcc-config-certification-test-plan
+  test: CheckDiscEndpointRegistrationEndpoint
+  status: expected-fail
+  issue: 250
+  owner: panyam
+  reason: |
+    Expected https protocol for registration_endpoint. Deployment-mode;
+    see #250.
+  expires: 2026-12-31
+
+- suite: oidf
+  plan: oidcc-config-certification-test-plan
+  test: CheckJwksUri
+  status: expected-fail
+  issue: 250
+  owner: panyam
+  reason: |
+    Expected https protocol for jwks_uri. Deployment-mode; see #250.
+  expires: 2026-12-31
+
+- suite: oidf
+  plan: oidcc-config-certification-test-plan
+  test: CheckDiscEndpointAllEndpointsAreHttps
+  status: expected-fail
+  issue: 250
+  owner: panyam
+  reason: |
+    Aggregate HTTPS check. Mirrors the per-endpoint failures above.
+    Deployment-mode; see #250.
+  expires: 2026-12-31

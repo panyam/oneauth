@@ -83,6 +83,51 @@ func TestDiff_StaleManifest(t *testing.T) {
 	}
 }
 
+// validExternalGap mirrors validGap but for the external-suite shape
+// (plan + test, no id). Used to verify the runner's external-entry
+// exemption from stale-manifest checks (those entries are enforced
+// by separate adapters, not this Go-test runner).
+func validExternalGap(suite, plan, test string) Entry {
+	return Entry{
+		Suite:   suite,
+		Plan:    plan,
+		Test:    test,
+		Status:  "expected-fail",
+		Issue:   1,
+		Owner:   "test-owner",
+		Reason:  "placeholder",
+		Expires: "2099-01-01",
+	}
+}
+
+// TestDiff_ExternalEntryNotStale verifies that manifest entries for
+// external suites (plan + test set, no id) are NOT flagged as stale
+// when the Go-test runner doesn't observe them — they're enforced by
+// a separate adapter (e.g., tests/oidf-conformance/discovery_test.go
+// for OIDF). Catches the regression where adding the first external
+// entry to known-gaps.yaml would make every Go-test-driven runner
+// invocation red.
+func TestDiff_ExternalEntryNotStale(t *testing.T) {
+	external := mustEntry(t, validExternalGap("oidf",
+		"oidcc-config-certification-test-plan",
+		"OIDCCCheckDiscEndpointResponseTypesSupported"))
+	native := mustEntry(t, validGap("as_metadata", "TestGone"))
+	manifest := map[string]Entry{
+		external.Key(): external,
+		native.Key():   native,
+	}
+	issues := Diff(nil, manifest)
+	if len(issues) != 1 {
+		t.Fatalf("expected exactly 1 stale issue (Go-native only), got %d: %v", len(issues), issues)
+	}
+	if issues[0].Kind != IssueStaleManifest {
+		t.Fatalf("expected stale-manifest for Go-native, got %v", issues[0].Kind)
+	}
+	if !strings.Contains(issues[0].Key, "TestGone") {
+		t.Errorf("stale-manifest should flag the Go-native entry, not the external one: %s", issues[0].Key)
+	}
+}
+
 func TestDiff_SkipForbidden(t *testing.T) {
 	results := []Result{
 		{Suite: "as_metadata", ID: "TestX", Status: StatusSkip},

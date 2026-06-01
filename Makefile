@@ -626,6 +626,22 @@ upoidf-as:
 oidflogs:
 	@docker compose -f $(OIDF_COMPOSE) logs -f --tail=100 server
 
+# Run the OIDF conformance ratchet — issue 197 phase 2. Auto-starts
+# the harness + AS if not already running, then runs the discovery
+# test wrapper which drives the harness via REST and diffs results
+# against tests/conformance/known-gaps.yaml (external-suite entries).
+testoidf:
+	@if ! curl -ksf -o /dev/null https://localhost.emobix.co.uk:8443/; then \
+		echo "OIDF harness not running — starting it..."; \
+		$(MAKE) upoidf; \
+	fi
+	@if ! curl -sf -o /dev/null http://localhost:8888/.well-known/openid-configuration; then \
+		echo "oneauth-server not running on :8888 — starting it in the background..."; \
+		go run -buildvcs=false ./cmd/oneauth-server --config $(OIDF_AS_CONFIG) > /dev/null 2>&1 & \
+		until curl -sf -o /dev/null http://localhost:8888/.well-known/openid-configuration; do sleep 1; done; \
+	fi
+	cd tests/oidf-conformance && GOWORK=off go test -count=1 -v ./...
+
 # =============================================================================
 # Conformance ratchet — see docs/CONFORMANCE.md
 # =============================================================================
