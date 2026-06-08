@@ -221,6 +221,14 @@ type LoginRequest struct {
 
 	// ClientID identifies the client. Defaults to "cli" when empty.
 	ClientID string
+
+	// ClientSecret authenticates a confidential client to the token
+	// endpoint per RFC 6749 §2.3.1 (client_secret_basic / _post).
+	// Required by Keycloak (and most production ASes) when the client
+	// is registered as confidential; ignored on the legacy
+	// /auth/cli/token path. Empty for public clients (which use PKCE
+	// rather than a secret).
+	ClientSecret string
 }
 
 // Login authenticates with username/password (RFC 6749 §4.3 resource-owner
@@ -236,17 +244,42 @@ func (c *AuthClient) Login(ctx context.Context, req *LoginRequest) (*ServerCrede
 	if clientID == "" {
 		clientID = "cli"
 	}
-	tokReq := OAuth2TokenRequest{
-		GrantType: "password",
-		Username:  req.Username,
-		Password:  req.Password,
-		Scope:     req.Scope,
-		ClientID:  clientID,
-	}
 
-	cred, err := c.requestToken(ctx, tokReq)
-	if err != nil {
-		return nil, err
+	// Standard OAuth path: when AS metadata is available (e.g., set via
+	// WithASMetadata after a DiscoverAS call), hit the discovered
+	// token_endpoint with RFC 6749 §4.3 form encoding. This is what
+	// makes ROPC work against Keycloak / Auth0 / any RFC 8414 AS. The
+	// legacy /auth/cli/token path below is preserved for callers using
+	// the oneauth-specific server protocol.
+	var cred *ServerCredential
+	var err error
+	if c.cachedASMeta != nil && c.cachedASMeta.TokenEndpoint != "" {
+		form := url.Values{
+			"grant_type": {"password"},
+			"username":   {req.Username},
+			"password":   {req.Password},
+			"client_id":  {clientID},
+		}
+		if req.Scope != "" {
+			form.Set("scope", req.Scope)
+		}
+		method := SelectAuthMethod(req.ClientSecret, c.cachedASMeta.TokenEndpointAuthMethods)
+		cred, err = c.requestTokenForm(ctx, c.cachedASMeta.TokenEndpoint, form, method, clientID, req.ClientSecret)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		tokReq := OAuth2TokenRequest{
+			GrantType: "password",
+			Username:  req.Username,
+			Password:  req.Password,
+			Scope:     req.Scope,
+			ClientID:  clientID,
+		}
+		cred, err = c.requestToken(ctx, tokReq)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cred.UserEmail = req.Username

@@ -13,6 +13,7 @@ import (
 
 type passwordFlags struct {
 	clientID      string
+	clientSecret  string
 	user          string
 	password      string
 	passwordStdin bool
@@ -37,6 +38,7 @@ process listings.`,
 		},
 	}
 	cmd.Flags().StringVar(&pf.clientID, "client-id", "", "OAuth client ID (required)")
+	cmd.Flags().StringVar(&pf.clientSecret, "client-secret", "", "OAuth client secret for confidential clients (omit for public clients)")
 	cmd.Flags().StringVar(&pf.user, "user", "", "resource owner username (required)")
 	cmd.Flags().StringVar(&pf.password, "password", "", "resource owner password (required unless --password-stdin)")
 	cmd.Flags().BoolVar(&pf.passwordStdin, "password-stdin", false, "read password from stdin")
@@ -63,10 +65,11 @@ func runPassword(ctx context.Context, stdout, stderr io.Writer, issuer string, t
 	}
 
 	cred, err := ac.Login(ctx, &client.LoginRequest{
-		Username: pf.user,
-		Password: pw,
-		Scope:    joinScopes(pf.scopes),
-		ClientID: pf.clientID,
+		Username:     pf.user,
+		Password:     pw,
+		Scope:        joinScopes(pf.scopes),
+		ClientID:     pf.clientID,
+		ClientSecret: pf.clientSecret,
 	})
 	if err != nil {
 		return fmt.Errorf("password grant: %w", err)
