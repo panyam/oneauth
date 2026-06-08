@@ -1,6 +1,7 @@
 package apiauth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,6 +9,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/panyam/oneauth/tracing"
 )
 
 // IntrospectionValidator validates tokens by calling a remote introspection
@@ -46,6 +53,15 @@ type IntrospectionValidator struct {
 	// Default: 0 (no caching).
 	CacheTTL time.Duration
 
+	// TracerProvider opts the introspection client into SEP-414
+	// tracing. When set, ValidateWithContext emits an
+	// `oneauth.introspection_client.request` span around the outbound
+	// HTTP call AND injects a W3C `traceparent` header so the
+	// upstream introspection endpoint can stitch its `oneauth.introspect`
+	// span into the same trace. Nil keeps the path on the no-op fast
+	// path with no allocation cost.
+	TracerProvider trace.TracerProvider
+
 	// cache stores introspection results keyed by token hash.
 	mu    sync.RWMutex
 	cache map[string]*cacheEntry
@@ -70,19 +86,38 @@ type IntrospectionResult struct {
 	Aud       any    `json:"aud,omitempty"`
 }
 
-// Validate calls the introspection endpoint to check if a token is active.
-// Returns the introspection result with parsed claims, or an error if the
-// introspection request itself failed (network error, auth failure, etc.).
+// Validate is the context-free convenience form of ValidateWithContext.
+// SEP-414 trace propagation requires a context — callers that have one
+// (any path serving an HTTP request) should prefer ValidateWithContext
+// so the outbound introspection call inherits the inbound trace.
+func (v *IntrospectionValidator) Validate(token string) (*IntrospectionResult, error) {
+	return v.ValidateWithContext(context.Background(), token)
+}
+
+// ValidateWithContext calls the introspection endpoint to check if a
+// token is active. Returns the introspection result with parsed claims,
+// or an error if the introspection request itself failed (network error,
+// auth failure, etc.).
 //
 // An inactive token is NOT an error — it returns IntrospectionResult{Active: false}.
 // Only transport/auth failures return errors.
-func (v *IntrospectionValidator) Validate(token string) (*IntrospectionResult, error) {
+//
+// When TracerProvider is set, the call emits an
+// `oneauth.introspection_client.request` span and injects a W3C
+// `traceparent` on the outbound HTTP request so the upstream
+// /oauth/introspect endpoint can stitch its own span into the trace.
+func (v *IntrospectionValidator) ValidateWithContext(ctx context.Context, token string) (*IntrospectionResult, error) {
 	// Check cache first
 	if v.CacheTTL > 0 {
 		if cached := v.getCached(token); cached != nil {
 			return cached, nil
 		}
 	}
+
+	ctx, span := tracing.Tracer(v.TracerProvider, tracing.InstrumentationName).
+		Start(ctx, "oneauth.introspection_client.request", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+	span.SetAttributes(attribute.String("http.url", v.IntrospectionURL))
 
 	client := v.HTTPClient
 	if client == nil {
@@ -91,29 +126,39 @@ func (v *IntrospectionValidator) Validate(token string) (*IntrospectionResult, e
 
 	// POST to introspection endpoint with Basic auth
 	data := url.Values{"token": {token}}
-	req, err := http.NewRequest(http.MethodPost, v.IntrospectionURL,
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, v.IntrospectionURL,
 		strings.NewReader(data.Encode()))
 	if err != nil {
+		span.SetStatus(codes.Error, "build request failed")
+		span.RecordError(err)
 		return nil, fmt.Errorf("introspection request build failed: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(v.ClientID, v.ClientSecret)
+	tracing.Inject(ctx, req)
 
 	resp, err := client.Do(req)
 	if err != nil {
+		span.SetStatus(codes.Error, "request failed")
+		span.RecordError(err)
 		return nil, fmt.Errorf("introspection request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	span.SetAttributes(attribute.Int("http.response.status_code", resp.StatusCode))
 	if resp.StatusCode == http.StatusUnauthorized {
+		span.SetStatus(codes.Error, "auth failed")
 		return nil, fmt.Errorf("introspection auth failed: invalid client credentials")
 	}
 	if resp.StatusCode != http.StatusOK {
+		span.SetStatus(codes.Error, "non-200 response")
 		return nil, fmt.Errorf("introspection returned status %d", resp.StatusCode)
 	}
 
 	var result IntrospectionResult
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		span.SetStatus(codes.Error, "decode failed")
+		span.RecordError(err)
 		return nil, fmt.Errorf("introspection response decode failed: %w", err)
 	}
 
@@ -125,11 +170,21 @@ func (v *IntrospectionValidator) Validate(token string) (*IntrospectionResult, e
 	return &result, nil
 }
 
-// ValidateForMiddleware validates a token and returns the fields that
-// APIMiddleware.validateRequest needs: userID, scopes, authType, customClaims.
-// Returns an error if the token is inactive or introspection fails.
+// ValidateForMiddleware is the context-free convenience form of
+// ValidateForMiddlewareWithContext. Prefer the context-bearing variant
+// from any HTTP-serving path so SEP-414 trace propagation works.
 func (v *IntrospectionValidator) ValidateForMiddleware(token string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
-	result, err := v.Validate(token)
+	return v.ValidateForMiddlewareWithContext(context.Background(), token)
+}
+
+// ValidateForMiddlewareWithContext validates a token via the introspection
+// endpoint and returns the fields APIMiddleware.validateRequest needs:
+// userID, scopes, authType, customClaims. Returns an error if the token
+// is inactive or introspection fails. ctx is forwarded into the outbound
+// HTTP call so trace context propagates to the upstream introspection
+// server (see ValidateWithContext).
+func (v *IntrospectionValidator) ValidateForMiddlewareWithContext(ctx context.Context, token string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
+	result, err := v.ValidateWithContext(ctx, token)
 	if err != nil {
 		return "", nil, "", nil, err
 	}

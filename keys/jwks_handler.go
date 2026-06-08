@@ -8,6 +8,11 @@ import (
 	"log"
 	"net/http"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/panyam/oneauth/tracing"
 	"github.com/panyam/oneauth/utils"
 )
 
@@ -19,12 +24,30 @@ type JWKSHandler struct {
 	KeyStore    KeyStorage // needs ListKeyIDs() and GetKey()
 	KidStore    *KidStore  // optional: serves previous keys during grace period
 	CacheMaxAge int        // Cache-Control max-age in seconds (default: 3600)
+
+	// TracerProvider opts the handler into SEP-414 (W3C Trace Context)
+	// observability. When non-nil, every ServeHTTP call:
+	//   - extracts an inbound `traceparent` header (silently dropping a
+	//     malformed value per W3C §3.2.2.5), and
+	//   - emits a single `oneauth.jwks.serve` span with the response status
+	//     and the number of asymmetric keys returned.
+	// Leaving this nil keeps the handler on the no-op fast path with no
+	// allocation cost — same opt-in shape as mcpkit's
+	// server.WithTracerProvider. See tests/keycloak/ and the SEP-414
+	// trace chain in issue #254 for the cross-process context.
+	TracerProvider trace.TracerProvider
 }
 
 func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx := tracing.Extract(r)
+	ctx, span := tracing.Tracer(h.TracerProvider, tracing.InstrumentationName).
+		Start(ctx, "oneauth.jwks.serve", trace.WithSpanKind(trace.SpanKindServer))
+	defer span.End()
+
 	listResp, err := h.KeyStore.ListKeyIDs(ctx, &ListKeyIDsRequest{})
 	if err != nil {
+		span.SetStatus(codes.Error, "list keys failed")
+		span.RecordError(err)
 		http.Error(w, `{"error":"failed to list keys"}`, http.StatusInternalServerError)
 		return
 	}
@@ -95,9 +118,13 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Marshal once for ETag computation and response
 	body, err := json.Marshal(jwkSet)
 	if err != nil {
+		span.SetStatus(codes.Error, "marshal failed")
+		span.RecordError(err)
 		http.Error(w, `{"error":"failed to marshal JWKS"}`, http.StatusInternalServerError)
 		return
 	}
+
+	span.SetAttributes(attribute.Int("jwks.keys_returned", len(keys)))
 
 	// ETag based on SHA-256 of the response body — changes when key set changes
 	hash := sha256.Sum256(body)
@@ -105,9 +132,11 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Support conditional requests (If-None-Match)
 	if r.Header.Get("If-None-Match") == etag {
+		span.SetAttributes(attribute.Int("http.response.status_code", http.StatusNotModified))
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
+	span.SetAttributes(attribute.Int("http.response.status_code", http.StatusOK))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))

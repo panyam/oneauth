@@ -8,9 +8,14 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
+	"github.com/panyam/oneauth/tracing"
 	"github.com/panyam/oneauth/utils"
 )
 
@@ -21,13 +26,14 @@ import (
 // token's kid / client_id doesn't resolve through it) — supports the
 // "APIAuth holds its own key" mode that doesn't need a KeyStore.
 type jwtValidator struct {
-	keyLookup  keys.KeyLookup
-	signingKey any
-	signingAlg string
-	blacklist  core.TokenBlacklist
-	issuer     string
-	audience   string
-	hooks      SecurityHooks
+	keyLookup      keys.KeyLookup
+	signingKey     any
+	signingAlg     string
+	blacklist      core.TokenBlacklist
+	issuer         string
+	audience       string
+	hooks          SecurityHooks
+	tracerProvider trace.TracerProvider
 }
 
 // JWTValidatorConfig configures a jwtValidator.
@@ -43,18 +49,27 @@ type JWTValidatorConfig struct {
 	Issuer     string
 	Audience   string
 	Hooks      SecurityHooks
+
+	// TracerProvider opts the signature-verify hot path into SEP-414
+	// tracing. When set, ValidateToken emits an `oneauth.signature_verify`
+	// span (attributes: `jwt.alg`, `jwt.kid`). Nil keeps the path on the
+	// no-op fast path. Typically populated from APIAuth.TracerProvider
+	// so spans nest under `oneauth.token.issue` (issuer) or under the
+	// caller's span (resource server).
+	TracerProvider trace.TracerProvider
 }
 
 // NewJWTValidator creates a TokenValidator that validates JWTs locally.
 func NewJWTValidator(cfg JWTValidatorConfig) TokenValidator {
 	return &jwtValidator{
-		keyLookup:  cfg.KeyLookup,
-		signingKey: cfg.SigningKey,
-		signingAlg: cfg.SigningAlg,
-		blacklist:  cfg.Blacklist,
-		issuer:     cfg.Issuer,
-		audience:   cfg.Audience,
-		hooks:      cfg.Hooks,
+		keyLookup:      cfg.KeyLookup,
+		signingKey:     cfg.SigningKey,
+		signingAlg:     cfg.SigningAlg,
+		blacklist:      cfg.Blacklist,
+		issuer:         cfg.Issuer,
+		audience:       cfg.Audience,
+		hooks:          cfg.Hooks,
+		tracerProvider: cfg.TracerProvider,
 	}
 }
 
@@ -65,15 +80,28 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 	if req == nil {
 		return nil, fmt.Errorf("ValidateTokenRequest is required")
 	}
+	_, span := tracing.Tracer(v.tracerProvider, tracing.InstrumentationName).
+		Start(ctx, "oneauth.signature_verify")
+	defer span.End()
+
 	tokenString := req.Token
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		if alg, ok := token.Header["alg"].(string); ok {
+			span.SetAttributes(attribute.String("jwt.alg", alg))
+		}
+		if kid, ok := token.Header["kid"].(string); ok && kid != "" {
+			span.SetAttributes(attribute.String("jwt.kid", kid))
+		}
 		return v.resolveKey(token)
 	})
 	if err != nil {
+		span.SetStatus(codes.Error, "parse error")
+		span.RecordError(err)
 		v.hooks.fireOnTokenRejected(fmt.Sprintf("parse error: %v", err))
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 	if !token.Valid {
+		span.SetStatus(codes.Error, "token validation failed")
 		v.hooks.fireOnTokenRejected("token validation failed")
 		return nil, fmt.Errorf("token validation failed")
 	}

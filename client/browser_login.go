@@ -14,6 +14,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/panyam/oneauth/tracing"
 )
 
 // BrowserLoginRequest configures the authorization code + PKCE flow
@@ -415,6 +417,7 @@ func (c *AuthClient) exchangeCode(ctx context.Context, p exchangeCodeParams) (*S
 	if p.AuthMethod == AuthMethodClientSecretBasic {
 		req.SetBasicAuth(p.ClientID, p.ClientSecret)
 	}
+	tracing.Inject(ctx, req)
 
 	resp, err := p.HTTPClient.Do(req)
 	if err != nil {

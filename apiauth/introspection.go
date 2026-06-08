@@ -6,7 +6,12 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/panyam/oneauth/keys"
+	"github.com/panyam/oneauth/tracing"
 )
 
 // IntrospectionHandler implements OAuth 2.0 Token Introspection (RFC 7662).
@@ -32,19 +37,29 @@ type IntrospectionHandler struct {
 	// but breaks behind proxies that rewrite the path — populate
 	// explicitly in production.
 	AcceptedAudiences []string
+
+	// TracerProvider opts the introspection endpoint into SEP-414
+	// tracing. When set, ServeHTTP extracts an inbound `traceparent`
+	// header and emits an `oneauth.introspect` span carrying the
+	// resulting `token_active` boolean. Nil keeps tracing on the
+	// no-op fast path.
+	TracerProvider trace.TracerProvider
 }
 
 // NewIntrospectionHandler creates an IntrospectionHandler from an APIAuth
 // and a client KeyLookup. This is the bridge between the old-style APIAuth
-// configuration and the new core interfaces.
+// configuration and the new core interfaces. The new handler inherits the
+// APIAuth's TracerProvider so spans share one trace across /token and
+// /introspect.
 func NewIntrospectionHandler(auth *APIAuth, clientKeyStore keys.KeyLookup) *IntrospectionHandler {
 	// Build a validator that mirrors APIAuth's validation logic.
 	// APIAuth supports both single-key (JWTSecretKey) and multi-tenant (ClientKeyStore).
 	// We wrap this by using APIAuth.ValidateAccessTokenFull as the validation backend.
 	introspector := &apiauthIntrospector{auth: auth}
 	return &IntrospectionHandler{
-		Introspector:  introspector,
-		Authenticator: NewClientAuthenticator(clientKeyStore),
+		Introspector:   introspector,
+		Authenticator:  NewClientAuthenticator(clientKeyStore),
+		TracerProvider: auth.TracerProvider,
 	}
 }
 
@@ -114,7 +129,13 @@ func joinScopes(scopes []string) string {
 
 // ServeHTTP handles POST /oauth/introspect per RFC 7662.
 func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.Tracer(h.TracerProvider, tracing.InstrumentationName).
+		Start(tracing.Extract(r), "oneauth.introspect", trace.WithSpanKind(trace.SpanKindServer))
+	defer span.End()
+	r = r.WithContext(ctx)
+
 	if r.Method != http.MethodPost {
+		span.SetStatus(codes.Error, "method not allowed")
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -152,10 +173,12 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	introspectResp, err := h.Introspector.Introspect(r.Context(), &IntrospectRequest{Token: token})
 	if err != nil || introspectResp == nil || !introspectResp.Result.Active {
 		// RFC 7662: invalid tokens get {"active": false}, never an error
+		span.SetAttributes(attribute.Bool("oauth.token_active", false))
 		h.jsonResponse(w, http.StatusOK, map[string]any{"active": false})
 		return
 	}
 	result := introspectResp.Result
+	span.SetAttributes(attribute.Bool("oauth.token_active", true))
 
 	// Build response from IntrospectionResult
 	resp := map[string]any{

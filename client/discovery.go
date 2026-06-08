@@ -1,12 +1,15 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/panyam/oneauth/tracing"
 )
 
 // ErrMetadataIssuerMismatch is returned by DiscoverAS when the AS metadata
@@ -112,6 +115,9 @@ func WithASCacheTTL(ttl time.Duration) DiscoveryOption {
 }
 
 // DiscoverAS fetches OAuth Authorization Server metadata from well-known endpoints.
+// Equivalent to DiscoverASWithContext(context.Background(), …). Prefer the
+// context-bearing form from any HTTP-serving path so SEP-414 trace
+// propagation reaches the AS's well-known endpoint.
 //
 // It tries the following URLs in order (per RFC 8414 + OIDC Discovery):
 //
@@ -133,6 +139,14 @@ func WithASCacheTTL(ttl time.Duration) DiscoveryOption {
 //
 // See: https://www.rfc-editor.org/rfc/rfc8414#section-3
 func DiscoverAS(issuerURL string, opts ...DiscoveryOption) (*ASMetadata, error) {
+	return DiscoverASWithContext(context.Background(), issuerURL, opts...)
+}
+
+// DiscoverASWithContext is the context-aware variant of DiscoverAS. The
+// supplied ctx is forwarded onto every well-known HTTP fetch, and a W3C
+// `traceparent` header is injected so an OTel-aware AS can stitch its
+// metadata-serve span into the caller's trace.
+func DiscoverASWithContext(ctx context.Context, issuerURL string, opts ...DiscoveryOption) (*ASMetadata, error) {
 	cfg := &discoveryConfig{
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
@@ -155,7 +169,7 @@ func DiscoverAS(issuerURL string, opts ...DiscoveryOption) (*ASMetadata, error) 
 
 	var lastErr error
 	for _, u := range urls {
-		meta, err := fetchMetadata(cfg.httpClient, u)
+		meta, err := fetchMetadata(ctx, cfg.httpClient, u)
 		if err == nil {
 			// RFC 8414 §3.3: the issuer identifier in the metadata MUST
 			// equal the URL used to construct the well-known URL.
@@ -220,8 +234,13 @@ func splitOriginPath(rawURL string) (origin, path string) {
 
 // fetchMetadata fetches and parses AS metadata from a single URL.
 // Returns an error for non-200 responses or JSON parse failures.
-func fetchMetadata(client *http.Client, url string) (*ASMetadata, error) {
-	resp, err := client.Get(url)
+func fetchMetadata(ctx context.Context, client *http.Client, url string) (*ASMetadata, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("GET %s: build request: %w", url, err)
+	}
+	tracing.Inject(ctx, req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("GET %s: %w", url, err)
 	}

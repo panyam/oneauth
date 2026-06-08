@@ -30,5 +30,15 @@ Go client library for OAuth 2.0 authentication: browser-based login (authorizati
 - **DCR `application_type` (mcpkit#440)** — added `ApplicationType` to `ClientRegistrationRequest` per OpenID Connect Dynamic Client Registration 1.0. `omitempty` so existing oneauth callers stay wire-compatible; consumers whose spec requires it (MCP per SEP-837) set it explicitly to `"native"` or `"web"`.
 - **gRPC-shape convention (#217)** — `AuthClient` token-acquisition methods all follow `MethodName(ctx context.Context, req *XRequest) (..., error)`: `Login(ctx, *LoginRequest)`, `ClientCredentials(ctx, *ClientCredentialsRequest)`, `TokenExchange(ctx, *TokenExchangeRequest)`, `JwtBearerGrant(ctx, *JwtBearerGrantRequest)`, `LoginWithBrowser(ctx, *BrowserLoginRequest)`. Matches the convention adopted across `apiauth/`, `admin/`, and store-layer interfaces (#175 / #172 / #204).
 
+## Tracing (SEP-414 / #254)
+
+The client SDK only *propagates* trace context — it does not emit spans of its own (the caller's span is the trace anchor). Every outbound HTTP call now passes a `traceparent` header from the supplied `ctx`:
+
+- `DiscoverASWithContext` injects on the well-known fetch (legacy `DiscoverAS` wraps it with `context.Background()`).
+- `LoginWithBrowser` injects on the token-exchange request.
+- `TokenExchange` and `JwtBearerGrant` inject via the shared `buildTokenRequest` path.
+
+OTel-aware AS deployments (oneauth's own `JWKSHandler` / token / introspect / revoke handlers, or any other server speaking W3C Trace Context) will stitch their server-side work into the caller's trace automatically.
+
 ## Dependencies
-`core/` is imported for `UnionScopes`. Otherwise standalone with only stdlib + `stretchr/testify` (testing).
+`core/` is imported for `UnionScopes`, `tracing/` for SEP-414 propagation. Otherwise standalone with only stdlib + `stretchr/testify` (testing).

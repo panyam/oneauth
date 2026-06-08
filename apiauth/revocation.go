@@ -4,7 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/panyam/oneauth/keys"
+	"github.com/panyam/oneauth/tracing"
 )
 
 // RevocationHandler implements OAuth 2.0 Token Revocation (RFC 7009).
@@ -24,24 +28,39 @@ type RevocationHandler struct {
 	// assertion (OIDC Core §9). When empty the URL of the request
 	// is used as a fallback.
 	AcceptedAudiences []string
+
+	// TracerProvider opts the revocation endpoint into SEP-414 tracing.
+	// When set, ServeHTTP extracts an inbound `traceparent` header and
+	// emits an `oneauth.revoke` span. Nil keeps the handler on the
+	// no-op fast path.
+	TracerProvider trace.TracerProvider
 }
 
 // NewRevocationHandler creates a RevocationHandler from an APIAuth and
-// a client KeyLookup. Bridge constructor for existing code.
+// a client KeyLookup. Bridge constructor for existing code. The new
+// handler inherits the APIAuth's TracerProvider so spans share one
+// trace across /token and /revoke.
 func NewRevocationHandler(auth *APIAuth, clientKeyStore keys.KeyLookup) *RevocationHandler {
 	revoker := NewTokenRevoker(TokenRevokerConfig{
 		Blacklist:    auth.Blacklist,
 		RefreshStore: auth.RefreshTokenStore,
 	})
 	return &RevocationHandler{
-		Revoker:       revoker,
-		Authenticator: NewClientAuthenticator(clientKeyStore),
+		Revoker:        revoker,
+		Authenticator:  NewClientAuthenticator(clientKeyStore),
+		TracerProvider: auth.TracerProvider,
 	}
 }
 
 // ServeHTTP handles POST /oauth/revoke per RFC 7009.
 func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.Tracer(h.TracerProvider, tracing.InstrumentationName).
+		Start(tracing.Extract(r), "oneauth.revoke", trace.WithSpanKind(trace.SpanKindServer))
+	defer span.End()
+	r = r.WithContext(ctx)
+
 	if r.Method != http.MethodPost {
+		span.SetStatus(codes.Error, "method not allowed")
 		w.Header().Set("Allow", "POST")
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
