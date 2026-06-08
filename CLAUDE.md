@@ -21,6 +21,7 @@ Each subpackage has a `SUMMARY.md` with detailed contents.
 | `examples/` | 10 progressive interactive examples with demokit | [examples/README.md](examples/README.md) |
 | `tests/keycloak/` | Keycloak interop + RAR conformance tests | [tests/keycloak/README.md](tests/keycloak/README.md) |
 | `cmd/oneauth-server/` | Config-driven reference server (#194 tracks POC→production-grade ambition) | `cmd/oneauth-server/config.go` |
+| `cmd/oneauth/` | Cobra-based client CLI — `oneauth token {browser,client-credentials,password,refresh}` | [cmd/oneauth/SUMMARY.md](cmd/oneauth/SUMMARY.md) |
 
 ## Multi-Module Structure
 

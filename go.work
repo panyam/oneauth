@@ -4,6 +4,7 @@ use (
 	.
 	./cmd/demo-hostapp
 	./cmd/demo-resource-server
+	./cmd/oneauth
 	./cmd/oneauth-server
 	./docs/site
 	./grpc

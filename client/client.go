@@ -396,6 +396,90 @@ func (c *AuthClient) ClientCredentialsTokenWithAssertion(clientID string, cfg Cl
 	})
 }
 
+// RefreshTokenRequest is the gRPC-shape input to RefreshToken — the
+// caller-supplied refresh token plus the client identity that owned the
+// original grant.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-6
+type RefreshTokenRequest struct {
+	// ClientID identifies the client to the AS. Required.
+	ClientID string
+
+	// ClientSecret authenticates the client. Optional — public clients
+	// (PKCE-grant origin) leave it empty. When set, the auth method is
+	// negotiated from the AS metadata (client_secret_basic vs
+	// client_secret_post) per RFC 6749 §2.3, mirroring ClientCredentials.
+	ClientSecret string
+
+	// RefreshToken is the long-lived token issued by a prior grant.
+	// Required.
+	RefreshToken string
+
+	// Scopes, when non-empty, narrows the access-token scope to a subset
+	// of the original grant per RFC 6749 §6. Omitted from the form when
+	// empty (the AS reuses the original scope set).
+	Scopes []string
+}
+
+// RefreshToken exchanges a caller-supplied refresh_token for a new
+// access token via RFC 6749 §6 against the AS-discovered token endpoint.
+// Form-encoded — distinct from the internal refreshTokenLocked path that
+// targets the legacy oneauth-native /auth/cli/token JSON endpoint and is
+// reserved for credentials stored via Login. RefreshToken is the
+// standards-compliant entry point used by external CLI tools (e.g.,
+// `oneauth token refresh`) against any RFC 8414 / OIDC AS.
+//
+// Storage behavior mirrors ClientCredentials: the new credential is
+// persisted via the configured CredentialStore. The supplied refresh
+// token is carried forward when the AS does not rotate per §6.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6749#section-6
+func (c *AuthClient) RefreshToken(ctx context.Context, req *RefreshTokenRequest) (*ServerCredential, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RefreshToken: req is required")
+	}
+	if req.RefreshToken == "" {
+		return nil, fmt.Errorf("RefreshToken: refresh_token is required")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	tokenEndpoint := c.serverURL + c.tokenEndpoint
+	if c.cachedASMeta != nil && c.cachedASMeta.TokenEndpoint != "" {
+		tokenEndpoint = c.cachedASMeta.TokenEndpoint
+	}
+
+	data := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {req.RefreshToken},
+	}
+	if len(req.Scopes) > 0 {
+		data.Set("scope", strings.Join(req.Scopes, " "))
+	}
+
+	var asMethods []string
+	if c.cachedASMeta != nil {
+		asMethods = c.cachedASMeta.TokenEndpointAuthMethods
+	}
+	authMethod := SelectAuthMethod(req.ClientSecret, asMethods)
+	cred, err := c.requestTokenForm(ctx, tokenEndpoint, data, authMethod, req.ClientID, req.ClientSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	if cred.RefreshToken == "" {
+		cred.RefreshToken = req.RefreshToken
+	}
+
+	if err := c.store.SetCredential(c.serverURL, cred); err != nil {
+		return nil, fmt.Errorf("failed to store credential: %w", err)
+	}
+	if err := c.store.Save(); err != nil {
+		return nil, fmt.Errorf("failed to save credentials: %w", err)
+	}
+	return cred, nil
+}
+
 // Logout removes the credential for this server
 func (c *AuthClient) Logout() error {
 	c.mu.Lock()

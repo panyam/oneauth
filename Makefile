@@ -44,6 +44,23 @@ lint:
 	@echo "[lint] Running staticcheck..."
 	@GOFLAGS=-buildvcs=false staticcheck ./...
 
+# Build the user-facing oneauth binaries (CLI + reference server) into bin/.
+# Demos (cmd/demo-*) are explicitly excluded — build those directly with
+# `go build ./cmd/demo-...` if you need them.
+build:
+	@mkdir -p $(BUILD_DIR)
+	@echo "[build] cmd/oneauth         → $(BUILD_DIR)/oneauth"
+	@go build -o $(BUILD_DIR)/oneauth ./cmd/oneauth
+	@echo "[build] cmd/oneauth-server  → $(BUILD_DIR)/oneauth-server"
+	@cd cmd/oneauth-server && go build -o ../../$(BUILD_DIR)/oneauth-server .
+
+# Install the user-facing oneauth binaries to $GOBIN / $GOPATH/bin via go install.
+install:
+	@echo "[install] go install ./cmd/oneauth"
+	@go install ./cmd/oneauth
+	@echo "[install] go install ./cmd/oneauth-server"
+	@cd cmd/oneauth-server && go install .
+
 cover: ## Run tests with coverage summary (root module only)
 	@go test -buildvcs=false -cover ./... -count=1 -timeout 60s
 
@@ -902,6 +919,7 @@ audit: vulncheck secrets
 	@echo "Automated checks passed. For manual threat model review, see docs/TESTING.md."
 
 .PHONY: test test-hard testall test-report e2e audit \
+	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
 	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs deploygae gaelogs integ docs \

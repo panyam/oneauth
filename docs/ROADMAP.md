@@ -101,6 +101,10 @@ Server: `handleClientCredentialsGrant` in `APIAuth` with `ClientKeyStore` field.
 
 `LoginWithBrowser()` on `AuthClient`. Loopback redirect server, PKCE, state validation, auto-discovery via DiscoverAS (#51). 6 unit tests + Keycloak interop test. Supersedes old Phase 3.
 
+#### `oneauth` token-acquisition CLI — issue 255 (P1) ✅ COMPLETE
+
+Cobra-based binary at `cmd/oneauth/`. `oneauth token {browser,client-credentials,password,refresh} <issuer> --client-id ID …` wraps the SDK's four grant entry points. Library-side addition: `AuthClient.RefreshToken` (RFC 6749 §6 form-encoded against any AS, distinct from the legacy `refreshTokenLocked` path). Output formats: `json` / `bash` (sourceable `export OAUTH_*=…`) / `access-token-only` (bare token for `$(oneauth token …)` shell capture). 17 unit tests + 4 Keycloak integration tests.
+
 #### AS Metadata Discovery client — #51 (P1) ✅ COMPLETE
 
 `DiscoverAS()` in `client/discovery.go`. Fallback chain: RFC 8414 → OIDC Discovery. Path-based issuer support. 8 unit tests + Keycloak interop test.

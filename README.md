@@ -56,6 +56,7 @@ go get github.com/panyam/oneauth/saml@latest
 | Run an authorization server today | [`cmd/oneauth-server/`](cmd/oneauth-server/) — config-driven, deployable to GAE / Docker / K8s |
 | See the whole federated flow (auth + apps + resource servers) locally | [`demo/`](demo/) — 6-service Docker Compose |
 | Use the client SDK from a CLI tool | [docs/CLIENT_SDK.md](docs/CLIENT_SDK.md) |
+| Just grab a bearer token from any RFC 8414 / OIDC AS | [`cmd/oneauth/`](cmd/oneauth/) — `oneauth token {browser,client-credentials,password,refresh}` |
 | Understand the design decisions and rationale | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 
 ## Architecture
