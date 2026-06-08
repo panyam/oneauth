@@ -856,23 +856,6 @@ bump-root:
 deps:
 	@echo "Direct: $$(grep -c '^\t' go.mod) | Transitive: $$(go list -m all 2>/dev/null | wc -l | tr -d ' ')"
 
-# Remove replace directives (before publishing)
-norep:
-	@for mod in $(SUBMODULES); do \
-		[ -f "$$mod/go.mod" ] && sed -i '' '/^replace github.com\/panyam\/oneauth/d' "$$mod/go.mod"; \
-	done
-	@echo "Replace directives removed. Restore with: make rep"
-
-# Restore replace directives (after publishing)
-rep:
-	@for mod in stores/gorm stores/gae cmd/oneauth cmd/oneauth-server cmd/demo-resource-server; do \
-		echo "replace github.com/panyam/oneauth => ../.." >> "$$mod/go.mod"; \
-	done
-	@echo "replace github.com/panyam/oneauth/stores/gorm => ../../stores/gorm" >> cmd/oneauth-server/go.mod
-	@echo "replace github.com/panyam/oneauth/stores/gae => ../../stores/gae" >> cmd/oneauth-server/go.mod
-	@echo "replace github.com/panyam/oneauth/stores/gorm => ../../stores/gorm" >> cmd/demo-resource-server/go.mod
-	@echo "Replace directives restored. Run 'make tidy' to verify."
-
 # Tag a release across all modules. Usage: make tag V=v0.0.40
 # Sub-modules are tagged with path prefix per Go convention (e.g. stores/gorm/v0.0.40)
 SUB_MODS_TO_TAG := stores/gorm stores/gae saml grpc oauth2 cmd/oneauth cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
@@ -922,5 +905,5 @@ audit: vulncheck secrets
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
 	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
-	deps norep rep tag pushtag seccheck verify-submodule-deps \
+	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all
