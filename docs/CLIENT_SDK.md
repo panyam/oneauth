@@ -2,6 +2,8 @@
 
 The `client/` package provides a Go SDK for CLI tools and programmatic clients consuming oneauth-protected APIs. It handles login, token storage, automatic token refresh, and authenticated HTTP requests.
 
+> **Want to skip the SDK and just grab a token?** See [`cmd/oneauth/`](../cmd/oneauth/) — a Cobra CLI wrapping the same SDK. `oneauth token {browser,client-credentials,password,refresh} <issuer> --client-id …` prints a JSON / bash / bare-token shape suitable for shell scripts and CI.
+
 ## Architecture
 
 ```
