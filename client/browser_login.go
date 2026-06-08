@@ -223,13 +223,26 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 	tokenEndpoint := cfg.TokenEndpoint
 	var asMethods []string
 	if authEndpoint == "" || tokenEndpoint == "" {
-		discoveryOpts := []DiscoveryOption{}
-		if cfg.HTTPClient != nil {
-			discoveryOpts = append(discoveryOpts, WithHTTPClientForDiscovery(cfg.HTTPClient))
-		}
-		meta, discErr := DiscoverAS(c.serverURL, discoveryOpts...)
-		if discErr != nil {
-			return nil, fmt.Errorf("endpoint discovery failed: %w", discErr)
+		var meta *ASMetadata
+		// Prefer pre-populated AS metadata (set by WithASMetadata) over
+		// re-discovery. The CLI and other callers that already ran
+		// DiscoverAS with a path-bearing issuer URL — common for
+		// Keycloak realms (http://kc/realms/<realm>) — would otherwise
+		// hit the root well-known here because NewAuthClient strips the
+		// path from c.serverURL. Falling back to DiscoverAS only when
+		// no cached metadata exists keeps both paths working.
+		if c.cachedASMeta != nil {
+			meta = c.cachedASMeta
+		} else {
+			discoveryOpts := []DiscoveryOption{}
+			if cfg.HTTPClient != nil {
+				discoveryOpts = append(discoveryOpts, WithHTTPClientForDiscovery(cfg.HTTPClient))
+			}
+			var discErr error
+			meta, discErr = DiscoverAS(c.serverURL, discoveryOpts...)
+			if discErr != nil {
+				return nil, fmt.Errorf("endpoint discovery failed: %w", discErr)
+			}
 		}
 		if authEndpoint == "" {
 			authEndpoint = meta.AuthorizationEndpoint
