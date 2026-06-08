@@ -12,9 +12,14 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
+	"github.com/panyam/oneauth/tracing"
 	"github.com/panyam/oneauth/utils"
 )
 
@@ -133,6 +138,15 @@ type APIAuth struct {
 	// Tokens include a jti (JWT ID) claim for blacklist lookup.
 	// If nil, tokens are validated by signature + expiry only (stateless).
 	Blacklist core.TokenBlacklist
+
+	// TracerProvider opts the /token endpoint into SEP-414 tracing.
+	// When set, ServeHTTP extracts an inbound W3C `traceparent` header
+	// and emits a single `oneauth.token.issue` span with the parsed
+	// grant type as an attribute. Nil keeps the handler on the no-op
+	// fast path. The same TracerProvider should usually be passed to
+	// IntrospectionHandler, RevocationHandler, JWKSHandler, and the
+	// JWKSKeyStore so all spans share one trace.
+	TracerProvider trace.TracerProvider
 }
 
 // ServeHTTP handles the /api/token endpoint. It accepts both
@@ -141,7 +155,13 @@ type APIAuth struct {
 //
 // See: https://www.rfc-editor.org/rfc/rfc6749#section-4.4.2
 func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.Tracer(a.TracerProvider, tracing.InstrumentationName).
+		Start(tracing.Extract(r), "oneauth.token.issue", trace.WithSpanKind(trace.SpanKindServer))
+	defer span.End()
+	r = r.WithContext(ctx)
+
 	if r.Method != http.MethodPost {
+		span.SetStatus(codes.Error, "method not allowed")
 		a.errorResponse(w, "invalid_request", "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -189,6 +209,8 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	span.SetAttributes(attribute.String("oauth.grant_type", req.GrantType))
+
 	// Handle based on grant type
 	switch req.GrantType {
 	case "password":
@@ -202,6 +224,7 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case TokenExchangeGrantType:
 		a.handleTokenExchangeGrant(w, r, &req)
 	default:
+		span.SetStatus(codes.Error, "unsupported_grant_type")
 		a.errorResponse(w, "unsupported_grant_type", "Grant type not supported", http.StatusBadRequest)
 	}
 }
@@ -615,11 +638,12 @@ func (a *APIAuth) Issuer() TokenIssuer {
 func (a *APIAuth) Validator() TokenValidator {
 	a.lazyValidatorOnce.Do(func() {
 		a.lazyValidator = NewJWTValidator(JWTValidatorConfig{
-			SigningKey: a.signingKeyForValidator(),
-			SigningAlg: a.signingAlg(),
-			Blacklist:  a.Blacklist,
-			Issuer:     a.JWTIssuer,
-			Audience:   a.JWTAudience,
+			SigningKey:     a.signingKeyForValidator(),
+			SigningAlg:     a.signingAlg(),
+			Blacklist:      a.Blacklist,
+			Issuer:         a.JWTIssuer,
+			Audience:       a.JWTAudience,
+			TracerProvider: a.TracerProvider,
 		})
 	})
 	return a.lazyValidator
@@ -947,6 +971,13 @@ type APIMiddleware struct {
 	// (JWTSecretKey, KeyStore, Blacklist, etc.) on first use.
 	Validator TokenValidator
 
+	// TracerProvider opts the resource-server validation path into
+	// SEP-414 tracing. When set, the lazily-built validator emits
+	// `oneauth.signature_verify` spans, and the lookup-by-kid call
+	// against KeyStore inherits the same trace context. Nil keeps
+	// validation on the no-op fast path.
+	TracerProvider trace.TracerProvider
+
 	// validatorOnce ensures the lazy validator is built only once.
 	validatorOnce sync.Once
 	lazyValidator TokenValidator
@@ -1091,14 +1122,14 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes 
 	}
 
 	// Try local JWT validation first
-	userID, scopes, authType, customClaims, jwtErr := m.validateJWT(token)
+	userID, scopes, authType, customClaims, jwtErr := m.validateJWT(r.Context(), token)
 	if jwtErr == nil {
 		return userID, scopes, authType, customClaims, nil
 	}
 
 	// If local validation failed and introspection is configured, try that
 	if m.Introspection != nil {
-		return m.Introspection.ValidateForMiddleware(token)
+		return m.Introspection.ValidateForMiddlewareWithContext(r.Context(), token)
 	}
 
 	// No introspection fallback — return the original JWT error
@@ -1115,10 +1146,11 @@ func (m *APIMiddleware) getValidator() TokenValidator {
 		if m.KeyStore != nil {
 			// Multi-tenant: use KeyStore for kid/client_id-based lookup
 			m.lazyValidator = NewJWTValidator(JWTValidatorConfig{
-				KeyLookup: m.KeyStore,
-				Blacklist: m.Blacklist,
-				Issuer:    m.JWTIssuer,
-				Audience:  m.JWTAudience,
+				KeyLookup:      m.KeyStore,
+				Blacklist:      m.Blacklist,
+				Issuer:         m.JWTIssuer,
+				Audience:       m.JWTAudience,
+				TracerProvider: m.TracerProvider,
 			})
 		} else {
 			// Single-tenant: can't use jwtValidator (it needs kid/client_id lookup).
@@ -1129,10 +1161,13 @@ func (m *APIMiddleware) getValidator() TokenValidator {
 	return m.lazyValidator
 }
 
-// validateJWT validates a JWT access token using the TokenValidator.
-func (m *APIMiddleware) validateJWT(tokenString string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
+// validateJWT validates a JWT access token using the TokenValidator. The
+// caller's ctx (typically the inbound request's context) is forwarded
+// into ValidateToken so SEP-414 spans emitted from signature verification
+// nest under the resource server's incoming trace.
+func (m *APIMiddleware) validateJWT(ctx context.Context, tokenString string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
 	if v := m.getValidator(); v != nil {
-		resp, verr := v.ValidateToken(context.Background(), &ValidateTokenRequest{Token: tokenString})
+		resp, verr := v.ValidateToken(ctx, &ValidateTokenRequest{Token: tokenString})
 		if verr != nil {
 			return "", nil, "", nil, verr
 		}

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/panyam/oneauth/tracing"
 )
 
 // TokenExchangeGrantType is the RFC 8693 grant_type value sent at the
@@ -182,6 +184,7 @@ func (c *AuthClient) buildTokenRequest(ctx context.Context, tokenEndpoint string
 			return nil, fmt.Errorf("build request: %w", err)
 		}
 		httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		tracing.Inject(ctx, httpReq)
 		return httpReq, nil
 	}
 	var asMethods []string
@@ -198,6 +201,7 @@ func (c *AuthClient) buildTokenRequest(ctx context.Context, tokenEndpoint string
 	if authMethod == AuthMethodClientSecretBasic {
 		httpReq.SetBasicAuth(clientID, clientSecret)
 	}
+	tracing.Inject(ctx, httpReq)
 	return httpReq, nil
 }
 
