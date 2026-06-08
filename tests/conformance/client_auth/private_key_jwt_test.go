@@ -12,6 +12,7 @@ package client_auth_test
 //   - CVE-2016-10555 (algorithm confusion)
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -55,11 +56,11 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatalf("encode pub: %v", err)
 	}
 	const clientID = "pkjwt-conformance-client"
-	if err := srv.KeyStore.PutKey(&keys.KeyRecord{
+	if _, err := srv.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       pubPEM,
 		Algorithm: "RS256",
-	}); err != nil {
+	}}); err != nil {
 		t.Fatalf("put key: %v", err)
 	}
 	return &fixture{

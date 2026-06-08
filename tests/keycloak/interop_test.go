@@ -20,6 +20,7 @@ package keycloak_test
 //   - See: https://github.com/panyam/oneauth/issues/49
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -207,10 +208,11 @@ func TestKeycloak_JWKSKeyStore_Integration(t *testing.T) {
 	require.True(t, ok, "Keycloak token must have kid header")
 
 	// Look up the key by kid
-	rec, err := ks.GetKeyByKid(kid)
+	resp, err := ks.GetKeyByKid(context.Background(), &keys.GetKeyByKidRequest{Kid: kid})
 	assert.NoError(t, err, "JWKSKeyStore should find Keycloak key by kid")
-	assert.NotNil(t, rec, "key record should not be nil")
-	assert.NotEmpty(t, rec.Algorithm, "algorithm should be set")
+	require.NotNil(t, resp, "response should not be nil")
+	require.NotNil(t, resp.Record, "key record should not be nil")
+	assert.NotEmpty(t, resp.Record.Algorithm, "algorithm should be set")
 }
 
 // =============================================================================

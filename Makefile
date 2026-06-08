@@ -224,16 +224,17 @@ testall:
 		$(KC_IMAGE) start-dev --import-realm >> $(REPORT_DIR)/run.log 2>&1
 	@sleep 3
 	@PASS=0; FAIL=0; STAGES=""; \
-	$(call RUN_STAGE,[1/10] Lint (staticcheck),lint,lint); \
-	$(call RUN_STAGE,[2/10] Unit tests + coverage (core + sub-modules),cover-html,unit+coverage); \
-	$(call RUN_STAGE,[3/10] E2E tests (in-process race detector),e2e,e2e); \
-	$(call RUN_STAGE,[4/10] PostgreSQL / GORM tests,postgres,postgres); \
-	$(call RUN_STAGE,[5/10] Datastore tests,datastore,datastore); \
-	$(call RUN_STAGE,[6/10] Keycloak interop tests,keycloak,keycloak); \
-	$(call RUN_STAGE,[7/10] Authlete interop tests,authlete,authlete); \
-	$(call RUN_STAGE,[8/10] Secret scanning,secrets,secrets); \
-	$(call RUN_STAGE,[9/10] Vulnerability check,vulncheck,vulncheck); \
-	$(call RUN_STAGE,[10/10] ZAP baseline scan,zap,zap); \
+	$(call RUN_STAGE,[1/11] Lint (staticcheck),lint,lint); \
+	$(call RUN_STAGE,[2/11] Unit tests + coverage (core + sub-modules),cover-html,unit+coverage); \
+	$(call RUN_STAGE,[3/11] E2E tests (in-process race detector),e2e,e2e); \
+	$(call RUN_STAGE,[4/11] Conformance ratchet,testconformance,conformance); \
+	$(call RUN_STAGE,[5/11] PostgreSQL / GORM tests,postgres,postgres); \
+	$(call RUN_STAGE,[6/11] Datastore tests,datastore,datastore); \
+	$(call RUN_STAGE,[7/11] Keycloak interop tests,keycloak,keycloak); \
+	$(call RUN_STAGE,[8/11] Authlete interop tests,authlete,authlete); \
+	$(call RUN_STAGE,[9/11] Secret scanning,secrets,secrets); \
+	$(call RUN_STAGE,[10/11] Vulnerability check,vulncheck,vulncheck); \
+	$(call RUN_STAGE,[11/11] ZAP baseline scan,zap,zap); \
 	\
 	echo "" | tee -a $(REPORT_DIR)/run.log; \
 	echo "=== Summary: $$PASS passed, $$FAIL failed ===" | tee -a $(REPORT_DIR)/run.log; \

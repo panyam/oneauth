@@ -1,6 +1,6 @@
 module github.com/panyam/oneauth/stores/gorm
 
-go 1.26.3
+go 1.26.4
 
 require (
 	github.com/panyam/oneauth v0.0.70

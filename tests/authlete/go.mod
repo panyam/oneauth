@@ -1,6 +1,6 @@
 module github.com/panyam/oneauth/tests/authlete
 
-go 1.26.3
+go 1.26.4
 
 replace github.com/panyam/oneauth => ../..
 

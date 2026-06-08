@@ -1,6 +1,7 @@
 package introspection_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -22,11 +23,11 @@ func resourceServerClient(t *testing.T, srv *testutil.TestAuthServer) (clientID,
 	t.Helper()
 	clientID = "rs-client"
 	secret = "rs-secret"
-	if err := srv.KeyStore.PutKey(&keys.KeyRecord{
+	if _, err := srv.KeyStore.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
 		ClientID:  clientID,
 		Key:       []byte(secret),
 		Algorithm: "HS256",
-	}); err != nil {
+	}}); err != nil {
 		t.Fatalf("register resource server client: %v", err)
 	}
 	return clientID, secret
