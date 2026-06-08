@@ -804,11 +804,9 @@ setup: setup-tools setup-hooks
 # =============================================================================
 # Multi-module management
 # =============================================================================
-SUBMODULES := stores/gorm stores/gae saml grpc oauth2 cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
-
 BUILD_DIR := build
 LIBS := stores/gorm stores/gae saml grpc oauth2
-CMDS := cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
+CMDS := cmd/oneauth cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
 SUBMODULES := $(LIBS) $(CMDS)
 
 # Build all modules. Command binaries go to build/
@@ -867,7 +865,7 @@ norep:
 
 # Restore replace directives (after publishing)
 rep:
-	@for mod in stores/gorm stores/gae cmd/oneauth-server cmd/demo-resource-server; do \
+	@for mod in stores/gorm stores/gae cmd/oneauth cmd/oneauth-server cmd/demo-resource-server; do \
 		echo "replace github.com/panyam/oneauth => ../.." >> "$$mod/go.mod"; \
 	done
 	@echo "replace github.com/panyam/oneauth/stores/gorm => ../../stores/gorm" >> cmd/oneauth-server/go.mod
