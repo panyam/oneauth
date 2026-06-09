@@ -300,20 +300,24 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	// Now that we know the server URL, register the OIDC discovery endpoint.
 	// Uses a dynamic handler since the URL is only known after httptest.NewServer.
 	baseURL := e.AuthServer.URL
+	bclSupported := true
+	bclSessionSupported := true
 	asMetaHandler := apiauth.NewASMetadataHandler(&apiauth.ASServerMetadata{
-		Issuer:                         baseURL,
-		AuthorizationEndpoint:          baseURL + "/authorize",
-		TokenEndpoint:                  baseURL + "/oauth/token",
-		JWKSURI:                        baseURL + "/.well-known/jwks.json",
-		IntrospectionEndpoint:          baseURL + "/oauth/introspect",
-		RevocationEndpoint:            baseURL + "/oauth/revoke",
-		RegistrationEndpoint:           baseURL + "/apps/dcr",
-		ScopesSupported:                []string{"read", "write", "admin"},
-		GrantTypesSupported:            []string{"authorization_code", "password", "refresh_token", "client_credentials"},
-		ResponseTypesSupported:         []string{"code", "token"},
-		TokenEndpointAuthMethods:       []string{"client_secret_post", "client_secret_basic"},
-		SubjectTypesSupported:          []string{"public"},
-		CodeChallengeMethodsSupported:  []string{"S256"},
+		Issuer:                            baseURL,
+		AuthorizationEndpoint:             baseURL + "/authorize",
+		TokenEndpoint:                     baseURL + "/oauth/token",
+		JWKSURI:                           baseURL + "/.well-known/jwks.json",
+		IntrospectionEndpoint:             baseURL + "/oauth/introspect",
+		RevocationEndpoint:                baseURL + "/oauth/revoke",
+		RegistrationEndpoint:              baseURL + "/apps/dcr",
+		ScopesSupported:                   []string{"read", "write", "admin"},
+		GrantTypesSupported:               []string{"authorization_code", "password", "refresh_token", "client_credentials"},
+		ResponseTypesSupported:            []string{"code", "token"},
+		TokenEndpointAuthMethods:          []string{"client_secret_post", "client_secret_basic"},
+		SubjectTypesSupported:             []string{"public"},
+		CodeChallengeMethodsSupported:     []string{"S256"},
+		BackchannelLogoutSupported:        &bclSupported,
+		BackchannelLogoutSessionSupported: &bclSessionSupported,
 	})
 	// Register on the existing mux (before server start the mux is already wired)
 	mux.Handle("GET /.well-known/openid-configuration", asMetaHandler)

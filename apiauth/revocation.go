@@ -44,6 +44,11 @@ func NewRevocationHandler(auth *APIAuth, clientKeyStore keys.KeyLookup) *Revocat
 	revoker := NewTokenRevoker(TokenRevokerConfig{
 		Blacklist:    auth.Blacklist,
 		RefreshStore: auth.RefreshTokenStore,
+		// Inherit auth.TokenHooks so OnRevoked / OnTokenRevoked fire from
+		// /oauth/revoke just as they do from /api/logout. Without this,
+		// the OIDC Back-Channel Logout dispatcher would miss revocations
+		// triggered through the RFC 7009 endpoint.
+		Hooks: auth.TokenHooks,
 	})
 	return &RevocationHandler{
 		Revoker:        revoker,
