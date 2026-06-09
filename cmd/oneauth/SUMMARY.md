@@ -19,6 +19,13 @@ and `jwks` against any RFC 8414 / OIDC-compliant authorization server.
   6749 §4.3 ROPC grant; prints a deprecation banner to stderr.
 - **cmd/token_refresh.go** — `oneauth token refresh <issuer>` — RFC 6749
   §6 refresh_token grant. Calls `client.AuthClient.RefreshToken`.
+- **cmd/token_device.go** — `oneauth token device <issuer>` — RFC 8628
+  device authorization grant. Discovers `device_authorization_endpoint`,
+  prints `user_code` + verification URL to stderr, polls until approve
+  / deny / expire (honoring `slow_down`), emits via existing emitters.
+  `--open` launches the verification URL in the default browser; `--qr`
+  renders an ASCII QR code via `qrterminal/v3` for phone hand-off
+  (issue 268).
 - **cmd/introspect.go** — `oneauth introspect <issuer>` — RFC 7662 token
   introspection via `apiauth.IntrospectionValidator`. `--format active`
   prints just `true|false` for shell predicates (issue 258).

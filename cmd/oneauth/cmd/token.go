@@ -34,6 +34,7 @@ authorization server. Each subcommand handles one grant type.`,
 	cmd.AddCommand(
 		newBrowserCommand(tf),
 		newClientCredentialsCommand(tf),
+		newDeviceCommand(tf),
 		newPasswordCommand(tf),
 		newRefreshCommand(tf),
 	)

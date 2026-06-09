@@ -368,6 +368,7 @@ curl -H "Authorization: Bearer $OAUTH_ACCESS_TOKEN" https://api.example.com/me
 | `oneauth token client-credentials <issuer>` | Machine-to-machine grant (RFC 6749 §4.4); aliased as `cc`. |
 | `oneauth token password <issuer>` | Username/password grant (RFC 6749 §4.3); deprecated for new use. |
 | `oneauth token refresh <issuer>` | Exchange a refresh token for a fresh access token (RFC 6749 §6). |
+| `oneauth token device <issuer>` | Device authorization grant (RFC 8628). For headless devices and CLI tools — prints a code, polls until the user approves on a separate device. `--open` launches a browser; `--qr` renders an ASCII QR code. |
 | `oneauth introspect <issuer>` | Check whether a token is active (RFC 7662). `--format active` returns just `true`/`false` for shell predicates. |
 | `oneauth dcr register \| get \| put \| delete <issuer>` | Dynamic Client Registration + management (RFC 7591 / 7592). |
 | `oneauth jwks <issuer>` | Fetch + pretty-print the AS's JSON Web Key Set (RFC 7517). `--kid` / `--sig-only` filters. |
