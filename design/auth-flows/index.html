@@ -610,6 +610,81 @@ Result: User can now login TWO ways:
   1. Google OAuth button
   2. Email + password
 </code></pre>
+<h2 id="oauth-grant-flows">OAuth Grant Flows <a class="anchor" href="#oauth-grant-flows">¶</a></h2>
+<p>Diagrams for the OAuth 2.0 grant flows oneauth ships as an AS and (where applicable) consumes from the CLI / SDK. Distinct from the &ldquo;Supported Flows&rdquo; section above — those describe the user-identity-channel lifecycle this library brokers; the diagrams here describe the wire-level grant exchanges with external clients.</p>
+<h3 id="rfc-8628-device-authorization-grant">RFC 8628 Device Authorization Grant <a class="anchor" href="#rfc-8628-device-authorization-grant">¶</a></h3>
+<p>The device-flow case: a device with limited input (smart TV, CLI, IoT) gets a token while the user authorizes on a separate device (phone, laptop). What&rsquo;s distinctive about this grant is that the device asking for the token is <em>not</em> the device the user authorizes on — there is no redirect URL because the polling device has no browser to redirect <em>to</em>, so the AS bridges them via an out-of-band <code>user_code</code> that the user transcribes.</p>
+<p>The happy path:</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant D as Device&lt;br/&gt;(e.g. smart TV, CLI)
+    participant AS as Authorization&lt;br/&gt;Server (oneauth)
+    participant U as User
+    participant B as User's browser&lt;br/&gt;(phone / laptop)
+
+    Note over D,AS: Phase 1 — Device initiates the flow
+    D-&gt;&gt;AS: POST /device/authorize&lt;br/&gt;(client_id, scope)
+    AS-&gt;&gt;AS: mint device_code (256-bit hex)&lt;br/&gt;mint user_code (WDJB-MJHT)&lt;br/&gt;store as Status=Pending&lt;br/&gt;expires_at = now + 15min
+    AS--&gt;&gt;D: 200 OK&lt;br/&gt;{ device_code, user_code,&lt;br/&gt;  verification_uri,&lt;br/&gt;  verification_uri_complete?,&lt;br/&gt;  expires_in: 900, interval: 5 }
+
+    Note over D,U: Phase 2 — Device shows the code; user transcribes
+    D-&gt;&gt;U: Display &quot;Visit https://as.example/device&lt;br/&gt;and enter WDJB-MJHT&quot;
+
+    Note over D,AS: Phase 3 — Device polls token endpoint while user authorizes
+    par Device polls
+        loop every `interval` seconds
+            D-&gt;&gt;AS: POST /api/token&lt;br/&gt;(grant_type=device_code,&lt;br/&gt; device_code, client_id)
+            AS--&gt;&gt;D: 400 authorization_pending&lt;br/&gt;(or slow_down on fast re-poll)
+        end
+    and User authorizes on a different device
+        U-&gt;&gt;B: open verification_uri&lt;br/&gt;(or scan QR of verification_uri_complete)
+        B-&gt;&gt;AS: GET /device&lt;br/&gt;(code entry form, CSRF token)
+        AS--&gt;&gt;B: HTML form
+        U-&gt;&gt;B: type WDJB-MJHT, submit
+        B-&gt;&gt;AS: POST /device&lt;br/&gt;(user_code, csrf_token)
+        AS-&gt;&gt;AS: lookup user_code →&lt;br/&gt;case/dash-insensitive,&lt;br/&gt;find Status=Pending record
+        alt User not yet authenticated
+            AS--&gt;&gt;B: 302 redirect to /auth/login
+            U-&gt;&gt;B: enter password
+            B-&gt;&gt;AS: POST /auth/login (localauth)
+            AS--&gt;&gt;B: session cookie + redirect to /device/approve
+        end
+        B-&gt;&gt;AS: GET /device/approve&lt;br/&gt;(authenticated session)
+        AS--&gt;&gt;B: consent screen:&lt;br/&gt;&quot;App XYZ wants: read, write&quot;
+        U-&gt;&gt;B: click &quot;Approve&quot;
+        B-&gt;&gt;AS: POST /device/approve
+        AS-&gt;&gt;AS: ApproveDeviceAuthorization(user_code,&lt;br/&gt; subject=alice, scopes=[read,write])&lt;br/&gt;Status → Approved
+        AS--&gt;&gt;B: &quot;You may now return to your device&quot;
+    end
+
+    Note over D,AS: Phase 4 — Next poll picks up the approval
+    D-&gt;&gt;AS: POST /api/token&lt;br/&gt;(grant_type=device_code,&lt;br/&gt; device_code, client_id)
+    AS-&gt;&gt;AS: status=Approved →&lt;br/&gt;mint access_token (JWT, sub=alice)&lt;br/&gt;mint refresh_token&lt;br/&gt;DELETE device_code&lt;br/&gt;(replay protection)
+    AS--&gt;&gt;D: 200 OK&lt;br/&gt;{ access_token, refresh_token,&lt;br/&gt;  token_type: Bearer,&lt;br/&gt;  expires_in: 900 }
+
+    Note over D: Device now uses access_token&lt;br/&gt;against the resource server
+</code></pre>
+<p><strong>Notes the diagram reveals:</strong></p>
+<ul>
+<li>Steps 7–14 run in parallel with steps 5–6. The device has no idea the user is on a phone entering a code; it just keeps polling and sees <code>authorization_pending</code> until step 15 flips the status.</li>
+<li>Step 18 deletes the authorization. This is the consume-on-success replay protection — a leaked <code>device_code</code> can&rsquo;t redeem twice. The AS implementation enforces this; see <code>apiauth.handleDeviceCodeGrant</code>.</li>
+<li>The login dance in steps 11–13 is optional. If the user is already signed in to the AS (session cookie still valid), steps 11–13 are skipped and the consent screen renders immediately.</li>
+<li><strong>What&rsquo;s shipped vs what&rsquo;s still in flight:</strong>
+<ul>
+<li>The poll loop, token endpoint branch, and token issuance: shipped in issue 117 (v0.1.23).</li>
+<li>Confidential-client authentication on redemption: shipped in issue 266 (v0.1.24).</li>
+<li>The CLI side of the flow (<code>oneauth token device &lt;issuer&gt;</code> driving steps 1, 6, 16): shipped in issue 268 (v0.1.25).</li>
+<li>The HTML pages at steps 7, 9, 12, 15 + the localauth integration: tracked under issue 267.</li>
+</ul>
+</li>
+</ul>
+<p><strong>Spec defaults</strong> the diagram is drawn against:</p>
+<ul>
+<li><code>expires_in</code>: 900s (15 min) — RFC 8628 §3.4</li>
+<li><code>interval</code>: 5s baseline; <code>slow_down</code> bumps by 5 — RFC 8628 §3.5</li>
+<li><code>user_code</code> charset: <code>BCDEFGHJKLMNPQRSTVWXZ23456789</code> (8 chars, displayed as <code>XXXX-XXXX</code>) — RFC 8628 §6.1</li>
+</ul>
+<p>See: <a href="https://www.rfc-editor.org/rfc/rfc8628">RFC 8628</a>, <code>apiauth/device_auth_grant.go</code>, <code>cmd/oneauth/cmd/token_device.go</code>.</p>
 <h2 id="edge-cases">Edge Cases <a class="anchor" href="#edge-cases">¶</a></h2>
 <h3 id="race-condition-in-username-reservation">Race Condition in Username Reservation <a class="anchor" href="#race-condition-in-username-reservation">¶</a></h3>
 <p>Two users try to reserve same username simultaneously.</p>
