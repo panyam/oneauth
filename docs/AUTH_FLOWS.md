@@ -483,6 +483,86 @@ Result: User can now login TWO ways:
   2. Email + password
 ```
 
+## OAuth Grant Flows
+
+Diagrams for the OAuth 2.0 grant flows oneauth ships as an AS and (where applicable) consumes from the CLI / SDK. Distinct from the "Supported Flows" section above — those describe the user-identity-channel lifecycle this library brokers; the diagrams here describe the wire-level grant exchanges with external clients.
+
+### RFC 8628 Device Authorization Grant
+
+The device-flow case: a device with limited input (smart TV, CLI, IoT) gets a token while the user authorizes on a separate device (phone, laptop). What's distinctive about this grant is that the device asking for the token is *not* the device the user authorizes on — there is no redirect URL because the polling device has no browser to redirect *to*, so the AS bridges them via an out-of-band `user_code` that the user transcribes.
+
+The happy path:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant D as Device<br/>(e.g. smart TV, CLI)
+    participant AS as Authorization<br/>Server (oneauth)
+    participant U as User
+    participant B as User's browser<br/>(phone / laptop)
+
+    Note over D,AS: Phase 1 — Device initiates the flow
+    D->>AS: POST /device/authorize<br/>(client_id, scope)
+    AS->>AS: mint device_code (256-bit hex)<br/>mint user_code (WDJB-MJHT)<br/>store as Status=Pending<br/>expires_at = now + 15min
+    AS-->>D: 200 OK<br/>{ device_code, user_code,<br/>  verification_uri,<br/>  verification_uri_complete?,<br/>  expires_in: 900, interval: 5 }
+
+    Note over D,U: Phase 2 — Device shows the code; user transcribes
+    D->>U: Display "Visit https://as.example/device<br/>and enter WDJB-MJHT"
+
+    Note over D,AS: Phase 3 — Device polls token endpoint while user authorizes
+    par Device polls
+        loop every `interval` seconds
+            D->>AS: POST /api/token<br/>(grant_type=device_code,<br/> device_code, client_id)
+            AS-->>D: 400 authorization_pending<br/>(or slow_down on fast re-poll)
+        end
+    and User authorizes on a different device
+        U->>B: open verification_uri<br/>(or scan QR of verification_uri_complete)
+        B->>AS: GET /device<br/>(code entry form, CSRF token)
+        AS-->>B: HTML form
+        U->>B: type WDJB-MJHT, submit
+        B->>AS: POST /device<br/>(user_code, csrf_token)
+        AS->>AS: lookup user_code →<br/>case/dash-insensitive,<br/>find Status=Pending record
+        alt User not yet authenticated
+            AS-->>B: 302 redirect to /auth/login
+            U->>B: enter password
+            B->>AS: POST /auth/login (localauth)
+            AS-->>B: session cookie + redirect to /device/approve
+        end
+        B->>AS: GET /device/approve<br/>(authenticated session)
+        AS-->>B: consent screen:<br/>"App XYZ wants: read, write"
+        U->>B: click "Approve"
+        B->>AS: POST /device/approve
+        AS->>AS: ApproveDeviceAuthorization(user_code,<br/> subject=alice, scopes=[read,write])<br/>Status → Approved
+        AS-->>B: "You may now return to your device"
+    end
+
+    Note over D,AS: Phase 4 — Next poll picks up the approval
+    D->>AS: POST /api/token<br/>(grant_type=device_code,<br/> device_code, client_id)
+    AS->>AS: status=Approved →<br/>mint access_token (JWT, sub=alice)<br/>mint refresh_token<br/>DELETE device_code<br/>(replay protection)
+    AS-->>D: 200 OK<br/>{ access_token, refresh_token,<br/>  token_type: Bearer,<br/>  expires_in: 900 }
+
+    Note over D: Device now uses access_token<br/>against the resource server
+```
+
+**Notes the diagram reveals:**
+
+- Steps 7–14 run in parallel with steps 5–6. The device has no idea the user is on a phone entering a code; it just keeps polling and sees `authorization_pending` until step 15 flips the status.
+- Step 18 deletes the authorization. This is the consume-on-success replay protection — a leaked `device_code` can't redeem twice. The AS implementation enforces this; see `apiauth.handleDeviceCodeGrant`.
+- The login dance in steps 11–13 is optional. If the user is already signed in to the AS (session cookie still valid), steps 11–13 are skipped and the consent screen renders immediately.
+- **What's shipped vs what's still in flight:**
+  - The poll loop, token endpoint branch, and token issuance: shipped in issue 117 (v0.1.23).
+  - Confidential-client authentication on redemption: shipped in issue 266 (v0.1.24).
+  - The CLI side of the flow (`oneauth token device <issuer>` driving steps 1, 6, 16): shipped in issue 268 (v0.1.25).
+  - The HTML pages at steps 7, 9, 12, 15 + the localauth integration: tracked under issue 267.
+
+**Spec defaults** the diagram is drawn against:
+
+- `expires_in`: 900s (15 min) — RFC 8628 §3.4
+- `interval`: 5s baseline; `slow_down` bumps by 5 — RFC 8628 §3.5
+- `user_code` charset: `BCDEFGHJKLMNPQRSTVWXZ23456789` (8 chars, displayed as `XXXX-XXXX`) — RFC 8628 §6.1
+
+See: [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628), `apiauth/device_auth_grant.go`, `cmd/oneauth/cmd/token_device.go`.
+
 ## Edge Cases
 
 ### Race Condition in Username Reservation
