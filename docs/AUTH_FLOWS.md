@@ -549,11 +549,11 @@ sequenceDiagram
 - Steps 7–14 run in parallel with steps 5–6. The device has no idea the user is on a phone entering a code; it just keeps polling and sees `authorization_pending` until step 15 flips the status.
 - Step 18 deletes the authorization. This is the consume-on-success replay protection — a leaked `device_code` can't redeem twice. The AS implementation enforces this; see `apiauth.handleDeviceCodeGrant`.
 - The login dance in steps 11–13 is optional. If the user is already signed in to the AS (session cookie still valid), steps 11–13 are skipped and the consent screen renders immediately.
-- **What's shipped vs what's still in flight:**
-  - The poll loop, token endpoint branch, and token issuance: shipped in issue 117 (v0.1.23).
-  - Confidential-client authentication on redemption: shipped in issue 266 (v0.1.24).
-  - The CLI side of the flow (`oneauth token device <issuer>` driving steps 1, 6, 16): shipped in issue 268 (v0.1.25).
-  - The HTML pages at steps 7, 9, 12, 15 + the localauth integration: tracked under issue 267.
+- **What's shipped:**
+  - The poll loop, token endpoint branch, and token issuance — issue 117 (v0.1.23).
+  - Confidential-client authentication on redemption — issue 266 (v0.1.24).
+  - The CLI side of the flow (`oneauth token device <issuer>` driving steps 1, 6, 16) — issue 268 (v0.1.25).
+  - The HTML pages at steps 7, 9, 12, 15 (`apiauth.DeviceVerificationHandler`) plus the function-type hooks callers wire to their localauth + CSRF middleware — issue 267 (v0.1.26).
 
 **Spec defaults** the diagram is drawn against:
 
