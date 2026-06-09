@@ -382,6 +382,39 @@ func TestDeviceGrant_ConfidentialClient_WrongCreds_Rejected(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "invalid_client")
 }
 
+func TestDeviceGrant_AppStoreSet_UnregisteredClient_Rejected(t *testing.T) {
+	// Fail-CLOSED: once AppStore is wired, an unregistered client_id
+	// MUST NOT redeem a device_code — even with a syntactically valid
+	// authorization in the device store. Silently falling back to the
+	// form-`client_id`-only path would subvert the operator's intent
+	// in wiring AppStore (issue 266 security review).
+	store := core.NewInMemoryDeviceAuthorizationStore()
+	apps := core.NewInMemoryAppStore() // empty — no clients registered
+	auth := &apiauth.APIAuth{
+		JWTSecretKey:      "device-test-secret-32chars-min!!",
+		JWTIssuer:         "test-issuer",
+		RefreshTokenStore: newInMemoryRefreshStore(),
+		DeviceAuthStore:   store,
+		AppStore:          apps,
+	}
+	devHandler := &apiauth.DeviceAuthorizationHandler{
+		Store:           store,
+		VerificationURI: "https://auth.example/device",
+	}
+	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-ghost")
+	require.NoError(t, auth.ApproveDeviceAuthorization(httptest.NewRequest(http.MethodPost, "/", nil), userCode, "alice", nil))
+
+	rr := httptest.NewRecorder()
+	auth.ServeHTTP(rr, tokenForm(t, url.Values{
+		"grant_type":  {apiauth.DeviceCodeGrantType},
+		"device_code": {deviceCode},
+		"client_id":   {"client-ghost"},
+	}))
+	require.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "invalid_client")
+	assert.NotContains(t, rr.Body.String(), "access_token")
+}
+
 func TestDeviceGrant_PublicClient_NoCredsRequired(t *testing.T) {
 	// Auth method `none` → form client_id alone is the identifier. The
 	// new confidential-client enforcement MUST NOT regress this case.
