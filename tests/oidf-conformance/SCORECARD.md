@@ -13,8 +13,8 @@ Test module: `oidcc-discovery-endpoint-verification`
 | Metric | Count |
 |---|---|
 | Total checks observed | 22 |
-| Passing | 13 |
-| Known gaps (expected-fail in manifest) | 9 |
+| Passing | 18 |
+| Known gaps (expected-fail in manifest) | 4 |
 | Regressions (failed but NOT in manifest) | 0 |
 | Ratchet-up available (in manifest but passed) | 0 |
 
@@ -22,18 +22,18 @@ Test module: `oidcc-discovery-endpoint-verification`
 
 | Check | Status | Gating | Note |
 |---|---|---|---|
-| `CheckDiscEndpointAllEndpointsAreHttps` | KNOWN-FAIL | [#250](https://github.com/panyam/oneauth/issues/250) | Aggregate HTTPS check. Mirrors the per-endpoint failures above. |
+| `CheckDiscEndpointAllEndpointsAreHttps` | PASS | — |  |
 | `CheckDiscEndpointAuthorizationEndpoint` | KNOWN-FAIL | [#116](https://github.com/panyam/oneauth/issues/116) | authorization_endpoint is not advertised because /authorize isn't |
-| `CheckDiscEndpointDiscoveryUrl` | KNOWN-FAIL | [#250](https://github.com/panyam/oneauth/issues/250) | Expected https protocol for server.discoveryUrl. We run HTTP-only |
+| `CheckDiscEndpointDiscoveryUrl` | PASS | — |  |
 | `CheckDiscEndpointIssuer` | PASS | — |  |
-| `CheckDiscEndpointRegistrationEndpoint` | KNOWN-FAIL | [#250](https://github.com/panyam/oneauth/issues/250) | Expected https protocol for registration_endpoint. Deployment-mode; |
+| `CheckDiscEndpointRegistrationEndpoint` | PASS | — |  |
 | `CheckDiscEndpointRequestUriParameterSupported` | PASS | — |  |
 | `CheckDiscEndpointScopesSupportedContainsOpenId` | PASS | — |  |
 | `CheckDiscEndpointSubjectTypesSupported` | PASS | — |  |
-| `CheckDiscEndpointTokenEndpoint` | KNOWN-FAIL | [#250](https://github.com/panyam/oneauth/issues/250) | Expected https protocol for token_endpoint. Deployment-mode; see #250. |
+| `CheckDiscEndpointTokenEndpoint` | PASS | — |  |
 | `CheckDiscEndpointUserinfoEndpoint` | KNOWN-WARN | [#116](https://github.com/panyam/oneauth/issues/116) | userinfo_endpoint is absent. Gated on issue 116 (the userinfo |
 | `CheckDiscoveryEndpointReturnedJsonContentType` | PASS | — |  |
-| `CheckJwksUri` | KNOWN-FAIL | [#250](https://github.com/panyam/oneauth/issues/250) | Expected https protocol for jwks_uri. Deployment-mode; see #250. |
+| `CheckJwksUri` | PASS | — |  |
 | `EnsureDiscoveryEndpointResponseStatusCodeIs200` | PASS | — |  |
 | `EnsureServerConfigurationCodeChallengeMethodsSupportedIsAnArray` | PASS | — |  |
 | `EnsureServerJwksDoesNotContainPrivateOrSymmetricKeys` | PASS | — |  |

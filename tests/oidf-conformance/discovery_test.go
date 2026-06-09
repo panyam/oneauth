@@ -13,6 +13,8 @@ package oidfconformance_test
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -125,16 +127,34 @@ func TestOIDF_OIDCC_ConfigCert_Discovery(t *testing.T) {
 //
 // The AS liveness probe uses asProbeURL() (host-side reachable URL),
 // not asURL() (Docker-side reachable URL) — host.docker.internal
-// doesn't resolve from outside Docker.
+// doesn't resolve from outside Docker. The probe trusts the same test
+// CA the harness JVM trusts (issue 250).
 func skipIfHarnessOrASNotReady(t *testing.T) {
 	t.Helper()
 	httpClient := &http.Client{Timeout: 3 * time.Second, Transport: harness.New("").HTTPClient.Transport}
 	if _, err := httpClient.Get(harnessURL() + "/api/version"); err != nil {
 		t.Skipf("OIDF harness not reachable at %s (run `make upoidf`): %v", harnessURL(), err)
 	}
-	if _, err := http.Get(asProbeURL() + "/.well-known/openid-configuration"); err != nil {
+	probe := &http.Client{Timeout: 3 * time.Second, Transport: probeTransport(t)}
+	if _, err := probe.Get(asProbeURL() + "/.well-known/openid-configuration"); err != nil {
 		t.Skipf("oneauth-server not reachable at %s (run `make upoidf-as`): %v", asProbeURL(), err)
 	}
+}
+
+// probeTransport returns an http.Transport that trusts the test CA
+// under tests/oidf-conformance/certs/ca.crt — the same CA the harness
+// JVM mounts. Falls back to the system trust store when the CA file is
+// absent (lets a future plain-HTTP probe topology still work).
+func probeTransport(t *testing.T) *http.Transport {
+	t.Helper()
+	caPath := filepath.Join("certs", "ca.crt")
+	pem, err := os.ReadFile(caPath)
+	if err != nil {
+		return &http.Transport{}
+	}
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(pem)
+	return &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
 }
 
 // harnessURL returns the OIDF harness origin from env or the docker-
@@ -151,11 +171,16 @@ func harnessURL() string {
 // `host.docker.internal` (Mac/Win Docker; Linux CI configures this via
 // the docker compose extra_hosts entry in docker-compose-prebuilt.yml).
 // Override with OIDF_AS_URL when running against a different topology.
+//
+// HTTPS by default (issue 250) — closes the 5 deployment-mode-noise
+// expected-fails that the discovery plan flagged as
+// `Expected https protocol for …`. The cert + truststore live under
+// tests/oidf-conformance/certs/.
 func asURL() string {
 	if v := os.Getenv("OIDF_AS_URL"); v != "" {
 		return v
 	}
-	return "http://host.docker.internal:8888"
+	return "https://host.docker.internal:8888"
 }
 
 // asProbeURL returns the AS origin that THE TEST PROCESS (running on
@@ -171,7 +196,7 @@ func asProbeURL() string {
 	if v := os.Getenv("OIDF_AS_PROBE_URL"); v != "" {
 		return v
 	}
-	return "http://localhost:8888"
+	return "https://localhost:8888"
 }
 
 // planConfig is the JSON config block POSTed to /api/plan. The harness
