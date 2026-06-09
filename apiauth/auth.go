@@ -566,6 +566,26 @@ func (a *APIAuth) HandleLogoutAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Capture the affected client_ids BEFORE revoke so the OIDC Back-Channel
+	// Logout dispatcher knows who to notify — RefreshTokenStore.GetSubjectTokens
+	// returns only active grants and would yield an empty set if called after
+	// RevokeSubjectTokens. Empty list when no client ever associated with the
+	// user's tokens.
+	var clientIDs []string
+	if getResp, err := a.RefreshTokenStore.GetSubjectTokens(r.Context(), &core.GetSubjectTokensRequest{Subject: userID}); err == nil && getResp != nil {
+		seen := map[string]struct{}{}
+		for _, t := range getResp.Tokens {
+			if t == nil || t.ClientID == "" {
+				continue
+			}
+			if _, ok := seen[t.ClientID]; ok {
+				continue
+			}
+			seen[t.ClientID] = struct{}{}
+			clientIDs = append(clientIDs, t.ClientID)
+		}
+	}
+
 	// Revoke all user tokens
 	if _, err := a.RefreshTokenStore.RevokeSubjectTokens(r.Context(), &core.RevokeSubjectTokensRequest{Subject: userID}); err != nil {
 		log.Printf("Error revoking user tokens: %v", err)
@@ -576,7 +596,7 @@ func (a *APIAuth) HandleLogoutAll(w http.ResponseWriter, r *http.Request) {
 	// Fire the subject-scoped revoke hook so the BCL dispatcher (and any
 	// other subscriber) can fan out OIDC logout notifications. sid is empty
 	// here — logout-all crosses every session for the user.
-	a.TokenHooks.fireOnSubjectRevoked(userID, "")
+	a.TokenHooks.fireOnSubjectRevoked(userID, "", clientIDs)
 
 	w.WriteHeader(http.StatusNoContent)
 }

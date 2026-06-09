@@ -42,11 +42,12 @@ type TestEnv struct {
 	Blacklist *core.InMemoryBlacklist
 
 	// Internal
-	apiAuth    *apiauth.APIAuth
-	registrar  *admin.AppRegistrar
-	localAuth  *localauth.LocalAuth
-	remoteMode bool
-	remoteURL  string
+	apiAuth       *apiauth.APIAuth
+	registrar     *admin.AppRegistrar
+	localAuth     *localauth.LocalAuth
+	bclDispatcher *apiauth.BCLDispatcher
+	remoteMode    bool
+	remoteURL     string
 }
 
 // NewTestEnv creates a full test environment with auth + resource servers.

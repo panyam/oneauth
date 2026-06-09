@@ -69,8 +69,12 @@ func TestBCL_HandleLogoutAll_FiresDispatchesToRegisteredReceivers(t *testing.T) 
 	a := &APIAuth{
 		RefreshTokenStore: store,
 		TokenHooks: TokenHooks{
-			OnSubjectRevoked: func(subject, sid string) {
-				dispatcher.Dispatch(context.Background(), &DispatchRequest{Subject: subject, SID: sid})
+			OnSubjectRevoked: func(subject, sid string, clientIDs []string) {
+				dispatcher.Dispatch(context.Background(), &DispatchRequest{
+					Subject:   subject,
+					SID:       sid,
+					ClientIDs: clientIDs,
+				})
 			},
 		},
 	}
