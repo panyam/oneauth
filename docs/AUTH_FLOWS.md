@@ -563,6 +563,434 @@ sequenceDiagram
 
 See: [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628), `apiauth/device_auth_grant.go`, `cmd/oneauth/cmd/token_device.go`.
 
+### RFC 8252 + RFC 7636 Authorization Code with PKCE
+
+The browser flow for desktop apps, CLIs, and mobile apps. What's distinctive is that the redirect comes back to a loopback HTTP server the *client* itself ran on a random port — `redirect_uri=http://127.0.0.1:NNNNN/cb` per RFC 8252 §7.3 — so a confidential server isn't needed. PKCE (RFC 7636) binds the eventual code-for-token exchange to a per-flow secret the client invented, so even if an attacker intercepts the redirect they can't redeem the code.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client app<br/>(CLI / desktop)
+    participant L as Loopback HTTP server<br/>(in-process, random port)
+    participant B as User's browser
+    participant AS as Authorization Server<br/>(oneauth)
+    participant U as User
+
+    Note over C: Phase 1 — Generate PKCE pair + start loopback
+    C->>C: code_verifier = 43-128 random bytes<br/>code_challenge = base64url(SHA256(code_verifier))<br/>state = random nonce
+    C->>L: ListenAndServe on 127.0.0.1:N<br/>(random unprivileged port)
+
+    Note over C,B: Phase 2 — Send user to /authorize
+    C->>B: open https://as.example/authorize<br/>?response_type=code&client_id=…&redirect_uri=http://127.0.0.1:N/cb<br/>&code_challenge=X&code_challenge_method=S256<br/>&state=Y&scope=read+write
+    B->>AS: GET /authorize?...
+    alt User not yet authenticated
+        AS-->>B: 302 redirect to /auth/login?next=…
+        U->>B: enter password
+        B->>AS: POST /auth/login (localauth)
+        AS-->>B: session cookie + redirect back to /authorize
+    end
+    AS-->>B: consent screen (client_name, scopes)
+    U->>B: click "Approve"
+    B->>AS: POST /authorize (consent)
+    AS->>AS: mint authorization_code<br/>store code → { code_challenge, client_id,<br/>scopes, sub, redirect_uri, exp }
+
+    Note over AS,L: Phase 3 — Redirect carries code back to the client's own loopback
+    AS-->>B: 302 redirect to<br/>http://127.0.0.1:N/cb?code=AUTHCODE<br/>&state=Y&iss=https://as.example
+    B->>L: GET /cb?code=…&state=…&iss=…
+    L->>C: pass parsed callback params
+    C->>C: validate state == Y (CSRF defence)<br/>validate iss byte-equal to AS metadata<br/>(RFC 9207, byte-strict per issue 246)
+
+    Note over C,AS: Phase 4 — Exchange code for token (the proof)
+    C->>AS: POST /api/token<br/>(grant_type=authorization_code,<br/>code, code_verifier, client_id,<br/>redirect_uri)
+    AS->>AS: lookup code<br/>verify SHA256(code_verifier) == code_challenge<br/>verify redirect_uri matches stored<br/>verify code not expired<br/>delete code (single-use)
+    AS-->>C: 200 OK<br/>{ access_token, refresh_token,<br/>  token_type: Bearer,<br/>  expires_in: 900 }
+
+    Note over C: Client closes loopback server,<br/>uses access_token
+```
+
+**Notes the diagram reveals:**
+
+- The loopback server in step 2 is what makes this flow work *without* a public callback URL. A CLI on a developer's laptop has nowhere for the AS to redirect to — except a server it just spun up on `127.0.0.1`. RFC 8252 §7.3 gives this pattern its blessing.
+- Step 7 (PKCE verification) is the substantive defence. Even if an attacker captures the redirect (browser extension, malicious app, MITM), they don't have `code_verifier` because the client never put it on the wire — it stayed local. Without `code_verifier`, step 22 fails.
+- Step 6 carries `iss=` (RFC 9207). The client validates it *byte-equal* against the AS metadata issuer (no URL normalization — issue 246). This prevents mix-up attacks where a different AS tries to convince the client to exchange the code against the wrong token endpoint.
+- The login dance at steps 4–6 is identical to other browser flows. If the user is already authenticated to the AS, those steps collapse.
+- **What's shipped:**
+  - AS-side `/authorize` endpoint plus consent handling — partially shipped (the consent surface lives in `localauth` + future work tracked under issue 116 for full OIDC).
+  - Client-side loopback + PKCE machinery — `client.BrowserLoginRequest`, shipped pre-v0.1.13.
+  - `oneauth token browser <issuer>` CLI — shipped in issue 255 (v0.1.21).
+  - RFC 9207 `iss=` validation (byte-strict) — shipped in issue 246 (v0.1.22).
+
+**Spec defaults:**
+
+- `code_challenge_method`: `S256` (the only sane choice; `plain` is for legacy compat) — RFC 7636 §4.3
+- `code` validity: 10 minutes max — RFC 6749 §4.1.2; oneauth uses 5 minutes by default
+- `state` length: ≥ 16 bytes of entropy
+
+See: [RFC 8252](https://www.rfc-editor.org/rfc/rfc8252), [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636), [RFC 9207](https://www.rfc-editor.org/rfc/rfc9207), `apiauth/auth.go` (`/api/token`), `client/browser_login.go`, `client/validate_iss.go`, `cmd/oneauth/cmd/token_browser.go`.
+
+### RFC 6749 §6 Refresh Token (with family-rotation theft detection)
+
+A short-lived access token expires; the client trades a long-lived refresh token for a fresh access token without dragging the user back through `/authorize`. The interesting part isn't the rotation itself — it's the **theft detection**: every refresh token carries a `family` identifier, and reuse of an already-rotated token is treated as proof of compromise. The AS revokes the whole family and forces re-authentication.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client app
+    participant AS as Authorization Server<br/>(oneauth)
+    participant RT as RefreshTokenStore
+
+    Note over C,AS: Happy path — rotate
+    C->>AS: POST /api/token<br/>(grant_type=refresh_token,<br/>refresh_token=RT-old, client_id)
+    AS->>RT: GetRefreshToken(RT-old)
+    RT-->>AS: { sub, client_id, family=F, scopes,<br/>revoked: false, exp: future }
+    AS->>RT: RotateRefreshToken(RT-old)
+    RT->>RT: mark RT-old revoked<br/>mint RT-new with family=F (same)<br/>generation += 1
+    RT-->>AS: { token: RT-new }
+    AS->>AS: mint access_token (fresh JWT)
+    AS-->>C: 200 OK<br/>{ access_token, refresh_token: RT-new,<br/>  expires_in: 900 }
+
+    Note over C,AS: Theft path — replay of an already-rotated token
+    C->>AS: POST /api/token<br/>(grant_type=refresh_token,<br/>refresh_token=RT-old, client_id)
+    AS->>RT: GetRefreshToken(RT-old)
+    RT-->>AS: { sub, family=F, revoked: true }<br/>(RT-old was already rotated!)
+    AS->>AS: TOKEN REUSE DETECTED →<br/>presumption of theft
+    AS->>RT: RevokeTokenFamily(F)
+    RT->>RT: revoke EVERY token where family=F<br/>(RT-new and any descendants)
+    AS-->>C: 400 invalid_grant<br/>"Token reuse detected, all sessions revoked"
+    Note over C: Both the attacker AND the legitimate<br/>holder now have to re-authenticate.<br/>Legitimate user notices and changes password;<br/>attacker is locked out.
+```
+
+**Notes the diagram reveals:**
+
+- The single-token rotation (top half) is the boring case. The interesting case is the **bottom half**: when an old (already-rotated) token is presented, the AS doesn't just reject it — it revokes the *whole family*. That's the substantive defence.
+- The legitimate holder gets the disruption *with* the attacker. That's intentional: a forced re-auth surfaces the breach. The alternative — silently letting one side win — leaves the attacker undetected.
+- `family` is also what's plumbed into the BCL `sid` claim. A revoked family fires `OnSubjectRevoked` / `OnTokenRevoked` hooks, which the BCL dispatcher consumes to notify every client with a registered `backchannel_logout_uri` (see [OIDC Back-Channel Logout 1.0 (sender)](#oidc-back-channel-logout-10-sender)).
+- The `RFC 6749 §6` permits the AS to either return a new refresh token or keep the old one valid. oneauth always rotates — the theft detection above only works if you rotate.
+- **What's shipped:**
+  - The rotation + family-revoke logic — pre-v0.1.13.
+  - The BCL hook fire on family revoke — issue 261 (v0.1.20).
+  - `oneauth token refresh <issuer>` CLI — issue 255 (v0.1.21).
+
+**Spec defaults:**
+
+- `refresh_token` lifetime: 7 days (oneauth default; the spec doesn't mandate)
+- Family identifier: 16-char hex; generated once, carried through every rotation
+- Refresh token storage: see [RFC 7009 Token Revocation](#rfc-7009-token-revocation) for what revocation means at the wire level
+
+See: [RFC 6749 §6](https://www.rfc-editor.org/rfc/rfc6749#section-6), `apiauth/token_validator.go` (`RefreshGrant`), `core/stores.go` (`RefreshTokenStore` interface), `cmd/oneauth/cmd/token_refresh.go`.
+
+### RFC 7009 Token Revocation
+
+The wire surface for "this token is no longer needed." Distinctive: the spec demands the AS *always* return 200, even for unknown / malformed tokens, so an attacker can't probe which token values are live. Behind the 200 façade, the AS does different things depending on whether the token is an access token (blacklist by `jti` until its `exp`) or a refresh token (mark revoked in the store + capture identity for downstream notification).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client / RS
+    participant AS as Authorization Server<br/>(oneauth)
+    participant BL as Blacklist
+    participant RT as RefreshTokenStore
+    participant HK as TokenHooks<br/>(BCL dispatcher etc.)
+
+    C->>AS: POST /oauth/revoke<br/>(token, token_type_hint?)
+    AS->>AS: extractClientCredentials() →<br/>client_secret_basic / _post / private_key_jwt
+    AS->>AS: AuthenticateClient(...)
+    alt Hint says refresh, or no hint
+        AS->>RT: GetRefreshToken(token)
+        alt Found
+            AS->>AS: capture (sub, family-as-sid, client_id)<br/>BEFORE revoke fires
+            AS->>RT: RevokeRefreshToken(token)
+            RT->>RT: mark revoked = true
+            AS->>HK: fire OnRevoked(token, hint)<br/>fire OnTokenRevoked(sub, sid, client_id)
+            HK-->>HK: BCLDispatcher.Dispatch(...)<br/>(see BCL section)
+        else Not found
+            Note over AS,RT: Silent — RFC 7009 §2.2:<br/>"no information must be leaked"
+        end
+    end
+    alt Hint says access, or no hint AND refresh path didn't match
+        AS->>AS: parse JWT (no signature check —<br/>blacklist is by jti only)
+        AS->>BL: Revoke(jti, exp)<br/>(remembers jti until its exp)
+        AS->>HK: fire OnRevoked(token, hint)
+    end
+
+    AS-->>C: 200 OK (empty body)<br/>(per spec — always 200,<br/>regardless of outcome)
+```
+
+**Notes the diagram reveals:**
+
+- The 200-on-everything rule (step 11) is the substantive part. It means a healthcheck-script revoking-the-empty-string returns 200; an attacker enumerating refresh tokens against `/oauth/revoke` learns nothing. The spec is explicit about this in §2.2.
+- The `(sub, family-as-sid, client_id)` capture in step 5 happens *before* the revoke. If we waited until after, the hook would have no identity to pass downstream — the refresh-token row would be gone. This was the source of a bug in the BCL sender; see issue 261's PR for the fix.
+- The hook fire at step 8 is what the BCL dispatcher subscribes to. A single `POST /oauth/revoke` against a refresh token can fan out to N `POST` calls to N RS endpoints if the affected clients registered `backchannel_logout_uri` (see [OIDC Back-Channel Logout 1.0 (sender)](#oidc-back-channel-logout-10-sender)).
+- Access-token revocation is implemented as blacklist-by-`jti`. Validators check the blacklist after signature verification; the blacklist entry expires when the token would have anyway, so the storage doesn't grow unbounded.
+- **What's shipped:**
+  - `/oauth/revoke` endpoint + blacklist + refresh-store revoke — pre-v0.1.13.
+  - `TokenHooks.OnRevoked` + `OnTokenRevoked` (with captured identity) — issue 261 (v0.1.20).
+  - Confidential-client authentication on the revoke endpoint — same wiring as `/api/token`.
+
+**Spec defaults:**
+
+- `token_type_hint`: optional; speeds up the lookup but the AS MUST try both kinds when omitted
+- HTTP status: always 200 OK regardless of whether the token existed — RFC 7009 §2.2
+- Blacklist retention: until the token's own `exp` — no longer needed after
+
+See: [RFC 7009](https://www.rfc-editor.org/rfc/rfc7009), `apiauth/revocation.go`, `apiauth/token_revoker.go`, `apiauth/hooks.go`.
+
+### OIDC Back-Channel Logout 1.0 (sender)
+
+The AS-initiated push that tells already-bootstrapped resource servers a session ended, without polling. Triggered by every revocation path — `/api/logout-all`, single-token `/api/logout`, RFC 7009 `/oauth/revoke`. The dispatcher fans out one signed `logout_token` per affected client and POSTs each to the client's registered `backchannel_logout_uri`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User / Admin
+    participant AS as Authorization Server<br/>(oneauth)
+    participant D as BCLDispatcher
+    participant LT as LogoutTokenIssuer
+    participant RA as RS A<br/>(registered BCL URI)
+    participant RB as RS B<br/>(registered BCL URI)
+    participant RC as RS C<br/>(NO registered URI)
+
+    Note over U,AS: Trigger — user logs out (or admin revokes)
+    U->>AS: POST /api/logout-all<br/>(Bearer access_token)
+    AS->>AS: capture clientIDs from GetSubjectTokens(alice)<br/>BEFORE revoke
+    AS->>AS: RevokeSubjectTokens(alice)
+    AS->>AS: fire TokenHooks.OnSubjectRevoked(alice, "", [A, B, C])
+    AS->>D: Dispatch({subject: alice, clientIDs: [A, B, C]})
+
+    Note over D,LT: Phase — Filter to clients with a registered BCL URI
+    D->>D: AppRegistrationLookup for each client<br/>A → has backchannel_logout_uri ✓<br/>B → has backchannel_logout_uri ✓<br/>C → empty → SKIP
+
+    Note over D,RB: Phase — Mint one logout_token per client + POST
+    par For RS A
+        D->>LT: CreateLogoutToken(aud=A, sub=alice)
+        LT-->>D: signed JWT<br/>{iss, aud=A, sub, sid, iat, jti,<br/>events: {"…backchannel-logout": {}}}<br/>typ=logout+jwt
+        D->>D: dial-time SSRF guard:<br/>reject loopback/RFC1918/<br/>link-local IPs (unless opted in)
+        D->>RA: POST <backchannel_logout_uri><br/>Content-Type: application/x-www-form-urlencoded<br/>logout_token=<JWT>
+        RA->>RA: validate logout_token,<br/>kill its session cookie / cache
+        RA-->>D: 200 OK
+    and For RS B
+        D->>LT: CreateLogoutToken(aud=B, sub=alice)
+        LT-->>D: signed JWT (audience=B)
+        D->>RB: POST <backchannel_logout_uri><br/>logout_token=<JWT>
+        RB-->>D: 200 OK
+    end
+
+    AS-->>U: 204 No Content<br/>(by now the POSTs may still be in flight —<br/>async-fire-and-forget by default)
+```
+
+**Notes the diagram reveals:**
+
+- The capture-before-revoke in step 2 is load-bearing. `GetSubjectTokens` only returns *active* grants — after `RevokeSubjectTokens` runs, the list is empty. We learned this the hard way; see issue 261's PR for the dance.
+- Step 4 passes `clientIDs` through the hook (rather than re-querying inside the dispatcher) so the dispatcher doesn't need the store at all when called from logout-all. The single-token revoke path (`/oauth/revoke`, see [RFC 7009 Token Revocation](#rfc-7009-token-revocation)) populates `clientIDs` from the captured refresh-token row instead.
+- The dispatch in steps 9–14 runs asynchronously per client by default — a slow or broken receiver MUST NOT stall the user's logout. Tests flip `SyncForTest = true` to make assertions deterministic.
+- The SSRF guard in step 8 closes a classic vulnerability: without it, a client could register `backchannel_logout_uri = http://10.0.0.1/internal/delete` and use *us* to attack the AS's internal network. Validation rejects literal-IP private hosts at DCR; the dialer re-checks at connect time to catch DNS rebinding.
+- `logout_token` carries `sub` and `sid` (mapped from the refresh-token `family`). MUST NOT carry a `nonce` — that would make it look like an `id_token`, and §2.6 receivers REJECT a `nonce` claim.
+- Client C in the diagram has the same active grant as A and B, but no registered `backchannel_logout_uri` — it's just skipped. The flow only notifies opted-in clients.
+- **What's shipped:**
+  - Full sender side — `BCLDispatcher`, `LogoutTokenIssuer`, AS metadata advertisement, DCR field, SSRF guard. Issue 261 (v0.1.20).
+  - Hook fire from all three revocation paths — same.
+  - The receiver side lives downstream in panyam/mcpkit (not oneauth).
+
+**Spec defaults:**
+
+- `logout_token.exp`: 2 minutes (not required by spec, but receivers SHOULD reject stale tokens)
+- `events` claim: `{"http://schemas.openid.net/event/backchannel-logout": {}}` — the exact URI is the protocol marker
+- POST shape: `application/x-www-form-urlencoded`, body `logout_token=<JWT>`, `Cache-Control: no-store`
+
+See: [OIDC Back-Channel Logout 1.0](https://openid.net/specs/openid-connect-backchannel-1_0.html), `apiauth/bcl_dispatcher.go`, `apiauth/logout_token.go`, `apiauth/hooks.go`.
+
+### RFC 7662 Token Introspection
+
+The wire interface a resource server uses to ask the AS "is this token still good, and what's in it?" Useful for opaque tokens (where the RS *can't* inspect them locally) and for revocation-aware validators (RS that would otherwise honor an access token until its `exp` even after the user logged out). The trade-off is latency: per-request network calls have a cost. Cached introspection trades freshness for speed.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as Client app
+    participant RS as Resource Server<br/>(IntrospectionValidator)
+    participant Cache as Validator cache<br/>(in-process, TTL)
+    participant AS as Authorization Server<br/>(oneauth)
+
+    App->>RS: GET /protected<br/>Authorization: Bearer <token>
+    RS->>RS: extract <token> from header
+    alt CacheTTL > 0 (configured)
+        RS->>Cache: lookup hash(token)
+        alt Hit + not expired
+            Cache-->>RS: { active, sub, scope, exp, ... }
+            RS->>RS: enforce scopes / authorization_details
+            RS-->>App: 200 OK (protected resource)
+        end
+    end
+
+    Note over RS,AS: Cache miss — call the AS
+    RS->>AS: POST /oauth/introspect<br/>Authorization: Basic <client_id:secret><br/>token=<token>
+    AS->>AS: AuthenticateClient(...)<br/>(client_secret_basic / _post / private_key_jwt)
+    AS->>AS: validate token:<br/>1. signature verification<br/>2. expiry check<br/>3. blacklist check (issue 100)<br/>4. issuer + audience check
+    alt Token valid
+        AS-->>RS: 200 OK<br/>{ "active": true,<br/>  "sub": "alice",<br/>  "scope": "read write",<br/>  "client_id": "x",<br/>  "exp": 1700000000,<br/>  "iss": "...",<br/>  "jti": "...",<br/>  "authorization_details": [...] }
+    else Token revoked / expired / unknown
+        AS-->>RS: 200 OK<br/>{ "active": false }<br/>(per spec §2.2 — never reveal why)
+    end
+    RS->>Cache: store result for CacheTTL
+    RS->>RS: enforce scopes<br/>(via Middleware.RequireScopes etc.)
+    RS-->>App: 200 OK (protected resource)<br/>OR 401 unauthorized / 403 forbidden
+```
+
+**Notes the diagram reveals:**
+
+- The `200 + {active: false}` in step 13 is the substantive bit. The spec forbids leaking *why* a token is inactive: revoked tokens, expired tokens, malformed tokens, unknown tokens all look identical from the wire. Attackers learn nothing from probing.
+- The cache (steps 3–7) is the operational lever. CacheTTL=0 (default) means every request hits the AS — slow but freshness-guaranteed. CacheTTL>0 means revoked tokens stay "active" in the RS for up to that long. There's no spec answer for the right value; oneauth ships CacheTTL=0 by default and lets operators choose.
+- Step 9 routes through the same `ClientAuthenticator` `/api/token` uses, so confidential RSes can authenticate via `private_key_jwt` (issue 158) — not just `client_secret_basic`.
+- Issuing AS and validating RS need a trust relationship: the RS needs OAuth credentials of its own, registered at the AS, that it presents on every introspection call. That's what step 8 verifies.
+- This is the inverse trade-off of local JWT validation. Local validation: faster, no per-request network call, no revocation awareness without polling. Introspection: slower, network dependency, revocation-aware (up to CacheTTL).
+- **What's shipped:**
+  - AS `/oauth/introspect` endpoint — issue 47.
+  - RS-side `IntrospectionValidator` with optional caching + tracing — issue 47.
+  - Confidential-client authentication on the endpoint — issue 158.
+  - `oneauth introspect <issuer>` CLI — issue 258 (v0.1.21).
+
+**Spec defaults:**
+
+- HTTP status: always 200 (regardless of `active`'s value) — RFC 7662 §2.2
+- `Cache-Control: no-store` on the response — implementation requirement
+- `active=false` is the entire failure surface — no `error` claim
+
+See: [RFC 7662](https://www.rfc-editor.org/rfc/rfc7662), `apiauth/introspection.go` (server), `apiauth/introspection_client.go` (RS-side validator), `cmd/oneauth/cmd/introspect.go`.
+
+### RFC 7591 + RFC 7592 Dynamic Client Registration (DCR)
+
+The OAuth client registration surface — apps register themselves at runtime instead of an operator pre-creating each one in an admin UI. Useful for SaaS-onboarding, demos, CI bots, and anywhere the client population is open. RFC 7591 covers initial registration; RFC 7592 covers what to do with that registration afterwards (read / update / delete). The substantive defence is the `registration_access_token` issued at registration time — it's the bearer credential that authorizes every subsequent management call against that specific registration's URL.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client app
+    participant AS as Authorization Server<br/>(oneauth)
+    participant KS as KeyStore
+    participant RG as AppRegistrationStore
+
+    Note over C,AS: Phase 1 — Initial registration (RFC 7591)
+    C->>AS: POST /apps/dcr<br/>{ client_name, redirect_uris,<br/>  grant_types, scope,<br/>  token_endpoint_auth_method,<br/>  jwks?, backchannel_logout_uri? }
+    AS->>AS: authenticate (initial access token OR X-Admin-Key)<br/>OR open registration (dev mode)
+    AS->>AS: generate client_id = "app_" + hex(12 bytes)
+    alt token_endpoint_auth_method = private_key_jwt
+        AS->>KS: store caller-supplied public JWK as PEM<br/>(no client_secret)
+    else default (symmetric)
+        AS->>AS: generate client_secret = hex(32 bytes)
+        AS->>KS: store client_secret as HS256 key
+    end
+    AS->>AS: generate registration_access_token = hex(32 bytes)
+    AS->>RG: SaveApp(AppRegistration{client_id, …,<br/>registration_access_token, …})
+    AS-->>C: 201 Created<br/>{ client_id, client_secret?,<br/>  registration_access_token,<br/>  registration_client_uri:<br/>  https://as.example/apps/dcr/<client_id> }
+
+    Note over C: Persist registration_access_token<br/>+ registration_client_uri<br/>(they are the keys to manage this registration)
+
+    Note over C,AS: Phase 2 — RFC 7592 management (GET / PUT / DELETE)
+    C->>AS: GET <registration_client_uri><br/>Authorization: Bearer <registration_access_token>
+    AS->>RG: GetApp(client_id from URL path)
+    RG-->>AS: stored registration
+    AS->>AS: constant-time compare:<br/>req.bearer == stored.registration_access_token
+    alt Token matches
+        AS-->>C: 200 OK<br/>{ client_id, client_name, redirect_uris, … }<br/>(no client_secret in this response —<br/>secret never leaves the issuance call)
+    else Mismatch / missing / unknown client_id
+        AS-->>C: 401 Unauthorized<br/>(uniform error per §3 — no info leak)
+    end
+
+    Note over C,AS: Update — full replacement (§2.2)
+    C->>AS: PUT <registration_client_uri><br/>Authorization: Bearer <registration_access_token><br/>{ client_id, client_name, redirect_uris, … }
+    AS->>AS: same auth check as GET
+    AS->>AS: replace ALL editable metadata fields<br/>(client_name, uris, grants, scope, etc.)<br/>auth_method is LOCKED (would re-key)
+    AS->>AS: ROTATE registration_access_token<br/>(old one is now dead)
+    AS->>RG: SaveApp(updated registration)
+    AS-->>C: 200 OK<br/>{ …, registration_access_token: <NEW>, … }
+    Note over C: MUST persist the rotated token<br/>before discarding the old one
+
+    Note over C,AS: Delete (§2.3)
+    C->>AS: DELETE <registration_client_uri><br/>Authorization: Bearer <registration_access_token>
+    AS->>RG: DeleteApp(client_id)
+    AS->>KS: DeleteKey(client_id)<br/>(invalidates already-issued tokens —<br/>§2.3 mandates this)
+    AS-->>C: 204 No Content
+```
+
+**Notes the diagram reveals:**
+
+- The `registration_access_token` (issued at step 8, rotated at step 22) is the credential that distinguishes RFC 7592 from "anyone with a stolen client_id can edit the registration." Lose it and you lose the ability to manage the registration; the AS gives no recovery path on purpose.
+- The PUT in steps 19–25 is a *full replacement*, not a patch. Field you omit gets blanked. The CLI's `oneauth dcr put` calls this out in its `--help`; this is one of the easier ways to accidentally destroy data.
+- Step 27 deletes the *key material* too. After this, every access token previously issued under `client_id` fails signature verification — the spec mandates that revocation effect, because there's no other mechanism to invalidate non-blacklisted JWTs en masse for one client.
+- The error responses in step 17 / similar paths uniformly return 401 — wrong token, missing token, unknown client_id all look identical. Same anti-enumeration posture as `/oauth/introspect`.
+- The `backchannel_logout_uri` field is what wires this client into [OIDC Back-Channel Logout 1.0 (sender)](#oidc-back-channel-logout-10-sender) at session-revoke time. Validation at registration includes the SSRF guard described in the BCL section.
+- **What's shipped:**
+  - RFC 7591 register endpoint + `client.RegisterClient` SDK — issue 48.
+  - RFC 7592 GET / PUT / DELETE — issues 168 / 169 / 170.
+  - Keycloak interop tests — issue 171.
+  - `oneauth dcr <register|get|put|delete>` CLI — issue 258 (v0.1.21).
+  - `backchannel_logout_uri` DCR field (with SSRF validation) — issue 261 (v0.1.20).
+
+**Spec defaults:**
+
+- `client_id_issued_at`: Unix epoch seconds at registration
+- `client_secret_expires_at`: `0` (never expires) — RFC 7591 §3.2.1
+- Registration access token: 64-char hex, single token per registration, rotated on PUT
+- Management URI: `<issuer>/apps/dcr/<client_id>` (path-based per oneauth convention)
+
+See: [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591), [RFC 7592](https://www.rfc-editor.org/rfc/rfc7592), `admin/dcr.go`, `admin/registrar.go`, `admin/dcr_management.go`, `client/dcr.go`, `cmd/oneauth/cmd/dcr.go`.
+
+### RFC 6749 §4.4 Client Credentials
+
+The machine-to-machine grant — no user involved. A service authenticates with its own `client_id` + credential and gets back an access token bound to that service's identity. Useful for cron jobs, internal services, and any callsite where the principal is the calling code, not a person. Simplest of the seven grants; the value is mostly in being the bottom of the OAuth ladder rather than reinventing it.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Service A<br/>(client)
+    participant AS as Authorization Server<br/>(oneauth)
+    participant CA as ClientAuthenticator
+    participant JI as TokenIssuer
+    participant B as Service B<br/>(resource server)
+
+    Note over A,AS: Phase 1 — Token request
+    A->>AS: POST /api/token<br/>(grant_type=client_credentials,<br/>client_id, client_secret OR client_assertion,<br/>scope?, resource?, audience?)
+    AS->>CA: AuthenticateClient(request)
+    alt client_secret_basic / _post
+        CA->>CA: constant-time compare against KeyStore
+    else private_key_jwt
+        CA->>CA: parse client_assertion (signed JWT)<br/>verify iss == sub == client_id<br/>verify audience<br/>verify signature against registered public key<br/>verify jti not replayed (JTIStore)<br/>verify exp + lifetime ≤ 5min
+    end
+    CA-->>AS: { client_id, method }
+    AS->>JI: CreateAccessToken(sub=client_id, scopes, audience)
+    JI->>JI: mint JWT<br/>{iss, aud, sub=client_id, scopes, jti, iat, exp,<br/> type: "access"}
+    JI-->>AS: signed access_token
+    AS-->>A: 200 OK<br/>{ access_token, token_type: Bearer,<br/>  expires_in: 900, scope }
+
+    Note over A,B: Phase 2 — Service A calls Service B
+    A->>B: GET /api/protected<br/>Authorization: Bearer <access_token>
+    alt Service B validates locally (JWT)
+        B->>B: verify signature via JWKS<br/>verify iss + aud + exp<br/>check blacklist (if configured)
+    else Service B validates via introspection
+        B->>AS: POST /oauth/introspect<br/>(see Introspection section)
+    end
+    B-->>A: 200 OK (resource)
+```
+
+**Notes the diagram reveals:**
+
+- The `sub` claim is the `client_id`, not a user. This is what separates client_credentials tokens from password-grant / browser-flow tokens: there is no user identity to carry. Code that consumes tokens needs to know it might see either.
+- The `private_key_jwt` path in step 4 is the harder case but the more secure one — the secret never leaves the client. No shared secret means no secret-leak surface. Replay protection via `jti` + the registered key's algorithm lock-down means a captured assertion can't be reused.
+- Step 11 (local validation vs introspection) is the standard fork. Local validation is faster but doesn't pick up revocations; introspection is slower but revocation-aware. See [RFC 7662 Token Introspection](#rfc-7662-token-introspection) for the trade-offs.
+- The `resource` and `audience` parameters in step 1 narrow the token. RFC 8707 `resource` and OIDC `audience` let the AS issue a token specifically scoped for Service B — useful when Service A talks to multiple downstream services and you want least-privilege per call.
+- **What's shipped:**
+  - The grant itself — pre-v0.1.13.
+  - `private_key_jwt` auth — issue 158.
+  - `oneauth token client-credentials <issuer>` CLI — issue 255 (v0.1.21).
+
+**Spec defaults:**
+
+- Access-token lifetime: 15 minutes (oneauth default)
+- `scope`: optional in request; AS may grant fewer scopes than asked for
+- Refresh tokens: NOT issued for this grant — the client just gets a new access token directly each time (re-presenting credentials is cheap)
+
+See: [RFC 6749 §4.4](https://www.rfc-editor.org/rfc/rfc6749#section-4.4), [RFC 7521](https://www.rfc-editor.org/rfc/rfc7521), [RFC 7523](https://www.rfc-editor.org/rfc/rfc7523), `apiauth/auth.go` (`handleClientCredentialsGrant`), `apiauth/client_authenticator.go`, `client/client.go` (`ClientCredentials`), `cmd/oneauth/cmd/token_client_credentials.go`.
+
 ## Edge Cases
 
 ### Race Condition in Username Reservation
