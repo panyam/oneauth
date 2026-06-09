@@ -226,6 +226,15 @@ func formatUserCodeForDisplay(raw string) string {
 	return raw[:4] + "-" + raw[4:]
 }
 
+// isConfidentialAuthMethod reports whether a registered client's
+// `token_endpoint_auth_method` mandates credentials on every token
+// endpoint call. RFC 6749 §2.3 + RFC 8628 §3.4: any method other than
+// `none` requires authentication. Empty (no method advertised) defaults
+// to `client_secret_basic` per OIDC Core §9 — also confidential.
+func isConfidentialAuthMethod(method string) bool {
+	return method != "none"
+}
+
 // writeOAuthError is the canonical RFC 6749 §5.2 error response. Used by
 // both the /device/authorize endpoint and the token endpoint's device
 // grant branch.
@@ -266,7 +275,36 @@ func (a *APIAuth) handleDeviceCodeGrant(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	auth := getResp.Authorization
-	if auth.ClientID != "" && auth.ClientID != req.ClientID {
+
+	// Confidential clients MUST authenticate (issue 266). When the
+	// registered client's `token_endpoint_auth_method` is anything other
+	// than `none`, the redemption request MUST present credentials and
+	// pass the same ClientAuthenticator the rest of the token endpoint
+	// uses. The authenticated client_id then drives the §3.4 binding
+	// check, so a stolen device_code with mismatched (or missing) creds
+	// cannot redeem even when the form `client_id` happens to match.
+	effectiveClientID := req.ClientID
+	if a.AppStore != nil && auth.ClientID != "" {
+		appResp, lookupErr := a.AppStore.GetApp(r.Context(), &core.GetAppRequest{ClientID: auth.ClientID})
+		switch {
+		case lookupErr == nil && appResp != nil && appResp.App != nil && isConfidentialAuthMethod(appResp.App.TokenEndpointAuthMethod):
+			authedID, authErr := a.authenticateTokenEndpointClient(r, req)
+			if authErr != nil {
+				a.errorResponse(w, "invalid_client", "client authentication required for confidential device client", http.StatusUnauthorized)
+				return
+			}
+			effectiveClientID = authedID
+		case lookupErr == nil && appResp != nil && appResp.App != nil:
+			// Public client (auth_method=none) — form client_id is the
+			// identifier, no authentication step.
+		default:
+			// Lookup failure — fall back to the form client_id (status
+			// quo). A noisy registration store shouldn't block legitimate
+			// polling; the §3.4 binding check below still applies.
+		}
+	}
+
+	if auth.ClientID != "" && auth.ClientID != effectiveClientID {
 		// Per RFC 8628 §3.4 the same client_id that obtained the
 		// device_code MUST be used to redeem it. We REQUIRE a matching
 		// client_id whenever the stored authorization has one bound —

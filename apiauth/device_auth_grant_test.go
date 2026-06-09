@@ -15,6 +15,7 @@ import (
 
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/keys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -277,6 +278,147 @@ func TestDeviceGrant_ClientIDMismatch(t *testing.T) {
 	}))
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.Contains(t, rr.Body.String(), "invalid_grant")
+}
+
+// setupConfidentialDevice wires a confidential client: the AppStore
+// registers `client-conf` with token_endpoint_auth_method=client_secret_post,
+// the KeyStore holds the matching secret, and APIAuth gets ClientKeyStore
+// so the lazy ClientAuthenticator can validate it.
+func setupConfidentialDevice(t *testing.T) (*apiauth.APIAuth, core.DeviceAuthorizationStore) {
+	t.Helper()
+	store := core.NewInMemoryDeviceAuthorizationStore()
+	apps := core.NewInMemoryAppStore()
+	_, err := apps.SaveApp(context.Background(), &core.SaveAppRequest{App: &core.AppRegistration{
+		ClientID:                "client-conf",
+		TokenEndpointAuthMethod: "client_secret_post",
+		SigningAlg:              "HS256",
+	}})
+	require.NoError(t, err)
+	ks := keys.NewInMemoryKeyStore()
+	_, err = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
+		ClientID:  "client-conf",
+		Key:       []byte("conf-secret"),
+		Algorithm: "HS256",
+	}})
+	require.NoError(t, err)
+	auth := &apiauth.APIAuth{
+		JWTSecretKey:      "device-test-secret-32chars-min!!",
+		JWTIssuer:         "test-issuer",
+		RefreshTokenStore: newInMemoryRefreshStore(),
+		DeviceAuthStore:   store,
+		AppStore:          apps,
+		ClientKeyStore:    ks,
+	}
+	return auth, store
+}
+
+func TestDeviceGrant_ConfidentialClient_WithCorrectCreds_Succeeds(t *testing.T) {
+	auth, _ := setupConfidentialDevice(t)
+	devHandler := &apiauth.DeviceAuthorizationHandler{
+		Store:           auth.DeviceAuthStore,
+		VerificationURI: "https://auth.example/device",
+	}
+	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-conf")
+	require.NoError(t, auth.ApproveDeviceAuthorization(httptest.NewRequest(http.MethodPost, "/", nil), userCode, "alice", nil))
+
+	// Rewind LastPolledAt so slow_down doesn't fire on the first real poll.
+	_, _ = auth.DeviceAuthStore.UpdatePollingState(context.Background(), &core.UpdatePollingStateRequest{
+		DeviceCode: deviceCode,
+		PolledAt:   time.Now().Add(-time.Hour),
+	})
+
+	rr := httptest.NewRecorder()
+	auth.ServeHTTP(rr, tokenForm(t, url.Values{
+		"grant_type":    {apiauth.DeviceCodeGrantType},
+		"device_code":   {deviceCode},
+		"client_id":     {"client-conf"},
+		"client_secret": {"conf-secret"},
+	}))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "access_token")
+}
+
+func TestDeviceGrant_ConfidentialClient_MissingCreds_Rejected(t *testing.T) {
+	// The whole point of #266: a stolen device_code MUST NOT redeem when
+	// the registered client is confidential and the redeemer doesn't
+	// present credentials. Pre-fix this returned 200 + access_token.
+	auth, _ := setupConfidentialDevice(t)
+	devHandler := &apiauth.DeviceAuthorizationHandler{
+		Store:           auth.DeviceAuthStore,
+		VerificationURI: "https://auth.example/device",
+	}
+	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-conf")
+	require.NoError(t, auth.ApproveDeviceAuthorization(httptest.NewRequest(http.MethodPost, "/", nil), userCode, "alice", nil))
+
+	rr := httptest.NewRecorder()
+	auth.ServeHTTP(rr, tokenForm(t, url.Values{
+		"grant_type":  {apiauth.DeviceCodeGrantType},
+		"device_code": {deviceCode},
+		"client_id":   {"client-conf"},
+		// client_secret intentionally absent
+	}))
+	require.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "invalid_client")
+	assert.NotContains(t, rr.Body.String(), "access_token")
+}
+
+func TestDeviceGrant_ConfidentialClient_WrongCreds_Rejected(t *testing.T) {
+	auth, _ := setupConfidentialDevice(t)
+	devHandler := &apiauth.DeviceAuthorizationHandler{
+		Store:           auth.DeviceAuthStore,
+		VerificationURI: "https://auth.example/device",
+	}
+	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-conf")
+	require.NoError(t, auth.ApproveDeviceAuthorization(httptest.NewRequest(http.MethodPost, "/", nil), userCode, "alice", nil))
+
+	rr := httptest.NewRecorder()
+	auth.ServeHTTP(rr, tokenForm(t, url.Values{
+		"grant_type":    {apiauth.DeviceCodeGrantType},
+		"device_code":   {deviceCode},
+		"client_id":     {"client-conf"},
+		"client_secret": {"WRONG-SECRET"},
+	}))
+	require.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "invalid_client")
+}
+
+func TestDeviceGrant_PublicClient_NoCredsRequired(t *testing.T) {
+	// Auth method `none` → form client_id alone is the identifier. The
+	// new confidential-client enforcement MUST NOT regress this case.
+	store := core.NewInMemoryDeviceAuthorizationStore()
+	apps := core.NewInMemoryAppStore()
+	_, err := apps.SaveApp(context.Background(), &core.SaveAppRequest{App: &core.AppRegistration{
+		ClientID:                "client-public",
+		TokenEndpointAuthMethod: "none",
+		SigningAlg:              "HS256",
+	}})
+	require.NoError(t, err)
+	auth := &apiauth.APIAuth{
+		JWTSecretKey:      "device-test-secret-32chars-min!!",
+		JWTIssuer:         "test-issuer",
+		RefreshTokenStore: newInMemoryRefreshStore(),
+		DeviceAuthStore:   store,
+		AppStore:          apps,
+	}
+	devHandler := &apiauth.DeviceAuthorizationHandler{
+		Store:           store,
+		VerificationURI: "https://auth.example/device",
+	}
+	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-public")
+	require.NoError(t, auth.ApproveDeviceAuthorization(httptest.NewRequest(http.MethodPost, "/", nil), userCode, "alice", nil))
+	_, _ = store.UpdatePollingState(context.Background(), &core.UpdatePollingStateRequest{
+		DeviceCode: deviceCode,
+		PolledAt:   time.Now().Add(-time.Hour),
+	})
+
+	rr := httptest.NewRecorder()
+	auth.ServeHTTP(rr, tokenForm(t, url.Values{
+		"grant_type":  {apiauth.DeviceCodeGrantType},
+		"device_code": {deviceCode},
+		"client_id":   {"client-public"},
+	}))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "access_token")
 }
 
 func TestDeviceGrant_TokenEndpointWithoutStore_UnsupportedGrant(t *testing.T) {
