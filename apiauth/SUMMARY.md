@@ -5,6 +5,8 @@ JWT-based API authentication: token issuance (login/refresh/client_credentials),
 ## Contents
 - **auth.go** — `APIAuth` (login/logout/refresh/client_credentials handlers, `CreateAccessToken`, `ValidateAccessToken`), `APIMiddleware` (`ValidateToken`, `RequireScopes`, `Optional`), context helpers (`GetUserIDFromAPIContext`, etc.)
 - **as_metadata.go** — `ASServerMetadata` struct + `NewASMetadataHandler` for RFC 8414 / OIDC Discovery
+- **logout_token.go** — `LogoutTokenIssuer` mints signed OIDC Back-Channel Logout 1.0 `logout_token` JWTs (events + sub/sid claim shape, `typ=logout+jwt` header) (issue 261)
+- **bcl_dispatcher.go** — `BCLDispatcher` looks up clients with a registered `backchannel_logout_uri`, mints one logout_token per client, and POSTs application/x-www-form-urlencoded to each receiver. Async by default; SyncForTest flag for deterministic tests (issue 261)
 - **introspection.go** — `IntrospectionHandler` for RFC 7662 token introspection (server side)
 - **introspection_client.go** — `IntrospectionValidator` for RFC 7662 token introspection (client side, with caching)
 - **protected_resource.go** — `ProtectedResourceMetadata` struct + `NewProtectedResourceHandler` for RFC 9728 discovery
@@ -41,6 +43,7 @@ HTTP handlers (`IntrospectionHandler`, `RevocationHandler`) delegate to core int
 `nil` keeps every path on the no-op tracer with zero allocation cost. The same TP should be wired across the AS handlers + the resource-server middleware so all spans nest under a single trace.
 
 ## Recent Changes
+- **OIDC Back-Channel Logout 1.0 push (issue 261)** — AS-initiated logout notification. New `LogoutTokenIssuer` + `BCLDispatcher` in `apiauth/`; new `BackchannelLogoutURI` / `BackchannelLogoutSessionRequired` fields on `core.AppRegistration` and `admin/dcr` types. `HandleLogoutAll` fires `TokenHooks.OnSubjectRevoked`; the RFC 7009 revoker and `HandleLogout` fire `TokenHooks.OnTokenRevoked` with the captured `(subject, family-as-sid, client_id)`. AS metadata advertises `backchannel_logout_supported` / `backchannel_logout_session_supported`. `sid` claim maps to the refresh-token family ID.
 - **AS metadata `claims_supported` (issue 200)** — `ASServerMetadata` exposes a new `ClaimsSupported []string` field (OIDC Discovery 1.0 §3). The reference deployments (`cmd/oneauth-server`, `testutil`) now populate `scopes_supported` + `claims_supported` by default, clearing two warnings from the OIDF discovery test (`oidcc-discovery-endpoint-verification`).
 - **`private_key_jwt` client auth (#158)** — `ClientAuthenticator` now accepts RFC 7523 §2.2 / OIDC Core §9 signed-JWT client authentication. Token + introspection + revocation handlers all route through a shared `extractClientCredentials` helper covering `client_secret_basic` / `client_secret_post` / `private_key_jwt`. AS metadata advertises `private_key_jwt` and the new `token_endpoint_auth_signing_alg_values_supported` field. Closes the previously expected-fail `introspection/post_auth_accepted` ratchet entry as a side effect.
 - **Token revocation** — `RevocationHandler` at `POST /oauth/revoke` (RFC 7009). Always returns 200. Supports `token_type_hint`.

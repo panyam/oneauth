@@ -88,7 +88,8 @@ Legend: **Full** = implemented and conformance-tested · **Partial** = implement
 | **HTTP Message Signatures** | RFC 9421 (FAPI 2.0 MS) | Full | None | **None** |
 | **CIBA Core** | OpenID CIBA 1.0 | Full (since 2019) | None | **None** |
 | **OpenID Connect Core** | OIDC Core 1.0 | Full | None — **no id_token, no userinfo, no `/authorize`** | **None** |
-| **OIDC Session Management / Front-Channel / Back-Channel Logout** | OIDC suite | Full | None | **None** |
+| **OIDC Back-Channel Logout 1.0 (sender)** | OIDC BCL 1.0 | Full | Sender-side — `BCLDispatcher` + `LogoutTokenIssuer`; per-client `backchannel_logout_uri` via DCR; advertised in AS metadata (issue 261) | **Partial** |
+| **OIDC Session Management / Front-Channel Logout** | OIDC suite | Full | None | **None** |
 | **OIDC Federation 1.0** | OpenID Federation 1.0 | Full | None | **None** |
 | **OID4VCI (VC Issuance)** | OID4VCI | Full (SD-JWT VC, mdoc / mDL) | None | **None** |
 | **OID4VP (VC Presentation)** | OID4VP | Full | None | **None** |

@@ -62,6 +62,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for rationale and [docs/ROADMAP
 | `GET /.well-known/oauth-protected-resource` | `NewProtectedResourceHandler` | RFC 9728 |
 | `POST /apps/dcr` | `DCRHandler` | RFC 7591 |
 | `GET / PUT / DELETE /apps/dcr/{client_id}` | `DCRManagementHandler` | RFC 7592 |
+| AS-initiated `POST <backchannel_logout_uri>` with `logout_token` | `BCLDispatcher` + `LogoutTokenIssuer` | OIDC Back-Channel Logout 1.0 |
 | Authorize-redirect `?iss=` query param | (issuer URL on redirects) | RFC 9207 |
 | `traceparent` / `tracestate` inbound + outbound (SEP-414 / #254) | `tracing/` + per-handler `TracerProvider` | [W3C Trace Context](https://www.w3.org/TR/trace-context/) |
 

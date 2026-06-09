@@ -223,6 +223,7 @@ The `(ctx context.Context, *XRequest) → (*XResponse, error)` convention adopte
 |---|---------|--------|
 | 172 | Legacy `admin/` — `ClientRegistrar` interface for register / list / get / delete / rotate. HTTP handlers reduced to thin wrappers. Wire format unchanged. | Merged |
 | 175 | `apiauth/` — `TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator`. HTTP handlers (auth.go, introspection.go, revocation.go) reduced to thin wrappers. Wire format unchanged. | Merged |
+| 261 | OIDC Back-Channel Logout 1.0 (sender) — `LogoutTokenIssuer` + `BCLDispatcher`, per-client `backchannel_logout_uri` via DCR + admin, AS metadata advertisement, `TokenHooks.OnSubjectRevoked` / `OnTokenRevoked` wiring on logout-all and RFC 7009 revoke. `sid` maps to refresh-token family. Retry/backoff deferred. | Merged |
 | 189 | **Pending** — remove `/apps/register` once a quota story for `MaxRooms` / `MaxMsgRate` is decided. Blocked on the design call, not implementation. | Pending |
 
 ## Reference Server (cmd/oneauth-server)

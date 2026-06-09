@@ -35,6 +35,24 @@ type TokenHooks struct {
 	// OnRevoked fires after a token is successfully revoked.
 	// hint is the token_type_hint ("access_token", "refresh_token", or "").
 	OnRevoked func(token, hint string)
+
+	// OnSubjectRevoked fires when every active grant for a subject has been
+	// revoked (logout-all). Subject is the affected user; sid is the OIDC
+	// session ID when one is associated with the revocation (empty for
+	// subject-wide revokes that are not session-scoped). clientIDs lists
+	// every client that held an active grant at revoke time — captured
+	// BEFORE the revoke so subscribers (notably the BCL dispatcher) can
+	// notify them without having to re-query a store that, post-revoke,
+	// returns nothing. Empty when no client identifiers were available.
+	OnSubjectRevoked func(subject, sid string, clientIDs []string)
+
+	// OnTokenRevoked fires when a single refresh token (or all tokens in a
+	// family) is revoked, after subject + client_id are known. Provides the
+	// affected subject, sid (family ID, when known), and clientID. Distinct
+	// from OnRevoked so subscribers (notably BCL) get the routing identifiers
+	// without having to re-parse the token. clientID is empty when the
+	// trigger lacks a known client (e.g., admin-side revoke by jti).
+	OnTokenRevoked func(subject, sid, clientID string)
 }
 
 // AuthHooks fires on authentication events.
@@ -91,6 +109,18 @@ func (h *TokenHooks) fireOnIssued(subject, grantType string) {
 func (h *TokenHooks) fireOnRevoked(token, hint string) {
 	if h != nil && h.OnRevoked != nil {
 		h.OnRevoked(token, hint)
+	}
+}
+
+func (h *TokenHooks) fireOnSubjectRevoked(subject, sid string, clientIDs []string) {
+	if h != nil && h.OnSubjectRevoked != nil {
+		h.OnSubjectRevoked(subject, sid, clientIDs)
+	}
+}
+
+func (h *TokenHooks) fireOnTokenRevoked(subject, sid, clientID string) {
+	if h != nil && h.OnTokenRevoked != nil {
+		h.OnTokenRevoked(subject, sid, clientID)
 	}
 }
 

@@ -77,6 +77,11 @@ type DCRRequest struct {
 
 	// Keys — for asymmetric auth methods (private_key_jwt)
 	JWKS *utils.JWKSet `json:"jwks,omitempty"`
+
+	// OIDC Back-Channel Logout 1.0 §3.1 — clients advertise a logout receiver.
+	// Empty disables BCL dispatch for this client.
+	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
+	BackchannelLogoutSessionRequired bool   `json:"backchannel_logout_session_required,omitempty"`
 }
 
 // DCRResponse is the RFC 7591 client registration response, extended with the
@@ -101,6 +106,11 @@ type DCRResponse struct {
 	// RFC 7592 §3 — management credentials.
 	RegistrationAccessToken string `json:"registration_access_token,omitempty"`
 	RegistrationClientURI   string `json:"registration_client_uri,omitempty"`
+
+	// OIDC Back-Channel Logout 1.0 §3.1 — echo of the registered receiver
+	// metadata so clients can confirm what the AS persisted.
+	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
+	BackchannelLogoutSessionRequired bool   `json:"backchannel_logout_session_required,omitempty"`
 }
 
 // ServeHTTP is the HTTP wrapper for ClientRegistrar.Register (RFC 7591 DCR).

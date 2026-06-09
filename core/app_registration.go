@@ -38,6 +38,15 @@ type AppRegistration struct {
 	// is implemented (issue 168); empty for legacy registrations.
 	RegistrationAccessToken string `json:"registration_access_token,omitempty"`
 	RegistrationClientURI   string `json:"registration_client_uri,omitempty"`
+
+	// OIDC Back-Channel Logout 1.0 — per-client push endpoint. When set, the
+	// AS POSTs a signed logout_token to BackchannelLogoutURI whenever a
+	// session that touched this client is revoked (issue 261).
+	// BackchannelLogoutSessionRequired toggles whether the logout_token MUST
+	// carry a sid claim — true means the client tracks sessions per spec §2.2.
+	// Empty BackchannelLogoutURI disables dispatch for this client.
+	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
+	BackchannelLogoutSessionRequired bool   `json:"backchannel_logout_session_required,omitempty"`
 }
 
 // SaveAppRequest carries the registration to persist.

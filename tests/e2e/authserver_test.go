@@ -69,6 +69,43 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		ClientKeyStore:      e.KeyStore, // Enables client_credentials grant
 	}
 
+	// OIDC Back-Channel Logout 1.0 sender wiring (issue 261). The dispatcher
+	// is opt-in: if no client registers backchannel_logout_uri the hook is a
+	// no-op. AllowPrivateHosts is set because RS-side receivers in these
+	// tests run via httptest.NewServer (127.0.0.1). e.registrar exposes
+	// GetAppRegistration via the AppRegistrationLookup interface.
+	e.bclDispatcher = &apiauth.BCLDispatcher{
+		Issuer: apiauth.NewJWTLogoutTokenIssuer(apiauth.JWTLogoutTokenIssuerConfig{
+			SigningKey: []byte(e.JWTSecret),
+			SigningAlg: "HS256",
+			Issuer:     testJWTIssuer,
+		}),
+		Apps:              e.registrar,
+		RefreshStore:      refreshTokenStore,
+		SyncForTest:       true,
+		AllowPrivateHosts: true,
+	}
+	e.registrar.AllowPrivateBCLHosts = true // tests register loopback receivers
+	e.apiAuth.TokenHooks = apiauth.TokenHooks{
+		OnSubjectRevoked: func(subject, sid string, clientIDs []string) {
+			e.bclDispatcher.Dispatch(context.Background(), &apiauth.DispatchRequest{
+				Subject:   subject,
+				SID:       sid,
+				ClientIDs: clientIDs,
+			})
+		},
+		OnTokenRevoked: func(subject, sid, clientID string) {
+			if clientID == "" {
+				return
+			}
+			e.bclDispatcher.Dispatch(context.Background(), &apiauth.DispatchRequest{
+				Subject:   subject,
+				SID:       sid,
+				ClientIDs: []string{clientID},
+			})
+		},
+	}
+
 	// CSRF
 	csrf := &httpauth.CSRFMiddleware{}
 
