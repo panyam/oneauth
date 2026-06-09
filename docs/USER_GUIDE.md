@@ -335,6 +335,45 @@ Some applications use OneAuth in a federated model where you authenticate with o
 - Your client uses this token to connect to the relay
 - If the token expires, your client reconnects automatically with a fresh token from the host
 
+### Use the CLI
+
+The `oneauth` binary covers token acquisition, introspection, dynamic client registration, and JWKS inspection without writing any Go. Install once:
+
+```bash
+go install github.com/panyam/oneauth/cmd/oneauth@latest
+```
+
+**Three output formats** are available via `--format`:
+
+- `json` (default) — RFC 6749 §5.1 shape; pipe to `jq`.
+- `bash` — `export OAUTH_…=` lines suitable for `eval` / `source`.
+- `access-token-only` — the bare token; suitable for `Authorization: Bearer $(oneauth token cc … --format access-token-only)`.
+
+**Sourceable example**:
+
+```bash
+# Acquire a token and load it into the calling shell.
+eval "$(oneauth token client-credentials https://auth.example.com \
+  --client-id my-app --client-secret-stdin --format bash <<<"$CLIENT_SECRET")"
+
+# Now $OAUTH_ACCESS_TOKEN is set; use it directly.
+curl -H "Authorization: Bearer $OAUTH_ACCESS_TOKEN" https://api.example.com/me
+```
+
+**Subcommand cheat sheet**:
+
+| Command | What it does |
+|---------|--------------|
+| `oneauth token browser <issuer>` | Authorization code + PKCE for desktop / CLI clients (RFC 8252). |
+| `oneauth token client-credentials <issuer>` | Machine-to-machine grant (RFC 6749 §4.4); aliased as `cc`. |
+| `oneauth token password <issuer>` | Username/password grant (RFC 6749 §4.3); deprecated for new use. |
+| `oneauth token refresh <issuer>` | Exchange a refresh token for a fresh access token (RFC 6749 §6). |
+| `oneauth introspect <issuer>` | Check whether a token is active (RFC 7662). `--format active` returns just `true`/`false` for shell predicates. |
+| `oneauth dcr register \| get \| put \| delete <issuer>` | Dynamic Client Registration + management (RFC 7591 / 7592). |
+| `oneauth jwks <issuer>` | Fetch + pretty-print the AS's JSON Web Key Set (RFC 7517). `--kid` / `--sig-only` filters. |
+
+`oneauth <subcommand> --help` enumerates every flag for each command.
+
 ### Browser Requirements
 
 OneAuth works with modern browsers that support:

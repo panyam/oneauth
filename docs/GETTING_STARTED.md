@@ -2,6 +2,35 @@
 
 Get a Go application running with local authentication in 5 minutes.
 
+## Get a token in 30 seconds (no Go code)
+
+If you just need to test against an OAuth server, the `oneauth` CLI ships
+the four standard grants and a few sibling subcommands. No application
+boilerplate required.
+
+```bash
+go install github.com/panyam/oneauth/cmd/oneauth@latest
+
+# Service-to-service token via RFC 6749 §4.4 client_credentials.
+oneauth token client-credentials https://auth.example.com \
+  --client-id my-app --client-secret-stdin <<<"$CLIENT_SECRET"
+
+# Check whether a token is still active (RFC 7662).
+oneauth introspect https://auth.example.com \
+  --token "$ACCESS_TOKEN" --client-id my-rs --client-secret-stdin <<<"$RS_SECRET"
+
+# Register a fresh client (RFC 7591) and stash credentials in env vars.
+eval "$(oneauth dcr register https://auth.example.com \
+  --client-name 'ci-runner' --grant-types client_credentials --format bash)"
+
+# Inspect the AS's verification keys.
+oneauth jwks https://auth.example.com --format table
+```
+
+`oneauth --help` enumerates every subcommand. The walkthrough below is
+for embedding the SDK into your Go app — skip it if the CLI covers your
+case.
+
 ## Installation
 
 ```bash
