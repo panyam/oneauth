@@ -1,8 +1,8 @@
 # cmd/oneauth — OAuth client CLI
 
-Cobra-based CLI that wraps the `client/` SDK. First-shipped surface is
-the `token` subcommand for acquiring OAuth 2.0 access tokens against
-any RFC 8414 / OIDC-compliant authorization server.
+Cobra-based CLI that wraps the `client/` SDK and dogfoods
+`apiauth.IntrospectionValidator`. Ships `token`, `introspect`, `dcr`,
+and `jwks` against any RFC 8414 / OIDC-compliant authorization server.
 
 ## Contents
 
@@ -19,6 +19,16 @@ any RFC 8414 / OIDC-compliant authorization server.
   6749 §4.3 ROPC grant; prints a deprecation banner to stderr.
 - **cmd/token_refresh.go** — `oneauth token refresh <issuer>` — RFC 6749
   §6 refresh_token grant. Calls `client.AuthClient.RefreshToken`.
+- **cmd/introspect.go** — `oneauth introspect <issuer>` — RFC 7662 token
+  introspection via `apiauth.IntrospectionValidator`. `--format active`
+  prints just `true|false` for shell predicates (issue 258).
+- **cmd/dcr.go** — `oneauth dcr register|get|put|delete <issuer>` —
+  RFC 7591 registration + RFC 7592 management. Wraps
+  `client.RegisterClient`, `client.GetRegistration`,
+  `client.UpdateRegistration`, `client.DeleteRegistration` (issue 258).
+- **cmd/jwks.go** — `oneauth jwks <issuer>` — fetch + pretty-print
+  RFC 7517 JSON Web Key Set. `--kid` and `--sig-only` filters; `--format
+  table` for a human-scan-friendly summary (issue 258).
 - **cmd/format.go** — JSON / bash / access-token-only emitters.
 
 ## Module structure
@@ -36,7 +46,9 @@ dependency graph — downstream library consumers don't pull CLI deps.
 
 ## See
 
-- Issue: panyam/oneauth issue 255
+- Issues: panyam/oneauth issue 255 (token), 258 (introspect / dcr / jwks).
 - Library entry points: `client.AuthClient.LoginWithBrowser`,
   `client.AuthClient.ClientCredentials`, `client.AuthClient.Login`,
-  `client.AuthClient.RefreshToken`.
+  `client.AuthClient.RefreshToken`, `client.RegisterClient` /
+  `GetRegistration` / `UpdateRegistration` / `DeleteRegistration`,
+  `apiauth.IntrospectionValidator`.

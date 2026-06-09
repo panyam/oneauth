@@ -62,6 +62,23 @@ Before an App can get tokens, it must register with the Auth Server and receive 
 | Resource Token (Example 02-03) | Bot posts to #general *as Alice* (on her behalf) | Yes — token carries Alice's user ID | The app mints a token for Alice |
 | Auth Code + PKCE (future) | Alice clicks "Sign in with Slack" on a third-party site | Yes — Alice logs in via browser | The user authenticates directly |
 
+## CLI first
+
+If you only need a token — not embedded SDK behavior — reach for the
+`oneauth` binary first:
+
+```bash
+go install github.com/panyam/oneauth/cmd/oneauth@latest
+oneauth token client-credentials https://auth.example.com --client-id … --client-secret-stdin <<<"$SECRET"
+oneauth introspect https://auth.example.com --token "$ACCESS" --client-id rs --client-secret-stdin <<<"$RS_SECRET"
+oneauth dcr register https://auth.example.com --client-name ci --grant-types client_credentials
+oneauth jwks https://auth.example.com --format table
+```
+
+The examples below show the SDK embedded inside a Go program — useful
+when you need caching, auto-refresh, custom hooks, or other behavior
+the CLI doesn't expose. See [docs/USER_GUIDE.md → Use the CLI](../docs/USER_GUIDE.md#use-the-cli) for the full subcommand reference.
+
 ## Examples
 
 | #                                     | Example                       | Type   | Infra               | Keycloak | What you'll learn                                                      |

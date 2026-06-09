@@ -12,10 +12,13 @@ func NewRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "oneauth",
 		Short:         "OneAuth client CLI",
-		Long:          "OneAuth client CLI — currently ships `token`; sibling subcommands (introspect, dcr, jwks) are planned.",
+		Long:          "OneAuth client CLI for OAuth 2.0 token acquisition, introspection, dynamic client registration, and JWKS inspection.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	root.AddCommand(newTokenCommand())
+	root.AddCommand(newIntrospectCommand())
+	root.AddCommand(newDCRCommand())
+	root.AddCommand(newJWKSCommand())
 	return root
 }

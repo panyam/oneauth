@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-v0.1.13
+v0.1.20
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
@@ -39,6 +39,7 @@ v0.1.13
 - lifecycle-hooks: Grouped callbacks (TokenHooks, AuthHooks, ClientHooks, SecurityHooks) for audit, alerting, integration
 - interactive-examples: 10 progressive examples on demokit v0.0.16 — split into `main.go` (server with `--serve` real-port mode) + `walkthrough.go` (client demo). Slim `README.md` + generated `WALKTHROUGH.md` (mermaid + steps + copy-paste curl reproductions). Default `make demo` uses the TUI renderer.
 - client-sdk: AuthClient with credential store, auto-refresh, browser login
+- oneauth-cli: `cmd/oneauth` Cobra binary covering OAuth 2.0 token acquisition (browser / client-credentials / password / refresh), RFC 7662 introspection, RFC 7591/7592 dynamic client registration + management, and RFC 7517 JWKS inspection. `--format json|bash|access-token-only` for shell integration. Dogfoods `client/` SDK + `apiauth.IntrospectionValidator`. Issues 255 (token) + 258 (introspect / dcr / jwks).
 - test-infrastructure: Reusable testutil package with TestAuthServer (RSA, JWKS, AS metadata) and shared OAuth helpers
 
 ## Module
