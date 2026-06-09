@@ -155,6 +155,24 @@ type APIAuth struct {
 	// identical to its pre-#117 surface.
 	DeviceAuthStore core.DeviceAuthorizationStore
 
+	// AppStore lets the token endpoint look up a registered client's
+	// `token_endpoint_auth_method` to decide whether confidential-client
+	// authentication is required on the device-code redemption path
+	// (issue 266).
+	//
+	// When nil, the device-grant handler accepts the form `client_id`
+	// alone for backward compatibility with the v0.1.23 wire protocol.
+	//
+	// When non-nil, AppStore becomes the source of truth: the device
+	// authorization's bound client_id MUST resolve to a registered
+	// AppRegistration, otherwise the redemption is rejected with
+	// `invalid_client`. The handler does NOT silently downgrade to the
+	// unauthenticated path on lookup failure — opting into AppStore is
+	// opting into strict enforcement. Production deployments with
+	// confidential device clients MUST wire it so a stolen device_code
+	// cannot be redeemed without the registered client's credentials.
+	AppStore core.AppRegistrationStore
+
 	// TracerProvider opts the /token endpoint into SEP-414 tracing.
 	// When set, ServeHTTP extracts an inbound W3C `traceparent` header
 	// and emits a single `oneauth.token.issue` span with the parsed
