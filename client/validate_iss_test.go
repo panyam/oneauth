@@ -6,8 +6,14 @@ package client
 // References:
 //   - RFC 9207 §2.4 (https://www.rfc-editor.org/rfc/rfc9207#section-2.4):
 //     "Comparing the iss Parameter Value with the Issuer Identifier"
-//   - RFC 3986 §6.2  (https://www.rfc-editor.org/rfc/rfc3986#section-6.2):
-//     URI normalization rules used for issuer comparison.
+//   - RFC 9068 §2.1.1 (https://www.rfc-editor.org/rfc/rfc9068#section-2.1.1):
+//     the byte-equal JWT iss-claim comparison RFC 9207 inherits.
+//   - MCP conformance check `auth/iss-normalized`
+//     (https://github.com/modelcontextprotocol/conformance):
+//     "Client MUST NOT apply scheme/host case folding, default-port elision,
+//     trailing-slash, or percent-encoding normalization to iss before
+//     comparison; a trailing-slash variant of the issuer must be treated as
+//     a mismatch."
 
 import (
 	"errors"
@@ -22,13 +28,13 @@ func TestValidateIss_TruthTable(t *testing.T) {
 	const expected = "https://auth.example.com"
 
 	cases := []struct {
-		name              string
-		iss               string
-		expected          string
-		advertised        bool
-		strict            bool
-		wantErr           error // nil, ErrIssMismatch, or ErrIssMissing
-		wantNonSentinel   bool  // expectedIssuer="" misuse
+		name            string
+		iss             string
+		expected        string
+		advertised      bool
+		strict          bool
+		wantErr         error // nil, ErrIssMismatch, or ErrIssMissing
+		wantNonSentinel bool  // expectedIssuer="" misuse
 	}{
 		{"match_exact", expected, expected, true, false, nil, false},
 		{"match_advertised_false", expected, expected, false, false, nil, false},
@@ -67,7 +73,14 @@ func TestValidateIss_TruthTable(t *testing.T) {
 	}
 }
 
-func TestValidateIss_Normalization(t *testing.T) {
+// TestValidateIss_NoNormalization_RejectsEquivalents pins the byte-strict
+// rule. Inputs that would have been accepted under the prior RFC 3986 §6.2
+// normalization MUST now reject — RFC 9207 §2.4 inherits RFC 9068 §2.1.1's
+// byte-equal comparison, not URL normalization. Same cases as the
+// pre-#246 TestValidateIss_Normalization, assertion flipped from accept
+// to reject; ensures the regression is locked in by test, not just by
+// code change.
+func TestValidateIss_NoNormalization_RejectsEquivalents(t *testing.T) {
 	cases := []struct {
 		name     string
 		iss      string
@@ -75,7 +88,7 @@ func TestValidateIss_Normalization(t *testing.T) {
 	}{
 		{"trailing_slash_on_iss", "https://auth.example.com/", "https://auth.example.com"},
 		{"trailing_slash_on_expected", "https://auth.example.com", "https://auth.example.com/"},
-		{"trailing_slash_on_both", "https://auth.example.com/", "https://auth.example.com/"},
+		{"trailing_slash_on_both_with_extra_slash", "https://auth.example.com//", "https://auth.example.com/"},
 		{"scheme_case_on_iss", "HTTPS://auth.example.com", "https://auth.example.com"},
 		{"host_case_on_iss", "https://AUTH.EXAMPLE.COM", "https://auth.example.com"},
 		{"host_case_on_expected", "https://auth.example.com", "https://AUTH.example.com"},
@@ -84,15 +97,30 @@ func TestValidateIss_Normalization(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := ValidateIss(tc.iss, tc.expected, true, true)
-			assert.NoError(t, err, "RFC 3986 §6.2 equivalents must be accepted")
+			require.Error(t, err, "byte-strict comparison MUST reject normalized equivalents")
+			assert.ErrorIs(t, err, ErrIssMismatch)
 		})
 	}
 }
 
+// TestValidateIss_MCPConformance_TrailingSlashRejected uses the exact
+// data from the MCP conformance failure mode captured in mcpkit's
+// UPSTREAM_AUDIT: an AS that records its issuer as `http://localhost:N`
+// but echoes `http://localhost:N/` in the redirect MUST be flagged.
+func TestValidateIss_MCPConformance_TrailingSlashRejected(t *testing.T) {
+	err := ValidateIss(
+		"http://localhost:59958/",
+		"http://localhost:59958",
+		true, false,
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrIssMismatch)
+}
+
 func TestValidateIss_PortAndPathPreserved(t *testing.T) {
-	// Port and path differences are significant — only scheme + host
-	// are case-insensitive per RFC 3986 §6.2.2.1, and the spec is silent
-	// on port-aliasing or path canonicalization beyond a trailing slash.
+	// Port and path differences were already enforced before #246 and
+	// remain so — included here as regression coverage so a future
+	// refactor cannot silently re-introduce normalization there either.
 	cases := []struct {
 		name     string
 		iss      string

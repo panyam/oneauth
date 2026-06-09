@@ -129,9 +129,10 @@ Closes the mix-up-attack defence story end-to-end across three PRs. Each surface
 |---|---------|--------|
 | 235 | Surface `iss` query parameter on the loopback callback (`BrowserLoginRequest.OnCallback` receives `CallbackParams.Iss`). | Merged |
 | 239 | Surface `authorization_response_iss_parameter_supported` on `client.ASMetadata` (pointer-typed `*bool` preserves the advertised-true / advertised-false / absent tristate; mirrors the existing server-side field on `apiauth.ASServerMetadata`). Adds `client/as_metadata_interop_test.go` pinning the server↔client wire contract. | Merged |
-| 238 | `client.ValidateIss(iss, expectedIssuer, asAdvertisedSupport, strict)` consolidates the §2.4 truth table. Two `errors.Is`-safe sentinels (`ErrIssMismatch`, `ErrIssMissing`). RFC 3986 §6.2 normalization (scheme + host lowercase, trailing-slash strip) kept unexported pending the shared primitive ticket post mcpkit#380. | Merged |
+| 238 | `client.ValidateIss(iss, expectedIssuer, asAdvertisedSupport, strict)` consolidates the §2.4 truth table. Two `errors.Is`-safe sentinels (`ErrIssMismatch`, `ErrIssMissing`). Shipped initially with RFC 3986 §6.2 normalization; corrected to byte-strict in #246. | Merged |
+| 246 | Drop URL normalization from `client.ValidateIss` — RFC 9207 §2.4 inherits RFC 9068 §2.1.1's byte-equal JWT-claim comparison, not RFC 3986. Trailing-slash and scheme/host-case variants now reject. Matches the MCP `auth/iss-normalized` conformance scenario. Removes the dead `normalizeIssuer` helper. | Merged |
 
-Shipped in `v0.1.13`. Downstream `mcpkit#380` can drop its in-tree `ValidateIss` copy.
+Shipped initial in `v0.1.13`; corrected byte-strict semantics in the patch after `v0.1.21`. Downstream `mcpkit#380` can drop its in-tree `ValidateIss` copy.
 
 ---
 
