@@ -95,6 +95,26 @@ func TestASMetadata_OmitsEmptyFields(t *testing.T) {
 	assert.NotContains(t, body, "registration_endpoint")
 	assert.NotContains(t, body, "scopes_supported")
 	assert.NotContains(t, body, "claims_supported")
+	assert.NotContains(t, body, "device_authorization_endpoint")
+}
+
+func TestASMetadata_DeviceAuthorizationEndpoint(t *testing.T) {
+	// RFC 8628 §4 advertises the device endpoint via this field. Pinned
+	// here so a future refactor cannot silently rename the JSON tag.
+	meta := &apiauth.ASServerMetadata{
+		Issuer:                      "https://auth.example.com",
+		TokenEndpoint:               "https://auth.example.com/api/token",
+		DeviceAuthorizationEndpoint: "https://auth.example.com/device/authorize",
+	}
+	handler := apiauth.NewASMetadataHandler(meta)
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "https://auth.example.com/device/authorize", body["device_authorization_endpoint"])
 }
 
 // TestASMetadata_ClaimsSupported verifies that claims_supported is

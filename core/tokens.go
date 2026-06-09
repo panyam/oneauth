@@ -122,6 +122,11 @@ type TokenRequest struct {
 	// trusted-issuer registry and issues an access token in exchange.
 	Assertion string `json:"assertion,omitempty"`
 
+	// DeviceCode is the high-entropy identifier returned by
+	// /device/authorize (RFC 8628 §3.2) that the device polls with at
+	// grant_type=urn:ietf:params:oauth:grant-type:device_code.
+	DeviceCode string `json:"device_code,omitempty"`
+
 	// ClientAssertionType + ClientAssertion authenticate the *client*
 	// itself — distinct from Assertion (which authenticates the
 	// resource owner via the jwt-bearer grant). Per RFC 7521 §4.2 +

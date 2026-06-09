@@ -26,11 +26,12 @@ type ASServerMetadata struct {
 	JWKSURI string `json:"jwks_uri,omitempty"`
 
 	// Optional endpoints
-	AuthorizationEndpoint string `json:"authorization_endpoint,omitempty"`
-	IntrospectionEndpoint string `json:"introspection_endpoint,omitempty"`
-	RevocationEndpoint    string `json:"revocation_endpoint,omitempty"`
-	RegistrationEndpoint  string `json:"registration_endpoint,omitempty"`
-	UserinfoEndpoint      string `json:"userinfo_endpoint,omitempty"`
+	AuthorizationEndpoint       string `json:"authorization_endpoint,omitempty"`
+	IntrospectionEndpoint       string `json:"introspection_endpoint,omitempty"`
+	RevocationEndpoint          string `json:"revocation_endpoint,omitempty"`
+	RegistrationEndpoint        string `json:"registration_endpoint,omitempty"`
+	UserinfoEndpoint            string `json:"userinfo_endpoint,omitempty"`
+	DeviceAuthorizationEndpoint string `json:"device_authorization_endpoint,omitempty"` // RFC 8628 §4
 
 	// Supported features
 	AuthorizationDetailsTypesSupported []string `json:"authorization_details_types_supported,omitempty"` // RFC 9396

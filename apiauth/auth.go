@@ -147,6 +147,14 @@ type APIAuth struct {
 	// HandleLogoutAll behaviorally unchanged.
 	TokenHooks TokenHooks
 
+	// DeviceAuthStore enables the RFC 8628 device authorization grant.
+	// When non-nil the token endpoint accepts
+	// grant_type=urn:ietf:params:oauth:grant-type:device_code and the
+	// caller is expected to mount DeviceAuthorizationHandler at the
+	// /device/authorize path. Nil keeps the token endpoint behaviorally
+	// identical to its pre-#117 surface.
+	DeviceAuthStore core.DeviceAuthorizationStore
+
 	// TracerProvider opts the /token endpoint into SEP-414 tracing.
 	// When set, ServeHTTP extracts an inbound W3C `traceparent` header
 	// and emits a single `oneauth.token.issue` span with the parsed
@@ -190,6 +198,7 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Scope:        r.FormValue("scope"),
 			ClientID:     r.FormValue("client_id"),
 			ClientSecret: r.FormValue("client_secret"),
+			DeviceCode:   r.FormValue("device_code"),
 			// RFC 7521 §4.2 / RFC 7523 §2.2 — client authentication
 			// via signed JWT (private_key_jwt / client_secret_jwt).
 			ClientAssertionType: r.FormValue("client_assertion_type"),
@@ -231,6 +240,8 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.handleJwtBearerGrant(w, r, &req)
 	case TokenExchangeGrantType:
 		a.handleTokenExchangeGrant(w, r, &req)
+	case DeviceCodeGrantType:
+		a.handleDeviceCodeGrant(w, r, &req)
 	default:
 		span.SetStatus(codes.Error, "unsupported_grant_type")
 		a.errorResponse(w, "unsupported_grant_type", "Grant type not supported", http.StatusBadRequest)
