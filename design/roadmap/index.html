@@ -401,6 +401,11 @@ OAuth Client Capabilities (parallel track)
 <td>Merged</td>
 </tr>
 <tr>
+<td>267</td>
+<td>RFC 8628 §3.3 user-facing consent UI. <code>apiauth.DeviceVerificationHandler</code> serves the four HTML pages (GET/POST /device for code entry, GET/POST /device/approve for consent + decision). Built-in plain templates overridable via <code>DeviceTemplates</code>. Narrow function-type fields for CSRF + session integration keep <code>apiauth/</code> free of an <code>httpauth/</code> dep. Closes the device-flow arc end-to-end.</td>
+<td>Merged</td>
+</tr>
+<tr>
 <td>189</td>
 <td><strong>Pending</strong> — remove <code>/apps/register</code> once a quota story for <code>MaxRooms</code> / <code>MaxMsgRate</code> is decided. Blocked on the design call, not implementation.</td>
 <td>Pending</td>
