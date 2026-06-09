@@ -233,12 +233,17 @@
 </tr>
 <tr>
 <td>238</td>
-<td><code>client.ValidateIss(iss, expectedIssuer, asAdvertisedSupport, strict)</code> consolidates the §2.4 truth table. Two <code>errors.Is</code>-safe sentinels (<code>ErrIssMismatch</code>, <code>ErrIssMissing</code>). RFC 3986 §6.2 normalization (scheme + host lowercase, trailing-slash strip) kept unexported pending the shared primitive ticket post mcpkit#380.</td>
+<td><code>client.ValidateIss(iss, expectedIssuer, asAdvertisedSupport, strict)</code> consolidates the §2.4 truth table. Two <code>errors.Is</code>-safe sentinels (<code>ErrIssMismatch</code>, <code>ErrIssMissing</code>). Shipped initially with RFC 3986 §6.2 normalization; corrected to byte-strict in #246.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>246</td>
+<td>Drop URL normalization from <code>client.ValidateIss</code> — RFC 9207 §2.4 inherits RFC 9068 §2.1.1&rsquo;s byte-equal JWT-claim comparison, not RFC 3986. Trailing-slash and scheme/host-case variants now reject. Matches the MCP <code>auth/iss-normalized</code> conformance scenario. Removes the dead <code>normalizeIssuer</code> helper.</td>
 <td>Merged</td>
 </tr>
 </tbody>
 </table>
-<p>Shipped in <code>v0.1.13</code>. Downstream <code>mcpkit#380</code> can drop its in-tree <code>ValidateIss</code> copy.</p>
+<p>Shipped initial in <code>v0.1.13</code>; corrected byte-strict semantics in the patch after <code>v0.1.21</code>. Downstream <code>mcpkit#380</code> can drop its in-tree <code>ValidateIss</code> copy.</p>
 <hr />
 <h2 id="execution-order">Execution Order <a class="anchor" href="#execution-order">¶</a></h2>
 <pre><code>Bug Fixes
