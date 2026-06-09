@@ -75,7 +75,7 @@ Auth0 has shipped several new capabilities since our original analysis:
 | Credential Linking | POST /api/v2/users/{id}/identities | POST /auth/link-credentials | Full | — |
 | **Authorization Code + PKCE** | Full | **NEW** — client-side via `AuthClient.LoginWithBrowser` | Full (client) | — |
 | **Client Credentials Flow** | Full | **NEW** — `APIAuth.ClientKeyStore` | Full | — |
-| Device Authorization Flow | POST /oauth/device/code | None | **None** | issue 117 |
+| Device Authorization Flow | POST /oauth/device/code | **NEW** — `POST /device/authorize` + `grant_type=…:device_code`, full §3.5 error taxonomy (RFC 8628). Storage interface + in-memory + FS. Consent UI and CLI subcommand deferred. | Partial (sender) | issue 117 |
 | Passwordless (Email) | POST /passwordless/start | None | **None** | issue 126 |
 | Passwordless (SMS) | POST /passwordless/start | None | **None** | issue 126 |
 | Passkeys / WebAuthn | Native passkey mgmt | None | **None** | issue 127 |

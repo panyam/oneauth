@@ -70,7 +70,7 @@ Legend: **Full** = implemented and conformance-tested · **Partial** = implement
 | **Token Introspection** | RFC 7662 | Full | Full (`/oauth/introspect`, `IntrospectionHandler` + caching client) | Full |
 | **Token Revocation** | RFC 7009 | Full | Full (`/oauth/revoke`, `RevocationHandler`) | Full |
 | **Token Exchange** | RFC 8693 | Full | None | **None** |
-| **Device Authorization Grant** | RFC 8628 | Full | None (CLI uses browser-loopback PKCE instead) | **None** |
+| **Device Authorization Grant** | RFC 8628 | Full | AS-side wire protocol — `POST /device/authorize`, `grant_type=…:device_code` on the token endpoint, full §3.5 error taxonomy, `core.DeviceAuthorizationStore` (in-memory + FS), AS metadata advertisement (issue 117). User-facing consent UI and CLI subcommand filed as follow-ups. | **Partial** |
 | **AS Metadata** | RFC 8414 | Full | Full (`/.well-known/oauth-authorization-server`, `NewASMetadataHandler`) | Full |
 | **OIDC Discovery** | OIDC-Discovery 1.0 | Full | Partial — serves the doc, but no OIDC primitives behind it (no id_token / userinfo) | Partial |
 | **JWKS** | RFC 7517 | Full | Full (`JWKSHandler` + `JWKSKeyStore` client) | Full |
