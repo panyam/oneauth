@@ -406,6 +406,11 @@ OAuth Client Capabilities (parallel track)
 <td>Merged</td>
 </tr>
 <tr>
+<td>250</td>
+<td>OIDF conformance baseline gaps not gated on #116 closed. Cluster A (<code>scopes_supported</code> / <code>claims_supported</code>) was already shipped in default <code>cmd/oneauth-server</code> populations. Cluster B (5 HTTPS-protocol checks) closed by wiring <code>cmd/oneauth-server</code>&rsquo;s built-in TLS mode into the OIDF harness — self-signed CA + cert + Java truststore committed under <code>tests/oidf-conformance/certs/</code>. New baseline at <code>tests/oidf-conformance/baselines/2026-06-09/</code>. Discovery plan now passes with 1 remaining expected-fail (gated on #116).</td>
+<td>Merged</td>
+</tr>
+<tr>
 <td>189</td>
 <td><strong>Pending</strong> — remove <code>/apps/register</code> once a quota story for <code>MaxRooms</code> / <code>MaxMsgRate</code> is decided. Blocked on the design call, not implementation.</td>
 <td>Pending</td>
