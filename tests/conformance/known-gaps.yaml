@@ -80,13 +80,23 @@
     under issue 116.
   expires: 2026-12-31
 
-# Note on metadata-advertisement quick wins: the baseline (2026-05-09)
-# also flagged `OIDCCCheckDiscEndpointClaimsSupported` and
-# `CheckDiscEndpointScopesSupportedContainsOpenId` as warnings. Both
-# closed organically between the baseline date and the Phase 2 wiring
-# (cmd/oneauth-server now populates both fields in default AS metadata).
-# Cluster A of issue 250 is therefore already done — only the TLS-
-# fronted-variant cluster (B) remains under 250.
+# Note: the baseline (2026-05-09) also flagged
+# `OIDCCCheckDiscEndpointClaimsSupported`,
+# `CheckDiscEndpointScopesSupportedContainsOpenId`, and the 5 HTTPS-
+# protocol checks listed below. All seven closed under #250 — the
+# scopes/claims pair closed when cmd/oneauth-server gained default
+# populations; the HTTPS pair closed when cmd/oneauth-server's TLS
+# mode was wired into the OIDF harness's docker-compose (cert + JVM
+# truststore under tests/oidf-conformance/certs/).
+#
+# Previously-listed entries removed:
+#   - OIDCCCheckDiscEndpointClaimsSupported
+#   - CheckDiscEndpointScopesSupportedContainsOpenId
+#   - CheckDiscEndpointDiscoveryUrl       (https-protocol)
+#   - CheckDiscEndpointTokenEndpoint      (https-protocol)
+#   - CheckDiscEndpointRegistrationEndpoint (https-protocol)
+#   - CheckJwksUri                         (https-protocol)
+#   - CheckDiscEndpointAllEndpointsAreHttps (aggregate)
 
 - suite: oidf
   plan: oidcc-config-certification-test-plan
@@ -97,63 +107,4 @@
   reason: |
     userinfo_endpoint is absent. Gated on issue 116 (the userinfo
     endpoint is part of the OIDC IdP surface).
-  expires: 2026-12-31
-
-# Deployment-mode failures — Phase 1 baseline runs HTTP-only, the harness
-# expects HTTPS in production-mode plans. These say nothing about spec
-# compliance, only about how we're hosting locally. Filed as #250 — wire a
-# TLS-fronted variant once we're ready for an apples-to-apples run.
-
-- suite: oidf
-  plan: oidcc-config-certification-test-plan
-  test: CheckDiscEndpointDiscoveryUrl
-  status: expected-fail
-  issue: 250
-  owner: panyam
-  reason: |
-    Expected https protocol for server.discoveryUrl. We run HTTP-only
-    locally. Tracked as deployment-mode noise under #250 (TLS-fronted
-    variant).
-  expires: 2026-12-31
-
-- suite: oidf
-  plan: oidcc-config-certification-test-plan
-  test: CheckDiscEndpointTokenEndpoint
-  status: expected-fail
-  issue: 250
-  owner: panyam
-  reason: |
-    Expected https protocol for token_endpoint. Deployment-mode; see #250.
-  expires: 2026-12-31
-
-- suite: oidf
-  plan: oidcc-config-certification-test-plan
-  test: CheckDiscEndpointRegistrationEndpoint
-  status: expected-fail
-  issue: 250
-  owner: panyam
-  reason: |
-    Expected https protocol for registration_endpoint. Deployment-mode;
-    see #250.
-  expires: 2026-12-31
-
-- suite: oidf
-  plan: oidcc-config-certification-test-plan
-  test: CheckJwksUri
-  status: expected-fail
-  issue: 250
-  owner: panyam
-  reason: |
-    Expected https protocol for jwks_uri. Deployment-mode; see #250.
-  expires: 2026-12-31
-
-- suite: oidf
-  plan: oidcc-config-certification-test-plan
-  test: CheckDiscEndpointAllEndpointsAreHttps
-  status: expected-fail
-  issue: 250
-  owner: panyam
-  reason: |
-    Aggregate HTTPS check. Mirrors the per-endpoint failures above.
-    Deployment-mode; see #250.
   expires: 2026-12-31

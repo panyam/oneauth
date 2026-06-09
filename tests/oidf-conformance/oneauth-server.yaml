@@ -11,11 +11,21 @@
 # RS256 with an ephemeral key so JWKS exposes the verifying half — the
 # harness must be able to validate tokens via JWKS to call any plan
 # successful (HS256 secrets are correctly omitted from JWKS).
+#
+# TLS is enabled and the cert/CA are committed under ./certs/. The
+# harness's JVM mounts ./certs/truststore.jks so the self-signed chain
+# validates. Closes the 5 HTTPS-protocol expected-fails the discovery
+# plan reported in the 2026-05-09 baseline (issue 250).
 
 server:
   port: 8888
   host: 0.0.0.0
-  public_url: http://host.docker.internal:8888
+  public_url: https://host.docker.internal:8888
+
+tls:
+  enabled: true
+  cert: tests/oidf-conformance/certs/server.crt
+  key: tests/oidf-conformance/certs/server.key
 
 keystore:
   type: memory
@@ -24,7 +34,7 @@ user_stores:
   type: memory
 
 jwt:
-  issuer: http://host.docker.internal:8888
+  issuer: https://host.docker.internal:8888
   signing_alg: RS256
   ephemeral_signing_key: true
 

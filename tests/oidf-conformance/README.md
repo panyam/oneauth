@@ -29,7 +29,9 @@ make upoidf-as
 
 UI: https://localhost.emobix.co.uk:8443/  (the hostname resolves publicly to 127.0.0.1, no `/etc/hosts` edit required).
 
-OneAuth: `http://host.docker.internal:8888` (reachable from inside Docker on macOS).
+OneAuth: `https://host.docker.internal:8888` (TLS-fronted since #250; reachable from inside Docker on macOS).
+
+The AS presents a self-signed cert from `certs/server.crt`; the harness's JVM trusts the matching CA via `certs/truststore.jks` mounted into the container. To regenerate the materials (fresh keypair, longer validity, different SAN), run `certs/regen.sh`.
 
 When done:
 
