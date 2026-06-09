@@ -396,6 +396,11 @@ OAuth Client Capabilities (parallel track)
 <td>Merged</td>
 </tr>
 <tr>
+<td>268</td>
+<td>RFC 8628 client side. <code>client.AuthClient.DeviceAuthorization</code> + <code>PollDeviceToken</code> with four <code>errors.Is</code>-safe sentinels for the §3.5 polling errors. <code>oneauth token device &lt;issuer&gt;</code> CLI subcommand drives the polling loop; <code>--open</code> opens the verification URL in the default browser; <code>--qr</code> renders an ASCII QR code via <code>mdp/qrterminal/v3</code>.</td>
+<td>Merged</td>
+</tr>
+<tr>
 <td>189</td>
 <td><strong>Pending</strong> — remove <code>/apps/register</code> once a quota story for <code>MaxRooms</code> / <code>MaxMsgRate</code> is decided. Blocked on the design call, not implementation.</td>
 <td>Pending</td>
