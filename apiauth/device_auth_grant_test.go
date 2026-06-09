@@ -236,6 +236,31 @@ func TestDeviceGrant_UnknownDeviceCode(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "invalid_grant")
 }
 
+func TestDeviceGrant_MissingClientID_BindingBypass_Rejected(t *testing.T) {
+	// Regression test: a stolen device_code MUST NOT be redeemable by
+	// simply omitting client_id from the polling request. Pre-fix the
+	// handler short-circuited the check when req.ClientID was empty,
+	// letting any caller bypass the RFC 8628 §3.4 binding requirement.
+	auth, _ := setupDevice(t)
+	devHandler := &apiauth.DeviceAuthorizationHandler{
+		Store:           auth.DeviceAuthStore,
+		VerificationURI: "https://auth.example/device",
+	}
+	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-x")
+	require.NoError(t, auth.ApproveDeviceAuthorization(httptest.NewRequest(http.MethodPost, "/", nil), userCode, "alice", nil))
+
+	rr := httptest.NewRecorder()
+	auth.ServeHTTP(rr, tokenForm(t, url.Values{
+		"grant_type":  {apiauth.DeviceCodeGrantType},
+		"device_code": {deviceCode},
+		// client_id intentionally absent
+	}))
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "invalid_grant")
+	assert.NotContains(t, rr.Body.String(), "access_token",
+		"missing client_id MUST NOT yield an access token even when the authorization is approved")
+}
+
 func TestDeviceGrant_ClientIDMismatch(t *testing.T) {
 	auth, _ := setupDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{

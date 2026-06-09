@@ -266,11 +266,15 @@ func (a *APIAuth) handleDeviceCodeGrant(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	auth := getResp.Authorization
-	if auth.ClientID != "" && req.ClientID != "" && auth.ClientID != req.ClientID {
+	if auth.ClientID != "" && auth.ClientID != req.ClientID {
 		// Per RFC 8628 §3.4 the same client_id that obtained the
-		// device_code MUST be used to redeem it. Reject mismatches
-		// instead of leaking the original binding via a different error.
-		a.errorResponse(w, "invalid_grant", "device_code was issued to a different client", http.StatusBadRequest)
+		// device_code MUST be used to redeem it. We REQUIRE a matching
+		// client_id whenever the stored authorization has one bound —
+		// an empty req.ClientID against a bound auth.ClientID is a
+		// binding bypass attempt (a thief who stole the device_code
+		// just omits client_id to skip the check) and rejects with
+		// invalid_grant just like any other mismatch.
+		a.errorResponse(w, "invalid_grant", "device_code was not issued to this client", http.StatusBadRequest)
 		return
 	}
 	now := time.Now()
