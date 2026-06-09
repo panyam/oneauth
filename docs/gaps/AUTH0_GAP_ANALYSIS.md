@@ -90,6 +90,7 @@ Auth0 has shipped several new capabilities since our original analysis:
 | Refresh Token Rotation | Automatic + theft detection | Family-based rotation + theft detection | Full | — |
 | **Token Revocation** | POST /oauth/revoke | **NEW** — `RevocationHandler` (RFC 7009) | Full | — |
 | Logout (local) | GET /v2/logout | POST /api/logout + /api/logout-all | Full | — |
+| **Back-Channel Logout (push)** | OIDC BCL — `backchannel_logout_uri` per client | **NEW** — `BCLDispatcher` + `LogoutTokenIssuer`, DCR field, AS metadata advertisement (sender side) | Full (sender) | — |
 | Logout (federated) | GET /v2/logout?federated | None | **None** | issue 129 |
 | DPoP | Supported (2025) | None | **None** | issue 94 |
 

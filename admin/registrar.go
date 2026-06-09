@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,41 @@ import (
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
+
+// validateBackchannelLogoutURI enforces the OIDC Back-Channel Logout 1.0 §2.2
+// rule that the registered receiver URI MUST be an absolute URL with a scheme
+// component and MUST NOT contain a fragment. The spec doesn't mandate https,
+// but plain http would let an on-path attacker observe logout events for any
+// authenticated user — we therefore require https in production and only allow
+// http when the host is a loopback address (matching the redirect_uri leniency
+// applied across oneauth). Empty input is valid (BCL disabled for this client).
+func validateBackchannelLogoutURI(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("%w: backchannel_logout_uri: %v", ErrInvalidClientMetadata, err)
+	}
+	if !u.IsAbs() || u.Host == "" {
+		return fmt.Errorf("%w: backchannel_logout_uri must be an absolute URL with a host", ErrInvalidClientMetadata)
+	}
+	if u.Fragment != "" || strings.Contains(raw, "#") {
+		return fmt.Errorf("%w: backchannel_logout_uri MUST NOT contain a fragment (OIDC BCL §2.2)", ErrInvalidClientMetadata)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		host := u.Hostname()
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+			return nil
+		}
+		return fmt.Errorf("%w: backchannel_logout_uri must use https outside loopback", ErrInvalidClientMetadata)
+	default:
+		return fmt.Errorf("%w: backchannel_logout_uri scheme %q not allowed", ErrInvalidClientMetadata, u.Scheme)
+	}
+}
 
 // AppRegistrar is an embeddable HTTP handler for App registration CRUD.
 // Mount it on any admin service's mux to let apps register and obtain signing credentials.
@@ -99,6 +135,10 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	}
 	md := req.Metadata
 
+	if err := validateBackchannelLogoutURI(md.BackchannelLogoutURI); err != nil {
+		return nil, err
+	}
+
 	// Determine signing algorithm from the requested auth method. Default
 	// HS256 (symmetric) when the client doesn't ask for private_key_jwt.
 	signingAlg := "HS256"
@@ -127,18 +167,20 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	regClientURI := req.IssuerBaseURL + "/apps/dcr/" + clientID
 
 	resp := &DCRResponse{
-		ClientID:                  clientID,
-		ClientIDIssuedAt:          time.Now().Unix(),
-		ClientSecretExpiresAt:     0, // never expires
-		ClientName:                md.ClientName,
-		ClientURI:                 md.ClientURI,
-		RedirectURIs:              md.RedirectURIs,
-		GrantTypes:                md.GrantTypes,
-		TokenEndpointAuthMethod:   md.TokenEndpointAuthMethod,
-		Scope:                     md.Scope,
-		AuthorizationDetailsTypes: md.AuthorizationDetailsTypes,
-		RegistrationAccessToken:   regAccessToken,
-		RegistrationClientURI:     regClientURI,
+		ClientID:                         clientID,
+		ClientIDIssuedAt:                 time.Now().Unix(),
+		ClientSecretExpiresAt:            0, // never expires
+		ClientName:                       md.ClientName,
+		ClientURI:                        md.ClientURI,
+		RedirectURIs:                     md.RedirectURIs,
+		GrantTypes:                       md.GrantTypes,
+		TokenEndpointAuthMethod:          md.TokenEndpointAuthMethod,
+		Scope:                            md.Scope,
+		AuthorizationDetailsTypes:        md.AuthorizationDetailsTypes,
+		RegistrationAccessToken:          regAccessToken,
+		RegistrationClientURI:            regClientURI,
+		BackchannelLogoutURI:             md.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired: md.BackchannelLogoutSessionRequired,
 	}
 
 	if utils.IsAsymmetricAlg(signingAlg) {
@@ -177,19 +219,21 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		domain = md.ClientName
 	}
 	reg := &core.AppRegistration{
-		ClientID:                  clientID,
-		ClientDomain:              domain,
-		SigningAlg:                signingAlg,
-		AuthorizationDetailsTypes: md.AuthorizationDetailsTypes,
-		CreatedAt:                 time.Now(),
-		ClientName:                md.ClientName,
-		ClientURI:                 md.ClientURI,
-		RedirectURIs:              md.RedirectURIs,
-		GrantTypes:                md.GrantTypes,
-		Scope:                     md.Scope,
-		TokenEndpointAuthMethod:   md.TokenEndpointAuthMethod,
-		RegistrationAccessToken:   regAccessToken,
-		RegistrationClientURI:     regClientURI,
+		ClientID:                         clientID,
+		ClientDomain:                     domain,
+		SigningAlg:                       signingAlg,
+		AuthorizationDetailsTypes:        md.AuthorizationDetailsTypes,
+		CreatedAt:                        time.Now(),
+		ClientName:                       md.ClientName,
+		ClientURI:                        md.ClientURI,
+		RedirectURIs:                     md.RedirectURIs,
+		GrantTypes:                       md.GrantTypes,
+		Scope:                            md.Scope,
+		TokenEndpointAuthMethod:          md.TokenEndpointAuthMethod,
+		RegistrationAccessToken:          regAccessToken,
+		RegistrationClientURI:            regClientURI,
+		BackchannelLogoutURI:             md.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired: md.BackchannelLogoutSessionRequired,
 	}
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, fmt.Errorf("persist registration: %w", err)
@@ -402,18 +446,20 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 	}
 	return &GetRegistrationResponse{
 		Registration: &DCRResponse{
-			ClientID:                  reg.ClientID,
-			ClientIDIssuedAt:          reg.CreatedAt.Unix(),
-			ClientSecretExpiresAt:     0,
-			ClientName:                reg.ClientName,
-			ClientURI:                 reg.ClientURI,
-			RedirectURIs:              reg.RedirectURIs,
-			GrantTypes:                reg.GrantTypes,
-			TokenEndpointAuthMethod:   reg.TokenEndpointAuthMethod,
-			Scope:                     reg.Scope,
-			AuthorizationDetailsTypes: reg.AuthorizationDetailsTypes,
-			RegistrationAccessToken:   reg.RegistrationAccessToken,
-			RegistrationClientURI:     reg.RegistrationClientURI,
+			ClientID:                         reg.ClientID,
+			ClientIDIssuedAt:                 reg.CreatedAt.Unix(),
+			ClientSecretExpiresAt:            0,
+			ClientName:                       reg.ClientName,
+			ClientURI:                        reg.ClientURI,
+			RedirectURIs:                     reg.RedirectURIs,
+			GrantTypes:                       reg.GrantTypes,
+			TokenEndpointAuthMethod:          reg.TokenEndpointAuthMethod,
+			Scope:                            reg.Scope,
+			AuthorizationDetailsTypes:        reg.AuthorizationDetailsTypes,
+			RegistrationAccessToken:          reg.RegistrationAccessToken,
+			RegistrationClientURI:            reg.RegistrationClientURI,
+			BackchannelLogoutURI:             reg.BackchannelLogoutURI,
+			BackchannelLogoutSessionRequired: reg.BackchannelLogoutSessionRequired,
 		},
 	}, nil
 }
@@ -464,6 +510,9 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if md.TokenEndpointAuthMethod != "" && md.TokenEndpointAuthMethod != reg.TokenEndpointAuthMethod {
 		return nil, ErrInvalidClientMetadata
 	}
+	if err := validateBackchannelLogoutURI(md.BackchannelLogoutURI); err != nil {
+		return nil, err
+	}
 
 	newToken, err := generateRegistrationAccessToken()
 	if err != nil {
@@ -485,24 +534,28 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	reg.AuthorizationDetailsTypes = md.AuthorizationDetailsTypes
 	reg.ClientDomain = domain
 	reg.RegistrationAccessToken = newToken
+	reg.BackchannelLogoutURI = md.BackchannelLogoutURI
+	reg.BackchannelLogoutSessionRequired = md.BackchannelLogoutSessionRequired
 
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, err
 	}
 	return &UpdateRegistrationResponse{
 		Registration: &DCRResponse{
-			ClientID:                  reg.ClientID,
-			ClientIDIssuedAt:          reg.CreatedAt.Unix(),
-			ClientSecretExpiresAt:     0,
-			ClientName:                reg.ClientName,
-			ClientURI:                 reg.ClientURI,
-			RedirectURIs:              reg.RedirectURIs,
-			GrantTypes:                reg.GrantTypes,
-			TokenEndpointAuthMethod:   reg.TokenEndpointAuthMethod,
-			Scope:                     reg.Scope,
-			AuthorizationDetailsTypes: reg.AuthorizationDetailsTypes,
-			RegistrationAccessToken:   reg.RegistrationAccessToken,
-			RegistrationClientURI:     reg.RegistrationClientURI,
+			ClientID:                         reg.ClientID,
+			ClientIDIssuedAt:                 reg.CreatedAt.Unix(),
+			ClientSecretExpiresAt:            0,
+			ClientName:                       reg.ClientName,
+			ClientURI:                        reg.ClientURI,
+			RedirectURIs:                     reg.RedirectURIs,
+			GrantTypes:                       reg.GrantTypes,
+			TokenEndpointAuthMethod:          reg.TokenEndpointAuthMethod,
+			Scope:                            reg.Scope,
+			AuthorizationDetailsTypes:        reg.AuthorizationDetailsTypes,
+			RegistrationAccessToken:          reg.RegistrationAccessToken,
+			RegistrationClientURI:            reg.RegistrationClientURI,
+			BackchannelLogoutURI:             reg.BackchannelLogoutURI,
+			BackchannelLogoutSessionRequired: reg.BackchannelLogoutSessionRequired,
 		},
 	}, nil
 }
@@ -564,6 +617,25 @@ func (h *AppRegistrar) RLockApps(fn func(map[string]*core.AppRegistration)) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	fn(h.apps)
+}
+
+// GetAppRegistration returns a clone of the cached registration for clientID,
+// or (nil, false) if no such client is registered. It satisfies the narrow
+// AppRegistrationLookup interface defined in apiauth/ so the BCL dispatcher can
+// resolve registered receiver URIs without admin/ → apiauth/ → admin/ import
+// cycles. Returns a clone so callers cannot mutate the in-memory cache.
+func (h *AppRegistrar) GetAppRegistration(ctx context.Context, clientID string) (*core.AppRegistration, bool) {
+	if clientID == "" {
+		return nil, false
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	reg, ok := h.apps[clientID]
+	if !ok || reg == nil {
+		return nil, false
+	}
+	clone := *reg
+	return &clone, true
 }
 
 // Handler returns an http.Handler for app registration endpoints.

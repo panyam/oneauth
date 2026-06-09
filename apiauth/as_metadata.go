@@ -75,6 +75,21 @@ type ASServerMetadata struct {
 	// the advertisement will fail to validate.
 	AuthorizationResponseIssParameterSupported *bool `json:"authorization_response_iss_parameter_supported,omitempty"`
 
+	// BackchannelLogoutSupported advertises OIDC Back-Channel Logout 1.0 §3.1
+	// — when true, the AS sends a signed logout_token to a client's registered
+	// backchannel_logout_uri at session-revoke time. Pointer semantics: nil
+	// omits the field; an explicit `false` advertises non-support to clients.
+	// Set this true only when a BCLDispatcher is actually wired; otherwise
+	// clients that key off the advertisement will silently miss logouts.
+	BackchannelLogoutSupported *bool `json:"backchannel_logout_supported,omitempty"`
+
+	// BackchannelLogoutSessionSupported advertises OIDC BCL 1.0 §3.1 — when
+	// true, logout_tokens issued by this AS include a `sid` claim that the
+	// receiver can use to revoke a single OIDC session rather than every
+	// session for the subject. Pointer semantics match
+	// BackchannelLogoutSupported.
+	BackchannelLogoutSessionSupported *bool `json:"backchannel_logout_session_supported,omitempty"`
+
 	// CacheMaxAge controls the Cache-Control max-age in seconds.
 	// Defaults to 3600 (1 hour). Not serialized to JSON.
 	CacheMaxAge int `json:"-"`
