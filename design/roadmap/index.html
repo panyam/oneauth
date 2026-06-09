@@ -376,6 +376,11 @@ OAuth Client Capabilities (parallel track)
 <td>Merged</td>
 </tr>
 <tr>
+<td>261</td>
+<td>OIDC Back-Channel Logout 1.0 (sender) — <code>LogoutTokenIssuer</code> + <code>BCLDispatcher</code>, per-client <code>backchannel_logout_uri</code> via DCR + admin, AS metadata advertisement, <code>TokenHooks.OnSubjectRevoked</code> / <code>OnTokenRevoked</code> wiring on logout-all and RFC 7009 revoke. <code>sid</code> maps to refresh-token family. Retry/backoff deferred.</td>
+<td>Merged</td>
+</tr>
+<tr>
 <td>189</td>
 <td><strong>Pending</strong> — remove <code>/apps/register</code> once a quota story for <code>MaxRooms</code> / <code>MaxMsgRate</code> is decided. Blocked on the design call, not implementation.</td>
 <td>Pending</td>
