@@ -391,6 +391,11 @@ OAuth Client Capabilities (parallel track)
 <td>Merged</td>
 </tr>
 <tr>
+<td>266</td>
+<td>Confidential-client authentication on device-code redemption. <code>APIAuth.AppStore</code> looks up <code>token_endpoint_auth_method</code>; confidential clients (anything other than <code>none</code>) MUST authenticate via <code>ClientAuthenticator</code> and the authenticated <code>client_id</code> drives the §3.4 binding check. Closes the security review thread on PR 265 (#117 follow-on).</td>
+<td>Merged</td>
+</tr>
+<tr>
 <td>189</td>
 <td><strong>Pending</strong> — remove <code>/apps/register</code> once a quota story for <code>MaxRooms</code> / <code>MaxMsgRate</code> is decided. Blocked on the design call, not implementation.</td>
 <td>Pending</td>
