@@ -386,6 +386,11 @@ OAuth Client Capabilities (parallel track)
 <td>Merged</td>
 </tr>
 <tr>
+<td>117</td>
+<td>RFC 8628 Device Authorization Grant (AS-side wire protocol). <code>POST /device/authorize</code> + <code>grant_type=…:device_code</code> on the token endpoint with full §3.5 error taxonomy. <code>core.DeviceAuthorizationStore</code> interface + in-memory + FS backends. <code>APIAuth.ApproveDeviceAuthorization</code> / <code>DenyDeviceAuthorization</code> programmatic helpers (UI follow-up). AS metadata advertises <code>device_authorization_endpoint</code>. CLI subcommand and verification HTML page filed as follow-ups.</td>
+<td>Merged</td>
+</tr>
+<tr>
 <td>189</td>
 <td><strong>Pending</strong> — remove <code>/apps/register</code> once a quota story for <code>MaxRooms</code> / <code>MaxMsgRate</code> is decided. Blocked on the design call, not implementation.</td>
 <td>Pending</td>

@@ -268,8 +268,8 @@
 <td><strong>Device Authorization Grant</strong></td>
 <td>RFC 8628</td>
 <td>Full</td>
-<td>None (CLI uses browser-loopback PKCE instead)</td>
-<td><strong>None</strong></td>
+<td>AS-side wire protocol — <code>POST /device/authorize</code>, <code>grant_type=…:device_code</code> on the token endpoint, full §3.5 error taxonomy, <code>core.DeviceAuthorizationStore</code> (in-memory + FS), AS metadata advertisement (issue 117). User-facing consent UI and CLI subcommand filed as follow-ups.</td>
+<td><strong>Partial</strong></td>
 </tr>
 <tr>
 <td><strong>AS Metadata</strong></td>
