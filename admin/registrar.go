@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -21,12 +22,23 @@ import (
 
 // validateBackchannelLogoutURI enforces the OIDC Back-Channel Logout 1.0 §2.2
 // rule that the registered receiver URI MUST be an absolute URL with a scheme
-// component and MUST NOT contain a fragment. The spec doesn't mandate https,
-// but plain http would let an on-path attacker observe logout events for any
-// authenticated user — we therefore require https in production and only allow
-// http when the host is a loopback address (matching the redirect_uri leniency
-// applied across oneauth). Empty input is valid (BCL disabled for this client).
-func validateBackchannelLogoutURI(raw string) error {
+// component and MUST NOT contain a fragment. It is also the registration-time
+// SSRF guard: when allowPrivate is false (the default), a literal-IP host
+// MUST NOT resolve to a loopback / private / link-local / unspecified /
+// multicast address — otherwise an unauthenticated client could register a
+// URI that, on session revoke, makes the AS POST to internal services on
+// its behalf. Empty input is valid (BCL disabled for this client).
+//
+// Hostnames that are not literal IPs are accepted here without DNS lookup —
+// the dispatcher does a post-DNS check inside the HTTP client's dialer so
+// DNS rebinding cannot smuggle a private IP past registration-time guard.
+// Defense-in-depth: validation catches obvious literal-IP attempts loudly at
+// configuration time; dispatch catches everything else regardless of what
+// the hostname resolves to at call time.
+//
+// allowPrivate is an opt-in escape for closed networks (e.g., AS and RS in
+// the same VPC). Off by default; flip via AppRegistrar.AllowPrivateBCLHosts.
+func validateBackchannelLogoutURI(raw string, allowPrivate bool) error {
 	if raw == "" {
 		return nil
 	}
@@ -42,16 +54,36 @@ func validateBackchannelLogoutURI(raw string) error {
 	}
 	switch u.Scheme {
 	case "https":
-		return nil
+		// allowed
 	case "http":
-		host := u.Hostname()
-		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-			return nil
+		// Plain http is only allowed when private hosts are explicitly
+		// allowed — closed-network deployments. In any other case http
+		// would let an on-path attacker observe revocations for any user.
+		if !allowPrivate {
+			return fmt.Errorf("%w: backchannel_logout_uri must use https", ErrInvalidClientMetadata)
 		}
-		return fmt.Errorf("%w: backchannel_logout_uri must use https outside loopback", ErrInvalidClientMetadata)
 	default:
 		return fmt.Errorf("%w: backchannel_logout_uri scheme %q not allowed", ErrInvalidClientMetadata, u.Scheme)
 	}
+	host := u.Hostname()
+	if ip := net.ParseIP(host); ip != nil && !allowPrivate {
+		if isPrivateOrSpecialIP(ip) {
+			return fmt.Errorf("%w: backchannel_logout_uri may not resolve to loopback / private / link-local / unspecified / multicast address", ErrInvalidClientMetadata)
+		}
+	}
+	return nil
+}
+
+// isPrivateOrSpecialIP reports whether ip is in any address range that an
+// authenticated client should not be able to make the AS POST to. The
+// dispatcher's dialer applies the same predicate at connect time.
+func isPrivateOrSpecialIP(ip net.IP) bool {
+	return ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() ||
+		ip.IsUnspecified()
 }
 
 // AppRegistrar is an embeddable HTTP handler for App registration CRUD.
@@ -77,6 +109,16 @@ type AppRegistrar struct {
 	// the apps map below is a hot-path cache hydrated on construction and
 	// updated synchronously on every write.
 	Store core.AppRegistrationStore
+
+	// AllowPrivateBCLHosts opts in to registering a backchannel_logout_uri
+	// whose host resolves (or is literally) loopback / RFC1918 / link-local
+	// / unspecified / multicast. Off by default so a client cannot register
+	// a URI that, on session revoke, makes the AS POST to internal services
+	// on its behalf (classic SSRF). Closed-network deployments where the AS
+	// and the RS receivers share a private network can flip this on. When
+	// flipped, the dispatcher's HTTP client must also opt in via
+	// BCLDispatcher.AllowPrivateHosts or the dial-time guard still blocks.
+	AllowPrivateBCLHosts bool
 
 	mu   sync.RWMutex
 	apps map[string]*core.AppRegistration
@@ -135,7 +177,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	}
 	md := req.Metadata
 
-	if err := validateBackchannelLogoutURI(md.BackchannelLogoutURI); err != nil {
+	if err := validateBackchannelLogoutURI(md.BackchannelLogoutURI, h.AllowPrivateBCLHosts); err != nil {
 		return nil, err
 	}
 
@@ -510,7 +552,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if md.TokenEndpointAuthMethod != "" && md.TokenEndpointAuthMethod != reg.TokenEndpointAuthMethod {
 		return nil, ErrInvalidClientMetadata
 	}
-	if err := validateBackchannelLogoutURI(md.BackchannelLogoutURI); err != nil {
+	if err := validateBackchannelLogoutURI(md.BackchannelLogoutURI, h.AllowPrivateBCLHosts); err != nil {
 		return nil, err
 	}
 

@@ -59,10 +59,11 @@ func TestBCL_HandleLogoutAll_FiresDispatchesToRegisteredReceivers(t *testing.T) 
 	store.add(&core.RefreshToken{Token: "t3", Subject: "alice", ClientID: "client-no", Family: "fam-3"})
 
 	dispatcher := &BCLDispatcher{
-		Issuer:       newTestLogoutIssuer(t),
-		Apps:         &stubAppLookup{apps: apps},
-		RefreshStore: store,
-		SyncForTest:  true,
+		Issuer:            newTestLogoutIssuer(t),
+		Apps:              &stubAppLookup{apps: apps},
+		RefreshStore:      store,
+		SyncForTest:       true,
+		AllowPrivateHosts: true, // httptest binds to 127.0.0.1
 	}
 
 	a := &APIAuth{

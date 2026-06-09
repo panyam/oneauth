@@ -59,7 +59,7 @@ func TestDCR_BackchannelLogout_RoundTripsThroughRegister(t *testing.T) {
 	assert.True(t, getResp.App.BackchannelLogoutSessionRequired)
 }
 
-func TestDCR_BackchannelLogout_HTTPOutsideLoopback_Rejected(t *testing.T) {
+func TestDCR_BackchannelLogout_PlainHTTPRejectedByDefault(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 	handler := registrar.Handler()
@@ -70,6 +70,46 @@ func TestDCR_BackchannelLogout_HTTPOutsideLoopback_Rejected(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+}
+
+func TestDCR_BackchannelLogout_LiteralLoopbackIPRejectedByDefault(t *testing.T) {
+	// SSRF guard: a client should not be able to register a URI that, on
+	// session revoke, makes the AS POST to localhost.
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	handler := registrar.Handler()
+
+	for _, uri := range []string{
+		"https://127.0.0.1/bcl",
+		"https://[::1]/bcl",
+		"https://10.0.0.1/bcl",
+		"https://192.168.1.1/bcl",
+		"https://169.254.169.254/bcl", // cloud metadata service
+		"https://0.0.0.0/bcl",
+	} {
+		body := `{"client_name":"BCL Client","backchannel_logout_uri":"` + uri + `"}`
+		req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "must reject %s: %s", uri, rr.Body.String())
+	}
+}
+
+func TestDCR_BackchannelLogout_AllowPrivateHostsOptIn(t *testing.T) {
+	// Closed-network deployments can opt in by flipping
+	// AllowPrivateBCLHosts on the AppRegistrar.
+	ks := keys.NewInMemoryKeyStore()
+	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.AllowPrivateBCLHosts = true
+	handler := registrar.Handler()
+
+	body := `{"client_name":"BCL Client","backchannel_logout_uri":"http://127.0.0.1:9999/bcl"}`
+	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 }
 
 func TestDCR_BackchannelLogout_FragmentRejected(t *testing.T) {
@@ -85,12 +125,13 @@ func TestDCR_BackchannelLogout_FragmentRejected(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 
-func TestDCR_BackchannelLogout_LoopbackHTTPAllowed(t *testing.T) {
+func TestDCR_BackchannelLogout_LiteralPublicIPAllowed(t *testing.T) {
+	// Public-IP receivers must round-trip even with the SSRF guard on.
 	_, _, resp := registerAppWithBCL(t, `{
-		"client_name":"BCL Local",
-		"backchannel_logout_uri":"http://localhost:9999/bcl"
+		"client_name":"BCL Public",
+		"backchannel_logout_uri":"https://203.0.113.5/bcl"
 	}`)
-	assert.Equal(t, "http://localhost:9999/bcl", resp["backchannel_logout_uri"])
+	assert.Equal(t, "https://203.0.113.5/bcl", resp["backchannel_logout_uri"])
 }
 
 func TestDCR_BackchannelLogout_EmptyURIDisablesDispatch(t *testing.T) {

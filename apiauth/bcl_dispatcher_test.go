@@ -112,11 +112,14 @@ func (r *captureReceiver) hitCount() int32 { return atomic.LoadInt32(&r.hits) }
 
 func newDispatcherFixture(t *testing.T, apps map[string]*core.AppRegistration, refresh core.RefreshTokenStore) *BCLDispatcher {
 	t.Helper()
+	// httptest.NewServer binds to 127.0.0.1; the dial-time SSRF guard
+	// rejects loopback by default. Tests opt in.
 	return &BCLDispatcher{
-		Issuer:       newTestLogoutIssuer(t),
-		Apps:         &stubAppLookup{apps: apps},
-		RefreshStore: refresh,
-		SyncForTest:  true,
+		Issuer:            newTestLogoutIssuer(t),
+		Apps:              &stubAppLookup{apps: apps},
+		RefreshStore:      refresh,
+		SyncForTest:       true,
+		AllowPrivateHosts: true,
 	}
 }
 
@@ -231,6 +234,57 @@ func TestBCLDispatcher_NoClients_NoOp(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestBCLDispatcher_RejectsLoopbackByDefault(t *testing.T) {
+	// Receiver bound to 127.0.0.1; dispatcher without AllowPrivateHosts must
+	// refuse to dial it. SSRF guard.
+	rx := &captureReceiver{}
+	srv := httptest.NewServer(rx.handler())
+	defer srv.Close()
+
+	apps := map[string]*core.AppRegistration{
+		"client-a": {ClientID: "client-a", BackchannelLogoutURI: srv.URL},
+	}
+	d := &BCLDispatcher{
+		Issuer:      newTestLogoutIssuer(t),
+		Apps:        &stubAppLookup{apps: apps},
+		SyncForTest: true,
+		// AllowPrivateHosts intentionally false.
+	}
+	_, err := d.Dispatch(context.Background(), &DispatchRequest{
+		Subject:   "alice",
+		ClientIDs: []string{"client-a"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(0), rx.hitCount(), "dial-time guard must block loopback when AllowPrivateHosts is false")
+}
+
+func TestBCLDispatcher_DoesNotFollowRedirects(t *testing.T) {
+	// A 3xx response from the registered receiver must NOT be followed —
+	// that would re-open the SSRF surface by letting the receiver bounce
+	// the AS at an arbitrary URL.
+	var redirectTargetHit int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&redirectTargetHit, 1)
+	}))
+	defer target.Close()
+
+	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusFound)
+	}))
+	defer primary.Close()
+
+	apps := map[string]*core.AppRegistration{
+		"client-a": {ClientID: "client-a", BackchannelLogoutURI: primary.URL},
+	}
+	d := newDispatcherFixture(t, apps, nil)
+	_, err := d.Dispatch(context.Background(), &DispatchRequest{
+		Subject:   "alice",
+		ClientIDs: []string{"client-a"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(0), atomic.LoadInt32(&redirectTargetHit), "dispatcher must not follow 3xx to a redirect target")
+}
+
 func TestBCLDispatcher_Async_WaitDrainsInFlight(t *testing.T) {
 	rx := &captureReceiver{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -243,9 +297,10 @@ func TestBCLDispatcher_Async_WaitDrainsInFlight(t *testing.T) {
 		"client-a": {ClientID: "client-a", BackchannelLogoutURI: srv.URL},
 	}
 	d := &BCLDispatcher{
-		Issuer:      newTestLogoutIssuer(t),
-		Apps:        &stubAppLookup{apps: apps},
-		SyncForTest: false,
+		Issuer:            newTestLogoutIssuer(t),
+		Apps:              &stubAppLookup{apps: apps},
+		SyncForTest:       false,
+		AllowPrivateHosts: true,
 	}
 	_, err := d.Dispatch(context.Background(), &DispatchRequest{
 		Subject:   "alice",

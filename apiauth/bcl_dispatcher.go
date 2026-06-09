@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/panyam/oneauth/core"
@@ -68,6 +70,17 @@ type BCLDispatcher struct {
 	// state; production callers should leave it false so revocation latency
 	// is not coupled to receiver responsiveness.
 	SyncForTest bool
+
+	// AllowPrivateHosts opts in to dialing receiver URIs whose resolved IP
+	// is loopback / RFC1918 / link-local / unspecified / multicast. Off by
+	// default — the default HTTPClient's dialer rejects such connections so
+	// a (mis-configured or malicious) `backchannel_logout_uri` cannot be
+	// used to make the AS POST to internal services on its behalf, even if
+	// the hostname's DNS answer at dial time differs from registration time
+	// (rebinding). Closed-network deployments (AS + RS in the same VPC) can
+	// flip this on; admin.AppRegistrar.AllowPrivateBCLHosts is the matching
+	// registration-side knob.
+	AllowPrivateHosts bool
 
 	// wg tracks in-flight async dispatches so callers (mainly tests) can
 	// wait for them via Wait().
@@ -216,7 +229,52 @@ func (d *BCLDispatcher) httpClient() *http.Client {
 	if d.HTTPClient != nil {
 		return d.HTTPClient
 	}
-	return &http.Client{Timeout: 5 * time.Second}
+	allowPrivate := d.AllowPrivateHosts
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second,
+		Control: func(network, address string, _ syscall.RawConn) error {
+			if allowPrivate {
+				return nil
+			}
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return fmt.Errorf("bcl: invalid dial address %q: %w", address, err)
+			}
+			ip := net.ParseIP(host)
+			if ip == nil {
+				return fmt.Errorf("bcl: dial address %q is not a literal IP", address)
+			}
+			if isPrivateOrSpecialIP(ip) {
+				return fmt.Errorf("bcl: refusing to dial private/loopback/link-local address %s", ip)
+			}
+			return nil
+		},
+	}
+	return &http.Client{
+		Timeout: 5 * time.Second,
+		// Do NOT follow redirects. A 3xx to a different host (or to an
+		// internal IP) would re-open the SSRF surface that the dial-time
+		// guard closes for the registered URI itself. Receivers per OIDC
+		// BCL §2.7 respond with 200 on success / 4xx-5xx on failure; a
+		// 3xx is not part of the protocol and we let the dispatcher's
+		// caller see it as the final status.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{DialContext: dialer.DialContext},
+	}
+}
+
+// isPrivateOrSpecialIP mirrors admin.isPrivateOrSpecialIP — duplicated rather
+// than imported so apiauth/ stays free of an admin/ dependency. Any change
+// to the SSRF policy must update both sites.
+func isPrivateOrSpecialIP(ip net.IP) bool {
+	return ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() ||
+		ip.IsUnspecified()
 }
 
 func (d *BCLDispatcher) logger() *log.Logger {
