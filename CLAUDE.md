@@ -18,6 +18,7 @@ Each subpackage has a `SUMMARY.md` with detailed contents.
 | `httpauth/` | HTTP middleware, CSRF, session management | [httpauth/SUMMARY.md](httpauth/SUMMARY.md) |
 | `client/` | Client SDK (AuthClient, ClientCredentialsSource, discovery) | [client/SUMMARY.md](client/SUMMARY.md) |
 | `stores/` | FS, GORM, GAE backend implementations | `stores/*/SUMMARY.md` |
+| `appstoretest/` / `deviceauthtest/` / `keystoretest/` / `kidstoretest/` | Shared contract test suites — every store backend runs `RunAll(t, factory)` to prove behavioral parity | per-package README |
 | `examples/` | 10 progressive interactive examples with demokit | [examples/README.md](examples/README.md) |
 | `tests/keycloak/` | Keycloak interop + RAR conformance tests | [tests/keycloak/README.md](tests/keycloak/README.md) |
 | `cmd/oneauth-server/` | Config-driven reference server (#194 tracks POC→production-grade ambition) | `cmd/oneauth-server/config.go` |
@@ -47,6 +48,7 @@ Full command reference: see `Makefile` header comments and `make help` (if avail
 - **Storage-agnostic** — interface-based, three backends (FS, GORM, GAE) for KeyStore + UserStore + AppRegistrationStore.
 - **Composed interfaces, no god objects** — each impl takes only the deps it needs.
 - **Grouped hooks** — `TokenHooks`, `AuthHooks`, `ClientHooks`, `SecurityHooks`. See `apiauth/hooks.go`.
+- **`Mount*` helpers for related route groups** — when a feature mounts more than one route on a mux, ship a `apiauth.MountX(mux, cfg)` helper so production and tests share one wire-up. Precedent: `apiauth.MountASMetadata` (RFC 8414), `apiauth.MountDeviceFlow` (RFC 8628). The helper owns route placement and handler construction; callers supply dependencies + integration points (session lookup, CSRF token source, optional middleware). Browser-form routes get the caller's middleware; machine endpoints don't.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for rationale and [docs/ROADMAP.md](docs/ROADMAP.md) for what's shipped vs in flight.
 
@@ -87,6 +89,7 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - **Local main can be locked by another worktree**. When working in a stacked branch, cut new branches from `origin/main` directly (`git checkout -b feat/X origin/main`) — don't try to `git checkout main` if the `conformance/` or `rfc-extensions/` worktrees own it.
 - **`go.work` Go directive**: stdlib CVEs require keeping the `go` directive across all 9 modules in lock-step (root + workspace + 7 sub-modules). `make vulncheck` is the gate.
 - **Backlinks via `#N`**: only when the cross-reference is genuinely the audit trail you want. For background-only references, use plain text (`"issue 123"` not `#123`) — see global `~/.claude/CLAUDE.md` for the full rule.
+- **httptest URL needed before mount.** When a handler config requires the server's base URL (e.g., RFC 8628 `VerificationURI`), use `httptest.NewUnstartedServer(mux)` → read `server.URL` → mount → `server.Start()`. Avoids post-hoc handler mutation. Pattern in `tests/e2e/device_flow_test.go`.
 
 ## Gap analyses
 

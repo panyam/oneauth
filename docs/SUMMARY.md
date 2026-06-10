@@ -51,7 +51,10 @@ oneauth/
 ├── cmd/demo-hostapp/     # Demo app (DrawApp/ChatApp)
 ├── cmd/demo-resource-server/  # Demo resource server (JWT validation service)
 ├── demo/                 # Docker Compose demo (6 services: auth, 2 apps, 2 resource servers, DB)
+├── appstoretest/         # Shared AppRegistrationStore contract suite
+├── deviceauthtest/       # Shared DeviceAuthorizationStore contract suite (RFC 8628)
 ├── keystoretest/         # Shared KeyStore test suite
+├── kidstoretest/         # Shared KidStore contract suite
 ├── tests/integration/    # Integration tests (GAE + demo stack)
 ├── grpc/                 # gRPC utilities
 ├── oauth2/               # OAuth2 providers

@@ -6,3 +6,4 @@
 - [feedback_review_cadences.md](feedback_review_cadences.md) — Prefer ad-hoc `make X-report` targets over cron/calendar review cadences; advisory metadata (e.g., `expires:`) shouldn't gate.
 - [feedback_explicit_opt_in_for_dev_hacks.md](feedback_explicit_opt_in_for_dev_hacks.md) — Gate dev/test-only conveniences behind explicit opt-in flags; never make them silent fallbacks. Production misconfiguration should fail loudly.
 - [feedback_spec_inheritance.md](feedback_spec_inheritance.md) — When an RFC inherits comparison semantics from another RFC, look at the inherited spec's primitive — don't guess from the data type. Lesson from `ValidateIss` (#246, URL→JWT byte-equal).
+- [feedback_test_fixtures_as_product_features.md](feedback_test_fixtures_as_product_features.md) — When a test hand-rolls mux/server wiring, ask whether that wiring belongs in the library. Lesson from PR 286 → `apiauth.MountDeviceFlow` extraction + `cmd/oneauth-server` device-flow block.
