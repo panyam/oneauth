@@ -84,44 +84,34 @@ func newDeviceFlowEnv(t *testing.T, expiry time.Duration) *deviceFlowEnv {
 	}
 
 	mux := http.NewServeMux()
-
-	devAuthHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:               env.deviceStore,
-		VerificationURI:     "", // populated after server starts
-		Expiry:              env.expiry,
-		ClientAuthenticator: nil, // public + confidential clients both work; confidential auth happens on redemption per #266
-	}
-	mux.Handle("POST /device/authorize", devAuthHandler)
-
-	verifier := &apiauth.DeviceVerificationHandler{
-		Store:    env.deviceStore,
-		AppStore: env.appStore,
-		Approve: func(r *http.Request, userCode, subject string, scopes []string) error {
-			return env.apiAuth.ApproveDeviceAuthorization(r, userCode, subject, scopes)
-		},
-		Deny: func(r *http.Request, userCode string) error {
-			return env.apiAuth.DenyDeviceAuthorization(r, userCode)
-		},
-		// Option B (issue 276): the shim — login state lives in a request
-		// header so the test fixture stays free of localauth + session
-		// dependencies. Real-httpauth session and CSRF middleware are
-		// covered by httpauth_test and device_verification_handler_test
-		// respectively; this test's job is wire-format drift across the
-		// four shipped PRs (#117 / #266 / #267 / #268).
-		SubjectFromRequest:   func(r *http.Request) string { return r.Header.Get(deviceTestSubjectHdr) },
-		CSRFTokenFromRequest: func(*http.Request) string { return deviceTestCSRFToken },
-	}
-	mux.HandleFunc("GET /device", verifier.Form)
-	mux.HandleFunc("POST /device", verifier.Submit)
-	mux.HandleFunc("GET /device/approve", verifier.Consent)
-	mux.HandleFunc("POST /device/approve", verifier.Decide)
-
 	mux.Handle("POST /api/token", env.apiAuth)
 
-	env.server = httptest.NewServer(mux)
+	// NewUnstartedServer so we know the server URL (and thus the
+	// VerificationURI) BEFORE the device-flow handlers are constructed.
+	// MountDeviceFlow takes the URI in its config and stamps it onto
+	// the DeviceAuthorizationHandler at mount time — no post-hoc
+	// mutation, no chicken-and-egg.
+	env.server = httptest.NewUnstartedServer(mux)
+	env.server.Start()
 	t.Cleanup(env.server.Close)
 
-	devAuthHandler.VerificationURI = env.server.URL + "/device"
+	apiauth.MountDeviceFlow(mux, apiauth.DeviceFlowMountConfig{
+		APIAuth:         env.apiAuth,
+		VerificationURI: env.server.URL + "/device",
+		Expiry:          env.expiry,
+		// Option B (issue 276): the shim — login state lives in a
+		// request header so the test fixture stays free of localauth +
+		// session dependencies. Real-httpauth session and CSRF
+		// middleware are covered by httpauth_test and
+		// device_verification_handler_test respectively; this test's
+		// job is wire-format drift across the four shipped device-flow
+		// PRs (#117 / #266 / #267 / #268).
+		SubjectFromRequest:   func(r *http.Request) string { return r.Header.Get(deviceTestSubjectHdr) },
+		CSRFTokenFromRequest: func(*http.Request) string { return deviceTestCSRFToken },
+		// VerifierMiddleware: nil — tests skip CSRF wrapping; the
+		// reference server wires httpauth.CSRFMiddleware.Protect here.
+	})
+
 	return env
 }
 

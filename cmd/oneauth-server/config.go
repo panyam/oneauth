@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -18,6 +19,53 @@ type Config struct {
 	JWT        JWTConfig        `yaml:"jwt"`
 	AdminAuth  AdminAuthConfig  `yaml:"admin_auth"`
 	TLS        TLSConfig        `yaml:"tls"`
+	DeviceFlow DeviceFlowConfig `yaml:"device_flow"`
+}
+
+// DeviceFlowConfig toggles and configures the RFC 8628 Device
+// Authorization Grant. When Enabled is false (default), the device-
+// flow routes are not mounted and the token endpoint refuses the
+// device_code grant. Setting Enabled wires:
+//
+//	POST /device/authorize  — the device-side wire endpoint
+//	GET  /device            — code entry form (CSRF-protected)
+//	POST /device            — submit code (CSRF-protected)
+//	GET  /device/approve    — consent screen (CSRF-protected)
+//	POST /device/approve    — approve / deny decision (CSRF-protected)
+//
+// AS metadata also advertises device_authorization_endpoint and the
+// grant_type so RFC 8414 discovery exposes the capability to clients.
+type DeviceFlowConfig struct {
+	// Enabled toggles the entire device-flow surface on. Default false
+	// — the routes are not mounted and AS metadata does not advertise
+	// the endpoint or grant type.
+	Enabled bool `yaml:"enabled"`
+
+	// Expiry overrides the RFC 8628 §3.4 recommended 15-minute
+	// authorization window. Format accepts Go duration syntax
+	// (e.g. "15m", "5m30s"). Zero/empty keeps the default.
+	Expiry time.Duration `yaml:"expiry"`
+
+	// Interval overrides the RFC 8628 §3.5 default 5-second polling
+	// interval the AS advertises to the device. Zero keeps the
+	// default.
+	Interval int `yaml:"interval"`
+
+	// Store backs the DeviceAuthorizationStore. memory (default) is
+	// fine for single-instance dev; production deployments choose
+	// fs / gorm / gae so authorizations survive restart. Mirrors the
+	// AppStoreConfig / KeyStoreConfig shape so operators see one
+	// pattern across all three.
+	Store DeviceAuthStoreConfig `yaml:"store"`
+}
+
+// DeviceAuthStoreConfig configures the DeviceAuthorizationStore
+// backend. Mirrors AppStoreConfig.
+type DeviceAuthStoreConfig struct {
+	Type string     `yaml:"type"` // memory (default), fs, gorm, gae
+	FS   FSConfig   `yaml:"fs"`
+	GORM GORMConfig `yaml:"gorm"`
+	GAE  GAEConfig  `yaml:"gae"`
 }
 
 // AppStoreConfig configures the AppRegistrationStore backing AppRegistrar
@@ -192,6 +240,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if len(cfg.JWT.ClaimsSupported) == 0 {
 		cfg.JWT.ClaimsSupported = defaultClaimsSupported()
+	}
+	if cfg.DeviceFlow.Enabled && cfg.DeviceFlow.Store.Type == "" {
+		cfg.DeviceFlow.Store.Type = "memory"
 	}
 
 	return &cfg, nil
