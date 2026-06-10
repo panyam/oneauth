@@ -402,7 +402,32 @@ OAuth Client Capabilities (parallel track)
 </tr>
 <tr>
 <td>267</td>
-<td>RFC 8628 §3.3 user-facing consent UI. <code>apiauth.DeviceVerificationHandler</code> serves the four HTML pages (GET/POST /device for code entry, GET/POST /device/approve for consent + decision). Built-in plain templates overridable via <code>DeviceTemplates</code>. Narrow function-type fields for CSRF + session integration keep <code>apiauth/</code> free of an <code>httpauth/</code> dep. Closes the device-flow arc end-to-end.</td>
+<td>RFC 8628 §3.3 user-facing consent UI. <code>apiauth.DeviceVerificationHandler</code> serves the four HTML pages (GET/POST /device for code entry, GET/POST /device/approve for consent + decision). Built-in plain templates overridable via <code>DeviceTemplates</code>. Narrow function-type fields for CSRF + session integration keep <code>apiauth/</code> free of an <code>httpauth/</code> dep.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>269</td>
+<td>RFC 8628 GORM backend — <code>stores/gorm.DeviceAuthStore</code> over SQLite / Postgres / MySQL, AutoMigrate-integrated. Mirrors the AppRegistrationStore backend layout (separate <code>device_code</code> PK + <code>user_code_upper</code> secondary index for case- and dash-insensitive lookup).</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>270</td>
+<td>RFC 8628 GAE Datastore backend — <code>stores/gae.GAEDeviceAuthStore</code> with namespacing, JSON-blob payloads, query-based <code>user_code_upper</code> lookup. Completes the four-backend matrix for <code>core.DeviceAuthorizationStore</code> (memory / fs / gorm / gae).</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>281</td>
+<td><code>core.upperUserCode</code> promoted to exported <code>core.UpperUserCode</code>. Four backend copies (core, fs, gorm, gae) collapse to one source of truth. Three redundant drift-catch unit tests removed (the core test now covers all callers). Net <code>-71 / +32</code> LOC.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>282</td>
+<td><code>deviceauthtest/</code> shared contract suite mirrors <code>appstoretest/</code> precedent — <code>RunAll(t, factory)</code> runs 10 canonical scenarios against every <code>core.DeviceAuthorizationStore</code> backend. New <code>Backend{Store, Reopen}</code> factory shape expresses <code>RestartPersists</code> uniformly across persistent + in-memory backends. Each backend&rsquo;s test file collapses to a single <code>Test*_Contract</code> call. Net <code>-525 / +329</code> LOC.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>276</td>
+<td>Device-flow arc closed end-to-end: (a) new <code>apiauth.MountDeviceFlow</code> helper stamps the five RFC 8628 routes on an <code>http.ServeMux</code> (mirrors <code>apiauth.MountASMetadata</code>), (b) full e2e test in <code>tests/e2e/device_flow_test.go</code> walks the entire arc with 5 scenarios including issue-266 confidential-auth pin, (c) reference server (<code>cmd/oneauth-server</code>) wires the flow behind a yaml-toggled <code>device_flow:</code> block with four-backend <code>buildDeviceAuthStore</code>. Both production server and e2e test dogfood the same helper.</td>
 <td>Merged</td>
 </tr>
 <tr>
