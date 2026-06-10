@@ -83,7 +83,7 @@ func (s *DeviceAuthStore) CreateDeviceAuthorization(ctx context.Context, req *co
 	if a.DeviceCode == "" || a.UserCode == "" {
 		return nil, errors.New("CreateDeviceAuthorization: device_code and user_code are required")
 	}
-	upper := upperUserCode(a.UserCode)
+	upper := core.UpperUserCode(a.UserCode)
 
 	// Pre-check both uniqueness constraints so we surface the same error
 	// message the in-memory store uses, regardless of which driver's
@@ -140,7 +140,7 @@ func (s *DeviceAuthStore) GetByUserCode(ctx context.Context, req *core.GetByUser
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
 	var model DeviceAuthorizationModel
-	if err := s.db.WithContext(ctx).First(&model, "user_code_upper = ?", upperUserCode(req.UserCode)).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "user_code_upper = ?", core.UpperUserCode(req.UserCode)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, core.ErrDeviceAuthorizationNotFound
 		}
@@ -158,7 +158,7 @@ func (s *DeviceAuthStore) ApproveDeviceAuthorization(ctx context.Context, req *c
 	if req == nil || req.UserCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
-	upper := upperUserCode(req.UserCode)
+	upper := core.UpperUserCode(req.UserCode)
 
 	var model DeviceAuthorizationModel
 	tx := s.db.WithContext(ctx).Where(
@@ -189,7 +189,7 @@ func (s *DeviceAuthStore) DenyDeviceAuthorization(ctx context.Context, req *core
 	if req == nil || req.UserCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
-	upper := upperUserCode(req.UserCode)
+	upper := core.UpperUserCode(req.UserCode)
 
 	result := s.db.WithContext(ctx).Model(&DeviceAuthorizationModel{}).
 		Where("user_code_upper = ? AND status = ?", upper, string(core.DeviceAuthorizationStatusPending)).
@@ -303,21 +303,3 @@ func modelToDeviceAuth(m *DeviceAuthorizationModel) *core.DeviceAuthorization {
 	return out
 }
 
-// upperUserCode normalizes a user_code for case-insensitive lookup.
-// Mirrors core.upperUserCode (private) and stores/fs.upperUserCode —
-// keeping the rule in sync is enforced by tests; if any consumer
-// drifts the contract breaks loudly.
-func upperUserCode(s string) string {
-	out := make([]byte, 0, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c == '-' || c == ' ' {
-			continue
-		}
-		if c >= 'a' && c <= 'z' {
-			c -= 'a' - 'A'
-		}
-		out = append(out, c)
-	}
-	return string(out)
-}

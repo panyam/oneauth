@@ -270,7 +270,7 @@ func (s *InMemoryDeviceAuthorizationStore) CreateDeviceAuthorization(_ context.C
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	upper := upperUserCode(a.UserCode)
+	upper := UpperUserCode(a.UserCode)
 	if _, ok := s.byDeviceCode[a.DeviceCode]; ok {
 		return nil, errors.New("CreateDeviceAuthorization: device_code collision")
 	}
@@ -303,7 +303,7 @@ func (s *InMemoryDeviceAuthorizationStore) GetByUserCode(_ context.Context, req 
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	dc, ok := s.byUserCodeUpper[upperUserCode(req.UserCode)]
+	dc, ok := s.byUserCodeUpper[UpperUserCode(req.UserCode)]
 	if !ok {
 		return nil, ErrDeviceAuthorizationNotFound
 	}
@@ -321,7 +321,7 @@ func (s *InMemoryDeviceAuthorizationStore) ApproveDeviceAuthorization(_ context.
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	dc, ok := s.byUserCodeUpper[upperUserCode(req.UserCode)]
+	dc, ok := s.byUserCodeUpper[UpperUserCode(req.UserCode)]
 	if !ok {
 		return nil, ErrDeviceAuthorizationNotFound
 	}
@@ -344,7 +344,7 @@ func (s *InMemoryDeviceAuthorizationStore) DenyDeviceAuthorization(_ context.Con
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	dc, ok := s.byUserCodeUpper[upperUserCode(req.UserCode)]
+	dc, ok := s.byUserCodeUpper[UpperUserCode(req.UserCode)]
 	if !ok {
 		return nil, ErrDeviceAuthorizationNotFound
 	}
@@ -385,7 +385,7 @@ func (s *InMemoryDeviceAuthorizationStore) DeleteDeviceAuthorization(_ context.C
 		return nil, ErrDeviceAuthorizationNotFound
 	}
 	delete(s.byDeviceCode, req.DeviceCode)
-	delete(s.byUserCodeUpper, upperUserCode(a.UserCode))
+	delete(s.byUserCodeUpper, UpperUserCode(a.UserCode))
 	return &DeleteDeviceAuthorizationResponse{}, nil
 }
 
@@ -397,17 +397,29 @@ func (s *InMemoryDeviceAuthorizationStore) CleanupExpired(_ context.Context, _ *
 	for dc, a := range s.byDeviceCode {
 		if a.IsExpired(now) {
 			delete(s.byDeviceCode, dc)
-			delete(s.byUserCodeUpper, upperUserCode(a.UserCode))
+			delete(s.byUserCodeUpper, UpperUserCode(a.UserCode))
 			removed++
 		}
 	}
 	return &CleanupExpiredDeviceAuthsResponse{Removed: removed}, nil
 }
 
-// upperUserCode normalizes a user_code for case-insensitive comparison.
-// The display form keeps a dash (XXXX-XXXX) but the store key strips it
-// so users can paste either form.
-func upperUserCode(s string) string {
+// UpperUserCode normalizes an RFC 8628 user_code to the canonical
+// store-key form: dashes and spaces stripped, ASCII letters folded to
+// upper case. The display form keeps a dash (XXXX-XXXX) so the printable
+// code stays readable on the device's screen, but every store backend
+// indexes on the normalized form so the user can paste either variant
+// into the verification page and still hit the same record.
+//
+// RFC 8628 §6.1 leaves user-facing display formatting to the
+// verification UI; the server-side normalization rule is OneAuth's
+// contract — every DeviceAuthorizationStore implementation calls this
+// helper on both the write path (Create) and every read path
+// (GetByUserCode / Approve / Deny). Adding a new backend? Use this
+// function — do not roll your own.
+//
+// Pure / safe for concurrent use.
+func UpperUserCode(s string) string {
 	out := make([]byte, 0, len(s))
 	for i := 0; i < len(s); i++ {
 		c := s[i]

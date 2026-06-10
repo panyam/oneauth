@@ -47,7 +47,7 @@ func (s *FSDeviceAuthorizationStore) deviceCodePath(deviceCode string) string {
 }
 
 func (s *FSDeviceAuthorizationStore) userCodePath(userCode string) string {
-	upper := upperUserCode(userCode)
+	upper := core.UpperUserCode(userCode)
 	h := sha256.Sum256([]byte(upper))
 	return filepath.Join(s.dir(), "uc-"+hex.EncodeToString(h[:])+".json")
 }
@@ -308,21 +308,3 @@ func readJSON(path string, v any) error {
 	return json.Unmarshal(b, v)
 }
 
-// upperUserCode mirrors core's normalization — exported via the upper
-// name in the core package, but redeclared here to avoid importing the
-// package-private function. Keeping the rules in sync between the two
-// implementations is enforced by tests.
-func upperUserCode(s string) string {
-	out := make([]byte, 0, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c == '-' || c == ' ' {
-			continue
-		}
-		if c >= 'a' && c <= 'z' {
-			c -= 'a' - 'A'
-		}
-		out = append(out, c)
-	}
-	return string(out)
-}
