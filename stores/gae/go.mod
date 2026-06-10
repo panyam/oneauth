@@ -5,7 +5,6 @@ go 1.26.4
 require (
 	cloud.google.com/go/datastore v1.21.0
 	github.com/panyam/oneauth v0.0.70
-	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.46.0
 	google.golang.org/api v0.259.0
 )
@@ -26,6 +25,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
 	github.com/googleapis/gax-go/v2 v2.16.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
