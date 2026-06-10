@@ -216,18 +216,3 @@ func TestGAEDeviceAuthStore_RestartPersists(t *testing.T) {
 	assert.Equal(t, core.DeviceAuthorizationStatusApproved, g.Authorization.Status)
 	assert.Equal(t, "alice", g.Authorization.ApprovedSubject)
 }
-
-func TestGAEUpperUserCode_NormalizesCaseAndStripsDashes(t *testing.T) {
-	// Drift catch — this helper duplicates the rule in core + stores/fs +
-	// stores/gorm. Any divergence breaks the GetByUserCode contract
-	// loudly. Consolidation tracked as a follow-up to issue 270.
-	cases := []struct{ in, want string }{
-		{"WDJB-MJHT", "WDJBMJHT"},
-		{"wdjb mjht", "WDJBMJHT"},
-		{"WdJb-MjHt", "WDJBMJHT"},
-		{"", ""},
-	}
-	for _, tc := range cases {
-		assert.Equal(t, tc.want, upperUserCode(tc.in), tc.in)
-	}
-}

@@ -103,7 +103,7 @@ func (s *GAEDeviceAuthStore) CreateDeviceAuthorization(ctx context.Context, req 
 	if a.DeviceCode == "" || a.UserCode == "" {
 		return nil, errors.New("CreateDeviceAuthorization: device_code and user_code are required")
 	}
-	upper := upperUserCode(a.UserCode)
+	upper := core.UpperUserCode(a.UserCode)
 
 	var probe DeviceAuthorizationEntity
 	if err := s.client.Get(ctx, s.deviceKey(a.DeviceCode), &probe); err == nil {
@@ -160,7 +160,7 @@ func (s *GAEDeviceAuthStore) GetByUserCode(ctx context.Context, req *core.GetByU
 	}
 	q := datastore.NewQuery(KindDeviceAuthorization).
 		Namespace(s.namespace).
-		FilterField("user_code_upper", "=", upperUserCode(req.UserCode)).
+		FilterField("user_code_upper", "=", core.UpperUserCode(req.UserCode)).
 		Limit(1)
 	it := s.client.Run(ctx, q)
 	var entity DeviceAuthorizationEntity
@@ -183,7 +183,7 @@ func (s *GAEDeviceAuthStore) ApproveDeviceAuthorization(ctx context.Context, req
 	if req == nil || req.UserCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
-	upper := upperUserCode(req.UserCode)
+	upper := core.UpperUserCode(req.UserCode)
 
 	var out core.DeviceAuthorization
 	_, txErr := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
@@ -228,7 +228,7 @@ func (s *GAEDeviceAuthStore) DenyDeviceAuthorization(ctx context.Context, req *c
 	if req == nil || req.UserCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
-	upper := upperUserCode(req.UserCode)
+	upper := core.UpperUserCode(req.UserCode)
 
 	_, txErr := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		key, found, err := s.findPendingByUserCodeTx(ctx, tx, upper)
@@ -403,21 +403,3 @@ func entityToDeviceAuth(e *DeviceAuthorizationEntity) *core.DeviceAuthorization 
 	}
 }
 
-// upperUserCode normalizes a user_code for case-insensitive lookup.
-// Duplicated across core, stores/fs, stores/gorm, and stores/gae —
-// drift between the four breaks the GetByUserCode contract loudly.
-// Consolidation tracked as a follow-up to issue 270.
-func upperUserCode(s string) string {
-	out := make([]byte, 0, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c == '-' || c == ' ' {
-			continue
-		}
-		if c >= 'a' && c <= 'z' {
-			c -= 'a' - 'A'
-		}
-		out = append(out, c)
-	}
-	return string(out)
-}

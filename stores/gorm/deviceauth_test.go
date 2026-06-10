@@ -171,17 +171,3 @@ func TestGORMDeviceAuthStore_RestartPersists(t *testing.T) {
 	assert.Equal(t, core.DeviceAuthorizationStatusApproved, g.Authorization.Status)
 	assert.Equal(t, "alice", g.Authorization.ApprovedSubject)
 }
-
-func TestUpperUserCode_NormalizesCaseAndStripsDashes(t *testing.T) {
-	// Drift catch: this helper duplicates the rule in core and
-	// stores/fs; if any of them grow apart the contract breaks loudly.
-	cases := []struct{ in, want string }{
-		{"WDJB-MJHT", "WDJBMJHT"},
-		{"wdjb mjht", "WDJBMJHT"},
-		{"WdJb-MjHt", "WDJBMJHT"},
-		{"", ""},
-	}
-	for _, tc := range cases {
-		assert.Equal(t, tc.want, upperUserCode(tc.in), tc.in)
-	}
-}

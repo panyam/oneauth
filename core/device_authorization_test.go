@@ -154,6 +154,6 @@ func TestUpperUserCode_NormalizesCaseAndStripsDashes(t *testing.T) {
 		{"", ""},
 	}
 	for _, tc := range cases {
-		assert.Equal(t, tc.want, upperUserCode(tc.in), tc.in)
+		assert.Equal(t, tc.want, UpperUserCode(tc.in), tc.in)
 	}
 }
