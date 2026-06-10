@@ -55,3 +55,18 @@ tls:
   enabled: false
   # cert: /etc/ssl/cert.pem
   # key: /etc/ssl/key.pem
+
+# RFC 8628 Device Authorization Grant (optional, off by default).
+# When enabled, mounts /device/authorize plus the /device + /device/approve
+# user-facing verification UI, and advertises device_authorization_endpoint
+# in AS metadata. CLI clients (oneauth token device, gcloud, GitHub CLI)
+# can then complete OAuth without a local browser.
+device_flow:
+  enabled: ${DEVICE_FLOW_ENABLED:-false}
+  # expiry: 15m   # RFC 8628 §3.4 default (15 minutes)
+  # interval: 5   # RFC 8628 §3.5 default (5 seconds)
+  store:
+    type: "${DEVICE_AUTH_STORE_TYPE:-memory}"   # memory (default), fs, gorm, gae
+    fs:
+      path: "${DEVICE_AUTH_STORE_PATH:-./data/device}"
+    # gorm and gae reuse the keystore.gorm / keystore.gae shape

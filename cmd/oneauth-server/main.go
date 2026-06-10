@@ -317,14 +317,15 @@ func main() {
 		}
 		baseURL = fmt.Sprintf("%s://%s:%s", scheme, cfg.Server.Host, cfg.Server.Port)
 	}
-	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
+
+	grantTypes := []string{"password", "refresh_token", "client_credentials"}
+	asMeta := &apiauth.ASServerMetadata{
 		Issuer:                             baseURL,
 		TokenEndpoint:                      baseURL + "/api/token",
 		JWKSURI:                            baseURL + "/.well-known/jwks.json",
 		IntrospectionEndpoint:              baseURL + "/oauth/introspect",
 		RevocationEndpoint:                 baseURL + "/oauth/revoke",
 		RegistrationEndpoint:               baseURL + "/apps/dcr",
-		GrantTypesSupported:                        []string{"password", "refresh_token", "client_credentials"},
 		ResponseTypesSupported:                     []string{"token"},
 		TokenEndpointAuthMethods:                   []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256"},
@@ -333,7 +334,42 @@ func main() {
 		ScopesSupported:                    cfg.JWT.ScopesSupported,
 		ClaimsSupported:                    cfg.JWT.ClaimsSupported,
 		AuthorizationDetailsTypesSupported: cfg.JWT.AuthorizationDetailsTypes,
-	})
+	}
+
+	// Device Authorization Grant (RFC 8628), opt-in via device_flow.enabled.
+	// Mount the routes, point APIAuth at the device store + app store
+	// (the latter drives RFC 8628 §3.4 confidential-client enforcement
+	// on redemption — issue 266), and advertise the endpoint + grant
+	// type in AS metadata so discovery surfaces the capability.
+	if cfg.DeviceFlow.Enabled {
+		deviceStore, err := buildDeviceAuthStore(cfg, db)
+		if err != nil {
+			log.Fatalf("Failed to create DeviceAuthStore: %v", err)
+		}
+		apiAuth.DeviceAuthStore = deviceStore
+		apiAuth.AppStore = appStore
+
+		apiauth.MountDeviceFlow(mux, apiauth.DeviceFlowMountConfig{
+			APIAuth:                         apiAuth,
+			VerificationURI:                 baseURL + "/device",
+			VerificationURICompleteTemplate: baseURL + "/device?user_code=%s",
+			Expiry:                          cfg.DeviceFlow.Expiry,
+			Interval:                        cfg.DeviceFlow.Interval,
+			SubjectFromRequest: func(r *http.Request) string {
+				return getUserIDFromCookie(r, cfg.JWT.SecretKey)
+			},
+			CSRFTokenFromRequest: httpauth.CSRFToken,
+			LoginRedirectURL:     "/auth/login",
+			VerifierMiddleware:   csrf.Protect,
+		})
+
+		asMeta.DeviceAuthorizationEndpoint = baseURL + "/device/authorize"
+		grantTypes = append(grantTypes, apiauth.DeviceCodeGrantType)
+		log.Println("RFC 8628 device flow enabled (/device/authorize + /device + /device/approve)")
+	}
+	asMeta.GrantTypesSupported = grantTypes
+
+	apiauth.MountASMetadata(mux, asMeta)
 
 	addr := cfg.Server.Host + ":" + cfg.Server.Port
 	log.Printf("oneauth-server listening on %s (keystore=%s, user_stores=%s, auth=%s)",
@@ -576,6 +612,50 @@ func buildAppStore(cfg *Config, sharedDB *gorm.DB) (core.AppRegistrationStore, e
 
 	default:
 		return nil, fmt.Errorf("unknown app_store type: %s", cfg.AppStore.Type)
+	}
+}
+
+// buildDeviceAuthStore constructs the DeviceAuthorizationStore backing
+// the RFC 8628 device-grant flow. Mirrors buildAppStore. Returns
+// (store, nil) on success; only invoked when cfg.DeviceFlow.Enabled is
+// true so callers can rely on a non-nil return.
+func buildDeviceAuthStore(cfg *Config, sharedDB *gorm.DB) (core.DeviceAuthorizationStore, error) {
+	sc := cfg.DeviceFlow.Store
+	switch sc.Type {
+	case "memory":
+		log.Println("Using in-memory DeviceAuthStore (device authorizations lost on restart)")
+		return core.NewInMemoryDeviceAuthorizationStore(), nil
+
+	case "fs":
+		log.Printf("Using filesystem DeviceAuthStore at %s", sc.FS.Path)
+		return fsstore.NewFSDeviceAuthorizationStore(sc.FS.Path), nil
+
+	case "gorm":
+		db := sharedDB
+		if db == nil || cfg.KeyStore.GORM.DSN != sc.GORM.DSN || cfg.KeyStore.GORM.Driver != sc.GORM.Driver {
+			fresh, err := openGORM(sc.GORM)
+			if err != nil {
+				return nil, err
+			}
+			db = fresh
+		}
+		if err := gormstore.AutoMigrate(db); err != nil {
+			return nil, err
+		}
+		log.Printf("Using GORM DeviceAuthStore (driver=%s)", sc.GORM.Driver)
+		return gormstore.NewDeviceAuthStore(db), nil
+
+	case "gae":
+		ctx := context.Background()
+		client, err := datastore.NewClient(ctx, sc.GAE.Project)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("Using GAE Datastore DeviceAuthStore (project=%s, namespace=%s)", sc.GAE.Project, sc.GAE.Namespace)
+		return gaestore.NewDeviceAuthStore(client, sc.GAE.Namespace), nil
+
+	default:
+		return nil, fmt.Errorf("unknown device_flow.store type: %s", sc.Type)
 	}
 }
 
