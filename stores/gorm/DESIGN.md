@@ -1,6 +1,6 @@
 # gorm
 
-GORM/SQL-backed implementations of every oneauth store interface — `KeyStorage`, `KidStorage`, `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`, `AppRegistrationStore`, `RefreshTokenStore`, `APIKeyStore`, and the localauth verification-token store — all wired on the project-wide gRPC-shape contract `MethodName(ctx context.Context, req *XRequest) (*XResponse, error)` and all routed through `db.WithContext(ctx)` so caller cancellation propagates into the SQL driver. A single `AutoMigrate` runs every migration centrally; consumers who don't need a relational backend pay nothing because `stores/gorm/` lives in its own sub-module gated on `!wasm`.
+GORM/SQL-backed implementations of every oneauth store interface — `KeyStorage`, `KidStorage`, `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`, `AppRegistrationStore`, `RefreshTokenStore`, `APIKeyStore`, `DeviceAuthorizationStore`, and the localauth verification-token store — all wired on the project-wide gRPC-shape contract `MethodName(ctx context.Context, req *XRequest) (*XResponse, error)` and all routed through `db.WithContext(ctx)` so caller cancellation propagates into the SQL driver. A single `AutoMigrate` runs every migration centrally; consumers who don't need a relational backend pay nothing because `stores/gorm/` lives in its own sub-module gated on `!wasm`.
 
 Three design moves keep the surface portable. (1) JSON columns are encoded via custom `driver.Valuer`/`Scanner` types (`JSONMap`, `StringSlice`, `AuthorizationDetailsJSON`) on the older models, or via GORM's built-in `serializer:json` tag on the newer `AppRegistrationModel` — both avoid DB-specific JSONB helpers, so the same schema runs on SQLite for tests and Postgres for production. (2) Refresh tokens are persisted hash-only with the raw value held in memory (`gorm:"-"` on `Token`), and rotation runs inside `db.Transaction` for atomic revoke-old + create-new with the family preserved — this is what makes RFC 6749 §10.4 reuse detection safe under concurrent rotation. (3) The username store layers two concurrency mechanisms: PK uniqueness on `normalized_username` catches insert races, and a `Version` column + `WHERE version = ?` updates catch update races; callers retry on conflict.
 
@@ -36,6 +36,7 @@ Three design moves keep the surface portable. (1) JSON columns are encoded via c
 | `SigningKeyModel` | struct | GORM model for per-client signing keys, keyed by `ClientID` with a unique `Kid` index. | Stores symmetric/asymmetric key bytes + algorithm + kid; unique kid index supports JWKS lookup. |
 | `KidKeyModel` | struct | GORM model for the kid grace cache, keyed by `Kid` with a nullable `ExpiresAt`. | Nullable expiry avoids the messy `0001-01-01` zero-date some SQL dialects produce; matches the in-memory `KidStore` contract. |
 | `AppRegistrationModel` | struct | GORM model for app registrations (RFC 7591/7592) including `RegistrationAccessToken` + `RegistrationClientURI`. | Slice fields use `serializer:json` so it works identically across SQLite/MySQL/Postgres without DB-specific JSONB quirks. |
+| `DeviceAuthorizationModel` | struct | GORM model for RFC 8628 device authorizations, keyed by `DeviceCode` with indexed `UserCodeUpper` (case/dash-normalized lookup), `ClientID`, and `ExpiresAt`. Mirrors `core.DeviceAuthorization`. | Denormalized `UserCodeUpper` over a functional index keeps the schema portable across SQLite/MySQL/Postgres. `LastPolledAt` is nullable so a never-polled record doesn't drag the zero-date sentinel through the DB. |
 | `GORMUser` | struct | Thin wrapper around `UserModel` that satisfies `accounts.User` (`Id`, `Profile`). | Keeps `accounts.User` interface-only; GORM model stays a pure persistence struct. |
 | `UserStore` | struct | `accounts.UserStore` over GORM. | `UserStore.CreateUser` / `UserStore.GetUserById` / `UserStore.SaveUser` on the `(ctx, *Req)` shape; returns `"user not found: <id>"` on miss. |
 | `IdentityStore` | struct | `accounts.IdentityStore` over GORM with optional create-on-miss. | `IdentityStore.GetIdentity(CreateIfMissing=true)` is the upsert path used during signup/OAuth callback. |
@@ -47,6 +48,7 @@ Three design moves keep the surface portable. (1) JSON columns are encoded via c
 | `KeyStore` | struct | `keys.KeyStorage` over GORM (`PutKey`/`DeleteKey`/`GetKey`/`GetKeyByKid`/`ListKeyIDs`). | `KeyStore.PutKey` calls `utils.ComputeKid` automatically if the caller does not supply a kid; unique kid index enforced at the DB. |
 | `KidStore` | struct | `keys.KidStorage` over GORM (`Add` upsert, `Remove` idempotent, `GetKeyByKid` filters expired, `CleanExpired`). | `KidStore.GetKey` always returns `ErrKeyNotFound` because `KidStorage` is kid-indexed (not client-indexed) by design. |
 | `AppStore` | struct | `admin.AppRegistrationStore` over GORM (`SaveApp`/`GetApp`/`ListApps`/`DeleteApp`). | Multi-node compatible (DB is source-of-truth); `AppStore.DeleteApp` returns `admin.ErrAppNotFound` on zero rows affected. |
+| `DeviceAuthStore` | struct | `core.DeviceAuthorizationStore` over GORM (all 8 methods: Create / GetByDeviceCode / GetByUserCode / Approve / Deny / UpdatePollingState / Delete / CleanupExpired). | Multi-node compatible; pre-checks both uniqueness constraints before insert so collision errors carry the same wording as `core.InMemoryDeviceAuthorizationStore`. `CleanupExpired` is a single `DELETE … WHERE expires_at <= now` against the indexed column. |
 | `errClientIDRequired` | var | Sentinel error returned by `AppStore.SaveApp` when `ClientID` is empty. | Wording (`"AppRegistration.ClientID required"`) matches `InMemoryAppStore` so the shared appstoretest contract suite passes uniformly across backends. |
 
 ## Flows
@@ -59,7 +61,7 @@ sequenceDiagram
     participant AutoMigrate
     participant DB
     App->>AutoMigrate: AutoMigrate(db)
-    AutoMigrate->>DB: db.AutoMigrate(UserModel, IdentityModel, ChannelModel, VerificationTokenModel, RefreshTokenModel, APIKeyModel, UsernameModel, SigningKeyModel, KidKeyModel, AppRegistrationModel)
+    AutoMigrate->>DB: db.AutoMigrate(UserModel, IdentityModel, ChannelModel, VerificationTokenModel, RefreshTokenModel, APIKeyModel, UsernameModel, SigningKeyModel, KidKeyModel, AppRegistrationModel, DeviceAuthorizationModel)
     DB-->>AutoMigrate: CREATE TABLE / ADD COLUMN / ADD INDEX statements
     AutoMigrate-->>App: nil (or migration error)
     App->>App: NewUserStore(db), NewRefreshTokenStore(db), NewAppStore(db), ...
