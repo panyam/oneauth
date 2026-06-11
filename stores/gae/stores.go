@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -69,6 +68,12 @@ func (s *UserStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
+// CreateUser inserts a new user keyed by req.UserID. The caller picks the
+// ID — this backend doesn't generate one — and re-creating the same ID
+// silently overwrites (Datastore's Put is upsert-shaped, not insert-only).
+// CreatedAt and UpdatedAt are stamped from time.Now() on the way in; the
+// returned GAEUser mirrors the persisted entity so callers don't have to
+// re-read.
 func (s *UserStore) CreateUser(ctx context.Context, req *accounts.CreateUserRequest) (*accounts.CreateUserResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("CreateUser: req is required")
@@ -102,12 +107,17 @@ func (s *UserStore) CreateUser(ctx context.Context, req *accounts.CreateUserRequ
 	}}, nil
 }
 
+// GetUserById returns the user for req.UserID. Absent users surface as
+// fmt.Errorf("user not found: %s", req.UserID) — not a sentinel — diverging
+// from the keys.ErrKeyNotFound / core.ErrAppNotFound pattern used elsewhere
+// in this package. Callers that need to distinguish "missing" from other
+// failures currently match on the string prefix; introducing a sentinel is
+// tracked separately (it's an interface change, not a doc fix).
 func (s *UserStore) GetUserById(ctx context.Context, req *accounts.GetUserByIDRequest) (*accounts.GetUserByIDResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetUserById: req is required")
 	}
 	key := s.namespacedKey(KindUser, req.UserID)
-	log.Println("UserStore Key: ", key, KindUser, req.UserID)
 	var entity UserEntity
 	if err := s.client.Get(ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
@@ -130,6 +140,12 @@ func (s *UserStore) GetUserById(ctx context.Context, req *accounts.GetUserByIDRe
 	}}, nil
 }
 
+// SaveUser writes req.User, preserving CreatedAt across overwrites (re-saving
+// an existing user keeps the original create time and only bumps UpdatedAt).
+// IsActive defaults to true unless the concrete *GAEUser carries an explicit
+// false — the accounts.User interface has no Active() getter, so non-GAEUser
+// implementations always end up active. Callers that need a different
+// default should pass a *GAEUser.
 func (s *UserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest) (*accounts.SaveUserResponse, error) {
 	if req == nil || req.User == nil {
 		return nil, fmt.Errorf("SaveUser: req.User is required")
@@ -197,6 +213,13 @@ func (s *IdentityStore) identityKeyName(idType, value string) string {
 	return idType + ":" + value
 }
 
+// GetIdentity returns the identity for (req.IdentityType, req.IdentityValue),
+// or fmt.Errorf("identity not found") when absent. With req.CreateIfMissing
+// set, an unbound identity (UserID="") is created in the same call and
+// NewCreated is set in the response — pairs with the signup flow's
+// "ensure-or-create" need without forcing two round trips. The entity key
+// derives from "<type>:<value>" so identities of different types with the
+// same value (e.g., email:foo@bar vs phone:foo@bar) are distinct rows.
 func (s *IdentityStore) GetIdentity(ctx context.Context, req *accounts.GetIdentityRequest) (*accounts.GetIdentityResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetIdentity: req is required")
@@ -232,6 +255,11 @@ func (s *IdentityStore) GetIdentity(ctx context.Context, req *accounts.GetIdenti
 	return &accounts.GetIdentityResponse{Identity: entity.ToIdentity()}, nil
 }
 
+// SaveIdentity writes req.Identity unconditionally — used after callers have
+// mutated fields not covered by the dedicated SetUserForIdentity /
+// MarkIdentityVerified helpers. Does NOT bump Version; the dedicated helpers
+// do that under transaction. Callers that need version increments should
+// reach for the appropriate helper instead.
 func (s *IdentityStore) SaveIdentity(ctx context.Context, req *accounts.SaveIdentityRequest) (*accounts.SaveIdentityResponse, error) {
 	if req == nil || req.Identity == nil {
 		return nil, fmt.Errorf("SaveIdentity: req.Identity is required")
@@ -245,6 +273,11 @@ func (s *IdentityStore) SaveIdentity(ctx context.Context, req *accounts.SaveIden
 	return &accounts.SaveIdentityResponse{}, nil
 }
 
+// SetUserForIdentity binds an identity to a user. Runs under a Datastore
+// transaction so two concurrent calls can't observe a stale UserID and race
+// each other; Version is incremented on every write for optimistic-lock
+// tooling downstream. Identity must already exist — there is no
+// CreateIfMissing here; pair with GetIdentity to provision first.
 func (s *IdentityStore) SetUserForIdentity(ctx context.Context, req *accounts.SetUserForIdentityRequest) (*accounts.SetUserForIdentityResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("SetUserForIdentity: req is required")
@@ -268,6 +301,10 @@ func (s *IdentityStore) SetUserForIdentity(ctx context.Context, req *accounts.Se
 	return &accounts.SetUserForIdentityResponse{}, nil
 }
 
+// MarkIdentityVerified flips Verified=true and bumps Version under a
+// transaction. Idempotent at the result level — re-marking an already-verified
+// identity still succeeds and still bumps Version (useful for audit trails
+// that want to count verification attempts).
 func (s *IdentityStore) MarkIdentityVerified(ctx context.Context, req *accounts.MarkIdentityVerifiedRequest) (*accounts.MarkIdentityVerifiedResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("MarkIdentityVerified: req is required")
@@ -291,6 +328,11 @@ func (s *IdentityStore) MarkIdentityVerified(ctx context.Context, req *accounts.
 	return &accounts.MarkIdentityVerifiedResponse{}, nil
 }
 
+// GetUserIdentities returns every identity bound to req.UserID. Backed by
+// an indexed query on the user_id property — unlike most properties in this
+// package, user_id is intentionally indexed because this lookup is on the
+// hot path of "show me all the ways this user can log in." Returns an empty
+// slice (not an error) for a user with no identities yet.
 func (s *IdentityStore) GetUserIdentities(ctx context.Context, req *accounts.GetUserIdentitiesRequest) (*accounts.GetUserIdentitiesResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetUserIdentities: req is required")
@@ -345,6 +387,13 @@ func (s *ChannelStore) channelKeyName(provider, identityKey string) string {
 	return provider + ":" + identityKey
 }
 
+// GetChannel returns the (provider, identity) channel, or fmt.Errorf("channel
+// not found") when absent. With req.CreateIfMissing set, an empty channel is
+// created in the same call and NewCreated is set — pairs with provider-bind
+// flows ("first time logging in with Google") that want a "fetch or
+// provision" step without a separate write. The entity key derives from
+// "<provider>:<identityKey>" so the same identity bound to two providers
+// (e.g., Google and GitHub) is two distinct rows.
 func (s *ChannelStore) GetChannel(ctx context.Context, req *accounts.GetChannelRequest) (*accounts.GetChannelResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetChannel: req is required")
@@ -405,6 +454,12 @@ func (s *ChannelStore) GetChannel(ctx context.Context, req *accounts.GetChannelR
 	}}, nil
 }
 
+// SaveChannel upserts req.Channel and increments Version each call.
+// CreatedAt is preserved across overwrites; on first write it's stamped from
+// time.Now() and Version starts at 1. Credentials and Profile maps are
+// JSON-encoded into noindex byte properties — Datastore's 1500-byte index
+// limit makes indexing them impractical, and nothing queries by their
+// contents anyway.
 func (s *ChannelStore) SaveChannel(ctx context.Context, req *accounts.SaveChannelRequest) (*accounts.SaveChannelResponse, error) {
 	if req == nil || req.Channel == nil {
 		return nil, fmt.Errorf("SaveChannel: req.Channel is required")
@@ -449,6 +504,10 @@ func (s *ChannelStore) SaveChannel(ctx context.Context, req *accounts.SaveChanne
 	return &accounts.SaveChannelResponse{}, nil
 }
 
+// GetChannelsByIdentity returns every channel for a given identity_key
+// across all providers — backed by an indexed query on the identity_key
+// property. Returns an empty slice (not an error) when nothing matches.
+// Order is unspecified.
 func (s *ChannelStore) GetChannelsByIdentity(ctx context.Context, req *accounts.GetChannelsByIdentityRequest) (*accounts.GetChannelsByIdentityResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetChannelsByIdentity: req is required")
@@ -517,6 +576,11 @@ func (s *TokenStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
+// CreateToken mints a fresh verification token via core.GenerateSecureToken
+// (the token is the entity key, so collisions would manifest as overwrites;
+// the secure-random width makes collision negligible). ExpiresAt is computed
+// from req.ExpiryDuration at insert time — the persisted absolute time, not
+// the relative duration, drives GetToken's expiry check.
 func (s *TokenStore) CreateToken(ctx context.Context, req *localauth.CreateVerificationTokenRequest) (*localauth.CreateVerificationTokenResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("CreateToken: req is required")
@@ -551,6 +615,12 @@ func (s *TokenStore) CreateToken(ctx context.Context, req *localauth.CreateVerif
 	}}, nil
 }
 
+// GetToken returns the token or one of two error strings: "token not found"
+// when absent, "token expired" when the entity exists but its ExpiresAt has
+// passed. Expired entities are deleted on read — a single-shot self-clean so
+// stale rows don't pile up between explicit DeleteSubjectTokens sweeps.
+// Callers that need to distinguish the two failures match the error string
+// (a sentinel introduction is tracked separately).
 func (s *TokenStore) GetToken(ctx context.Context, req *localauth.GetVerificationTokenRequest) (*localauth.GetVerificationTokenResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetToken: req is required")
@@ -573,6 +643,9 @@ func (s *TokenStore) GetToken(ctx context.Context, req *localauth.GetVerificatio
 	return &localauth.GetVerificationTokenResponse{Token: authToken}, nil
 }
 
+// DeleteToken is idempotent — Datastore's Delete silently succeeds on
+// missing keys, and verification tokens are single-use by design (delete
+// after the action they unlock fires). No "not found" error.
 func (s *TokenStore) DeleteToken(ctx context.Context, req *localauth.DeleteVerificationTokenRequest) (*localauth.DeleteVerificationTokenResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("DeleteToken: req is required")
@@ -584,6 +657,11 @@ func (s *TokenStore) DeleteToken(ctx context.Context, req *localauth.DeleteVerif
 	return &localauth.DeleteVerificationTokenResponse{}, nil
 }
 
+// DeleteSubjectTokens removes every verification token of req.Type for
+// req.Subject. Used during password-reset / email-change cleanup to
+// invalidate every outstanding token a subject holds for the same action.
+// Returns success (not an error) when the subject has no matching tokens —
+// the no-op case is normal.
 func (s *TokenStore) DeleteSubjectTokens(ctx context.Context, req *localauth.DeleteSubjectVerificationTokensRequest) (*localauth.DeleteSubjectVerificationTokensResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("DeleteSubjectTokens: req is required")
@@ -640,6 +718,13 @@ func (s *RefreshTokenStore) hashToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// CreateRefreshToken mints a new refresh-token row with a fresh family id
+// (the first generation in its family). The token string itself is returned
+// to the caller; only its SHA-256 hash is persisted as the entity key — the
+// raw token must never round-trip through the database. Family is a
+// 16-character prefix of a secure random; rotation chains keep this Family
+// constant so RevokeTokenFamily can hit the whole lineage at once on reuse
+// detection.
 func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.CreateRefreshTokenRequest) (*core.CreateRefreshTokenResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("CreateRefreshToken: req is required")
@@ -734,6 +819,11 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 	return rt
 }
 
+// GetRefreshToken returns the token row for req.Token (looked up by SHA-256
+// hash). Returns core.ErrTokenNotFound when absent. Does NOT validate
+// Revoked / ExpiresAt — callers that need that should use RotateRefreshToken
+// (which enforces both under transaction). This method exists for read-only
+// inspection paths (admin tooling, audit).
 func (s *RefreshTokenStore) GetRefreshToken(ctx context.Context, req *core.GetRefreshTokenRequest) (*core.GetRefreshTokenResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetRefreshToken: req is required")
@@ -754,6 +844,20 @@ func (s *RefreshTokenStore) GetRefreshToken(ctx context.Context, req *core.GetRe
 	return &core.GetRefreshTokenResponse{Token: rt}, nil
 }
 
+// RotateRefreshToken implements OAuth refresh-token rotation with reuse
+// detection. Under transaction: revoke the old token, mint a new one in the
+// same Family (Generation+1), preserve Subject/ClientID/Scopes/DeviceInfo/
+// AuthorizationDetails. Three error sentinels:
+//
+//   - core.ErrTokenNotFound — old token doesn't exist
+//   - core.ErrTokenExpired — old token's ExpiresAt has passed
+//   - core.ErrTokenReused — old token was already revoked (reuse attack)
+//
+// On reuse, the entire family is revoked OUTSIDE the transaction (Datastore
+// transactions can touch at most 25 entity groups; a family can outgrow
+// that). The transaction itself is best-effort: if the family revoke fails,
+// the reuse is still reported to the caller, and a subsequent admin sweep
+// or RevokeSubjectTokens call can finish the cleanup.
 func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.RotateRefreshTokenRequest) (*core.RotateRefreshTokenResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("RotateRefreshToken: req is required")
@@ -867,6 +971,9 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 	return &core.RotateRefreshTokenResponse{Token: newRefreshToken}, nil
 }
 
+// RevokeRefreshToken flips Revoked=true under transaction. Idempotent: a
+// missing or already-revoked token returns success, not an error — explicit
+// logout / RFC 7009 revocation must be safe to call multiple times.
 func (s *RefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.RevokeRefreshTokenRequest) (*core.RevokeRefreshTokenResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("RevokeRefreshToken: req is required")
@@ -898,6 +1005,13 @@ func (s *RefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.Re
 	return &core.RevokeRefreshTokenResponse{}, nil
 }
 
+// RevokeSubjectTokens revokes every active (non-revoked) refresh token for
+// req.Subject — used by "log out everywhere" and admin force-revoke paths.
+// Iterates the indexed subject query and stamps Revoked/RevokedAt outside a
+// transaction (the working set can be larger than Datastore's per-tx limit);
+// callers tolerate a brief window where some tokens are revoked and others
+// aren't, since the worst case is a not-yet-revoked token getting one more
+// rotation that then fails reuse detection on the next try.
 func (s *RefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.RevokeSubjectTokensRequest) (*core.RevokeSubjectTokensResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("RevokeSubjectTokens: req is required")
@@ -931,6 +1045,10 @@ func (s *RefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.R
 	return &core.RevokeSubjectTokensResponse{}, nil
 }
 
+// RevokeTokenFamily revokes every active token in a rotation lineage. Called
+// by RotateRefreshToken's reuse-attack path (also addressable from admin
+// tooling). Like RevokeSubjectTokens, runs outside a transaction — the
+// family can have more entities than a single transaction permits.
 func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("RevokeTokenFamily: req is required")
@@ -964,6 +1082,11 @@ func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.Rev
 	return &core.RevokeTokenFamilyResponse{}, nil
 }
 
+// GetSubjectTokens returns every active (non-revoked) refresh token for
+// req.Subject — backs the "list active sessions" admin / self-service flow.
+// The plaintext Token field is intentionally cleared from each result; only
+// the hash and metadata travel back to callers, since the store never holds
+// the raw token to begin with.
 func (s *RefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetSubjectTokens: req is required")
@@ -995,6 +1118,11 @@ func (s *RefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetS
 	return &core.GetSubjectTokensResponse{Tokens: tokens}, nil
 }
 
+// CleanupExpiredTokens removes (a) every token whose ExpiresAt has passed
+// and (b) every revoked token whose RevokedAt is older than 24 hours. The
+// 24-hour grace on revoked rows lets ongoing rotation paths still detect
+// reuse against recently-revoked tokens before they vanish entirely.
+// Intended for a periodic background sweep, not per-request invocation.
 func (s *RefreshTokenStore) CleanupExpiredTokens(ctx context.Context, req *core.CleanupExpiredTokensRequest) (*core.CleanupExpiredTokensResponse, error) {
 	cutoff := time.Now().Add(-24 * time.Hour)
 
@@ -1062,6 +1190,14 @@ func (s *APIKeyStore) namespacedKey(kind, name string) *datastore.Key {
 	return key
 }
 
+// CreateAPIKey mints a new key. The KeyID (the entity key) is returned in
+// FullKey concatenated with the secret as "<keyID>_<secret>" — only the
+// bcrypt hash of the secret is persisted, so the raw secret can never be
+// retrieved again. Callers must surface FullKey to the end-user
+// immediately; losing it means rotating. HasExpiry tracks whether the
+// caller supplied an ExpiresAt — needed because Datastore stores a zero
+// time.Time identically to a not-set value, but the contract distinguishes
+// "never expires" from "set to 1970-01-01."
 func (s *APIKeyStore) CreateAPIKey(ctx context.Context, req *core.CreateAPIKeyRequest) (*core.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("CreateAPIKey: req is required")
@@ -1150,6 +1286,9 @@ func (s *APIKeyStore) entityToAPIKey(entity *APIKeyEntity) *core.APIKey {
 	return apiKey
 }
 
+// GetAPIKeyByID returns the metadata row for req.KeyID, or
+// core.ErrAPIKeyNotFound when absent. Does NOT validate secret, revocation,
+// or expiry — use ValidateAPIKey for the full check.
 func (s *APIKeyStore) GetAPIKeyByID(ctx context.Context, req *core.GetAPIKeyByIDRequest) (*core.GetAPIKeyByIDResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetAPIKeyByID: req is required")
@@ -1167,6 +1306,13 @@ func (s *APIKeyStore) GetAPIKeyByID(ctx context.Context, req *core.GetAPIKeyByID
 	return &core.GetAPIKeyByIDResponse{APIKey: s.entityToAPIKey(&entity)}, nil
 }
 
+// ValidateAPIKey performs the full check that GetAPIKeyByID skips. Three
+// error sentinels: core.ErrAPIKeyNotFound for "no such key, malformed input,
+// or wrong secret" (collapsed deliberately so a probe can't distinguish);
+// core.ErrTokenRevoked for revoked keys; core.ErrTokenExpired for expired
+// keys. The FullKey format is "oa_<idTail>_<secret>" — first segment fixed,
+// second the id tail, third the secret. Any deviation maps to
+// ErrAPIKeyNotFound.
 func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, req *core.ValidateAPIKeyRequest) (*core.ValidateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("ValidateAPIKey: req is required")
@@ -1200,6 +1346,9 @@ func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, req *core.ValidateAPIK
 	return &core.ValidateAPIKeyResponse{APIKey: apiKey}, nil
 }
 
+// RevokeAPIKey flips Revoked=true under transaction. Returns
+// core.ErrAPIKeyNotFound when the key doesn't exist; already-revoked is a
+// no-op success (admin "revoke twice" calls must remain safe).
 func (s *APIKeyStore) RevokeAPIKey(ctx context.Context, req *core.RevokeAPIKeyRequest) (*core.RevokeAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("RevokeAPIKey: req is required")
@@ -1230,6 +1379,10 @@ func (s *APIKeyStore) RevokeAPIKey(ctx context.Context, req *core.RevokeAPIKeyRe
 	return &core.RevokeAPIKeyResponse{}, nil
 }
 
+// ListSubjectAPIKeys returns every API key (revoked or active) for
+// req.Subject. The KeyHash field is cleared from results — listing the
+// hash to an admin UI would leak bcrypt-protected material that's only
+// meant to live inside validation. Order is unspecified.
 func (s *APIKeyStore) ListSubjectAPIKeys(ctx context.Context, req *core.ListSubjectAPIKeysRequest) (*core.ListSubjectAPIKeysResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("ListSubjectAPIKeys: req is required")
@@ -1259,6 +1412,11 @@ func (s *APIKeyStore) ListSubjectAPIKeys(ctx context.Context, req *core.ListSubj
 	return &core.ListSubjectAPIKeysResponse{APIKeys: keys}, nil
 }
 
+// UpdateAPIKeyLastUsed bumps LastUsedAt to time.Now() under transaction.
+// Returns an unwrapped datastore.ErrNoSuchEntity (not core.ErrAPIKeyNotFound)
+// when the key is missing — this is on the validation hot path and a
+// missing key already implies an upstream lookup bug rather than user-facing
+// flow. Callers may swallow this error since the bump is advisory.
 func (s *APIKeyStore) UpdateAPIKeyLastUsed(ctx context.Context, req *core.UpdateAPIKeyLastUsedRequest) (*core.UpdateAPIKeyLastUsedResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("UpdateAPIKeyLastUsed: req is required")
@@ -1310,6 +1468,13 @@ func (s *UsernameStore) normalizeUsername(username string) string {
 	return strings.ToLower(username)
 }
 
+// ReserveUsername binds req.Username to req.UserID. The entity key is the
+// lowercased form (case-insensitive uniqueness); the Username field
+// preserves the original casing for display. Idempotent for the same
+// (username, user) pair — re-reserving by the owner refreshes the display
+// casing but doesn't error. A reservation owned by a different user returns
+// fmt.Errorf("username already taken"). Runs under transaction to close the
+// check-then-write race between two concurrent reservations.
 func (s *UsernameStore) ReserveUsername(ctx context.Context, req *accounts.ReserveUsernameRequest) (*accounts.ReserveUsernameResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("ReserveUsername: req is required")
@@ -1347,6 +1512,10 @@ func (s *UsernameStore) ReserveUsername(ctx context.Context, req *accounts.Reser
 	return &accounts.ReserveUsernameResponse{}, nil
 }
 
+// GetUserByUsername resolves a username (case-insensitively) to its UserID.
+// Returns fmt.Errorf("username not found") when absent — same string-error
+// pattern as the other accounts-package lookups; sentinel introduction is
+// tracked separately.
 func (s *UsernameStore) GetUserByUsername(ctx context.Context, req *accounts.GetUserByUsernameRequest) (*accounts.GetUserByUsernameResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetUserByUsername: req is required")
@@ -1364,6 +1533,11 @@ func (s *UsernameStore) GetUserByUsername(ctx context.Context, req *accounts.Get
 	return &accounts.GetUserByUsernameResponse{UserID: entity.UserID}, nil
 }
 
+// ReleaseUsername drops the reservation. Idempotent — Datastore's Delete
+// silently succeeds on missing keys, and account-cleanup paths must remain
+// safe to retry. Does NOT verify ownership; callers gating release on
+// "the right user is asking" must check upstream (account deletion, admin
+// release).
 func (s *UsernameStore) ReleaseUsername(ctx context.Context, req *accounts.ReleaseUsernameRequest) (*accounts.ReleaseUsernameResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("ReleaseUsername: req is required")
@@ -1376,6 +1550,20 @@ func (s *UsernameStore) ReleaseUsername(ctx context.Context, req *accounts.Relea
 	return &accounts.ReleaseUsernameResponse{}, nil
 }
 
+// ChangeUsername atomically moves a reservation from OldUsername to
+// NewUsername. Two paths:
+//
+//   - Case-only change (lowercased forms equal) — single-entity transaction
+//     that just updates the display Username; ownership is verified before
+//     write ("username not owned by user").
+//   - True rename — multi-entity transaction that asserts the new lowercased
+//     form is free, deletes the old entity, and inserts the new one in the
+//     same transaction so concurrent reservers can't win the race in the
+//     gap.
+//
+// Error strings: "old username not found", "old username not owned by
+// user", "new username already taken". CreatedAt resets to now on the new
+// row — the reservation is conceptually fresh for the new username.
 func (s *UsernameStore) ChangeUsername(ctx context.Context, req *accounts.ChangeUsernameRequest) (*accounts.ChangeUsernameResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("ChangeUsername: req is required")
