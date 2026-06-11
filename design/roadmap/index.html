@@ -437,8 +437,8 @@ OAuth Client Capabilities (parallel track)
 </tr>
 <tr>
 <td>189</td>
-<td><strong>Pending</strong> — remove <code>/apps/register</code> once a quota story for <code>MaxRooms</code> / <code>MaxMsgRate</code> is decided. Blocked on the design call, not implementation.</td>
-<td>Pending</td>
+<td><code>/apps/register</code> removed. <code>/apps/dcr</code> (RFC 7591) is the only registration path. Domain-specific quotas (<code>MaxRooms</code> / <code>MaxMsgRate</code>) are no longer OneAuth core concerns — the embedder maintains them in its own store keyed by <code>client_id</code>, syncing via <code>apiauth.ClientHooks.OnRegistered</code> / <code>OnDeleted</code> (option (f) from the design call: existing hooks suffice, no new types in core). Dead documentation + comments + test fixtures cleaned across <code>admin/</code>, <code>apiauth/</code>, <code>keys/</code>, <code>tests/e2e/</code>, <code>docs/</code>, <code>testutil/</code>.</td>
+<td>Merged</td>
 </tr>
 </tbody>
 </table>

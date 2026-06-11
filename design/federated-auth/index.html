@@ -147,27 +147,27 @@
 </code></pre>
 <h2 id="end-to-end-flow">End-to-End Flow <a class="anchor" href="#end-to-end-flow">¶</a></h2>
 <h3 id="step-1-app-registers-with-oneauth-server">Step 1: App Registers with OneAuth Server <a class="anchor" href="#step-1-app-registers-with-oneauth-server">¶</a></h3>
-<p>The App sends a registration request to the OneAuth server, protected by admin authentication.</p>
-<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/register <span style="color:#d14">\
+<p>The App sends an RFC 7591 Dynamic Client Registration request to the OneAuth server. Admin auth is optional on <code>/apps/dcr</code> — the endpoint can be configured open for self-service or behind <code>X-Admin-Key</code> for gated environments.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/dcr <span style="color:#d14">\
 </span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;X-Admin-Key: your-admin-key&#34;</span> <span style="color:#d14">\
 </span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Content-Type: application/json&#34;</span> <span style="color:#d14">\
 </span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_domain&#34;: &#34;excaliframe.com&#34;,
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;signing_alg&#34;: &#34;HS256&#34;,
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;max_rooms&#34;: 10,
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;max_msg_rate&#34;: 30.0
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_name&#34;: &#34;Excaliframe&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_uri&#34;: &#34;https://excaliframe.com&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;signing_alg&#34;: &#34;HS256&#34;
 </span></span></span><span style="display:flex;"><span><span style="color:#d14">  }&#39;</span>
 </span></span></code></pre><p>Response (201 Created):</p>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
 </span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_id&#34;</span>: <span style="color:#d14">&#34;app_a1b2c3d4e5f6&#34;</span>,
 </span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_secret&#34;</span>: <span style="color:#d14">&#34;64-char-hex-string...&#34;</span>,
-</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_domain&#34;</span>: <span style="color:#d14">&#34;excaliframe.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_name&#34;</span>: <span style="color:#d14">&#34;Excaliframe&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_uri&#34;</span>: <span style="color:#d14">&#34;https://excaliframe.com&#34;</span>,
 </span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;signing_alg&#34;</span>: <span style="color:#d14">&#34;HS256&#34;</span>,
-</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;max_rooms&#34;</span>: <span style="color:#099">10</span>,
-</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;max_msg_rate&#34;</span>: <span style="color:#099">30.0</span>,
-</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;created_at&#34;</span>: <span style="color:#d14">&#34;2026-03-15T10:30:00Z&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;registration_access_token&#34;</span>: <span style="color:#d14">&#34;rat_…&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;registration_client_uri&#34;</span>: <span style="color:#d14">&#34;https://auth.example.com/apps/dcr/app_a1b2c3d4e5f6&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_id_issued_at&#34;</span>: <span style="color:#099">1710500000</span>
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre><p>The <code>client_secret</code> is stored in the <code>KeyStorage</code> and shared with the resource server.</p>
+</span></span></code></pre><p>The <code>client_secret</code> is stored in the <code>KeyStorage</code> and shared with the resource server. Application-domain quotas (<code>max_rooms</code>, <code>max_msg_rate</code>, etc.) are not OneAuth-core concerns post-issue 189 — the embedder maintains them in its own store keyed by <code>client_id</code>, subscribing to <code>apiauth.ClientHooks.OnRegistered</code> / <code>OnDeleted</code> to keep the embedder&rsquo;s quota state in sync with OneAuth&rsquo;s registrations.</p>
 <h3 id="step-2-app-authenticates-users-locally">Step 2: App Authenticates Users Locally <a class="anchor" href="#step-2-app-authenticates-users-locally">¶</a></h3>
 <p>The App uses its own authentication system (could be oneauth&rsquo;s <code>LocalAuth</code>, OAuth, or anything else) to verify the user&rsquo;s identity.</p>
 <h3 id="step-3-app-mints-a-resource-token">Step 3: App Mints a Resource Token <a class="anchor" href="#step-3-app-mints-a-resource-token">¶</a></h3>
@@ -235,15 +235,14 @@
 </span></span></code></pre><h3 id="endpoints">Endpoints <a class="anchor" href="#endpoints">¶</a></h3>
 <p>All endpoints require admin authentication via <code>X-Admin-Key</code> header (when using <code>APIKeyAuth</code>).</p>
 <h4 id="register-app">Register App <a class="anchor" href="#register-app">¶</a></h4>
-<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /apps/register
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /apps/dcr
 </span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Content-Type: application/json
 </span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">X-Admin-Key: admin-secret
 </span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">
 </span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">{
-</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;client_domain&#34;: &#34;myapp.example.com&#34;,
-</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;signing_alg&#34;: &#34;HS256&#34;,
-</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;max_rooms&#34;: 10,
-</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;max_msg_rate&#34;: 30.0
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;client_name&#34;: &#34;MyApp&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;client_uri&#34;: &#34;https://myapp.example.com&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">  &#34;signing_alg&#34;: &#34;HS256&#34;
 </span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">}
 </span></span></span></code></pre><p>Returns <code>201 Created</code> with <code>client_id</code> (format: <code>app_&lt;12-byte-hex&gt;</code>) and <code>client_secret</code> (32-byte hex).</p>
 <h4 id="list-apps">List Apps <a class="anchor" href="#list-apps">¶</a></h4>
@@ -493,12 +492,16 @@
 <h2 id="asymmetric-signing-rs256es256">Asymmetric Signing (RS256/ES256) <a class="anchor" href="#asymmetric-signing-rs256es256">¶</a></h2>
 <p>OneAuth supports asymmetric JWT signing alongside HS256. With asymmetric keys, apps keep their private key secret and register only the public key. Resource servers verify tokens using the public key without ever knowing the signing secret.</p>
 <p><strong>Quick example</strong> — register with RS256:</p>
-<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/register <span style="color:#d14">\
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/dcr <span style="color:#d14">\
 </span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;X-Admin-Key: your-admin-key&#34;</span> <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Content-Type: application/json&#34;</span> <span style="color:#d14">\
 </span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_domain&#34;: &#34;excaliframe.com&#34;,
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;signing_alg&#34;: &#34;RS256&#34;,
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;public_key&#34;: &#34;-----BEGIN PUBLIC KEY-----\nMIIBI...\n-----END PUBLIC KEY-----&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_name&#34;: &#34;Excaliframe&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_uri&#34;: &#34;https://excaliframe.com&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;token_endpoint_auth_method&#34;: &#34;private_key_jwt&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;jwks&#34;: {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">      &#34;keys&#34;: [{&#34;kty&#34;: &#34;RSA&#34;, &#34;alg&#34;: &#34;RS256&#34;, &#34;n&#34;: &#34;...&#34;, &#34;e&#34;: &#34;AQAB&#34;}]
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    }
 </span></span></span><span style="display:flex;"><span><span style="color:#d14">  }&#39;</span>
 </span></span></code></pre><p><strong>Quick example</strong> — mint with asymmetric key:</p>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>privKey, _ <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">ParsePrivateKeyPEM</span>(privPEM)

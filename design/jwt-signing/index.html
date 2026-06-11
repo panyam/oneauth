@@ -228,17 +228,20 @@
 </span></span></code></pre><p>When <code>JWTSigningKey</code>/<code>JWTVerifyKey</code> are set, they take precedence over <code>JWTSecretKey</code>. The <code>jwtKeyFunc</code> validates that the token&rsquo;s algorithm matches the key type, preventing algorithm confusion.</p>
 <h2 id="app-registration">App Registration <a class="anchor" href="#app-registration">¶</a></h2>
 <h3 id="symmetric-hs256--default">Symmetric (HS256) — default <a class="anchor" href="#symmetric-hs256--default">¶</a></h3>
-<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/register <span style="color:#d14">\
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/dcr <span style="color:#d14">\
 </span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;X-Admin-Key: admin-key&#34;</span> <span style="color:#d14">\
-</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{&#34;client_domain&#34;: &#34;myapp.com&#34;, &#34;signing_alg&#34;: &#34;HS256&#34;}&#39;</span>
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Content-Type: application/json&#34;</span> <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{&#34;client_name&#34;: &#34;MyApp&#34;, &#34;client_uri&#34;: &#34;https://myapp.com&#34;, &#34;signing_alg&#34;: &#34;HS256&#34;}&#39;</span>
 </span></span></code></pre><p>Response includes <code>client_secret</code> (shown only once).</p>
 <h3 id="asymmetric-rs256es256-1">Asymmetric (RS256/ES256) <a class="anchor" href="#asymmetric-rs256es256-1">¶</a></h3>
-<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/register <span style="color:#d14">\
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://auth.example.com/apps/dcr <span style="color:#d14">\
 </span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;X-Admin-Key: admin-key&#34;</span> <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Content-Type: application/json&#34;</span> <span style="color:#d14">\
 </span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_domain&#34;: &#34;myapp.com&#34;,
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;signing_alg&#34;: &#34;RS256&#34;,
-</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;public_key&#34;: &#34;-----BEGIN PUBLIC KEY-----\nMIIBI...\n-----END PUBLIC KEY-----&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_name&#34;: &#34;MyApp&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;client_uri&#34;: &#34;https://myapp.com&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;token_endpoint_auth_method&#34;: &#34;private_key_jwt&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    &#34;jwks&#34;: {&#34;keys&#34;: [{&#34;kty&#34;: &#34;RSA&#34;, &#34;alg&#34;: &#34;RS256&#34;, &#34;n&#34;: &#34;...&#34;, &#34;e&#34;: &#34;AQAB&#34;}]}
 </span></span></span><span style="display:flex;"><span><span style="color:#d14">  }&#39;</span>
 </span></span></code></pre><p>Response omits <code>client_secret</code> — the app keeps its private key.</p>
 <h3 id="key-rotation">Key Rotation <a class="anchor" href="#key-rotation">¶</a></h3>
