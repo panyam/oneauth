@@ -512,12 +512,12 @@
 <tr>
 <td><code>client_secret_jwt</code></td>
 <td>Full</td>
-<td>None</td>
+<td>Full (issue 159)</td>
 </tr>
 <tr>
 <td><code>private_key_jwt</code></td>
 <td>Full</td>
-<td>None</td>
+<td>Full (issue 158)</td>
 </tr>
 <tr>
 <td><code>tls_client_auth</code></td>
@@ -536,7 +536,7 @@
 </tr>
 </tbody>
 </table>
-<p>OneAuth client SDK (<code>client/auth_method.go</code>) <strong>negotiates</strong> auth methods from AS metadata and falls back when the AS only advertises ones it doesn&rsquo;t support — so it&rsquo;s aware of <code>private_key_jwt</code> and <code>tls_client_auth</code>, but doesn&rsquo;t implement them.</p>
+<p>OneAuth client SDK (<code>client/auth_method.go</code>) <strong>negotiates</strong> auth methods from AS metadata and falls back when the AS only advertises ones it doesn&rsquo;t support — so it&rsquo;s aware of <code>tls_client_auth</code> and <code>attest_jwt_client_auth</code>, but doesn&rsquo;t implement them.</p>
 <hr />
 <h2 id="5-where-oneauth-has-things-authlete-does-not">5. Where OneAuth Has Things Authlete Does Not <a class="anchor" href="#5-where-oneauth-has-things-authlete-does-not">¶</a></h2>
 <p>These are not gaps in OneAuth — they are scope choices Authlete made deliberately.</p>
@@ -575,9 +575,9 @@
 </tr>
 <tr>
 <td>2</td>
-<td><strong><code>private_key_jwt</code> client auth</strong></td>
-<td>Removes shared-secret distribution for the federated <code>MintResourceToken</code> flow; aligns with what Keycloak / Authlete / Auth0 already accept.</td>
-<td>Small</td>
+<td><del><strong><code>private_key_jwt</code> client auth</strong></del></td>
+<td>Shipped under issue 158. <code>client_secret_jwt</code> companion shipped under issue 159.</td>
+<td>—</td>
 </tr>
 <tr>
 <td>3</td>
