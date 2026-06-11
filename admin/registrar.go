@@ -74,6 +74,73 @@ func validateBackchannelLogoutURI(raw string, allowPrivate bool) error {
 	return nil
 }
 
+// validateRedirectURIs enforces OAuth 2.1 §3.1.2.1 / RFC 6749 §3.1.2.1
+// HTTPS-only redirect URIs with two carve-outs that the spec ecosystem
+// permits:
+//
+//   - RFC 8252 §7.3 native-app loopback: http://127.0.0.1, http://[::1],
+//     http://localhost (any port). The port number is unconstrained
+//     because native apps bind ephemeral ports.
+//   - RFC 8252 §7.1 native-app private-use URI schemes: reverse-DNS
+//     scheme like com.example.app:/cb. Detected by the presence of a
+//     "." in the scheme — standards-track schemes are alphanumeric only
+//     (RFC 7595 §3.8).
+//
+// Also rejects fragments per RFC 6749 §3.1.2: the redirection URI
+// component MUST NOT contain a fragment.
+//
+// Returns ErrInvalidClientMetadata wrapping the per-URI failure on the
+// first invalid entry. An empty list is accepted (DCR §2 permits
+// clients that don't use the auth-code flow to omit redirect_uris).
+func validateRedirectURIs(uris []string) error {
+	for _, raw := range uris {
+		if err := validateRedirectURI(raw); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRedirectURI(raw string) error {
+	if raw == "" {
+		return fmt.Errorf("%w: redirect_uri must not be empty", ErrInvalidClientMetadata)
+	}
+	if strings.Contains(raw, "#") {
+		return fmt.Errorf("%w: redirect_uri %q MUST NOT contain a fragment (RFC 6749 §3.1.2)", ErrInvalidClientMetadata, raw)
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("%w: redirect_uri %q is not a valid URL: %v", ErrInvalidClientMetadata, raw, err)
+	}
+	if !u.IsAbs() {
+		return fmt.Errorf("%w: redirect_uri %q must be an absolute URL", ErrInvalidClientMetadata, raw)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	switch {
+	case scheme == "https":
+		// always allowed
+	case scheme == "http":
+		// RFC 8252 §7.3 loopback exemption only.
+		if !isLoopbackHost(u.Hostname()) {
+			return fmt.Errorf("%w: redirect_uri %q must use https (RFC 8252 §7.3 permits http only for loopback: 127.0.0.1, ::1, localhost)", ErrInvalidClientMetadata, raw)
+		}
+	case strings.Contains(scheme, "."):
+		// RFC 8252 §7.1 native-app private-use URI scheme (reverse-DNS).
+	default:
+		return fmt.Errorf("%w: redirect_uri %q scheme %q not allowed (use https, http://localhost, or a reverse-DNS private-use scheme per RFC 8252)", ErrInvalidClientMetadata, raw, scheme)
+	}
+	return nil
+}
+
+// isLoopbackHost reports whether host is one of the RFC 8252 §7.3
+// loopback literals that http:// redirect URIs are permitted for. IPv6
+// loopback can appear as "::1" or "[::1]" depending on whether the
+// caller stripped brackets — url.Hostname() strips them.
+func isLoopbackHost(host string) bool {
+	host = strings.ToLower(host)
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
 // isPrivateOrSpecialIP reports whether ip is in any address range that an
 // authenticated client should not be able to make the AS POST to. The
 // dispatcher's dialer applies the same predicate at connect time.
@@ -178,6 +245,9 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	md := req.Metadata
 
 	if err := validateBackchannelLogoutURI(md.BackchannelLogoutURI, h.AllowPrivateBCLHosts); err != nil {
+		return nil, err
+	}
+	if err := validateRedirectURIs(md.RedirectURIs); err != nil {
 		return nil, err
 	}
 
@@ -553,6 +623,9 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 		return nil, ErrInvalidClientMetadata
 	}
 	if err := validateBackchannelLogoutURI(md.BackchannelLogoutURI, h.AllowPrivateBCLHosts); err != nil {
+		return nil, err
+	}
+	if err := validateRedirectURIs(md.RedirectURIs); err != nil {
 		return nil, err
 	}
 

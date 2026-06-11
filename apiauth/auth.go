@@ -1025,7 +1025,18 @@ type APIMiddleware struct {
 	// TokenQueryParam is the query parameter name to check for a token as fallback
 	// when the Authorization header is missing (e.g., "token" for ?token=...).
 	// Empty string disables query param extraction (default).
+	//
+	// DEPRECATED: OAuth 2.1 §5.4 prohibits bearer tokens in URL query parameters
+	// (RFC 6750 §2.3 had already deprecated this in 2012). Query-carried tokens
+	// leak into browser history, access logs, Referer headers, and caches.
+	// Removal tracked under the OAuth 2.1 alignment audit (#140) — see
+	// docs/OAUTH21_ALIGNMENT.md row 7. When this field is set, a one-time
+	// warning is logged at first use.
 	TokenQueryParam string
+
+	// tokenQueryParamWarning fires once per APIMiddleware instance the first
+	// time the deprecated query-param fallback path actually executes.
+	tokenQueryParamWarning sync.Once
 
 	// Error handling
 	OnAuthError func(w http.ResponseWriter, r *http.Request, err error)
@@ -1171,9 +1182,18 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (userID string, scopes 
 
 	authHeader := r.Header.Get(header)
 
-	// Fallback to query param if no header and TokenQueryParam is configured
+	// Fallback to query param if no header and TokenQueryParam is configured.
+	// This path is DEPRECATED — see docs/OAUTH21_ALIGNMENT.md row 7 and the
+	// TokenQueryParam field doc. The sync.Once guard emits a single warning
+	// per APIMiddleware instance so logs don't drown but operators see it.
 	if authHeader == "" && m.TokenQueryParam != "" {
 		if qp := r.URL.Query().Get(m.TokenQueryParam); qp != "" {
+			m.tokenQueryParamWarning.Do(func() {
+				log.Printf("apiauth.APIMiddleware: DEPRECATED — bearer token received via query parameter %q. " +
+					"OAuth 2.1 §5.4 prohibits this; URL query params leak tokens into browser history, access logs, " +
+					"Referer headers, and caches. Migrate to Authorization header or WebSocket subprotocol auth. " +
+					"Removal tracked under issue #140 (docs/OAUTH21_ALIGNMENT.md row 7).", m.TokenQueryParam)
+			})
 			authHeader = "Bearer " + qp
 		}
 	}
