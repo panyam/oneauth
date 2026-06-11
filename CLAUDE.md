@@ -18,6 +18,7 @@ Each subpackage has a `SUMMARY.md` with detailed contents.
 | `httpauth/` | HTTP middleware, CSRF, session management | [httpauth/SUMMARY.md](httpauth/SUMMARY.md) |
 | `client/` | Client SDK (AuthClient, ClientCredentialsSource, discovery) | [client/SUMMARY.md](client/SUMMARY.md) |
 | `stores/` | FS, GORM, GAE backend implementations | `stores/*/SUMMARY.md` |
+| `sshkeys/` | Ed25519 SSH keypair generator (own go.mod). Returns OpenSSH PEM + `authorized_keys` line; private PEM persists encrypted via `EncryptedKeyStorage` automatically. | [sshkeys/SUMMARY.md](sshkeys/SUMMARY.md) |
 | `appstoretest/` / `deviceauthtest/` / `keystoretest/` / `kidstoretest/` | Shared contract test suites — every store backend runs `RunAll(t, factory)` to prove behavioral parity | per-package README |
 | `examples/` | 10 progressive interactive examples with demokit | [examples/README.md](examples/README.md) |
 | `tests/keycloak/` | Keycloak interop + RAR conformance tests | [tests/keycloak/README.md](tests/keycloak/README.md) |
@@ -74,6 +75,7 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 ## Conventions
 
 - Each subpackage has a `SUMMARY.md` for LLM discoverability.
+- **Documented-contract bar for store backends.** Every exported method on a `stores/*` (or sibling-submodule) store carries a doc comment capturing the WHY of the contract: error-sentinel mapping (`datastore.ErrNoSuchEntity` → `core.ErrAppNotFound` etc.), idempotency promises, transactional scope, non-obvious dances (Get-then-Delete, family-revoke-outside-transaction). Precedents: `stores/gae/appstore.go` (PR 234), `stores/gae/keystore.go`/`kidstore.go`/`stores.go`/`models.go` (#236 / #288). Match the polished precedent, not the closest one — sparse local style isn't license to ship undocumented public API.
 - Security tests must include `// See:` links to RFC/CVE/CWE references.
 - Use `GH_TOKEN="$GH_PERSONAL_TOKEN"` for gh CLI.
 - Keep new test groups in separate `_test.go` files (don't bloat existing ones).

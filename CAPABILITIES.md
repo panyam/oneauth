@@ -31,7 +31,8 @@ v0.1.20
 - dynamic-client-registration: RFC 7591 DCR endpoint alongside AppRegistrar
 - introspection-client: Remote token validation via RFC 7662 with caching
 - token-blacklist: JWT revocation via jti-based blacklist
-- encryption-at-rest: AES-256-GCM encryption of HS256 secrets via EncryptedKeyStorage
+- encryption-at-rest: AES-256-GCM encryption via EncryptedKeyStorage. Content-driven predicate covers HMAC client secrets (HS256/HS384/HS512) **and** PEM blocks whose header type contains `PRIVATE` (`PRIVATE KEY`, `RSA PRIVATE KEY`, `EC PRIVATE KEY`, `OPENSSH PRIVATE KEY`) — extended in issue 248 to cover private keys persisted under non-JWT Algorithm strings (e.g., `ssh-ed25519` from the `sshkeys/` submodule). Public PEMs stay plaintext for JWKS exposure. Read-path PEM detection uses the `-----BEGIN` prefix as a safe-from-collision marker: AES-GCM's random-nonce prefix can never start that way.
+- sshkeys-ed25519: `sshkeys.GenerateEd25519()` returns an OpenSSH-format private PEM + an `authorized_keys`-format public line. Separate Go submodule (`github.com/panyam/oneauth/sshkeys`) mirroring the `stores/{fs,gorm,gae}` shape; depends on `oneauth/keys` + `golang.org/x/crypto/ssh`. Private PEM persists through `EncryptedKeyStorage` automatically — the header type triggers the widened encryption predicate with no caller-side opt-in.
 - security-headers: HSTS, CSP, X-Frame-Options middleware
 - rich-authorization-requests: RFC 9396 authorization_details on token endpoint, introspection, middleware enforcement
 - token-revocation: RFC 7009 endpoint for access and refresh token revocation
