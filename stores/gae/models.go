@@ -34,6 +34,11 @@ type IdentityEntity struct {
 	Version   int            `datastore:"version"`
 }
 
+// ToIdentity copies every IdentityEntity field into a new accounts.Identity.
+// The Datastore Key is NOT carried over — the returned domain object has no
+// pointer back to its storage row, so callers that still need the key must
+// hold the entity. Used by IdentityStore methods immediately after tx.Get
+// to hand domain objects back to the accounts layer.
 func (e *IdentityEntity) ToIdentity() *accounts.Identity {
 	return &accounts.Identity{
 		Type:      e.Type,
@@ -46,6 +51,11 @@ func (e *IdentityEntity) ToIdentity() *accounts.Identity {
 	}
 }
 
+// IdentityToEntity is the write-path counterpart of ToIdentity. The caller
+// supplies the namespaced datastore key — this helper does not derive it
+// because the store struct (IdentityStore) owns the namespace, not this
+// package-level function. The entity name follows the "<type>:<value>"
+// format documented on IdentityEntity.
 func IdentityToEntity(i *accounts.Identity, key *datastore.Key) *IdentityEntity {
 	return &IdentityEntity{
 		Key:       key,
@@ -83,6 +93,13 @@ type VerificationTokenEntity struct {
 	ExpiresAt time.Time                 `datastore:"expires_at"`
 }
 
+// ToVerificationToken reconstructs the plaintext Token from e.Key.Name.
+// Non-obvious invariant: the token string is the entity key name, not a
+// stored property — consumers must hold the entity (not just its
+// struct-tagged property bag) to recover the token. This is also why the
+// helper is a method on *VerificationTokenEntity rather than a free
+// function: it depends on the key, which lives on the entity, not on the
+// property struct.
 func (e *VerificationTokenEntity) ToVerificationToken() *localauth.VerificationToken {
 	return &localauth.VerificationToken{
 		Token:     e.Key.Name,
@@ -94,6 +111,11 @@ func (e *VerificationTokenEntity) ToVerificationToken() *localauth.VerificationT
 	}
 }
 
+// VerificationTokenToEntity is the write-path counterpart of
+// ToVerificationToken. Caller supplies the namespaced datastore key whose
+// name carries the token string; the t.Token field is NOT persisted as a
+// separate property — it lives only in the key, matching the
+// ToVerificationToken contract.
 func VerificationTokenToEntity(t *localauth.VerificationToken, key *datastore.Key) *VerificationTokenEntity {
 	return &VerificationTokenEntity{
 		Key:       key,
