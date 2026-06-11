@@ -257,10 +257,11 @@
 </ul>
 <h3 id="encryption-at-rest">Encryption at Rest <a class="anchor" href="#encryption-at-rest">¶</a></h3>
 <ul>
-<li><code>EncryptedKeyStorage</code> — decorator that wraps any <code>KeyStorage</code> to encrypt HS256 client secrets at rest using AES-256-GCM</li>
+<li><code>EncryptedKeyStorage</code> — decorator that wraps any <code>KeyStorage</code> to encrypt sensitive key material at rest using AES-256-GCM</li>
 <li>Master key: 32-byte hex string (<code>ONEAUTH_MASTER_KEY</code> env var), derived via HKDF-SHA256 with a versioned info string</li>
-<li>Asymmetric keys (RS256/ES256 public keys) pass through unencrypted since they are not sensitive</li>
-<li>Migration: if GCM decryption fails on read, falls back to treating stored bytes as plaintext (backward compat with pre-encryption data)</li>
+<li>Encrypted: HMAC client secrets (HS256/HS384/HS512) — identified by Algorithm; and PEM blocks whose header type contains <code>PRIVATE</code> (<code>PRIVATE KEY</code>, <code>RSA PRIVATE KEY</code>, <code>EC PRIVATE KEY</code>, <code>OPENSSH PRIVATE KEY</code>) — identified by content. Content-driven so private keys persisted under non-JWT Algorithm strings (e.g., <code>ssh-ed25519</code> via the <code>sshkeys</code> submodule) are still covered.</li>
+<li>Plaintext: public PEMs that back JWKS exposure, and any non-PEM non-HMAC payload that&rsquo;s not sensitive</li>
+<li>Migration: stored bytes starting with <code>-----BEGIN</code> (pre-encryption legacy or public PEMs) are returned as-is; non-PEM bytes with a failing GCM tag fall back to plaintext with a log warning (backward compat with pre-encryption HMAC data)</li>
 <li>Optional: no master key configured = no encryption (with log warning)</li>
 </ul>
 <h3 id="pkce-proof-key-for-code-exchange">PKCE (Proof Key for Code Exchange) <a class="anchor" href="#pkce-proof-key-for-code-exchange">¶</a></h3>
