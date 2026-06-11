@@ -5,8 +5,10 @@ package keys_test
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/pem"
 	"testing"
 
 	"github.com/panyam/oneauth/keys"
@@ -206,5 +208,137 @@ func TestListKeysPassthrough(t *testing.T) {
 	}
 	if len(resp.ClientIDs) != 2 {
 		t.Errorf("expected 2 keys, got %d", len(resp.ClientIDs))
+	}
+}
+
+// TestPrivatePEMRoundTrip_RSA verifies that an RSA private PEM survives a
+// PutKey/GetKey round-trip through the encrypted wrapper. The inner store
+// must hold ciphertext (not the original PEM); the wrapper's GetKey must
+// return the original PEM bytes intact.
+func TestPrivatePEMRoundTrip_RSA(t *testing.T) {
+	enc, inner := newTestEncryptedKeyStore(t)
+
+	privPEM, _, err := utils.GenerateRSAKeyPair(2048)
+	if err != nil {
+		t.Fatalf("GenerateRSAKeyPair failed: %v", err)
+	}
+
+	putKey(t, enc, &keys.KeyRecord{ClientID: "rsa-priv", Key: privPEM, Algorithm: "RS256"})
+
+	rawInner := getKeyBytes(t, inner, "rsa-priv")
+	if bytes.Equal(rawInner, privPEM) {
+		t.Error("inner store contains plaintext RSA private PEM — encryption did not happen")
+	}
+	if bytes.HasPrefix(rawInner, []byte("-----BEGIN")) {
+		t.Error("inner store contains a PEM-formatted block — encryption did not happen")
+	}
+
+	got := getKeyBytes(t, enc, "rsa-priv")
+	if !bytes.Equal(got, privPEM) {
+		t.Error("round-trip mismatch: GetKey returned bytes != original RSA private PEM")
+	}
+}
+
+// TestPrivatePEMRoundTrip_ECDSA mirrors the RSA case for ECDSA P-256 private
+// PEMs (header type "EC PRIVATE KEY"). Same assertions.
+func TestPrivatePEMRoundTrip_ECDSA(t *testing.T) {
+	enc, inner := newTestEncryptedKeyStore(t)
+
+	privPEM, _, err := utils.GenerateECDSAKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyPair failed: %v", err)
+	}
+
+	putKey(t, enc, &keys.KeyRecord{ClientID: "ecdsa-priv", Key: privPEM, Algorithm: "ES256"})
+
+	rawInner := getKeyBytes(t, inner, "ecdsa-priv")
+	if bytes.Equal(rawInner, privPEM) {
+		t.Error("inner store contains plaintext ECDSA private PEM — encryption did not happen")
+	}
+
+	got := getKeyBytes(t, enc, "ecdsa-priv")
+	if !bytes.Equal(got, privPEM) {
+		t.Error("round-trip mismatch: GetKey returned bytes != original ECDSA private PEM")
+	}
+}
+
+// TestPrivatePEMRoundTrip_OpenSSH verifies the predicate is content-driven
+// (header type "OPENSSH PRIVATE KEY") regardless of the Algorithm string —
+// the upcoming sshkeys consumer uses Algorithm="ssh-ed25519", which is not
+// an HMAC or JWT alg, so the algorithm-only predicate would miss it.
+//
+// Uses a synthetic OPENSSH PRIVATE KEY PEM block with arbitrary body bytes:
+// EncryptedKeyStorage encrypts the PEM bytes as opaque material and does
+// not parse the inner key, so this is sufficient to exercise the predicate.
+// A real Ed25519 PEM is exercised in sshkeys/ for the generator path.
+func TestPrivatePEMRoundTrip_OpenSSH(t *testing.T) {
+	enc, inner := newTestEncryptedKeyStore(t)
+
+	body := make([]byte, 200)
+	if _, err := rand.Read(body); err != nil {
+		t.Fatalf("rand.Read failed: %v", err)
+	}
+	sshPEM := pem.EncodeToMemory(&pem.Block{Type: "OPENSSH PRIVATE KEY", Bytes: body})
+
+	putKey(t, enc, &keys.KeyRecord{ClientID: "ssh-priv", Key: sshPEM, Algorithm: "ssh-ed25519"})
+
+	rawInner := getKeyBytes(t, inner, "ssh-priv")
+	if bytes.Equal(rawInner, sshPEM) {
+		t.Error("inner store contains plaintext OPENSSH PRIVATE KEY PEM — encryption did not happen")
+	}
+
+	got := getKeyBytes(t, enc, "ssh-priv")
+	if !bytes.Equal(got, sshPEM) {
+		t.Error("round-trip mismatch: GetKey returned bytes != original OpenSSH private PEM")
+	}
+}
+
+// TestPrivatePEMRoundTrip_Ed25519PKCS8 exercises the standard PKCS#8 wrap
+// (header type "PRIVATE KEY") that crypto/x509.MarshalPKCS8PrivateKey emits
+// for Ed25519. Distinct from the OpenSSH path because the header carries
+// no key-type qualifier — the predicate must accept "PRIVATE KEY" alone.
+func TestPrivatePEMRoundTrip_Ed25519PKCS8(t *testing.T) {
+	enc, inner := newTestEncryptedKeyStore(t)
+
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("ed25519.GenerateKey failed: %v", err)
+	}
+	// PKCS#8 wrapping handled here without pulling in x509: the predicate
+	// inspects only the PEM header type, so synthesizing a "PRIVATE KEY"
+	// block with the raw seed bytes is a faithful test of the predicate.
+	privPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: priv})
+
+	putKey(t, enc, &keys.KeyRecord{ClientID: "ed25519-pkcs8", Key: privPEM, Algorithm: "EdDSA"})
+
+	rawInner := getKeyBytes(t, inner, "ed25519-pkcs8")
+	if bytes.Equal(rawInner, privPEM) {
+		t.Error("inner store contains plaintext PKCS#8 PRIVATE KEY PEM — encryption did not happen")
+	}
+
+	got := getKeyBytes(t, enc, "ed25519-pkcs8")
+	if !bytes.Equal(got, privPEM) {
+		t.Error("round-trip mismatch: GetKey returned bytes != original PKCS#8 PEM")
+	}
+}
+
+// TestPublicPEMStillPlaintext is the regression guard for the existing
+// JWKS path: even after the predicate widens to catch private PEMs, public
+// PEMs must remain stored plaintext so JWKSHandler can serialize them.
+// (TestAsymmetricPassthrough above covers the same for RSA; this widens
+// the assertion to ECDSA and pins the inner-store invariant explicitly.)
+func TestPublicPEMStillPlaintext(t *testing.T) {
+	enc, inner := newTestEncryptedKeyStore(t)
+
+	_, pubPEM, err := utils.GenerateECDSAKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyPair failed: %v", err)
+	}
+
+	putKey(t, enc, &keys.KeyRecord{ClientID: "ecdsa-pub", Key: pubPEM, Algorithm: "ES256"})
+
+	rawInner := getKeyBytes(t, inner, "ecdsa-pub")
+	if !bytes.Equal(rawInner, pubPEM) {
+		t.Error("inner store mutated ECDSA public PEM — must stay plaintext for JWKS exposure")
 	}
 }

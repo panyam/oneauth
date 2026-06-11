@@ -1,12 +1,14 @@
 package keys
 
 import (
+	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
@@ -16,8 +18,18 @@ import (
 )
 
 // EncryptedKeyStorage is a KeyStorage decorator that transparently encrypts
-// HMAC (HS256/HS384/HS512) client secrets at rest using AES-256-GCM.
-// Asymmetric keys (RS256, ES256 public keys) pass through unencrypted.
+// sensitive key material at rest using AES-256-GCM. Two categories of input
+// are encrypted on the way in (and decrypted on the way out):
+//
+//   - HMAC client secrets (HS256/HS384/HS512) — identified by Algorithm.
+//   - PEM blocks whose header type contains "PRIVATE" — identified by
+//     content (e.g., "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY",
+//     "OPENSSH PRIVATE KEY"). The content-driven check matters because
+//     downstream consumers may persist private keys under non-JWT
+//     Algorithm strings (e.g., "ssh-ed25519" via the sshkeys submodule).
+//
+// Public PEMs (which back JWKS exposure) and any other plaintext pass
+// through unencrypted — they are not sensitive.
 //
 // Because it wraps KeyStorage and operates on KeyRecord, it only needs to
 // implement 5 methods — no manual forwarding of individual field accessors.
@@ -61,7 +73,9 @@ func NewEncryptedKeyStorage(inner KeyStorage, masterKeyHex string) (*EncryptedKe
 	return &EncryptedKeyStorage{inner: inner, aead: aead}, nil
 }
 
-// PutKey computes kid from plaintext, then encrypts HMAC keys before storing.
+// PutKey computes kid from plaintext, then encrypts HMAC secrets and PEM
+// blocks of type "*PRIVATE*" before storing. Other inputs (notably public
+// PEMs) are stored unmodified.
 func (e *EncryptedKeyStorage) PutKey(ctx context.Context, req *PutKeyRequest) (*PutKeyResponse, error) {
 	if req == nil || req.Record == nil {
 		return nil, fmt.Errorf("PutKey: req.Record is required")
@@ -72,10 +86,10 @@ func (e *EncryptedKeyStorage) PutKey(ctx context.Context, req *PutKeyRequest) (*
 		rec.Kid = computeKid(rec.Key, rec.Algorithm)
 	}
 
-	if isHMACAlgorithm(rec.Algorithm) {
+	if shouldEncrypt(rec) {
 		keyBytes, ok := rec.Key.([]byte)
 		if !ok {
-			return nil, fmt.Errorf("HMAC key must be []byte, got %T", rec.Key)
+			return nil, fmt.Errorf("encrypt-eligible key must be []byte, got %T", rec.Key)
 		}
 		encrypted, err := e.encrypt(keyBytes)
 		if err != nil {
@@ -120,14 +134,24 @@ func (e *EncryptedKeyStorage) ListKeyIDs(ctx context.Context, req *ListKeyIDsReq
 	return e.inner.ListKeyIDs(ctx, req)
 }
 
-// maybeDecryptRecord decrypts the Key field for HMAC algorithms.
-// Falls back to plaintext if decryption fails (pre-encryption migration).
+// maybeDecryptRecord decrypts the Key field when the stored bytes look like
+// AES-GCM ciphertext. Falls through to plaintext on either of two paths:
+//
+//   - The stored bytes start with "-----BEGIN", i.e., a PEM block — public
+//     PEMs (always stored plaintext) and pre-encryption private/migration
+//     PEMs both surface this way without an unnecessary decrypt attempt.
+//   - The bytes are non-PEM and AES-GCM tag verification fails — assumed
+//     to be a pre-encryption legacy HMAC secret and returned as-is. Logged
+//     so accidental corruption isn't fully silent.
+//
+// AES-GCM output cannot itself start with "-----BEGIN" (the prepended nonce
+// is random bytes), so the PEM-prefix check is a safe fast path.
 func (e *EncryptedKeyStorage) maybeDecryptRecord(rec *KeyRecord) *KeyRecord {
-	if !isHMACAlgorithm(rec.Algorithm) {
-		return rec
-	}
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
+		return rec
+	}
+	if bytes.HasPrefix(keyBytes, pemPrefix) {
 		return rec
 	}
 	decrypted, err := e.decrypt(keyBytes)
@@ -141,6 +165,35 @@ func (e *EncryptedKeyStorage) maybeDecryptRecord(rec *KeyRecord) *KeyRecord {
 		Algorithm: rec.Algorithm,
 		Kid:       rec.Kid,
 	}
+}
+
+var pemPrefix = []byte("-----BEGIN")
+
+// shouldEncrypt reports whether PutKey should encrypt rec.Key before storing.
+// Content-driven for PEMs so a future consumer that persists private SSH
+// keys under Algorithm="ssh-ed25519" gets covered without growing the
+// algorithm allowlist.
+func shouldEncrypt(rec *KeyRecord) bool {
+	if isHMACAlgorithm(rec.Algorithm) {
+		return true
+	}
+	keyBytes, ok := rec.Key.([]byte)
+	if !ok {
+		return false
+	}
+	return isPrivatePEM(keyBytes)
+}
+
+// isPrivatePEM reports whether b decodes as a PEM block whose header type
+// contains "PRIVATE" (e.g., "PRIVATE KEY", "RSA PRIVATE KEY",
+// "EC PRIVATE KEY", "OPENSSH PRIVATE KEY"). Anything that doesn't parse as
+// a PEM block — or whose header lacks "PRIVATE" — returns false.
+func isPrivatePEM(b []byte) bool {
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return false
+	}
+	return strings.Contains(block.Type, "PRIVATE")
 }
 
 // encrypt produces AES-256-GCM ciphertext with a random 12-byte nonce prepended.
