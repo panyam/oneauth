@@ -157,10 +157,11 @@ See **[Client SDK](CLIENT_SDK.md)** for full details.
 - Cross-app token forgery prevented via `KeyRecord.ClientID` cross-check against `client_id` claim
 
 ### Encryption at Rest
-- `EncryptedKeyStorage` — decorator that wraps any `KeyStorage` to encrypt HS256 client secrets at rest using AES-256-GCM
+- `EncryptedKeyStorage` — decorator that wraps any `KeyStorage` to encrypt sensitive key material at rest using AES-256-GCM
 - Master key: 32-byte hex string (`ONEAUTH_MASTER_KEY` env var), derived via HKDF-SHA256 with a versioned info string
-- Asymmetric keys (RS256/ES256 public keys) pass through unencrypted since they are not sensitive
-- Migration: if GCM decryption fails on read, falls back to treating stored bytes as plaintext (backward compat with pre-encryption data)
+- Encrypted: HMAC client secrets (HS256/HS384/HS512) — identified by Algorithm; and PEM blocks whose header type contains `PRIVATE` (`PRIVATE KEY`, `RSA PRIVATE KEY`, `EC PRIVATE KEY`, `OPENSSH PRIVATE KEY`) — identified by content. Content-driven so private keys persisted under non-JWT Algorithm strings (e.g., `ssh-ed25519` via the `sshkeys` submodule) are still covered.
+- Plaintext: public PEMs that back JWKS exposure, and any non-PEM non-HMAC payload that's not sensitive
+- Migration: stored bytes starting with `-----BEGIN` (pre-encryption legacy or public PEMs) are returned as-is; non-PEM bytes with a failing GCM tag fall back to plaintext with a log warning (backward compat with pre-encryption HMAC data)
 - Optional: no master key configured = no encryption (with log warning)
 
 ### PKCE (Proof Key for Code Exchange)
