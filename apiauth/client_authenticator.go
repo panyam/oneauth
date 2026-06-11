@@ -14,8 +14,11 @@ import (
 
 // ClientAssertionTypeJWTBearer is the OAuth assertion-type URN that
 // MUST appear in the `client_assertion_type` form parameter when
-// authenticating via private_key_jwt or client_secret_jwt
-// (RFC 7521 §4.2). Any other value is rejected.
+// authenticating via private_key_jwt (RSA/ECDSA-keyed) or
+// client_secret_jwt (HMAC-keyed) per RFC 7521 §4.2. Any other value
+// is rejected. The two methods share the same wire protocol — the
+// assertion-validation pipeline picks the verification path from the
+// registered KeyRecord's Algorithm.
 const ClientAssertionTypeJWTBearer = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
 
 // MaxClientAssertionLifetime caps how far in the future a client
@@ -58,9 +61,14 @@ func NewClientAuthenticatorWithJTIStore(kl keys.KeyLookup, jti JTIStore) ClientA
 
 // AuthenticateClient verifies the supplied client credentials. When
 // req.ClientAssertion is set the assertion path runs; otherwise the
-// secret path runs. The response's ClientID echoes the authenticated
-// client (extracted from the assertion `iss` for private_key_jwt,
-// equal to the request ClientID for client_secret_*).
+// raw-secret path runs. The response's ClientID echoes the authenticated
+// client (extracted from the assertion `iss` for private_key_jwt /
+// client_secret_jwt, equal to the request ClientID for
+// client_secret_post / client_secret_basic). The response's Method
+// classifies which mechanism actually authenticated the client —
+// "client_secret" for the raw-secret paths; "private_key_jwt" or
+// "client_secret_jwt" for the assertion path, picked by whether the
+// registered key is asymmetric or HMAC.
 func (a *clientAuthenticator) AuthenticateClient(ctx context.Context, req *AuthenticateClientRequest) (*AuthenticateClientResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("AuthenticateClientRequest is required")
@@ -90,12 +98,16 @@ func (a *clientAuthenticator) authenticateSecret(req *AuthenticateClientRequest)
 	return &AuthenticateClientResponse{ClientID: req.ClientID, Method: "client_secret"}, nil
 }
 
-// authenticateAssertion validates a private_key_jwt client assertion
-// per RFC 7523 §3 + OIDC Core §9:
+// authenticateAssertion validates a JWT client assertion per RFC 7523
+// §3 + OIDC Core §9. Covers both private_key_jwt (asymmetric-keyed)
+// and client_secret_jwt (HMAC-keyed) — the wire protocol is identical;
+// only the signature-verification key shape differs:
 //
 //   - client_assertion_type MUST be the registered URN.
 //   - The JWT MUST be signed with an alg matching the client's
-//     registered alg (no alg-confusion).
+//     registered alg (no alg-confusion). For HS-registered clients
+//     this means HS256/HS384/HS512 only; for RSA/ECDSA-registered
+//     clients, RS*/ES*/PS* only — never crossable.
 //   - iss == sub == client_id.
 //   - aud MUST match the configured audience (token endpoint URL or
 //     AS issuer URL — the caller decides which).
@@ -148,12 +160,10 @@ func (a *clientAuthenticator) authenticateAssertion(req *AuthenticateClientReque
 		return nil, errInvalidClient
 	}
 	rec := keyResp.Record
-	if !utils.IsAsymmetricAlg(rec.Algorithm) {
-		// Symmetric-keyed clients cannot use private_key_jwt.
-		// client_secret_jwt is a separate ticket (#159).
-		return nil, fmt.Errorf("%w: client %q is not registered for private_key_jwt", errInvalidClient, clientID)
-	}
-
+	// Both HS* (client_secret_jwt) and RS*/ES*/PS* (private_key_jwt)
+	// flow through the same verification path — utils.DecodeVerifyKey
+	// returns the raw HMAC bytes for symmetric algs and the parsed
+	// public-key object for asymmetric ones.
 	verifyKey, err := utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 	if err != nil {
 		return nil, fmt.Errorf("%w: cannot decode client key: %v", errInvalidClient, err)
@@ -229,5 +239,9 @@ func (a *clientAuthenticator) authenticateAssertion(req *AuthenticateClientReque
 		return nil, fmt.Errorf("%w: assertion jti has been replayed", errInvalidClient)
 	}
 
-	return &AuthenticateClientResponse{ClientID: clientID, Method: "private_key_jwt"}, nil
+	method := "private_key_jwt"
+	if !utils.IsAsymmetricAlg(rec.Algorithm) {
+		method = "client_secret_jwt"
+	}
+	return &AuthenticateClientResponse{ClientID: clientID, Method: method}, nil
 }

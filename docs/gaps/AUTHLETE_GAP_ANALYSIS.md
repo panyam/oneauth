@@ -111,13 +111,13 @@ Legend: **Full** = implemented and conformance-tested · **Partial** = implement
 | `none` (public client) | Full | Full |
 | `client_secret_basic` | Full | Full |
 | `client_secret_post` | Full | Full |
-| `client_secret_jwt` | Full | None |
-| `private_key_jwt` | Full | None |
+| `client_secret_jwt` | Full | Full (issue 159) |
+| `private_key_jwt` | Full | Full (issue 158) |
 | `tls_client_auth` | Full | None |
 | `self_signed_tls_client_auth` | Full | None |
 | `attest_jwt_client_auth` (FAPI 2.0 attest) | Full | None |
 
-OneAuth client SDK (`client/auth_method.go`) **negotiates** auth methods from AS metadata and falls back when the AS only advertises ones it doesn't support — so it's aware of `private_key_jwt` and `tls_client_auth`, but doesn't implement them.
+OneAuth client SDK (`client/auth_method.go`) **negotiates** auth methods from AS metadata and falls back when the AS only advertises ones it doesn't support — so it's aware of `tls_client_auth` and `attest_jwt_client_auth`, but doesn't implement them.
 
 ---
 
@@ -149,7 +149,7 @@ That said, a few Authlete capabilities have value for OneAuth's actual niche (re
 | # | Capability | Why it fits OneAuth's niche | Effort |
 |---|---|---|---|
 | 1 | **DPoP (RFC 9449)** for access tokens | Sender-constrained tokens — useful for federated multi-service architectures where a token leak shouldn't let an attacker replay. Validation is cheap; issuance is moderate. | Medium |
-| 2 | **`private_key_jwt` client auth** | Removes shared-secret distribution for the federated `MintResourceToken` flow; aligns with what Keycloak / Authlete / Auth0 already accept. | Small |
+| 2 | ~~**`private_key_jwt` client auth**~~ | Shipped under issue 158. `client_secret_jwt` companion shipped under issue 159. | — |
 | 3 | **Token Exchange (RFC 8693)** | Useful for service-to-service downscoping in federated systems; `MintResourceToken` is already philosophically close. | Medium |
 | 4 | **`authorization_code` grant + `/authorize` endpoint + id_token** | Would make OneAuth a real (minimal) OIDC provider, not just a metadata advertiser. Big lift but is the door to "use OneAuth instead of Keycloak for small deployments." Carefully decide if this is in scope vs. the stated "we are not a full OIDC IdP" position in [ROADMAP.md](../ROADMAP.md). | Large |
 | 5 | **PAR (RFC 9126)** | Only valuable if (4) lands. | Small once (4) exists |

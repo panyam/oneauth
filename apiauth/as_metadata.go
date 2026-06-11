@@ -55,8 +55,9 @@ type ASServerMetadata struct {
 	// values the AS accepts on a private_key_jwt or client_secret_jwt
 	// `client_assertion`. Per OIDC Discovery 1.0 §3 / RFC 8414 §2 this
 	// list is REQUIRED whenever TokenEndpointAuthMethods includes
-	// "private_key_jwt" or "client_secret_jwt"; "none" MUST NOT
-	// appear. Typical values: "RS256", "ES256".
+	// "private_key_jwt" or "client_secret_jwt"; "none" MUST NOT appear.
+	// Typical values: "RS256", "ES256" (private_key_jwt); "HS256",
+	// "HS384", "HS512" (client_secret_jwt).
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
 
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
