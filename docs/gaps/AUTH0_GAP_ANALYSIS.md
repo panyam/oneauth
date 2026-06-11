@@ -136,7 +136,7 @@ Auth0 has shipped several new capabilities since our original analysis:
 | Organizations | Multi-org, per-org roles | None | **None** | issue 128 |
 | Scopes | OAuth2 standard | Custom scope system | Partial | — |
 | **Scope Enforcement** | Via API settings | `RequireScopes` + **NEW** `RequireAuthorizationDetails` middleware | Full | — |
-| Resource Server Registration | POST /api/v2/resource-servers | POST /apps/register + /apps/dcr | Full | — |
+| Resource Server Registration | POST /api/v2/resource-servers | POST /apps/dcr (RFC 7591) | Full | — |
 
 ## 5. Security Features
 

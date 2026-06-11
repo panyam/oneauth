@@ -216,9 +216,9 @@ func TestFederated_EndToEnd_HS256_SecretRotation(t *testing.T) {
 }
 
 // TestFederated_EndToEnd_RS256_ViaRegistrar exercises the full asymmetric flow
-// against a KeyStore populated directly (post-#189 DCR uses JWKS rather than
-// the legacy /apps/register PEM-string surface; direct PutKey is the simplest
-// setup for this e2e validation slice).
+// against a KeyStore populated directly. RFC 7591 DCR is the only registration
+// path; it accepts JWKS rather than the PEM-string that the retired legacy
+// endpoint used. Direct PutKey is the simplest setup for this e2e slice.
 func TestFederated_EndToEnd_RS256_ViaRegistrar(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 

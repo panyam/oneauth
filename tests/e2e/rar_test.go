@@ -24,7 +24,7 @@ import (
 )
 
 // TestRAR_ClientCredentials_FullFlow verifies the complete RAR flow:
-// 1. Register app via /apps/register
+// 1. Register app via /apps/dcr
 // 2. Request client_credentials token with authorization_details via /api/token
 // 3. Verify authorization_details in response body
 // 4. Verify authorization_details in JWT claims

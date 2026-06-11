@@ -13,7 +13,7 @@ srv := testutil.NewTestAuthServer(t, testutil.WithAudience("my-api"))
 token, _ := srv.MintToken("user-42", []string{"read", "write"})
 ```
 
-**Endpoints:** `/_ah/health`, `/api/token`, `/oauth/introspect`, `/.well-known/jwks.json`, `/.well-known/openid-configuration`, `/apps/register`, `/apps/dcr`
+**Endpoints:** `/_ah/health`, `/api/token`, `/oauth/introspect`, `/.well-known/jwks.json`, `/.well-known/openid-configuration`, `/apps/dcr`
 
 **Options:** `WithAdminKey`, `WithIssuer`, `WithAudience`, `WithScopes`
 

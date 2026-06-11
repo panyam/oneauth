@@ -8,12 +8,12 @@ import (
 )
 
 // ClientRegistrar is the transport-agnostic core of OneAuth's client
-// administration surface — registration (RFC 7591 + the proprietary
-// /apps/register path), listing, admin reads/deletes, and secret/key
-// rotation. HTTP handlers in admin/ are thin wrappers around this interface
-// (see DCRHandler.ServeHTTP and AppRegistrar.handleX), the same shape as
-// ClientRegistrationManager (#168/#169/#170) for self-service management
-// and the same convention apiauth/ adopts under #175.
+// administration surface — RFC 7591 registration, listing, admin reads /
+// deletes, and secret/key rotation. HTTP handlers in admin/ are thin
+// wrappers around this interface (see DCRHandler.ServeHTTP and
+// AppRegistrar.handleX), the same shape as ClientRegistrationManager
+// (#168/#169/#170) for self-service management and the same convention
+// apiauth/ adopts under #175.
 //
 // Auth boundary
 //
