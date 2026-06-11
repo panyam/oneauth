@@ -441,7 +441,7 @@ func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretReques
 }
 
 // SaveRegistration persists the registration to the store and updates the
-// in-memory cache. Used by handleRegister, DCRHandler, and (in #157) the
+// in-memory cache. Used by Register, DCRHandler, and (in #157) the
 // RFC 7592 management endpoints. If the store write fails, the cache is
 // not updated and the error is returned.
 func (h *AppRegistrar) SaveRegistration(ctx context.Context, reg *core.AppRegistration) error {
@@ -459,8 +459,8 @@ func (h *AppRegistrar) SaveRegistration(ctx context.Context, reg *core.AppRegist
 // RFC 7591 registration for req.ClientID iff req.AccessToken matches the
 // stored registration_access_token. Returns ErrUnauthorized for every
 // failure mode — wrong/missing token, unknown client_id, or a registration
-// that lacks a management token (e.g., a legacy /apps/register entry) — so
-// the management endpoint cannot be used to probe for valid client_ids.
+// that lacks a management token — so the management endpoint cannot be
+// used to probe for valid client_ids.
 //
 // The returned DCRResponse intentionally omits client_secret. RFC 7592 §3
 // permits but does not require echoing the secret on read; re-emitting
@@ -680,10 +680,11 @@ func (h *AppRegistrar) GetAppRegistration(ctx context.Context, clientID string) 
 	return &clone, true
 }
 
-// Handler returns an http.Handler for app registration endpoints.
-// Includes both custom OneAuth API, RFC 7591 DCR, and RFC 7592 DCR Management:
+// Handler returns an http.Handler for app registration + management endpoints.
+// Registration is RFC 7591 DCR only — the legacy proprietary
+// `POST /apps/register` was retired under issue 189; all callers go through
+// `/apps/dcr` now.
 //
-//	POST   /apps/register         — OneAuth custom registration
 //	POST   /apps/dcr              — RFC 7591 Dynamic Client Registration
 //	GET    /apps/dcr/{client_id}  — RFC 7592 DCR Management read (issue #168)
 //	GET    /apps                  — List all apps

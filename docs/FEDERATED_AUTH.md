@@ -32,17 +32,16 @@ Three projects collaborate in a federated deployment:
 
 ### Step 1: App Registers with OneAuth Server
 
-The App sends a registration request to the OneAuth server, protected by admin authentication.
+The App sends an RFC 7591 Dynamic Client Registration request to the OneAuth server. Admin auth is optional on `/apps/dcr` — the endpoint can be configured open for self-service or behind `X-Admin-Key` for gated environments.
 
 ```bash
-curl -X POST https://auth.example.com/apps/register \
+curl -X POST https://auth.example.com/apps/dcr \
   -H "X-Admin-Key: your-admin-key" \
   -H "Content-Type: application/json" \
   -d '{
-    "client_domain": "excaliframe.com",
-    "signing_alg": "HS256",
-    "max_rooms": 10,
-    "max_msg_rate": 30.0
+    "client_name": "Excaliframe",
+    "client_uri": "https://excaliframe.com",
+    "signing_alg": "HS256"
   }'
 ```
 
@@ -51,15 +50,16 @@ Response (201 Created):
 {
   "client_id": "app_a1b2c3d4e5f6",
   "client_secret": "64-char-hex-string...",
-  "client_domain": "excaliframe.com",
+  "client_name": "Excaliframe",
+  "client_uri": "https://excaliframe.com",
   "signing_alg": "HS256",
-  "max_rooms": 10,
-  "max_msg_rate": 30.0,
-  "created_at": "2026-03-15T10:30:00Z"
+  "registration_access_token": "rat_…",
+  "registration_client_uri": "https://auth.example.com/apps/dcr/app_a1b2c3d4e5f6",
+  "client_id_issued_at": 1710500000
 }
 ```
 
-The `client_secret` is stored in the `KeyStorage` and shared with the resource server.
+The `client_secret` is stored in the `KeyStorage` and shared with the resource server. Application-domain quotas (`max_rooms`, `max_msg_rate`, etc.) are not OneAuth-core concerns post-issue 189 — the embedder maintains them in its own store keyed by `client_id`, subscribing to `apiauth.ClientHooks.OnRegistered` / `OnDeleted` to keep the embedder's quota state in sync with OneAuth's registrations.
 
 ### Step 2: App Authenticates Users Locally
 
@@ -160,15 +160,14 @@ All endpoints require admin authentication via `X-Admin-Key` header (when using 
 #### Register App
 
 ```http
-POST /apps/register
+POST /apps/dcr
 Content-Type: application/json
 X-Admin-Key: admin-secret
 
 {
-  "client_domain": "myapp.example.com",
-  "signing_alg": "HS256",
-  "max_rooms": 10,
-  "max_msg_rate": 30.0
+  "client_name": "MyApp",
+  "client_uri": "https://myapp.example.com",
+  "signing_alg": "HS256"
 }
 ```
 
@@ -425,12 +424,16 @@ OneAuth supports asymmetric JWT signing alongside HS256. With asymmetric keys, a
 **Quick example** — register with RS256:
 
 ```bash
-curl -X POST https://auth.example.com/apps/register \
+curl -X POST https://auth.example.com/apps/dcr \
   -H "X-Admin-Key: your-admin-key" \
+  -H "Content-Type: application/json" \
   -d '{
-    "client_domain": "excaliframe.com",
-    "signing_alg": "RS256",
-    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBI...\n-----END PUBLIC KEY-----"
+    "client_name": "Excaliframe",
+    "client_uri": "https://excaliframe.com",
+    "token_endpoint_auth_method": "private_key_jwt",
+    "jwks": {
+      "keys": [{"kty": "RSA", "alg": "RS256", "n": "...", "e": "AQAB"}]
+    }
   }'
 ```
 

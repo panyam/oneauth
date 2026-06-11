@@ -33,7 +33,7 @@ PostgreSQL (shared signing_keys table)
 
 | Scenario | What It Proves |
 |----------|---------------|
-| App auto-registration on startup | App calls `POST /apps/register`, gets `client_id` + `client_secret`, persists to disk |
+| App auto-registration on startup | App calls `POST /apps/dcr` (RFC 7591), gets `client_id` + `client_secret`, persists to disk |
 | Independent user databases | DrawApp and ChatApp each have their own FS-backed user store — users don't overlap |
 | Resource token minting | Authenticated app user clicks "Get Resource Token" → `MintResourceToken()` signs JWT with `client_secret`, includes `kid` header (RFC 7638 thumbprint) |
 | Token validation by resource server | JWT POSTed to resource server's `/validate` → server reads `kid` from header, looks up signing key, verifies HMAC. Falls back to `client_id` claim for legacy tokens |
@@ -99,7 +99,7 @@ uv run pytest tests/integration/test_05_browser_auth.py \
 
 **Trust anchor**: The shared `signing_keys` table. This is the only thing that connects apps and resource servers. Written by oneauth-server at registration, read by resource servers at validation.
 
-**Secret shown once**: `POST /apps/register` returns `client_secret` exactly once. It's stored in the KeyStore as bytes but never returned again via any API. Apps must persist it (demo-hostapp saves to `app_credentials.json`).
+**Secret shown once**: `POST /apps/dcr` returns `client_secret` exactly once. It's stored in the KeyStore as bytes but never returned again via any API. Apps must persist it (demo-hostapp saves to `app_credentials.json`).
 
 **Resource server independence**: Once keys are in the shared KeyStore, resource servers validate tokens with zero runtime dependency on the auth server or apps. The resource server only needs database access.
 

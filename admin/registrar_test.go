@@ -291,6 +291,5 @@ func TestAppRegistrar_AdminAuth_ReadEndpoints(t *testing.T) {
 	}
 }
 
-// RS256 registration / rotation tests previously covered the legacy
-// /apps/register PEM-string flow. RFC 7591 DCR uses JWKS instead — coverage
-// for the asymmetric registration path lives in dcr_test.go.
+// RS256 registration / rotation coverage lives in dcr_test.go — RFC 7591
+// DCR is the only registration path.

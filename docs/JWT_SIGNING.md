@@ -122,9 +122,10 @@ When `JWTSigningKey`/`JWTVerifyKey` are set, they take precedence over `JWTSecre
 ### Symmetric (HS256) — default
 
 ```bash
-curl -X POST https://auth.example.com/apps/register \
+curl -X POST https://auth.example.com/apps/dcr \
   -H "X-Admin-Key: admin-key" \
-  -d '{"client_domain": "myapp.com", "signing_alg": "HS256"}'
+  -H "Content-Type: application/json" \
+  -d '{"client_name": "MyApp", "client_uri": "https://myapp.com", "signing_alg": "HS256"}'
 ```
 
 Response includes `client_secret` (shown only once).
@@ -132,12 +133,14 @@ Response includes `client_secret` (shown only once).
 ### Asymmetric (RS256/ES256)
 
 ```bash
-curl -X POST https://auth.example.com/apps/register \
+curl -X POST https://auth.example.com/apps/dcr \
   -H "X-Admin-Key: admin-key" \
+  -H "Content-Type: application/json" \
   -d '{
-    "client_domain": "myapp.com",
-    "signing_alg": "RS256",
-    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBI...\n-----END PUBLIC KEY-----"
+    "client_name": "MyApp",
+    "client_uri": "https://myapp.com",
+    "token_endpoint_auth_method": "private_key_jwt",
+    "jwks": {"keys": [{"kty": "RSA", "alg": "RS256", "n": "...", "e": "AQAB"}]}
   }'
 ```
 

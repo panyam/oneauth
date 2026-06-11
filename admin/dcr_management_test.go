@@ -99,28 +99,27 @@ func TestGetRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
 	assert.True(t, errors.Is(err, admin.ErrUnauthorized), "expected ErrUnauthorized, got %v", err)
 }
 
-// TestGetRegistration_LegacyRegistrationCannotBeRead verifies that apps
-// registered via the non-DCR endpoint (/apps/register), which do NOT receive
-// a registration_access_token, are not readable through the management
-// interface. Only DCR-registered clients participate in RFC 7592.
-func TestGetRegistration_LegacyRegistrationCannotBeRead(t *testing.T) {
+// TestGetRegistration_WrongAccessTokenRejected verifies that a DCR-registered
+// client cannot be read via the management endpoint when the caller presents
+// a token that does not match the one issued at registration time. Closes
+// the management surface against token-probing attacks.
+func TestGetRegistration_WrongAccessTokenRejected(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 
-	// Register through the legacy endpoint — no management token issued.
-	body := `{"client_name":"legacy.example","signing_alg":"HS256"}`
+	body := `{"client_name":"app.example","signing_alg":"HS256"}`
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
 	rr := httptest.NewRecorder()
 	registrar.Handler().ServeHTTP(rr, req)
 	require.Equal(t, http.StatusCreated, rr.Code)
-	var legacy map[string]any
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &legacy))
+	var registered map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &registered))
 
 	_, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
-		ClientID:    legacy["client_id"].(string),
-		AccessToken: "any-token",
+		ClientID:    registered["client_id"].(string),
+		AccessToken: "wrong-token",
 	})
-	assert.True(t, errors.Is(err, admin.ErrUnauthorized), "legacy app must not be readable via mgmt endpoint")
+	assert.True(t, errors.Is(err, admin.ErrUnauthorized), "wrong access token must be rejected")
 }
 
 // TestGetRegistration_EmptyInputsReturnUnauthorized covers the boundary cases
@@ -525,25 +524,25 @@ func TestDeleteRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
 	assert.True(t, errors.Is(err, admin.ErrUnauthorized))
 }
 
-// TestDeleteRegistration_LegacyRegistrationCannotBeDeleted verifies that
-// apps registered through the legacy /apps/register endpoint (no
-// registration_access_token issued) are not deletable through the management
-// interface — only DCR-registered clients participate in RFC 7592.
-func TestDeleteRegistration_LegacyRegistrationCannotBeDeleted(t *testing.T) {
+// TestDeleteRegistration_WrongAccessTokenRejected mirrors the GET-side
+// coverage: a DCR-registered client cannot be deleted via the management
+// endpoint when the caller's access token does not match the one issued at
+// registration time.
+func TestDeleteRegistration_WrongAccessTokenRejected(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
 
-	body := `{"client_name":"legacy.example","signing_alg":"HS256"}`
+	body := `{"client_name":"app.example","signing_alg":"HS256"}`
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
 	rr := httptest.NewRecorder()
 	registrar.Handler().ServeHTTP(rr, req)
 	require.Equal(t, http.StatusCreated, rr.Code)
-	var legacy map[string]any
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &legacy))
+	var registered map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &registered))
 
 	_, err := registrar.DeleteRegistration(context.Background(), &admin.DeleteRegistrationRequest{
-		ClientID:    legacy["client_id"].(string),
-		AccessToken: "any-token",
+		ClientID:    registered["client_id"].(string),
+		AccessToken: "wrong-token",
 	})
 	assert.True(t, errors.Is(err, admin.ErrUnauthorized))
 }

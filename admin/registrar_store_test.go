@@ -2,8 +2,8 @@ package admin_test
 
 // Tests covering the AppRegistrar + AppRegistrationStore integration added in
 // issue #165: cache hydration on construction, SaveRegistration write-through,
-// handleRegister persistence, handleDeleteApp persistence, and the DCR handler
-// routing through the store.
+// DCR registration persistence, handleDeleteApp persistence, and the DCR
+// handler routing through the store.
 
 import (
 	"bytes"
@@ -88,9 +88,9 @@ func TestAppRegistrar_SaveRegistration_PersistsToStore(t *testing.T) {
 	}
 }
 
-// TestAppRegistrar_HandleRegister_PersistsToStore verifies that POST /apps/register
+// TestAppRegistrar_DCR_PersistsToStore verifies that POST /apps/dcr
 // persists the new registration to the store, not only to the in-memory cache.
-func TestAppRegistrar_HandleRegister_PersistsToStore(t *testing.T) {
+func TestAppRegistrar_DCR_PersistsToStore(t *testing.T) {
 	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)

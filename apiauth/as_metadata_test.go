@@ -37,7 +37,7 @@ func TestASMetadata_FullResponse(t *testing.T) {
 		TokenEndpoint:         "https://auth.example.com/api/token",
 		JWKSURI:               "https://auth.example.com/.well-known/jwks.json",
 		IntrospectionEndpoint: "https://auth.example.com/oauth/introspect",
-		RegistrationEndpoint:  "https://auth.example.com/apps/register",
+		RegistrationEndpoint:  "https://auth.example.com/apps/dcr",
 		ScopesSupported:       []string{"read", "write", "admin"},
 		GrantTypesSupported:   []string{"password", "refresh_token", "client_credentials"},
 		ResponseTypesSupported:        []string{"token"},
@@ -60,7 +60,7 @@ func TestASMetadata_FullResponse(t *testing.T) {
 	assert.Equal(t, "https://auth.example.com/api/token", body["token_endpoint"])
 	assert.Equal(t, "https://auth.example.com/.well-known/jwks.json", body["jwks_uri"])
 	assert.Equal(t, "https://auth.example.com/oauth/introspect", body["introspection_endpoint"])
-	assert.Equal(t, "https://auth.example.com/apps/register", body["registration_endpoint"])
+	assert.Equal(t, "https://auth.example.com/apps/dcr", body["registration_endpoint"])
 	assert.Equal(t, []any{"read", "write", "admin"}, body["scopes_supported"])
 	assert.Equal(t, []any{"password", "refresh_token", "client_credentials"}, body["grant_types_supported"])
 	assert.Equal(t, []any{"token"}, body["response_types_supported"])
