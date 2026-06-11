@@ -45,6 +45,12 @@ func (s *GAEKidStore) namespacedKey(name string) *datastore.Key {
 	return key
 }
 
+// Add registers a kid→key entry in the verification-only grace cache used
+// during key rotation. The Key field must be []byte (HMAC secret or marshaled
+// PEM); any other concrete type is rejected with keys.ErrAlgorithmMismatch.
+// ExpiresAt of the zero time means "never expires"; otherwise GetKeyByKid
+// treats now > ExpiresAt as not-found. Existing entries with the same kid
+// are overwritten — KidStorage has no separate "create vs update" verb.
 func (s *GAEKidStore) Add(ctx context.Context, req *keys.AddKidRequest) (*keys.AddKidResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("Add: req is required")
@@ -67,6 +73,10 @@ func (s *GAEKidStore) Add(ctx context.Context, req *keys.AddKidRequest) (*keys.A
 	return &keys.AddKidResponse{}, nil
 }
 
+// Remove is idempotent — Datastore's Delete silently succeeds on missing
+// keys, and KidStorage's contract permits that ("removing a kid that was
+// never added is not an error"). The verification-only nature of the grace
+// cache means a stale Remove during rotation is harmless.
 func (s *GAEKidStore) Remove(ctx context.Context, req *keys.RemoveKidRequest) (*keys.RemoveKidResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("Remove: req is required")
@@ -77,10 +87,22 @@ func (s *GAEKidStore) Remove(ctx context.Context, req *keys.RemoveKidRequest) (*
 	return &keys.RemoveKidResponse{}, nil
 }
 
+// GetKey always returns keys.ErrKeyNotFound. KidStorage is a verification-only
+// grace cache keyed by kid, not by client_id — there is no way to ask "give
+// me the rotation key for this client" because rotation entries are scoped
+// to a kid, not a subject. Callers should reach for GetKeyByKid instead.
+// The method exists only because keys.KidStorage embeds keys.KeyLookup
+// (which carries this verb); the not-found sentinel is the documented
+// behavior across all KidStorage backends, not a GAE-specific gap.
 func (s *GAEKidStore) GetKey(ctx context.Context, req *keys.GetKeyRequest) (*keys.GetKeyResponse, error) {
 	return nil, keys.ErrKeyNotFound
 }
 
+// GetKeyByKid resolves a kid to its grace-period key during rotation.
+// Returns keys.ErrKidNotFound when no entry exists or when ExpiresAt is
+// non-zero and already in the past. The expiry check runs on read so a
+// cleanup job that hasn't yet swept stale entries doesn't return them as
+// valid — CleanExpired's role is reclaiming storage, not gating reads.
 func (s *GAEKidStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequest) (*keys.GetKeyByKidResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetKeyByKid: req is required")
@@ -103,6 +125,13 @@ func (s *GAEKidStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequ
 	}}, nil
 }
 
+// CleanExpired sweeps the grace cache for entries whose ExpiresAt has passed
+// and returns the number removed. Implementation reads every entity in the
+// namespace and filters in process — Datastore doesn't expose a "delete
+// where" verb, and the grace cache is small (bounded by rotation cardinality
+// × grace period). Entries with zero ExpiresAt are immortal and skipped.
+// Safe to call concurrently with GetKeyByKid; reads filter on their own
+// independently.
 func (s *GAEKidStore) CleanExpired(ctx context.Context, req *keys.CleanExpiredRequest) (*keys.CleanExpiredResponse, error) {
 	q := datastore.NewQuery(KindKidKey)
 	if s.namespace != "" {

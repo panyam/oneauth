@@ -42,6 +42,14 @@ func (s *GAEKeyStore) namespacedKey(name string) *datastore.Key {
 	return key
 }
 
+// PutKey upserts a per-client signing key. The record's Key field must be
+// []byte (HMAC secret or marshaled PEM); any other concrete type is rejected
+// with keys.ErrAlgorithmMismatch — KeyStorage callers serialize before
+// reaching the backend, and a wrong type here means the caller skipped that
+// step. Kid is filled in from utils.ComputeKid(KeyBytes, Algorithm) when the
+// caller leaves it empty so JWKS lookups stay deterministic across restarts.
+// Existing entries with the same ClientID are overwritten — KeyStorage has
+// no separate "create vs update" verb.
 func (s *GAEKeyStore) PutKey(ctx context.Context, req *keys.PutKeyRequest) (*keys.PutKeyResponse, error) {
 	if req == nil || req.Record == nil {
 		return nil, fmt.Errorf("PutKey: req.Record is required")
@@ -69,6 +77,13 @@ func (s *GAEKeyStore) PutKey(ctx context.Context, req *keys.PutKeyRequest) (*key
 	return &keys.PutKeyResponse{}, nil
 }
 
+// DeleteKey removes the signing-key entry for req.ClientID. Returns
+// keys.ErrKeyNotFound when the entry is absent — Datastore's bare Delete is
+// idempotent and silently succeeds on missing keys, so the implementation
+// does a Get-then-Delete to honor the KeyStorage contract (the conformance
+// suite asserts on this sentinel). Other Datastore errors (network, auth,
+// quota) surface unwrapped so callers can distinguish "no such key" from
+// "infrastructure problem."
 func (s *GAEKeyStore) DeleteKey(ctx context.Context, req *keys.DeleteKeyRequest) (*keys.DeleteKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("DeleteKey: req is required")
@@ -99,6 +114,10 @@ func (s *GAEKeyStore) getEntity(ctx context.Context, clientID string) (*SigningK
 	return &entity, nil
 }
 
+// GetKey returns the signing-key record for req.ClientID, or
+// keys.ErrKeyNotFound when the entry is absent. KeyBytes are returned as
+// []byte (the same shape PutKey accepted) — callers are responsible for
+// parsing back to the algorithm-specific key type.
 func (s *GAEKeyStore) GetKey(ctx context.Context, req *keys.GetKeyRequest) (*keys.GetKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetKey: req is required")
@@ -115,6 +134,12 @@ func (s *GAEKeyStore) GetKey(ctx context.Context, req *keys.GetKeyRequest) (*key
 	}}, nil
 }
 
+// GetKeyByKid resolves a key by its kid (the JWT header identifier), used by
+// JWKS-driven validators that only know the kid, not the client_id. Returns
+// keys.ErrKidNotFound when no entry carries the requested kid. The query
+// runs against the "kid" property — the only indexed non-key field on
+// SigningKeyEntity — and reads at most one entity (Limit(1)) since kids are
+// unique per JWKS surface.
 func (s *GAEKeyStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequest) (*keys.GetKeyByKidResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GetKeyByKid: req is required")
@@ -139,6 +164,12 @@ func (s *GAEKeyStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequ
 	}}, nil
 }
 
+// ListKeyIDs enumerates every client_id with a registered signing key in this
+// namespace. Returns an empty slice (not an error) for an empty namespace,
+// matching the other KeyStorage backends' "fresh store has no keys" shape.
+// Order is unspecified — Datastore key-only queries return results in
+// implementation-defined order; callers that need deterministic order must
+// sort.
 func (s *GAEKeyStore) ListKeyIDs(ctx context.Context, req *keys.ListKeyIDsRequest) (*keys.ListKeyIDsResponse, error) {
 	q := datastore.NewQuery(KindSigningKey).KeysOnly()
 	if s.namespace != "" {
