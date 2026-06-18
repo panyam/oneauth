@@ -166,7 +166,49 @@ For each gap, capture:
 - **Effort:** M. Most JWS plumbing already exists; the work is parameterizing existing primitives for a different "what the JWT means" semantic.
 - **Mentioned in:** [RFC_9101.md](RFC_9101.md) — full implementation sketch.
 
-## (Append future gaps below as L7/... docs land)
+---
+
+## L7 — Identity (OIDC)
+
+### 13. OIDC Core — id_token issuance, nonce, userinfo, scope-to-claims
+
+- **What:** OIDC's foundational mechanics. id_token JWT minting + nonce parameter handling + `/userinfo` endpoint + scope-driven claim selection (`openid` / `profile` / `email` / `address` / `phone`).
+- **Where:** Only `apiauth/token_exchange_grant.go:27` `TokenTypeIDToken` constant exists today (for 8693 token type indicator); no actual id_token mint. No `nonce` references in `apiauth/authorize*.go` or `core/authorization_code.go`. `apiauth/as_metadata.go:33` advertises `userinfo_endpoint` URL but no handler implements it.
+- **Why:** This is the *single largest implementable gap* in OneAuth. The foundation (`/authorize`, JWKS, AS metadata, DCR) is in place; what's missing is the identity-layer plumbing. Unblocks CIBA (gap 15), broader OIDC ecosystem interop, FAPI 2.0 trajectory.
+- **Sub-surfaces:**
+  - `IDTokenIssuer` interface alongside `TokenIssuer` (sign with same JWKS-published keys; emit `iss`, `sub`, `aud`, `exp`, `iat`, `nonce`, `at_hash`)
+  - Scope-driven claim selector (`ClaimMapping` hook) mapping `openid profile email` → claim set
+  - `/userinfo` handler (bearer-auth, returns scope-gated claims as JSON; optional signed-JWT variant)
+  - `nonce` storage + echo (extend `AuthorizationCode` shape)
+  - `auth_time`, `acr`, `amr` emission (gates step-up auth)
+  - `at_hash` claim binding id_token to access_token at issuance
+- **Effort:** L. Big surface but additive — none of the existing OAuth layer changes.
+- **Mentioned in:** [OIDC_Core.md](OIDC_Core.md) — full implementation sketch.
+
+### 14. OIDC RP-Initiated Logout + Session Management + Front-Channel Logout
+
+- **What:** The three other OIDC logout/session specs that compose with the already-shipped Back-Channel Logout (`apiauth/BCLDispatcher`).
+- **Where:** Tracked under repo issue 156. No `front_channel` / `rp_initiated` / `session_state` references in `apiauth/`.
+- **Why:** Complete the OIDC logout story. BCL alone covers most cases but multi-RP browser-orchestrated logout (front-channel) is still ecosystem-relevant.
+- **Effort:** M each.
+- **Mentioned in:** [OIDC_BCL.md](OIDC_BCL.md) "Related specs".
+
+### 15. OIDC CIBA — full implementation
+
+- **What:** Client-initiated backchannel authentication. New `/bc-authorize` endpoint, new `urn:openid:params:grant-type:ciba` grant type, poll/ping/push notification modes, `login_hint` resolution, `binding_message` propagation.
+- **Where:** No CIBA handlers anywhere; gates on OIDC Core (gap 13) for id_token issuance plus per-deployment authenticator-device integration.
+- **Why:** The natural fit for AI agent / voice-assistant / call-center decoupled auth flows. Tracked alongside repo issue 125 (Auth0-for-AI-Agents parity).
+- **Sub-surfaces:**
+  - `POST /bc-authorize` endpoint
+  - `ciba` grant_type dispatch
+  - Poll mode (Phase 1) → ping / push (later)
+  - `auth_req_id` store with TTL (model on `DeviceAuthorizationStore`)
+  - `login_hint` / `id_token_hint` resolution to user identity
+  - AS metadata: `backchannel_authentication_endpoint`, `backchannel_token_delivery_modes_supported`, `backchannel_user_code_parameter_supported`
+- **Effort:** L. Plus deployment-side authenticator integration (out-of-scope for the library).
+- **Mentioned in:** [OIDC_CIBA.md](OIDC_CIBA.md) — full implementation sketch.
+
+## (Append future gaps below as L8/... docs land)
 
 ---
 

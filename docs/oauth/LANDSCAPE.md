@@ -684,10 +684,10 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | [RFC_9700.md](RFC_9700.md) Security BCP | 🟡 | #305 |
 | [RFC_9728.md](RFC_9728.md) PR metadata | 🟡 | #311 |
 | [RFC_oauth21.md](RFC_oauth21.md) OAuth 2.1 draft | 🟡 | #302 |
-| OIDC_Core.md | 📝 | — |
-| OIDC_Discovery.md | 📝 | — |
-| OIDC_BCL.md | 📝 | — |
-| OIDC_CIBA.md | 📝 | — |
+| [OIDC_Core.md](OIDC_Core.md) | 🟡 | #322 |
+| [OIDC_Discovery.md](OIDC_Discovery.md) | 🟡 | #322 |
+| [OIDC_BCL.md](OIDC_BCL.md) | 🟡 | #323 |
+| [OIDC_CIBA.md](OIDC_CIBA.md) | 🟡 | #324 |
 | FAPI.md | 📝 | — |
 | GNAP.md | 📝 | — |
 
