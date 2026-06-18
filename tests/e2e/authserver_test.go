@@ -68,22 +68,11 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		},
 	}
 
-	// APIAuth
-	e.apiAuth = &apiauth.APIAuth{
-		RefreshTokenStore:      refreshTokenStore,
-		JWTSecretKey:           e.JWTSecret,
-		JWTIssuer:              testJWTIssuer,
-		ValidateCredentials:    e.localAuth.ValidateCredentials,
-		Blacklist:              e.Blacklist,
-		ClientKeyStore:         e.KeyStore, // Enables client_credentials grant
-		AuthorizationCodeStore: core.NewInMemoryAuthorizationCodeStore(),
-	}
-
-	// OIDC Back-Channel Logout 1.0 sender wiring (issue 261). The dispatcher
-	// is opt-in: if no client registers backchannel_logout_uri the hook is a
-	// no-op. AllowPrivateHosts is set because RS-side receivers in these
-	// tests run via httptest.NewServer (127.0.0.1). e.registrar exposes
-	// GetAppRegistration via the AppRegistrationLookup interface.
+	// OIDC Back-Channel Logout 1.0 sender wiring (issue 261). Built
+	// BEFORE OneAuth so the hooks can close over it. The dispatcher is
+	// opt-in: if no client registers backchannel_logout_uri the hook
+	// is a no-op. AllowPrivateHosts is set because RS-side receivers
+	// in these tests run via httptest.NewServer (127.0.0.1).
 	e.bclDispatcher = &apiauth.BCLDispatcher{
 		Issuer: apiauth.NewJWTLogoutTokenIssuer(apiauth.JWTLogoutTokenIssuerConfig{
 			SigningKey: []byte(e.JWTSecret),
@@ -96,7 +85,8 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		AllowPrivateHosts: true,
 	}
 	e.registrar.AllowPrivateBCLHosts = true // tests register loopback receivers
-	e.apiAuth.TokenHooks = apiauth.TokenHooks{
+
+	tokenHooks := apiauth.TokenHooks{
 		OnSubjectRevoked: func(subject, sid string, clientIDs []string) {
 			e.bclDispatcher.Dispatch(context.Background(), &apiauth.DispatchRequest{
 				Subject:   subject,
@@ -115,6 +105,22 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 			})
 		},
 	}
+
+	// OneAuth — hooks already populated so the Revoker + Sessions
+	// handler snapshot them at construction time.
+	e.oa = apiauth.NewOneAuth(apiauth.OneAuthConfig{
+		KeyStore:               e.KeyStore,
+		SigningKey:             []byte(e.JWTSecret),
+		SigningAlg:             "HS256",
+		Issuer:                 testJWTIssuer,
+		RefreshStore:           refreshTokenStore,
+		Blacklist:              e.Blacklist,
+		ValidateCredentials:    e.localAuth.ValidateCredentials,
+		AuthorizationCodeStore: core.NewInMemoryAuthorizationCodeStore(),
+		Hooks:                  apiauth.Hooks{Token: tokenHooks},
+	})
+	e.tokenEndpoint = apiauth.NewTokenEndpointHandler(e.oa)
+	e.sessions = e.oa.SessionsHTTPHandler()
 
 	// CSRF
 	csrf := &httpauth.CSRFMiddleware{}
@@ -143,7 +149,7 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	// (#297). Auto-approves "e2e-user" so the headless tests can drive
 	// the redirect → code → token chain without a login UI.
 	apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
-		APIAuth:              e.apiAuth,
+		OneAuth:              e.oa,
 		IssuerURL:            testJWTIssuer,
 		EmitIssParameter:     true,
 		SubjectFromRequest:   func(r *http.Request) string { return "" },
@@ -173,7 +179,7 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 			// downstream call sees the same fields.
 			r.Body = readCloserFromForm(r.PostForm)
 			r.ContentLength = -1
-			e.apiAuth.ServeHTTP(w, r)
+			e.tokenEndpoint.ServeHTTP(w, r)
 			return
 
 		case "client_credentials":
@@ -219,8 +225,8 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	})
 
 	// API endpoints
-	mux.HandleFunc("POST /api/token", e.apiAuth.ServeHTTP)
-	mux.HandleFunc("POST /api/logout", e.apiAuth.HandleLogout)
+	mux.HandleFunc("POST /api/token", e.tokenEndpoint.ServeHTTP)
+	mux.HandleFunc("POST /api/logout", e.sessions.HandleLogout)
 
 	// JWT-protected endpoints
 	apiMW := &apiauth.APIMiddleware{
@@ -235,8 +241,8 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 			"scopes":  apiauth.GetScopesFromAPIContext(r.Context()),
 		})
 	})))
-	mux.Handle("GET /api/sessions", apiMW.ValidateToken(http.HandlerFunc(e.apiAuth.HandleListSessions)))
-	mux.Handle("POST /api/logout-all", apiMW.ValidateToken(http.HandlerFunc(e.apiAuth.HandleLogoutAll)))
+	mux.Handle("GET /api/sessions", apiMW.ValidateToken(http.HandlerFunc(e.sessions.HandleListSessions)))
+	mux.Handle("POST /api/logout-all", apiMW.ValidateToken(http.HandlerFunc(e.sessions.HandleLogoutAll)))
 
 	// Token revocation
 	mux.Handle("POST /api/revoke", apiMW.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -266,11 +272,11 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	mux.Handle("/apps", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(e.registrar.Handler()))
 
 	// Token Introspection (RFC 7662)
-	introspectionHandler := apiauth.NewIntrospectionHandler(e.apiAuth, e.KeyStore)
+	introspectionHandler := e.oa.IntrospectionHTTPHandler()
 	mux.Handle("POST /oauth/introspect", introspectionHandler)
 
 	// Token Revocation (RFC 7009)
-	revocationHandler := apiauth.NewRevocationHandler(e.apiAuth, e.KeyStore)
+	revocationHandler := e.oa.RevocationHTTPHandler()
 	mux.Handle("POST /oauth/revoke", revocationHandler)
 
 	// JWKS

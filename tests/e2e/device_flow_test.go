@@ -57,7 +57,8 @@ const (
 type deviceFlowEnv struct {
 	t              *testing.T
 	server         *httptest.Server
-	apiAuth        *apiauth.APIAuth
+	oa             *apiauth.OneAuth
+	tokenEndpoint  *apiauth.TokenEndpointHandler
 	appRegistrar   *admin.AppRegistrar
 	deviceStore    core.DeviceAuthorizationStore
 	appStore       core.AppRegistrationStore
@@ -75,16 +76,18 @@ func newDeviceFlowEnv(t *testing.T, expiry time.Duration) *deviceFlowEnv {
 
 	env.appRegistrar = admin.NewAppRegistrarWithStore(env.keyStore, admin.NewAPIKeyAuth(deviceTestAdminKey), env.appStore)
 
-	env.apiAuth = &apiauth.APIAuth{
-		JWTSecretKey:    deviceTestJWTSecret,
-		JWTIssuer:       deviceTestJWTIssuer,
-		ClientKeyStore:  env.keyStore,
+	env.oa = apiauth.NewOneAuth(apiauth.OneAuthConfig{
+		KeyStore:        env.keyStore,
+		SigningKey:      []byte(deviceTestJWTSecret),
+		SigningAlg:      "HS256",
+		Issuer:          deviceTestJWTIssuer,
 		DeviceAuthStore: env.deviceStore,
 		AppStore:        env.appStore, // enables RFC 8628 §3.4 confidential-client enforcement
-	}
+	})
+	env.tokenEndpoint = apiauth.NewTokenEndpointHandler(env.oa)
 
 	mux := http.NewServeMux()
-	mux.Handle("POST /api/token", env.apiAuth)
+	mux.Handle("POST /api/token", env.tokenEndpoint)
 
 	// NewUnstartedServer so we know the server URL (and thus the
 	// VerificationURI) BEFORE the device-flow handlers are constructed.
@@ -96,7 +99,7 @@ func newDeviceFlowEnv(t *testing.T, expiry time.Duration) *deviceFlowEnv {
 	t.Cleanup(env.server.Close)
 
 	apiauth.MountDeviceFlow(mux, apiauth.DeviceFlowMountConfig{
-		APIAuth:         env.apiAuth,
+		OneAuth:         env.oa,
 		VerificationURI: env.server.URL + "/device",
 		Expiry:          env.expiry,
 		// Option B (issue 276): the shim — login state lives in a

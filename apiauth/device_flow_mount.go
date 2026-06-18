@@ -3,6 +3,8 @@ package apiauth
 import (
 	"net/http"
 	"time"
+
+	"github.com/panyam/oneauth/core"
 )
 
 // DeviceFlowMountConfig configures MountDeviceFlow. Mirrors the
@@ -11,19 +13,19 @@ import (
 // integration points (session lookup, CSRF token source, optional
 // middleware wrapping the verifier routes).
 //
-// A minimal valid configuration sets APIAuth (with DeviceAuthStore
+// A minimal valid configuration sets OneAuth (with DeviceAuthStore
 // populated), VerificationURI, SubjectFromRequest, and
 // CSRFTokenFromRequest. Everything else has sensible defaults — the
 // helper deliberately keeps the knob count low so the reference server
 // and tests both reach for it instead of hand-wiring the four routes.
 type DeviceFlowMountConfig struct {
-	// APIAuth is the source of DeviceAuthStore (required for the
-	// device-grant handler and the verification UI), AppStore (used by
-	// the consent screen to render client_name and by the token
-	// endpoint to enforce RFC 8628 §3.4 confidential-client auth per
-	// issue 266), and the Approve / Deny helpers the verifier calls
-	// when the user decides. Required.
-	APIAuth *APIAuth
+	// OneAuth is the source of DeviceAuthStore (required for the
+	// device-grant handler and the verification UI) and AppStore
+	// (used by the consent screen to render client_name and by the
+	// device-code redemption handler to enforce RFC 8628 §3.4
+	// confidential-client authentication, issue 266). The Approve /
+	// Deny helpers wire directly to the DeviceAuthStore.
+	OneAuth *OneAuth
 
 	// VerificationURI is the absolute URL the device displays to the
 	// user — RFC 8628 §3.2 makes it REQUIRED on the /device/authorize
@@ -107,7 +109,7 @@ type DeviceFlowMountConfig struct {
 // are wrapped with it. /device/authorize is intentionally unwrapped —
 // it is a device-driven JSON endpoint, not a browser form.
 //
-// Panics if cfg.APIAuth is nil, cfg.APIAuth.DeviceAuthStore is nil, or
+// Panics if cfg.OneAuth is nil, cfg.OneAuth.DeviceAuthStore is nil, or
 // cfg.VerificationURI is empty — those are programming errors the
 // caller cannot meaningfully recover from at request time.
 //
@@ -115,18 +117,19 @@ type DeviceFlowMountConfig struct {
 // caller is responsible for that on the ASServerMetadata struct passed
 // to MountASMetadata.
 func MountDeviceFlow(mux *http.ServeMux, cfg DeviceFlowMountConfig) {
-	if cfg.APIAuth == nil {
-		panic("apiauth: MountDeviceFlow: cfg.APIAuth is required")
+	if cfg.OneAuth == nil {
+		panic("apiauth: MountDeviceFlow: cfg.OneAuth is required")
 	}
-	if cfg.APIAuth.DeviceAuthStore == nil {
-		panic("apiauth: MountDeviceFlow: cfg.APIAuth.DeviceAuthStore is required (RFC 8628 needs persistence)")
+	deviceStore := cfg.OneAuth.DeviceAuthStore
+	if deviceStore == nil {
+		panic("apiauth: MountDeviceFlow: cfg.OneAuth.DeviceAuthStore is required (RFC 8628 needs persistence)")
 	}
 	if cfg.VerificationURI == "" {
 		panic("apiauth: MountDeviceFlow: cfg.VerificationURI is required (RFC 8628 §3.2)")
 	}
 
 	devAuth := &DeviceAuthorizationHandler{
-		Store:                           cfg.APIAuth.DeviceAuthStore,
+		Store:                           deviceStore,
 		VerificationURI:                 cfg.VerificationURI,
 		VerificationURICompleteTemplate: cfg.VerificationURICompleteTemplate,
 		Expiry:                          cfg.Expiry,
@@ -136,13 +139,19 @@ func MountDeviceFlow(mux *http.ServeMux, cfg DeviceFlowMountConfig) {
 	mux.Handle("POST /device/authorize", devAuth)
 
 	verifier := &DeviceVerificationHandler{
-		Store:    cfg.APIAuth.DeviceAuthStore,
-		AppStore: cfg.APIAuth.AppStore,
+		Store:    deviceStore,
+		AppStore: cfg.OneAuth.AppStore,
 		Approve: func(r *http.Request, userCode, subject string, scopes []string) error {
-			return cfg.APIAuth.ApproveDeviceAuthorization(r, userCode, subject, scopes)
+			_, err := deviceStore.ApproveDeviceAuthorization(r.Context(), &core.ApproveDeviceAuthorizationRequest{
+				UserCode:        userCode,
+				ApprovedSubject: subject,
+				GrantedScopes:   scopes,
+			})
+			return err
 		},
 		Deny: func(r *http.Request, userCode string) error {
-			return cfg.APIAuth.DenyDeviceAuthorization(r, userCode)
+			_, err := deviceStore.DenyDeviceAuthorization(r.Context(), &core.DenyDeviceAuthorizationRequest{UserCode: userCode})
+			return err
 		},
 		SubjectFromRequest:   cfg.SubjectFromRequest,
 		CSRFTokenFromRequest: cfg.CSRFTokenFromRequest,

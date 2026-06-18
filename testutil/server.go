@@ -44,8 +44,12 @@ type TestAuthServer struct {
 	// Server is the underlying httptest.Server. Use URL() for the base URL.
 	Server *httptest.Server
 
-	// APIAuth is the configured API authentication handler (RS256).
-	APIAuth *apiauth.APIAuth
+	// OneAuth is the configured transport-independent core (RS256).
+	OneAuth *apiauth.OneAuth
+
+	// TokenEndpointHandler is the HTTP handler mounted at /api/token.
+	// Distinct name from the TokenEndpoint() method which returns the URL.
+	TokenEndpointHandler *apiauth.TokenEndpointHandler
 
 	// KeyStore holds the server's RSA key and any registered app keys.
 	KeyStore keys.KeyStorage
@@ -254,20 +258,22 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 
 	registrar := admin.NewAppRegistrar(ks, admin.NewAPIKeyAuth(cfg.adminKey))
 
-	apiAuth := &apiauth.APIAuth{
-		JWTSigningAlg:           "RS256",
-		JWTSigningKey:           privKey,
-		JWTVerifyKey:            &privKey.PublicKey,
-		JWTIssuer:               cfg.issuer,
-		JWTAudience:             cfg.audience,
-		ClientKeyStore:          ks,
+	oaCfg := apiauth.OneAuthConfig{
+		KeyStore:                ks,
+		SigningKey:              privKey,
+		VerifyKey:               &privKey.PublicKey,
+		SigningAlg:              "RS256",
+		Issuer:                  cfg.issuer,
+		Audience:                cfg.audience,
 		TrustedAssertionIssuers: cfg.trustedAssertionIssuers,
 	}
 	if cfg.authorizeEnabled {
-		apiAuth.AuthorizationCodeStore = core.NewInMemoryAuthorizationCodeStore()
+		oaCfg.AuthorizationCodeStore = core.NewInMemoryAuthorizationCodeStore()
 	}
+	oa := apiauth.NewOneAuth(oaCfg)
+	tokenEndpoint := apiauth.NewTokenEndpointHandler(oa)
 
-	introspection := apiauth.NewIntrospectionHandler(apiAuth, ks)
+	introspection := oa.IntrospectionHTTPHandler()
 
 	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
 
@@ -275,7 +281,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	mux.HandleFunc("GET /_ah/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
-	mux.HandleFunc("POST /api/token", apiAuth.ServeHTTP)
+	mux.Handle("POST /api/token", tokenEndpoint)
 	mux.Handle("POST /oauth/introspect", introspection)
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
 	mux.Handle("/apps/", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
@@ -287,7 +293,12 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	issuer := cfg.issuer
 	if issuer == defaultIssuer {
 		issuer = baseURL
-		apiAuth.JWTIssuer = issuer
+		// Rebuild OneAuth so the token issuer carries the resolved
+		// issuer URL — JWT iss claims on issued tokens must match
+		// the actual server URL httptest assigned.
+		oaCfg.Issuer = issuer
+		oa = apiauth.NewOneAuth(oaCfg)
+		tokenEndpoint = apiauth.NewTokenEndpointHandler(oa)
 	}
 	grants := cfg.grantTypesSupported
 	if grants == nil {
@@ -308,7 +319,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 			autoApprove = "e2e-user"
 		}
 		apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
-			APIAuth:              apiAuth,
+			OneAuth:              oa,
 			IssuerURL:            issuer,
 			EmitIssParameter:     cfg.issParameterSupported != nil && *cfg.issParameterSupported,
 			RedirectOverride:     cfg.authorizeRedirectOverride,
@@ -335,11 +346,12 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	})
 
 	return &TestAuthServer{
-		Server:     server,
-		APIAuth:    apiAuth,
-		KeyStore:   ks,
-		Registrar:  registrar,
-		privateKey: privKey,
+		Server:        server,
+		OneAuth:       oa,
+		TokenEndpointHandler: tokenEndpoint,
+		KeyStore:      ks,
+		Registrar:     registrar,
+		privateKey:    privKey,
 		cfg: config{
 			adminKey: cfg.adminKey,
 			issuer:   issuer,

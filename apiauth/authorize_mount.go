@@ -19,11 +19,11 @@ import (
 // keeps the knob count low so the reference server and tests both
 // reach for it instead of hand-wiring the two routes.
 type AuthorizeMountConfig struct {
-	// APIAuth is the source of AuthorizationCodeStore (required for
+	// OneAuth is the source of AuthorizationCodeStore (required for
 	// the authorize handler and the redemption path) and AppStore
 	// (used by the consent screen to render client_name and by the
 	// handler to validate redirect_uri allowlists). Required.
-	APIAuth *APIAuth
+	OneAuth *OneAuth
 
 	// IssuerURL is the AS's issuer identifier. Echoed on the redirect
 	// as `iss` per RFC 9207 when EmitIssParameter is true. Required.
@@ -94,7 +94,7 @@ type AuthorizeMountConfig struct {
 // Both routes share the same backing AuthorizeVerificationHandler and,
 // when cfg.BrowserMiddleware is non-nil, are wrapped with it.
 //
-// Panics if cfg.APIAuth is nil, cfg.APIAuth.AuthorizationCodeStore is
+// Panics if cfg.OneAuth is nil, cfg.OneAuth.AuthorizationCodeStore is
 // nil, cfg.IssuerURL is empty, or the required function fields are
 // nil — those are programming errors the caller cannot meaningfully
 // recover from at request time.
@@ -104,11 +104,11 @@ type AuthorizeMountConfig struct {
 // supplies those on the ASServerMetadata struct passed to
 // MountASMetadata.
 func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
-	if cfg.APIAuth == nil {
-		panic("apiauth: MountAuthorize: cfg.APIAuth is required")
+	if cfg.OneAuth == nil {
+		panic("apiauth: MountAuthorize: cfg.OneAuth is required")
 	}
-	if cfg.APIAuth.AuthorizationCodeStore == nil {
-		panic("apiauth: MountAuthorize: cfg.APIAuth.AuthorizationCodeStore is required (RFC 6749 §4.1 needs persistence)")
+	if cfg.OneAuth.AuthorizationCodeStore == nil {
+		panic("apiauth: MountAuthorize: cfg.OneAuth.AuthorizationCodeStore is required (RFC 6749 §4.1 needs persistence)")
 	}
 	if cfg.IssuerURL == "" {
 		panic("apiauth: MountAuthorize: cfg.IssuerURL is required (RFC 9207 needs the issuer URL even when EmitIssParameter is off, for future hardening)")
@@ -121,8 +121,8 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 	}
 
 	authzHandler := &AuthorizationHandler{
-		Store:                cfg.APIAuth.AuthorizationCodeStore,
-		AppStore:             cfg.APIAuth.AppStore,
+		Store:                cfg.OneAuth.AuthorizationCodeStore,
+		AppStore:             cfg.OneAuth.AppStore,
 		RedirectURIValidator: cfg.RedirectURIValidator,
 		IssuerURL:            cfg.IssuerURL,
 		EmitIssParameter:     cfg.EmitIssParameter,
@@ -132,7 +132,7 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 
 	verifier := &AuthorizeVerificationHandler{
 		Authorization:        authzHandler,
-		AppStore:             cfg.APIAuth.AppStore,
+		AppStore:             cfg.OneAuth.AppStore,
 		SubjectFromRequest:   cfg.SubjectFromRequest,
 		CSRFTokenFromRequest: cfg.CSRFTokenFromRequest,
 		LoginRedirectURL:     cfg.LoginRedirectURL,

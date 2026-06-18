@@ -119,14 +119,15 @@ func main() {
 	// Token blacklist for immediate access token revocation
 	blacklist := core.NewInMemoryBlacklist()
 
-	// Build APIAuth (for API token endpoint).
-	apiAuth := &apiauth.APIAuth{
-		RefreshTokenStore:   stores.refreshTokenStore,
-		JWTSecretKey:        cfg.JWT.SecretKey,
-		JWTIssuer:           cfg.JWT.Issuer,
-		ValidateCredentials: localAuth.ValidateCredentials,
+	// Build OneAuth (the transport-independent core) + handlers.
+	oaCfg := apiauth.OneAuthConfig{
+		KeyStore:            keyStore,
+		SigningKey:          []byte(cfg.JWT.SecretKey),
+		SigningAlg:          "HS256",
+		Issuer:              cfg.JWT.Issuer,
+		RefreshStore:        stores.refreshTokenStore,
 		Blacklist:           blacklist,
-		ClientKeyStore:      keyStore, // enables client_credentials grant
+		ValidateCredentials: localAuth.ValidateCredentials,
 	}
 
 	// Wire asymmetric signing if configured (issue 184). The public half is
@@ -138,15 +139,15 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to load/generate %s signing key: %v", alg, err)
 		}
-		apiAuth.JWTSigningAlg = alg
-		apiAuth.JWTSigningKey = priv
-		// JWTVerifyKey is the parsed public key. utils.DecodeVerifyKey
-		// accepts the same PEM bytes the keystore stores, so we round-trip.
+		oaCfg.SigningKey = priv
+		oaCfg.SigningAlg = alg
+		// VerifyKey is the parsed public key. utils.DecodeVerifyKey
+		// accepts the same PEM bytes the keystore stores.
 		pubKey, err := utils.DecodeVerifyKey(pubPEM, alg)
 		if err != nil {
 			log.Fatalf("Failed to parse issuer public key: %v", err)
 		}
-		apiAuth.JWTVerifyKey = pubKey
+		oaCfg.VerifyKey = pubKey
 
 		// Register the public key in the keystore so JWKS exposes it.
 		// kid is auto-derived from the key material by the keystore.
@@ -159,6 +160,10 @@ func main() {
 		}
 		log.Printf("Asymmetric token signing enabled (alg=%s, public key registered as %q for JWKS)", alg, issuerClientID)
 	}
+
+	oa := apiauth.NewOneAuth(oaCfg)
+	tokenEndpoint := apiauth.NewTokenEndpointHandler(oa)
+	sessions := oa.SessionsHTTPHandler()
 
 	// CSRF middleware for browser form endpoints
 	csrf := &httpauth.CSRFMiddleware{Secure: cfg.TLS.Enabled}
@@ -244,8 +249,8 @@ func main() {
 	})
 
 	// API token endpoint
-	mux.HandleFunc("POST /api/token", apiAuth.ServeHTTP)
-	mux.HandleFunc("POST /api/logout", apiAuth.HandleLogout)
+	mux.Handle("POST /api/token", tokenEndpoint)
+	mux.HandleFunc("POST /api/logout", sessions.HandleLogout)
 
 	// JWT-protected API endpoints
 	apiMiddleware := &apiauth.APIMiddleware{
@@ -262,8 +267,8 @@ func main() {
 			"scopes":  scopes,
 		})
 	})))
-	mux.Handle("GET /api/sessions", apiMiddleware.ValidateToken(http.HandlerFunc(apiAuth.HandleListSessions)))
-	mux.Handle("POST /api/logout-all", apiMiddleware.ValidateToken(http.HandlerFunc(apiAuth.HandleLogoutAll)))
+	mux.Handle("GET /api/sessions", apiMiddleware.ValidateToken(http.HandlerFunc(sessions.HandleListSessions)))
+	mux.Handle("POST /api/logout-all", apiMiddleware.ValidateToken(http.HandlerFunc(sessions.HandleLogoutAll)))
 
 	// Token revocation endpoint — revokes the caller's access token via blacklist
 	mux.Handle("POST /api/revoke", apiMiddleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -294,7 +299,7 @@ func main() {
 	mux.Handle("/apps", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
 
 	// Token Introspection (RFC 7662) — authenticated via KeyStore
-	introspectionHandler := apiauth.NewIntrospectionHandler(apiAuth, keyStore)
+	introspectionHandler := oa.IntrospectionHTTPHandler()
 	mux.Handle("POST /oauth/introspect", introspectionHandler)
 
 	// JWKS endpoint (public — no auth required)
@@ -346,11 +351,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to create DeviceAuthStore: %v", err)
 		}
-		apiAuth.DeviceAuthStore = deviceStore
-		apiAuth.AppStore = appStore
+		oa.DeviceAuthStore = deviceStore
+		oa.AppStore = appStore
 
 		apiauth.MountDeviceFlow(mux, apiauth.DeviceFlowMountConfig{
-			APIAuth:                         apiAuth,
+			OneAuth:                         oa,
 			VerificationURI:                 baseURL + "/device",
 			VerificationURICompleteTemplate: baseURL + "/device?user_code=%s",
 			Expiry:                          cfg.DeviceFlow.Expiry,
@@ -380,15 +385,15 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to create AuthorizationCodeStore: %v", err)
 		}
-		apiAuth.AuthorizationCodeStore = codeStore
-		apiAuth.AppStore = appStore
+		oa.AuthorizationCodeStore = codeStore
+		oa.AppStore = appStore
 
 		issParam := false
 		if asMeta.AuthorizationResponseIssParameterSupported != nil {
 			issParam = *asMeta.AuthorizationResponseIssParameterSupported
 		}
 		apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
-			APIAuth:          apiAuth,
+			OneAuth:          oa,
 			IssuerURL:        baseURL,
 			EmitIssParameter: issParam,
 			Expiry:           cfg.CodeFlow.Expiry,
