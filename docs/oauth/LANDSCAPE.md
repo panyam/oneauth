@@ -675,7 +675,7 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | RFC_8628.md Device | 📝 | — |
 | RFC_8693.md Token Exchange | 📝 | — |
 | RFC_8705.md mTLS | 📝 | — |
-| RFC_9068.md JWT AT profile | 📝 | — |
+| [RFC_9068.md](RFC_9068.md) JWT AT profile | 🟡 | #307 |
 | RFC_9101.md JAR | 📝 | — |
 | RFC_9126.md PAR | 📝 | — |
 | RFC_9207.md Issuer ID | 📝 | — |
