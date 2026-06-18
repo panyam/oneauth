@@ -358,7 +358,7 @@ Status legend:
 
 | RFC | OneAuth status | Where it lives | Notes |
 |------|---------------|----------------|-------|
-| 6749 OAuth 2.0 | Implemented | `apiauth/api_auth.go`, `apiauth/oneauth.go` | `/authorize` endpoint pending #116 |
+| 6749 OAuth 2.0 | Implemented | `apiauth/api_auth.go`, `apiauth/oneauth.go`, `apiauth/authorize*.go` | `/authorize` + `authorization_code` grant added in #297 (see `apiauth.MountAuthorize`) |
 | 6750 Bearer | Implemented | `apiauth/`, `httpauth/` | Opt-in query-param fallback deprecated (see `OAUTH21_ALIGNMENT.md`) |
 | 7009 Revocation | Implemented | `apiauth/RevocationHandler` | — |
 | 7515–7519 JOSE | Implemented (via libs) | `keys/`, `apiauth/` | — |
@@ -368,7 +368,7 @@ Status legend:
 | 7523 JWT-bearer grant | Implemented | `apiauth/api_auth.go` | — |
 | 7591 DCR | Implemented | `admin/DCRHandler` | — |
 | 7592 DCR mgmt | Implemented | `admin/DCRManagementHandler` | — |
-| 7636 PKCE | Implemented (client side) | `client/browser_login.go` | Server-side enforcement waits on #116 |
+| 7636 PKCE | Implemented | `client/browser_login.go` (client) · `apiauth/authorize.go`, `apiauth/authorize_grant.go` (server, via #297) | Server-side rejects missing/plain `code_challenge`; only S256 accepted |
 | 7662 Introspection | Implemented | `apiauth/IntrospectionHandler` | — |
 | 8414 AS metadata | Implemented | `apiauth.MountASMetadata` | — |
 | 8628 Device | Implemented | `apiauth.MountDeviceFlow` | — |
@@ -377,7 +377,7 @@ Status legend:
 | 9068 JWT AT | Implemented | `apiauth/`, `keys/` | — |
 | 9101 JAR | Gap | — | Candidate for #116 / FAPI track |
 | 9126 PAR | Gap | — | Candidate for #116 / FAPI track |
-| 9207 iss param | Implemented | `apiauth/` redirect handlers | — |
+| 9207 iss param | Implemented | `apiauth/authorize.go` (`EmitIssParameter` toggle, emitted on `/authorize` redirect — landed in #297) | Opt-in per deployment via `AuthorizationHandlerConfig.EmitIssParameter` |
 | 9396 RAR | Implemented | `core/authorization_details.go` + `apiauth/` | Token endpoint + introspection + middleware |
 | 9449 DPoP | Gap | — | Candidate for L5 work |
 | 9700 Security BCP | Adopted as baseline | (cross-cutting) | PR #296 baseline; gaps in `docs/OAUTH21_ALIGNMENT.md` |
@@ -590,7 +590,7 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | RFC_9207.md Issuer ID | 📝 | — |
 | RFC_9396.md RAR | 📝 | — |
 | RFC_9449.md DPoP | 📝 | — |
-| RFC_9700.md Security BCP | 📝 | — |
+| [RFC_9700.md](RFC_9700.md) Security BCP | 🟡 | #305 |
 | RFC_9728.md PR metadata | 📝 | — |
 | RFC_oauth21.md OAuth 2.1 draft | 📝 | — |
 | OIDC_Core.md | 📝 | — |
