@@ -1,6 +1,6 @@
 # Go-native conformance report
 
-Generated: 2026-06-18 07:27:15 UTC  
+Generated: 2026-06-18 07:38:03 UTC  
 Package pattern: `./...`
 
 ## Summary
