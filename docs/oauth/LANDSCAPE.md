@@ -566,7 +566,7 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 
 | Doc | Status | Tracking |
 |------|--------|---------|
-| RFC_6749.md OAuth 2.0 framework | 📝 | — |
+| [RFC_6749.md](RFC_6749.md) OAuth 2.0 framework | 🟡 | #302 |
 | RFC_6750.md Bearer | 📝 | — |
 | RFC_7009.md Revocation | 📝 | — |
 | RFC_7515.md JWS | 📝 | — |
@@ -592,7 +592,7 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | RFC_9449.md DPoP | 📝 | — |
 | [RFC_9700.md](RFC_9700.md) Security BCP | 🟡 | #305 |
 | RFC_9728.md PR metadata | 📝 | — |
-| RFC_oauth21.md OAuth 2.1 draft | 📝 | — |
+| [RFC_oauth21.md](RFC_oauth21.md) OAuth 2.1 draft | 🟡 | #302 |
 | OIDC_Core.md | 📝 | — |
 | OIDC_Discovery.md | 📝 | — |
 | OIDC_BCL.md | 📝 | — |
