@@ -659,7 +659,7 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 |------|--------|---------|
 | [RFC_6749.md](RFC_6749.md) OAuth 2.0 framework | 🟡 | #302 |
 | [RFC_6750.md](RFC_6750.md) Bearer | 🟡 | #303 |
-| RFC_7009.md Revocation | 📝 | — |
+| [RFC_7009.md](RFC_7009.md) Revocation | 🟡 | #309 |
 | [RFC_7515.md](RFC_7515.md) JWS | 🟡 | #306 |
 | [RFC_7516.md](RFC_7516.md) JWE | 🟡 | #306 |
 | [RFC_7517.md](RFC_7517.md) JWK / JWKS | 🟡 | #306 |
@@ -670,19 +670,19 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | RFC_7591.md DCR | 📝 | — |
 | RFC_7592.md DCR mgmt | 📝 | — |
 | [RFC_7636.md](RFC_7636.md) PKCE | 🟡 | #304 |
-| RFC_7662.md Introspection | 📝 | — |
-| RFC_8414.md AS metadata | 📝 | — |
+| [RFC_7662.md](RFC_7662.md) Introspection | 🟡 | #308 |
+| [RFC_8414.md](RFC_8414.md) AS metadata | 🟡 | #310 |
 | RFC_8628.md Device | 📝 | — |
 | RFC_8693.md Token Exchange | 📝 | — |
 | RFC_8705.md mTLS | 📝 | — |
 | [RFC_9068.md](RFC_9068.md) JWT AT profile | 🟡 | #307 |
 | RFC_9101.md JAR | 📝 | — |
 | RFC_9126.md PAR | 📝 | — |
-| RFC_9207.md Issuer ID | 📝 | — |
+| [RFC_9207.md](RFC_9207.md) Issuer ID | 🟡 | #312 |
 | RFC_9396.md RAR | 📝 | — |
 | RFC_9449.md DPoP | 📝 | — |
 | [RFC_9700.md](RFC_9700.md) Security BCP | 🟡 | #305 |
-| RFC_9728.md PR metadata | 📝 | — |
+| [RFC_9728.md](RFC_9728.md) PR metadata | 🟡 | #311 |
 | [RFC_oauth21.md](RFC_oauth21.md) OAuth 2.1 draft | 🟡 | #302 |
 | OIDC_Core.md | 📝 | — |
 | OIDC_Discovery.md | 📝 | — |
