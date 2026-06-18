@@ -20,43 +20,6 @@ import (
 	"github.com/panyam/oneauth/stores/fs"
 )
 
-// apiAuthFixture bundles the OneAuth instance + the HTTP handlers
-// that replaced the legacy APIAuth god struct, plus the JWT signing
-// secret/issuer for APIMiddleware fixtures.
-type apiAuthFixture struct {
-	OneAuth       *apiauth.OneAuth
-	TokenEndpoint *apiauth.TokenEndpointHandler
-	Sessions      *apiauth.SessionsHandler
-	APIKeys       *apiauth.APIKeysHandler
-	JWTSecret     string
-	JWTIssuer     string
-}
-
-// ServeHTTP exposes the token endpoint shape the legacy APIAuth had
-// so tests don't have to disambiguate. Calls TokenEndpoint.ServeHTTP.
-func (f *apiAuthFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	f.TokenEndpoint.ServeHTTP(w, r)
-}
-
-// HandleLogout delegates to the SessionsHandler.
-func (f *apiAuthFixture) HandleLogout(w http.ResponseWriter, r *http.Request) {
-	f.Sessions.HandleLogout(w, r)
-}
-
-// HandleAPIKeys / HandleRevokeAPIKey delegate to the APIKeysHandler.
-func (f *apiAuthFixture) HandleAPIKeys(w http.ResponseWriter, r *http.Request) {
-	f.APIKeys.HandleAPIKeys(w, r)
-}
-func (f *apiAuthFixture) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
-	f.APIKeys.HandleRevokeAPIKey(w, r)
-}
-
-// Validator exposes the OneAuth validator for tests that round-trip
-// access tokens directly.
-func (f *apiAuthFixture) Validator() apiauth.TokenValidator {
-	return f.OneAuth.Validator
-}
-
 // setupAPIAuthTest creates test stores and the OneAuth-based fixture.
 func setupAPIAuthTest(t *testing.T) (*apiAuthFixture, *fs.FSRefreshTokenStore, *fs.FSAPIKeyStore, string) {
 	tmpDir, err := os.MkdirTemp("", "oneauth-apiauth-test-*")

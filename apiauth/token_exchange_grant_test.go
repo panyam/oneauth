@@ -66,16 +66,17 @@ func TestTokenExchangeGrant_DefaultRequestedTokenType(t *testing.T) {
 // TestTokenExchangeGrant_NoTrustedIssuersConfigured — without
 // TrustedAssertionIssuers, the grant returns unsupported_grant_type.
 func TestTokenExchangeGrant_NoTrustedIssuersConfigured(t *testing.T) {
-	a := &apiauth.APIAuth{
-		JWTSecretKey: "test",
-		JWTIssuer:    "oneauth-test",
-	}
+	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey: []byte("test"),
+		SigningAlg: "HS256",
+		Issuer:     "oneauth-test",
+	}, nil)
 	form := url.Values{}
 	form.Set("grant_type", apiauth.TokenExchangeGrantType)
 	form.Set("subject_token", "irrelevant")
 	form.Set("subject_token_type", apiauth.TokenTypeJWT)
 
-	status, body := postForm(t, a, form)
+	status, body := postForm(t, fx, form)
 	assert.Equal(t, http.StatusBadRequest, status)
 	assert.Equal(t, "unsupported_grant_type", body["error"])
 }

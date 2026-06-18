@@ -32,7 +32,7 @@ import (
 // setupRevocation creates a RevocationHandler with an APIAuth that can
 // mint tokens, a blacklist for access token revocation, and a refresh
 // token store.
-func setupRevocation(t *testing.T) (*apiauth.RevocationHandler, *apiauth.APIAuth, *apiauth.IntrospectionHandler) {
+func setupRevocation(t *testing.T) (*apiauth.RevocationHandler, *apiAuthFixture, *apiauth.IntrospectionHandler) {
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
 	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
@@ -43,19 +43,19 @@ func setupRevocation(t *testing.T) (*apiauth.RevocationHandler, *apiauth.APIAuth
 	blacklist := core.NewInMemoryBlacklist()
 	refreshStore := newInMemoryRefreshStore()
 
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:      "revocation-test-secret-32chars-m!",
-		JWTIssuer:         "test-issuer",
-		Blacklist:         blacklist,
-		RefreshTokenStore: refreshStore,
-		ClientKeyStore:    ks,
-	}
+	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+		KeyStore:     ks,
+		SigningKey:   []byte("revocation-test-secret-32chars-m!"),
+		SigningAlg:   "HS256",
+		Issuer:       "test-issuer",
+		Blacklist:    blacklist,
+		RefreshStore: refreshStore,
+	}, nil)
 
-	revHandler := apiauth.NewRevocationHandler(auth, ks)
+	revHandler := fx.OneAuth.RevocationHTTPHandler()
+	introHandler := fx.OneAuth.IntrospectionHTTPHandler()
 
-	introHandler := apiauth.NewIntrospectionHandler(auth, ks)
-
-	return revHandler, auth, introHandler
+	return revHandler, fx, introHandler
 }
 
 // postRevoke sends a form-encoded POST to the revocation handler.
@@ -114,7 +114,7 @@ func TestRevocation_RefreshToken(t *testing.T) {
 	revHandler, auth, _ := setupRevocation(t)
 
 	// Create a refresh token
-	createResp, err := auth.RefreshTokenStore.CreateRefreshToken(context.Background(), &core.CreateRefreshTokenRequest{
+	createResp, err := auth.RefreshTokenStore().CreateRefreshToken(context.Background(), &core.CreateRefreshTokenRequest{
 		Subject:  "user-1",
 		ClientID: "revoke-client",
 		Scopes:   []string{"read"},
@@ -127,7 +127,7 @@ func TestRevocation_RefreshToken(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	// Try to get the refresh token — should be revoked
-	getResp, err := auth.RefreshTokenStore.GetRefreshToken(context.Background(), &core.GetRefreshTokenRequest{Token: rt.Token})
+	getResp, err := auth.RefreshTokenStore().GetRefreshToken(context.Background(), &core.GetRefreshTokenRequest{Token: rt.Token})
 	require.NoError(t, err)
 	assert.True(t, getResp.Token.Revoked, "refresh token should be revoked")
 }

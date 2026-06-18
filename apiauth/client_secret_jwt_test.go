@@ -39,7 +39,7 @@ import (
 // (HS256/384/512). Mirrors the private_key_jwt fixture, but symmetric.
 type csjwtFixture struct {
 	t        *testing.T
-	auth     *apiauth.APIAuth
+	auth     *apiAuthFixture
 	clientID string
 	secret   []byte
 	alg      string // HS256 / HS384 / HS512
@@ -61,16 +61,17 @@ func newCSJWTFixture(t *testing.T, alg string) *csjwtFixture {
 	}})
 	require.NoError(t, err)
 
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:        "server-jwt-secret-key-32chars!!",
-		JWTIssuer:           "test-issuer",
-		ClientKeyStore:      ks,
-		ClientAuthenticator: apiauth.NewClientAuthenticator(ks),
-		AcceptedAudiences:   []string{"https://oneauth.example.com/api/token"},
-	}
+	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+		KeyStore:          ks,
+		SigningKey:        []byte("server-jwt-secret-key-32chars!!"),
+		SigningAlg:        "HS256",
+		Issuer:            "test-issuer",
+		Authenticator:     apiauth.NewClientAuthenticator(ks),
+		AcceptedAudiences: []string{"https://oneauth.example.com/api/token"},
+	}, nil)
 	return &csjwtFixture{
 		t:        t,
-		auth:     auth,
+		auth:     fx,
 		clientID: clientID,
 		secret:   secret,
 		alg:      alg,
@@ -155,7 +156,7 @@ func TestClientSecretJWT_MethodClassification(t *testing.T) {
 	f := newCSJWTFixture(t, "HS256")
 	assertion := f.signAssertion(nil)
 
-	authn := apiauth.NewClientAuthenticator(f.auth.ClientKeyStore)
+	authn := apiauth.NewClientAuthenticator(f.auth.OneAuth.KeyStore)
 	resp, err := authn.AuthenticateClient(context.Background(), &apiauth.AuthenticateClientRequest{
 		ClientID:            f.clientID,
 		ClientAssertion:     assertion,

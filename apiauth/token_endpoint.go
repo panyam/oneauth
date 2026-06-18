@@ -229,37 +229,52 @@ func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Requ
 	h.writeTokens(w, resp.Tokens)
 }
 
-// handleClientCredentials delegates to TokenIssuer.ClientCredentials.
-// Client authentication runs through the same ClientAuthenticator the
-// rest of the token endpoint uses (private_key_jwt support).
+// handleClientCredentials authenticates the client and mints a
+// client-scoped access token. Authentication uses the wired
+// ClientAuthenticator (private_key_jwt / client_secret_jwt /
+// client_secret_basic / client_secret_post); minting goes through
+// TokenIssuer.CreateAccessToken with sub=client_id.
+//
+// We do NOT delegate to TokenIssuer.ClientCredentials because that
+// method does its own client-secret check and would reject any
+// request authenticated via the assertion path (where ClientSecret
+// is empty by construction).
 func (h *TokenEndpointHandler) handleClientCredentials(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
 	if h.OneAuth == nil || h.OneAuth.Issuer == nil {
 		h.writeError(w, serverError("token endpoint not configured"))
 		return
 	}
 
-	// Resolve client credentials from the request and route through
-	// the wired ClientAuthenticator. The authenticated client_id is
-	// then passed to TokenIssuer.ClientCredentials so the granter
-	// doesn't have to repeat the client-auth dance.
 	authedClientID, gErr := h.authenticateClient(r, req)
 	if gErr != nil {
 		h.writeError(w, gErr)
 		return
 	}
 
-	resp, err := h.OneAuth.Issuer.ClientCredentials(r.Context(), &ClientCredentialsRequest{
-		ClientID:             authedClientID,
-		ClientSecret:         "", // already authenticated upstream
-		Scopes:               core.ParseScopes(req.Scope),
+	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
+		h.writeError(w, &GrantError{Code: "invalid_authorization_details", Description: err.Error(), Status: http.StatusBadRequest})
+		return
+	}
+
+	scopes := core.ParseScopes(req.Scope)
+	tok, err := h.OneAuth.Issuer.CreateAccessToken(r.Context(), &CreateAccessTokenRequest{
+		Subject:              authedClientID,
+		Scopes:               scopes,
 		AuthorizationDetails: req.AuthorizationDetails,
 	})
 	if err != nil {
-		log.Printf("client_credentials: %v", err)
-		h.writeError(w, &GrantError{Code: "invalid_client", Description: err.Error(), Status: http.StatusUnauthorized})
+		log.Printf("client_credentials mint: %v", err)
+		h.writeError(w, serverError("failed to create token"))
 		return
 	}
-	h.writeTokens(w, resp.Tokens)
+
+	h.writeTokens(w, &core.TokenPair{
+		AccessToken:          tok.Token,
+		TokenType:            "Bearer",
+		ExpiresIn:            tok.ExpiresIn,
+		Scope:                core.JoinScopes(scopes),
+		AuthorizationDetails: req.AuthorizationDetails,
+	})
 }
 
 func (h *TokenEndpointHandler) dispatchAuthorizationCode(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {

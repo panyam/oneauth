@@ -37,7 +37,7 @@ import (
 // setupIntrospection creates an IntrospectionHandler with an APIAuth that can
 // mint and validate tokens, a KeyStore with a registered resource server client,
 // and an optional blacklist.
-func setupIntrospection(t *testing.T) (*apiauth.IntrospectionHandler, *apiauth.APIAuth, *keys.InMemoryKeyStore, *core.InMemoryBlacklist) {
+func setupIntrospection(t *testing.T) (*apiauth.IntrospectionHandler, *apiAuthFixture, *keys.InMemoryKeyStore, *core.InMemoryBlacklist) {
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
 	// Register a resource server client that can call introspection
@@ -48,15 +48,17 @@ func setupIntrospection(t *testing.T) (*apiauth.IntrospectionHandler, *apiauth.A
 	}})
 	blacklist := core.NewInMemoryBlacklist()
 
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: "introspection-test-secret-32ch!",
-		JWTIssuer:    "test-issuer",
-		Blacklist:    blacklist,
-	}
+	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+		KeyStore:   ks,
+		SigningKey: []byte("introspection-test-secret-32ch!"),
+		SigningAlg: "HS256",
+		Issuer:     "test-issuer",
+		Blacklist:  blacklist,
+	}, nil)
 
-	handler := apiauth.NewIntrospectionHandler(auth, ks)
+	handler := fx.OneAuth.IntrospectionHTTPHandler()
 
-	return handler, auth, ks, blacklist
+	return handler, fx, ks, blacklist
 }
 
 // postIntrospect sends a form-encoded POST to the introspection handler
@@ -76,15 +78,12 @@ func postIntrospect(t *testing.T, handler http.Handler, token, clientID, clientS
 }
 
 // mintIntrospectionToken creates a signed access token for testing.
-func mintIntrospectionToken(t *testing.T, auth *apiauth.APIAuth, userID string, scopes []string) string {
+func mintIntrospectionToken(t *testing.T, auth *apiAuthFixture, userID string, scopes []string) string {
 	t.Helper()
 	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: userID, Scopes: scopes, AuthorizationDetails: nil})
-	token := ""
-	var _ int64
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
-
 	require.NoError(t, err)
-	return token
+	require.NotNil(t, tokenResp)
+	return tokenResp.Token
 }
 
 // =============================================================================
