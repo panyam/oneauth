@@ -578,7 +578,7 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | RFC_7523.md JWT bearer | 📝 | — |
 | RFC_7591.md DCR | 📝 | — |
 | RFC_7592.md DCR mgmt | 📝 | — |
-| RFC_7636.md PKCE | 📝 | — |
+| [RFC_7636.md](RFC_7636.md) PKCE | 🟡 | #304 |
 | RFC_7662.md Introspection | 📝 | — |
 | RFC_8414.md AS metadata | 📝 | — |
 | RFC_8628.md Device | 📝 | — |
