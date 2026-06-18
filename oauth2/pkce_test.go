@@ -11,8 +11,6 @@ package oauth2_test
 //   - CWE-352 applied to OAuth: authorization code interception
 
 import (
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -58,20 +56,12 @@ func TestPKCE_GenerateVerifier_Unique(t *testing.T) {
 	assert.NotEqual(t, v1, v2, "two verifiers should never be identical")
 }
 
-// TestPKCE_ChallengeMatchesVerifier verifies that ComputeCodeChallenge
-// produces the correct S256 challenge: BASE64URL(SHA256(verifier)).
-//
-// See: https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
-func TestPKCE_ChallengeMatchesVerifier(t *testing.T) {
-	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-	challenge := oauth2.ComputeCodeChallenge(verifier)
-
-	// Manually compute expected challenge
-	hash := sha256.Sum256([]byte(verifier))
-	expected := base64.RawURLEncoding.EncodeToString(hash[:])
-
-	assert.Equal(t, expected, challenge)
-}
+// Note: the public PKCE transformation (ComputeCodeChallenge / VerifyPKCE)
+// is tested in core/pkce_test.go now that it lives in core/. This sub-
+// module keeps only the cookie-bound helpers (Generate / Set / Get /
+// Clear) and a tiny inlined computeCodeChallenge for the redirect-URL
+// builder. Those are covered by TestPKCE_GenerateVerifier_Unique above
+// and the cookie tests below.
 
 // TestPKCE_VerifierCookieHttpOnly verifies that the PKCE cookie is HttpOnly
 // so JavaScript cannot read the code verifier (XSS protection).

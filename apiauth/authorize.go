@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/panyam/oneauth/core"
-	"github.com/panyam/oneauth/oauth2"
 )
 
 // Authorization code lifetime + entropy. RFC 6749 §4.1.2 recommends
@@ -179,7 +178,7 @@ func (h *AuthorizationHandler) ParseAndValidate(r *http.Request) (req *Authoriza
 		// client knows what to send.
 		return req, false, "invalid_request", "code_challenge_method is required"
 	}
-	if req.CodeChallengeMethod != oauth2.CodeChallengeMethodS256 {
+	if req.CodeChallengeMethod != core.CodeChallengeMethodS256 {
 		return req, false, "invalid_request", "only S256 PKCE is supported"
 	}
 

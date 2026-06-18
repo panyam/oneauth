@@ -74,7 +74,7 @@ func OauthRedirectorWithPKCE(oauthConfig *oauth2.Config, secure bool) func(w htt
 			return
 		}
 		SetPKCECookie(w, verifier, secure)
-		challenge := ComputeCodeChallenge(verifier)
+		challenge := computeCodeChallenge(verifier)
 
 		u := oauthConfig.AuthCodeURL(oauthState,
 			oauth2.SetAuthURLParam("code_challenge", challenge),

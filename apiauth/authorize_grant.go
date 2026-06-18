@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/panyam/oneauth/core"
-	"github.com/panyam/oneauth/oauth2"
 )
 
 // handleAuthorizationCodeGrant is the token endpoint branch for
@@ -110,7 +109,7 @@ func (a *APIAuth) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Re
 	// RFC 7636 §4.6: verify the PKCE code_verifier against the stored
 	// code_challenge using the recorded method. Only S256 is accepted —
 	// the /authorize handler rejects everything else.
-	if !oauth2.VerifyPKCE(entry.CodeChallengeMethod, entry.CodeChallenge, req.CodeVerifier) {
+	if !core.VerifyPKCE(entry.CodeChallengeMethod, entry.CodeChallenge, req.CodeVerifier) {
 		a.errorResponse(w, "invalid_grant", "PKCE verification failed", http.StatusBadRequest)
 		return
 	}
