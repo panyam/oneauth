@@ -153,13 +153,23 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		Hooks:               cfg.Hooks.Token,
 	})
 
-	// Wire the validator — needs read-only key lookup + blacklist
+	// Wire the validator — needs read-only key lookup + blacklist.
+	// SigningKey carries through so HS256 single-tenant deployments
+	// (KeyStore is nil) can still validate their own tokens. For
+	// asymmetric setups VerifyKey (the public key) takes precedence
+	// over SigningKey so the validator never needs the private key.
+	validatorKey := any(cfg.VerifyKey)
+	if validatorKey == nil {
+		validatorKey = cfg.SigningKey
+	}
 	validator := NewJWTValidator(JWTValidatorConfig{
-		KeyLookup: cfg.KeyStore, // KeyStorage implements KeyLookup
-		Blacklist: cfg.Blacklist,
-		Issuer:    cfg.Issuer,
-		Audience:  cfg.Audience,
-		Hooks:     cfg.Hooks.Security,
+		KeyLookup:  cfg.KeyStore, // KeyStorage implements KeyLookup
+		SigningKey: validatorKey,
+		SigningAlg: signingAlg,
+		Blacklist:  cfg.Blacklist,
+		Issuer:     cfg.Issuer,
+		Audience:   cfg.Audience,
+		Hooks:      cfg.Hooks.Security,
 	})
 
 	// Wire the introspector — needs only the validator
@@ -234,6 +244,20 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 // --- HTTP Convenience Methods ---
 // These create HTTP handlers wired to the OneAuth core interfaces.
 // Use these when mounting endpoints on an HTTP mux.
+
+// SessionsHTTPHandler returns a SessionsHandler for /api/logout,
+// /api/logout-all, and /api/sessions. RefreshStore must be set on the
+// OneAuth instance.
+func (oa *OneAuth) SessionsHTTPHandler() *SessionsHandler {
+	return NewSessionsHandler(oa.RefreshStore, oa.Hooks.Token)
+}
+
+// APIKeysHTTPHandler returns an APIKeysHandler for /api/keys{,/{id}}.
+// The supplied APIKeyStore is wired into the returned handler;
+// OneAuthConfig does not carry it because it isn't an OAuth concern.
+func (oa *OneAuth) APIKeysHTTPHandler(store core.APIKeyStore, getSubjectScopes core.GetSubjectScopesFunc) *APIKeysHandler {
+	return NewAPIKeysHandler(store, getSubjectScopes)
+}
 
 // IntrospectionHTTPHandler returns an http.Handler for POST /oauth/introspect.
 func (oa *OneAuth) IntrospectionHTTPHandler() *IntrospectionHandler {
