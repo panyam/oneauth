@@ -567,7 +567,7 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | Doc | Status | Tracking |
 |------|--------|---------|
 | [RFC_6749.md](RFC_6749.md) OAuth 2.0 framework | 🟡 | #302 |
-| RFC_6750.md Bearer | 📝 | — |
+| [RFC_6750.md](RFC_6750.md) Bearer | 🟡 | #303 |
 | RFC_7009.md Revocation | 📝 | — |
 | RFC_7515.md JWS | 📝 | — |
 | RFC_7516.md JWE | 📝 | — |
