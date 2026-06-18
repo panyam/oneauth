@@ -72,17 +72,17 @@ func serve() {
 // `blacklist.Revoke(jti, exp)` to invalidate a token immediately.
 func newAuthServer(ks keys.KeyStorage, blacklist core.TokenBlacklist, issuer string) http.Handler {
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
-	apiAuth := &apiauth.APIAuth{
-		JWTSecretKey:   jwtSecret,
-		JWTIssuer:      issuer,
-		ClientKeyStore: ks,
-		Blacklist:      blacklist,
-	}
-	introspectionHandler := apiauth.NewIntrospectionHandler(apiAuth, ks)
+	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+		KeyStore:   ks,
+		SigningKey: []byte(jwtSecret),
+		SigningAlg: "HS256",
+		Issuer:     issuer,
+		Blacklist:  blacklist,
+	})
 
 	mux := http.NewServeMux()
 	mux.Handle("/apps/", registrar.Handler())
-	mux.HandleFunc("POST /api/token", apiAuth.ServeHTTP)
-	mux.Handle("POST /oauth/introspect", introspectionHandler)
+	mux.Handle("POST /api/token", apiauth.NewTokenEndpointHandler(oa))
+	mux.Handle("POST /oauth/introspect", oa.IntrospectionHTTPHandler())
 	return mux
 }

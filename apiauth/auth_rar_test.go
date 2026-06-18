@@ -23,7 +23,7 @@ import (
 )
 
 // setupRARAuth creates an APIAuth with a registered client for RAR testing.
-func setupRARAuth(t *testing.T) (*apiauth.APIAuth, *keys.InMemoryKeyStore) {
+func setupRARAuth(t *testing.T) (*apiAuthFixture, *keys.InMemoryKeyStore) {
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
 	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
@@ -32,12 +32,13 @@ func setupRARAuth(t *testing.T) (*apiauth.APIAuth, *keys.InMemoryKeyStore) {
 		Algorithm: "HS256",
 	}})
 
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:   "rar-test-jwt-secret-32chars-min!",
-		JWTIssuer:      "test-issuer",
-		ClientKeyStore: ks,
-	}
-	return auth, ks
+	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+		KeyStore:   ks,
+		SigningKey: []byte("rar-test-jwt-secret-32chars-min!"),
+		SigningAlg: "HS256",
+		Issuer:     "test-issuer",
+	}, nil)
+	return fx, ks
 }
 
 // TestTokenEndpoint_ClientCredentials_WithRAR verifies that client_credentials
@@ -207,16 +208,17 @@ func TestTokenEndpoint_FormEncoded_InvalidRARJSON(t *testing.T) {
 //
 // See: https://www.rfc-editor.org/rfc/rfc9396#section-2
 func TestCreateAccessToken_StandardClaimsGuard_RAR(t *testing.T) {
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: "rar-guard-test-secret-32chars-m!",
-		CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey: []byte("rar-guard-test-secret-32chars-m!"),
+		SigningAlg: "HS256",
+		CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
 			return map[string]any{
 				"authorization_details": []map[string]any{
 					{"type": "injected", "actions": []string{"admin"}},
 				},
 			}, nil
 		},
-	}
+	}, nil)
 
 	details := []core.AuthorizationDetail{
 		{Type: "legitimate", Actions: []string{"read"}},
@@ -255,13 +257,14 @@ func TestIntrospection_WithRAR(t *testing.T) {
 		Algorithm: "HS256",
 	}})
 
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:   "introspect-rar-secret-32chars-m!",
-		JWTIssuer:      "test-issuer",
-		ClientKeyStore: ks,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{
+		KeyStore:   ks,
+		SigningKey: []byte("introspect-rar-secret-32chars-m!"),
+		SigningAlg: "HS256",
+		Issuer:     "test-issuer",
+	}, nil)
 
-	handler := apiauth.NewIntrospectionHandler(auth, ks)
+	handler := auth.OneAuth.IntrospectionHTTPHandler()
 
 	details := []core.AuthorizationDetail{
 		{
@@ -311,13 +314,14 @@ func TestIntrospection_WithoutRAR(t *testing.T) {
 		Algorithm: "HS256",
 	}})
 
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:   "introspect-norar-secret-32ch-m!",
-		JWTIssuer:      "test-issuer",
-		ClientKeyStore: ks,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{
+		KeyStore:   ks,
+		SigningKey: []byte("introspect-norar-secret-32ch-m!"),
+		SigningAlg: "HS256",
+		Issuer:     "test-issuer",
+	}, nil)
 
-	handler := apiauth.NewIntrospectionHandler(auth, ks)
+	handler := auth.OneAuth.IntrospectionHTTPHandler()
 
 	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-normal", Scopes: []string{"read"}, AuthorizationDetails: nil})
 

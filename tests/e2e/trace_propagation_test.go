@@ -58,7 +58,7 @@ func findSpan(spans []sdktrace.ReadOnlySpan, name string) sdktrace.ReadOnlySpan 
 // to a single TracerProvider. Returns the server, the issuer's APIAuth,
 // the email + password of a pre-created test user, and the
 // underlying KeyStore so callers can register additional apps if needed.
-func authServerWithTracing(t *testing.T, tp trace.TracerProvider) (*httptest.Server, *apiauth.APIAuth, string, string, keys.KeyStorage) {
+func authServerWithTracing(t *testing.T, tp trace.TracerProvider) (*httptest.Server, *apiauth.OneAuth, string, string, keys.KeyStorage) {
 	t.Helper()
 
 	tmpDir := t.TempDir()
@@ -75,26 +75,35 @@ func authServerWithTracing(t *testing.T, tp trace.TracerProvider) (*httptest.Ser
 
 	keyStore := keys.NewInMemoryKeyStore()
 
-	apiAuth := &apiauth.APIAuth{
-		RefreshTokenStore:   refreshStore,
-		JWTSecretKey:        "trace-e2e-secret-32-chars-long!!",
-		JWTIssuer:           "oneauth-trace-e2e",
+	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+		KeyStore:            keyStore,
+		SigningKey:          []byte("trace-e2e-secret-32-chars-long!!"),
+		SigningAlg:          "HS256",
+		Issuer:              "oneauth-trace-e2e",
+		RefreshStore:        refreshStore,
 		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
 		GetSubjectScopes: func(string) ([]string, error) {
 			return []string{core.ScopeRead, core.ScopeWrite}, nil
 		},
 		TracerProvider: tp,
-	}
+	})
+	tokenEndpoint := apiauth.NewTokenEndpointHandler(oa)
+	tokenEndpoint.TracerProvider = tp
+
+	introspectionHandler := oa.IntrospectionHTTPHandler()
+	introspectionHandler.TracerProvider = tp
+	revocationHandler := oa.RevocationHTTPHandler()
+	revocationHandler.TracerProvider = tp
 
 	mux := http.NewServeMux()
-	mux.Handle("POST /api/token", apiAuth)
-	mux.Handle("POST /oauth/introspect", apiauth.NewIntrospectionHandler(apiAuth, keyStore))
-	mux.Handle("POST /oauth/revoke", apiauth.NewRevocationHandler(apiAuth, keyStore))
+	mux.Handle("POST /api/token", tokenEndpoint)
+	mux.Handle("POST /oauth/introspect", introspectionHandler)
+	mux.Handle("POST /oauth/revoke", revocationHandler)
 	mux.Handle("GET /.well-known/jwks.json", &keys.JWKSHandler{KeyStore: keyStore, TracerProvider: tp})
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return srv, apiAuth, email, password, keyStore
+	return srv, oa, email, password, keyStore
 }
 
 func TestE2E_TraceparentPropagates_AcrossTokenIntrospectRevokeJWKS(t *testing.T) {

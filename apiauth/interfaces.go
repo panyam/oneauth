@@ -119,6 +119,153 @@ type PasswordGrantResponse struct {
 type PasswordGrantResult = PasswordGrantResponse
 
 // ----------------------------------------------------------------------------
+// AuthorizationCodeGranter — RFC 6749 §4.1.3 authorization-code grant.
+// ----------------------------------------------------------------------------
+
+// AuthorizationCodeGranter redeems an RFC 6749 §4.1 authorization
+// code at the token endpoint. Separate from TokenIssuer so the
+// authorization-code dependencies (AuthorizationCodeStore + AppStore +
+// ClientAuthenticator + PKCE) don't leak into callers that only need
+// the base TokenIssuer.
+//
+// The implementation looks up the stored binding, re-verifies every
+// promise the AS made at /authorize time (client_id, redirect_uri,
+// S256 PKCE), consumes the code (single-use per RFC 6749 §4.1.2),
+// authenticates confidential clients via the wired
+// ClientAuthenticator, and delegates the actual token mint to
+// TokenIssuer.CreateAccessToken.
+type AuthorizationCodeGranter interface {
+	// AuthorizationCodeGrant trades an authorization code for an
+	// access token (and optionally a refresh token).
+	AuthorizationCodeGrant(ctx context.Context, req *AuthorizationCodeGrantRequest) (*AuthorizationCodeGrantResponse, error)
+}
+
+// AuthorizationCodeGrantRequest holds the inputs the token endpoint
+// receives for grant_type=authorization_code.
+type AuthorizationCodeGrantRequest struct {
+	Code         string
+	CodeVerifier string
+	RedirectURI  string
+	ClientID     string
+
+	// Client authentication credentials (only one channel populated
+	// per RFC 7521 / OIDC Core §9):
+	ClientSecret        string
+	ClientAssertionType string
+	ClientAssertion     string
+
+	// AcceptedAudiences is the set of URLs the assertion's `aud` claim
+	// MUST match (used for private_key_jwt / client_secret_jwt).
+	// Empty falls back to the request URL.
+	AcceptedAudiences []string
+}
+
+// AuthorizationCodeGrantResponse wraps the issued token pair.
+type AuthorizationCodeGrantResponse struct {
+	Tokens *core.TokenPair
+}
+
+// ----------------------------------------------------------------------------
+// DeviceCodeGranter — RFC 8628 §3.4 device-code grant.
+// ----------------------------------------------------------------------------
+
+// DeviceCodeGranter redeems an RFC 8628 device_code at the token
+// endpoint. Separate from TokenIssuer so the device-flow dependencies
+// (DeviceAuthorizationStore, polling-clock bookkeeping) don't leak
+// into callers that only need the base TokenIssuer.
+//
+// The implementation maps the stored DeviceAuthorization's status +
+// polling clock to the RFC 8628 §3.5 error taxonomy
+// (authorization_pending / slow_down / access_denied / expired_token),
+// enforces confidential-client authentication via AppStore +
+// ClientAuthenticator when configured (issue 266), and delegates the
+// token mint to TokenIssuer.CreateAccessToken on Approved status.
+type DeviceCodeGranter interface {
+	// DeviceCodeGrant trades a device_code (after the user has
+	// approved on the verification URI) for an access token.
+	DeviceCodeGrant(ctx context.Context, req *DeviceCodeGrantRequest) (*DeviceCodeGrantResponse, error)
+}
+
+// DeviceCodeGrantRequest holds the inputs the token endpoint
+// receives for grant_type=urn:ietf:params:oauth:grant-type:device_code.
+type DeviceCodeGrantRequest struct {
+	DeviceCode string
+	ClientID   string
+
+	// Client authentication credentials (confidential clients only).
+	ClientSecret        string
+	ClientAssertionType string
+	ClientAssertion     string
+
+	AcceptedAudiences []string
+}
+
+// DeviceCodeGrantResponse wraps the issued token pair.
+type DeviceCodeGrantResponse struct {
+	Tokens *core.TokenPair
+}
+
+// ----------------------------------------------------------------------------
+// JwtBearerGranter — RFC 7523 §2.1 jwt-bearer grant.
+// ----------------------------------------------------------------------------
+
+// JwtBearerGranter validates an upstream-IdP assertion and mints
+// an access token bound to the assertion's subject (RFC 7523 §2.1).
+// Separate from TokenIssuer so the assertion-side validation
+// (trusted-issuer registry, key lookup, audience checks) doesn't
+// leak into callers that only need the base TokenIssuer.
+type JwtBearerGranter interface {
+	// JwtBearerGrant validates the assertion against the configured
+	// TrustedAssertionIssuers and issues an access token.
+	JwtBearerGrant(ctx context.Context, req *JwtBearerGrantRequest) (*JwtBearerGrantResponse, error)
+}
+
+// JwtBearerGrantRequest holds the inputs the token endpoint receives
+// for grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer.
+type JwtBearerGrantRequest struct {
+	Assertion            string
+	Scopes               []string
+	AuthorizationDetails []core.AuthorizationDetail
+}
+
+// JwtBearerGrantResponse wraps the issued token pair.
+type JwtBearerGrantResponse struct {
+	Tokens *core.TokenPair
+}
+
+// ----------------------------------------------------------------------------
+// TokenExchanger — RFC 8693 token exchange.
+// ----------------------------------------------------------------------------
+
+// TokenExchanger trades one token for another per RFC 8693. Distinct
+// from JwtBearerGranter because the audience / resource / actor
+// semantics are token-exchange-specific.
+type TokenExchanger interface {
+	// TokenExchange trades subject_token for a token with the
+	// requested type / audience / resource.
+	TokenExchange(ctx context.Context, req *TokenExchangeRequest) (*TokenExchangeResponse, error)
+}
+
+// TokenExchangeRequest holds the inputs the token endpoint receives
+// for grant_type=urn:ietf:params:oauth:grant-type:token-exchange.
+type TokenExchangeRequest struct {
+	SubjectToken       string
+	SubjectTokenType   string
+	RequestedTokenType string
+	Resource           string
+	Audience           string
+	Scopes             []string
+	AuthorizationDetails []core.AuthorizationDetail
+}
+
+// TokenExchangeResponse wraps the issued token pair. The wire
+// response carries the RFC 8693 issued_token_type field; the
+// implementation populates Tokens.IssuedTokenType.
+type TokenExchangeResponse struct {
+	Tokens *core.TokenPair
+}
+
+// ----------------------------------------------------------------------------
 // TokenValidator — validates tokens and checks authorization.
 // ----------------------------------------------------------------------------
 

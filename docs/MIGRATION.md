@@ -1,5 +1,120 @@
 # Migration Guide
 
+## Next release — `APIAuth` retired (#298)
+
+The legacy `apiauth.APIAuth` god struct is removed. The new wire-up is `apiauth.NewOneAuth` plus the per-concern HTTP factory methods on the returned `*OneAuth`.
+
+### Code changes (consumers)
+
+Before:
+
+```go
+apiAuth := &apiauth.APIAuth{
+    JWTSecretKey:           secret,
+    JWTIssuer:              issuer,
+    JWTAudience:            audience,
+    RefreshTokenStore:      refreshStore,
+    ValidateCredentials:    validateCreds,
+    GetSubjectScopes:       getScopes,
+    Blacklist:              blacklist,
+    ClientKeyStore:         keyStore,
+    ClientAuthenticator:    customAuthenticator, // optional
+    AcceptedAudiences:      []string{"https://as/api/token"},
+    TrustedAssertionIssuers: trustedIssuers,
+    DeviceAuthStore:        deviceStore,
+    AuthorizationCodeStore: codeStore,
+    AppStore:               appStore,
+    TracerProvider:         tp,
+    TokenHooks:             tokenHooks,
+    CustomClaimsFunc:       customClaims,
+    // JWTSigningAlg / JWTSigningKey / JWTVerifyKey for asymmetric setups
+}
+
+mux.HandleFunc("POST /api/token", apiAuth.ServeHTTP)
+mux.HandleFunc("POST /api/logout", apiAuth.HandleLogout)
+mux.HandleFunc("POST /api/logout-all", apiAuth.HandleLogoutAll)
+mux.HandleFunc("GET /api/sessions", apiAuth.HandleListSessions)
+mux.HandleFunc("GET /api/keys", apiAuth.HandleAPIKeys)
+mux.HandleFunc("DELETE /api/keys/", apiAuth.HandleRevokeAPIKey)
+mux.Handle("POST /oauth/introspect", apiauth.NewIntrospectionHandler(apiAuth, keyStore))
+mux.Handle("POST /oauth/revoke", apiauth.NewRevocationHandler(apiAuth, keyStore))
+```
+
+After:
+
+```go
+oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+    KeyStore:                keyStore,    // was ClientKeyStore — KeyStorage implements KeyLookup
+    SigningKey:              []byte(secret), // for asymmetric: pass the private key directly
+    SigningAlg:              "HS256",        // was JWTSigningAlg
+    VerifyKey:               nil,            // asymmetric: public key for the validator (omit for HS256)
+    Issuer:                  issuer,         // was JWTIssuer
+    Audience:                audience,       // was JWTAudience
+    RefreshStore:            refreshStore,   // was RefreshTokenStore
+    ValidateCredentials:     validateCreds,
+    GetSubjectScopes:        getScopes,
+    Blacklist:               blacklist,
+    Authenticator:           customAuthenticator,
+    AcceptedAudiences:       []string{"https://as/api/token"},
+    TrustedAssertionIssuers: trustedIssuers,
+    DeviceAuthStore:         deviceStore,
+    AuthorizationCodeStore:  codeStore,
+    AppStore:                appStore,
+    TracerProvider:          tp,
+    Hooks:                   apiauth.Hooks{Token: tokenHooks}, // was top-level TokenHooks
+    CustomClaims:            customClaims,                     // was CustomClaimsFunc
+})
+
+tokenEndpoint := apiauth.NewTokenEndpointHandler(oa)
+sessions := oa.SessionsHTTPHandler()
+apiKeys := oa.APIKeysHTTPHandler(apiKeyStore, getScopes)
+
+mux.Handle("POST /api/token", tokenEndpoint)
+mux.HandleFunc("POST /api/logout", sessions.HandleLogout)
+mux.HandleFunc("POST /api/logout-all", sessions.HandleLogoutAll)
+mux.HandleFunc("GET /api/sessions", sessions.HandleListSessions)
+mux.HandleFunc("GET /api/keys", apiKeys.HandleAPIKeys)
+mux.HandleFunc("DELETE /api/keys/", apiKeys.HandleRevokeAPIKey)
+mux.Handle("POST /oauth/introspect", oa.IntrospectionHTTPHandler())
+mux.Handle("POST /oauth/revoke", oa.RevocationHTTPHandler())
+```
+
+Field-by-field mapping for the swap:
+
+```
+APIAuth.JWTSecretKey         →  OneAuthConfig.SigningKey ([]byte) + .SigningAlg "HS256"
+APIAuth.JWTSigningKey        →  OneAuthConfig.SigningKey (private key) + .SigningAlg
+APIAuth.JWTVerifyKey         →  OneAuthConfig.VerifyKey (public key)
+APIAuth.JWTSigningAlg        →  OneAuthConfig.SigningAlg
+APIAuth.JWTIssuer            →  OneAuthConfig.Issuer
+APIAuth.JWTAudience          →  OneAuthConfig.Audience
+APIAuth.RefreshTokenStore    →  OneAuthConfig.RefreshStore
+APIAuth.ClientKeyStore       →  OneAuthConfig.KeyStore   (KeyStorage implements KeyLookup)
+APIAuth.ClientAuthenticator  →  OneAuthConfig.Authenticator
+APIAuth.CustomClaimsFunc     →  OneAuthConfig.CustomClaims
+APIAuth.TokenHooks           →  OneAuthConfig.Hooks.Token
+APIAuth.OnLoginSuccess (deprecated field) → OneAuthConfig.Hooks.Auth.OnLoginSuccess (signature drops *http.Request)
+APIAuth.OnLoginFailure (deprecated field) → OneAuthConfig.Hooks.Auth.OnLoginFailure (signature drops *http.Request)
+APIAuth.ServeHTTP            →  apiauth.NewTokenEndpointHandler(oa)
+APIAuth.HandleLogout / HandleLogoutAll / HandleListSessions → oa.SessionsHTTPHandler()
+APIAuth.HandleAPIKeys / HandleRevokeAPIKey                  → oa.APIKeysHTTPHandler(apiKeyStore, getScopes)
+APIAuth.ApproveDeviceAuthorization / DenyDeviceAuthorization → call core.DeviceAuthorizationStore.Approve... / Deny... directly
+apiauth.NewIntrospectionHandler(apiAuth, ks)                → oa.IntrospectionHTTPHandler()
+apiauth.NewRevocationHandler(apiAuth, ks)                   → oa.RevocationHTTPHandler()
+DeviceFlowMountConfig.APIAuth  → DeviceFlowMountConfig.OneAuth
+AuthorizeMountConfig.APIAuth   → AuthorizeMountConfig.OneAuth
+```
+
+### Test fixtures
+
+Tests that constructed `&apiauth.APIAuth{...}` for assertions on issued tokens should construct a `*OneAuth` and either keep references to the relevant handlers or use a small fixture struct that bundles them. See `apiauth/test_helpers_test.go` for a working example.
+
+### Behavioral notes
+
+- `Hooks.Auth.OnLoginSuccess` / `OnLoginFailure` no longer carry `*http.Request` — wrap with HTTP middleware if you need IP / user-agent details.
+- `TokenEndpointHandler.handleClientCredentials` calls `Issuer.CreateAccessToken` directly with the already-authenticated `client_id`. The legacy code path delegated to `Issuer.ClientCredentials`, which re-validated the secret — fine for `client_secret_basic` / `client_secret_post` but it broke `private_key_jwt`. The new shape is uniformly correct across all four token-endpoint auth methods.
+- BCL hooks (`Hooks.Token.OnSubjectRevoked` / `OnTokenRevoked`) are snapshotted by `NewOneAuth`. Configure them in `OneAuthConfig.Hooks` before calling the constructor; do not mutate `oa.Hooks.Token` afterwards — `TokenRevoker` and `SessionsHandler` will not see the change.
+
 ## v0.1.3 → v0.1.4 — Subject vocab (phase 2: consumers, helpers, transports)
 
 Completes the rename started in v0.1.3. Go API surfaces that handle the *principal-of-a-token* concept move from **UserID** to **Subject**. Account-model types (`accounts.User`, `accounts.Identity.UserID`, etc.) remain untouched.

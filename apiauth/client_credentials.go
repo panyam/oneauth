@@ -1,19 +1,10 @@
 package apiauth
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/panyam/oneauth/core"
 )
-
-// errMissingClientCredentials reports that a request to a token-endpoint /
-// introspection / revocation handler carried no client credentials in any
-// of the recognized channels. The token endpoint maps this to RFC 6749
-// §5.2 invalid_request (HTTP 400, missing required parameter); the other
-// endpoints prefer the more conservative invalid_client (HTTP 401) since
-// the absence of credentials is itself an authentication failure for them.
-var errMissingClientCredentials = errors.New("missing client credentials")
 
 // extractClientCredentials inspects r for client credentials per the
 // three OAuth-defined channels:

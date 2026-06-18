@@ -20,21 +20,19 @@ import (
 	"github.com/panyam/oneauth/stores/fs"
 )
 
-// setupAPIAuthTest creates test stores and APIAuth handler
-func setupAPIAuthTest(t *testing.T) (*apiauth.APIAuth, *fs.FSRefreshTokenStore, *fs.FSAPIKeyStore, string) {
+// setupAPIAuthTest creates test stores and the OneAuth-based fixture.
+func setupAPIAuthTest(t *testing.T) (*apiAuthFixture, *fs.FSRefreshTokenStore, *fs.FSAPIKeyStore, string) {
 	tmpDir, err := os.MkdirTemp("", "oneauth-apiauth-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	// Create stores
 	userStore := fs.NewFSUserStore(tmpDir)
 	identityStore := fs.NewFSIdentityStore(tmpDir)
 	channelStore := fs.NewFSChannelStore(tmpDir)
 	refreshTokenStore := fs.NewFSRefreshTokenStore(tmpDir)
 	apiKeyStore := fs.NewFSAPIKeyStore(tmpDir)
 
-	// Create test user
 	testEmail := "apitest@example.com"
 	testPassword := "password123"
 	createUser := localauth.NewCreateUserFunc(userStore, identityStore, channelStore)
@@ -48,18 +46,31 @@ func setupAPIAuthTest(t *testing.T) (*apiauth.APIAuth, *fs.FSRefreshTokenStore, 
 		t.Fatalf("Failed to create test user: %v", err)
 	}
 
-	apiAuth := &apiauth.APIAuth{
-		RefreshTokenStore:   refreshTokenStore,
-		APIKeyStore:         apiKeyStore,
-		JWTSecretKey:        "test-secret-key-for-testing-only",
-		JWTIssuer:           "oneauth-test",
-		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
-		GetSubjectScopes: func(userID string) ([]string, error) {
-			return []string{core.ScopeRead, core.ScopeWrite, core.ScopeProfile, core.ScopeOffline}, nil
-		},
+	const (
+		jwtSecret = "test-secret-key-for-testing-only"
+		jwtIssuer = "oneauth-test"
+	)
+	getSubjectScopes := func(userID string) ([]string, error) {
+		return []string{core.ScopeRead, core.ScopeWrite, core.ScopeProfile, core.ScopeOffline}, nil
 	}
 
-	return apiAuth, refreshTokenStore, apiKeyStore, tmpDir
+	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+		SigningKey:          []byte(jwtSecret),
+		SigningAlg:          "HS256",
+		Issuer:              jwtIssuer,
+		RefreshStore:        refreshTokenStore,
+		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
+		GetSubjectScopes:    getSubjectScopes,
+	})
+
+	return &apiAuthFixture{
+		OneAuth:       oa,
+		TokenEndpoint: apiauth.NewTokenEndpointHandler(oa),
+		Sessions:      oa.SessionsHTTPHandler(),
+		APIKeys:       oa.APIKeysHTTPHandler(apiKeyStore, getSubjectScopes),
+		JWTSecret:     jwtSecret,
+		JWTIssuer:     jwtIssuer,
+	}, refreshTokenStore, apiKeyStore, tmpDir
 }
 
 func cleanupAPIAuthTest(t *testing.T, tmpDir string) {
@@ -324,7 +335,7 @@ func TestJWTValidation(t *testing.T) {
 	json.NewDecoder(rr.Body).Decode(&loginResponse)
 
 	middleware := &apiauth.APIMiddleware{
-		JWTSecretKey: apiAuth.JWTSecretKey,
+		JWTSecretKey: apiAuth.JWTSecret,
 		JWTIssuer:    apiAuth.JWTIssuer,
 		APIKeyStore:  apiKeyStore,
 	}
@@ -420,7 +431,7 @@ func TestScopeEnforcement(t *testing.T) {
 	json.NewDecoder(rr.Body).Decode(&loginResponse)
 
 	middleware := &apiauth.APIMiddleware{
-		JWTSecretKey: apiAuth.JWTSecretKey,
+		JWTSecretKey: apiAuth.JWTSecret,
 		JWTIssuer:    apiAuth.JWTIssuer,
 		APIKeyStore:  apiKeyStore,
 	}
@@ -484,7 +495,7 @@ func TestAPIKeyAuthentication(t *testing.T) {
 	apiKey := createResp.APIKey
 
 	middleware := &apiauth.APIMiddleware{
-		JWTSecretKey: apiAuth.JWTSecretKey,
+		JWTSecretKey: apiAuth.JWTSecret,
 		JWTIssuer:    apiAuth.JWTIssuer,
 		APIKeyStore:  apiKeyStore,
 	}
@@ -641,7 +652,7 @@ func TestOptionalMiddleware(t *testing.T) {
 	defer cleanupAPIAuthTest(t, tmpDir)
 
 	middleware := &apiauth.APIMiddleware{
-		JWTSecretKey: apiAuth.JWTSecretKey,
+		JWTSecretKey: apiAuth.JWTSecret,
 		JWTIssuer:    apiAuth.JWTIssuer,
 		APIKeyStore:  apiKeyStore,
 	}
@@ -679,7 +690,7 @@ func TestAPITokenExpiry(t *testing.T) {
 	defer cleanupAPIAuthTest(t, tmpDir)
 
 	middleware := &apiauth.APIMiddleware{
-		JWTSecretKey: apiAuth.JWTSecretKey,
+		JWTSecretKey: apiAuth.JWTSecret,
 		JWTIssuer:    apiAuth.JWTIssuer,
 		APIKeyStore:  apiKeyStore,
 	}
@@ -735,7 +746,7 @@ func TestQueryParamToken(t *testing.T) {
 	json.NewDecoder(rr.Body).Decode(&loginResponse)
 
 	mw := &apiauth.APIMiddleware{
-		JWTSecretKey:    apiAuth.JWTSecretKey,
+		JWTSecretKey:    apiAuth.JWTSecret,
 		JWTIssuer:       apiAuth.JWTIssuer,
 		APIKeyStore:     apiKeyStore,
 		TokenQueryParam: "token",
@@ -779,7 +790,7 @@ func TestQueryParamToken(t *testing.T) {
 
 	t.Run("query param disabled when TokenQueryParam empty", func(t *testing.T) {
 		mwNoQP := &apiauth.APIMiddleware{
-			JWTSecretKey: apiAuth.JWTSecretKey,
+			JWTSecretKey: apiAuth.JWTSecret,
 			JWTIssuer:    apiAuth.JWTIssuer,
 			APIKeyStore:  apiKeyStore,
 		}
@@ -822,22 +833,34 @@ func TestCustomClaimsInContext(t *testing.T) {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
 
-	apiAuth := &apiauth.APIAuth{
-		RefreshTokenStore:   refreshTokenStore,
-		APIKeyStore:         apiKeyStore,
-		JWTSecretKey:        "test-secret-custom-claims",
-		JWTIssuer:           "oneauth-test",
+	const (
+		ccJWTSecret = "test-secret-custom-claims"
+		ccJWTIssuer = "oneauth-test"
+	)
+	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+		SigningKey:          []byte(ccJWTSecret),
+		SigningAlg:          "HS256",
+		Issuer:              ccJWTIssuer,
+		RefreshStore:        refreshTokenStore,
 		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
 		GetSubjectScopes: func(userID string) ([]string, error) {
 			return []string{core.ScopeRead, core.ScopeWrite}, nil
 		},
-		CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+		CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
 			return map[string]any{
 				"client_id":    "host-alpha",
 				"max_rooms":    float64(10),
 				"max_msg_rate": 50.0,
 			}, nil
 		},
+	})
+	apiAuth := &apiAuthFixture{
+		OneAuth:       oa,
+		TokenEndpoint: apiauth.NewTokenEndpointHandler(oa),
+		Sessions:      oa.SessionsHTTPHandler(),
+		APIKeys:       oa.APIKeysHTTPHandler(apiKeyStore, nil),
+		JWTSecret:     ccJWTSecret,
+		JWTIssuer:     ccJWTIssuer,
 	}
 
 	// Get tokens
@@ -860,7 +883,7 @@ func TestCustomClaimsInContext(t *testing.T) {
 	json.NewDecoder(rr.Body).Decode(&loginResponse)
 
 	mw := &apiauth.APIMiddleware{
-		JWTSecretKey: apiAuth.JWTSecretKey,
+		JWTSecretKey: apiAuth.JWTSecret,
 		JWTIssuer:    apiAuth.JWTIssuer,
 		APIKeyStore:  apiKeyStore,
 	}

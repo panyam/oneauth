@@ -42,7 +42,9 @@ type TestEnv struct {
 	Blacklist *core.InMemoryBlacklist
 
 	// Internal
-	apiAuth       *apiauth.APIAuth
+	oa            *apiauth.OneAuth
+	tokenEndpoint *apiauth.TokenEndpointHandler
+	sessions      *apiauth.SessionsHandler
 	registrar     *admin.AppRegistrar
 	localAuth     *localauth.LocalAuth
 	bclDispatcher *apiauth.BCLDispatcher

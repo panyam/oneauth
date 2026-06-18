@@ -88,15 +88,16 @@ func serve() {
 // the README always matches what the walkthrough exercises.
 func newAuthServer(ks keys.KeyStorage) http.Handler {
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
-	apiAuth := &apiauth.APIAuth{
-		JWTSecretKey:   jwtSecret,
-		JWTIssuer:      jwtIssuer,
-		ClientKeyStore: ks,
-	}
+	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+		KeyStore:   ks,
+		SigningKey: []byte(jwtSecret),
+		SigningAlg: "HS256",
+		Issuer:     jwtIssuer,
+	})
 
 	mux := http.NewServeMux()
 	mux.Handle("/apps/", registrar.Handler())
-	mux.HandleFunc("POST /api/token", apiAuth.ServeHTTP)
+	mux.Handle("POST /api/token", apiauth.NewTokenEndpointHandler(oa))
 	return mux
 }
 

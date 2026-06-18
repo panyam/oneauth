@@ -20,11 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// deviceVerifyFixture wires APIAuth + device store + AppStore + a
+// deviceVerifyFixture wires the device store + AppStore + a
 // pluggable session "subject" function so each test can choose whether
 // the caller is logged in.
 type deviceVerifyFixture struct {
-	api          *apiauth.APIAuth
 	deviceStore  *core.InMemoryDeviceAuthorizationStore
 	appStore     *core.InMemoryAppStore
 	handler      *apiauth.DeviceVerificationHandler
@@ -42,14 +41,7 @@ func newDeviceVerifyFixture(t *testing.T) *deviceVerifyFixture {
 	}})
 	require.NoError(t, err)
 
-	api := &apiauth.APIAuth{
-		JWTSecretKey:    "verify-test-secret-32chars-min!!",
-		JWTIssuer:       "test-issuer",
-		DeviceAuthStore: deviceStore,
-		AppStore:        apps,
-	}
 	f := &deviceVerifyFixture{
-		api:         api,
 		deviceStore: deviceStore,
 		appStore:    apps,
 	}
@@ -57,10 +49,16 @@ func newDeviceVerifyFixture(t *testing.T) *deviceVerifyFixture {
 		Store:    deviceStore,
 		AppStore: apps,
 		Approve: func(r *http.Request, userCode, subject string, scopes []string) error {
-			return api.ApproveDeviceAuthorization(r, userCode, subject, scopes)
+			_, err := deviceStore.ApproveDeviceAuthorization(r.Context(), &core.ApproveDeviceAuthorizationRequest{
+				UserCode:        userCode,
+				ApprovedSubject: subject,
+				GrantedScopes:   scopes,
+			})
+			return err
 		},
 		Deny: func(r *http.Request, userCode string) error {
-			return api.DenyDeviceAuthorization(r, userCode)
+			_, err := deviceStore.DenyDeviceAuthorization(r.Context(), &core.DenyDeviceAuthorizationRequest{UserCode: userCode})
+			return err
 		},
 		SubjectFromRequest:   func(*http.Request) string { return f.sessionSubject },
 		CSRFTokenFromRequest: func(*http.Request) string { return "test-csrf-token" },

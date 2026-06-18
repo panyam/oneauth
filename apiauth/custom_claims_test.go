@@ -18,10 +18,7 @@ import (
 // TestCustomClaimsFunc_RoundTrip tests that custom claims are embedded in the JWT
 // and can be extracted after validation.
 func TestCustomClaimsFunc_RoundTrip(t *testing.T) {
-	apiAuth := &apiauth.APIAuth{
-		JWTSecretKey: "test-secret-key",
-		JWTIssuer:    "test-issuer",
-		CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+	apiAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret-key"), SigningAlg: "HS256", Issuer: "test-issuer", CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
 			return map[string]any{
 				"client_id":     "host-excaliframe",
 				"client_domain": "excaliframe.com",
@@ -29,7 +26,7 @@ func TestCustomClaimsFunc_RoundTrip(t *testing.T) {
 				"max_msg_rate":  float64(30.0),
 			}, nil
 		},
-	}
+	}, nil)
 
 	// Mint a token using the exported method
 	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-123", Scopes: []string{"read", "write"}, AuthorizationDetails: nil})
@@ -76,11 +73,7 @@ func TestCustomClaimsFunc_RoundTrip(t *testing.T) {
 
 // TestCustomClaimsFunc_Nil tests that nil callback preserves existing behavior
 func TestCustomClaimsFunc_Nil(t *testing.T) {
-	apiAuth := &apiauth.APIAuth{
-		JWTSecretKey: "test-secret-key",
-		JWTIssuer:    "test-issuer",
-		// CustomClaimsFunc is nil
-	}
+	apiAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret-key"), SigningAlg: "HS256", Issuer: "test-issuer"}, nil)
 
 	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-123", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
@@ -122,12 +115,10 @@ func TestCustomClaimsFunc_Nil(t *testing.T) {
 
 // TestCustomClaimsFunc_Error tests that callback error propagates
 func TestCustomClaimsFunc_Error(t *testing.T) {
-	apiAuth := &apiauth.APIAuth{
-		JWTSecretKey: "test-secret-key",
-		CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+	apiAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret-key"), SigningAlg: "HS256", CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
 			return nil, core.ErrInvalidGrant
 		},
-	}
+	}, nil)
 
 	_, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-123", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
@@ -138,10 +129,7 @@ func TestCustomClaimsFunc_Error(t *testing.T) {
 
 // TestCustomClaimsFunc_NoOverrideStandard tests that custom claims cannot override standard claims
 func TestCustomClaimsFunc_NoOverrideStandard(t *testing.T) {
-	apiAuth := &apiauth.APIAuth{
-		JWTSecretKey: "test-secret-key",
-		JWTIssuer:    "real-issuer",
-		CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+	apiAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret-key"), SigningAlg: "HS256", Issuer: "real-issuer", CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
 			return map[string]any{
 				"sub":       "evil-user",       // should NOT override
 				"iss":       "evil-issuer",     // should NOT override
@@ -149,7 +137,7 @@ func TestCustomClaimsFunc_NoOverrideStandard(t *testing.T) {
 				"client_id": "legit-host",      // custom claim, should be kept
 			}, nil
 		},
-	}
+	}, nil)
 
 	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "real-user", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
@@ -360,16 +348,13 @@ func TestMultiTenantValidation_FallbackToSingleKey(t *testing.T) {
 // TestValidateAccessTokenFull_StandardClaimsExcluded tests that standard JWT claims
 // are not included in the customClaims return value
 func TestValidateAccessTokenFull_StandardClaimsExcluded(t *testing.T) {
-	apiAuth := &apiauth.APIAuth{
-		JWTSecretKey: "test-secret",
-		JWTIssuer:    "test-issuer",
-		CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+	apiAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret"), SigningAlg: "HS256", Issuer: "test-issuer", CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
 			return map[string]any{
 				"client_id": "my-host",
 				"max_rooms": float64(5),
 			}, nil
 		},
-	}
+	}, nil)
 
 	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 

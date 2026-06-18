@@ -30,7 +30,7 @@ import (
 // jwtBearerTestEnv bundles the AS-under-test plus the trusted IdP's
 // signing key so individual cases can mint freshly-claimed assertions.
 type jwtBearerTestEnv struct {
-	apiAuth    *apiauth.APIAuth
+	apiAuth    *apiAuthFixture
 	idpKey     *rsa.PrivateKey
 	idpIssuer  string
 	asAudience string
@@ -45,20 +45,21 @@ func newJwtBearerTestEnv(t *testing.T) *jwtBearerTestEnv {
 	asAudience := "https://oneauth-test/api/token"
 	idpIssuer := "https://corp-idp.example.com"
 
-	apiAuth := &apiauth.APIAuth{
-		JWTSecretKey: "test-secret-key-for-testing-only",
-		JWTIssuer:    "oneauth-test",
-		JWTAudience:  asAudience,
+	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey: []byte("test-secret-key-for-testing-only"),
+		SigningAlg: "HS256",
+		Issuer:     "oneauth-test",
+		Audience:   asAudience,
 		TrustedAssertionIssuers: []apiauth.TrustedAssertionIssuer{{
 			Issuer:             idpIssuer,
 			PublicKey:          &idpKey.PublicKey,
 			Audiences:          []string{asAudience},
 			AcceptedAlgorithms: []string{"RS256"},
 		}},
-	}
+	}, nil)
 
 	return &jwtBearerTestEnv{
-		apiAuth:    apiAuth,
+		apiAuth:    fx,
 		idpKey:     idpKey,
 		idpIssuer:  idpIssuer,
 		asAudience: asAudience,
@@ -99,14 +100,14 @@ func (e *jwtBearerTestEnv) mintAssertion(t *testing.T, overrides jwt.MapClaims) 
 // file self-contained.
 func postForm(
 	t *testing.T,
-	a *apiauth.APIAuth,
+	h http.Handler,
 	form url.Values,
 ) (int, map[string]any) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
-	a.ServeHTTP(rr, req)
+	h.ServeHTTP(rr, req)
 	var body map[string]any
 	if rr.Body.Len() > 0 {
 		_ = json.Unmarshal(rr.Body.Bytes(), &body)
@@ -137,11 +138,12 @@ func TestJwtBearerGrant_HappyPath(t *testing.T) {
 // TestJwtBearerGrant_NoTrustedIssuersConfigured — when the AS has no
 // TrustedAssertionIssuers, the grant returns unsupported_grant_type.
 func TestJwtBearerGrant_NoTrustedIssuersConfigured(t *testing.T) {
-	a := &apiauth.APIAuth{
-		JWTSecretKey: "test",
-		JWTIssuer:    "oneauth-test",
+	a := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey: []byte("test"),
+		SigningAlg: "HS256",
+		Issuer:     "oneauth-test",
 		// TrustedAssertionIssuers intentionally empty.
-	}
+	}, nil)
 	form := url.Values{}
 	form.Set("grant_type", apiauth.JwtBearerGrantType)
 	form.Set("assertion", "irrelevant")
@@ -284,11 +286,23 @@ func TestJwtBearerGrant_AlgorithmRestricted(t *testing.T) {
 // callback that returns a fresh key per request.
 func TestJwtBearerGrant_KeyFuncResolution(t *testing.T) {
 	env := newJwtBearerTestEnv(t)
-	// Reconfigure: drop PublicKey, use KeyFunc instead.
-	env.apiAuth.TrustedAssertionIssuers[0].PublicKey = nil
-	env.apiAuth.TrustedAssertionIssuers[0].KeyFunc = func(*jwt.Token) (crypto.PublicKey, error) {
-		return &env.idpKey.PublicKey, nil
-	}
+	// Rebuild the fixture with KeyFunc-only (no PublicKey) so the
+	// JwtBearerGranter wires the new resolver. Mutating the original
+	// slice would not reach the already-constructed granter.
+	env.apiAuth = newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey: []byte("test-secret-key-for-testing-only"),
+		SigningAlg: "HS256",
+		Issuer:     "oneauth-test",
+		Audience:   env.asAudience,
+		TrustedAssertionIssuers: []apiauth.TrustedAssertionIssuer{{
+			Issuer: env.idpIssuer,
+			KeyFunc: func(*jwt.Token) (crypto.PublicKey, error) {
+				return &env.idpKey.PublicKey, nil
+			},
+			Audiences:          []string{env.asAudience},
+			AcceptedAlgorithms: []string{"RS256"},
+		}},
+	}, nil)
 
 	assertion := env.mintAssertion(t, nil)
 	form := url.Values{}

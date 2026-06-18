@@ -42,7 +42,7 @@ import (
 // client during DCR.
 type pkjwtFixture struct {
 	t          *testing.T
-	auth       *apiauth.APIAuth
+	auth       *apiAuthFixture
 	clientID   string
 	privateKey *rsa.PrivateKey
 	tokenURL   string // canonical aud value for assertions
@@ -64,18 +64,17 @@ func newPKJWTFixture(t *testing.T) *pkjwtFixture {
 	}})
 	require.NoError(t, err)
 
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:        "server-jwt-secret-key-32chars!!",
-		JWTIssuer:           "test-issuer",
-		ClientKeyStore:      ks,
-		ClientAuthenticator: apiauth.NewClientAuthenticator(ks),
-		// Constrained set so we know the test exercises the audience
-		// match logic deterministically (no fallback to derived URL).
+	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+		KeyStore:          ks,
+		SigningKey:        []byte("server-jwt-secret-key-32chars!!"),
+		SigningAlg:        "HS256",
+		Issuer:            "test-issuer",
+		Authenticator:     apiauth.NewClientAuthenticator(ks),
 		AcceptedAudiences: []string{"https://oneauth.example.com/api/token"},
-	}
+	}, nil)
 	return &pkjwtFixture{
 		t:          t,
-		auth:       auth,
+		auth:       fx,
 		clientID:   clientID,
 		privateKey: priv,
 		tokenURL:   "https://oneauth.example.com/api/token",
@@ -354,7 +353,7 @@ func TestPrivateKeyJWT_RejectsUnknownClient(t *testing.T) {
 // configured audience.
 func TestPrivateKeyJWT_AcceptsMultipleAudiences(t *testing.T) {
 	f := newPKJWTFixture(t)
-	f.auth.AcceptedAudiences = []string{
+	f.auth.OneAuth.AcceptedAudiences = []string{
 		"https://oneauth.example.com",         // issuer
 		"https://oneauth.example.com/api/token", // endpoint URL
 	}

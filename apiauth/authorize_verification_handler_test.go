@@ -23,13 +23,13 @@ func newAuthorizeMux(t *testing.T, autoApprove string) (*http.ServeMux, *core.In
 	appStore := core.NewInMemoryAppStore()
 	require.NoError(t, seedClient(appStore, "client-x", "https://app.example/cb"))
 
-	apiAuth := &APIAuth{
+	oa := NewOneAuth(OneAuthConfig{
 		AuthorizationCodeStore: codeStore,
 		AppStore:               appStore,
-	}
+	})
 	mux := http.NewServeMux()
 	MountAuthorize(mux, AuthorizeMountConfig{
-		APIAuth:              apiAuth,
+		OneAuth:              oa,
 		IssuerURL:            "https://issuer.example",
 		EmitIssParameter:     true,
 		SubjectFromRequest:   func(r *http.Request) string { return r.Header.Get("X-Test-Subject") },

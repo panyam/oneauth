@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/panyam/oneauth/core"
 )
 
 // JwtBearerGrantType is the OAuth grant type URI for the
@@ -98,14 +96,22 @@ func findIssuer(issuers []TrustedAssertionIssuer, iss string) *TrustedAssertionI
 // Errors returned here use OAuth 2.0 error codes by convention; callers
 // (the grant handlers) translate them to invalid_grant /
 // invalid_request HTTP responses.
-func validateAssertion(
-	a *APIAuth,
-	rawAssertion string,
+//
+// ValidateAssertion is the public form used by the gRPC-shape grant
+// impls (jwtBearerGranter, tokenExchanger). trustedIssuers is the
+// configured registry;
+// defaultAudience / defaultIssuerURL supply the fallback audience
+// when a TrustedAssertionIssuer entry doesn't pin one. Returns the
+// validated claims + the matched issuer entry, or an error message
+// suitable for the OAuth invalid_grant error_description.
+func ValidateAssertion(
+	trustedIssuers []TrustedAssertionIssuer,
+	defaultAudience, defaultIssuerURL, rawAssertion string,
 ) (jwt.MapClaims, *TrustedAssertionIssuer, error) {
 	if rawAssertion == "" {
 		return nil, nil, errors.New("assertion required")
 	}
-	if len(a.TrustedAssertionIssuers) == 0 {
+	if len(trustedIssuers) == 0 {
 		return nil, nil, errors.New("no trusted assertion issuers configured")
 	}
 
@@ -123,12 +129,11 @@ func validateAssertion(
 	if issStr == "" {
 		return nil, nil, errors.New("assertion missing iss claim")
 	}
-	issuer := findIssuer(a.TrustedAssertionIssuers, issStr)
+	issuer := findIssuer(trustedIssuers, issStr)
 	if issuer == nil {
 		return nil, nil, fmt.Errorf("untrusted assertion issuer: %s", issStr)
 	}
 
-	// Build the JWT key resolver. KeyFunc wins over PublicKey.
 	keyResolver := issuer.KeyFunc
 	if keyResolver == nil {
 		if issuer.PublicKey == nil {
@@ -159,20 +164,16 @@ func validateAssertion(
 		return nil, nil, errors.New("verified claims unparseable")
 	}
 
-	// aud validation. Per RFC 7523 §3 the assertion MUST have an aud
-	// the AS recognizes. Default to JWTAudience or Issuer URL.
 	expectedAudiences := issuer.Audiences
 	if len(expectedAudiences) == 0 {
-		if a.JWTAudience != "" {
-			expectedAudiences = []string{a.JWTAudience}
-		} else if a.JWTIssuer != "" {
-			expectedAudiences = []string{a.JWTIssuer}
+		if defaultAudience != "" {
+			expectedAudiences = []string{defaultAudience}
+		} else if defaultIssuerURL != "" {
+			expectedAudiences = []string{defaultIssuerURL}
 		}
 	}
 	if len(expectedAudiences) == 0 {
-		// Server isn't configured strongly enough to enforce; accept
-		// any aud but log loudly so this isn't silent in production.
-		log.Printf("apiauth: jwt-bearer/token-exchange — no audience configured for issuer %q; accepting any aud claim. Set TrustedAssertionIssuer.Audiences or APIAuth.JWTAudience for production.", issStr)
+		log.Printf("apiauth: jwt-bearer/token-exchange — no audience configured for issuer %q; accepting any aud claim. Set TrustedAssertionIssuer.Audiences or the AS audience for production.", issStr)
 	} else {
 		matched := false
 		for _, aud := range expectedAudiences {
@@ -186,8 +187,6 @@ func validateAssertion(
 		}
 	}
 
-	// sub MUST be present per RFC 7523 §3. Other registered claims
-	// (exp, nbf) are validated by jwt.Parse above.
 	if sub, _ := verifiedClaims["sub"].(string); sub == "" {
 		return nil, nil, errors.New("assertion missing sub claim")
 	}
@@ -195,53 +194,3 @@ func validateAssertion(
 	return verifiedClaims, issuer, nil
 }
 
-// handleJwtBearerGrant handles RFC 7523 §2.1 — the client presents a
-// signed JWT (in the `assertion` param) issued by a trusted upstream
-// IdP and trades it for an access token at our token endpoint.
-//
-// The assertion's `sub` becomes the access token's subject. Scope is
-// taken from the request's `scope` parameter (intersected with what
-// the AS would normally grant); RFC 7523 doesn't define how scopes
-// are determined — that's deployment-specific.
-func (a *APIAuth) handleJwtBearerGrant(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
-	if len(a.TrustedAssertionIssuers) == 0 {
-		a.errorResponse(w, "unsupported_grant_type", "jwt-bearer grant not configured", http.StatusBadRequest)
-		return
-	}
-	if req.Assertion == "" {
-		a.errorResponse(w, "invalid_request", "assertion parameter required", http.StatusBadRequest)
-		return
-	}
-
-	claims, _, err := validateAssertion(a, req.Assertion)
-	if err != nil {
-		a.errorResponse(w, "invalid_grant", err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	subject, _ := claims["sub"].(string) // already validated non-empty
-	scopes := core.ParseScopes(req.Scope)
-
-	// Validate authorization_details if present (RFC 9396).
-	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
-		a.errorResponse(w, "invalid_authorization_details", err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	tokResp, err := a.Issuer().CreateAccessToken(r.Context(), &CreateAccessTokenRequest{
-		Subject:              subject,
-		Scopes:               scopes,
-		AuthorizationDetails: req.AuthorizationDetails,
-	})
-	if err != nil {
-		log.Printf("Error creating access token (jwt-bearer grant): %v", err)
-		a.errorResponse(w, "server_error", "Failed to create token", http.StatusInternalServerError)
-		return
-	}
-
-	// No refresh token for jwt-bearer per RFC 7523 — the assertion
-	// itself is the renewable credential (re-issued by the upstream
-	// IdP and re-presented). Returning a refresh token would muddle
-	// session semantics.
-	a.tokenResponse(w, tokResp.Token, tokResp.ExpiresIn, "", scopes, req.AuthorizationDetails)
-}

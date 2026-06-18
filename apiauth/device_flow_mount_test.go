@@ -20,9 +20,10 @@ import (
 
 func defaultMountCfg() apiauth.DeviceFlowMountConfig {
 	return apiauth.DeviceFlowMountConfig{
-		APIAuth: &apiauth.APIAuth{
+		OneAuth: apiauth.NewOneAuth(apiauth.OneAuthConfig{
+			KeyStore:        nil,
 			DeviceAuthStore: core.NewInMemoryDeviceAuthorizationStore(),
-		},
+		}),
 		VerificationURI:      "https://auth.example/device",
 		SubjectFromRequest:   func(r *http.Request) string { return "" },
 		CSRFTokenFromRequest: func(r *http.Request) string { return "test-csrf" },
@@ -35,8 +36,8 @@ func defaultMountCfg() apiauth.DeviceFlowMountConfig {
 // not a usable diagnostic.
 func TestMountDeviceFlow_PanicsOnMissingAPIAuth(t *testing.T) {
 	cfg := defaultMountCfg()
-	cfg.APIAuth = nil
-	assert.PanicsWithValue(t, "apiauth: MountDeviceFlow: cfg.APIAuth is required", func() {
+	cfg.OneAuth = nil
+	assert.PanicsWithValue(t, "apiauth: MountDeviceFlow: cfg.OneAuth is required", func() {
 		apiauth.MountDeviceFlow(http.NewServeMux(), cfg)
 	})
 }
@@ -47,8 +48,8 @@ func TestMountDeviceFlow_PanicsOnMissingAPIAuth(t *testing.T) {
 // per RFC 8628.
 func TestMountDeviceFlow_PanicsOnMissingDeviceAuthStore(t *testing.T) {
 	cfg := defaultMountCfg()
-	cfg.APIAuth.DeviceAuthStore = nil
-	assert.PanicsWithValue(t, "apiauth: MountDeviceFlow: cfg.APIAuth.DeviceAuthStore is required (RFC 8628 needs persistence)", func() {
+	cfg.OneAuth.DeviceAuthStore = nil
+	assert.PanicsWithValue(t, "apiauth: MountDeviceFlow: cfg.OneAuth.DeviceAuthStore is required (RFC 8628 needs persistence)", func() {
 		apiauth.MountDeviceFlow(http.NewServeMux(), cfg)
 	})
 }

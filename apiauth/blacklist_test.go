@@ -79,7 +79,7 @@ func TestInMemoryBlacklist_Cleanup(t *testing.T) {
 //
 // See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.7
 func TestBlacklist_JTIInAccessToken(t *testing.T) {
-	auth := &apiauth.APIAuth{JWTSecretKey: "test-secret"}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret"), SigningAlg: "HS256"}, nil)
 
 	token1Resp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
@@ -126,10 +126,7 @@ func TestBlacklist_JTIInAccessToken(t *testing.T) {
 // See: https://cwe.mitre.org/data/definitions/613.html
 func TestBlacklist_RevokedTokenRejected(t *testing.T) {
 	bl := core.NewInMemoryBlacklist()
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: "test-secret",
-		Blacklist:    bl,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret"), SigningAlg: "HS256", Blacklist: bl}, nil)
 
 	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
@@ -170,10 +167,7 @@ func TestBlacklist_RevokedTokenRejected(t *testing.T) {
 // produce false positives — tokens that haven't been revoked still work.
 func TestBlacklist_NonRevokedTokenAccepted(t *testing.T) {
 	bl := core.NewInMemoryBlacklist()
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: "test-secret",
-		Blacklist:    bl,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret"), SigningAlg: "HS256", Blacklist: bl}, nil)
 
 	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
@@ -201,7 +195,7 @@ func TestBlacklist_NonRevokedTokenAccepted(t *testing.T) {
 // TestBlacklist_NoBlacklistConfigured verifies backward compatibility:
 // when no blacklist is set, tokens are validated normally (no revocation check).
 func TestBlacklist_NoBlacklistConfigured(t *testing.T) {
-	auth := &apiauth.APIAuth{JWTSecretKey: "test-secret"}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret"), SigningAlg: "HS256"}, nil)
 	// No Blacklist field set
 
 	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
@@ -237,10 +231,7 @@ func TestBlacklist_MiddlewareChecksBlacklist(t *testing.T) {
 	bl := core.NewInMemoryBlacklist()
 	secret := "test-secret"
 
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		Blacklist:    bl,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Blacklist: bl}, nil)
 
 	mw := &apiauth.APIMiddleware{
 		JWTSecretKey: secret,
@@ -285,10 +276,7 @@ func TestBlacklist_MiddlewareChecksBlacklist(t *testing.T) {
 // ValidateAccessTokenFull also checks the blacklist.
 func TestBlacklist_ValidateAccessTokenFull_ChecksBlacklist(t *testing.T) {
 	bl := core.NewInMemoryBlacklist()
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: "test-secret",
-		Blacklist:    bl,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret"), SigningAlg: "HS256", Blacklist: bl}, nil)
 
 	tokenResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 

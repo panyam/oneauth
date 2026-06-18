@@ -1,16 +1,13 @@
 package apiauth
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/tracing"
 )
 
@@ -46,75 +43,9 @@ type IntrospectionHandler struct {
 	TracerProvider trace.TracerProvider
 }
 
-// NewIntrospectionHandler creates an IntrospectionHandler from an APIAuth
-// and a client KeyLookup. This is the bridge between the old-style APIAuth
-// configuration and the new core interfaces. The new handler inherits the
-// APIAuth's TracerProvider so spans share one trace across /token and
-// /introspect.
-func NewIntrospectionHandler(auth *APIAuth, clientKeyStore keys.KeyLookup) *IntrospectionHandler {
-	// Build a validator that mirrors APIAuth's validation logic.
-	// APIAuth supports both single-key (JWTSecretKey) and multi-tenant (ClientKeyStore).
-	// We wrap this by using APIAuth.ValidateAccessTokenFull as the validation backend.
-	introspector := &apiauthIntrospector{auth: auth}
-	return &IntrospectionHandler{
-		Introspector:   introspector,
-		Authenticator:  NewClientAuthenticator(clientKeyStore),
-		TracerProvider: auth.TracerProvider,
-	}
-}
-
-// apiauthIntrospector adapts an APIAuth into a TokenIntrospector.
-// This preserves the exact validation behavior of the old IntrospectionHandler.
-type apiauthIntrospector struct {
-	auth *APIAuth
-}
-
-func (ai *apiauthIntrospector) Introspect(ctx context.Context, req *IntrospectRequest) (*IntrospectResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("IntrospectRequest is required")
-	}
-	tokenString := req.Token
-	validateResp, err := ai.auth.Validator().ValidateToken(ctx, &ValidateTokenRequest{Token: tokenString})
-	if err != nil {
-		return &IntrospectResponse{Result: &IntrospectionResult{Active: false}}, nil
-	}
-	info := validateResp.Info
-
-	rawClaims := parseRawJWTClaims(tokenString)
-
-	result := &IntrospectionResult{
-		Active:    true,
-		Sub:       info.Subject,
-		TokenType: "access_token",
-	}
-
-	if len(info.Scopes) > 0 {
-		result.Scope = joinScopes(info.Scopes)
-	}
-
-	if rawClaims != nil {
-		if v, ok := rawClaims["iss"].(string); ok {
-			result.Iss = v
-		}
-		if v, ok := rawClaims["exp"].(float64); ok {
-			result.Exp = int64(v)
-		}
-		if v, ok := rawClaims["iat"].(float64); ok {
-			result.Iat = int64(v)
-		}
-		if v, ok := rawClaims["jti"].(string); ok {
-			result.Jti = v
-		}
-		if v, ok := rawClaims["aud"]; ok {
-			result.Aud = v
-		}
-		if v, ok := rawClaims["client_id"].(string); ok {
-			result.ClientID = v
-		}
-	}
-
-	return &IntrospectResponse{Result: result}, nil
-}
+// Construction of an IntrospectionHandler now happens via
+// OneAuth.IntrospectionHTTPHandler() — the legacy APIAuth-based
+// constructor was removed in #298.
 
 func joinScopes(scopes []string) string {
 	s := ""
