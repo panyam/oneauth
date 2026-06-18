@@ -127,6 +127,23 @@ type TokenRequest struct {
 	// grant_type=urn:ietf:params:oauth:grant-type:device_code.
 	DeviceCode string `json:"device_code,omitempty"`
 
+	// Code is the high-entropy authorization code returned to the
+	// client via the /authorize redirect (RFC 6749 §4.1.2). Sent on
+	// grant_type=authorization_code along with CodeVerifier and
+	// RedirectURI.
+	Code string `json:"code,omitempty"`
+
+	// CodeVerifier is the PKCE verifier (RFC 7636 §4.1) the client
+	// committed to via code_challenge at /authorize time. Required on
+	// grant_type=authorization_code when the original authorization
+	// request included a code_challenge.
+	CodeVerifier string `json:"code_verifier,omitempty"`
+
+	// RedirectURI is the verbatim redirect_uri the client used at the
+	// /authorize step. RFC 6749 §4.1.3 requires it on the
+	// authorization_code redemption so the AS can re-check binding.
+	RedirectURI string `json:"redirect_uri,omitempty"`
+
 	// ClientAssertionType + ClientAssertion authenticate the *client*
 	// itself — distinct from Assertion (which authenticates the
 	// resource owner via the jwt-bearer grant). Per RFC 7521 §4.2 +

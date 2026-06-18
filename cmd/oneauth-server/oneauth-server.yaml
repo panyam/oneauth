@@ -70,3 +70,20 @@ device_flow:
     fs:
       path: "${DEVICE_AUTH_STORE_PATH:-./data/device}"
     # gorm and gae reuse the keystore.gorm / keystore.gae shape
+
+# RFC 6749 §4.1 Authorization Code Grant + PKCE (optional, off by default).
+# When enabled, mounts GET / POST /authorize (consent screen + decision),
+# advertises authorization_endpoint, "code" in response_types_supported,
+# and "authorization_code" in grant_types_supported. Headless / browser
+# clients can then complete the canonical OAuth code flow against this
+# AS. Pair with jwt.iss_parameter_supported=true to also emit RFC 9207
+# `iss` on the redirect.
+code_flow:
+  enabled: ${CODE_FLOW_ENABLED:-false}
+  # expiry: 60s   # default authorization-code lifetime (OAuth 2.1-aligned)
+  store:
+    type: "${AUTH_CODE_STORE_TYPE:-memory}"   # memory (default), gorm; fs / gae are deferred follow-ups
+    # gorm reuses the keystore.gorm shape; uncomment to override:
+    # gorm:
+    #   driver: postgres
+    #   dsn: "${AUTH_CODE_STORE_DSN}"

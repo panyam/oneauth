@@ -5,12 +5,13 @@ package e2e_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +25,14 @@ import (
 	fsstore "github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
 )
+
+// readCloserFromForm re-encodes a parsed form back to a body the
+// downstream handler can re-parse. Used by the /oauth/token dispatch
+// when delegating to APIAuth.ServeHTTP after the outer handler has
+// already called r.ParseForm.
+func readCloserFromForm(form url.Values) io.ReadCloser {
+	return io.NopCloser(strings.NewReader(form.Encode()))
+}
 
 // buildAuthServer wires up and starts the auth server.
 func (e *TestEnv) buildAuthServer(t *testing.T) {
@@ -61,12 +70,13 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 
 	// APIAuth
 	e.apiAuth = &apiauth.APIAuth{
-		RefreshTokenStore:   refreshTokenStore,
-		JWTSecretKey:        e.JWTSecret,
-		JWTIssuer:           testJWTIssuer,
-		ValidateCredentials: e.localAuth.ValidateCredentials,
-		Blacklist:           e.Blacklist,
-		ClientKeyStore:      e.KeyStore, // Enables client_credentials grant
+		RefreshTokenStore:      refreshTokenStore,
+		JWTSecretKey:           e.JWTSecret,
+		JWTIssuer:              testJWTIssuer,
+		ValidateCredentials:    e.localAuth.ValidateCredentials,
+		Blacklist:              e.Blacklist,
+		ClientKeyStore:         e.KeyStore, // Enables client_credentials grant
+		AuthorizationCodeStore: core.NewInMemoryAuthorizationCodeStore(),
 	}
 
 	// OIDC Back-Channel Logout 1.0 sender wiring (issue 261). The dispatcher
@@ -129,31 +139,22 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 	})))
 	mux.Handle("POST /auth/login", csrf.Protect(http.HandlerFunc(e.localAuth.ServeHTTP)))
 
-	// Authorization endpoint stub for auth code + PKCE e2e tests (#71).
-	// Auto-approves and redirects — no login UI needed for in-process tests.
-	// Stores the PKCE challenge for verification at the token endpoint.
-	var storedPKCEChallenge, storedRedirectURI, storedState string
-	mux.HandleFunc("GET /authorize", func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		if q.Get("response_type") != "code" {
-			http.Error(w, "invalid response_type", http.StatusBadRequest)
-			return
-		}
-		if q.Get("code_challenge_method") != "S256" {
-			http.Error(w, "invalid code_challenge_method", http.StatusBadRequest)
-			return
-		}
-		storedPKCEChallenge = q.Get("code_challenge")
-		storedState = q.Get("state")
-		storedRedirectURI = q.Get("redirect_uri")
-
-		redirectURL := fmt.Sprintf("%s?code=e2e-auth-code&state=%s",
-			storedRedirectURI, storedState)
-		http.Redirect(w, r, redirectURL, http.StatusFound)
+	// RFC 6749 §4.1 /authorize endpoint wired via the library helper
+	// (#297). Auto-approves "e2e-user" so the headless tests can drive
+	// the redirect → code → token chain without a login UI.
+	apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
+		APIAuth:              e.apiAuth,
+		IssuerURL:            testJWTIssuer,
+		EmitIssParameter:     true,
+		SubjectFromRequest:   func(r *http.Request) string { return "" },
+		CSRFTokenFromRequest: func(r *http.Request) string { return "" },
+		AutoApproveSubject:   "e2e-user",
 	})
 
 	// Standards-compliant token endpoint for e2e tests.
-	// Handles authorization_code (with PKCE) and client_credentials grants.
+	// Handles authorization_code (delegated to APIAuth.ServeHTTP — uses
+	// the same AuthorizationCodeStore the /authorize mount writes into)
+	// and client_credentials grants.
 	// Supports client_secret_basic and client_secret_post auth methods (#72).
 	// This is separate from /api/token (which uses JSON and legacy oneauth behavior).
 	mux.HandleFunc("POST /oauth/token", func(w http.ResponseWriter, r *http.Request) {
@@ -165,30 +166,15 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		grantType := r.FormValue("grant_type")
 		switch grantType {
 		case "authorization_code":
-			// Verify PKCE
-			verifier := r.FormValue("code_verifier")
-			hash := sha256.Sum256([]byte(verifier))
-			computed := base64.RawURLEncoding.EncodeToString(hash[:])
-			if computed != storedPKCEChallenge {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "invalid_grant", "error_description": "PKCE verification failed"})
-				return
-			}
-
-			if r.FormValue("code") != "e2e-auth-code" {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant"})
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{
-				"access_token":  "e2e-authcode-token",
-				"refresh_token": "e2e-refresh-token",
-				"token_type":    "Bearer",
-				"expires_in":    900,
-			})
+			// Delegate to APIAuth.ServeHTTP so the redemption uses the
+			// same AuthorizationCodeStore that MountAuthorize writes
+			// into. APIAuth.ServeHTTP re-parses the form body — set the
+			// request body back to the original encoded form so the
+			// downstream call sees the same fields.
+			r.Body = readCloserFromForm(r.PostForm)
+			r.ContentLength = -1
+			e.apiAuth.ServeHTTP(w, r)
+			return
 
 		case "client_credentials":
 			// Extract client credentials: Basic auth header or form body

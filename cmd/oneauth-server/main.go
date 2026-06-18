@@ -367,6 +367,44 @@ func main() {
 		grantTypes = append(grantTypes, apiauth.DeviceCodeGrantType)
 		log.Println("RFC 8628 device flow enabled (/device/authorize + /device + /device/approve)")
 	}
+
+	// RFC 6749 §4.1 Authorization Code Grant + PKCE + RFC 9207 iss
+	// emission, opt-in via code_flow.enabled. Mounts the consent
+	// surface, points APIAuth at the code store + app store (the latter
+	// drives confidential-client enforcement on redemption — same shape
+	// as device flow's #266), and advertises the endpoint, "code"
+	// response type, and "authorization_code" grant type in AS metadata
+	// so discovery surfaces the capability.
+	if cfg.CodeFlow.Enabled {
+		codeStore, err := buildAuthorizationCodeStore(cfg, db)
+		if err != nil {
+			log.Fatalf("Failed to create AuthorizationCodeStore: %v", err)
+		}
+		apiAuth.AuthorizationCodeStore = codeStore
+		apiAuth.AppStore = appStore
+
+		issParam := false
+		if asMeta.AuthorizationResponseIssParameterSupported != nil {
+			issParam = *asMeta.AuthorizationResponseIssParameterSupported
+		}
+		apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
+			APIAuth:          apiAuth,
+			IssuerURL:        baseURL,
+			EmitIssParameter: issParam,
+			Expiry:           cfg.CodeFlow.Expiry,
+			SubjectFromRequest: func(r *http.Request) string {
+				return getUserIDFromCookie(r, cfg.JWT.SecretKey)
+			},
+			CSRFTokenFromRequest: httpauth.CSRFToken,
+			LoginRedirectURL:     "/auth/login",
+			BrowserMiddleware:    csrf.Protect,
+		})
+
+		asMeta.AuthorizationEndpoint = baseURL + "/authorize"
+		grantTypes = append(grantTypes, apiauth.AuthorizationCodeGrantType)
+		asMeta.ResponseTypesSupported = appendIfMissing(asMeta.ResponseTypesSupported, "code")
+		log.Println("RFC 6749 §4.1 code flow enabled (/authorize + authorization_code grant)")
+	}
 	asMeta.GrantTypesSupported = grantTypes
 
 	apiauth.MountASMetadata(mux, asMeta)
@@ -657,6 +695,51 @@ func buildDeviceAuthStore(cfg *Config, sharedDB *gorm.DB) (core.DeviceAuthorizat
 	default:
 		return nil, fmt.Errorf("unknown device_flow.store type: %s", sc.Type)
 	}
+}
+
+// buildAuthorizationCodeStore constructs the AuthorizationCodeStore
+// backing the RFC 6749 §4.1 code grant. Mirrors buildDeviceAuthStore.
+// memory + GORM backends are wired today; FS + GAE are deferred
+// follow-ups under the same staging as DeviceAuthStore (mirrors
+// device-flow's 117 → 269 → 270 progression).
+func buildAuthorizationCodeStore(cfg *Config, sharedDB *gorm.DB) (core.AuthorizationCodeStore, error) {
+	sc := cfg.CodeFlow.Store
+	switch sc.Type {
+	case "memory":
+		log.Println("Using in-memory AuthorizationCodeStore (authorization codes lost on restart)")
+		return core.NewInMemoryAuthorizationCodeStore(), nil
+
+	case "gorm":
+		db := sharedDB
+		if db == nil || cfg.KeyStore.GORM.DSN != sc.GORM.DSN || cfg.KeyStore.GORM.Driver != sc.GORM.Driver {
+			fresh, err := openGORM(sc.GORM)
+			if err != nil {
+				return nil, err
+			}
+			db = fresh
+		}
+		if err := gormstore.AutoMigrate(db); err != nil {
+			return nil, err
+		}
+		log.Printf("Using GORM AuthorizationCodeStore (driver=%s)", sc.GORM.Driver)
+		return gormstore.NewAuthorizationCodeStore(db), nil
+
+	default:
+		return nil, fmt.Errorf("unknown code_flow.store type: %s (memory and gorm are supported; fs/gae backends are tracked as follow-ups)", sc.Type)
+	}
+}
+
+// appendIfMissing appends value to slice if it is not already present.
+// Used to extend AS-metadata advertisement lists when opt-in flow
+// blocks (device_flow / code_flow) toggle on, without duplicating
+// values an operator may have pinned explicitly.
+func appendIfMissing(slice []string, value string) []string {
+	for _, v := range slice {
+		if v == value {
+			return slice
+		}
+	}
+	return append(slice, value)
 }
 
 func openGORM(cfg GORMConfig) (*gorm.DB, error) {

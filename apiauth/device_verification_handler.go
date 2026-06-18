@@ -2,7 +2,6 @@ package apiauth
 
 import (
 	"errors"
-	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -175,12 +174,7 @@ func (h *DeviceVerificationHandler) Consent(w http.ResponseWriter, r *http.Reque
 		CSRFToken: h.csrfToken(r),
 		ActionURL: r.URL.Path,
 	}
-	data.ClientName = auth.ClientID
-	if h.AppStore != nil && auth.ClientID != "" {
-		if appResp, lookupErr := h.AppStore.GetApp(r.Context(), &core.GetAppRequest{ClientID: auth.ClientID}); lookupErr == nil && appResp != nil && appResp.App != nil && appResp.App.ClientName != "" {
-			data.ClientName = appResp.App.ClientName
-		}
-	}
+	data.ClientName = lookupClientName(r.Context(), h.AppStore, auth.ClientID)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	tmpl := h.consentTemplate()
@@ -276,19 +270,7 @@ func (h *DeviceVerificationHandler) csrfToken(r *http.Request) string {
 }
 
 func (h *DeviceVerificationHandler) loginURLWithNext(next string) string {
-	loginURL := h.LoginRedirectURL
-	if loginURL == "" {
-		loginURL = "/auth/login"
-	}
-	param := h.LoginNextParam
-	if param == "" {
-		param = "next"
-	}
-	sep := "?"
-	if strings.Contains(loginURL, "?") {
-		sep = "&"
-	}
-	return fmt.Sprintf("%s%s%s=%s", loginURL, sep, param, url.QueryEscape(next))
+	return loginURLWithNext(h.LoginRedirectURL, h.LoginNextParam, next)
 }
 
 func (h *DeviceVerificationHandler) formTemplate() *template.Template {

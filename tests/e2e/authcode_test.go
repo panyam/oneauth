@@ -57,13 +57,17 @@ func TestE2E_AuthCodePKCE_HeadlessFlow(t *testing.T) {
 
 	require.NoError(t, err, "headless auth code + PKCE flow should succeed")
 	require.NotNil(t, cred)
-	assert.Equal(t, "e2e-authcode-token", cred.AccessToken)
-	assert.Equal(t, "e2e-refresh-token", cred.RefreshToken)
+	// The e2e fixture now drives the real apiauth.MountAuthorize +
+	// APIAuth redemption path (#297), so the access token is a fresh
+	// JWT rather than a fixture string. Assert on what we actually
+	// care about: a non-empty bearer token round-tripped to the
+	// credential store.
+	assert.NotEmpty(t, cred.AccessToken, "headless flow MUST return an access token")
+	assert.NotEmpty(t, cred.RefreshToken, "headless flow MUST return a refresh token (RefreshTokenStore is wired)")
 
-	// Verify credential was stored
 	stored, err := store.GetCredential(env.BaseURL())
 	require.NoError(t, err)
-	assert.Equal(t, "e2e-authcode-token", stored.AccessToken)
+	assert.Equal(t, cred.AccessToken, stored.AccessToken, "stored credential MUST match the credential returned to the caller")
 }
 
 // TestE2E_AuthMethodDiscovery verifies that the auth server advertises
@@ -244,13 +248,15 @@ func TestE2E_AuthCodePKCE_ExplicitEndpoints_WithAuthMethods(t *testing.T) {
 
 	require.NoError(t, err, "explicit endpoints with TokenEndpointAuthMethods should succeed")
 	require.NotNil(t, cred)
-	assert.Equal(t, "e2e-authcode-token", cred.AccessToken)
-	assert.Equal(t, "e2e-refresh-token", cred.RefreshToken)
+	// Tokens are real JWTs / hex-encoded refresh tokens minted by the
+	// library now that MountAuthorize backs /authorize (#297); assert
+	// presence rather than fixture string equality.
+	assert.NotEmpty(t, cred.AccessToken)
+	assert.NotEmpty(t, cred.RefreshToken)
 
-	// Verify credential was stored
 	stored, err := store.GetCredential(env.BaseURL())
 	require.NoError(t, err)
-	assert.Equal(t, "e2e-authcode-token", stored.AccessToken)
+	assert.Equal(t, cred.AccessToken, stored.AccessToken)
 }
 
 // TestE2E_AuthCodePKCE_ExplicitEndpoints_ConfidentialClient verifies the
@@ -293,7 +299,8 @@ func TestE2E_AuthCodePKCE_ExplicitEndpoints_ConfidentialClient(t *testing.T) {
 
 	require.NoError(t, err, "confidential client with explicit endpoints + post auth should succeed")
 	require.NotNil(t, cred)
-	assert.Equal(t, "e2e-authcode-token", cred.AccessToken)
+	// See #297 — real apiauth token now, not a fixture string.
+	assert.NotEmpty(t, cred.AccessToken)
 }
 
 // =============================================================================
