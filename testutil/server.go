@@ -270,19 +270,12 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	if cfg.authorizeEnabled {
 		oaCfg.AuthorizationCodeStore = core.NewInMemoryAuthorizationCodeStore()
 	}
-	oa := apiauth.NewOneAuth(oaCfg)
-	tokenEndpoint := apiauth.NewTokenEndpointHandler(oa)
-
-	introspection := oa.IntrospectionHTTPHandler()
-
 	jwksHandler := &keys.JWKSHandler{KeyStore: ks}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /_ah/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
-	mux.Handle("POST /api/token", tokenEndpoint)
-	mux.Handle("POST /oauth/introspect", introspection)
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
 	mux.Handle("/apps/", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
 	mux.Handle("/apps", httpauth.LimitBody(httpauth.DefaultMaxBodySize)(registrar.Handler()))
@@ -293,13 +286,16 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	issuer := cfg.issuer
 	if issuer == defaultIssuer {
 		issuer = baseURL
-		// Rebuild OneAuth so the token issuer carries the resolved
-		// issuer URL — JWT iss claims on issued tokens must match
-		// the actual server URL httptest assigned.
 		oaCfg.Issuer = issuer
-		oa = apiauth.NewOneAuth(oaCfg)
-		tokenEndpoint = apiauth.NewTokenEndpointHandler(oa)
 	}
+
+	// Build OneAuth + the handlers it wires AFTER the issuer is
+	// resolved so the validator's expected iss matches what the token
+	// endpoint stamps onto minted tokens.
+	oa := apiauth.NewOneAuth(oaCfg)
+	tokenEndpoint := apiauth.NewTokenEndpointHandler(oa)
+	mux.Handle("POST /api/token", tokenEndpoint)
+	mux.Handle("POST /oauth/introspect", oa.IntrospectionHTTPHandler())
 	grants := cfg.grantTypesSupported
 	if grants == nil {
 		grants = []string{"client_credentials"}
