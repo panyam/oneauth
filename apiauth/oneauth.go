@@ -87,6 +87,28 @@ type OneAuthConfig struct {
 	Audience     string        // JWT aud claim (optional)
 	AccessExpiry time.Duration // default 15 minutes
 
+	// AudienceFunc, when non-nil, is consulted per token mint and per
+	// validation in addition to Audience. The returned string takes
+	// precedence over Audience whenever it is non-empty; an empty
+	// return falls back to Audience.
+	//
+	// Use this when the audience cannot be known at construction
+	// time. The canonical case is an in-process AS that needs to mint
+	// tokens whose aud equals a resource server URL that is itself
+	// only allocated later (e.g., by `httptest.NewServer` on the RS
+	// side). Build the AS once, then teach the closure to look up
+	// the current value when the RS comes online.
+	//
+	// Production deployments where the audience is a stable
+	// configuration value should leave AudienceFunc nil and set
+	// Audience directly. Lazy resolution adds one function call per
+	// mint / validation — small but not free.
+	//
+	// Concurrency: AudienceFunc is invoked from the request-serving
+	// goroutine. Callers backing it with mutable state must guard
+	// the state themselves.
+	AudienceFunc func() string
+
 	// Token lifecycle
 	Blacklist    core.TokenBlacklist    // for access token revocation (optional)
 	RefreshStore core.RefreshTokenStore // for refresh token management (optional)
@@ -146,11 +168,12 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 
 	// Wire the issuer — needs signing config + client key lookup + refresh store
 	issuer := NewJWTIssuer(JWTIssuerConfig{
-		SigningKey:      cfg.SigningKey,
-		SigningAlg:      signingAlg,
-		Issuer:          cfg.Issuer,
-		Audience:        cfg.Audience,
-		AccessExpiry:    cfg.AccessExpiry,
+		SigningKey:          cfg.SigningKey,
+		SigningAlg:          signingAlg,
+		Issuer:              cfg.Issuer,
+		Audience:            cfg.Audience,
+		AudienceFunc:        cfg.AudienceFunc,
+		AccessExpiry:        cfg.AccessExpiry,
 		ClientKeyLookup:     cfg.KeyStore, // KeyStorage implements KeyLookup
 		RefreshStore:        cfg.RefreshStore,
 		ValidateCredentials: cfg.ValidateCredentials,
@@ -175,6 +198,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		Blacklist:      cfg.Blacklist,
 		Issuer:         cfg.Issuer,
 		Audience:       cfg.Audience,
+		AudienceFunc:   cfg.AudienceFunc,
 		Hooks:          cfg.Hooks.Security,
 		TracerProvider: cfg.TracerProvider,
 	})
