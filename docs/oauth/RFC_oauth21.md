@@ -12,6 +12,13 @@ OAuth 2.1 is RFC 6749 with the Security BCP (RFC 9700), PKCE (RFC 7636), and
 Bearer Token Usage (RFC 6750) consolidated into a single document — and with
 the grants that two decades of attacks killed (implicit, ROPC) removed.
 
+> **Status reality.** 2.1 is still an active Internet-Draft (currently
+> `draft-ietf-oauth-v2-1`). There is no public timeline for promotion to
+> RFC. **OAuth 2.0 remains the published standard the production world
+> deploys.** Treating 2.1 as "the spec to build to today" is reasonable
+> for *new* AS deployments; treating it as a hard requirement for *existing*
+> 2.0 deployments is premature — those will likely live another decade.
+
 ## What problem does it solve?
 
 | Without 2.1 | With 2.1 |
@@ -103,12 +110,54 @@ today (`apiauth/authorize.go:173`).
 - **T-tier: T0–T8.** Every T-step has at least one 2.1 paragraph against
   it — by design, since 2.1 is "all of 6749 + the defenses."
 
+## OAuth 2.0 status
+
+2.1 *is built on* 2.0; the wire is identical. The relationship is *strict
+mode profile*, not *replacement*. 2.0 deployments remain fully legal — RFC
+6749 is the Internet Standard and is not deprecated. 2.1 is a draft.
+
+## OAuth 2.1 status
+
+Active Internet-Draft (`draft-ietf-oauth-v2-1`) under WG review. No fixed
+promotion date. The major IdPs (Google, GitHub, Azure AD, Okta, Auth0) ship
+*selected* 2.1 defaults today — PKCE-everywhere is widely on; query-param
+bearer is widely off — but they brand themselves as "OAuth 2.0 with
+[selected] BCP defenses," not as "OAuth 2.1." That's a fair stance.
+
+For OneAuth, see the audit-table verdict in
+[`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md). The shortcut:
+
+- 5/8 compliant today (post PR 297)
+- 2 deliberate transition gaps (ROPC, query-param bearer)
+- 1 historical gap closed by recent work (PKCE server-side enforcement)
+
+## Migration path
+
+This is the only doc in this folder whose *primary purpose* is the migration
+question. The path is:
+
+1. **Audit against `docs/OAUTH21_ALIGNMENT.md` rows.** This is the row-by-row
+   gap analysis.
+2. **Close gaps that have no business cost** — PKCE-required, S256-only,
+   exact redirect URI matching, refresh rotation. These break nothing
+   correctly-implemented clients do today.
+3. **Plan migrations for 2.0-legal-but-2.1-illegal features**:
+   - **ROPC**: identify callers, document `localauth/` HTTP-login alternative,
+     ship as a breaking change behind a major version bump
+   - **Query-param bearer**: document the WebSocket-auth alternative
+     (subprotocol headers, initial-frame auth, short-lived per-connection
+     tickets), then remove
+4. **Treat the dual-status as a feature.** OneAuth-as-AS being 2.1-strict
+   while OneAuth's SDK and middleware speak 2.0 to the world is *the
+   intended deployment posture*. Don't try to force the SDK side to be 2.1
+   too — you'd lose interop with every production IdP.
+
 ## When NOT to use it
 
-If you maintain a legacy IdP for clients that don't yet support PKCE or fresh
-redirect-URI rules, you may need to leave 6749-only flows enabled for a
-deprecation window. 2.1 is a destination state, not a deployment day; plan
-the path. OneAuth's own ROPC and query-param-bearer carve-outs (see
+If you maintain a legacy IdP for clients that depend on ROPC or implicit, or
+that haven't yet shipped PKCE on their client SDKs, you'll leave 6749-only
+flows enabled for the deprecation window. 2.1 is a destination — pace it.
+OneAuth's own ROPC and query-param-bearer carve-outs (see
 [`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md) rows 3 and 7) are
 exactly this kind of deprecation window.
 

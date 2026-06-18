@@ -28,19 +28,32 @@ and OneAuth-specific notes.
 
 ---
 
-## 1. What OAuth 2.1 actually is
+## 1. What OAuth 2.0 and 2.1 are
 
-Strip [OAuth 2.1](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/)
-down and it's only four things:
+**OAuth 2.0** ([RFC 6749](https://datatracker.ietf.org/doc/rfc6749/), 2012) is the
+framework the world deploys. Every major IdP — Google, GitHub, Microsoft Azure
+AD, Okta, Auth0, AWS Cognito, Keycloak — speaks 2.0, usually layered with a
+selection of the BCP defenses.
 
-1. **Four roles** — *resource owner* (you), *client* (the app asking for access),
-   *authorization server* (the AS, who issues tokens), *resource server* (the RS,
-   who holds the protected data).
+**OAuth 2.1** ([draft-ietf-oauth-v2-1](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/),
+still an active Internet-Draft — *not yet an RFC*) is the strict-mode
+consolidation. It bakes in PKCE (RFC 7636), the Security BCP (RFC 9700), and
+Bearer Token Usage (RFC 6750), and drops the grants two decades of attacks
+killed (implicit, ROPC).
+
+### Both share the same skeleton
+
+Whether you read 2.0 or 2.1, the core is only four things:
+
+1. **Four roles** — *resource owner* (you), *client* (the app asking for
+   access), *authorization server* (the AS, who issues tokens), *resource
+   server* (the RS, who holds the protected data).
 2. **Two endpoints on the AS** — `/authorize` (browser-mediated, redirect-based)
    and `/token` (back-channel, HTTP POST).
-3. **A small set of built-in grant types** — `authorization_code` (+ PKCE),
-   `refresh_token`, `client_credentials`. *Implicit and password (ROPC) are
-   removed* vs 2.0.
+3. **A small set of built-in grant types** — 2.0 ships five
+   (`authorization_code`, `implicit`, `password`/ROPC, `client_credentials`,
+   `refresh_token`); 2.1 keeps three (`authorization_code` + PKCE,
+   `refresh_token`, `client_credentials`).
 4. **A bearer-token contract** — the RS treats whoever presents the token as
    authorized; the AS decides what's inside.
 
@@ -55,11 +68,55 @@ down and it's only four things:
 - The app calls Google's API with `Authorization: Bearer <token>`. Google
   decides what claims the token carries.
 
-Everything else — *token format, client auth method, how clients are registered,
-how requests get integrity, how tokens are bound to a sender, how identity is
-conveyed, how you discover any of this* — OAuth 2.1 **deliberately leaves open.**
-Those open holes are the **extension slots** that the rest of the RFC ecosystem
-fills.
+This walkthrough is 2.0 *and* 2.1 simultaneously — they share the wire shape.
+
+### Where 2.0 and 2.1 differ
+
+2.1 doesn't add protocol surface; it *constrains* 2.0's. Each tightening
+corresponds to a defense in RFC 9700 (the Security BCP):
+
+| Defense | 2.0 default | 2.1 mandate |
+|---|---|---|
+| PKCE | optional; SHOULD for public clients (per 7636) | **MUST for all clients** on auth-code |
+| PKCE methods | `plain` and `S256` | **`S256` only** (`plain` rejected) |
+| Implicit grant (§4.2) | allowed | **removed** |
+| ROPC password grant (§4.3) | allowed | **removed** |
+| Redirect URI matching | various (vendor) | **exact string match** |
+| Redirect URI scheme | any | **HTTPS** (loopback exempt per RFC 8252) |
+| Bearer token in query string (6750 §2.3) | discouraged | **forbidden** |
+| Refresh token rotation | not specified | **required + family-revoke on reuse** |
+| `iss` on auth-response redirect | not required | **required** (per RFC 9207) |
+
+For the row-by-row OneAuth audit against 2.1, see
+[`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md). For the per-RFC
+"what does this RFC require under 2.0 vs 2.1" breakdown, every per-RFC doc
+in this folder has paired *OAuth 2.0 status* and *OAuth 2.1 status* sections
+(§8 template).
+
+### OneAuth's stance: 2.1 posture, 2.0 interop
+
+OneAuth's AS aims for **2.1 strictness internally** — PKCE everywhere,
+S256-only, exact redirect match, refresh-token rotation with family revoke.
+Its client SDK and middleware **interop with 2.0 deployments** because that's
+what the production world advertises.
+
+Some 2.0-legal-but-2.1-illegal features are retained with deprecation flags
+and migration paths in flight:
+
+- ROPC password grant ([issue 294](https://github.com/panyam/oneauth/issues/294))
+- Query-param bearer fallback ([issue 295](https://github.com/panyam/oneauth/issues/295))
+
+These are *transition states*, not non-compliance. A deployment that needs
+strict 2.1 turns them off; a deployment migrating off a legacy IdP keeps them
+on while it bakes the alternative. Both stances are legitimate.
+
+### What's deliberately left open
+
+Everything else — *token format, client auth method, how clients are
+registered, how requests get integrity, how tokens are bound to a sender,
+how identity is conveyed, how you discover any of this* — both 2.0 and 2.1
+**deliberately leave open.** Those open holes are the **extension slots**
+that the rest of the RFC ecosystem fills.
 
 ---
 
@@ -356,6 +413,13 @@ Status legend:
 > verify by grep and update this column as we go. If you spot a row that's
 > stale, fix it here *and* in the per-RFC doc.
 
+> **The status column is OneAuth's *deployment posture* — not a 2.0/2.1
+> version verdict.** "Implemented" means the wire surface is built and tested;
+> it does not mean the deployment is fully 2.1-conformant (or 2.0-conformant
+> for that matter). Per-version detail lives in each `RFC_*.md` under its
+> *OAuth 2.0 status* and *OAuth 2.1 status* sections, and the 2.1 audit
+> proper is in [`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md).
+
 | RFC | OneAuth status | Where it lives | Notes |
 |------|---------------|----------------|-------|
 | 6749 OAuth 2.0 | Implemented | `apiauth/api_auth.go`, `apiauth/oneauth.go`, `apiauth/authorize*.go` | `/authorize` + `authorization_code` grant added in #297 (see `apiauth.MountAuthorize`) |
@@ -523,6 +587,29 @@ HTTP/1.1 200 OK
 
 <Which §2 slot does this fill? What does it replace / supplement?>
 
+## OAuth 2.0 status
+
+<Under RFC 6749 / 2.0 baseline, what's this RFC's normative weight — MAY,
+SHOULD, MUST? Was it part of 6749 itself or shipped later (and roughly
+when did the major IdPs ship it)? Is it widely deployed in 2.0 ecosystems
+today? If 2.0 leaves something optional that 2.1 mandates, name the gap.>
+
+## OAuth 2.1 status
+
+<Under OAuth 2.1 (still an active Internet-Draft), what changes? Promoted
+from SHOULD to MUST? Tightened (e.g., S256-only instead of plain+S256)?
+Removed entirely? If 2.0 and 2.1 disagree on this RFC, this is the section
+that names the divergence and points at the §-citation in the 2.1 draft.>
+
+## Migration path (when 2.1 supersedes a 2.0 surface)
+
+<Only if 2.1 removes / tightens something 2.0 still permits. Honest
+guidance for deployments still on 2.0: what's the on-ramp? What can you
+ship today that's both 2.0-legal and 2.1-compatible (a "single stack")?
+What needs a deprecation window? Don't say "do it now" — most 2.0
+deployments will live another decade. Say what specifically breaks and
+under what conditions.>
+
 ## When NOT to use it
 
 <Honest tradeoffs. e.g., "DPoP adds a per-request crypto op. If you control
@@ -533,7 +620,7 @@ the network path, mTLS is cheaper.">
 - **Status:** Implemented / Partial / Gap
 - **Code:** `apiauth/...`, `core/...`
 - **Tests:** `apiauth/..._test.go`
-- **Related issues / PRs:** #xxx, #yyy
+- **Related issues / PRs:** issue NNN, PR NNN  *(plain text — see backlink hygiene rule)*
 - **Known gaps:** <bullets>
 
 ## Related RFCs
@@ -547,14 +634,18 @@ the network path, mTLS is cheaper.">
 - [Errata](https://www.rfc-editor.org/errata_search.php?rfc=XXXX) (if any)
 ```
 
-**Three rules for these docs:**
+**Four rules for these docs:**
 
 1. **Relatable example up top, every time.** If you can't write a one-paragraph
    "this is when this RFC bites in real life," you don't understand it yet.
-2. **OneAuth section is verified-by-grep, not memory.** Before claiming
+2. **Pair the 2.0 and 2.1 status sections.** The world ships 2.0; OneAuth aims
+   for 2.1 posture. Every doc must say where the RFC stands under both — and
+   include a migration path if 2.1 tightens or removes something. Don't write
+   "removed in 2.1" without noting "still legal under 2.0."
+3. **OneAuth section is verified-by-grep, not memory.** Before claiming
    "Implemented in `apiauth/foo.go`," grep for the symbol. Stale path
    references in this folder will rot fast otherwise.
-3. **Cross-link liberally.** Each doc should link upstream to LANDSCAPE.md
+4. **Cross-link liberally.** Each doc should link upstream to LANDSCAPE.md
    (`§3` and `§5`) and sideways to closely related RFCs. The mermaid clicks
    only work top-down; in-prose links make the back-and-forth navigation work.
 
