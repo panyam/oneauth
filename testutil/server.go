@@ -66,6 +66,7 @@ type config struct {
 	adminKey                string
 	issuer                  string
 	audience                string
+	audienceFunc            func() string
 	scopes                  []string
 	claimsSupported         []string                         // OIDC Discovery 1.0 §3 advertisement
 	grantTypesSupported     []string                         // overrides default when non-nil
@@ -99,6 +100,23 @@ func WithIssuer(iss string) Option {
 // Default: "" (no audience restriction).
 func WithAudience(aud string) Option {
 	return func(c *config) { c.audience = aud }
+}
+
+// WithAudienceFunc registers a closure consulted on every token mint
+// and validation. A non-empty return takes precedence over the eager
+// WithAudience value; an empty return falls back to it.
+//
+// Use this when the audience is not known at construction time — the
+// canonical case is an in-process AS whose `aud` must equal a resource
+// server URL only allocated after `httptest.NewServer` runs. Build the
+// AS once, then teach the closure to look up the current value when
+// the RS comes online. The caller owns the storage and synchronisation;
+// testutil only plumbs the closure to OneAuthConfig.AudienceFunc.
+//
+// See docs/MIGRATION.md "Late-binding the audience" for the full
+// pattern.
+func WithAudienceFunc(fn func() string) Option {
+	return func(c *config) { c.audienceFunc = fn }
 }
 
 // WithScopes sets the scopes_supported field in AS metadata.
@@ -265,6 +283,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		SigningAlg:              "RS256",
 		Issuer:                  cfg.issuer,
 		Audience:                cfg.audience,
+		AudienceFunc:            cfg.audienceFunc,
 		TrustedAssertionIssuers: cfg.trustedAssertionIssuers,
 	}
 	if cfg.authorizeEnabled {
@@ -342,17 +361,18 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	})
 
 	return &TestAuthServer{
-		Server:        server,
-		OneAuth:       oa,
+		Server:               server,
+		OneAuth:              oa,
 		TokenEndpointHandler: tokenEndpoint,
-		KeyStore:      ks,
-		Registrar:     registrar,
-		privateKey:    privKey,
+		KeyStore:             ks,
+		Registrar:            registrar,
+		privateKey:           privKey,
 		cfg: config{
-			adminKey: cfg.adminKey,
-			issuer:   issuer,
-			audience: cfg.audience,
-			scopes:   cfg.scopes,
+			adminKey:     cfg.adminKey,
+			issuer:       issuer,
+			audience:     cfg.audience,
+			audienceFunc: cfg.audienceFunc,
+			scopes:       cfg.scopes,
 		},
 	}, nil
 }

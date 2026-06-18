@@ -109,6 +109,39 @@ AuthorizeMountConfig.APIAuth   → AuthorizeMountConfig.OneAuth
 
 Tests that constructed `&apiauth.APIAuth{...}` for assertions on issued tokens should construct a `*OneAuth` and either keep references to the relevant handlers or use a small fixture struct that bundles them. See `apiauth/test_helpers_test.go` for a working example.
 
+### Late-binding the audience
+
+The legacy `&apiauth.APIAuth{}` struct let callers mutate `JWTAudience` *after* construction. That was convenient for test fixtures whose audience equals a URL only known once another component (e.g. an MCP resource server) had started. The new `*OneAuth` snapshots configuration into immutable issuer/validator instances, so the mutation pattern is gone.
+
+When the audience genuinely can't be known at `NewOneAuth` time — common for in-process fixtures, less common in production — use `OneAuthConfig.AudienceFunc`. It is consulted on every token mint and every validation. A non-empty return takes precedence over the eager `Audience`; an empty return falls back to it.
+
+```go
+var audMu sync.Mutex
+var aud string
+
+oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+    SigningKey:   privKey,
+    SigningAlg:   "RS256",
+    Issuer:       "https://as.example",
+    AudienceFunc: func() string {
+        audMu.Lock()
+        defer audMu.Unlock()
+        return aud
+    },
+})
+
+// Some time later, once the resource server has its URL:
+audMu.Lock()
+aud = rs.URL
+audMu.Unlock()
+
+// All subsequent /api/token calls stamp aud=rs.URL. No rebuild.
+```
+
+Production deployments where the audience is a stable configuration value should leave `AudienceFunc` nil and set `Audience` directly. Lazy resolution adds one function call per mint and per validate.
+
+`testutil.TestAuthServer` exposes the same pattern via `testutil.WithAudienceFunc(fn)` — the test owns the storage, testutil plumbs the closure straight to `OneAuthConfig.AudienceFunc`. The test fixture is a *consumer* of the canonical API, not a special path.
+
 ### Behavioral notes
 
 - `Hooks.Auth.OnLoginSuccess` / `OnLoginFailure` no longer carry `*http.Request` — wrap with HTTP middleware if you need IP / user-agent details.

@@ -32,8 +32,20 @@ type jwtValidator struct {
 	blacklist      core.TokenBlacklist
 	issuer         string
 	audience       string
+	audienceFunc   func() string
 	hooks          SecurityHooks
 	tracerProvider trace.TracerProvider
+}
+
+// resolveAudience returns the currently-expected audience: AudienceFunc's
+// non-empty return value if set, otherwise the eager Audience.
+func (v *jwtValidator) resolveAudience() string {
+	if v.audienceFunc != nil {
+		if got := v.audienceFunc(); got != "" {
+			return got
+		}
+	}
+	return v.audience
 }
 
 // JWTValidatorConfig configures a jwtValidator.
@@ -48,7 +60,11 @@ type JWTValidatorConfig struct {
 	Blacklist  core.TokenBlacklist
 	Issuer     string
 	Audience   string
-	Hooks      SecurityHooks
+	// AudienceFunc, when non-nil, is consulted on every ValidateToken
+	// call. A non-empty return takes precedence over Audience. See
+	// OneAuthConfig.AudienceFunc for the canonical use case.
+	AudienceFunc func() string
+	Hooks        SecurityHooks
 
 	// TracerProvider opts the signature-verify hot path into SEP-414
 	// tracing. When set, ValidateToken emits an `oneauth.signature_verify`
@@ -68,6 +84,7 @@ func NewJWTValidator(cfg JWTValidatorConfig) TokenValidator {
 		blacklist:      cfg.Blacklist,
 		issuer:         cfg.Issuer,
 		audience:       cfg.Audience,
+		audienceFunc:   cfg.AudienceFunc,
 		hooks:          cfg.Hooks,
 		tracerProvider: cfg.TracerProvider,
 	}
@@ -125,9 +142,9 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 		}
 	}
 
-	// Verify audience
-	if v.audience != "" {
-		if !matchesAudience(claims, v.audience) {
+	// Verify audience — AudienceFunc takes precedence when non-empty.
+	if expectedAud := v.resolveAudience(); expectedAud != "" {
+		if !matchesAudience(claims, expectedAud) {
 			v.hooks.fireOnTokenRejected("invalid audience")
 			return nil, fmt.Errorf("invalid audience")
 		}
@@ -293,6 +310,7 @@ type jwtIssuer struct {
 	signingAlg          string // "HS256", "RS256", "ES256"
 	issuer              string
 	audience            string
+	audienceFunc        func() string
 	accessExpiry        time.Duration
 	clientKeyLookup     keys.KeyLookup
 	refreshStore        core.RefreshTokenStore
@@ -300,6 +318,18 @@ type jwtIssuer struct {
 	getSubjectScopes    core.GetSubjectScopesFunc
 	customClaims        CustomClaimsFunc
 	hooks               TokenHooks
+}
+
+// resolveAudience returns the currently-configured aud claim value:
+// AudienceFunc's non-empty return takes precedence over the eager
+// Audience.
+func (i *jwtIssuer) resolveAudience() string {
+	if i.audienceFunc != nil {
+		if got := i.audienceFunc(); got != "" {
+			return got
+		}
+	}
+	return i.audience
 }
 
 // CustomClaimsFunc is called during access-token issuance to inject additional
@@ -310,16 +340,20 @@ type CustomClaimsFunc func(subject string, scopes []string) (map[string]any, err
 
 // JWTIssuerConfig configures a jwtIssuer.
 type JWTIssuerConfig struct {
-	SigningKey           any
-	SigningAlg           string
-	Issuer              string
-	Audience            string
+	SigningKey any
+	SigningAlg string
+	Issuer     string
+	Audience   string
+	// AudienceFunc, when non-nil, is consulted on each access-token
+	// mint. A non-empty return takes precedence over Audience. See
+	// OneAuthConfig.AudienceFunc for the canonical use case.
+	AudienceFunc        func() string
 	AccessExpiry        time.Duration
-	ClientKeyLookup     keys.KeyLookup         // for client_credentials authentication
-	RefreshStore        core.RefreshTokenStore  // for refresh_token grant
-	ValidateCredentials CredentialsValidator // for password grant
+	ClientKeyLookup     keys.KeyLookup            // for client_credentials authentication
+	RefreshStore        core.RefreshTokenStore    // for refresh_token grant
+	ValidateCredentials CredentialsValidator      // for password grant
 	GetSubjectScopes    core.GetSubjectScopesFunc // for password grant (optional)
-	CustomClaims        CustomClaimsFunc       // optional per-token custom-claim injection
+	CustomClaims        CustomClaimsFunc          // optional per-token custom-claim injection
 	Hooks               TokenHooks
 }
 
@@ -334,6 +368,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		signingAlg:          cfg.SigningAlg,
 		issuer:              cfg.Issuer,
 		audience:            cfg.Audience,
+		audienceFunc:        cfg.AudienceFunc,
 		accessExpiry:        expiry,
 		clientKeyLookup:     cfg.ClientKeyLookup,
 		refreshStore:        cfg.RefreshStore,
@@ -374,8 +409,8 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	if i.issuer != "" {
 		claims["iss"] = i.issuer
 	}
-	if i.audience != "" {
-		claims["aud"] = i.audience
+	if aud := i.resolveAudience(); aud != "" {
+		claims["aud"] = aud
 	}
 
 	if i.customClaims != nil {
