@@ -33,6 +33,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&KidKeyModel{},
 		&AppRegistrationModel{},
 		&DeviceAuthorizationModel{},
+		&AuthorizationCodeModel{},
 	)
 }
 

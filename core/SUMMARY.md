@@ -14,6 +14,8 @@ and [`localauth/`](../localauth/SUMMARY.md) (username/password) and
 - **authorization_details.go** — `AuthorizationDetail` struct (RFC 9396), custom JSON marshal/unmarshal with extension flattening, `ValidateAll()`, `FilterByType()`, `ErrInvalidAuthorizationDetails`
 - **blacklist.go** — `TokenBlacklist` interface and `InMemoryBlacklist` for jti-based JWT revocation
 - **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket); also `AccountLockout` for tracking failed login attempts and temporary account lockouts
+- **device_authorization.go** — `DeviceAuthorization`, `DeviceAuthorizationStore` interface + `InMemoryDeviceAuthorizationStore`, `UpperUserCode` normalization helper (RFC 8628)
+- **authorization_code.go** — `AuthorizationCode`, `AuthorizationCodeStore` interface + `InMemoryAuthorizationCodeStore`, `ErrAuthorizationCodeNotFound` sentinel (RFC 6749 §4.1)
 
 ## What moved out (and where)
 - `User`, `BasicUser`, `Identity`, `Channel`, `IdentityKey`, `HandleUserFunc`, `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`, `AuthError`, `AuthErrorHandler`, `ErrCode*`, `DetectUsernameType`, `CredentialsValidator`, `LinkedChannels` → [`accounts/`](../accounts/SUMMARY.md)

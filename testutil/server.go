@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/httpauth"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
@@ -63,8 +65,15 @@ type config struct {
 	scopes                  []string
 	claimsSupported         []string                         // OIDC Discovery 1.0 §3 advertisement
 	grantTypesSupported     []string                         // overrides default when non-nil
+	responseTypesSupported  []string                         // overrides default when non-nil
 	issParameterSupported   *bool                            // RFC 9207 advertisement (nil = omit)
 	trustedAssertionIssuers []apiauth.TrustedAssertionIssuer // RFC 7523 §2.1 + RFC 8693
+
+	// Authorize-flow configuration. authorizeEnabled gates the mount of
+	// MountAuthorize + the AS-metadata advertisement extensions.
+	authorizeEnabled         bool
+	authorizeAutoApprove     string
+	authorizeRedirectOverride func(values url.Values)
 }
 
 // Option configures a TestAuthServer.
@@ -123,13 +132,48 @@ func WithGrantTypesSupported(grants []string) Option {
 // with multiple ASes by signaling that the AS includes an `iss`
 // parameter on every authorization response.
 //
-// Note: TestAuthServer does NOT currently implement an authorization
-// endpoint, so the *behavior* RFC 9207 §2 mandates (`iss=` in redirects)
-// is not yet driven by this flag — the flag affects only the metadata
-// advertisement. Setting it true on a real AS that does NOT actually
-// emit `iss` in authorization responses is a spec violation.
+// When paired with WithAuthorizeEnabled(true), this flag ALSO drives
+// the wire behavior — the /authorize redirect carries `iss=<issuer>`
+// per RFC 9207 §2 — so the AS's advertisement matches what callers
+// observe. To simulate the misbehaving-AS scenario (advertises but
+// does not emit, or emits without advertising), combine with
+// WithAuthorizeRedirectOverride to mutate the redirect query
+// per-scenario.
 func WithIssParameterSupported(supported bool) Option {
 	return func(c *config) { c.issParameterSupported = &supported }
+}
+
+// WithAuthorizeEnabled mounts the RFC 6749 §4.1 authorization-code
+// flow endpoint (`GET / POST /authorize`) on the test server. When
+// enabled the AS metadata advertises `authorization_endpoint`,
+// extends `response_types_supported` to include "code", and adds
+// "authorization_code" to `grant_types_supported`.
+//
+// The mounted flow auto-approves all requests with the subject set
+// by WithAuthorizeAutoApproveSubject (default: "e2e-user"). This is
+// suitable for conformance fixtures and in-process tests — NEVER for
+// production deployments.
+func WithAuthorizeEnabled(enabled bool) Option {
+	return func(c *config) { c.authorizeEnabled = enabled }
+}
+
+// WithAuthorizeAutoApproveSubject sets the subject the auto-approve
+// path binds to issued codes. Empty falls back to "e2e-user".
+func WithAuthorizeAutoApproveSubject(subject string) Option {
+	return func(c *config) { c.authorizeAutoApprove = subject }
+}
+
+// WithAuthorizeRedirectOverride installs a hook that mutates the
+// /authorize redirect's query values before they are URL-encoded.
+// Lets conformance scenarios test misbehaving-AS branches that a
+// correct production AS cannot simulate — e.g. "AS advertises
+// authorization_response_iss_parameter_supported=true in metadata
+// but does NOT emit iss in the redirect" — by stripping or
+// corrupting individual values.
+//
+// Production deployments never set this. Mirrors the PR 191 pattern.
+func WithAuthorizeRedirectOverride(fn func(values url.Values)) Option {
+	return func(c *config) { c.authorizeRedirectOverride = fn }
 }
 
 // WithTrustedAssertionIssuers configures the AS to accept
@@ -219,6 +263,9 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		ClientKeyStore:          ks,
 		TrustedAssertionIssuers: cfg.trustedAssertionIssuers,
 	}
+	if cfg.authorizeEnabled {
+		apiAuth.AuthorizationCodeStore = core.NewInMemoryAuthorizationCodeStore()
+	}
 
 	introspection := apiauth.NewIntrospectionHandler(apiAuth, ks)
 
@@ -246,16 +293,41 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	if grants == nil {
 		grants = []string{"client_credentials"}
 	}
+	responseTypes := cfg.responseTypesSupported
+	if responseTypes == nil {
+		responseTypes = []string{"token"}
+	}
+	authorizeEndpoint := ""
+	if cfg.authorizeEnabled {
+		authorizeEndpoint = baseURL + "/authorize"
+		grants = appendIfMissing(grants, apiauth.AuthorizationCodeGrantType)
+		responseTypes = appendIfMissing(responseTypes, "code")
+
+		autoApprove := cfg.authorizeAutoApprove
+		if autoApprove == "" {
+			autoApprove = "e2e-user"
+		}
+		apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
+			APIAuth:              apiAuth,
+			IssuerURL:            issuer,
+			EmitIssParameter:     cfg.issParameterSupported != nil && *cfg.issParameterSupported,
+			RedirectOverride:     cfg.authorizeRedirectOverride,
+			SubjectFromRequest:   func(r *http.Request) string { return "" },
+			CSRFTokenFromRequest: func(r *http.Request) string { return "" },
+			AutoApproveSubject:   autoApprove,
+		})
+	}
 	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
 		Issuer:                        issuer,
 		TokenEndpoint:                 baseURL + "/api/token",
+		AuthorizationEndpoint:         authorizeEndpoint,
 		JWKSURI:                       baseURL + "/.well-known/jwks.json",
 		IntrospectionEndpoint:         baseURL + "/oauth/introspect",
 		RegistrationEndpoint:          baseURL + "/apps/dcr",
 		ScopesSupported:               cfg.scopes,
 		ClaimsSupported:               cfg.claimsSupported,
 		GrantTypesSupported:           grants,
-		ResponseTypesSupported:        []string{"token"},
+		ResponseTypesSupported:        responseTypes,
 		TokenEndpointAuthMethods:                   []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256"},
 		CodeChallengeMethodsSupported:              []string{"S256"},
@@ -275,6 +347,20 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 			scopes:   cfg.scopes,
 		},
 	}, nil
+}
+
+// appendIfMissing returns slice with value appended if it is not
+// already present. Used by AS-metadata wiring so opt-in options
+// (WithAuthorizeEnabled, WithTrustedAssertionIssuers) extend the
+// advertised grant / response-type lists without duplicating values
+// the caller may have already pinned via WithGrantTypesSupported.
+func appendIfMissing(slice []string, value string) []string {
+	for _, v := range slice {
+		if v == value {
+			return slice
+		}
+	}
+	return append(slice, value)
 }
 
 // NewTestAuthServer creates an in-process authorization server for tests.

@@ -20,6 +20,53 @@ type Config struct {
 	AdminAuth  AdminAuthConfig  `yaml:"admin_auth"`
 	TLS        TLSConfig        `yaml:"tls"`
 	DeviceFlow DeviceFlowConfig `yaml:"device_flow"`
+	CodeFlow   CodeFlowConfig   `yaml:"code_flow"`
+}
+
+// CodeFlowConfig toggles and configures the RFC 6749 §4.1
+// Authorization Code Grant. When Enabled is false (default), /authorize
+// is not mounted and the token endpoint refuses the authorization_code
+// grant. Setting Enabled wires:
+//
+//	GET  /authorize  — consent screen (CSRF-protected)
+//	POST /authorize  — approve / deny decision (CSRF-protected)
+//
+// AS metadata also advertises authorization_endpoint, adds "code" to
+// response_types_supported, and adds "authorization_code" to
+// grant_types_supported so RFC 8414 discovery exposes the capability.
+//
+// The mounted flow uses the cookie session for SubjectFromRequest, so
+// an unauthenticated user is redirected to /auth/login with the
+// original /authorize URL preserved as `next` — matching the device
+// flow precedent. Consent UI rendering uses the package default
+// templates; deployments wanting branded HTML pass Templates via
+// MountAuthorize directly (a future config knob can surface this).
+type CodeFlowConfig struct {
+	// Enabled toggles the entire authorize surface on. Default false
+	// — the routes are not mounted and AS metadata does not advertise
+	// the endpoint or grant type.
+	Enabled bool `yaml:"enabled"`
+
+	// Expiry overrides the default 60s authorization-code lifetime.
+	// Format accepts Go duration syntax (e.g. "60s", "2m"). Zero/empty
+	// keeps the default.
+	Expiry time.Duration `yaml:"expiry"`
+
+	// Store backs the AuthorizationCodeStore. memory (default) is
+	// fine for single-instance dev; production deployments choose a
+	// persistent backend once FS / GORM / GAE backends ship. Mirrors
+	// DeviceAuthStoreConfig so operators see one pattern across both
+	// grants.
+	Store AuthorizationCodeStoreConfig `yaml:"store"`
+}
+
+// AuthorizationCodeStoreConfig configures the AuthorizationCodeStore
+// backend. Mirrors DeviceAuthStoreConfig. memory + gorm are wired
+// today; fs / gae are deferred follow-ups under the same staging as
+// DeviceAuthStore (issues 269/270).
+type AuthorizationCodeStoreConfig struct {
+	Type string     `yaml:"type"` // memory (default), gorm (fs/gae follow-ups)
+	GORM GORMConfig `yaml:"gorm"`
 }
 
 // DeviceFlowConfig toggles and configures the RFC 8628 Device
@@ -243,6 +290,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.DeviceFlow.Enabled && cfg.DeviceFlow.Store.Type == "" {
 		cfg.DeviceFlow.Store.Type = "memory"
+	}
+	if cfg.CodeFlow.Enabled && cfg.CodeFlow.Store.Type == "" {
+		cfg.CodeFlow.Store.Type = "memory"
 	}
 
 	return &cfg, nil

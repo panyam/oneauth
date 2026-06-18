@@ -155,6 +155,14 @@ type APIAuth struct {
 	// identical to its pre-#117 surface.
 	DeviceAuthStore core.DeviceAuthorizationStore
 
+	// AuthorizationCodeStore enables the RFC 6749 §4.1 authorization-
+	// code grant. When non-nil the token endpoint accepts
+	// grant_type=authorization_code and the caller is expected to
+	// mount AuthorizationHandler / AuthorizeVerificationHandler at the
+	// /authorize path (typically via MountAuthorize). Nil keeps the
+	// token endpoint behaviorally identical to its pre-#297 surface.
+	AuthorizationCodeStore core.AuthorizationCodeStore
+
 	// AppStore lets the token endpoint look up a registered client's
 	// `token_endpoint_auth_method` to decide whether confidential-client
 	// authentication is required on the device-code redemption path
@@ -217,6 +225,10 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ClientID:     r.FormValue("client_id"),
 			ClientSecret: r.FormValue("client_secret"),
 			DeviceCode:   r.FormValue("device_code"),
+			// RFC 6749 §4.1.3 — authorization-code grant inputs.
+			Code:         r.FormValue("code"),
+			CodeVerifier: r.FormValue("code_verifier"),
+			RedirectURI:  r.FormValue("redirect_uri"),
 			// RFC 7521 §4.2 / RFC 7523 §2.2 — client authentication
 			// via signed JWT (private_key_jwt / client_secret_jwt).
 			ClientAssertionType: r.FormValue("client_assertion_type"),
@@ -260,6 +272,8 @@ func (a *APIAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.handleTokenExchangeGrant(w, r, &req)
 	case DeviceCodeGrantType:
 		a.handleDeviceCodeGrant(w, r, &req)
+	case AuthorizationCodeGrantType:
+		a.handleAuthorizationCodeGrant(w, r, &req)
 	default:
 		span.SetStatus(codes.Error, "unsupported_grant_type")
 		a.errorResponse(w, "unsupported_grant_type", "Grant type not supported", http.StatusBadRequest)

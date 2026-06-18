@@ -3,11 +3,17 @@ package oauth2
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"net/http"
 	"time"
 )
+
+// CodeChallengeMethodS256 is the only PKCE transformation OneAuth
+// advertises and accepts (RFC 7636 §4.2). OAuth 2.1 deprecated the
+// `plain` method; we reject it.
+const CodeChallengeMethodS256 = "S256"
 
 // PKCE (Proof Key for Code Exchange, RFC 7636) prevents authorization code
 // interception attacks. The client generates a random code_verifier, sends
@@ -43,6 +49,24 @@ func GenerateCodeVerifier() (string, error) {
 func ComputeCodeChallenge(verifier string) string {
 	hash := sha256.Sum256([]byte(verifier))
 	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+
+// VerifyPKCE implements RFC 7636 §4.6 verification. Returns true on
+// match. Only the S256 method is supported; any other method
+// (including "plain") returns false. Uses a constant-time compare to
+// keep the hot path's timing flat — the challenge is not secret but
+// constant-time removes one shape of side-channel concern.
+//
+// Lives here (alongside the verifier / challenge generation helpers)
+// so the PKCE surface is centralized — apiauth's authorization-code
+// redemption handler is the primary caller; the client SDK + tests
+// reuse it to drive flows symmetrically.
+func VerifyPKCE(method, challenge, verifier string) bool {
+	if method != CodeChallengeMethodS256 {
+		return false
+	}
+	computed := ComputeCodeChallenge(verifier)
+	return subtle.ConstantTimeCompare([]byte(computed), []byte(challenge)) == 1
 }
 
 // SetPKCECookie stores the code verifier in an HttpOnly cookie for the
