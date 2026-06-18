@@ -674,13 +674,13 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | [RFC_8414.md](RFC_8414.md) AS metadata | 🟡 | #310 |
 | [RFC_8628.md](RFC_8628.md) Device | 🟡 | #316 |
 | [RFC_8693.md](RFC_8693.md) Token Exchange | 🟡 | #317 |
-| RFC_8705.md mTLS | 📝 | — |
+| [RFC_8705.md](RFC_8705.md) mTLS | 🟡 | #315 |
 | [RFC_9068.md](RFC_9068.md) JWT AT profile | 🟡 | #307 |
 | RFC_9101.md JAR | 📝 | — |
 | RFC_9126.md PAR | 📝 | — |
 | [RFC_9207.md](RFC_9207.md) Issuer ID | 🟡 | #312 |
 | RFC_9396.md RAR | 📝 | — |
-| RFC_9449.md DPoP | 📝 | — |
+| [RFC_9449.md](RFC_9449.md) DPoP | 🟡 | #316 |
 | [RFC_9700.md](RFC_9700.md) Security BCP | 🟡 | #305 |
 | [RFC_9728.md](RFC_9728.md) PR metadata | 🟡 | #311 |
 | [RFC_oauth21.md](RFC_oauth21.md) OAuth 2.1 draft | 🟡 | #302 |

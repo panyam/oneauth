@@ -94,7 +94,46 @@ For each gap, capture:
 - **Effort:** M. Each token type needs its own validation path; SAML is most work.
 - **Mentioned in:** [RFC_8693.md](RFC_8693.md).
 
-## (Append future gaps below as L5/... docs land)
+---
+
+## L5 — Client auth strength / sender constraint
+
+### 9. RFC 8705 (mTLS) — full implementation
+
+- **What:** mTLS client authentication at `/token` (both `tls_client_auth` and `self_signed_tls_client_auth` flavors) AND certificate-bound access tokens (`cnf.x5t#S256` emission + validation).
+- **Where:** No mTLS handlers in `apiauth/`; single unrelated reference in `admin/DESIGN.md:19` mentions mTLS as a *future* admin authenticator (different layer).
+- **Why:** Unlocks FAPI 1.0 Advanced / FAPI 2.0 conformance for deployments with PKI infrastructure (banking, healthcare, government). Without it, OneAuth cannot serve any FAPI-mandated profile.
+- **Sub-surfaces:**
+  - `tls_client_auth` client auth method (CA-issued certs, registered subject DN / SANs)
+  - `self_signed_tls_client_auth` (cert thumbprint in client JWKS)
+  - `cnf.x5t#S256` claim emission on issued tokens
+  - RS-side `cnf.x5t#S256` validation middleware
+  - `tls_client_certificate_bound_access_tokens` AS metadata field
+  - `mtls_endpoint_aliases` AS metadata field (for segregated endpoints)
+  - DCR client metadata fields (`tls_client_auth_subject_dn`, `tls_client_auth_san_*`)
+  - `ClientAuthenticator` strategy + `TokenBindingValidator` interface (shared seam with DPoP)
+- **Effort:** L. Significant surface; expect PKI plumbing time to dominate. Cert termination behind a proxy is the typical pattern (read `X-Client-Cert` header).
+- **Mentioned in:** [RFC_8705.md](RFC_8705.md) — full implementation sketch and migration path.
+
+### 10. RFC 9449 (DPoP) — full implementation
+
+- **What:** Public-client sender constraint via app-layer signed proof JWTs. `cnf.jkt` token binding + per-request DPoP proof validation.
+- **Where:** No DPoP handlers anywhere in `apiauth/`. JWK thumbprint primitive (the building block for `cnf.jkt`) IS already implemented in `utils/jwk_thumbprint.go:19–82` — partial scaffolding exists.
+- **Why:** Unlocks FAPI 2.0 for non-PKI deployments. The natural path for public-client sender constraint (mobile apps, SPAs, CLIs) where mTLS is impractical.
+- **Sub-surfaces:**
+  - DPoP proof JWT validation at `/token` (`htm`, `htu`, `iat`, `jti`, embedded `jwk`, signature)
+  - `cnf.jkt` claim emission on issued tokens (uses existing thumbprint primitive)
+  - `token_type: "DPoP"` in `/token` response
+  - `Authorization: DPoP <token>` parser (replacing or alongside current Bearer-only at `apiauth/auth.go:1219`)
+  - RS-side proof validation middleware (`htm`/`htu`/`ath`/`jti`/`cnf.jkt` match)
+  - Nonce protocol (`DPoP-Nonce` header) — Phase 2
+  - `dpop_signing_alg_values_supported` AS metadata field
+  - `dpop_bound_access_tokens_required` PR metadata field (in `apiauth/protected_resource.go`)
+  - `DPoPProofValidator` interface; reuse `JTIStore` from `apiauth/client_authenticator.go`
+- **Effort:** M-L. Less than mTLS (no PKI), but still substantial wire-protocol work.
+- **Mentioned in:** [RFC_9449.md](RFC_9449.md) — full implementation sketch.
+
+## (Append future gaps below as L6/... docs land)
 
 ---
 
