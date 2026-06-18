@@ -138,11 +138,12 @@ func TestJwtBearerGrant_HappyPath(t *testing.T) {
 // TestJwtBearerGrant_NoTrustedIssuersConfigured — when the AS has no
 // TrustedAssertionIssuers, the grant returns unsupported_grant_type.
 func TestJwtBearerGrant_NoTrustedIssuersConfigured(t *testing.T) {
-	a := &apiauth.APIAuth{
-		JWTSecretKey: "test",
-		JWTIssuer:    "oneauth-test",
+	a := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey: []byte("test"),
+		SigningAlg: "HS256",
+		Issuer:     "oneauth-test",
 		// TrustedAssertionIssuers intentionally empty.
-	}
+	}, nil)
 	form := url.Values{}
 	form.Set("grant_type", apiauth.JwtBearerGrantType)
 	form.Set("assertion", "irrelevant")

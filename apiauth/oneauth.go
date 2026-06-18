@@ -3,6 +3,8 @@ package apiauth
 import (
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 )
@@ -126,6 +128,10 @@ type OneAuthConfig struct {
 	// and token-exchange (RFC 8693) grants. Empty disables both.
 	TrustedAssertionIssuers []TrustedAssertionIssuer
 
+	// TracerProvider opts the validator's signature-verify hot path
+	// into SEP-414 tracing. Nil keeps it on the no-op fast path.
+	TracerProvider trace.TracerProvider
+
 	// Hooks — lifecycle callbacks
 	Hooks Hooks
 }
@@ -163,13 +169,14 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		validatorKey = cfg.SigningKey
 	}
 	validator := NewJWTValidator(JWTValidatorConfig{
-		KeyLookup:  cfg.KeyStore, // KeyStorage implements KeyLookup
-		SigningKey: validatorKey,
-		SigningAlg: signingAlg,
-		Blacklist:  cfg.Blacklist,
-		Issuer:     cfg.Issuer,
-		Audience:   cfg.Audience,
-		Hooks:      cfg.Hooks.Security,
+		KeyLookup:      cfg.KeyStore, // KeyStorage implements KeyLookup
+		SigningKey:     validatorKey,
+		SigningAlg:     signingAlg,
+		Blacklist:      cfg.Blacklist,
+		Issuer:         cfg.Issuer,
+		Audience:       cfg.Audience,
+		Hooks:          cfg.Hooks.Security,
+		TracerProvider: cfg.TracerProvider,
 	})
 
 	// Wire the introspector — needs only the validator

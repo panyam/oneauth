@@ -78,17 +78,17 @@ func serve() {
 
 func newAuthServer(ks keys.KeyStorage, issuer string) http.Handler {
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
-	apiAuth := &apiauth.APIAuth{
-		JWTSecretKey:   jwtSecret,
-		JWTIssuer:      issuer,
-		ClientKeyStore: ks,
-	}
-	introspection := apiauth.NewIntrospectionHandler(apiAuth, ks)
+	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+		KeyStore:   ks,
+		SigningKey: []byte(jwtSecret),
+		SigningAlg: "HS256",
+		Issuer:     issuer,
+	})
 
 	mux := http.NewServeMux()
 	mux.Handle("/apps/", registrar.Handler())
-	mux.HandleFunc("POST /api/token", apiAuth.ServeHTTP)
-	mux.Handle("POST /oauth/introspect", introspection)
+	mux.Handle("POST /api/token", apiauth.NewTokenEndpointHandler(oa))
+	mux.Handle("POST /oauth/introspect", oa.IntrospectionHTTPHandler())
 	mux.Handle("GET /.well-known/openid-configuration",
 		apiauth.NewASMetadataHandler(&apiauth.ASServerMetadata{
 			Issuer:                             issuer,

@@ -26,16 +26,17 @@ const (
 	authcodeTestRedirect = "https://app.example/cb"
 )
 
-func setupAuthCode(t *testing.T) (*apiauth.APIAuth, core.AuthorizationCodeStore) {
+func setupAuthCode(t *testing.T) (*apiAuthFixture, core.AuthorizationCodeStore) {
 	t.Helper()
 	codeStore := core.NewInMemoryAuthorizationCodeStore()
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:           "authcode-test-secret-32chars-min!",
-		JWTIssuer:              "test-issuer",
-		RefreshTokenStore:      newInMemoryRefreshStore(),
+	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey:             []byte("authcode-test-secret-32chars-min!"),
+		SigningAlg:             "HS256",
+		Issuer:                 "test-issuer",
+		RefreshStore:           newInMemoryRefreshStore(),
 		AuthorizationCodeStore: codeStore,
-	}
-	return auth, codeStore
+	}, nil)
+	return fx, codeStore
 }
 
 // seedAuthCode persists a valid authorization code bound to the test
@@ -215,11 +216,12 @@ func TestAuthCodeRedeem_MissingPKCEVerifier(t *testing.T) {
 // AuthorizationCodeStore wired rejects the grant with unsupported_grant_type
 // — the legacy behavior is preserved for callers who haven't opted in.
 func TestAuthCodeRedeem_GrantNotEnabled(t *testing.T) {
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: "authcode-test-secret-32chars-min!",
-		JWTIssuer:    "test-issuer",
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey: []byte("authcode-test-secret-32chars-min!"),
+		SigningAlg: "HS256",
+		Issuer:     "test-issuer",
 		// AuthorizationCodeStore intentionally nil
-	}
+	}, nil)
 	rr := httptest.NewRecorder()
 	auth.ServeHTTP(rr, tokenRedeemForm(t, nil))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)

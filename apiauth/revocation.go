@@ -7,7 +7,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/tracing"
 )
 
@@ -36,26 +35,9 @@ type RevocationHandler struct {
 	TracerProvider trace.TracerProvider
 }
 
-// NewRevocationHandler creates a RevocationHandler from an APIAuth and
-// a client KeyLookup. Bridge constructor for existing code. The new
-// handler inherits the APIAuth's TracerProvider so spans share one
-// trace across /token and /revoke.
-func NewRevocationHandler(auth *APIAuth, clientKeyStore keys.KeyLookup) *RevocationHandler {
-	revoker := NewTokenRevoker(TokenRevokerConfig{
-		Blacklist:    auth.Blacklist,
-		RefreshStore: auth.RefreshTokenStore,
-		// Inherit auth.TokenHooks so OnRevoked / OnTokenRevoked fire from
-		// /oauth/revoke just as they do from /api/logout. Without this,
-		// the OIDC Back-Channel Logout dispatcher would miss revocations
-		// triggered through the RFC 7009 endpoint.
-		Hooks: auth.TokenHooks,
-	})
-	return &RevocationHandler{
-		Revoker:        revoker,
-		Authenticator:  NewClientAuthenticator(clientKeyStore),
-		TracerProvider: auth.TracerProvider,
-	}
-}
+// Construction of a RevocationHandler now happens via
+// OneAuth.RevocationHTTPHandler() — the legacy APIAuth-based
+// constructor was removed in #298.
 
 // ServeHTTP handles POST /oauth/revoke per RFC 7009.
 func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

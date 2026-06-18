@@ -76,10 +76,7 @@ func baseClaims(aud string) jwt.MapClaims {
 // AFTER FIX: fails with "invalid audience"
 func TestAudience_WrongAud_Rejected(t *testing.T) {
 	secret := "shared-secret-between-services"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	// Token was minted for service-b
 	token := mintToken(t, secret, baseClaims("service-b"))
@@ -103,10 +100,7 @@ func TestAudience_WrongAud_Rejected(t *testing.T) {
 // See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
 func TestAudience_WrongAud_Rejected_Full(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	token := mintToken(t, secret, baseClaims("service-b"))
 
@@ -132,10 +126,7 @@ func TestAudience_WrongAud_Rejected_Full(t *testing.T) {
 // See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
 func TestAudience_MissingAud_Rejected(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	// Token has no aud claim at all
 	token := mintToken(t, secret, baseClaims(""))
@@ -161,10 +152,7 @@ func TestAudience_MissingAud_Rejected(t *testing.T) {
 // audience is accepted.
 func TestAudience_CorrectAud_Accepted(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	token := mintToken(t, secret, baseClaims("service-a"))
 
@@ -186,10 +174,7 @@ func TestAudience_CorrectAud_Accepted(t *testing.T) {
 // of its aud claim. This preserves existing behavior for single-service deployments.
 func TestAudience_NoAudienceConfigured_AcceptsAll(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		// JWTAudience not set — no audience validation
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256"}, nil)
 
 	// Token with some audience — should be accepted
 	token := mintToken(t, secret, baseClaims("any-service"))
@@ -215,10 +200,7 @@ func TestAudience_NoAudienceConfigured_AcceptsAll(t *testing.T) {
 // correct audience and returns custom claims.
 func TestAudience_CorrectAud_Full(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	claims := baseClaims("service-a")
 	claims["tenant"] = "acme"
@@ -268,10 +250,7 @@ func arrayAudClaims(audiences []string) jwt.MapClaims {
 // See: https://github.com/panyam/oneauth/issues/52
 func TestAudience_ArrayAud_Matching_Accepted(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	token := mintToken(t, secret, arrayAudClaims([]string{"service-a", "service-b"}))
 
@@ -296,10 +275,7 @@ func TestAudience_ArrayAud_Matching_Accepted(t *testing.T) {
 // See: https://github.com/panyam/oneauth/issues/52
 func TestAudience_ArrayAud_NotMatching_Rejected(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	token := mintToken(t, secret, arrayAudClaims([]string{"service-b", "service-c"}))
 
@@ -323,10 +299,7 @@ func TestAudience_ArrayAud_NotMatching_Rejected(t *testing.T) {
 // See: https://github.com/panyam/oneauth/issues/52
 func TestAudience_ArrayAud_Full_Accepted(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	claims := arrayAudClaims([]string{"service-a", "other"})
 	claims["tenant"] = "acme"
@@ -354,10 +327,7 @@ func TestAudience_ArrayAud_Full_Accepted(t *testing.T) {
 // See: https://github.com/panyam/oneauth/issues/52
 func TestAudience_ArrayAud_Full_Rejected(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	token := mintToken(t, secret, arrayAudClaims([]string{"service-b"}))
 
@@ -440,10 +410,7 @@ func TestAudience_ArrayAud_Middleware_Rejected(t *testing.T) {
 // See: https://github.com/panyam/oneauth/issues/52
 func TestAudience_EmptyArray_Rejected(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	token := mintToken(t, secret, arrayAudClaims([]string{}))
 
@@ -468,10 +435,7 @@ func TestAudience_EmptyArray_Rejected(t *testing.T) {
 // See: https://github.com/panyam/oneauth/issues/52
 func TestAudience_SingleElementArray_Accepted(t *testing.T) {
 	secret := "shared-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTAudience:  "service-a",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Audience: "service-a"}, nil)
 
 	token := mintToken(t, secret, arrayAudClaims([]string{"service-a"}))
 

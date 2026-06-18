@@ -132,7 +132,7 @@ func TestSecurity_RS256Token_AgainstHS256Store(t *testing.T) {
 // TestSecurity_ExpiredToken_Rejected proves expired JWTs are rejected.
 func TestSecurity_ExpiredToken_Rejected(t *testing.T) {
 	secret := "test-secret-key-for-jwt"
-	auth := &apiauth.APIAuth{JWTSecretKey: secret}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256"}, nil)
 
 	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
@@ -180,7 +180,7 @@ func TestSecurity_ExpiredToken_Rejected(t *testing.T) {
 // See: https://cwe.mitre.org/data/definitions/269.html (Improper Privilege Management)
 func TestSecurity_RefreshTokenType_RejectedAsAccess(t *testing.T) {
 	secret := "test-secret"
-	auth := &apiauth.APIAuth{JWTSecretKey: secret}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256"}, nil)
 
 	// Craft a token with type: "refresh" instead of "access"
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -209,7 +209,7 @@ func TestSecurity_RefreshTokenType_RejectedAsAccess(t *testing.T) {
 // See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.2
 func TestSecurity_MissingSub_Rejected(t *testing.T) {
 	secret := "test-secret"
-	auth := &apiauth.APIAuth{JWTSecretKey: secret}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256"}, nil)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		// no "sub" claim
@@ -238,10 +238,7 @@ func TestSecurity_MissingSub_Rejected(t *testing.T) {
 // See: https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.1
 func TestSecurity_WrongIssuer_Rejected(t *testing.T) {
 	secret := "test-secret"
-	auth := &apiauth.APIAuth{
-		JWTSecretKey: secret,
-		JWTIssuer:    "my-auth-server",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(secret), SigningAlg: "HS256", Issuer: "my-auth-server"}, nil)
 
 	// Token from a different issuer
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -273,7 +270,7 @@ func TestSecurity_WrongIssuer_Rejected(t *testing.T) {
 // TestSecurity_EmptySigningKey_Errors proves that an empty signing key
 // does not silently produce "valid" tokens.
 func TestSecurity_EmptySigningKey_Errors(t *testing.T) {
-	auth := &apiauth.APIAuth{JWTSecretKey: ""}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte(""), SigningAlg: "HS256"}, nil)
 
 	// CreateAccessToken with empty key should still produce a token
 	// (jwt library allows it), but validation should use the same empty key.
@@ -298,7 +295,7 @@ func TestSecurity_EmptySigningKey_Errors(t *testing.T) {
 	assert.Equal(t, "user1", userID)
 
 	// But it must NOT be verifiable with a different key
-	auth2 := &apiauth.APIAuth{JWTSecretKey: "different-key"}
+	auth2 := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("different-key"), SigningAlg: "HS256"}, nil)
 	vresp, err = auth2.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	var _ string
 	var _ []string

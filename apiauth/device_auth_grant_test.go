@@ -20,15 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupDevice(t *testing.T) (*apiauth.APIAuth, core.DeviceAuthorizationStore) {
+func setupDevice(t *testing.T) (*apiAuthFixture, core.DeviceAuthorizationStore) {
 	t.Helper()
 	store := core.NewInMemoryDeviceAuthorizationStore()
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:      "device-test-secret-32chars-min!!",
-		JWTIssuer:         "test-issuer",
-		RefreshTokenStore: newInMemoryRefreshStore(),
-		DeviceAuthStore:   store,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("device-test-secret-32chars-min!!"), SigningAlg: "HS256", Issuer: "test-issuer", RefreshStore: newInMemoryRefreshStore(), DeviceAuthStore: store}, nil)
 	return auth, store
 }
 
@@ -53,7 +48,7 @@ func tokenForm(t *testing.T, vals url.Values) *http.Request {
 func TestDeviceAuthorize_HappyPath(t *testing.T) {
 	auth, _ := setupDevice(t)
 	h := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	rr := httptest.NewRecorder()
@@ -72,7 +67,7 @@ func TestDeviceAuthorize_HappyPath(t *testing.T) {
 func TestDeviceAuthorize_MissingClientID(t *testing.T) {
 	auth, _ := setupDevice(t)
 	h := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	rr := httptest.NewRecorder()
@@ -87,7 +82,7 @@ func TestDeviceAuthorize_MissingClientID(t *testing.T) {
 func TestDeviceAuthorize_VerificationURICompleteEmitted(t *testing.T) {
 	auth, _ := setupDevice(t)
 	h := &apiauth.DeviceAuthorizationHandler{
-		Store:                           auth.DeviceAuthStore,
+		Store:                           auth.DeviceAuthStore(),
 		VerificationURI:                 "https://auth.example/device",
 		VerificationURICompleteTemplate: "https://auth.example/device?user_code=%s",
 	}
@@ -112,7 +107,7 @@ func runDeviceAuthorize(t *testing.T, h http.Handler, clientID string) (deviceCo
 func TestDeviceGrant_PendingThenApproved(t *testing.T) {
 	auth, _ := setupDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-x")
@@ -137,7 +132,7 @@ func TestDeviceGrant_PendingThenApproved(t *testing.T) {
 	// the interval; tests need to immediately re-poll. The grant handler
 	// reads LastPolledAt vs IntervalSeconds, so we reset LastPolledAt
 	// by re-fetching and writing a stale poll time via UpdatePollingState.
-	_, _ = auth.DeviceAuthStore.UpdatePollingState(context.Background(), &core.UpdatePollingStateRequest{
+	_, _ = auth.DeviceAuthStore().UpdatePollingState(context.Background(), &core.UpdatePollingStateRequest{
 		DeviceCode: deviceCode,
 		PolledAt:   time.Now().Add(-time.Hour),
 		SlowDown:   false,
@@ -155,7 +150,7 @@ func TestDeviceGrant_PendingThenApproved(t *testing.T) {
 func TestDeviceGrant_SlowDownOnFastPoll(t *testing.T) {
 	auth, _ := setupDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	deviceCode, _ := runDeviceAuthorize(t, devHandler, "client-x")
@@ -180,7 +175,7 @@ func TestDeviceGrant_SlowDownOnFastPoll(t *testing.T) {
 func TestDeviceGrant_AccessDenied(t *testing.T) {
 	auth, _ := setupDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-x")
@@ -200,7 +195,7 @@ func TestDeviceGrant_AccessDenied(t *testing.T) {
 func TestDeviceGrant_ExpiredToken(t *testing.T) {
 	auth, store := setupDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	deviceCode, _ := runDeviceAuthorize(t, devHandler, "client-x")
@@ -244,7 +239,7 @@ func TestDeviceGrant_MissingClientID_BindingBypass_Rejected(t *testing.T) {
 	// letting any caller bypass the RFC 8628 §3.4 binding requirement.
 	auth, _ := setupDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-x")
@@ -265,7 +260,7 @@ func TestDeviceGrant_MissingClientID_BindingBypass_Rejected(t *testing.T) {
 func TestDeviceGrant_ClientIDMismatch(t *testing.T) {
 	auth, _ := setupDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	deviceCode, _ := runDeviceAuthorize(t, devHandler, "client-x")
@@ -284,7 +279,7 @@ func TestDeviceGrant_ClientIDMismatch(t *testing.T) {
 // registers `client-conf` with token_endpoint_auth_method=client_secret_post,
 // the KeyStore holds the matching secret, and APIAuth gets ClientKeyStore
 // so the lazy ClientAuthenticator can validate it.
-func setupConfidentialDevice(t *testing.T) (*apiauth.APIAuth, core.DeviceAuthorizationStore) {
+func setupConfidentialDevice(t *testing.T) (*apiAuthFixture, core.DeviceAuthorizationStore) {
 	t.Helper()
 	store := core.NewInMemoryDeviceAuthorizationStore()
 	apps := core.NewInMemoryAppStore()
@@ -301,28 +296,21 @@ func setupConfidentialDevice(t *testing.T) (*apiauth.APIAuth, core.DeviceAuthori
 		Algorithm: "HS256",
 	}})
 	require.NoError(t, err)
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:      "device-test-secret-32chars-min!!",
-		JWTIssuer:         "test-issuer",
-		RefreshTokenStore: newInMemoryRefreshStore(),
-		DeviceAuthStore:   store,
-		AppStore:          apps,
-		ClientKeyStore:    ks,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{KeyStore: ks, SigningKey: []byte("device-test-secret-32chars-min!!"), SigningAlg: "HS256", Issuer: "test-issuer", RefreshStore: newInMemoryRefreshStore(), DeviceAuthStore: store, AppStore: apps}, nil)
 	return auth, store
 }
 
 func TestDeviceGrant_ConfidentialClient_WithCorrectCreds_Succeeds(t *testing.T) {
 	auth, _ := setupConfidentialDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-conf")
 	require.NoError(t, auth.ApproveDeviceAuthorization(httptest.NewRequest(http.MethodPost, "/", nil), userCode, "alice", nil))
 
 	// Rewind LastPolledAt so slow_down doesn't fire on the first real poll.
-	_, _ = auth.DeviceAuthStore.UpdatePollingState(context.Background(), &core.UpdatePollingStateRequest{
+	_, _ = auth.DeviceAuthStore().UpdatePollingState(context.Background(), &core.UpdatePollingStateRequest{
 		DeviceCode: deviceCode,
 		PolledAt:   time.Now().Add(-time.Hour),
 	})
@@ -344,7 +332,7 @@ func TestDeviceGrant_ConfidentialClient_MissingCreds_Rejected(t *testing.T) {
 	// present credentials. Pre-fix this returned 200 + access_token.
 	auth, _ := setupConfidentialDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-conf")
@@ -365,7 +353,7 @@ func TestDeviceGrant_ConfidentialClient_MissingCreds_Rejected(t *testing.T) {
 func TestDeviceGrant_ConfidentialClient_WrongCreds_Rejected(t *testing.T) {
 	auth, _ := setupConfidentialDevice(t)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
-		Store:           auth.DeviceAuthStore,
+		Store:           auth.DeviceAuthStore(),
 		VerificationURI: "https://auth.example/device",
 	}
 	deviceCode, userCode := runDeviceAuthorize(t, devHandler, "client-conf")
@@ -390,13 +378,7 @@ func TestDeviceGrant_AppStoreSet_UnregisteredClient_Rejected(t *testing.T) {
 	// in wiring AppStore (issue 266 security review).
 	store := core.NewInMemoryDeviceAuthorizationStore()
 	apps := core.NewInMemoryAppStore() // empty — no clients registered
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:      "device-test-secret-32chars-min!!",
-		JWTIssuer:         "test-issuer",
-		RefreshTokenStore: newInMemoryRefreshStore(),
-		DeviceAuthStore:   store,
-		AppStore:          apps,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("device-test-secret-32chars-min!!"), SigningAlg: "HS256", Issuer: "test-issuer", RefreshStore: newInMemoryRefreshStore(), DeviceAuthStore: store, AppStore: apps}, nil)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
 		Store:           store,
 		VerificationURI: "https://auth.example/device",
@@ -426,13 +408,7 @@ func TestDeviceGrant_PublicClient_NoCredsRequired(t *testing.T) {
 		SigningAlg:              "HS256",
 	}})
 	require.NoError(t, err)
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:      "device-test-secret-32chars-min!!",
-		JWTIssuer:         "test-issuer",
-		RefreshTokenStore: newInMemoryRefreshStore(),
-		DeviceAuthStore:   store,
-		AppStore:          apps,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("device-test-secret-32chars-min!!"), SigningAlg: "HS256", Issuer: "test-issuer", RefreshStore: newInMemoryRefreshStore(), DeviceAuthStore: store, AppStore: apps}, nil)
 	devHandler := &apiauth.DeviceAuthorizationHandler{
 		Store:           store,
 		VerificationURI: "https://auth.example/device",
@@ -455,12 +431,13 @@ func TestDeviceGrant_PublicClient_NoCredsRequired(t *testing.T) {
 }
 
 func TestDeviceGrant_TokenEndpointWithoutStore_UnsupportedGrant(t *testing.T) {
-	auth := &apiauth.APIAuth{
-		JWTSecretKey:      "device-test-secret-32chars-min!!",
-		JWTIssuer:         "test-issuer",
-		RefreshTokenStore: newInMemoryRefreshStore(),
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey:   []byte("device-test-secret-32chars-min!!"),
+		SigningAlg:   "HS256",
+		Issuer:       "test-issuer",
+		RefreshStore: newInMemoryRefreshStore(),
 		// DeviceAuthStore intentionally nil.
-	}
+	}, nil)
 	rr := httptest.NewRecorder()
 	auth.ServeHTTP(rr, tokenForm(t, url.Values{
 		"grant_type":  {apiauth.DeviceCodeGrantType},

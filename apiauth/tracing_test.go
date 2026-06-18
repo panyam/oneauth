@@ -52,7 +52,7 @@ func tracingAttr(span sdktrace.ReadOnlySpan, key string) (attribute.Value, bool)
 	return attribute.Value{}, false
 }
 
-func setupAPIAuthWithTracer(t *testing.T, tp trace.TracerProvider) (*apiauth.APIAuth, string) {
+func setupAPIAuthWithTracer(t *testing.T, tp trace.TracerProvider) (*apiAuthFixture, string) {
 	t.Helper()
 	tmpDir, err := os.MkdirTemp("", "oneauth-trace-test-*")
 	require.NoError(t, err)
@@ -68,16 +68,18 @@ func setupAPIAuthWithTracer(t *testing.T, tp trace.TracerProvider) (*apiauth.API
 	_, err = create(&localauth.Credentials{Username: "traceuser", Email: &email, Password: "password123"})
 	require.NoError(t, err)
 
-	return &apiauth.APIAuth{
-		RefreshTokenStore:   refreshStore,
-		JWTSecretKey:        "trace-secret",
-		JWTIssuer:           "oneauth-trace-test",
+	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningKey:          []byte("trace-secret"),
+		SigningAlg:          "HS256",
+		Issuer:              "oneauth-trace-test",
+		RefreshStore:        refreshStore,
 		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
 		GetSubjectScopes: func(userID string) ([]string, error) {
 			return []string{core.ScopeRead}, nil
 		},
-		TracerProvider: tp,
-	}, email
+	}, nil)
+	fx.TokenEndpoint.TracerProvider = tp
+	return fx, email
 }
 
 func TestServeHTTP_EmitsTokenIssueSpan_WithGrantTypeAttribute(t *testing.T) {

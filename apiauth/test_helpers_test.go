@@ -71,6 +71,40 @@ func (f *apiAuthFixture) RefreshTokenStore() core.RefreshTokenStore {
 	return f.OneAuth.RefreshStore
 }
 
+// DeviceAuthStore is the device-authorization store shortcut for
+// tests that read/write directly.
+func (f *apiAuthFixture) DeviceAuthStore() core.DeviceAuthorizationStore {
+	return f.OneAuth.DeviceAuthStore
+}
+
+// ApproveDeviceAuthorization wraps the device store's approve so
+// device-flow tests can drive the user-consent step without going
+// through the verification HTML UI. Mirrors the legacy
+// APIAuth.ApproveDeviceAuthorization signature.
+func (f *apiAuthFixture) ApproveDeviceAuthorization(r *http.Request, userCode, subject string, scopes []string) error {
+	store := f.OneAuth.DeviceAuthStore
+	if store == nil {
+		return nil
+	}
+	_, err := store.ApproveDeviceAuthorization(r.Context(), &core.ApproveDeviceAuthorizationRequest{
+		UserCode:        userCode,
+		ApprovedSubject: subject,
+		GrantedScopes:   scopes,
+	})
+	return err
+}
+
+// DenyDeviceAuthorization is the deny counterpart of
+// ApproveDeviceAuthorization.
+func (f *apiAuthFixture) DenyDeviceAuthorization(r *http.Request, userCode string) error {
+	store := f.OneAuth.DeviceAuthStore
+	if store == nil {
+		return nil
+	}
+	_, err := store.DenyDeviceAuthorization(r.Context(), &core.DenyDeviceAuthorizationRequest{UserCode: userCode})
+	return err
+}
+
 // newAPIAuthFixture wires a OneAuth-backed fixture with the supplied
 // config. Convenience for tests that don't need every field on
 // OneAuthConfig.

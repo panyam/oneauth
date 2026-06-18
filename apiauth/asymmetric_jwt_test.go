@@ -139,12 +139,7 @@ func TestAPIAuth_RS256_Signing(t *testing.T) {
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	pubKey, _ := utils.ParsePublicKeyPEM(pubPEM)
 
-	auth := &apiauth.APIAuth{
-		JWTSigningAlg: "RS256",
-		JWTSigningKey: privKey,
-		JWTVerifyKey:  pubKey,
-		JWTIssuer:     "test",
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningAlg: "RS256", SigningKey: privKey, VerifyKey: pubKey, Issuer: "test"}, nil)
 
 	tokenStrResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-rsa", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
@@ -184,11 +179,7 @@ func TestAPIAuth_ES256_Signing(t *testing.T) {
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	pubKey, _ := utils.ParsePublicKeyPEM(pubPEM)
 
-	auth := &apiauth.APIAuth{
-		JWTSigningAlg: "ES256",
-		JWTSigningKey: privKey,
-		JWTVerifyKey:  pubKey,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningAlg: "ES256", SigningKey: privKey, VerifyKey: pubKey}, nil)
 
 	tokenStrResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-ec", Scopes: []string{"write"}, AuthorizationDetails: nil})
 
@@ -228,11 +219,7 @@ func TestAPIAuth_RS256_RejectsHMAC(t *testing.T) {
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	pubKey, _ := utils.ParsePublicKeyPEM(pubPEM)
 
-	auth := &apiauth.APIAuth{
-		JWTSigningAlg: "RS256",
-		JWTSigningKey: privKey,
-		JWTVerifyKey:  pubKey,
-	}
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningAlg: "RS256", SigningKey: privKey, VerifyKey: pubKey}, nil)
 
 	// Create a valid RS256 token, then try to validate with HMAC-configured auth
 	tokenStrResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
@@ -241,7 +228,7 @@ func TestAPIAuth_RS256_RejectsHMAC(t *testing.T) {
 
 	if tokenStrResp != nil { tokenStr = tokenStrResp.Token }
 
-	hmacAuth := &apiauth.APIAuth{JWTSecretKey: "some-secret"}
+	hmacAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("some-secret"), SigningAlg: "HS256"}, nil)
 	vresp, err := hmacAuth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
 	var _ string
 	var _ []string
@@ -259,14 +246,14 @@ func TestAPIAuth_ValidateAccessTokenFull_RS256(t *testing.T) {
 	privKey, _ := utils.ParsePrivateKeyPEM(privPEM)
 	pubKey, _ := utils.ParsePublicKeyPEM(pubPEM)
 
-	auth := &apiauth.APIAuth{
-		JWTSigningAlg: "RS256",
-		JWTSigningKey: privKey,
-		JWTVerifyKey:  pubKey,
-		CustomClaimsFunc: func(userID string, scopes []string) (map[string]any, error) {
+	auth := newAPIAuthFixture(apiauth.OneAuthConfig{
+		SigningAlg: "RS256",
+		SigningKey: privKey,
+		VerifyKey:  pubKey,
+		CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
 			return map[string]any{"client_id": "app-1"}, nil
 		},
-	}
+	}, nil)
 
 	tokenStrResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
