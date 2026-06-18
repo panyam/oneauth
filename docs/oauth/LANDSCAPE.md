@@ -665,15 +665,15 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | [RFC_7517.md](RFC_7517.md) JWK / JWKS | 🟡 | #306 |
 | [RFC_7518.md](RFC_7518.md) JWA | 🟡 | #306 |
 | [RFC_7519.md](RFC_7519.md) JWT | 🟡 | #306 |
-| RFC_7521.md Assertion framework | 📝 | — |
-| RFC_7523.md JWT bearer | 📝 | — |
+| [RFC_7521.md](RFC_7521.md) Assertion framework | 🟡 | #314 |
+| [RFC_7523.md](RFC_7523.md) JWT bearer | 🟡 | #314 |
 | [RFC_7591.md](RFC_7591.md) DCR | 🟡 | #313 |
 | [RFC_7592.md](RFC_7592.md) DCR mgmt | 🟡 | #313 |
 | [RFC_7636.md](RFC_7636.md) PKCE | 🟡 | #304 |
 | [RFC_7662.md](RFC_7662.md) Introspection | 🟡 | #308 |
 | [RFC_8414.md](RFC_8414.md) AS metadata | 🟡 | #310 |
-| RFC_8628.md Device | 📝 | — |
-| RFC_8693.md Token Exchange | 📝 | — |
+| [RFC_8628.md](RFC_8628.md) Device | 🟡 | #316 |
+| [RFC_8693.md](RFC_8693.md) Token Exchange | 🟡 | #317 |
 | RFC_8705.md mTLS | 📝 | — |
 | [RFC_9068.md](RFC_9068.md) JWT AT profile | 🟡 | #307 |
 | RFC_9101.md JAR | 📝 | — |

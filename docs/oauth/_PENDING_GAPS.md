@@ -74,7 +74,27 @@ For each gap, capture:
 
 ---
 
-## (Append future gaps below as L2/L3/... docs land)
+---
+
+## L4 — Grant types
+
+### 7. Token Exchange Phase 2 — actor_token, may_act, richer audience/resource enforcement (RFC 8693)
+
+- **What:** Current OneAuth implementation is Phase 1 — JWT subject_token only, no actor_token delegation chain, audience/resource read but not richly enforced. Phase 2 deepens these.
+- **Where:** `apiauth/auth.go:239–240` parses `actor_token` / `actor_token_type` into the request shape but no handler logic uses them. No `act` / `may_act` claim shape in `core/`.
+- **Why:** Enables full delegation/impersonation chains as 8693 specifies — needed for federated multi-hop identity. Audit-trail use cases (who acted on behalf of whom) currently can't be expressed.
+- **Effort:** M-L. Needs `act` claim shape in `core/`, actor-token validation, policy hooks for "is this actor allowed to act for this subject?", audience/resource enforcement against registered policy.
+- **Mentioned in:** [RFC_8693.md](RFC_8693.md) OneAuth status table.
+
+### 8. Token Exchange — additional subject_token_types (RFC 8693)
+
+- **What:** Phase 1 supports `urn:ietf:params:oauth:token-type:jwt` subject tokens only. The spec also defines `access_token`, `refresh_token`, `id_token`, `saml1`, `saml2`.
+- **Where:** `apiauth/token_exchange_grant_test.go:37` only exercises `TokenTypeJWT`.
+- **Why:** Broader interop with federation patterns that ship non-JWT subject tokens.
+- **Effort:** M. Each token type needs its own validation path; SAML is most work.
+- **Mentioned in:** [RFC_8693.md](RFC_8693.md).
+
+## (Append future gaps below as L5/... docs land)
 
 ---
 
