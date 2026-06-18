@@ -667,8 +667,8 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | [RFC_7519.md](RFC_7519.md) JWT | 🟡 | #306 |
 | RFC_7521.md Assertion framework | 📝 | — |
 | RFC_7523.md JWT bearer | 📝 | — |
-| RFC_7591.md DCR | 📝 | — |
-| RFC_7592.md DCR mgmt | 📝 | — |
+| [RFC_7591.md](RFC_7591.md) DCR | 🟡 | #313 |
+| [RFC_7592.md](RFC_7592.md) DCR mgmt | 🟡 | #313 |
 | [RFC_7636.md](RFC_7636.md) PKCE | 🟡 | #304 |
 | [RFC_7662.md](RFC_7662.md) Introspection | 🟡 | #308 |
 | [RFC_8414.md](RFC_8414.md) AS metadata | 🟡 | #310 |
