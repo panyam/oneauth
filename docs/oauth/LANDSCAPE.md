@@ -660,11 +660,11 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | [RFC_6749.md](RFC_6749.md) OAuth 2.0 framework | 🟡 | #302 |
 | [RFC_6750.md](RFC_6750.md) Bearer | 🟡 | #303 |
 | RFC_7009.md Revocation | 📝 | — |
-| RFC_7515.md JWS | 📝 | — |
-| RFC_7516.md JWE | 📝 | — |
-| RFC_7517.md JWK / JWKS | 📝 | — |
-| RFC_7518.md JWA | 📝 | — |
-| RFC_7519.md JWT | 📝 | — |
+| [RFC_7515.md](RFC_7515.md) JWS | 🟡 | #306 |
+| [RFC_7516.md](RFC_7516.md) JWE | 🟡 | #306 |
+| [RFC_7517.md](RFC_7517.md) JWK / JWKS | 🟡 | #306 |
+| [RFC_7518.md](RFC_7518.md) JWA | 🟡 | #306 |
+| [RFC_7519.md](RFC_7519.md) JWT | 🟡 | #306 |
 | RFC_7521.md Assertion framework | 📝 | — |
 | RFC_7523.md JWT bearer | 📝 | — |
 | RFC_7591.md DCR | 📝 | — |
