@@ -26,16 +26,38 @@ import (
 // See: https://github.com/panyam/oneauth/issues/110
 type OneAuth struct {
 	// Core operation interfaces — each has minimal dependencies.
-	Issuer       TokenIssuer
-	Validator    TokenValidator
-	Introspector TokenIntrospector
-	Revoker      TokenRevoker
+	Issuer        TokenIssuer
+	Validator     TokenValidator
+	Introspector  TokenIntrospector
+	Revoker       TokenRevoker
 	Authenticator ClientAuthenticator
+
+	// Per-grant interfaces. Nil when the corresponding store / config
+	// is not wired — the TokenEndpointHandler returns
+	// unsupported_grant_type for any grant whose Granter is nil.
+	AuthorizationCodeGranter AuthorizationCodeGranter
+	DeviceCodeGranter        DeviceCodeGranter
+	JwtBearerGranter         JwtBearerGranter
+	TokenExchanger           TokenExchanger
 
 	// Shared state — available for transport bindings that need direct access.
 	KeyStore     keys.KeyStorage
 	Blacklist    core.TokenBlacklist
 	RefreshStore core.RefreshTokenStore
+
+	// Stores backing the new grant flows. Exposed on OneAuth so
+	// transport bindings (DeviceVerificationHandler, the consent
+	// screens) can write to them — the granter implementations only
+	// read.
+	AuthorizationCodeStore core.AuthorizationCodeStore
+	DeviceAuthStore        core.DeviceAuthorizationStore
+	AppStore               core.AppRegistrationStore
+
+	// AcceptedAudiences is the set of URLs the token endpoint will
+	// accept as the `aud` claim of a private_key_jwt / client_secret_jwt
+	// client assertion (OIDC Core §9). Echoed into the granters so they
+	// can validate confidential-client assertions.
+	AcceptedAudiences []string
 
 	// Hooks — lifecycle callbacks grouped by concern.
 	Hooks Hooks
@@ -50,6 +72,14 @@ type OneAuthConfig struct {
 	SigningKey any    // []byte for HS256, *rsa.PrivateKey for RS256, etc.
 	SigningAlg string // "HS256", "RS256", "ES256" — default "HS256"
 
+	// VerifyKey is the public key for asymmetric token validation.
+	// When SigningKey is a private key (RS256 / ES256), VerifyKey is
+	// the matching public key handed to the validator. When SigningKey
+	// is a []byte HS256 secret, VerifyKey is ignored. Nil + asymmetric
+	// SigningKey causes the validator to fall back to KeyStore-based
+	// key lookup.
+	VerifyKey any
+
 	// JWT configuration
 	Issuer       string        // JWT iss claim
 	Audience     string        // JWT aud claim (optional)
@@ -60,13 +90,41 @@ type OneAuthConfig struct {
 	RefreshStore core.RefreshTokenStore // for refresh token management (optional)
 
 	// Password grant callbacks (optional — only needed if password grant is used)
-	ValidateCredentials CredentialsValidator    // validates username/password
+	ValidateCredentials CredentialsValidator      // validates username/password
 	GetSubjectScopes    core.GetSubjectScopesFunc // returns allowed scopes for the subject (user ID or client_id)
 
 	// CustomClaims is called during access-token issuance to inject additional
 	// non-standard claims into the JWT. Standard JWT claims (sub, iss, aud,
 	// exp, iat, type, scopes, jti, authorization_details) cannot be overridden.
 	CustomClaims CustomClaimsFunc
+
+	// Authenticator overrides the default KeyStore-backed
+	// ClientAuthenticator. Nil keeps the default behavior
+	// (KeyStore-based secret + private_key_jwt assertion validation).
+	Authenticator ClientAuthenticator
+
+	// AcceptedAudiences is the set of URLs the token endpoint will
+	// accept as the `aud` claim of a private_key_jwt / client_secret_jwt
+	// client assertion. Typically the token endpoint URL plus the AS
+	// issuer URL. Empty falls back to the request URL.
+	AcceptedAudiences []string
+
+	// Authorization code grant (RFC 6749 §4.1). When AuthorizationCodeStore
+	// is non-nil the token endpoint accepts grant_type=authorization_code.
+	AuthorizationCodeStore core.AuthorizationCodeStore
+
+	// Device authorization grant (RFC 8628). When DeviceAuthStore is
+	// non-nil the token endpoint accepts grant_type=...:device_code.
+	DeviceAuthStore core.DeviceAuthorizationStore
+
+	// AppStore drives confidential-client enforcement on the device-
+	// code (issue 266) and authorization-code redemption paths.
+	AppStore core.AppRegistrationStore
+
+	// TrustedAssertionIssuers lists upstream IdPs whose JWT assertions
+	// the token endpoint accepts for the jwt-bearer (RFC 7523 §2.1)
+	// and token-exchange (RFC 8693) grants. Empty disables both.
+	TrustedAssertionIssuers []TrustedAssertionIssuer
 
 	// Hooks — lifecycle callbacks
 	Hooks Hooks
@@ -114,19 +172,61 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		Hooks:        cfg.Hooks.Token,
 	})
 
-	// Wire the client authenticator — needs key lookup
-	authenticator := NewClientAuthenticator(cfg.KeyStore)
+	// Wire the client authenticator — caller override wins so deployments
+	// can swap in private_key_jwt / federated client auth.
+	authenticator := cfg.Authenticator
+	if authenticator == nil {
+		authenticator = NewClientAuthenticator(cfg.KeyStore)
+	}
+
+	// Per-grant Granters. Nil when the corresponding store / config is
+	// not wired; TokenEndpointHandler maps a nil Granter to
+	// unsupported_grant_type for that grant_type.
+	var authCodeGranter AuthorizationCodeGranter
+	if cfg.AuthorizationCodeStore != nil {
+		authCodeGranter = NewAuthorizationCodeGranter(
+			cfg.AuthorizationCodeStore,
+			cfg.AppStore,
+			authenticator,
+			issuer,
+			cfg.RefreshStore,
+		)
+	}
+	var deviceGranter DeviceCodeGranter
+	if cfg.DeviceAuthStore != nil {
+		deviceGranter = NewDeviceCodeGranter(
+			cfg.DeviceAuthStore,
+			cfg.AppStore,
+			authenticator,
+			issuer,
+			cfg.RefreshStore,
+		)
+	}
+	var jwtBearerGranter JwtBearerGranter
+	var tokenExchanger TokenExchanger
+	if len(cfg.TrustedAssertionIssuers) > 0 {
+		jwtBearerGranter = NewJwtBearerGranter(cfg.TrustedAssertionIssuers, cfg.Audience, cfg.Issuer, issuer)
+		tokenExchanger = NewTokenExchanger(cfg.TrustedAssertionIssuers, cfg.Audience, cfg.Issuer, issuer)
+	}
 
 	oa := &OneAuth{
-		Issuer:        issuer,
-		Validator:     validator,
-		Introspector:  introspector,
-		Revoker:       revoker,
-		Authenticator: authenticator,
-		KeyStore:      cfg.KeyStore,
-		Blacklist:     cfg.Blacklist,
-		RefreshStore:  cfg.RefreshStore,
-		Hooks:         cfg.Hooks,
+		Issuer:                   issuer,
+		Validator:                validator,
+		Introspector:             introspector,
+		Revoker:                  revoker,
+		Authenticator:            authenticator,
+		AuthorizationCodeGranter: authCodeGranter,
+		DeviceCodeGranter:        deviceGranter,
+		JwtBearerGranter:         jwtBearerGranter,
+		TokenExchanger:           tokenExchanger,
+		KeyStore:                 cfg.KeyStore,
+		Blacklist:                cfg.Blacklist,
+		RefreshStore:             cfg.RefreshStore,
+		AuthorizationCodeStore:   cfg.AuthorizationCodeStore,
+		DeviceAuthStore:          cfg.DeviceAuthStore,
+		AppStore:                 cfg.AppStore,
+		AcceptedAudiences:        cfg.AcceptedAudiences,
+		Hooks:                    cfg.Hooks,
 	}
 	return oa
 }

@@ -102,10 +102,24 @@ func validateAssertion(
 	a *APIAuth,
 	rawAssertion string,
 ) (jwt.MapClaims, *TrustedAssertionIssuer, error) {
+	return ValidateAssertion(a.TrustedAssertionIssuers, a.JWTAudience, a.JWTIssuer, rawAssertion)
+}
+
+// ValidateAssertion is the dependency-free form of validateAssertion
+// used by the new gRPC-shape grant impls (jwtBearerGrantHandler,
+// tokenExchanger). trustedIssuers is the configured registry;
+// defaultAudience / defaultIssuerURL supply the fallback audience
+// when a TrustedAssertionIssuer entry doesn't pin one. Returns the
+// validated claims + the matched issuer entry, or an error message
+// suitable for the OAuth invalid_grant error_description.
+func ValidateAssertion(
+	trustedIssuers []TrustedAssertionIssuer,
+	defaultAudience, defaultIssuerURL, rawAssertion string,
+) (jwt.MapClaims, *TrustedAssertionIssuer, error) {
 	if rawAssertion == "" {
 		return nil, nil, errors.New("assertion required")
 	}
-	if len(a.TrustedAssertionIssuers) == 0 {
+	if len(trustedIssuers) == 0 {
 		return nil, nil, errors.New("no trusted assertion issuers configured")
 	}
 
@@ -123,12 +137,11 @@ func validateAssertion(
 	if issStr == "" {
 		return nil, nil, errors.New("assertion missing iss claim")
 	}
-	issuer := findIssuer(a.TrustedAssertionIssuers, issStr)
+	issuer := findIssuer(trustedIssuers, issStr)
 	if issuer == nil {
 		return nil, nil, fmt.Errorf("untrusted assertion issuer: %s", issStr)
 	}
 
-	// Build the JWT key resolver. KeyFunc wins over PublicKey.
 	keyResolver := issuer.KeyFunc
 	if keyResolver == nil {
 		if issuer.PublicKey == nil {
@@ -159,20 +172,16 @@ func validateAssertion(
 		return nil, nil, errors.New("verified claims unparseable")
 	}
 
-	// aud validation. Per RFC 7523 §3 the assertion MUST have an aud
-	// the AS recognizes. Default to JWTAudience or Issuer URL.
 	expectedAudiences := issuer.Audiences
 	if len(expectedAudiences) == 0 {
-		if a.JWTAudience != "" {
-			expectedAudiences = []string{a.JWTAudience}
-		} else if a.JWTIssuer != "" {
-			expectedAudiences = []string{a.JWTIssuer}
+		if defaultAudience != "" {
+			expectedAudiences = []string{defaultAudience}
+		} else if defaultIssuerURL != "" {
+			expectedAudiences = []string{defaultIssuerURL}
 		}
 	}
 	if len(expectedAudiences) == 0 {
-		// Server isn't configured strongly enough to enforce; accept
-		// any aud but log loudly so this isn't silent in production.
-		log.Printf("apiauth: jwt-bearer/token-exchange — no audience configured for issuer %q; accepting any aud claim. Set TrustedAssertionIssuer.Audiences or APIAuth.JWTAudience for production.", issStr)
+		log.Printf("apiauth: jwt-bearer/token-exchange — no audience configured for issuer %q; accepting any aud claim. Set TrustedAssertionIssuer.Audiences or the AS audience for production.", issStr)
 	} else {
 		matched := false
 		for _, aud := range expectedAudiences {
@@ -186,8 +195,6 @@ func validateAssertion(
 		}
 	}
 
-	// sub MUST be present per RFC 7523 §3. Other registered claims
-	// (exp, nbf) are validated by jwt.Parse above.
 	if sub, _ := verifiedClaims["sub"].(string); sub == "" {
 		return nil, nil, errors.New("assertion missing sub claim")
 	}
