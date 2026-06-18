@@ -676,10 +676,10 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | [RFC_8693.md](RFC_8693.md) Token Exchange | 🟡 | #317 |
 | [RFC_8705.md](RFC_8705.md) mTLS | 🟡 | #315 |
 | [RFC_9068.md](RFC_9068.md) JWT AT profile | 🟡 | #307 |
-| RFC_9101.md JAR | 📝 | — |
-| RFC_9126.md PAR | 📝 | — |
+| [RFC_9101.md](RFC_9101.md) JAR | 🟡 | #320 |
+| [RFC_9126.md](RFC_9126.md) PAR | 🟡 | #319 |
 | [RFC_9207.md](RFC_9207.md) Issuer ID | 🟡 | #312 |
-| RFC_9396.md RAR | 📝 | — |
+| [RFC_9396.md](RFC_9396.md) RAR | 🟡 | #321 |
 | [RFC_9449.md](RFC_9449.md) DPoP | 🟡 | #316 |
 | [RFC_9700.md](RFC_9700.md) Security BCP | 🟡 | #305 |
 | [RFC_9728.md](RFC_9728.md) PR metadata | 🟡 | #311 |

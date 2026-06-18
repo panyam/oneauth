@@ -133,7 +133,40 @@ For each gap, capture:
 - **Effort:** M-L. Less than mTLS (no PKI), but still substantial wire-protocol work.
 - **Mentioned in:** [RFC_9449.md](RFC_9449.md) — full implementation sketch.
 
-## (Append future gaps below as L6/... docs land)
+---
+
+## L6 — Request integrity
+
+### 11. RFC 9126 (PAR) — full implementation
+
+- **What:** `POST /par` back-channel endpoint that accepts an authorization request, stores it server-side, returns an opaque `request_uri` for the browser-borne `/authorize` redirect.
+- **Where:** No PAR handlers in `apiauth/`. `apiauth/authorize.go:138` parses `request` and `request_object` candidates but `request_uri` isn't recognized.
+- **Why:** Cleans up browser URLs (no parameter leakage to history / logs / Referer); enables RAR (RFC 9396) to carry rich JSON without URL-encoding huge bodies; mandated for FAPI 2.0 conformance.
+- **Sub-surfaces:**
+  - `POST /par` endpoint (reuse `ClientAuthenticator` for caller auth)
+  - PAR store with TTL'd `request_uri` records (analogous to `AuthorizationCodeStore`, model on `apiauth/device_auth_grant.go`)
+  - `request_uri` dereferencing at `/authorize`
+  - `pushed_authorization_request_endpoint` AS metadata field
+  - `require_pushed_authorization_requests` per-client metadata + deployment flag
+- **Effort:** M. Shape closely mirrors RFC 8628 Device Authorization (same pre-flow-endpoint + opaque-reference pattern).
+- **Mentioned in:** [RFC_9126.md](RFC_9126.md) — full implementation sketch.
+
+### 12. RFC 9101 (JAR) — full implementation
+
+- **What:** Validate signed `request=<JWT>` and `request_uri=<URL>` at `/authorize`; use JWT claims as canonical authorization request per §6.1.
+- **Where:** `apiauth/authorize.go:138` parses `request` / `request_object` candidates but doesn't validate. Existing JWS-validation primitives in `apiauth/client_authenticator.go` are directly reusable.
+- **Why:** Integrity protection on authorization requests; FAPI 1.0 Advanced + FAPI 2.0 mandate this. Tracked under repo issue 150.
+- **Sub-surfaces:**
+  - Request JWT signature validation (reuse `client_authenticator.go` JWS path — same key lookup by `kid` against client's registered JWKS)
+  - Claim extraction (override URL params per §6.1)
+  - `request_uri` HTTP fetch (for non-PAR delivery)
+  - AS metadata: `request_parameter_supported`, `request_uri_parameter_supported`, `request_object_signing_alg_values_supported`
+  - DCR metadata: `require_signed_request_object` per-client
+  - Encrypted request objects (JWE) — gated on RFC 7516 gap, rarely needed
+- **Effort:** M. Most JWS plumbing already exists; the work is parameterizing existing primitives for a different "what the JWT means" semantic.
+- **Mentioned in:** [RFC_9101.md](RFC_9101.md) — full implementation sketch.
+
+## (Append future gaps below as L7/... docs land)
 
 ---
 
