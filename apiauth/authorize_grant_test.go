@@ -15,7 +15,6 @@ import (
 
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/core"
-	"github.com/panyam/oneauth/oauth2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +42,7 @@ func setupAuthCode(t *testing.T) (*apiauth.APIAuth, core.AuthorizationCodeStore)
 // fixture client_id / redirect_uri / PKCE pair.
 func seedAuthCode(t *testing.T, store core.AuthorizationCodeStore, code string) {
 	t.Helper()
-	challenge := oauth2.ComputeCodeChallenge(authcodeTestVerifier)
+	challenge := core.ComputeCodeChallenge(authcodeTestVerifier)
 	_, err := store.CreateAuthorizationCode(context.Background(), &core.CreateAuthorizationCodeRequest{
 		Code: &core.AuthorizationCode{
 			Code:                code,
@@ -52,7 +51,7 @@ func seedAuthCode(t *testing.T, store core.AuthorizationCodeStore, code string) 
 			Scopes:              []string{"read"},
 			Subject:             authcodeTestSubject,
 			CodeChallenge:       challenge,
-			CodeChallengeMethod: oauth2.CodeChallengeMethodS256,
+			CodeChallengeMethod: core.CodeChallengeMethodS256,
 			IssuedAt:            time.Now(),
 			ExpiresAt:           time.Now().Add(1 * time.Minute),
 		},
@@ -160,7 +159,7 @@ func TestAuthCodeRedeem_ClientIDMismatch(t *testing.T) {
 // so a leaked-but-stale code cannot be retried indefinitely.
 func TestAuthCodeRedeem_Expired(t *testing.T) {
 	auth, store := setupAuthCode(t)
-	challenge := oauth2.ComputeCodeChallenge(authcodeTestVerifier)
+	challenge := core.ComputeCodeChallenge(authcodeTestVerifier)
 	_, err := store.CreateAuthorizationCode(context.Background(), &core.CreateAuthorizationCodeRequest{
 		Code: &core.AuthorizationCode{
 			Code:                "code-stale",
@@ -169,7 +168,7 @@ func TestAuthCodeRedeem_Expired(t *testing.T) {
 			Scopes:              []string{"read"},
 			Subject:             authcodeTestSubject,
 			CodeChallenge:       challenge,
-			CodeChallengeMethod: oauth2.CodeChallengeMethodS256,
+			CodeChallengeMethod: core.CodeChallengeMethodS256,
 			IssuedAt:            time.Now().Add(-2 * time.Minute),
 			ExpiresAt:           time.Now().Add(-1 * time.Minute),
 		},
