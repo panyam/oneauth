@@ -688,8 +688,8 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 | [OIDC_Discovery.md](OIDC_Discovery.md) | 🟡 | #322 |
 | [OIDC_BCL.md](OIDC_BCL.md) | 🟡 | #323 |
 | [OIDC_CIBA.md](OIDC_CIBA.md) | 🟡 | #324 |
-| FAPI.md | 📝 | — |
-| GNAP.md | 📝 | — |
+| [FAPI.md](FAPI.md) | 🟡 | #325 |
+| [GNAP.md](GNAP.md) | 🟡 | #326 |
 
 ---
 
