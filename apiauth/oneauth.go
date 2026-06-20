@@ -55,6 +55,12 @@ type OneAuth struct {
 	DeviceAuthStore        core.DeviceAuthorizationStore
 	AppStore               core.AppRegistrationStore
 
+	// AllowPlainPKCE mirrors OneAuthConfig.AllowPlainPKCE. Exposed so
+	// transport bindings (MountAuthorize, AS metadata derivation) can
+	// read the AS-wide policy without re-plumbing the flag through
+	// every config call site.
+	AllowPlainPKCE bool
+
 	// AcceptedAudiences is the set of URLs the token endpoint will
 	// accept as the `aud` claim of a private_key_jwt / client_secret_jwt
 	// client assertion (OIDC Core §9). Echoed into the granters so they
@@ -136,6 +142,18 @@ type OneAuthConfig struct {
 	// Authorization code grant (RFC 6749 §4.1). When AuthorizationCodeStore
 	// is non-nil the token endpoint accepts grant_type=authorization_code.
 	AuthorizationCodeStore core.AuthorizationCodeStore
+
+	// AllowPlainPKCE permits `code_challenge_method=plain` per RFC 7636
+	// §4.4 on the /authorize endpoint. OAuth 2.1 §7.5 retired plain;
+	// leaving this false (default) keeps OneAuth strict-2.1. Set true to
+	// support OAuth 2.0 fleets that have legacy clients unable to
+	// compute SHA-256. AS metadata derivation should reflect the flag
+	// (`code_challenge_methods_supported` = ["S256"] when false,
+	// ["S256", "plain"] when true) — callers wire this when building
+	// the ASServerMetadata struct.
+	//
+	// Per capability-gating umbrella #344.
+	AllowPlainPKCE bool
 
 	// Device authorization grant (RFC 8628). When DeviceAuthStore is
 	// non-nil the token endpoint accepts grant_type=...:device_code.
@@ -266,6 +284,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		AuthorizationCodeStore:   cfg.AuthorizationCodeStore,
 		DeviceAuthStore:          cfg.DeviceAuthStore,
 		AppStore:                 cfg.AppStore,
+		AllowPlainPKCE:           cfg.AllowPlainPKCE,
 		AcceptedAudiences:        cfg.AcceptedAudiences,
 		Hooks:                    cfg.Hooks,
 	}

@@ -79,6 +79,7 @@ type config struct {
 	authorizeEnabled         bool
 	authorizeAutoApprove     string
 	authorizeRedirectOverride func(values url.Values)
+	allowPlainPKCE           bool
 }
 
 // Option configures a TestAuthServer.
@@ -185,6 +186,17 @@ func WithAuthorizeAutoApproveSubject(subject string) Option {
 	return func(c *config) { c.authorizeAutoApprove = subject }
 }
 
+// WithAllowPlainPKCE opts the test AS into OAuth 2.0 `plain` PKCE on
+// the /authorize endpoint (RFC 7636 §4.4). OAuth 2.1 §7.5 retired
+// plain; this option exists for conformance fixtures that need to
+// exercise the OAuth 2.0 escape hatch documented under
+// capability-gating umbrella #344. AS metadata
+// `code_challenge_methods_supported` extends to ["S256", "plain"] when
+// enabled. Production deployments never set this.
+func WithAllowPlainPKCE(allow bool) Option {
+	return func(c *config) { c.allowPlainPKCE = allow }
+}
+
 // WithAuthorizeRedirectOverride installs a hook that mutates the
 // /authorize redirect's query values before they are URL-encoded.
 // Lets conformance scenarios test misbehaving-AS branches that a
@@ -285,6 +297,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		Audience:                cfg.audience,
 		AudienceFunc:            cfg.audienceFunc,
 		TrustedAssertionIssuers: cfg.trustedAssertionIssuers,
+		AllowPlainPKCE:          cfg.allowPlainPKCE,
 	}
 	if cfg.authorizeEnabled {
 		oaCfg.AuthorizationCodeStore = core.NewInMemoryAuthorizationCodeStore()
@@ -356,7 +369,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		ResponseTypesSupported:        responseTypes,
 		TokenEndpointAuthMethods:                   []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256"},
-		CodeChallengeMethodsSupported:              []string{"S256"},
+		CodeChallengeMethodsSupported:              pkceMethodsSupported(cfg.allowPlainPKCE),
 		AuthorizationResponseIssParameterSupported: cfg.issParameterSupported,
 	})
 
@@ -389,6 +402,17 @@ func appendIfMissing(slice []string, value string) []string {
 		}
 	}
 	return append(slice, value)
+}
+
+// pkceMethodsSupported returns the value to advertise in AS metadata's
+// `code_challenge_methods_supported` based on whether the deployment
+// opted into OAuth 2.0 plain PKCE. Default is the OAuth 2.1-clean
+// ["S256"]; opt-in extends to ["S256", "plain"] per RFC 7636 §4.4.
+func pkceMethodsSupported(allowPlain bool) []string {
+	if allowPlain {
+		return []string{"S256", "plain"}
+	}
+	return []string{"S256"}
 }
 
 // NewTestAuthServer creates an in-process authorization server for tests.

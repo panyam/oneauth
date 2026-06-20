@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/panyam/oneauth/core"
@@ -101,6 +104,26 @@ type AuthorizationHandler struct {
 
 	// Expiry overrides DefaultAuthorizationCodeExpiry.
 	Expiry time.Duration
+
+	// AllowPlainPKCE permits `code_challenge_method=plain` per
+	// RFC 7636 §4.4. OAuth 2.1 §7.5 retired plain; leaving this false
+	// (default) keeps OneAuth's /authorize strict-2.1 — only S256 is
+	// accepted, advertised, and verified at redemption. Operators
+	// setting this true take on responsibility for the leak surface
+	// the §7.5 retirement was meant to close: a plain `code_challenge`
+	// IS the verifier, so any leaked authorization request equals a
+	// leaked verifier. Set on OneAuthConfig.AllowPlainPKCE so the AS
+	// metadata derivation and the redemption path can read the same
+	// value.
+	//
+	// Per capability-gating umbrella #344.
+	AllowPlainPKCE bool
+
+	// allowPlainPKCEWarning fires once per AuthorizationHandler
+	// instance the first time a plain code_challenge is accepted at
+	// runtime. Surfaces the OAuth 2.0 escape hatch to operators who
+	// may have set the flag and forgotten.
+	allowPlainPKCEWarning sync.Once
 }
 
 // ParseAndValidate parses an HTTP request's query / form into an
@@ -173,13 +196,26 @@ func (h *AuthorizationHandler) ParseAndValidate(r *http.Request) (req *Authoriza
 		return req, false, "invalid_request", "code_challenge is required (PKCE)"
 	}
 	if req.CodeChallengeMethod == "" {
-		// RFC 7636 §4.3 defaults to "plain" when omitted, but we do
-		// not support plain — make the requirement explicit so the
-		// client knows what to send.
+		// RFC 7636 §4.3 defaults to "plain" when omitted. We require
+		// the method to be sent explicitly so the client's intent is
+		// unambiguous on the wire — and so a misconfigured client
+		// doesn't accidentally pick the weaker method.
 		return req, false, "invalid_request", "code_challenge_method is required"
 	}
-	if req.CodeChallengeMethod != core.CodeChallengeMethodS256 {
-		return req, false, "invalid_request", "only S256 PKCE is supported"
+	switch req.CodeChallengeMethod {
+	case core.CodeChallengeMethodS256:
+		// OAuth 2.1 §7.5 mandated default; always accepted.
+	case core.CodeChallengeMethodPlain:
+		if !h.AllowPlainPKCE {
+			return req, false, "invalid_request", "only S256 PKCE is supported (set OneAuthConfig.AllowPlainPKCE to permit plain for OAuth 2.0 fleets)"
+		}
+		h.allowPlainPKCEWarning.Do(func() {
+			log.Printf("apiauth.AuthorizationHandler: LEGACY OAuth 2.0 PATH — code_challenge_method=plain accepted. " +
+				"OAuth 2.1 §7.5 retired plain; the challenge equals the verifier, so any leaked authorization " +
+				"request equals a leaked verifier. Disable by leaving OneAuthConfig.AllowPlainPKCE false.")
+		})
+	default:
+		return req, false, "invalid_request", fmt.Sprintf("unsupported code_challenge_method=%q", req.CodeChallengeMethod)
 	}
 
 	return req, false, "", ""

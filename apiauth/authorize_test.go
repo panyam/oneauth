@@ -130,7 +130,9 @@ func TestParseAndValidate_MissingPKCE(t *testing.T) {
 }
 
 // TestParseAndValidate_PlainPKCERejected pins that we reject
-// code_challenge_method=plain — OAuth 2.1 deprecated plain.
+// code_challenge_method=plain by default — OAuth 2.1 §7.5 retired plain.
+// The opt-in path (AllowPlainPKCE=true) is exercised by
+// TestParseAndValidate_PlainPKCEAcceptedWhenAllowed.
 func TestParseAndValidate_PlainPKCERejected(t *testing.T) {
 	h, _ := newHandlerForTest(t)
 	form := url.Values{
@@ -143,6 +145,50 @@ func TestParseAndValidate_PlainPKCERejected(t *testing.T) {
 	_, _, errCode, desc := h.ParseAndValidate(newRequest(t, http.MethodGet, "/authorize", form))
 	assert.Equal(t, "invalid_request", errCode)
 	assert.Contains(t, desc, "S256")
+	assert.Contains(t, desc, "AllowPlainPKCE", "error message should point operators at the flag")
+}
+
+// TestParseAndValidate_PlainPKCEAcceptedWhenAllowed pins the
+// capability-gating umbrella #344 opt-in path: when the AS opts in via
+// AllowPlainPKCE, /authorize accepts plain; the verifier check at
+// redemption (core.VerifyPKCE) handles plain by direct compare.
+func TestParseAndValidate_PlainPKCEAcceptedWhenAllowed(t *testing.T) {
+	h, _ := newHandlerForTest(t)
+	h.AllowPlainPKCE = true
+	form := url.Values{
+		"client_id":             {"client-x"},
+		"redirect_uri":          {"https://app.example/cb"},
+		"response_type":         {"code"},
+		"code_challenge":        {"any-challenge"},
+		"code_challenge_method": {"plain"},
+	}
+	_, _, errCode, _ := h.ParseAndValidate(newRequest(t, http.MethodGet, "/authorize", form))
+	assert.Empty(t, errCode, "plain PKCE MUST be accepted when AllowPlainPKCE=true")
+
+	// Verifier check at redemption: plain compares verifier == challenge.
+	assert.True(t, core.VerifyPKCE(core.CodeChallengeMethodPlain, "any-challenge", "any-challenge"),
+		"plain verify MUST pass when verifier == challenge")
+	assert.False(t, core.VerifyPKCE(core.CodeChallengeMethodPlain, "any-challenge", "wrong"),
+		"plain verify MUST fail when verifier != challenge")
+}
+
+// TestParseAndValidate_UnsupportedPKCEMethod pins that unknown methods
+// (not S256, not plain) are always rejected, even when AllowPlainPKCE
+// is true. AllowPlainPKCE is a §7.5 escape hatch, not a "permit
+// anything" knob.
+func TestParseAndValidate_UnsupportedPKCEMethod(t *testing.T) {
+	h, _ := newHandlerForTest(t)
+	h.AllowPlainPKCE = true
+	form := url.Values{
+		"client_id":             {"client-x"},
+		"redirect_uri":          {"https://app.example/cb"},
+		"response_type":         {"code"},
+		"code_challenge":        {"any-challenge"},
+		"code_challenge_method": {"S512"},
+	}
+	_, _, errCode, desc := h.ParseAndValidate(newRequest(t, http.MethodGet, "/authorize", form))
+	assert.Equal(t, "invalid_request", errCode)
+	assert.Contains(t, desc, "unsupported")
 }
 
 // TestParseAndValidate_RedirectURIAllowlist pins that the configured
