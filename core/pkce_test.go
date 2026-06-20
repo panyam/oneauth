@@ -38,11 +38,18 @@ func TestPKCE_VerifyMismatch(t *testing.T) {
 	assert.False(t, core.VerifyPKCE(core.CodeChallengeMethodS256, challenge, "wrong-verifier"))
 }
 
-// TestPKCE_VerifyRejectsPlain pins OAuth 2.1's deprecation of the
-// plain method — `plain` MUST NOT verify even when the verifier and
-// challenge are byte-equal.
-func TestPKCE_VerifyRejectsPlain(t *testing.T) {
-	assert.False(t, core.VerifyPKCE("plain", "match", "match"), "plain method MUST be rejected")
+// TestPKCE_VerifyPlainMatch pins RFC 7636 §4.4: when the stored method
+// is plain, the verifier MUST equal the challenge byte-for-byte.
+// VerifyPKCE accepts plain unconditionally at the verification layer
+// — the OAuth 2.1 §7.5 rejection of plain happens upstream at
+// /authorize (gated by AuthorizationHandler.AllowPlainPKCE). This
+// split keeps codes minted under an earlier flag setting verifiable
+// even if the operator later flips AllowPlainPKCE off; #345.
+func TestPKCE_VerifyPlainMatch(t *testing.T) {
+	assert.True(t, core.VerifyPKCE(core.CodeChallengeMethodPlain, "match", "match"),
+		"plain MUST verify when verifier == challenge")
+	assert.False(t, core.VerifyPKCE(core.CodeChallengeMethodPlain, "challenge", "verifier"),
+		"plain MUST fail when verifier != challenge")
 }
 
 // TestPKCE_VerifyRejectsUnknownMethod pins any unknown method to

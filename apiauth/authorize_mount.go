@@ -128,6 +128,7 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 		EmitIssParameter:     cfg.EmitIssParameter,
 		RedirectOverride:     cfg.RedirectOverride,
 		Expiry:               cfg.Expiry,
+		AllowPlainPKCE:       cfg.OneAuth.AllowPlainPKCE,
 	}
 
 	verifier := &AuthorizeVerificationHandler{
