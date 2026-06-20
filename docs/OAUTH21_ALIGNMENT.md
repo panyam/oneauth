@@ -18,7 +18,7 @@ The strategic story is good: OneAuth's "embeddable library, not full IdP" positi
 | 4 | Exact redirect URI matching (no wildcards, no substring) | No `/authorize` to enforce on, but DCR (`/apps/dcr`) doesn't validate registered redirect URI format either. | Compliant by absence on the auth flow; DCR has a separate gap. | DCR-side validation shipped under this PR. Full enforcement on `/authorize` waits on #116. |
 | 5 | PKCE method MUST be S256 (reject `plain`) | Client uses S256 only; no server-side enforcement needed yet. | Compliant by absence. | Enforce on `/authorize` when it ships; AS metadata already advertises `S256` only. |
 | 6 | HTTPS for redirect URIs (loopback exception) | DCR previously accepted any URI; client SDK has `client.ValidateHTTPS` but for AS endpoints, not registered redirects. | **Non-compliant (DCR)** — fixed under this PR. | DCR now rejects `http://` registered redirect URIs except for loopback (`127.0.0.1`, `::1`, `localhost`). |
-| 7 | Bearer tokens NOT in query string | `APIMiddleware.TokenQueryParam` opt-in fallback accepts `?token=…`. | **Non-compliant (opt-in path).** | Deprecation log warning shipped under this PR. Filed as a follow-up for full removal — needs WebSocket-auth alternative documented (subprotocol headers / initial-frame auth). |
+| 7 | Bearer tokens NOT in query string | `APIMiddleware.LegacyQueryParamBearer` opt-in fallback accepts `?token=…`. Default-off; deprecation warning fires once at first use. | **Compliant by default (when `LegacyQueryParamBearer` is nil).** | Field renamed under #295. Path retained for OAuth 2.0 deployments that genuinely need it (e.g., WebSocket upgrade where token can't ride Authorization header); see `docs/DEMOS.md` for three header-clean alternatives. Per capability-gating umbrella #344. |
 | 8 | Refresh token rotation | Implemented with reuse detection and family-revoke-on-reuse. | **Compliant.** | None. |
 
 ## Per-row analysis
@@ -62,17 +62,19 @@ OAuth 2.1 §3.1.2.1 requires all redirect URIs to use `https://`. The only exemp
 
 Before this PR: `admin/registrar.go` accepted any string in the `redirect_uris` array. After: each URI is parsed; non-loopback URIs must use `https://`; non-parseable URIs are rejected; loopback exemption is explicit. Returns `ErrInvalidClientMetadata` per RFC 7591 §3.2.2.
 
-### 7. Bearer in query string — non-compliant (deprecation warning in this PR)
+### 7. Bearer in query string — compliant by default; OAuth 2.0 opt-in path retained
 
-OAuth 2.1 §5.4 prohibits bearer tokens in query strings (also see RFC 6750 §2.3 which had already deprecated this in 2012). The query-string carry attacks:
+OAuth 2.1 §5.4 retired bearer tokens in query strings (RFC 6750 §2.3 had deprecated this in 2012). The query-string carry attacks:
 
 - Tokens land in browser history and server access logs.
 - `Referer` headers leak them across origins.
 - Caches and CDNs persist them.
 
-`apiauth/auth.go:1175-1179` consults `APIMiddleware.TokenQueryParam`. When that field is set, the middleware will accept the access token as a URL query parameter as a fallback to the `Authorization` header. This was historically used for WebSocket upgrade-style flows (per `docs/DEMOS.md`).
+`apiauth/middleware.go` consults `APIMiddleware.LegacyQueryParamBearer`. The field is unset by default (compliant); when an operator sets it, a sync.Once log warns at first use that this is the legacy OAuth 2.0 path and points at `docs/DEMOS.md` for three header-clean alternatives.
 
-Under this PR: a one-time-per-process `log.Printf` fires when the query-param fallback is consulted, warning that the path is deprecated and pointing at the follow-up issue. The behavior is unchanged. Full removal is filed as a separate issue — it needs a documented alternative for the WebSocket-auth use case (subprotocol headers, initial-frame auth, or short-lived per-connection ticket).
+The original audit (#140) filed this as "non-compliant (opt-in)" planning full removal. The capability-gating umbrella #344 rescoped that: OAuth 2.0 is still ~95% of real-world deployments; removal would break the WebSocket upgrade use case (where the initial GET can't carry an Authorization header) without a one-size-fits-all replacement. The path is retained as a deliberate OAuth 2.0 escape hatch.
+
+#295 ships the rename + sharpened deprecation log + docs/DEMOS.md alternatives. Future deployments that don't set the field get OAuth 2.1 §5.4 compliance for free.
 
 ### 8. Refresh token rotation — compliant
 
@@ -86,10 +88,15 @@ No work needed; this row is the cleanest in the table.
 
 ## Filed follow-ups
 
+The original audit framed #294 and #295 as removals. The capability-gating umbrella **#344** rescoped them into per-deployment opt-in mechanisms (nil-handler for grants; flags for policies). See #344 for the framing.
+
 | Issue | Scope | Status |
 |---|---|---|
-| #294 — ROPC removal (`grant_type=password`) | Identify all internal callers (demo-hostapp, e2e tests), document migration to `localauth/` HTTP login, ship as a breaking change. | Filed |
-| #295 — `TokenQueryParam` fallback removal | Document WebSocket-auth alternatives (subprotocol headers, initial-frame auth, short-lived per-connection tickets), gate the removal on consumer migration. | Filed |
+| #344 (umbrella) | OAuth 2.0/2.1 capability gating — nil-handler for grants, flags for policies | Open |
+| #294 | Extract `PasswordGranter` peer interface; default-disable ROPC via nil-handler | Open |
+| #295 | Rename `TokenQueryParam` → `LegacyQueryParamBearer`; sharpen deprecation; WebSocket alternatives in docs/DEMOS.md | Open |
+| #345 | `AllowPlainPKCE` flag — opt-in OAuth 2.0 plain PKCE on `/authorize` | Open |
+| #346 | Enforce per-client DCR `grant_types` at token endpoint dispatch | Open |
 
 ## What this audit does NOT cover
 

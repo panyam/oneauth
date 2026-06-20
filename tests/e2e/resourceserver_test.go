@@ -44,8 +44,8 @@ func buildOneResourceServer(t *testing.T, name string, authServer *httptest.Serv
 	}
 
 	mw := &apiauth.APIMiddleware{
-		KeyStore:        keyLookup,
-		TokenQueryParam: "token",
+		KeyStore:               keyLookup,
+		LegacyQueryParamBearer: "token",
 	}
 
 	var (
