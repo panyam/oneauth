@@ -103,8 +103,8 @@ func main() {
 
 	// APIMiddleware for JWT validation
 	middleware := &apiauth.APIMiddleware{
-		KeyStore:        keyStore,
-		TokenQueryParam: "token",
+		KeyStore:               keyStore,
+		LegacyQueryParamBearer: "token",
 	}
 
 	mux := http.NewServeMux()

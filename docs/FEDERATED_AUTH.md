@@ -122,7 +122,7 @@ The resource server uses `APIMiddleware` with a shared `KeyStore` to validate:
 ```go
 middleware := &oa.APIMiddleware{
     KeyStore:        keyStore,  // shared with OneAuth server
-    TokenQueryParam: "token",  // for WebSocket clients
+    LegacyQueryParamBearer: "token",  // legacy 2.0 path; see docs/DEMOS.md for header-clean WebSocket auth
 }
 
 mux.Handle("/ws", middleware.ValidateToken(wsHandler))
@@ -395,7 +395,7 @@ keyStore := gormstore.NewKeyStore(db)
 
 middleware := &oa.APIMiddleware{
     KeyStore:        keyStore,
-    TokenQueryParam: "token",  // for WebSocket: ws://relay?token=...
+    LegacyQueryParamBearer: "token",  // legacy 2.0 path; see docs/DEMOS.md for header-clean WebSocket auth
 }
 
 mux.Handle("/ws", middleware.ValidateToken(func(w http.ResponseWriter, r *http.Request) {

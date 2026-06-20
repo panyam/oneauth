@@ -40,7 +40,7 @@ PostgreSQL (shared signing_keys table)
 | Cross-resource-server validation | Token from DrawApp validates on both Resource-Server-A and Resource-Server-B (they share the same KeyStore) |
 | Cross-app isolation | Token signed with DrawApp's secret but claiming ChatApp's `client_id` is rejected (`kid` owner doesn't match `client_id` claim) |
 | Token introspection | Resource server returns `user_id`, `client_id`, `scopes`, `max_rooms`, `max_msg_rate` from JWT custom claims |
-| WebSocket-style auth | `GET /ws?token=...` validates token via query param (simulates WebSocket upgrade) |
+| WebSocket-style auth | `GET /ws?token=...` validates token via query param (simulates WebSocket upgrade). Uses `APIMiddleware.LegacyQueryParamBearer` — the OAuth 2.0 escape hatch; see [WebSocket auth alternatives](#websocket-auth-alternatives) below for the three OAuth 2.1-clean replacements |
 
 ### Running the Demo
 
@@ -56,6 +56,47 @@ cd demo
 make up        # builds and starts all 6 services in Docker
 make status    # shows URLs and container status
 ```
+
+## WebSocket auth alternatives
+
+The demo's `GET /ws?token=…` pattern is the OAuth 2.0 legacy carry, enabled via `APIMiddleware.LegacyQueryParamBearer`. OAuth 2.1 §5.4 retired query-string bearer tokens because they land in browser history, server access logs, `Referer` headers, caches, and CDNs.
+
+A real WebSocket upgrade can't always set the `Authorization` header on the initial GET (browser `WebSocket` constructors don't accept arbitrary headers). The three header-clean replacements are below. New deployments should pick one; the legacy field is retained for existing OAuth 2.0 fleets that cannot migrate.
+
+### 1. WebSocket subprotocol header (recommended)
+
+The browser `WebSocket` constructor accepts a subprotocol argument. Encode the bearer token as one of the negotiated subprotocols; the server reads it on upgrade.
+
+```js
+// client
+const ws = new WebSocket("wss://relay.example/ws", [`bearer.${jwt}`]);
+```
+
+```go
+// server (on Upgrade)
+proto := r.Header.Get("Sec-WebSocket-Protocol")
+for _, part := range strings.Split(proto, ",") {
+    if t, ok := strings.CutPrefix(strings.TrimSpace(part), "bearer."); ok {
+        // validate t via APIMiddleware-style flow, then accept upgrade
+    }
+}
+```
+
+**Pros:** standard mechanism (Discord, Slack, others use this); browser-supported. **Cons:** server must parse the subprotocol on upgrade; token visible in DevTools but not in URL bar / logs.
+
+### 2. Initial-frame auth
+
+Accept the upgrade unauthenticated; require the first WebSocket frame to be `{"type": "auth", "token": "…"}`. Defer auth-required handlers until that frame lands; disconnect if the timer expires first.
+
+**Pros:** works with any WebSocket client library (no constructor arg). **Cons:** one extra round-trip; server holds a connection in a half-open state until auth lands.
+
+### 3. Short-lived per-connection ticket
+
+The client POSTs to a regular HTTP endpoint (`POST /ws/ticket`) with `Authorization: Bearer <token>` and receives a single-use, ~30-second ticket. WebSocket URL carries `?ticket=…`. Server consumes the ticket on upgrade and binds it to the connection.
+
+**Pros:** simplest for embedded clients that can't do subprotocol negotiation. **Cons:** the ticket *is* a URL query carry — but it's connection-scoped, single-use, and short-lived, mitigating the leak surface that motivated OAuth 2.1 §5.4.
+
+Pick the one that fits your client constraints. The OneAuth library exposes the validation primitives (`APIMiddleware.ValidateToken`, `IntrospectionValidator`) any of these patterns can call.
 
 #### Manual Walkthrough
 

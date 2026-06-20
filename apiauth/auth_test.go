@@ -746,10 +746,10 @@ func TestQueryParamToken(t *testing.T) {
 	json.NewDecoder(rr.Body).Decode(&loginResponse)
 
 	mw := &apiauth.APIMiddleware{
-		JWTSecretKey:    apiAuth.JWTSecret,
-		JWTIssuer:       apiAuth.JWTIssuer,
-		APIKeyStore:     apiKeyStore,
-		TokenQueryParam: "token",
+		JWTSecretKey:           apiAuth.JWTSecret,
+		JWTIssuer:              apiAuth.JWTIssuer,
+		APIKeyStore:            apiKeyStore,
+		LegacyQueryParamBearer: "token",
 	}
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -788,7 +788,7 @@ func TestQueryParamToken(t *testing.T) {
 		}
 	})
 
-	t.Run("query param disabled when TokenQueryParam empty", func(t *testing.T) {
+	t.Run("query param disabled when LegacyQueryParamBearer empty", func(t *testing.T) {
 		mwNoQP := &apiauth.APIMiddleware{
 			JWTSecretKey: apiAuth.JWTSecret,
 			JWTIssuer:    apiAuth.JWTIssuer,

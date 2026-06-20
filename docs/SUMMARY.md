@@ -83,7 +83,7 @@ mux.Handle("/api/login", api)
 
 // Protect endpoints with APIMiddleware
 middleware := &apiauth.APIMiddleware{
-    TokenQueryParam: "token",
+    LegacyQueryParamBearer: "token",  // legacy OAuth 2.0 path; OAuth 2.1 §5.4 retired query-param bearer
 }
 mux.Handle("/api/protected", middleware.ValidateToken(handler))
 

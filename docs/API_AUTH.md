@@ -164,7 +164,7 @@ middleware := &apiauth.APIMiddleware{
     JWTAudience:     apiAuth.JWTAudience,
     APIKeyStore:     apiKeyStore,
     AuthHeader:      "Authorization", // Default
-    TokenQueryParam: "token",         // Optional: accept token as query param
+    LegacyQueryParamBearer: "token",  // Optional OAuth 2.0 path (retired in 2.1 §5.4); see docs/DEMOS.md for WebSocket alternatives
 }
 ```
 
@@ -173,7 +173,7 @@ middleware := &apiauth.APIMiddleware{
 The middleware extracts tokens from two sources, in order of precedence:
 
 1. **Authorization header** (default): `Authorization: Bearer <token>`
-2. **Query parameter** (when `TokenQueryParam` is set): `GET /ws?token=<jwt>`
+2. **Query parameter** (when `LegacyQueryParamBearer` is set): `GET /ws?token=<jwt>` — OAuth 2.0 legacy path; OAuth 2.1 §5.4 retired query-param bearer carry. For WebSocket use cases see [docs/DEMOS.md](DEMOS.md) for three header-clean alternatives.
 
 The query parameter fallback is useful for WebSocket clients and other contexts where setting HTTP headers is not possible. If both are present, the header takes precedence.
 
