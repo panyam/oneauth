@@ -53,13 +53,21 @@ func setupAPIAuthTest(t *testing.T) (*apiAuthFixture, *fs.FSRefreshTokenStore, *
 	getSubjectScopes := func(userID string) ([]string, error) {
 		return []string{core.ScopeRead, core.ScopeWrite, core.ScopeProfile, core.ScopeOffline}, nil
 	}
+	validateCreds := localauth.NewCredentialsValidator(identityStore, channelStore, userStore)
 
 	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		SigningKey:          []byte(jwtSecret),
 		SigningAlg:          "HS256",
 		Issuer:              jwtIssuer,
 		RefreshStore:        refreshTokenStore,
-		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
+		ValidateCredentials: validateCreds,
+		GetSubjectScopes:    getSubjectScopes,
+	})
+	// ROPC is opt-in post-#294; the existing test suite exercises
+	// grant_type=password, so wire the granter explicitly here.
+	oa.PasswordGranter = apiauth.NewPasswordGranter(apiauth.PasswordGranterConfig{
+		Issuer:              oa.Issuer,
+		ValidateCredentials: validateCreds,
 		GetSubjectScopes:    getSubjectScopes,
 	})
 
@@ -837,15 +845,17 @@ func TestCustomClaimsInContext(t *testing.T) {
 		ccJWTSecret = "test-secret-custom-claims"
 		ccJWTIssuer = "oneauth-test"
 	)
+	validateCreds := localauth.NewCredentialsValidator(identityStore, channelStore, userStore)
+	subjectScopes := func(userID string) ([]string, error) {
+		return []string{core.ScopeRead, core.ScopeWrite}, nil
+	}
 	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		SigningKey:          []byte(ccJWTSecret),
 		SigningAlg:          "HS256",
 		Issuer:              ccJWTIssuer,
 		RefreshStore:        refreshTokenStore,
-		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
-		GetSubjectScopes: func(userID string) ([]string, error) {
-			return []string{core.ScopeRead, core.ScopeWrite}, nil
-		},
+		ValidateCredentials: validateCreds,
+		GetSubjectScopes:    subjectScopes,
 		CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
 			return map[string]any{
 				"client_id":    "host-alpha",
@@ -853,6 +863,11 @@ func TestCustomClaimsInContext(t *testing.T) {
 				"max_msg_rate": 50.0,
 			}, nil
 		},
+	})
+	oa.PasswordGranter = apiauth.NewPasswordGranter(apiauth.PasswordGranterConfig{
+		Issuer:              oa.Issuer,
+		ValidateCredentials: validateCreds,
+		GetSubjectScopes:    subjectScopes,
 	})
 	apiAuth := &apiAuthFixture{
 		OneAuth:       oa,

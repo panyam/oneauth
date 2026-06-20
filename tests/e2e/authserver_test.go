@@ -119,6 +119,13 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		AuthorizationCodeStore: core.NewInMemoryAuthorizationCodeStore(),
 		Hooks:                  apiauth.Hooks{Token: tokenHooks},
 	})
+	// ROPC is opt-in post-#294. The e2e suite POSTs grant_type=password
+	// (helpers_test.go login flow) so wire the granter explicitly.
+	// Strict-2.1 e2e coverage lives in a separate test below.
+	e.oa.PasswordGranter = apiauth.NewPasswordGranter(apiauth.PasswordGranterConfig{
+		Issuer:              e.oa.Issuer,
+		ValidateCredentials: e.localAuth.ValidateCredentials,
+	})
 	e.tokenEndpoint = apiauth.NewTokenEndpointHandler(e.oa)
 	e.sessions = e.oa.SessionsHTTPHandler()
 

@@ -75,17 +75,26 @@ func authServerWithTracing(t *testing.T, tp trace.TracerProvider) (*httptest.Ser
 
 	keyStore := keys.NewInMemoryKeyStore()
 
+	validateCreds := localauth.NewCredentialsValidator(identityStore, channelStore, userStore)
+	subjectScopes := func(string) ([]string, error) {
+		return []string{core.ScopeRead, core.ScopeWrite}, nil
+	}
 	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		KeyStore:            keyStore,
 		SigningKey:          []byte("trace-e2e-secret-32-chars-long!!"),
 		SigningAlg:          "HS256",
 		Issuer:              "oneauth-trace-e2e",
 		RefreshStore:        refreshStore,
-		ValidateCredentials: localauth.NewCredentialsValidator(identityStore, channelStore, userStore),
-		GetSubjectScopes: func(string) ([]string, error) {
-			return []string{core.ScopeRead, core.ScopeWrite}, nil
-		},
-		TracerProvider: tp,
+		ValidateCredentials: validateCreds,
+		GetSubjectScopes:    subjectScopes,
+		TracerProvider:      tp,
+	})
+	// Trace e2e POSTs grant_type=password to mint the token it then
+	// follows through introspect / revoke. ROPC is opt-in post-#294.
+	oa.PasswordGranter = apiauth.NewPasswordGranter(apiauth.PasswordGranterConfig{
+		Issuer:              oa.Issuer,
+		ValidateCredentials: validateCreds,
+		GetSubjectScopes:    subjectScopes,
 	})
 	tokenEndpoint := apiauth.NewTokenEndpointHandler(oa)
 	tokenEndpoint.TracerProvider = tp

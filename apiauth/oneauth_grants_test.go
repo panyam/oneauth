@@ -87,29 +87,44 @@ func TestOneAuth_RefreshGrant_InvalidToken(t *testing.T) {
 // Password Grant
 // =============================================================================
 
-// newTestOneAuthWithPasswordGrant creates a OneAuth with password grant support.
+// newTestOneAuthWithPasswordGrant creates a OneAuth with the password
+// granter wired. ROPC is opt-in post-#294; tests that need the grant
+// pass PasswordGranter explicitly, mirroring how production
+// OAuth 2.0 deployments would opt in.
 func newTestOneAuthWithPasswordGrant(t *testing.T) *apiauth.OneAuth {
 	t.Helper()
 	signingSecret := []byte("test-signing-secret-32chars-min!")
 	ks := keys.NewInMemoryKeyStore()
 	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "test-issuer", Key: signingSecret, Algorithm: "HS256"}})
 
-	return apiauth.NewOneAuth(apiauth.OneAuthConfig{
-		KeyStore:     ks,
-		SigningKey:   signingSecret,
-		Issuer:       "test-issuer",
-		Blacklist:    core.NewInMemoryBlacklist(),
-		RefreshStore: newInMemoryRefreshStore(),
-		ValidateCredentials: func(username, password, usernameType string) (accounts.User, error) {
-			if username == "alice@example.com" && password == "correct-password" {
-				return &accounts.BasicUser{ID: "user-alice", ProfileData: map[string]any{"email": username}}, nil
-			}
-			return nil, fmt.Errorf("invalid credentials")
-		},
-		GetSubjectScopes: func(userID string) ([]string, error) {
-			return []string{"read", "write", "profile"}, nil
-		},
+	validate := func(username, password, usernameType string) (accounts.User, error) {
+		if username == "alice@example.com" && password == "correct-password" {
+			return &accounts.BasicUser{ID: "user-alice", ProfileData: map[string]any{"email": username}}, nil
+		}
+		return nil, fmt.Errorf("invalid credentials")
+	}
+	subjectScopes := func(userID string) ([]string, error) {
+		return []string{"read", "write", "profile"}, nil
+	}
+
+	cfg := apiauth.OneAuthConfig{
+		KeyStore:            ks,
+		SigningKey:          signingSecret,
+		Issuer:              "test-issuer",
+		Blacklist:           core.NewInMemoryBlacklist(),
+		RefreshStore:        newInMemoryRefreshStore(),
+		ValidateCredentials: validate,
+		GetSubjectScopes:    subjectScopes,
+	}
+	// Build the issuer first; the granter takes a reference so its
+	// CreateAccessToken call goes through the same wired backend.
+	oa := apiauth.NewOneAuth(cfg)
+	oa.PasswordGranter = apiauth.NewPasswordGranter(apiauth.PasswordGranterConfig{
+		Issuer:              oa.Issuer,
+		ValidateCredentials: validate,
+		GetSubjectScopes:    subjectScopes,
 	})
+	return oa
 }
 
 // TestOneAuth_PasswordGrant verifies the password grant works as a
@@ -119,7 +134,7 @@ func newTestOneAuthWithPasswordGrant(t *testing.T) *apiauth.OneAuth {
 func TestOneAuth_PasswordGrant(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
-	result, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
+	result, err := oa.PasswordGranter.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "correct-password",
 		Scopes:   []string{"read"},
@@ -142,7 +157,7 @@ func TestOneAuth_PasswordGrant(t *testing.T) {
 func TestOneAuth_PasswordGrant_BadPassword(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
-	_, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
+	_, err := oa.PasswordGranter.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "wrong-password",
 	})
@@ -155,7 +170,7 @@ func TestOneAuth_PasswordGrant_BadPassword(t *testing.T) {
 func TestOneAuth_PasswordGrant_ScopeIntersection(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
-	result, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
+	result, err := oa.PasswordGranter.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "correct-password",
 		Scopes:   []string{"read", "admin"},
@@ -169,7 +184,7 @@ func TestOneAuth_PasswordGrant_ScopeIntersection(t *testing.T) {
 func TestOneAuth_PasswordGrant_DefaultScopes(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
-	result, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
+	result, err := oa.PasswordGranter.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "correct-password",
 	})
@@ -184,7 +199,7 @@ func TestOneAuth_PasswordGrant_CallerCreatesRefreshToken(t *testing.T) {
 	oa := newTestOneAuthWithPasswordGrant(t)
 
 	// Step 1: Password grant (core — no device info)
-	result, err := oa.Issuer.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
+	result, err := oa.PasswordGranter.PasswordGrant(context.Background(), &apiauth.PasswordGrantRequest{
 		Username: "alice@example.com",
 		Password: "correct-password",
 		Scopes:   []string{"read", "write"},

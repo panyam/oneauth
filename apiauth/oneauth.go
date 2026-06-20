@@ -41,6 +41,7 @@ type OneAuth struct {
 	DeviceCodeGranter        DeviceCodeGranter
 	JwtBearerGranter         JwtBearerGranter
 	TokenExchanger           TokenExchanger
+	PasswordGranter          PasswordGranter
 
 	// Shared state — available for transport bindings that need direct access.
 	KeyStore     keys.KeyStorage
@@ -138,6 +139,20 @@ type OneAuthConfig struct {
 	// client assertion. Typically the token endpoint URL plus the AS
 	// issuer URL. Empty falls back to the request URL.
 	AcceptedAudiences []string
+
+	// PasswordGranter, when non-nil, opts the AS into OAuth 2.0 RFC 6749
+	// §4.3 Resource Owner Password Credentials grant. OAuth 2.1 §7.6
+	// retired ROPC (clients see the user's primary credentials; defeats
+	// federation, blocks MFA and step-up auth); leaving this nil is
+	// strict-2.1 compliance — the token endpoint returns
+	// `unsupported_grant_type` for grant_type=password. Wire
+	// apiauth.NewPasswordGranter to opt in for legacy OAuth 2.0 fleets
+	// that must keep ROPC. Per capability-gating umbrella #344.
+	//
+	// AS metadata `grant_types_supported` must include "password" only
+	// when this slot is wired; the caller wires the advertised list
+	// when building ASServerMetadata.
+	PasswordGranter PasswordGranter
 
 	// Authorization code grant (RFC 6749 §4.1). When AuthorizationCodeStore
 	// is non-nil the token endpoint accepts grant_type=authorization_code.
@@ -278,6 +293,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		DeviceCodeGranter:        deviceGranter,
 		JwtBearerGranter:         jwtBearerGranter,
 		TokenExchanger:           tokenExchanger,
+		PasswordGranter:          cfg.PasswordGranter,
 		KeyStore:                 cfg.KeyStore,
 		Blacklist:                cfg.Blacklist,
 		RefreshStore:             cfg.RefreshStore,
