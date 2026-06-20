@@ -12,7 +12,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/tracing"
@@ -563,63 +562,7 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 	}}, nil
 }
 
-// PasswordGrant authenticates a user and returns an access token.
-// Does NOT create a refresh token — the caller handles that with
-// transport-specific metadata (device info, IP, etc.).
-func (i *jwtIssuer) PasswordGrant(ctx context.Context, req *PasswordGrantRequest) (*PasswordGrantResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("PasswordGrantRequest is required")
-	}
-	if i.validateCredentials == nil {
-		return nil, fmt.Errorf("server_error: password grant not configured")
-	}
-
-	// Validate credentials
-	usernameType := accounts.DetectUsernameType(req.Username)
-	user, err := i.validateCredentials(req.Username, req.Password, usernameType)
-	if err != nil || user == nil {
-		return nil, fmt.Errorf("invalid_grant: invalid credentials")
-	}
-
-	// Get allowed scopes
-	allowedScopes := []string{core.ScopeRead, core.ScopeWrite, core.ScopeProfile, core.ScopeOffline}
-	if i.getSubjectScopes != nil {
-		var err error
-		allowedScopes, err = i.getSubjectScopes(user.Id())
-		if err != nil {
-			return nil, fmt.Errorf("server_error: failed to get user scopes: %w", err)
-		}
-	}
-
-	// Intersect requested with allowed
-	requestedScopes := req.Scopes
-	if len(requestedScopes) == 0 {
-		requestedScopes = allowedScopes
-	}
-	grantedScopes := core.IntersectScopes(requestedScopes, allowedScopes)
-
-	// Validate authorization_details (RFC 9396)
-	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
-		return nil, err
-	}
-
-	// Create access token
-	tok, err := i.CreateAccessToken(ctx, &CreateAccessTokenRequest{
-		Subject:              user.Id(),
-		Scopes:               grantedScopes,
-		AuthorizationDetails: req.AuthorizationDetails,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("server_error: %w", err)
-	}
-
-	i.hooks.fireOnIssued(user.Id(), "password")
-
-	return &PasswordGrantResponse{
-		Subject:              user.Id(),
-		AccessToken:          tok.Token,
-		ExpiresIn:            tok.ExpiresIn,
-		GrantedScopes:        grantedScopes,
-		AuthorizationDetails: req.AuthorizationDetails,
-	}, nil
-}
+// Password-grant (ROPC) implementation lives in password_granter.go.
+// Extracted from this file per OAuth 2.1 §7.6 retirement: ROPC is now
+// a peer interface (PasswordGranter) the deployment opts into rather
+// than a TokenIssuer method that's always available. See #294.

@@ -162,6 +162,15 @@ func main() {
 	}
 
 	oa := apiauth.NewOneAuth(oaCfg)
+	// ROPC is opt-in post-#294. The reference server wires the granter
+	// to preserve the current grant_type=password support — operators
+	// who want strict-2.1 compliance leave the granter nil (a future
+	// YAML config knob will surface this; today edit this line).
+	// Per capability-gating umbrella #344.
+	oa.PasswordGranter = apiauth.NewPasswordGranter(apiauth.PasswordGranterConfig{
+		Issuer:              oa.Issuer,
+		ValidateCredentials: localAuth.ValidateCredentials,
+	})
 	tokenEndpoint := apiauth.NewTokenEndpointHandler(oa)
 	sessions := oa.SessionsHTTPHandler()
 

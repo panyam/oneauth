@@ -133,10 +133,16 @@ func parseTokenRequest(r *http.Request) (*core.TokenRequest, *GrantError) {
 // handlePassword owns the HTTP-side concerns of the password grant —
 // rate limiting, refresh-token creation with device info, AuthHooks
 // firing — and delegates credential validation + scope intersection +
-// access-token mint to OneAuth.Issuer.PasswordGrant.
+// access-token mint to OneAuth.PasswordGranter. Returns
+// unsupported_grant_type when the granter slot is nil (default for
+// OAuth 2.1-strict deployments). Per capability-gating umbrella #344.
 func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
-	if h.OneAuth == nil || h.OneAuth.Issuer == nil {
+	if h.OneAuth == nil {
 		h.writeError(w, serverError("token endpoint not configured"))
+		return
+	}
+	if h.OneAuth.PasswordGranter == nil {
+		h.writeError(w, unsupportedGrantType("grant_type=password is not enabled (set OneAuthConfig.PasswordGranter to opt in)"))
 		return
 	}
 	if h.RateLimiter != nil {
@@ -147,7 +153,7 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	resp, err := h.OneAuth.Issuer.PasswordGrant(r.Context(), &PasswordGrantRequest{
+	resp, err := h.OneAuth.PasswordGranter.PasswordGrant(r.Context(), &PasswordGrantRequest{
 		Username:             req.Username,
 		Password:             req.Password,
 		Scopes:               core.ParseScopes(req.Scope),
@@ -155,7 +161,7 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 		ClientID:             req.ClientID,
 	})
 	if err != nil {
-		// Issuer.PasswordGrant uses an `invalid_grant: ...` prefix for
+		// The granter uses an `invalid_grant: ...` prefix for
 		// credentials-failed errors and `server_error: ...` for
 		// internal failures. AuthHooks fire on the credentials path
 		// only.

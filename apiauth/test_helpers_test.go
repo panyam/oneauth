@@ -108,11 +108,26 @@ func (f *apiAuthFixture) DenyDeviceAuthorization(r *http.Request, userCode strin
 // newAPIAuthFixture wires a OneAuth-backed fixture with the supplied
 // config. Convenience for tests that don't need every field on
 // OneAuthConfig.
+//
+// When cfg.ValidateCredentials is non-nil the helper also wires
+// OneAuth.PasswordGranter — many existing tests POST
+// grant_type=password and rely on ROPC being implicit. Post-#294 the
+// granter is opt-in in production; the test helper auto-opts when the
+// caller signals intent by supplying the credentials validator.
+// Callers that explicitly need the strict-2.1 default (granter nil)
+// can clear oa.PasswordGranter after construction.
 func newAPIAuthFixture(cfg apiauth.OneAuthConfig, apiKeyStore core.APIKeyStore) *apiAuthFixture {
 	if cfg.SigningAlg == "" {
 		cfg.SigningAlg = "HS256"
 	}
 	oa := apiauth.NewOneAuth(cfg)
+	if cfg.ValidateCredentials != nil {
+		oa.PasswordGranter = apiauth.NewPasswordGranter(apiauth.PasswordGranterConfig{
+			Issuer:              oa.Issuer,
+			ValidateCredentials: cfg.ValidateCredentials,
+			GetSubjectScopes:    cfg.GetSubjectScopes,
+		})
+	}
 	fx := &apiAuthFixture{
 		OneAuth:       oa,
 		TokenEndpoint: apiauth.NewTokenEndpointHandler(oa),

@@ -88,7 +88,7 @@ No work needed; this row is the cleanest in the table.
 
 ## Filed follow-ups
 
-The original audit framed #294 and #295 as removals. The capability-gating umbrella **#344** rescoped them into per-deployment opt-in mechanisms (nil-handler for grants; flags for policies). See #344 for the framing.
+The original audit framed #294 and #295 as removals. The capability-gating umbrella **#344** rescoped them into per-deployment opt-in mechanisms (nil-handler for grants; flags for policies; per-client DCR `grant_types`). See #344 for the framing.
 
 | Issue | Scope | Status |
 |---|---|---|

@@ -34,7 +34,12 @@ type CredentialsValidator = accounts.CredentialsValidator
 // TokenIssuer — creates signed access tokens.
 // ----------------------------------------------------------------------------
 
-// TokenIssuer mints access tokens via the standard OAuth 2.0 grants.
+// TokenIssuer mints access tokens via the OAuth 2.0 grants that ship
+// on by default: client_credentials, refresh_token, and the raw
+// access-token mint. Password grant (ROPC) was retired in OAuth 2.1
+// §7.6 and is no longer part of the default issuer surface — wire
+// PasswordGranter (a peer interface) to opt in for OAuth 2.0
+// deployments that need it. Per capability-gating umbrella #344.
 type TokenIssuer interface {
 	// CreateAccessToken mints a JWT with the given subject, scopes, and
 	// optional RFC 9396 authorization_details.
@@ -47,12 +52,6 @@ type TokenIssuer interface {
 	// RefreshGrant rotates a refresh token and returns a new access + refresh
 	// token pair. Handles theft detection (revoked token → revoke entire family).
 	RefreshGrant(ctx context.Context, req *RefreshGrantRequest) (*RefreshGrantResponse, error)
-
-	// PasswordGrant authenticates a user with username/password and returns
-	// an access token. Does NOT create a refresh token — the caller's
-	// responsibility (via RefreshTokenStore.CreateRefreshToken), since refresh
-	// tokens may carry transport-specific metadata (device info, IP, etc.).
-	PasswordGrant(ctx context.Context, req *PasswordGrantRequest) (*PasswordGrantResponse, error)
 }
 
 // CreateAccessTokenRequest is the input to TokenIssuer.CreateAccessToken.
