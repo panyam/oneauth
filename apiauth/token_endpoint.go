@@ -283,20 +283,42 @@ func (h *TokenEndpointHandler) handleClientCredentials(w http.ResponseWriter, r 
 	})
 }
 
+// dispatchClientCredentials resolves the client credentials for the grants
+// whose dispatch forwards them to a confidential-client gate
+// (authorization_code, device_code, jwt-bearer, token-exchange). It runs the
+// shared extractClientCredentials, which resolves all three OAuth channels —
+// Authorization: Basic (RFC 6749 §2.3.1), client_secret_post form params, and
+// client_assertion (RFC 7521 §4.2) — so a client_secret_basic credential in
+// the Authorization header is honored, not just what parseTokenRequest read
+// from the form body.
+//
+// Unlike client_credentials, these grants permit a public client that sends no
+// credentials (the assertion / PKCE / device binding is the proof), so a
+// no-match is not an error: it falls back to the form-derived client_id/secret
+// so the downstream confidential-client lookup — which keys off client_id — is
+// preserved for the public / assertion-only path.
+func dispatchClientCredentials(r *http.Request, req *core.TokenRequest) (clientID, clientSecret, assertionType, assertion string) {
+	if creds, ok := extractClientCredentials(r, req); ok {
+		return creds.ClientID, creds.ClientSecret, creds.ClientAssertionType, creds.ClientAssertion
+	}
+	return req.ClientID, req.ClientSecret, req.ClientAssertionType, req.ClientAssertion
+}
+
 func (h *TokenEndpointHandler) dispatchAuthorizationCode(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
 	if h.OneAuth == nil || h.OneAuth.AuthorizationCodeGranter == nil {
 		h.writeError(w, unsupportedGrantType("authorization_code grant not enabled"))
 		return
 	}
 	audiences := h.acceptedAudiences(r)
+	clientID, clientSecret, assertionType, assertion := dispatchClientCredentials(r, req)
 	resp, err := h.OneAuth.AuthorizationCodeGranter.AuthorizationCodeGrant(r.Context(), &AuthorizationCodeGrantRequest{
 		Code:                req.Code,
 		CodeVerifier:        req.CodeVerifier,
 		RedirectURI:         req.RedirectURI,
-		ClientID:            req.ClientID,
-		ClientSecret:        req.ClientSecret,
-		ClientAssertionType: req.ClientAssertionType,
-		ClientAssertion:     req.ClientAssertion,
+		ClientID:            clientID,
+		ClientSecret:        clientSecret,
+		ClientAssertionType: assertionType,
+		ClientAssertion:     assertion,
 		AcceptedAudiences:   audiences,
 	})
 	if err != nil {
@@ -312,12 +334,13 @@ func (h *TokenEndpointHandler) dispatchDeviceCode(w http.ResponseWriter, r *http
 		return
 	}
 	audiences := h.acceptedAudiences(r)
+	clientID, clientSecret, assertionType, assertion := dispatchClientCredentials(r, req)
 	resp, err := h.OneAuth.DeviceCodeGranter.DeviceCodeGrant(r.Context(), &DeviceCodeGrantRequest{
 		DeviceCode:          req.DeviceCode,
-		ClientID:            req.ClientID,
-		ClientSecret:        req.ClientSecret,
-		ClientAssertionType: req.ClientAssertionType,
-		ClientAssertion:     req.ClientAssertion,
+		ClientID:            clientID,
+		ClientSecret:        clientSecret,
+		ClientAssertionType: assertionType,
+		ClientAssertion:     assertion,
 		AcceptedAudiences:   audiences,
 	})
 	if err != nil {
@@ -332,14 +355,15 @@ func (h *TokenEndpointHandler) dispatchJwtBearer(w http.ResponseWriter, r *http.
 		h.writeError(w, unsupportedGrantType("jwt-bearer grant not configured"))
 		return
 	}
+	clientID, clientSecret, assertionType, assertion := dispatchClientCredentials(r, req)
 	resp, err := h.OneAuth.JwtBearerGranter.JwtBearerGrant(r.Context(), &JwtBearerGrantRequest{
 		Assertion:            req.Assertion,
 		Scopes:               core.ParseScopes(req.Scope),
 		AuthorizationDetails: req.AuthorizationDetails,
-		ClientID:             req.ClientID,
-		ClientSecret:         req.ClientSecret,
-		ClientAssertionType:  req.ClientAssertionType,
-		ClientAssertion:      req.ClientAssertion,
+		ClientID:             clientID,
+		ClientSecret:         clientSecret,
+		ClientAssertionType:  assertionType,
+		ClientAssertion:      assertion,
 		AcceptedAudiences:    h.acceptedAudiences(r),
 	})
 	if err != nil {
@@ -354,6 +378,7 @@ func (h *TokenEndpointHandler) dispatchTokenExchange(w http.ResponseWriter, r *h
 		h.writeError(w, unsupportedGrantType("token-exchange grant not configured"))
 		return
 	}
+	clientID, clientSecret, assertionType, assertion := dispatchClientCredentials(r, req)
 	resp, err := h.OneAuth.TokenExchanger.TokenExchange(r.Context(), &TokenExchangeRequest{
 		SubjectToken:         req.SubjectToken,
 		SubjectTokenType:     req.SubjectTokenType,
@@ -362,10 +387,10 @@ func (h *TokenEndpointHandler) dispatchTokenExchange(w http.ResponseWriter, r *h
 		Audience:             req.Audience,
 		Scopes:               core.ParseScopes(req.Scope),
 		AuthorizationDetails: req.AuthorizationDetails,
-		ClientID:             req.ClientID,
-		ClientSecret:         req.ClientSecret,
-		ClientAssertionType:  req.ClientAssertionType,
-		ClientAssertion:      req.ClientAssertion,
+		ClientID:             clientID,
+		ClientSecret:         clientSecret,
+		ClientAssertionType:  assertionType,
+		ClientAssertion:      assertion,
 		AcceptedAudiences:    h.acceptedAudiences(r),
 	})
 	if err != nil {
