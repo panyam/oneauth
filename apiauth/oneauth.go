@@ -302,6 +302,8 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 			DefaultIssuer:   cfg.Issuer,
 			Issuer:          issuer,
 			ReplayStore:     cfg.IDJAGReplayStore,
+			AppStore:        cfg.AppStore,
+			Authenticator:   authenticator,
 		})
 		tokenExchanger = NewTokenExchanger(TokenExchangerConfig{
 			TrustedIssuers:  cfg.TrustedAssertionIssuers,
@@ -309,6 +311,8 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 			DefaultIssuer:   cfg.Issuer,
 			Issuer:          issuer,
 			IDJAGIssuer:     cfg.IDJAGIssuer,
+			AppStore:        cfg.AppStore,
+			Authenticator:   authenticator,
 		})
 	}
 

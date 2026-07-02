@@ -27,6 +27,8 @@ type tokenExchanger struct {
 	defaultIssuer   string
 	issuer          TokenIssuer
 	idjagIssuer     IDJAGIssuer
+	appStore        core.AppRegistrationStore
+	authenticator   ClientAuthenticator
 }
 
 // TokenExchangerConfig wires the dependencies the token-exchange grant
@@ -51,6 +53,15 @@ type TokenExchangerConfig struct {
 	// (default) rejects id-jag requests — minting a cross-domain
 	// authorization grant is off by default per #344.
 	IDJAGIssuer IDJAGIssuer
+
+	// AppStore + Authenticator enable confidential-client authentication
+	// (issue 356). When wired, a request whose client_id names a
+	// registered confidential client is authenticated before issuance;
+	// public / unregistered clients keep the assertion-only path. Both
+	// nil (default) preserves the pre-356 behavior of never
+	// authenticating the client on this grant.
+	AppStore      core.AppRegistrationStore
+	Authenticator ClientAuthenticator
 }
 
 // NewTokenExchanger constructs a TokenExchanger. cfg.TrustedIssuers MUST be
@@ -62,6 +73,8 @@ func NewTokenExchanger(cfg TokenExchangerConfig) TokenExchanger {
 		defaultIssuer:   cfg.DefaultIssuer,
 		issuer:          cfg.Issuer,
 		idjagIssuer:     cfg.IDJAGIssuer,
+		appStore:        cfg.AppStore,
+		authenticator:   cfg.Authenticator,
 	}
 }
 
@@ -105,6 +118,19 @@ func (x *tokenExchanger) TokenExchange(ctx context.Context, req *TokenExchangeRe
 
 	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
 		return nil, &GrantError{Code: "invalid_authorization_details", Description: err.Error(), Status: 400}
+	}
+
+	// Authenticate a confidential requesting client (issue 356). Applies to
+	// both output types; public / unregistered clients keep the
+	// assertion-only path (fail-open per RFC 7523 §3).
+	if _, autherr := authenticateConfidentialClient(ctx, x.appStore, x.authenticator, req.ClientID, clientCredentials{
+		ClientID:            req.ClientID,
+		ClientSecret:        req.ClientSecret,
+		ClientAssertionType: req.ClientAssertionType,
+		ClientAssertion:     req.ClientAssertion,
+		Audiences:           req.AcceptedAudiences,
+	}); autherr != nil {
+		return nil, autherr
 	}
 
 	if requestedType == TokenTypeIDJAG {

@@ -231,6 +231,21 @@ type JwtBearerGrantRequest struct {
 	Assertion            string
 	Scopes               []string
 	AuthorizationDetails []core.AuthorizationDetail
+
+	// Client-authentication material. RFC 7523 §3 makes client auth
+	// OPTIONAL for this grant (the assertion is itself the credential),
+	// so these may be empty for public clients. When present and the
+	// client is a registered confidential client, the granter
+	// authenticates it; on the ID-JAG redemption path the authenticated
+	// client_id is additionally bound to the ID-JAG's client_id claim.
+	ClientID            string
+	ClientSecret        string
+	ClientAssertionType string
+	ClientAssertion     string
+	// AcceptedAudiences bounds the `aud` a private_key_jwt /
+	// client_secret_jwt client assertion may carry (OIDC Core §9). The
+	// token endpoint fills it from its configured audience list.
+	AcceptedAudiences []string
 }
 
 // JwtBearerGrantResponse wraps the issued token pair.
@@ -266,6 +281,16 @@ type TokenExchangeRequest struct {
 	// output path it becomes the ID-JAG `client_id` claim — the client
 	// identity the downstream (resource-app) AS knows the client by.
 	ClientID string
+
+	// Client-authentication material. Optional; when present and ClientID
+	// names a registered confidential client, the granter authenticates
+	// it (rejecting invalid_client on failure) before issuing.
+	ClientSecret        string
+	ClientAssertionType string
+	ClientAssertion     string
+	// AcceptedAudiences bounds a client-assertion `aud` (OIDC Core §9);
+	// filled by the token endpoint from its configured audience list.
+	AcceptedAudiences []string
 }
 
 // TokenExchangeResponse wraps the issued token pair. The wire
