@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/panyam/oneauth/admin"
@@ -73,13 +74,16 @@ type config struct {
 	responseTypesSupported  []string                         // overrides default when non-nil
 	issParameterSupported   *bool                            // RFC 9207 advertisement (nil = omit)
 	trustedAssertionIssuers []apiauth.TrustedAssertionIssuer // RFC 7523 §2.1 + RFC 8693
+	idjagIssuer             apiauth.IDJAGIssuer              // opt token-exchange into ID-JAG issuance (SEP-990)
+	idjagSelfSigned         bool                             // sign ID-JAGs with the server's own (JWKS-published) key
+	idjagSelfSignedTTL      time.Duration                    // ID-JAG lifetime when self-signed
 
 	// Authorize-flow configuration. authorizeEnabled gates the mount of
 	// MountAuthorize + the AS-metadata advertisement extensions.
-	authorizeEnabled         bool
-	authorizeAutoApprove     string
+	authorizeEnabled          bool
+	authorizeAutoApprove      string
 	authorizeRedirectOverride func(values url.Values)
-	allowPlainPKCE           bool
+	allowPlainPKCE            bool
 }
 
 // Option configures a TestAuthServer.
@@ -224,6 +228,37 @@ func WithAuthorizeRedirectOverride(fn func(values url.Values)) Option {
 // See:
 //   - RFC 7523 §2.1: https://www.rfc-editor.org/rfc/rfc7523#section-2.1
 //   - RFC 8693:      https://www.rfc-editor.org/rfc/rfc8693
+//
+// WithIDJAGIssuer opts the token-exchange grant into ID-JAG issuance
+// (requested_token_type=urn:ietf:params:oauth:token-type:id-jag) for the MCP
+// Enterprise-Managed Authorization flow (SEP-990). The issuer signs ID-JAGs
+// with the IdP key the caller supplies; register that key's public half at
+// the redeeming AS via WithTrustedAssertionIssuers so stage 2 can verify it.
+//
+// Meaningful only alongside WithTrustedAssertionIssuers, which supplies the
+// subject_token (id_token) issuers this AS validates on stage 1.
+//
+// See: draft-ietf-oauth-identity-assertion-authz-grant-04
+func WithIDJAGIssuer(issuer apiauth.IDJAGIssuer) Option {
+	return func(c *config) { c.idjagIssuer = issuer }
+}
+
+// WithIDJAGIssuanceSelfSigned opts the token-exchange grant into ID-JAG
+// issuance signed with the test server's OWN RS256 key — the key already
+// published in the server's JWKS. This is the production-realistic path: a
+// redeeming AS can discover the ID-JAG signing key over JWKS by `kid`
+// (TrustedAssertionIssuer.KeyFunc) with only the issuer URL, no pre-shared
+// static key.
+//
+// ttl bounds the ID-JAG lifetime (<=0 uses the library default). Takes
+// precedence over WithIDJAGIssuer when both are set.
+func WithIDJAGIssuanceSelfSigned(ttl time.Duration) Option {
+	return func(c *config) {
+		c.idjagSelfSigned = true
+		c.idjagSelfSignedTTL = ttl
+	}
+}
+
 func WithTrustedAssertionIssuers(issuers []apiauth.TrustedAssertionIssuer) Option {
 	return func(c *config) {
 		c.trustedAssertionIssuers = issuers
@@ -297,6 +332,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		Audience:                cfg.audience,
 		AudienceFunc:            cfg.audienceFunc,
 		TrustedAssertionIssuers: cfg.trustedAssertionIssuers,
+		IDJAGIssuer:             cfg.idjagIssuer,
 		AllowPlainPKCE:          cfg.allowPlainPKCE,
 	}
 	if cfg.authorizeEnabled {
@@ -319,6 +355,18 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 	if issuer == defaultIssuer {
 		issuer = baseURL
 		oaCfg.Issuer = issuer
+	}
+
+	// Self-signed ID-JAG issuance reuses the server's RS256 key (already
+	// in JWKS) and the resolved issuer, so a redeemer can discover the
+	// signing key by kid. Wired here — after the issuer is final.
+	if cfg.idjagSelfSigned {
+		oaCfg.IDJAGIssuer = apiauth.NewJWTIDJAGIssuer(apiauth.IDJAGIssuerConfig{
+			SigningKey: privKey,
+			SigningAlg: "RS256",
+			Issuer:     oaCfg.Issuer,
+			TTL:        cfg.idjagSelfSignedTTL,
+		})
 	}
 
 	// Build OneAuth + the handlers it wires AFTER the issuer is
@@ -357,17 +405,17 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		})
 	}
 	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
-		Issuer:                        issuer,
-		TokenEndpoint:                 baseURL + "/api/token",
-		AuthorizationEndpoint:         authorizeEndpoint,
-		JWKSURI:                       baseURL + "/.well-known/jwks.json",
-		IntrospectionEndpoint:         baseURL + "/oauth/introspect",
-		RegistrationEndpoint:          baseURL + "/apps/dcr",
-		ScopesSupported:               cfg.scopes,
-		ClaimsSupported:               cfg.claimsSupported,
-		GrantTypesSupported:           grants,
-		ResponseTypesSupported:        responseTypes,
-		TokenEndpointAuthMethods:                   []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
+		Issuer:                   issuer,
+		TokenEndpoint:            baseURL + "/api/token",
+		AuthorizationEndpoint:    authorizeEndpoint,
+		JWKSURI:                  baseURL + "/.well-known/jwks.json",
+		IntrospectionEndpoint:    baseURL + "/oauth/introspect",
+		RegistrationEndpoint:     baseURL + "/apps/dcr",
+		ScopesSupported:          cfg.scopes,
+		ClaimsSupported:          cfg.claimsSupported,
+		GrantTypesSupported:      grants,
+		ResponseTypesSupported:   responseTypes,
+		TokenEndpointAuthMethods: []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256"},
 		CodeChallengeMethodsSupported:              pkceMethodsSupported(cfg.allowPlainPKCE),
 		AuthorizationResponseIssParameterSupported: cfg.issParameterSupported,

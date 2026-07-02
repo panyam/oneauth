@@ -357,6 +357,7 @@ func (h *TokenEndpointHandler) dispatchTokenExchange(w http.ResponseWriter, r *h
 		Audience:             req.Audience,
 		Scopes:               core.ParseScopes(req.Scope),
 		AuthorizationDetails: req.AuthorizationDetails,
+		ClientID:             req.ClientID,
 	})
 	if err != nil {
 		h.writeError(w, err)

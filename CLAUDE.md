@@ -70,6 +70,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for rationale and [docs/ROADMAP
 | `GET / POST /authorize` + `POST /api/token` (`grant_type=authorization_code`) | `AuthorizationHandler` + `AuthorizeVerificationHandler` + `AuthorizationCodeGranter` (via `MountAuthorize`) | RFC 6749 §4.1 + RFC 7636 (PKCE S256) + RFC 9207 (`iss` on redirect) |
 | Authorize-redirect `?iss=` query param | (issuer URL on redirects) | RFC 9207 |
 | `traceparent` / `tracestate` inbound + outbound (SEP-414 / #254) | `tracing/` + per-handler `TracerProvider` | [W3C Trace Context](https://www.w3.org/TR/trace-context/) |
+| `POST /api/token` (`requested_token_type=...:id-jag` issuance / ID-JAG redemption for MCP EMA) | `TokenExchanger` + `IDJAGIssuer` (`apiauth/id_jag.go`) → `JwtBearerGranter` | draft-ietf-oauth-identity-assertion-authz-grant-04 + MCP EMA / SEP-990 |
+
+ID-JAG issuance is opt-in (`OneAuthConfig.IDJAGIssuer`); redemption rides the jwt-bearer grant with single-use `jti` + `client_id` binding. See [docs/oauth/RFC_8693.md](docs/oauth/RFC_8693.md) and [docs/oauth/RFC_7523.md](docs/oauth/RFC_7523.md).
 
 RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspection, and middleware. See `core/authorization_details.go`. Full Authlete-superset gap analysis: [docs/gaps/AUTHLETE_GAP_ANALYSIS.md](docs/gaps/AUTHLETE_GAP_ANALYSIS.md), tracked under #163.
 

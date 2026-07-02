@@ -59,6 +59,12 @@ type CreateAccessTokenRequest struct {
 	Subject              string
 	Scopes               []string
 	AuthorizationDetails []core.AuthorizationDetail
+
+	// ClientID, when non-empty, is emitted as a `client_id` claim on the
+	// access token. Used by the jwt-bearer grant to bind an access token
+	// issued from an ID-JAG to the client_id the ID-JAG names, per the
+	// MCP EMA flow. Empty leaves the claim off.
+	ClientID string
 }
 
 // CreateAccessTokenResponse is the output of TokenIssuer.CreateAccessToken.
@@ -248,13 +254,18 @@ type TokenExchanger interface {
 // TokenExchangeRequest holds the inputs the token endpoint receives
 // for grant_type=urn:ietf:params:oauth:grant-type:token-exchange.
 type TokenExchangeRequest struct {
-	SubjectToken       string
-	SubjectTokenType   string
-	RequestedTokenType string
-	Resource           string
-	Audience           string
-	Scopes             []string
+	SubjectToken         string
+	SubjectTokenType     string
+	RequestedTokenType   string
+	Resource             string
+	Audience             string
+	Scopes               []string
 	AuthorizationDetails []core.AuthorizationDetail
+
+	// ClientID is the requesting client's identifier. For the id-jag
+	// output path it becomes the ID-JAG `client_id` claim — the client
+	// identity the downstream (resource-app) AS knows the client by.
+	ClientID string
 }
 
 // TokenExchangeResponse wraps the issued token pair. The wire
@@ -295,8 +306,8 @@ type ValidateTokenResponse struct {
 
 // CheckScopesRequest is the input to TokenValidator.CheckScopes.
 type CheckScopesRequest struct {
-	Token            string
-	RequiredScopes   []string
+	Token          string
+	RequiredScopes []string
 }
 
 // CheckScopesResponse is intentionally empty — the operation is a pure
