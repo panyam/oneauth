@@ -806,7 +806,7 @@ setup: setup-tools setup-hooks
 # Multi-module management
 # =============================================================================
 BUILD_DIR := build
-LIBS := stores/gorm stores/gae saml grpc oauth2
+LIBS := stores/gorm stores/gae saml grpc oauth2 sshkeys
 CMDS := cmd/oneauth cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
 SUBMODULES := $(LIBS) $(CMDS)
 
@@ -859,7 +859,7 @@ deps:
 
 # Tag a release across all modules. Usage: make tag V=v0.0.40
 # Sub-modules are tagged with path prefix per Go convention (e.g. stores/gorm/v0.0.40)
-SUB_MODS_TO_TAG := stores/gorm stores/gae saml grpc oauth2 cmd/oneauth cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
+SUB_MODS_TO_TAG := stores/gorm stores/gae saml grpc oauth2 sshkeys cmd/oneauth cmd/oneauth-server cmd/demo-hostapp cmd/demo-resource-server
 tag:
 	@if [ -z "$(V)" ]; then echo "Usage: make tag V=v0.0.40"; exit 1; fi
 	@echo "Tagging $(V) across all modules..."

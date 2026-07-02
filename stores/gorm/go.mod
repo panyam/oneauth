@@ -3,7 +3,7 @@ module github.com/panyam/oneauth/stores/gorm
 go 1.26.4
 
 require (
-	github.com/panyam/oneauth v0.0.70
+	github.com/panyam/oneauth v0.1.33
 	golang.org/x/crypto v0.46.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
