@@ -73,13 +73,14 @@ type config struct {
 	responseTypesSupported  []string                         // overrides default when non-nil
 	issParameterSupported   *bool                            // RFC 9207 advertisement (nil = omit)
 	trustedAssertionIssuers []apiauth.TrustedAssertionIssuer // RFC 7523 §2.1 + RFC 8693
+	idjagIssuer             apiauth.IDJAGIssuer              // opt token-exchange into ID-JAG issuance (SEP-990)
 
 	// Authorize-flow configuration. authorizeEnabled gates the mount of
 	// MountAuthorize + the AS-metadata advertisement extensions.
-	authorizeEnabled         bool
-	authorizeAutoApprove     string
+	authorizeEnabled          bool
+	authorizeAutoApprove      string
 	authorizeRedirectOverride func(values url.Values)
-	allowPlainPKCE           bool
+	allowPlainPKCE            bool
 }
 
 // Option configures a TestAuthServer.
@@ -224,6 +225,21 @@ func WithAuthorizeRedirectOverride(fn func(values url.Values)) Option {
 // See:
 //   - RFC 7523 §2.1: https://www.rfc-editor.org/rfc/rfc7523#section-2.1
 //   - RFC 8693:      https://www.rfc-editor.org/rfc/rfc8693
+//
+// WithIDJAGIssuer opts the token-exchange grant into ID-JAG issuance
+// (requested_token_type=urn:ietf:params:oauth:token-type:id-jag) for the MCP
+// Enterprise-Managed Authorization flow (SEP-990). The issuer signs ID-JAGs
+// with the IdP key the caller supplies; register that key's public half at
+// the redeeming AS via WithTrustedAssertionIssuers so stage 2 can verify it.
+//
+// Meaningful only alongside WithTrustedAssertionIssuers, which supplies the
+// subject_token (id_token) issuers this AS validates on stage 1.
+//
+// See: draft-ietf-oauth-identity-assertion-authz-grant-04
+func WithIDJAGIssuer(issuer apiauth.IDJAGIssuer) Option {
+	return func(c *config) { c.idjagIssuer = issuer }
+}
+
 func WithTrustedAssertionIssuers(issuers []apiauth.TrustedAssertionIssuer) Option {
 	return func(c *config) {
 		c.trustedAssertionIssuers = issuers
@@ -297,6 +313,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		Audience:                cfg.audience,
 		AudienceFunc:            cfg.audienceFunc,
 		TrustedAssertionIssuers: cfg.trustedAssertionIssuers,
+		IDJAGIssuer:             cfg.idjagIssuer,
 		AllowPlainPKCE:          cfg.allowPlainPKCE,
 	}
 	if cfg.authorizeEnabled {
@@ -357,17 +374,17 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		})
 	}
 	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
-		Issuer:                        issuer,
-		TokenEndpoint:                 baseURL + "/api/token",
-		AuthorizationEndpoint:         authorizeEndpoint,
-		JWKSURI:                       baseURL + "/.well-known/jwks.json",
-		IntrospectionEndpoint:         baseURL + "/oauth/introspect",
-		RegistrationEndpoint:          baseURL + "/apps/dcr",
-		ScopesSupported:               cfg.scopes,
-		ClaimsSupported:               cfg.claimsSupported,
-		GrantTypesSupported:           grants,
-		ResponseTypesSupported:        responseTypes,
-		TokenEndpointAuthMethods:                   []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
+		Issuer:                   issuer,
+		TokenEndpoint:            baseURL + "/api/token",
+		AuthorizationEndpoint:    authorizeEndpoint,
+		JWKSURI:                  baseURL + "/.well-known/jwks.json",
+		IntrospectionEndpoint:    baseURL + "/oauth/introspect",
+		RegistrationEndpoint:     baseURL + "/apps/dcr",
+		ScopesSupported:          cfg.scopes,
+		ClaimsSupported:          cfg.claimsSupported,
+		GrantTypesSupported:      grants,
+		ResponseTypesSupported:   responseTypes,
+		TokenEndpointAuthMethods: []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256"},
 		CodeChallengeMethodsSupported:              pkceMethodsSupported(cfg.allowPlainPKCE),
 		AuthorizationResponseIssParameterSupported: cfg.issParameterSupported,

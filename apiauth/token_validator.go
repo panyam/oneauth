@@ -405,6 +405,9 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	if len(details) > 0 {
 		claims["authorization_details"] = details
 	}
+	if req.ClientID != "" {
+		claims["client_id"] = req.ClientID
+	}
 	if i.issuer != "" {
 		claims["iss"] = i.issuer
 	}

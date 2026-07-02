@@ -183,6 +183,23 @@ type OneAuthConfig struct {
 	// and token-exchange (RFC 8693) grants. Empty disables both.
 	TrustedAssertionIssuers []TrustedAssertionIssuer
 
+	// IDJAGIssuer, when non-nil, opts the token-exchange grant into
+	// issuing ID-JAGs (requested_token_type=...:id-jag) for the MCP
+	// Enterprise-Managed Authorization flow (SEP-990). Nil (default)
+	// rejects id-jag requests with invalid_request — minting a
+	// cross-domain authorization grant is a sensitive capability, off by
+	// default per the capability-gating convention (#344). Wire
+	// apiauth.NewJWTIDJAGIssuer (signed with the IdP key) to opt in. Only
+	// consulted when TrustedAssertionIssuers is non-empty.
+	IDJAGIssuer IDJAGIssuer
+
+	// IDJAGReplayStore enforces single-use on redeemed ID-JAGs (they are
+	// single-use per draft-ietf-oauth-identity-assertion-authz-grant).
+	// Nil falls back to an in-process in-memory store; supply a
+	// distributed implementation for multi-node deployments. Only
+	// consulted when TrustedAssertionIssuers is non-empty.
+	IDJAGReplayStore JTIStore
+
 	// TracerProvider opts the validator's signature-verify hot path
 	// into SEP-414 tracing. Nil keeps it on the no-op fast path.
 	TracerProvider trace.TracerProvider
@@ -279,8 +296,20 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	var jwtBearerGranter JwtBearerGranter
 	var tokenExchanger TokenExchanger
 	if len(cfg.TrustedAssertionIssuers) > 0 {
-		jwtBearerGranter = NewJwtBearerGranter(cfg.TrustedAssertionIssuers, cfg.Audience, cfg.Issuer, issuer)
-		tokenExchanger = NewTokenExchanger(cfg.TrustedAssertionIssuers, cfg.Audience, cfg.Issuer, issuer)
+		jwtBearerGranter = NewJwtBearerGranter(JwtBearerGranterConfig{
+			TrustedIssuers:  cfg.TrustedAssertionIssuers,
+			DefaultAudience: cfg.Audience,
+			DefaultIssuer:   cfg.Issuer,
+			Issuer:          issuer,
+			ReplayStore:     cfg.IDJAGReplayStore,
+		})
+		tokenExchanger = NewTokenExchanger(TokenExchangerConfig{
+			TrustedIssuers:  cfg.TrustedAssertionIssuers,
+			DefaultAudience: cfg.Audience,
+			DefaultIssuer:   cfg.Issuer,
+			Issuer:          issuer,
+			IDJAGIssuer:     cfg.IDJAGIssuer,
+		})
 	}
 
 	oa := &OneAuth{
