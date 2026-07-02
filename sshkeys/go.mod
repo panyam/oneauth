@@ -3,7 +3,7 @@ module github.com/panyam/oneauth/sshkeys
 go 1.26.4
 
 require (
-	github.com/panyam/oneauth v0.1.33
+	github.com/panyam/oneauth v0.1.34
 	golang.org/x/crypto v0.46.0
 )
 
