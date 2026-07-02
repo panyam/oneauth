@@ -2,7 +2,6 @@ package apiauth
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/panyam/oneauth/core"
@@ -60,19 +59,22 @@ func (r *deviceCodeGranter) DeviceCodeGrant(ctx context.Context, req *DeviceCode
 	}
 	auth := getResp.Authorization
 
+	// Confidential-client authentication (issue 266), fail-CLOSED: the
+	// device_code was bound to auth.ClientID at authorization time, so an
+	// unresolvable registration is anomalous. Shared gate — issue 358.
+	authedID, authErr := authenticateRegisteredConfidentialClient(ctx, r.AppStore, r.Authenticator, auth.ClientID, clientCredentials{
+		ClientID:            req.ClientID,
+		ClientSecret:        req.ClientSecret,
+		ClientAssertionType: req.ClientAssertionType,
+		ClientAssertion:     req.ClientAssertion,
+		Audiences:           req.AcceptedAudiences,
+	})
+	if authErr != nil {
+		return nil, authErr
+	}
 	effectiveClientID := req.ClientID
-	if r.AppStore != nil && auth.ClientID != "" {
-		appResp, lookupErr := r.AppStore.GetApp(ctx, &core.GetAppRequest{ClientID: auth.ClientID})
-		if lookupErr != nil || appResp == nil || appResp.App == nil {
-			return nil, invalidClient("unable to resolve client registration")
-		}
-		if isConfidentialAuthMethod(appResp.App.TokenEndpointAuthMethod) {
-			authedID, authErr := r.authenticateClient(ctx, req)
-			if authErr != nil {
-				return nil, invalidClient("client authentication required for confidential device client")
-			}
-			effectiveClientID = authedID
-		}
+	if authedID != "" {
+		effectiveClientID = authedID
 	}
 
 	if auth.ClientID != "" && auth.ClientID != effectiveClientID {
@@ -138,26 +140,6 @@ func (r *deviceCodeGranter) DeviceCodeGrant(ctx context.Context, req *DeviceCode
 	_, _ = r.Store.DeleteDeviceAuthorization(ctx, &core.DeleteDeviceAuthorizationRequest{DeviceCode: auth.DeviceCode})
 
 	return &DeviceCodeGrantResponse{Tokens: pair}, nil
-}
-
-func (r *deviceCodeGranter) authenticateClient(ctx context.Context, req *DeviceCodeGrantRequest) (string, error) {
-	if r.Authenticator == nil {
-		return "", errors.New("no client authenticator configured")
-	}
-	resp, err := r.Authenticator.AuthenticateClient(ctx, &AuthenticateClientRequest{
-		ClientID:            req.ClientID,
-		ClientSecret:        req.ClientSecret,
-		ClientAssertionType: req.ClientAssertionType,
-		ClientAssertion:     req.ClientAssertion,
-		Audiences:           req.AcceptedAudiences,
-	})
-	if err != nil {
-		return "", err
-	}
-	if resp == nil || resp.ClientID == "" {
-		return "", errors.New("authenticator returned no client_id")
-	}
-	return resp.ClientID, nil
 }
 
 var _ DeviceCodeGranter = (*deviceCodeGranter)(nil)

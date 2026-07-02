@@ -76,19 +76,22 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		return nil, invalidGrant("authorization code expired")
 	}
 
+	// Confidential-client authentication (issue 266), fail-CLOSED: the code
+	// was bound to entry.ClientID at authorization time, so an unresolvable
+	// registration is anomalous. Shared gate — issue 358.
+	authedID, authErr := authenticateRegisteredConfidentialClient(ctx, r.AppStore, r.Authenticator, entry.ClientID, clientCredentials{
+		ClientID:            req.ClientID,
+		ClientSecret:        req.ClientSecret,
+		ClientAssertionType: req.ClientAssertionType,
+		ClientAssertion:     req.ClientAssertion,
+		Audiences:           req.AcceptedAudiences,
+	})
+	if authErr != nil {
+		return nil, authErr
+	}
 	effectiveClientID := req.ClientID
-	if r.AppStore != nil && entry.ClientID != "" {
-		appResp, lookupErr := r.AppStore.GetApp(ctx, &core.GetAppRequest{ClientID: entry.ClientID})
-		if lookupErr != nil || appResp == nil || appResp.App == nil {
-			return nil, invalidClient("unable to resolve client registration")
-		}
-		if isConfidentialAuthMethod(appResp.App.TokenEndpointAuthMethod) {
-			authedID, authErr := r.authenticateClient(ctx, req)
-			if authErr != nil {
-				return nil, invalidClient("client authentication required for confidential client")
-			}
-			effectiveClientID = authedID
-		}
+	if authedID != "" {
+		effectiveClientID = authedID
 	}
 
 	if entry.ClientID != "" && entry.ClientID != effectiveClientID {
@@ -136,26 +139,6 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		}
 	}
 	return &AuthorizationCodeGrantResponse{Tokens: pair}, nil
-}
-
-func (r *authorizationCodeGranter) authenticateClient(ctx context.Context, req *AuthorizationCodeGrantRequest) (string, error) {
-	if r.Authenticator == nil {
-		return "", errors.New("no client authenticator configured")
-	}
-	resp, err := r.Authenticator.AuthenticateClient(ctx, &AuthenticateClientRequest{
-		ClientID:            req.ClientID,
-		ClientSecret:        req.ClientSecret,
-		ClientAssertionType: req.ClientAssertionType,
-		ClientAssertion:     req.ClientAssertion,
-		Audiences:           req.AcceptedAudiences,
-	})
-	if err != nil {
-		return "", err
-	}
-	if resp == nil || resp.ClientID == "" {
-		return "", errors.New("authenticator returned no client_id")
-	}
-	return resp.ClientID, nil
 }
 
 var _ AuthorizationCodeGranter = (*authorizationCodeGranter)(nil)

@@ -47,11 +47,38 @@ type clientCredentials struct {
 // redemption the caller passes the ID-JAG's `client_id` claim as lookupClientID
 // — the client the IdP named — while creds carry whatever the presenter sent.
 func authenticateConfidentialClient(ctx context.Context, appStore core.AppRegistrationStore, authenticator ClientAuthenticator, lookupClientID string, creds clientCredentials) (string, error) {
+	return authenticateClientByRegistration(ctx, appStore, authenticator, lookupClientID, creds, false)
+}
+
+// authenticateRegisteredConfidentialClient is the fail-CLOSED sibling of
+// authenticateConfidentialClient, for grants whose lookupClientID is already
+// known-registered because it was bound at authorization time — device_code
+// (RFC 8628) and authorization_code (RFC 6749 §4.1). There, a client_id that
+// no longer resolves in the AppStore is anomalous, not a public client, so a
+// lookup miss returns invalid_client rather than falling through to the
+// assertion-only path.
+//
+// Everything else matches authenticateConfidentialClient: appStore nil or
+// lookupClientID empty → ("", nil) (the caller never wired confidential
+// enforcement); method "none" → public; a registered confidential client is
+// authenticated and its client_id returned, or invalid_client on failure.
+func authenticateRegisteredConfidentialClient(ctx context.Context, appStore core.AppRegistrationStore, authenticator ClientAuthenticator, lookupClientID string, creds clientCredentials) (string, error) {
+	return authenticateClientByRegistration(ctx, appStore, authenticator, lookupClientID, creds, true)
+}
+
+// authenticateClientByRegistration is the shared implementation behind the
+// fail-open and fail-closed gates. failClosedOnMiss selects what an
+// unresolvable (registered-but-not-found) client_id means: an error
+// (device/authcode) or the public path (jwt-bearer/token-exchange).
+func authenticateClientByRegistration(ctx context.Context, appStore core.AppRegistrationStore, authenticator ClientAuthenticator, lookupClientID string, creds clientCredentials, failClosedOnMiss bool) (string, error) {
 	if appStore == nil || lookupClientID == "" {
 		return "", nil
 	}
 	appResp, err := appStore.GetApp(ctx, &core.GetAppRequest{ClientID: lookupClientID})
 	if err != nil || appResp == nil || appResp.App == nil {
+		if failClosedOnMiss {
+			return "", invalidClient("unable to resolve client registration")
+		}
 		// Unregistered client_id → public path (fail-open per RFC 7523 §3).
 		return "", nil
 	}
