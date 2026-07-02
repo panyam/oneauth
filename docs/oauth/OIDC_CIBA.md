@@ -185,7 +185,7 @@ add a new grant_type, plumb auth_req_id through the same token-mint path.
 | CIBA surface | Status | Notes |
 |---|---|---|
 | `POST /bc-authorize` endpoint | **Gap** | — |
-| `urn:openid:params:grant-type:ciba` grant dispatch | **Gap** | Would slot alongside other grant types in `apiauth/auth.go` switch |
+| `urn:openid:params:grant-type:ciba` grant dispatch | **Gap** | Would slot alongside other grant types in the `apiauth/token_endpoint.go:69` switch |
 | Poll / ping / push notification mode handling | **Gap** | Poll mode is the simplest first target |
 | `login_hint` / `id_token_hint` resolution to user | **Gap** | Per-deployment user lookup integration |
 | Push notification to authenticator device | **Gap** | Out-of-scope for an OAuth library — needs platform integration |

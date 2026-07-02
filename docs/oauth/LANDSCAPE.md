@@ -432,7 +432,7 @@ Status legend:
 | 7523 JWT-bearer grant | Implemented | `apiauth/api_auth.go` | — |
 | 7591 DCR | Implemented | `admin/DCRHandler` | — |
 | 7592 DCR mgmt | Implemented | `admin/DCRManagementHandler` | — |
-| 7636 PKCE | Implemented | `client/browser_login.go` (client) · `apiauth/authorize.go`, `apiauth/authorize_grant.go` (server, via #297) | Server-side rejects missing/plain `code_challenge`; only S256 accepted |
+| 7636 PKCE | Implemented | `client/browser_login.go` (client) · `apiauth/authorize.go`, `apiauth/authorize_granter.go` (server, via #297) | Server-side rejects missing `code_challenge`; S256 by default (`plain` only via opt-in `AllowPlainPKCE`) |
 | 7662 Introspection | Implemented | `apiauth/IntrospectionHandler` | — |
 | 8414 AS metadata | Implemented | `apiauth.MountASMetadata` | — |
 | 8628 Device | Implemented | `apiauth.MountDeviceFlow` | — |
@@ -657,39 +657,39 @@ Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
 
 | Doc | Status | Tracking |
 |------|--------|---------|
-| [RFC_6749.md](RFC_6749.md) OAuth 2.0 framework | 🟡 | #302 |
-| [RFC_6750.md](RFC_6750.md) Bearer | 🟡 | #303 |
-| [RFC_7009.md](RFC_7009.md) Revocation | 🟡 | #309 |
-| [RFC_7515.md](RFC_7515.md) JWS | 🟡 | #306 |
-| [RFC_7516.md](RFC_7516.md) JWE | 🟡 | #306 |
-| [RFC_7517.md](RFC_7517.md) JWK / JWKS | 🟡 | #306 |
-| [RFC_7518.md](RFC_7518.md) JWA | 🟡 | #306 |
-| [RFC_7519.md](RFC_7519.md) JWT | 🟡 | #306 |
-| [RFC_7521.md](RFC_7521.md) Assertion framework | 🟡 | #314 |
-| [RFC_7523.md](RFC_7523.md) JWT bearer | 🟡 | #314 |
-| [RFC_7591.md](RFC_7591.md) DCR | 🟡 | #313 |
-| [RFC_7592.md](RFC_7592.md) DCR mgmt | 🟡 | #313 |
-| [RFC_7636.md](RFC_7636.md) PKCE | 🟡 | #304 |
-| [RFC_7662.md](RFC_7662.md) Introspection | 🟡 | #308 |
-| [RFC_8414.md](RFC_8414.md) AS metadata | 🟡 | #310 |
-| [RFC_8628.md](RFC_8628.md) Device | 🟡 | #316 |
-| [RFC_8693.md](RFC_8693.md) Token Exchange | 🟡 | #317 |
-| [RFC_8705.md](RFC_8705.md) mTLS | 🟡 | #315 |
-| [RFC_9068.md](RFC_9068.md) JWT AT profile | 🟡 | #307 |
-| [RFC_9101.md](RFC_9101.md) JAR | 🟡 | #320 |
-| [RFC_9126.md](RFC_9126.md) PAR | 🟡 | #319 |
-| [RFC_9207.md](RFC_9207.md) Issuer ID | 🟡 | #312 |
-| [RFC_9396.md](RFC_9396.md) RAR | 🟡 | #321 |
-| [RFC_9449.md](RFC_9449.md) DPoP | 🟡 | #316 |
-| [RFC_9700.md](RFC_9700.md) Security BCP | 🟡 | #305 |
-| [RFC_9728.md](RFC_9728.md) PR metadata | 🟡 | #311 |
-| [RFC_oauth21.md](RFC_oauth21.md) OAuth 2.1 draft | 🟡 | #302 |
-| [OIDC_Core.md](OIDC_Core.md) | 🟡 | #322 |
-| [OIDC_Discovery.md](OIDC_Discovery.md) | 🟡 | #322 |
-| [OIDC_BCL.md](OIDC_BCL.md) | 🟡 | #323 |
-| [OIDC_CIBA.md](OIDC_CIBA.md) | 🟡 | #324 |
-| [FAPI.md](FAPI.md) | 🟡 | #325 |
-| [GNAP.md](GNAP.md) | 🟡 | #326 |
+| [RFC_6749.md](RFC_6749.md) OAuth 2.0 framework | ✅ | #302 |
+| [RFC_6750.md](RFC_6750.md) Bearer | ✅ | #303 |
+| [RFC_7009.md](RFC_7009.md) Revocation | ✅ | #309 |
+| [RFC_7515.md](RFC_7515.md) JWS | ✅ | #306 |
+| [RFC_7516.md](RFC_7516.md) JWE | ✅ | #306 |
+| [RFC_7517.md](RFC_7517.md) JWK / JWKS | ✅ | #306 |
+| [RFC_7518.md](RFC_7518.md) JWA | ✅ | #306 |
+| [RFC_7519.md](RFC_7519.md) JWT | ✅ | #306 |
+| [RFC_7521.md](RFC_7521.md) Assertion framework | ✅ | #314 |
+| [RFC_7523.md](RFC_7523.md) JWT bearer | ✅ | #314 |
+| [RFC_7591.md](RFC_7591.md) DCR | ✅ | #313 |
+| [RFC_7592.md](RFC_7592.md) DCR mgmt | ✅ | #313 |
+| [RFC_7636.md](RFC_7636.md) PKCE | ✅ | #304 |
+| [RFC_7662.md](RFC_7662.md) Introspection | ✅ | #308 |
+| [RFC_8414.md](RFC_8414.md) AS metadata | ✅ | #310 |
+| [RFC_8628.md](RFC_8628.md) Device | ✅ | #316 |
+| [RFC_8693.md](RFC_8693.md) Token Exchange | ✅ | #317 |
+| [RFC_8705.md](RFC_8705.md) mTLS | ✅ | #315 |
+| [RFC_9068.md](RFC_9068.md) JWT AT profile | ✅ | #307 |
+| [RFC_9101.md](RFC_9101.md) JAR | ✅ | #320 |
+| [RFC_9126.md](RFC_9126.md) PAR | ✅ | #319 |
+| [RFC_9207.md](RFC_9207.md) Issuer ID | ✅ | #312 |
+| [RFC_9396.md](RFC_9396.md) RAR | ✅ | #321 |
+| [RFC_9449.md](RFC_9449.md) DPoP | ✅ | #316 |
+| [RFC_9700.md](RFC_9700.md) Security BCP | ✅ | #305 |
+| [RFC_9728.md](RFC_9728.md) PR metadata | ✅ | #311 |
+| [RFC_oauth21.md](RFC_oauth21.md) OAuth 2.1 draft | ✅ | #302 |
+| [OIDC_Core.md](OIDC_Core.md) | ✅ | #322 |
+| [OIDC_Discovery.md](OIDC_Discovery.md) | ✅ | #322 |
+| [OIDC_BCL.md](OIDC_BCL.md) | ✅ | #323 |
+| [OIDC_CIBA.md](OIDC_CIBA.md) | ✅ | #324 |
+| [FAPI.md](FAPI.md) | ✅ | #325 |
+| [GNAP.md](GNAP.md) | ✅ | #326 |
 
 ---
 
