@@ -113,11 +113,12 @@ func main() {
 	// Allows clients to auto-discover this resource server's capabilities.
 	authServerURL := envOrDefault("AUTH_SERVER_URL", "http://localhost:9999")
 	prmHandler := apiauth.NewProtectedResourceHandler(&apiauth.ProtectedResourceMetadata{
-		Resource:              "http://localhost:" + *port,
-		AuthorizationServers:  []string{authServerURL},
-		ScopesSupported:       []string{"read", "write", "relay:connect", "relay:publish"},
-		TokenFormatsSupported: []string{"jwt"},
-		SigningAlgsSupported:  []string{"HS256", "RS256", "ES256"},
+		Resource:               "http://localhost:" + *port,
+		AuthorizationServers:   []string{authServerURL},
+		ScopesSupported:        []string{"read", "write", "relay:connect", "relay:publish"},
+		BearerMethodsSupported: []string{"header"},
+		TokenFormatsSupported:  []string{"jwt"},
+		SigningAlgsSupported:   []string{"HS256", "RS256", "ES256"},
 	})
 	mux.Handle("GET /.well-known/oauth-protected-resource", prmHandler)
 
