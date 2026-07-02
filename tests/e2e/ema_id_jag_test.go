@@ -144,3 +144,70 @@ func TestEMA_IDJAG_JWKSDiscoveryRedemption(t *testing.T) {
 	assert.Equal(t, "alice@corp.example.com", claims["sub"])
 	assert.Equal(t, mcpClientID, claims["client_id"], "access token MUST bind the id-jag client_id")
 }
+
+// TestEMA_IDJAG_ConfidentialClientEnforced — when the ID-JAG names a
+// registered confidential client, the RS AS enforces client authentication on
+// redemption over the wire (issue 356): correct secret succeeds, wrong secret
+// is rejected invalid_client, and the failed attempt does not burn the ID-JAG.
+func TestEMA_IDJAG_ConfidentialClientEnforced(t *testing.T) {
+	idjagKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	const (
+		idpASIssuer = "https://idp-as.example.com"
+		rsASIssuer  = "https://rs-as.example.com"
+		mcpClientID = "mcp-client-conf"
+		mcpSecret   = "mcp-secret-value"
+	)
+
+	rsSrv := testutil.NewTestAuthServer(t,
+		testutil.WithIssuer(rsASIssuer),
+		testutil.WithAudience(rsASIssuer),
+		testutil.WithTrustedAssertionIssuers([]apiauth.TrustedAssertionIssuer{{
+			Issuer:             idpASIssuer,
+			PublicKey:          &idjagKey.PublicKey,
+			Audiences:          []string{rsASIssuer},
+			AcceptedAlgorithms: []string{"RS256"},
+		}}),
+		testutil.WithConfidentialClient(mcpClientID, mcpSecret),
+	)
+
+	mintIDJAG := func(jti string) string {
+		now := time.Now()
+		tok := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+			"iss":       idpASIssuer,
+			"sub":       "alice@corp.example.com",
+			"aud":       rsASIssuer,
+			"client_id": mcpClientID,
+			"jti":       jti,
+			"exp":       now.Add(time.Minute).Unix(),
+			"iat":       now.Unix(),
+		})
+		tok.Header["typ"] = apiauth.IDJAGTypeHeader
+		signed, err := tok.SignedString(idjagKey)
+		require.NoError(t, err)
+		return signed
+	}
+
+	idjag := mintIDJAG("jti-e2e-conf-1")
+
+	// Wrong secret → invalid_client, and the jti is NOT consumed.
+	badForm := url.Values{}
+	badForm.Set("grant_type", apiauth.JwtBearerGrantType)
+	badForm.Set("assertion", idjag)
+	badForm.Set("client_id", mcpClientID)
+	badForm.Set("client_secret", "WRONG")
+	badStatus, badBody := postTokenForm(t, rsSrv.TokenEndpoint(), badForm)
+	assert.Equal(t, http.StatusUnauthorized, badStatus)
+	assert.Equal(t, "invalid_client", badBody["error"])
+
+	// Correct secret → success, same ID-JAG (jti survived the failed attempt).
+	goodForm := url.Values{}
+	goodForm.Set("grant_type", apiauth.JwtBearerGrantType)
+	goodForm.Set("assertion", idjag)
+	goodForm.Set("client_id", mcpClientID)
+	goodForm.Set("client_secret", mcpSecret)
+	goodStatus, goodBody := postTokenForm(t, rsSrv.TokenEndpoint(), goodForm)
+	require.Equal(t, http.StatusOK, goodStatus, "correct secret MUST succeed: %v", goodBody)
+	assert.NotEmpty(t, goodBody["access_token"])
+}

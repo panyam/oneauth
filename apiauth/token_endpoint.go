@@ -336,6 +336,11 @@ func (h *TokenEndpointHandler) dispatchJwtBearer(w http.ResponseWriter, r *http.
 		Assertion:            req.Assertion,
 		Scopes:               core.ParseScopes(req.Scope),
 		AuthorizationDetails: req.AuthorizationDetails,
+		ClientID:             req.ClientID,
+		ClientSecret:         req.ClientSecret,
+		ClientAssertionType:  req.ClientAssertionType,
+		ClientAssertion:      req.ClientAssertion,
+		AcceptedAudiences:    h.acceptedAudiences(r),
 	})
 	if err != nil {
 		h.writeError(w, err)
@@ -358,6 +363,10 @@ func (h *TokenEndpointHandler) dispatchTokenExchange(w http.ResponseWriter, r *h
 		Scopes:               core.ParseScopes(req.Scope),
 		AuthorizationDetails: req.AuthorizationDetails,
 		ClientID:             req.ClientID,
+		ClientSecret:         req.ClientSecret,
+		ClientAssertionType:  req.ClientAssertionType,
+		ClientAssertion:      req.ClientAssertion,
+		AcceptedAudiences:    h.acceptedAudiences(r),
 	})
 	if err != nil {
 		h.writeError(w, err)

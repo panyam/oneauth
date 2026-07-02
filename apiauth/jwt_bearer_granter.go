@@ -28,6 +28,8 @@ type jwtBearerGranter struct {
 	defaultIssuer   string
 	issuer          TokenIssuer
 	replayStore     JTIStore
+	appStore        core.AppRegistrationStore
+	authenticator   ClientAuthenticator
 }
 
 // JwtBearerGranterConfig wires the dependencies the jwt-bearer grant needs.
@@ -53,6 +55,15 @@ type JwtBearerGranterConfig struct {
 	// jwt-bearer assertions are not replay-checked; the assertion is the
 	// renewable credential per RFC 7523.
 	ReplayStore JTIStore
+
+	// AppStore + Authenticator enable confidential-client authentication
+	// (issue 356). When wired, a request whose client_id names a
+	// registered confidential client is authenticated before issuance;
+	// public / unregistered clients keep the RFC 7523 §3 assertion-only
+	// path. Both nil (default) preserves the pre-356 behavior of never
+	// authenticating the client on this grant.
+	AppStore      core.AppRegistrationStore
+	Authenticator ClientAuthenticator
 }
 
 // NewJwtBearerGranter constructs a JwtBearerGranter. cfg.TrustedIssuers MUST
@@ -68,6 +79,8 @@ func NewJwtBearerGranter(cfg JwtBearerGranterConfig) JwtBearerGranter {
 		defaultIssuer:   cfg.DefaultIssuer,
 		issuer:          cfg.Issuer,
 		replayStore:     replay,
+		appStore:        cfg.AppStore,
+		authenticator:   cfg.Authenticator,
 	}
 }
 
@@ -99,6 +112,14 @@ func (h *jwtBearerGranter) JwtBearerGrant(ctx context.Context, req *JwtBearerGra
 		return nil, &GrantError{Code: "invalid_authorization_details", Description: err.Error(), Status: 400}
 	}
 
+	creds := clientCredentials{
+		ClientID:            req.ClientID,
+		ClientSecret:        req.ClientSecret,
+		ClientAssertionType: req.ClientAssertionType,
+		ClientAssertion:     req.ClientAssertion,
+		Audiences:           req.AcceptedAudiences,
+	}
+
 	// ID-JAG hardening. `typ` is authenticated: ValidateAssertion verified
 	// the signature over the same header we read here.
 	var clientID string
@@ -107,15 +128,33 @@ func (h *jwtBearerGranter) JwtBearerGrant(ctx context.Context, req *JwtBearerGra
 		if jti == "" {
 			return nil, invalidGrant("id-jag missing jti claim")
 		}
-		// Single-use: remember the jti until the ID-JAG expires. After
-		// exp a replay fails on the exp check anyway, so we never need to
-		// retain it longer.
+		clientID, _ = claims["client_id"].(string)
+
+		// Bind redemption to the client the IdP named. The confidential
+		// lookup keys off the ID-JAG's client_id claim (not the request
+		// client_id) so a stolen ID-JAG cannot be redeemed by claiming to
+		// be an unregistered public client. If that named client is
+		// confidential, the presenter MUST authenticate as it (issue 356).
+		authedID, autherr := authenticateConfidentialClient(ctx, h.appStore, h.authenticator, clientID, creds)
+		if autherr != nil {
+			return nil, autherr
+		}
+		if authedID != "" && authedID != clientID {
+			return nil, invalidGrant("id-jag client_id does not match the authenticated client")
+		}
+
+		// Single-use: consume the jti only AFTER auth passes, so a failed
+		// authentication attempt does not burn a single-use ID-JAG. The
+		// entry is remembered until the ID-JAG expires — after exp a replay
+		// fails the exp check anyway.
 		if h.replayStore.SeenWithin(jti, idjagReplayTTL(claims)) {
 			return nil, invalidGrant("id-jag replay detected: jti already redeemed")
 		}
-		clientID, _ = claims["client_id"].(string)
 		// TODO(ext-auth#13): propagate an act/actor claim so the access
 		// token distinguishes the agent from the user it acts for.
+	} else if _, autherr := authenticateConfidentialClient(ctx, h.appStore, h.authenticator, req.ClientID, creds); autherr != nil {
+		// Plain jwt-bearer: authenticate a confidential requesting client.
+		return nil, autherr
 	}
 
 	tok, err := h.issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{

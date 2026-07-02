@@ -77,6 +77,7 @@ type config struct {
 	idjagIssuer             apiauth.IDJAGIssuer              // opt token-exchange into ID-JAG issuance (SEP-990)
 	idjagSelfSigned         bool                             // sign ID-JAGs with the server's own (JWKS-published) key
 	idjagSelfSignedTTL      time.Duration                    // ID-JAG lifetime when self-signed
+	confidentialClients     []confidentialClient             // registered confidential clients (opt-in; wires an AppStore)
 
 	// Authorize-flow configuration. authorizeEnabled gates the mount of
 	// MountAuthorize + the AS-metadata advertisement extensions.
@@ -86,8 +87,28 @@ type config struct {
 	allowPlainPKCE            bool
 }
 
+// confidentialClient is a client_secret_post client to register at startup.
+type confidentialClient struct {
+	clientID string
+	secret   string
+}
+
 // Option configures a TestAuthServer.
 type Option func(*config)
+
+// WithConfidentialClient registers a confidential client
+// (token_endpoint_auth_method=client_secret_post) with the given secret, and
+// wires the AS with an AppStore so confidential-client authentication is
+// enforced on the grants that consult it (jwt-bearer / token-exchange,
+// issue 356; device_code / authorization_code, issue 266).
+//
+// Opt-in: absent this option the AS runs with no AppStore, preserving the
+// public / assertion-only behavior existing tests rely on.
+func WithConfidentialClient(clientID, secret string) Option {
+	return func(c *config) {
+		c.confidentialClients = append(c.confidentialClients, confidentialClient{clientID: clientID, secret: secret})
+	}
+}
 
 // WithAdminKey sets the admin API key required for app registration endpoints.
 // Default: "testutil-admin-key".
@@ -321,7 +342,37 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		return nil, fmt.Errorf("testutil: failed to store RSA key: %w", err)
 	}
 
-	registrar := admin.NewAppRegistrar(ks, admin.NewAPIKeyAuth(cfg.adminKey))
+	// Share one AppStore between the registrar and OneAuth so registered
+	// clients are visible to the granters. Only wired when a confidential
+	// client is registered (opt-in) — otherwise AppStore stays nil and the
+	// grants keep their public / assertion-only behavior.
+	var appStore core.AppRegistrationStore
+	if len(cfg.confidentialClients) > 0 {
+		appStore = core.NewInMemoryAppStore()
+		for _, cc := range cfg.confidentialClients {
+			if _, err := appStore.SaveApp(context.Background(), &core.SaveAppRequest{App: &core.AppRegistration{
+				ClientID:                cc.clientID,
+				TokenEndpointAuthMethod: "client_secret_post",
+				SigningAlg:              "HS256",
+			}}); err != nil {
+				return nil, fmt.Errorf("testutil: register confidential client: %w", err)
+			}
+			if _, err := ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
+				ClientID:  cc.clientID,
+				Key:       []byte(cc.secret),
+				Algorithm: "HS256",
+			}}); err != nil {
+				return nil, fmt.Errorf("testutil: store confidential client secret: %w", err)
+			}
+		}
+	}
+
+	var registrar *admin.AppRegistrar
+	if appStore != nil {
+		registrar = admin.NewAppRegistrarWithStore(ks, admin.NewAPIKeyAuth(cfg.adminKey), appStore)
+	} else {
+		registrar = admin.NewAppRegistrar(ks, admin.NewAPIKeyAuth(cfg.adminKey))
+	}
 
 	oaCfg := apiauth.OneAuthConfig{
 		KeyStore:                ks,
@@ -333,6 +384,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		AudienceFunc:            cfg.audienceFunc,
 		TrustedAssertionIssuers: cfg.trustedAssertionIssuers,
 		IDJAGIssuer:             cfg.idjagIssuer,
+		AppStore:                appStore,
 		AllowPlainPKCE:          cfg.allowPlainPKCE,
 	}
 	if cfg.authorizeEnabled {
