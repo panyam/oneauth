@@ -32,12 +32,13 @@ import (
 // See: https://www.rfc-editor.org/rfc/rfc9728#section-3
 func TestPRM_FullMetadata(t *testing.T) {
 	meta := &apiauth.ProtectedResourceMetadata{
-		Resource:             "https://relay.example.com",
-		AuthorizationServers: []string{"https://auth.example.com"},
-		ScopesSupported:      []string{"relay:connect", "relay:publish"},
-		TokenFormatsSupported: []string{"jwt"},
-		SigningAlgsSupported:  []string{"RS256", "ES256"},
-		DocumentationURI:     "https://docs.example.com/api",
+		Resource:               "https://relay.example.com",
+		AuthorizationServers:   []string{"https://auth.example.com"},
+		ScopesSupported:        []string{"relay:connect", "relay:publish"},
+		BearerMethodsSupported: []string{"header"},
+		TokenFormatsSupported:  []string{"jwt"},
+		SigningAlgsSupported:   []string{"RS256", "ES256"},
+		DocumentationURI:       "https://docs.example.com/api",
 	}
 
 	handler := apiauth.NewProtectedResourceHandler(meta)
@@ -54,6 +55,7 @@ func TestPRM_FullMetadata(t *testing.T) {
 	assert.Equal(t, "https://relay.example.com", body["resource"])
 	assert.Equal(t, []any{"https://auth.example.com"}, body["authorization_servers"])
 	assert.Equal(t, []any{"relay:connect", "relay:publish"}, body["scopes_supported"])
+	assert.Equal(t, []any{"header"}, body["bearer_methods_supported"])
 	assert.Equal(t, []any{"jwt"}, body["token_formats_supported"])
 	assert.Equal(t, []any{"RS256", "ES256"}, body["resource_signing_alg_values_supported"])
 	assert.Equal(t, "https://docs.example.com/api", body["resource_documentation"])
@@ -86,6 +88,7 @@ func TestPRM_OmitsEmptyFields(t *testing.T) {
 
 	// Optional fields omitted
 	assert.NotContains(t, body, "scopes_supported")
+	assert.NotContains(t, body, "bearer_methods_supported")
 	assert.NotContains(t, body, "token_formats_supported")
 	assert.NotContains(t, body, "resource_signing_alg_values_supported")
 	assert.NotContains(t, body, "resource_documentation")

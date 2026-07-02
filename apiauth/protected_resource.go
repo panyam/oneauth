@@ -29,6 +29,14 @@ type ProtectedResourceMetadata struct {
 	// understands. Optional.
 	ScopesSupported []string `json:"scopes_supported,omitempty"`
 
+	// BearerMethodsSupported lists how this resource server accepts bearer
+	// tokens, using the method names from RFC 6750 ("header", "body", "query").
+	// Optional per RFC 9728 §2; omitted from JSON when empty. OneAuth's
+	// middleware only accepts the Authorization request header field
+	// (RFC 6750 §2.1), so a OneAuth-backed resource server advertises
+	// ["header"] — the reference server in cmd/demo-resource-server sets this.
+	BearerMethodsSupported []string `json:"bearer_methods_supported,omitempty"`
+
 	// TokenFormatsSupported lists the token formats accepted (e.g., "jwt").
 	// Optional.
 	TokenFormatsSupported []string `json:"token_formats_supported,omitempty"`
