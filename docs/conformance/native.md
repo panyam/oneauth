@@ -1,6 +1,6 @@
 # Go-native conformance report
 
-Generated: 2026-06-18 07:38:03 UTC  
+Generated: 2026-07-02 19:28:27 UTC  
 Package pattern: `./...`
 
 ## Summary
@@ -19,8 +19,8 @@ Package pattern: `./...`
 
 | Expires | Suite | Test | Issue | Owner | Status |
 |---|---|---|---|---|---|
+| 2026-12-31 | oidf | `oidcc-config-certification-test-plan/CheckDiscEndpointUserinfoEndpoint` | 116 | panyam | expected-fail |
 | 2026-12-31 | oidf | `oidcc-config-certification-test-plan/OIDCCCheckDiscEndpointResponseTypesSupported` | 116 | panyam | expected-fail |
 | 2026-12-31 | oidf | `oidcc-config-certification-test-plan/OIDCCCheckDiscEndpointIdTokenSigningAlgValuesSupported` | 116 | panyam | expected-fail |
 | 2026-12-31 | oidf | `oidcc-config-certification-test-plan/CheckDiscEndpointAuthorizationEndpoint` | 116 | panyam | expected-fail |
-| 2026-12-31 | oidf | `oidcc-config-certification-test-plan/CheckDiscEndpointUserinfoEndpoint` | 116 | panyam | expected-fail |
 
