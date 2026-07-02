@@ -1,6 +1,6 @@
 module github.com/panyam/oneauth/docs/site
 
-go 1.24
+go 1.26.4
 
 require (
 	github.com/panyam/s3gen v0.1.4
