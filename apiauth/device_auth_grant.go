@@ -87,8 +87,9 @@ type DeviceAuthorizationHandler struct {
 // ServeHTTP implements the RFC 8628 §3.1 device authorization request
 // endpoint. Body MUST be application/x-www-form-urlencoded. Form fields:
 //
-//   - client_id (REQUIRED for public clients; confidential clients also
-//     send credentials, picked up by the ClientAuthenticator)
+//   - client_id (REQUIRED for public clients; confidential clients
+//     authenticate via client_secret_basic, client_secret_post, or
+//     client_assertion, resolved by extractClientCredentials)
 //   - scope (OPTIONAL)
 //   - audience (OPTIONAL, RFC 8707 extension)
 //
@@ -103,18 +104,23 @@ func (h *DeviceAuthorizationHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "invalid form body")
 		return
 	}
-	clientID := r.FormValue("client_id")
+	// Resolve credentials across all three OAuth channels — Authorization:
+	// Basic (RFC 6749 §2.3.1), client_secret_post, and client_assertion
+	// (RFC 7521 §4.2) — via the shared extractor, so a client_secret_basic
+	// client (whose client_id lives in the Basic header, not the form) is
+	// authenticated. Fall back to the form client_id for the public path,
+	// where extractClientCredentials finds no complete credential set.
+	creds, ok := extractClientCredentials(r, nil)
+	if !ok {
+		creds = &AuthenticateClientRequest{ClientID: r.FormValue("client_id")}
+	}
+	clientID := creds.ClientID
 	if clientID == "" {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_client", "client_id is required")
 		return
 	}
 	if h.ClientAuthenticator != nil {
-		resp, err := h.ClientAuthenticator.AuthenticateClient(r.Context(), &AuthenticateClientRequest{
-			ClientID:            clientID,
-			ClientSecret:        r.FormValue("client_secret"),
-			ClientAssertionType: r.FormValue("client_assertion_type"),
-			ClientAssertion:     r.FormValue("client_assertion"),
-		})
+		resp, err := h.ClientAuthenticator.AuthenticateClient(r.Context(), creds)
 		if err != nil {
 			writeOAuthError(w, http.StatusUnauthorized, "invalid_client", err.Error())
 			return
@@ -245,4 +251,3 @@ func writeOAuthError(w http.ResponseWriter, status int, errorCode, description s
 		ErrorDescription: description,
 	})
 }
-
