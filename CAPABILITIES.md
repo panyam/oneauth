@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-v0.1.34
+v0.1.35
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
