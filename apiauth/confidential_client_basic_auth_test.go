@@ -29,6 +29,7 @@ import (
 
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/keys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -189,6 +190,44 @@ func TestDeviceGrant_ConfidentialClient_BasicAuth_WrongSecret_InvalidClient(t *t
 		"grant_type":  {apiauth.DeviceCodeGrantType},
 		"device_code": {deviceCode},
 	}, "client-conf", "WRONG-SECRET")
+	assert.Equal(t, http.StatusUnauthorized, status)
+	assert.Equal(t, "invalid_client", body["error"])
+}
+
+// --- device authorization endpoint (RFC 8628 §3.1) -------------------------
+
+// newBasicAuthDeviceAuthzHandler builds a POST /device/authorize handler whose
+// ClientAuthenticator validates one confidential client's secret from the
+// KeyStore, so client authentication actually runs at the authorization step
+// (step 1) — not just at the token step.
+func newBasicAuthDeviceAuthzHandler(t *testing.T, clientID, secret string) *apiauth.DeviceAuthorizationHandler {
+	t.Helper()
+	ks := keys.NewInMemoryKeyStore()
+	_, err := ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{
+		ClientID:  clientID,
+		Key:       []byte(secret),
+		Algorithm: "HS256",
+	}})
+	require.NoError(t, err)
+	return &apiauth.DeviceAuthorizationHandler{
+		Store:               core.NewInMemoryDeviceAuthorizationStore(),
+		VerificationURI:     "https://auth.example/device",
+		ClientAuthenticator: apiauth.NewClientAuthenticator(ks),
+	}
+}
+
+func TestDeviceAuthorize_ConfidentialClient_BasicAuth_CorrectSecret_Succeeds(t *testing.T) {
+	h := newBasicAuthDeviceAuthzHandler(t, "client-conf", "conf-secret")
+	// client_id/secret via Authorization: Basic, absent from the form.
+	status, body := postFormBasic(t, h, url.Values{"scope": {"read"}}, "client-conf", "conf-secret")
+	require.Equal(t, http.StatusOK, status, body)
+	assert.NotEmpty(t, body["device_code"])
+	assert.NotEmpty(t, body["user_code"])
+}
+
+func TestDeviceAuthorize_ConfidentialClient_BasicAuth_WrongSecret_InvalidClient(t *testing.T) {
+	h := newBasicAuthDeviceAuthzHandler(t, "client-conf", "conf-secret")
+	status, body := postFormBasic(t, h, url.Values{"scope": {"read"}}, "client-conf", "WRONG")
 	assert.Equal(t, http.StatusUnauthorized, status)
 	assert.Equal(t, "invalid_client", body["error"])
 }
