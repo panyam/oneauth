@@ -267,7 +267,9 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	// can swap in private_key_jwt / federated client auth.
 	authenticator := cfg.Authenticator
 	if authenticator == nil {
-		authenticator = NewClientAuthenticator(cfg.KeyStore)
+		// Bind the presented client-auth method to the registered
+		// token_endpoint_auth_method when an AppStore is wired (issue 360).
+		authenticator = NewClientAuthenticatorWithAppStore(cfg.KeyStore, cfg.AppStore)
 	}
 
 	// Per-grant Granters. Nil when the corresponding store / config is
