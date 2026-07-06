@@ -456,10 +456,13 @@ type AuthenticateClientResponse struct {
 	ClientID string
 
 	// Method names the auth method that succeeded — one of
-	// "client_secret_basic", "client_secret_post", "private_key_jwt".
-	// Transport bindings populate Method on the way in (basic vs post)
-	// when they know which channel carried the secret; the assertion
-	// path always sets it to "private_key_jwt".
+	// "client_secret" (raw-secret path, covering both client_secret_basic
+	// and client_secret_post; the authenticator does not learn which
+	// channel carried the secret), "private_key_jwt", or
+	// "client_secret_jwt" (assertion path, picked by whether the
+	// registered key is asymmetric or HMAC). Consumed by the issue-360
+	// auth-method binding, which maps a registered
+	// token_endpoint_auth_method to the accepted Method family.
 	Method string
 }
 

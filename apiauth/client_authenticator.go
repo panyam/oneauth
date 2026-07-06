@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
@@ -40,6 +41,7 @@ func (e *clientError) Error() string { return e.msg }
 type clientAuthenticator struct {
 	keyLookup keys.KeyLookup
 	jtiStore  JTIStore
+	appStore  core.AppRegistrationStore
 }
 
 // NewClientAuthenticator creates a ClientAuthenticator backed by a
@@ -47,16 +49,32 @@ type clientAuthenticator struct {
 // For multi-node deployments use NewClientAuthenticatorWithJTIStore to
 // wire a distributed JTI store.
 func NewClientAuthenticator(kl keys.KeyLookup) ClientAuthenticator {
-	return &clientAuthenticator{keyLookup: kl, jtiStore: NewInMemoryJTIStore()}
+	return newClientAuthenticator(kl, nil, nil)
 }
 
 // NewClientAuthenticatorWithJTIStore is like NewClientAuthenticator but
 // lets callers supply a custom JTIStore (Redis-backed, etc.).
 func NewClientAuthenticatorWithJTIStore(kl keys.KeyLookup, jti JTIStore) ClientAuthenticator {
+	return newClientAuthenticator(kl, nil, jti)
+}
+
+// NewClientAuthenticatorWithAppStore is like NewClientAuthenticator but also
+// binds the presented client-auth method to the client's registered
+// token_endpoint_auth_method (issue 360). When appStore is non-nil, a client
+// registered as a confidential method (e.g. private_key_jwt) MUST authenticate
+// with that method's family; presenting a different family (e.g. a shared
+// secret) is rejected invalid_client, closing an auth-method downgrade. When
+// appStore is nil the binding is skipped and behavior matches
+// NewClientAuthenticator.
+func NewClientAuthenticatorWithAppStore(kl keys.KeyLookup, appStore core.AppRegistrationStore) ClientAuthenticator {
+	return newClientAuthenticator(kl, appStore, nil)
+}
+
+func newClientAuthenticator(kl keys.KeyLookup, appStore core.AppRegistrationStore, jti JTIStore) ClientAuthenticator {
 	if jti == nil {
 		jti = NewInMemoryJTIStore()
 	}
-	return &clientAuthenticator{keyLookup: kl, jtiStore: jti}
+	return &clientAuthenticator{keyLookup: kl, jtiStore: jti, appStore: appStore}
 }
 
 // AuthenticateClient verifies the supplied client credentials. When
@@ -76,10 +94,75 @@ func (a *clientAuthenticator) AuthenticateClient(ctx context.Context, req *Authe
 	if a.keyLookup == nil {
 		return nil, errInvalidClient
 	}
+	var resp *AuthenticateClientResponse
+	var err error
 	if req.ClientAssertion != "" {
-		return a.authenticateAssertion(req)
+		resp, err = a.authenticateAssertion(req)
+	} else {
+		resp, err = a.authenticateSecret(req)
 	}
-	return a.authenticateSecret(req)
+	if err != nil {
+		return nil, err
+	}
+	if berr := a.enforceAuthMethodBinding(ctx, resp.ClientID, resp.Method); berr != nil {
+		return nil, berr
+	}
+	return resp, nil
+}
+
+// enforceAuthMethodBinding rejects a client that authenticated with a method
+// outside the family it registered as (issue 360). It is a no-op unless an
+// AppStore is wired: without the registration there is no declared method to
+// bind to. A client that is unregistered, unresolvable, or registered "none"
+// (public) is not bound either — the confidential-client gate and the
+// grant-level policy own those cases; this check only stops a *registered
+// confidential* client from downgrading (e.g. a private_key_jwt client
+// authenticating with a shared secret, or the reverse).
+//
+// Binding is at the family level: client_secret_basic and client_secret_post
+// both satisfy a "client_secret" result because the authenticator does not
+// learn which channel carried the secret. private_key_jwt and
+// client_secret_jwt each bind exactly.
+func (a *clientAuthenticator) enforceAuthMethodBinding(ctx context.Context, clientID, presentedMethod string) error {
+	if a.appStore == nil || clientID == "" {
+		return nil
+	}
+	appResp, err := a.appStore.GetApp(ctx, &core.GetAppRequest{ClientID: clientID})
+	if err != nil || appResp == nil || appResp.App == nil {
+		// Unregistered / unresolvable: no declared method to bind to.
+		return nil
+	}
+	registered := appResp.App.TokenEndpointAuthMethod
+	if !isConfidentialAuthMethod(registered) {
+		// "none" (or empty): a public client. Binding does not apply.
+		return nil
+	}
+	if !authMethodFamilyMatches(registered, presentedMethod) {
+		return fmt.Errorf("%w: presented auth method %q does not match registered token_endpoint_auth_method %q",
+			errInvalidClient, presentedMethod, registered)
+	}
+	return nil
+}
+
+// authMethodFamilyMatches reports whether a presented auth method (as
+// classified in AuthenticateClientResponse.Method: "client_secret",
+// "private_key_jwt", or "client_secret_jwt") satisfies the client's registered
+// token_endpoint_auth_method. client_secret_basic and client_secret_post are
+// one family ("client_secret") — the presented-method classification does not
+// distinguish the two channels, and neither is a downgrade of the other. Any
+// method not recognized here fails closed (no match), so an unexpected
+// registered value cannot silently permit a mismatched credential.
+func authMethodFamilyMatches(registered, presented string) bool {
+	switch registered {
+	case "client_secret_basic", "client_secret_post":
+		return presented == "client_secret"
+	case "private_key_jwt":
+		return presented == "private_key_jwt"
+	case "client_secret_jwt":
+		return presented == "client_secret_jwt"
+	default:
+		return false
+	}
 }
 
 func (a *clientAuthenticator) authenticateSecret(req *AuthenticateClientRequest) (*AuthenticateClientResponse, error) {
