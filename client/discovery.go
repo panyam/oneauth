@@ -69,6 +69,15 @@ type ASMetadata struct {
 	// RFC 9207 §3:
 	//   https://www.rfc-editor.org/rfc/rfc9207#section-3
 	AuthorizationResponseIssParameterSupported *bool `json:"authorization_response_iss_parameter_supported,omitempty"`
+
+	// ClientIdMetadataDocumentSupported surfaces the SEP-991 / Client ID
+	// Metadata Document advertisement
+	// (draft-ietf-oauth-client-id-metadata-document): when true the AS
+	// accepts a URL as the client_id and resolves the metadata document
+	// itself, so clients SHOULD prefer that over Dynamic Client
+	// Registration. Absent and explicit false are equivalent here (no
+	// enforcement rule keys off the distinction), so a plain bool suffices.
+	ClientIdMetadataDocumentSupported bool `json:"client_id_metadata_document_supported,omitempty"`
 }
 
 // DiscoveryOption configures the discovery request.
