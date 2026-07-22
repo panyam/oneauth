@@ -3,7 +3,7 @@ module github.com/panyam/oneauth/cmd/demo-resource-server
 go 1.26.4
 
 require (
-	github.com/panyam/oneauth v0.1.35
+	github.com/panyam/oneauth v0.1.36
 	github.com/panyam/oneauth/stores/gorm v0.1.33
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
