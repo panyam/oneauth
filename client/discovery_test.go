@@ -279,3 +279,31 @@ func TestDiscoverAS_MetadataIssuerMismatch_Rejected(t *testing.T) {
 	assert.ErrorIs(t, err, ErrMetadataIssuerMismatch,
 		"metadata claiming a different issuer than the fetch URL must be rejected per RFC 8414 §3.3")
 }
+
+// TestDiscoverAS_ClientIdMetadataDocumentSupported verifies that DiscoverAS
+// surfaces the SEP-991 / CIMD advertisement so consumers can prefer a
+// URL-based client_id over DCR exactly when the AS accepts one.
+func TestDiscoverAS_ClientIdMetadataDocumentSupported(t *testing.T) {
+	meta := map[string]any{
+		"issuer":         "https://auth.example.com",
+		"token_endpoint": "https://auth.example.com/token",
+		"client_id_metadata_document_supported": true,
+	}
+	srv := newDiscoveryServer(t, "/.well-known/openid-configuration", meta)
+
+	result, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
+	require.NoError(t, err)
+	assert.True(t, result.ClientIdMetadataDocumentSupported)
+}
+
+func TestDiscoverAS_ClientIdMetadataDocumentSupported_AbsentIsFalse(t *testing.T) {
+	meta := map[string]any{
+		"issuer":         "https://auth.example.com",
+		"token_endpoint": "https://auth.example.com/token",
+	}
+	srv := newDiscoveryServer(t, "/.well-known/openid-configuration", meta)
+
+	result, err := DiscoverAS(srv.URL, WithHTTPClientForDiscovery(srv.Client()))
+	require.NoError(t, err)
+	assert.False(t, result.ClientIdMetadataDocumentSupported)
+}
