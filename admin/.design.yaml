@@ -1,308 +1,308 @@
 package: admin
-purpose: OneAuth's client-administration surface — RFC 7591 Dynamic Client Registration, RFC 7592 self-service registration management, the proprietary /apps registry, admin-side CRUD, signing-key rotation with grace periods, and resource-token minting.
+purpose: "OneAuth's client-administration surface — RFC 7591 Dynamic Client Registration, RFC 7592 self-service registration management, the proprietary /apps registry, admin-side CRUD, signing-key rotation with grace periods, and resource-token minting."
 language: go
 last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
 last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: AdminAuth
     kind: interface
-    role: Authenticates inbound admin requests; returns nil on success or an error describing rejection.
-    why: Pulled out as an interface so deployments can swap the API-key default for stronger mechanisms (mTLS, OIDC bearer) without touching handlers.
+    role: "Authenticates inbound admin requests; returns nil on success or an error describing rejection."
+    why: "Pulled out as an interface so deployments can swap the API-key default for stronger mechanisms (mTLS, OIDC bearer) without touching handlers."
   - name: NoAuth
     kind: struct
-    role: AdminAuth that accepts every request — explicitly marked dev/test only.
-    why: Named NoAuth (not "Default") so misuse is obvious at the call site and in config.
+    role: "AdminAuth that accepts every request — explicitly marked dev/test only."
+    why: "Named NoAuth (not \"Default\") so misuse is obvious at the call site and in config."
   - name: APIKeyAuth
     kind: struct
-    role: AdminAuth that validates an X-Admin-Key header with constant-time comparison.
-    why: subtle.ConstantTimeCompare avoids leaking key length / prefix via timing differences.
+    role: "AdminAuth that validates an X-Admin-Key header with constant-time comparison."
+    why: "subtle.ConstantTimeCompare avoids leaking key length / prefix via timing differences."
   - name: NewNoAuth
     kind: func
-    role: Constructs a NoAuth admin authenticator.
-    why: Constructor kept symmetric with NewAPIKeyAuth so handler wiring reads uniformly across auth modes.
+    role: "Constructs a NoAuth admin authenticator."
+    why: "Constructor kept symmetric with NewAPIKeyAuth so handler wiring reads uniformly across auth modes."
   - name: NewAPIKeyAuth
     kind: func
-    role: Constructs an APIKeyAuth bound to the given shared key.
-    why: Key is captured at construction so request-time comparison has no I/O and timing stays constant.
+    role: "Constructs an APIKeyAuth bound to the given shared key."
+    why: "Key is captured at construction so request-time comparison has no I/O and timing stays constant."
   - name: NoAuth.Authenticate
     kind: method
-    role: Always returns nil — every request is admitted.
-    why: Lives behind the same interface as APIKeyAuth so swapping in production never changes call sites.
+    role: "Always returns nil — every request is admitted."
+    why: "Lives behind the same interface as APIKeyAuth so swapping in production never changes call sites."
   - name: APIKeyAuth.Authenticate
     kind: method
-    role: Reads X-Admin-Key, returns ErrAdminUnauthorized when missing, ErrAdminForbidden on mismatch.
-    why: Split sentinels let the HTTP wrapper map missing vs wrong credentials to 401 vs 403 without re-parsing the header.
+    role: "Reads X-Admin-Key, returns ErrAdminUnauthorized when missing, ErrAdminForbidden on mismatch."
+    why: "Split sentinels let the HTTP wrapper map missing vs wrong credentials to 401 vs 403 without re-parsing the header."
   - name: ErrAdminUnauthorized
     kind: var
-    role: Sentinel returned when the admin auth header is missing (→ HTTP 401).
-    why: Distinguished from ErrAdminForbidden so HTTP wrappers can pick the right status without string-matching the error.
+    role: "Sentinel returned when the admin auth header is missing (→ HTTP 401)."
+    why: "Distinguished from ErrAdminForbidden so HTTP wrappers can pick the right status without string-matching the error."
   - name: ErrAdminForbidden
     kind: var
-    role: Sentinel returned when admin credentials were supplied but do not match (→ HTTP 403).
-    why: Lets operators distinguish "client forgot the header" from "wrong key" in logs and metrics.
+    role: "Sentinel returned when admin credentials were supplied but do not match (→ HTTP 403)."
+    why: "Lets operators distinguish \"client forgot the header\" from \"wrong key\" in logs and metrics."
 
   - name: AppRegistrationStore
     kind: interface
-    role: Persistence contract (Save/Get/List/Delete) for app registration metadata; source of truth behind AppRegistrar's in-memory cache.
-    why: Storage-agnostic per project convention — FS / GORM / GAE backends implement this without dragging persistence concerns into the registrar.
+    role: "Persistence contract (Save/Get/List/Delete) for app registration metadata; source of truth behind AppRegistrar's in-memory cache."
+    why: "Storage-agnostic per project convention — FS / GORM / GAE backends implement this without dragging persistence concerns into the registrar."
   - name: InMemoryAppStore
     kind: struct
-    role: Process-local AppRegistrationStore for tests and dev; state lost on restart.
-    why: Stored values are cloned on every read/write so callers cannot mutate the map under the mutex.
+    role: "Process-local AppRegistrationStore for tests and dev; state lost on restart."
+    why: "Stored values are cloned on every read/write so callers cannot mutate the map under the mutex."
   - name: NewInMemoryAppStore
     kind: func
-    role: Constructs an empty in-memory app registration store.
-    why: Zero-config default — used as the fallback inside NewAppRegistrar so the registrar always has a store.
+    role: "Constructs an empty in-memory app registration store."
+    why: "Zero-config default — used as the fallback inside NewAppRegistrar so the registrar always has a store."
   - name: ErrAppNotFound
     kind: var
-    role: Sentinel returned by GetApp/DeleteApp/GetClient/DeleteClient/RotateSecret when the client_id is unknown.
-    why: Single sentinel across both the store and the manager surfaces so wrappers map a missing client to HTTP 404 uniformly.
+    role: "Sentinel returned by GetApp/DeleteApp/GetClient/DeleteClient/RotateSecret when the client_id is unknown."
+    why: "Single sentinel across both the store and the manager surfaces so wrappers map a missing client to HTTP 404 uniformly."
   - name: SaveAppRequest
     kind: struct
-    role: gRPC-shape request wrapper for AppRegistrationStore.SaveApp.
-    why: Keeps the store interface (ctx, *Req → *Resp, error) consistent with the rest of OneAuth so backends can later be regenerated from .proto.
+    role: "gRPC-shape request wrapper for AppRegistrationStore.SaveApp."
+    why: "Keeps the store interface (ctx, *Req → *Resp, error) consistent with the rest of OneAuth so backends can later be regenerated from .proto."
   - name: GetAppRequest
     kind: struct
-    role: gRPC-shape request wrapper for AppRegistrationStore.GetApp.
-    why: Same gRPC-shape convention as the rest of the project — keeps the surface uniform across stores and managers.
+    role: "gRPC-shape request wrapper for AppRegistrationStore.GetApp."
+    why: "Same gRPC-shape convention as the rest of the project — keeps the surface uniform across stores and managers."
   - name: ListAppsRequest
     kind: struct
-    role: Empty request for AppRegistrationStore.ListApps; placeholder for future filter / paging fields.
-    why: Lets paging be added later without breaking the method signature — the same reasoning that gRPC requires per-method request messages.
+    role: "Empty request for AppRegistrationStore.ListApps; placeholder for future filter / paging fields."
+    why: "Lets paging be added later without breaking the method signature — the same reasoning that gRPC requires per-method request messages."
   - name: DeleteAppRequest
     kind: struct
-    role: gRPC-shape request wrapper for AppRegistrationStore.DeleteApp.
-    why: Mirrors the other store request shapes so the interface reads uniformly and stays mockable.
+    role: "gRPC-shape request wrapper for AppRegistrationStore.DeleteApp."
+    why: "Mirrors the other store request shapes so the interface reads uniformly and stays mockable."
   - name: SaveAppResponse
     kind: struct
-    role: Empty response from SaveApp — success is the absence of error.
-    why: Reserved as an extensibility seam (e.g., timestamps, version stamps) without changing the method signature.
+    role: "Empty response from SaveApp — success is the absence of error."
+    why: "Reserved as an extensibility seam (e.g., timestamps, version stamps) without changing the method signature."
   - name: GetAppResponse
     kind: struct
-    role: Wraps the looked-up *AppRegistration.
-    why: Wrapper (not bare pointer) so future forward-compat fields can be added without changing the method signature.
+    role: "Wraps the looked-up *AppRegistration."
+    why: "Wrapper (not bare pointer) so future forward-compat fields can be added without changing the method signature."
   - name: ListAppsResponse
     kind: struct
-    role: Wraps every persisted *AppRegistration; order unspecified.
-    why: Cloned entries so callers cannot mutate the store's internal map outside the lock.
+    role: "Wraps every persisted *AppRegistration; order unspecified."
+    why: "Cloned entries so callers cannot mutate the store's internal map outside the lock."
   - name: DeleteAppResponse
     kind: struct
-    role: Empty response from DeleteApp.
-    why: Same reserved-extensibility rationale as SaveAppResponse.
+    role: "Empty response from DeleteApp."
+    why: "Same reserved-extensibility rationale as SaveAppResponse."
   - name: InMemoryAppStore.SaveApp
     kind: method
-    role: Inserts or replaces the registration for req.App.ClientID under a write lock.
-    why: Defensive clone before storing so the caller cannot later mutate the persisted struct via aliased pointer.
+    role: "Inserts or replaces the registration for req.App.ClientID under a write lock."
+    why: "Defensive clone before storing so the caller cannot later mutate the persisted struct via aliased pointer."
   - name: InMemoryAppStore.GetApp
     kind: method
-    role: Returns a clone of the stored registration or ErrAppNotFound.
-    why: Returns a clone so concurrent readers can mutate locally without racing the cache.
+    role: "Returns a clone of the stored registration or ErrAppNotFound."
+    why: "Returns a clone so concurrent readers can mutate locally without racing the cache."
   - name: InMemoryAppStore.ListApps
     kind: method
-    role: Returns clones of every stored registration; order unspecified.
-    why: Clones (rather than aliased pointers) so callers cannot reach into the map after the read lock is released.
+    role: "Returns clones of every stored registration; order unspecified."
+    why: "Clones (rather than aliased pointers) so callers cannot reach into the map after the read lock is released."
   - name: InMemoryAppStore.DeleteApp
     kind: method
-    role: Removes the registration for req.ClientID; returns ErrAppNotFound when absent.
-    why: Distinguishing missing-on-delete lets callers (and HTTP wrappers) preserve 404 semantics for idempotency.
+    role: "Removes the registration for req.ClientID; returns ErrAppNotFound when absent."
+    why: "Distinguishing missing-on-delete lets callers (and HTTP wrappers) preserve 404 semantics for idempotency."
 
   - name: AppRegistration
     kind: struct
-    role: Persisted metadata for a registered client — RFC 7591 / 7592 fields plus OneAuth-specific quota and management credentials.
-    why: One persisted shape across DCR and the legacy /apps/register path so storage backends do not need a per-flavor schema; missing-from-flavor fields just stay empty.
+    role: "Persisted metadata for a registered client — RFC 7591 / 7592 fields plus OneAuth-specific quota and management credentials."
+    why: "One persisted shape across DCR and the legacy /apps/register path so storage backends do not need a per-flavor schema; missing-from-flavor fields just stay empty."
   - name: AppRegistrar
     kind: struct
-    role: Central handler for all admin client-registration verbs; implements both ClientRegistrar and ClientRegistrationManager and owns the cache + KeyStore + KidStore wiring.
-    why: Single concrete owner keeps the cache, key material, and grace-period book-keeping in one place — splitting admin and self-service into separate types would duplicate that state.
+    role: "Central handler for all admin client-registration verbs; implements both ClientRegistrar and ClientRegistrationManager and owns the cache + KeyStore + KidStore wiring."
+    why: "Single concrete owner keeps the cache, key material, and grace-period book-keeping in one place — splitting admin and self-service into separate types would duplicate that state."
   - name: NewAppRegistrar
     kind: func
-    role: Constructs an AppRegistrar backed by an in-memory app store.
-    why: Zero-config default for tests and demos; production callers should reach for NewAppRegistrarWithStore.
+    role: "Constructs an AppRegistrar backed by an in-memory app store."
+    why: "Zero-config default for tests and demos; production callers should reach for NewAppRegistrarWithStore."
   - name: NewAppRegistrarWithStore
     kind: func
-    role: Constructs an AppRegistrar backed by the given AppRegistrationStore and hydrates the in-memory cache from existing rows.
-    why: Hydration at construction means a single read path (the cache) suffices for steady-state requests; startup ListApps errors are intentionally swallowed so a transient store hiccup never crashes the host.
+    role: "Constructs an AppRegistrar backed by the given AppRegistrationStore and hydrates the in-memory cache from existing rows."
+    why: "Hydration at construction means a single read path (the cache) suffices for steady-state requests; startup ListApps errors are intentionally swallowed so a transient store hiccup never crashes the host."
   - name: AppRegistrar.Register
     kind: method
-    role: Implements ClientRegistrar.Register — RFC 7591 DCR. Generates client_id, allocates secret or stores supplied JWK, mints RFC 7592 management credentials, persists the registration.
-    why: Mints the registration_access_token at create time so RFC 7592 management is usable immediately without a second round-trip.
+    role: "Implements ClientRegistrar.Register — RFC 7591 DCR. Generates client_id, allocates secret or stores supplied JWK, mints RFC 7592 management credentials, persists the registration."
+    why: "Mints the registration_access_token at create time so RFC 7592 management is usable immediately without a second round-trip."
   - name: AppRegistrar.RegisterLegacy
     kind: method
-    role: Implements ClientRegistrar.RegisterLegacy — proprietary /apps/register path with OneAuth quota fields.
-    why: Kept distinct from Register because DCR has no place for MaxRooms / MaxMsgRate; eventual deprecation tracked under issue #189.
+    role: "Implements ClientRegistrar.RegisterLegacy — proprietary /apps/register path with OneAuth quota fields."
+    why: "Kept distinct from Register because DCR has no place for MaxRooms / MaxMsgRate; eventual deprecation tracked under issue #189."
   - name: AppRegistrar.ListClients
     kind: method
-    role: Implements ClientRegistrar.ListClients — admin read of every registered app from the in-memory cache.
-    why: Reads from the cache (not the store) on the hot path; entries are cloned so callers cannot mutate the cache.
+    role: "Implements ClientRegistrar.ListClients — admin read of every registered app from the in-memory cache."
+    why: "Reads from the cache (not the store) on the hot path; entries are cloned so callers cannot mutate the cache."
   - name: AppRegistrar.GetClient
     kind: method
-    role: Implements ClientRegistrar.GetClient — admin lookup by client_id.
-    why: Distinct from GetRegistration (self-service) so admins do not need the per-client registration_access_token to read.
+    role: "Implements ClientRegistrar.GetClient — admin lookup by client_id."
+    why: "Distinct from GetRegistration (self-service) so admins do not need the per-client registration_access_token to read."
   - name: AppRegistrar.DeleteClient
     kind: method
-    role: Implements ClientRegistrar.DeleteClient — persists deletion then drops cache and KeyStore entry.
-    why: Store-first ordering means a failed store write leaves the registration intact and retryable instead of stranding dangling credentials.
+    role: "Implements ClientRegistrar.DeleteClient — persists deletion then drops cache and KeyStore entry."
+    why: "Store-first ordering means a failed store write leaves the registration intact and retryable instead of stranding dangling credentials."
   - name: AppRegistrar.RotateSecret
     kind: method
-    role: Implements ClientRegistrar.RotateSecret — issues new secret (symmetric) or accepts new public key (asymmetric); retains old key in KidStore for the grace period.
-    why: Surfacing KidStore.Add errors as rotation failures avoids advertising a grace period that did not actually persist, which would silently kill in-flight tokens.
+    role: "Implements ClientRegistrar.RotateSecret — issues new secret (symmetric) or accepts new public key (asymmetric); retains old key in KidStore for the grace period."
+    why: "Surfacing KidStore.Add errors as rotation failures avoids advertising a grace period that did not actually persist, which would silently kill in-flight tokens."
   - name: AppRegistrar.SaveRegistration
     kind: method
-    role: Persists the registration to the store and refreshes the in-memory cache.
-    why: Cache-after-store ordering keeps the store authoritative on failure — a store error never produces a phantom in-memory entry.
+    role: "Persists the registration to the store and refreshes the in-memory cache."
+    why: "Cache-after-store ordering keeps the store authoritative on failure — a store error never produces a phantom in-memory entry."
   - name: AppRegistrar.GetRegistration
     kind: method
-    role: Implements ClientRegistrationManager.GetRegistration — RFC 7592 self-service read gated by the registration_access_token.
-    why: All auth failures collapse to ErrUnauthorized (constant-time compare) so the endpoint cannot be probed for valid client_ids.
+    role: "Implements ClientRegistrationManager.GetRegistration — RFC 7592 self-service read gated by the registration_access_token."
+    why: "All auth failures collapse to ErrUnauthorized (constant-time compare) so the endpoint cannot be probed for valid client_ids."
   - name: AppRegistrar.UpdateRegistration
     kind: method
-    role: Implements ClientRegistrationManager.UpdateRegistration — RFC 7592 §2.2 full-replacement, rotates the registration_access_token on success.
-    why: Token rotation invalidates the old credential immediately so a leaked-then-rotated token cannot be replayed; locked-field changes (TokenEndpointAuthMethod) are rejected to keep re-keying out of scope.
+    role: "Implements ClientRegistrationManager.UpdateRegistration — RFC 7592 §2.2 full-replacement, rotates the registration_access_token on success."
+    why: "Token rotation invalidates the old credential immediately so a leaked-then-rotated token cannot be replayed; locked-field changes (TokenEndpointAuthMethod) are rejected to keep re-keying out of scope."
   - name: AppRegistrar.DeleteRegistration
     kind: method
-    role: Implements ClientRegistrationManager.DeleteRegistration — RFC 7592 §2.3 self-service delete; invalidates the KeyStore entry so existing tokens fail validation.
-    why: Same uniform ErrUnauthorized envelope as the other manager methods so second-delete idempotency does not leak which IDs ever existed.
+    role: "Implements ClientRegistrationManager.DeleteRegistration — RFC 7592 §2.3 self-service delete; invalidates the KeyStore entry so existing tokens fail validation."
+    why: "Same uniform ErrUnauthorized envelope as the other manager methods so second-delete idempotency does not leak which IDs ever existed."
   - name: AppRegistrar.RLockApps
     kind: method
-    role: Calls fn under the registrar's read lock with a view of the live apps map.
-    why: Lets callers (e.g., apiauth/) iterate the cache without re-exporting the mutex or copying the whole map.
+    role: "Calls fn under the registrar's read lock with a view of the live apps map."
+    why: "Lets callers (e.g., apiauth/) iterate the cache without re-exporting the mutex or copying the whole map."
   - name: AppRegistrar.Handler
     kind: method
-    role: Returns the http.Handler that mounts /apps/register, /apps/dcr, /apps/dcr/{id}, /apps, /apps/{id}, /apps/{id}/rotate.
-    why: Relies on Go ServeMux longest-prefix routing so the DCR-management subtree wins over /apps/ without per-route ordering work.
+    role: "Returns the http.Handler that mounts /apps/register, /apps/dcr, /apps/dcr/{id}, /apps, /apps/{id}, /apps/{id}/rotate."
+    why: "Relies on Go ServeMux longest-prefix routing so the DCR-management subtree wins over /apps/ without per-route ordering work."
 
   - name: ClientRegistrar
     kind: interface
-    role: Transport-agnostic admin surface — Register, RegisterLegacy, ListClients, GetClient, DeleteClient, RotateSecret.
-    why: Methods follow the gRPC ctx/req/resp shape (#175) so HTTP handlers stay thin and a gRPC layer can be generated later without touching the registrar.
+    role: "Transport-agnostic admin surface — Register, RegisterLegacy, ListClients, GetClient, DeleteClient, RotateSecret."
+    why: "Methods follow the gRPC ctx/req/resp shape (#175) so HTTP handlers stay thin and a gRPC layer can be generated later without touching the registrar."
   - name: RegisterRequest
     kind: struct
-    role: Input to ClientRegistrar.Register; carries DCR metadata + IssuerBaseURL for management URI construction.
-    why: IssuerBaseURL is plumbed through the request rather than configured on the registrar so a single registrar can serve multiple hostnames.
+    role: "Input to ClientRegistrar.Register; carries DCR metadata + IssuerBaseURL for management URI construction."
+    why: "IssuerBaseURL is plumbed through the request rather than configured on the registrar so a single registrar can serve multiple hostnames."
   - name: RegisterResponse
     kind: struct
-    role: Wraps the RFC 7591 / 7592 DCRResponse returned to the client.
-    why: Wrapping (vs returning *DCRResponse directly) leaves room for future protocol fields without changing the method signature.
+    role: "Wraps the RFC 7591 / 7592 DCRResponse returned to the client."
+    why: "Wrapping (vs returning *DCRResponse directly) leaves room for future protocol fields without changing the method signature."
   - name: RegisterLegacyRequest
     kind: struct
-    role: Input to RegisterLegacy — proprietary fields (ClientDomain, SigningAlg, PublicKey, MaxRooms, MaxMsgRate).
-    why: A separate type keeps DCR's request schema free of OneAuth-specific quota concepts.
+    role: "Input to RegisterLegacy — proprietary fields (ClientDomain, SigningAlg, PublicKey, MaxRooms, MaxMsgRate)."
+    why: "A separate type keeps DCR's request schema free of OneAuth-specific quota concepts."
   - name: RegisterLegacyResponse
     kind: struct
-    role: Proprietary response shape — concrete fields rather than a free-form map.
-    why: Captured in one place so the wire shape is reviewable and the HTTP wrapper can omit empty fields explicitly.
+    role: "Proprietary response shape — concrete fields rather than a free-form map."
+    why: "Captured in one place so the wire shape is reviewable and the HTTP wrapper can omit empty fields explicitly."
   - name: ListClientsRequest
     kind: struct
-    role: Empty input to ListClients; reserved for future paging / filtering.
-    why: Wrapper struct exists so paging can be added without breaking the interface signature.
+    role: "Empty input to ListClients; reserved for future paging / filtering."
+    why: "Wrapper struct exists so paging can be added without breaking the interface signature."
   - name: ListClientsResponse
     kind: struct
-    role: Returns every cached registration; entries are clones.
-    why: Clones prevent callers from mutating the in-memory cache, mirroring the AppStore guarantee.
+    role: "Returns every cached registration; entries are clones."
+    why: "Clones prevent callers from mutating the in-memory cache, mirroring the AppStore guarantee."
   - name: GetClientRequest
     kind: struct
-    role: Admin lookup input keyed by ClientID.
-    why: Wrapper kept so the admin GET shape stays parallel to the RFC 7592 GetRegistration.
+    role: "Admin lookup input keyed by ClientID."
+    why: "Wrapper kept so the admin GET shape stays parallel to the RFC 7592 GetRegistration."
   - name: GetClientResponse
     kind: struct
-    role: Wraps the looked-up *AppRegistration.
-    why: Wrapping permits future fields (e.g., a derived status) without breaking method signatures.
+    role: "Wraps the looked-up *AppRegistration."
+    why: "Wrapping permits future fields (e.g., a derived status) without breaking method signatures."
   - name: DeleteClientRequest
     kind: struct
-    role: Admin delete input keyed by ClientID.
-    why: Wrapper kept parallel with DeleteRegistration even though only ClientID is needed today.
+    role: "Admin delete input keyed by ClientID."
+    why: "Wrapper kept parallel with DeleteRegistration even though only ClientID is needed today."
   - name: DeleteClientResponse
     kind: struct
-    role: Empty success response from DeleteClient.
-    why: Reserved-extensibility wrapper — matches the rest of the manager interface even when the body is empty.
+    role: "Empty success response from DeleteClient."
+    why: "Reserved-extensibility wrapper — matches the rest of the manager interface even when the body is empty."
   - name: RotateSecretRequest
     kind: struct
-    role: Input to RotateSecret — ClientID, optional PublicKey for asymmetric, GracePeriod for KidStore retention.
-    why: Carrying GracePeriod per-call lets ops shorten retention for compromised-key rotations without changing the registrar's default.
+    role: "Input to RotateSecret — ClientID, optional PublicKey for asymmetric, GracePeriod for KidStore retention."
+    why: "Carrying GracePeriod per-call lets ops shorten retention for compromised-key rotations without changing the registrar's default."
   - name: RotateSecretResponse
     kind: struct
-    role: Returns new key material — ClientSecret (symmetric only), Kid, optional PreviousKid + GracePeriod.
-    why: PreviousKid is populated only when KidStore actually retained the old key, signalling to the caller whether grace-period verification is live.
+    role: "Returns new key material — ClientSecret (symmetric only), Kid, optional PreviousKid + GracePeriod."
+    why: "PreviousKid is populated only when KidStore actually retained the old key, signalling to the caller whether grace-period verification is live."
   - name: ErrInvalidPublicKey
     kind: var
-    role: Sentinel for a supplied PEM public key that fails parsing or does not match the registered alg.
-    why: Distinguished from ErrPublicKeyRequired so wrappers can return a precise error description on HTTP 400.
+    role: "Sentinel for a supplied PEM public key that fails parsing or does not match the registered alg."
+    why: "Distinguished from ErrPublicKeyRequired so wrappers can return a precise error description on HTTP 400."
   - name: ErrPublicKeyRequired
     kind: var
-    role: Sentinel for an asymmetric registration / rotation submitted without a public_key.
-    why: Wrapper layers map this to HTTP 400 invalid_request; pulling it out as a sentinel keeps the registrar wrapper-free.
+    role: "Sentinel for an asymmetric registration / rotation submitted without a public_key."
+    why: "Wrapper layers map this to HTTP 400 invalid_request; pulling it out as a sentinel keeps the registrar wrapper-free."
 
   - name: ClientRegistrationManager
     kind: interface
-    role: Transport-agnostic RFC 7592 self-service surface — GetRegistration, UpdateRegistration, DeleteRegistration.
-    why: Split from ClientRegistrar because the security model differs — self-service requires possession of the registration_access_token rather than an admin credential.
+    role: "Transport-agnostic RFC 7592 self-service surface — GetRegistration, UpdateRegistration, DeleteRegistration."
+    why: "Split from ClientRegistrar because the security model differs — self-service requires possession of the registration_access_token rather than an admin credential."
   - name: GetRegistrationRequest
     kind: struct
-    role: Input to GetRegistration — ClientID + AccessToken.
-    why: AccessToken in the request rather than a separate auth call lets the manager run unchanged behind HTTP, gRPC, or in-process.
+    role: "Input to GetRegistration — ClientID + AccessToken."
+    why: "AccessToken in the request rather than a separate auth call lets the manager run unchanged behind HTTP, gRPC, or in-process."
   - name: GetRegistrationResponse
     kind: struct
-    role: Wraps the *DCRResponse returned to the registered client.
-    why: Wrapping keeps the manager interface uniform; client_secret is intentionally omitted from the body (RFC 7592 §3 allows but does not require it).
+    role: "Wraps the *DCRResponse returned to the registered client."
+    why: "Wrapping keeps the manager interface uniform; client_secret is intentionally omitted from the body (RFC 7592 §3 allows but does not require it)."
   - name: UpdateRegistrationRequest
     kind: struct
-    role: Input to UpdateRegistration — ClientID, AccessToken, full-replacement Metadata.
-    why: Treating Metadata as a full replacement matches RFC 7592 §2.2 (not PATCH-style merge); the wrapper enforces Metadata.ClientID == ClientID before invoking.
+    role: "Input to UpdateRegistration — ClientID, AccessToken, full-replacement Metadata."
+    why: "Treating Metadata as a full replacement matches RFC 7592 §2.2 (not PATCH-style merge); the wrapper enforces Metadata.ClientID == ClientID before invoking."
   - name: UpdateRegistrationResponse
     kind: struct
-    role: Wraps the post-update *DCRResponse including the rotated registration_access_token.
-    why: Returning the new token in the response is the only way the client can continue managing its own registration after rotation.
+    role: "Wraps the post-update *DCRResponse including the rotated registration_access_token."
+    why: "Returning the new token in the response is the only way the client can continue managing its own registration after rotation."
   - name: DeleteRegistrationRequest
     kind: struct
-    role: Input to DeleteRegistration — ClientID + AccessToken.
-    why: Token in the request matches the other manager methods so the auth check is uniform.
+    role: "Input to DeleteRegistration — ClientID + AccessToken."
+    why: "Token in the request matches the other manager methods so the auth check is uniform."
   - name: DeleteRegistrationResponse
     kind: struct
-    role: Empty success response.
-    why: RFC 7592 §2.3 returns 204 No Content; struct exists for forward-compat (e.g., a deletion confirmation token).
+    role: "Empty success response."
+    why: "RFC 7592 §2.3 returns 204 No Content; struct exists for forward-compat (e.g., a deletion confirmation token)."
   - name: ErrUnauthorized
     kind: var
-    role: Single sentinel for every auth failure on the management protocol (wrong token, missing token, unknown client_id, registration without a token).
-    why: One envelope across all auth-failure modes prevents /apps/dcr/{client_id} from being used as a client_id-existence probe.
+    role: "Single sentinel for every auth failure on the management protocol (wrong token, missing token, unknown client_id, registration without a token)."
+    why: "One envelope across all auth-failure modes prevents /apps/dcr/{client_id} from being used as a client_id-existence probe."
   - name: ErrInvalidClientMetadata
     kind: var
-    role: Sentinel for an authenticated request whose body fails RFC 7591 / 7592 validation (mapped to HTTP 400).
-    why: Kept distinct from ErrUnauthorized so authenticated callers get useful diagnostics; pre-auth callers cannot reach this branch.
+    role: "Sentinel for an authenticated request whose body fails RFC 7591 / 7592 validation (mapped to HTTP 400)."
+    why: "Kept distinct from ErrUnauthorized so authenticated callers get useful diagnostics; pre-auth callers cannot reach this branch."
 
   - name: DCRHandler
     kind: struct
-    role: HTTP wrapper for ClientRegistrar.Register — parses RFC 7591 body, calls the registrar, formats the response.
-    why: Thin transport adapter so the registrar can be reused from gRPC / in-process callers without HTTP boilerplate (#172).
+    role: "HTTP wrapper for ClientRegistrar.Register — parses RFC 7591 body, calls the registrar, formats the response."
+    why: "Thin transport adapter so the registrar can be reused from gRPC / in-process callers without HTTP boilerplate (#172)."
   - name: DCRHandler.ServeHTTP
     kind: method
-    role: POST handler — authenticates, decodes DCRRequest, computes IssuerBaseURL fallback, invokes Registrar.Register, maps errors to RFC 7591 error shapes.
-    why: IssuerBaseURL falls back to scheme + r.Host so tests work without configuration; production deployments behind a proxy should set IssuerBaseURL explicitly (Host header is unreliable).
+    role: "POST handler — authenticates, decodes DCRRequest, computes IssuerBaseURL fallback, invokes Registrar.Register, maps errors to RFC 7591 error shapes."
+    why: "IssuerBaseURL falls back to scheme + r.Host so tests work without configuration; production deployments behind a proxy should set IssuerBaseURL explicitly (Host header is unreliable)."
   - name: DCRRequest
     kind: struct
-    role: RFC 7591 registration body, also reused as the RFC 7592 PUT body.
-    why: Shared shape so the JSON parsing layer is the same — register vs update is a routing concern, not a schema concern.
+    role: "RFC 7591 registration body, also reused as the RFC 7592 PUT body."
+    why: "Shared shape so the JSON parsing layer is the same — register vs update is a routing concern, not a schema concern."
   - name: DCRResponse
     kind: struct
-    role: RFC 7591 registration response extended with RFC 7592 §3 management credentials.
-    why: Embedding registration_access_token + registration_client_uri in the create response is what makes RFC 7592 usable without a second round-trip.
+    role: "RFC 7591 registration response extended with RFC 7592 §3 management credentials."
+    why: "Embedding registration_access_token + registration_client_uri in the create response is what makes RFC 7592 usable without a second round-trip."
 
   - name: DCRManagementHandler
     kind: struct
-    role: HTTP wrapper for ClientRegistrationManager — routes GET / PUT / DELETE on /apps/dcr/{client_id}.
-    why: All protocol decisions live behind the manager interface so the same logic is reachable from gRPC, in-process callers, and tests without HTTP machinery.
+    role: "HTTP wrapper for ClientRegistrationManager — routes GET / PUT / DELETE on /apps/dcr/{client_id}."
+    why: "All protocol decisions live behind the manager interface so the same logic is reachable from gRPC, in-process callers, and tests without HTTP machinery."
   - name: DCRManagementHandler.ServeHTTP
     kind: method
-    role: Extracts client_id from the path, dispatches by method, returns 405 with an Allow header for unsupported verbs.
-    why: 405 path is auth-independent so it leaks no per-client info — every unknown method gets the same response regardless of credentials.
+    role: "Extracts client_id from the path, dispatches by method, returns 405 with an Allow header for unsupported verbs."
+    why: "405 path is auth-independent so it leaks no per-client info — every unknown method gets the same response regardless of credentials."
 
   - name: MintResourceToken
     kind: func
-    role: Mints a resource-scoped JWT using any supported key type ([]byte / *rsa.PrivateKey / *ecdsa.PrivateKey); algorithm auto-detected. Caller-supplied customClaims map rides alongside the standard claims; collisions with the standard set are dropped + logged.
-    why: Single entry point replaces the old MintResourceToken / MintResourceTokenWithKey pair and the bespoke AppQuota struct — arbitrary custom claims keep this primitive policy-free.
+    role: "Mints a resource-scoped JWT using any supported key type ([]byte / *rsa.PrivateKey / *ecdsa.PrivateKey); algorithm auto-detected. Caller-supplied customClaims map rides alongside the standard claims; collisions with the standard set are dropped + logged."
+    why: "Single entry point replaces the old MintResourceToken / MintResourceTokenWithKey pair and the bespoke AppQuota struct — arbitrary custom claims keep this primitive policy-free."
   - name: mintStandardClaims
     kind: var
-    role: Set of JWT claim keys MintResourceToken owns; collisions in customClaims are dropped + logged.
-    why: Mirrors the standard-claim guard in apiauth/auth.go so a misbehaving caller cannot smuggle sub/client_id/exp overrides through the custom-claims map.
+    role: "Set of JWT claim keys MintResourceToken owns; collisions in customClaims are dropped + logged."
+    why: "Mirrors the standard-claim guard in apiauth/auth.go so a misbehaving caller cannot smuggle sub/client_id/exp overrides through the custom-claims map."
 depends_on:
   - path: ../core
     entities: [AuthorizationDetail]

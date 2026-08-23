@@ -1,47 +1,47 @@
 package: saml
-purpose: POC SAML 2.0 Service Provider adapter that mounts SP-initiated SSO/SLO routes on a gorilla/mux router and bridges the SAML assertion into oneauth's OAuth-shaped HandleUserFunc callback.
+purpose: "POC SAML 2.0 Service Provider adapter that mounts SP-initiated SSO/SLO routes on a gorilla/mux router and bridges the SAML assertion into oneauth's OAuth-shaped HandleUserFunc callback."
 language: go
 last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
 last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: RegisterSamlAuth
     kind: func
-    role: Loads the SP keypair from disk, fetches IdP metadata, builds a samlsp.Middleware, and mounts /saml/login, /saml/acs, /saml/logout, and the catch-all /saml/ on the supplied router.
-    why: Single entry point host apps call to wire SAML into their auth router; the custom /saml/login handler is the whole reason this file exists - it lets SAML coexist as one option on a multi-provider /login page rather than gating every page with RequireAccount.
+    role: "Loads the SP keypair from disk, fetches IdP metadata, builds a samlsp.Middleware, and mounts /saml/login, /saml/acs, /saml/logout, and the catch-all /saml/ on the supplied router."
+    why: "Single entry point host apps call to wire SAML into their auth router; the custom /saml/login handler is the whole reason this file exists - it lets SAML coexist as one option on a multi-provider /login page rather than gating every page with RequireAccount."
   - name: HandleUserFunc
     kind: type
-    role: Callback signature invoked after a successful ACS assertion, receiving a synthesized *oauth2.Token plus the extracted user attributes.
-    why: Lets the host app reuse its OAuth user-persistence path for SAML logins by masquerading the assertion as an OAuth token.
+    role: "Callback signature invoked after a successful ACS assertion, receiving a synthesized *oauth2.Token plus the extracted user attributes."
+    why: "Lets the host app reuse its OAuth user-persistence path for SAML logins by masquerading the assertion as an OAuth token."
   - name: logout
     kind: func
-    role: Builds a SAML RedirectLogoutRequest using the subject-id attribute, deletes the local samlsp session, and 302s the browser to the IdP SLO endpoint.
-    why: Implements /saml/logout single-logout without exposing crewjam internals.
+    role: "Builds a SAML RedirectLogoutRequest using the subject-id attribute, deletes the local samlsp session, and 302s the browser to the IdP SLO endpoint."
+    why: "Implements /saml/logout single-logout without exposing crewjam internals."
   - name: samlMiddleware
     kind: var
-    role: Package-level *samlsp.Middleware shared by the login, ACS, and logout closures.
-    why: Handlers are registered as closures on the router but all need the same ServiceProvider, Session, and RequestTracker; package scope avoids threading it through every signature (and bakes in single-tenancy).
+    role: "Package-level *samlsp.Middleware shared by the login, ACS, and logout closures."
+    why: "Handlers are registered as closures on the router but all need the same ServiceProvider, Session, and RequestTracker; package scope avoids threading it through every signature (and bakes in single-tenancy)."
   - name: SAML_ISSUER
     kind: var
-    role: Issuer string passed back to the user callback as the provider name; read from the SAML_ISSUER env var at package init.
-    why: Identifies which IdP authenticated the user for audit/storage in the host app.
+    role: "Issuer string passed back to the user callback as the provider name; read from the SAML_ISSUER env var at package init."
+    why: "Identifies which IdP authenticated the user for audit/storage in the host app."
   - name: SAML_CALLBACK_URL
     kind: var
-    role: Callback URL captured from the SAML_CALLBACK_URL env var.
-    why: Held for future configuration; the active callback today is the callbackUrl argument to RegisterSamlAuth.
+    role: "Callback URL captured from the SAML_CALLBACK_URL env var."
+    why: "Held for future configuration; the active callback today is the callbackUrl argument to RegisterSamlAuth."
   - name: SAML_LOGIN_URL
     kind: var
-    role: IdP SSO endpoint from SAML_LOGIN_URL, used as the destination of MakeAuthenticationRequest.
-    why: Tells the SP where to send the browser to start SP-initiated SSO.
+    role: "IdP SSO endpoint from SAML_LOGIN_URL, used as the destination of MakeAuthenticationRequest."
+    why: "Tells the SP where to send the browser to start SP-initiated SSO."
   - name: SAML_METADATA_URL
     kind: var
-    role: IdP metadata URL from SAML_METADATA_URL, fetched once at registration to seed the SP.
-    why: Provides the IdP's signing certs and endpoint bindings without checking them into the repo.
+    role: "IdP metadata URL from SAML_METADATA_URL, fetched once at registration to seed the SP."
+    why: "Provides the IdP's signing certs and endpoint bindings without checking them into the repo."
   - name: SAML_CERT_FILE
     kind: const
-    role: Hardcoded filesystem path "saml_service.cert" for the SP X.509 certificate.
-    why: Loaded with the private key to sign AuthnRequests; marked TODO in source for migration to configmap.
+    role: "Hardcoded filesystem path \"saml_service.cert\" for the SP X.509 certificate."
+    why: "Loaded with the private key to sign AuthnRequests; marked TODO in source for migration to configmap."
   - name: SAML_KEY_FILE
     kind: const
-    role: Hardcoded filesystem path "saml_service.key" for the SP RSA private key.
-    why: Paired with SAML_CERT_FILE to form the SP keypair; marked TODO in source for migration to configmap.
+    role: "Hardcoded filesystem path \"saml_service.key\" for the SP RSA private key."
+    why: "Paired with SAML_CERT_FILE to form the SP keypair; marked TODO in source for migration to configmap."
 depends_on: []

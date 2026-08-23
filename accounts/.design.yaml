@@ -1,120 +1,120 @@
 package: accounts
-purpose: Owns the federated end-user account model (User, Identity, Channel) and store interfaces shared by local and provider-mediated auth flows — explicitly excludes HTTP handlers and OAuth token shapes.
+purpose: "Owns the federated end-user account model (User, Identity, Channel) and store interfaces shared by local and provider-mediated auth flows — explicitly excludes HTTP handlers and OAuth token shapes."
 language: go
 last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
 last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: User
     kind: interface
-    role: Minimal account principal (Id + Profile map) seen by the application.
-    why: Kept intentionally tiny so apps can wrap their own richer user types without inheriting fields they don't use.
+    role: "Minimal account principal (Id + Profile map) seen by the application."
+    why: "Kept intentionally tiny so apps can wrap their own richer user types without inheriting fields they don't use."
   - name: BasicUser
     kind: struct
-    role: Trivial in-memory User implementation backed by ID and a profile map.
-    why: Default used by stores and tests; apps with richer users implement User directly.
+    role: "Trivial in-memory User implementation backed by ID and a profile map."
+    why: "Default used by stores and tests; apps with richer users implement User directly."
   - name: BasicUser.Id
     kind: method
-    role: Returns the user's unique ID.
-    why: Satisfies the User interface; field is exported for direct serialization.
+    role: "Returns the user's unique ID."
+    why: "Satisfies the User interface; field is exported for direct serialization."
   - name: BasicUser.Profile
     kind: method
-    role: Returns the freeform profile map.
-    why: Map shape (not struct) is deliberate — host apps stuff arbitrary attributes (channels list, display name, etc.) without changing this package.
+    role: "Returns the freeform profile map."
+    why: "Map shape (not struct) is deliberate — host apps stuff arbitrary attributes (channels list, display name, etc.) without changing this package."
   - name: Identity
     kind: struct
-    role: A verifiable contact (email/phone) owned by exactly one User, with optimistic-locking Version.
-    why: Separating Identity from User allows one user to own multiple contacts and lets verification status live on the contact, not on the credential.
+    role: "A verifiable contact (email/phone) owned by exactly one User, with optimistic-locking Version."
+    why: "Separating Identity from User allows one user to own multiple contacts and lets verification status live on the contact, not on the credential."
   - name: Channel
     kind: struct
-    role: Per-provider credential record (local password hash, OAuth tokens, SAML profile) tied to an IdentityKey.
-    why: Decoupling Channel from Identity is what makes account-linking possible — multiple providers can verify the same email without colliding.
+    role: "Per-provider credential record (local password hash, OAuth tokens, SAML profile) tied to an IdentityKey."
+    why: "Decoupling Channel from Identity is what makes account-linking possible — multiple providers can verify the same email without colliding."
   - name: Channel.IsExpired
     kind: method
-    role: Reports whether ExpiresAt is set and in the past.
-    why: Zero-time ExpiresAt deliberately means "never expires" — needed because local channels have no expiry while OAuth channels do.
+    role: "Reports whether ExpiresAt is set and in the past."
+    why: "Zero-time ExpiresAt deliberately means \"never expires\" — needed because local channels have no expiry while OAuth channels do."
   - name: IdentityKey
     kind: func
-    role: Builds the canonical "type:value" key (e.g. "email:john@example.com") used to join Identity and Channel.
-    why: Centralizing the join key prevents stores from drifting on separator choice and case-sensitivity assumptions.
+    role: "Builds the canonical \"type:value\" key (e.g. \"email:john@example.com\") used to join Identity and Channel."
+    why: "Centralizing the join key prevents stores from drifting on separator choice and case-sensitivity assumptions."
   - name: HandleUserFunc
     kind: type
-    role: Callback signature invoked by auth flows after successful authentication so the host can set session and redirect.
-    why: Carries both an *oauth2.Token (for federated) and a userInfo map (for local) so a single hook serves both flows.
+    role: "Callback signature invoked by auth flows after successful authentication so the host can set session and redirect."
+    why: "Carries both an *oauth2.Token (for federated) and a userInfo map (for local) so a single hook serves both flows."
   - name: DetectUsernameType
     kind: func
-    role: Heuristic that classifies a username string as "email", "phone", or "username".
-    why: Lets apiauth's password-grant accept opaque username strings without forcing the host to pick a type per request.
+    role: "Heuristic that classifies a username string as \"email\", \"phone\", or \"username\"."
+    why: "Lets apiauth's password-grant accept opaque username strings without forcing the host to pick a type per request."
   - name: LinkedChannels
     kind: func
-    role: Extracts the channels list from a User profile map, tolerating both []string and []any shapes.
-    why: JSON round-trip through map[string]any degrades []string into []any — this normalization spares every caller from re-doing the type switch.
+    role: "Extracts the channels list from a User profile map, tolerating both []string and []any shapes."
+    why: "JSON round-trip through map[string]any degrades []string into []any — this normalization spares every caller from re-doing the type switch."
   - name: UserStore
     kind: interface
-    role: CRUD interface over User accounts (Create, GetById, Save).
-    why: Save is an upsert by design so federated callbacks can create-or-refresh without a separate "exists?" round trip.
+    role: "CRUD interface over User accounts (Create, GetById, Save)."
+    why: "Save is an upsert by design so federated callbacks can create-or-refresh without a separate \"exists?\" round trip."
   - name: IdentityStore
     kind: interface
-    role: Manages Identity records, identity-to-user mapping, and verification state.
-    why: GetIdentity's createIfMissing flag plus the separate SetUserForIdentity reflects that an Identity can exist (unverified) before any user claims it.
+    role: "Manages Identity records, identity-to-user mapping, and verification state."
+    why: "GetIdentity's createIfMissing flag plus the separate SetUserForIdentity reflects that an Identity can exist (unverified) before any user claims it."
   - name: ChannelStore
     kind: interface
-    role: Manages Channel records and lookups by IdentityKey.
-    why: GetChannelsByIdentity returns a slice — an identity can be backed by multiple channels (one per provider), which is the whole point of account linking.
+    role: "Manages Channel records and lookups by IdentityKey."
+    why: "GetChannelsByIdentity returns a slice — an identity can be backed by multiple channels (one per provider), which is the whole point of account linking."
   - name: UsernameStore
     kind: interface
-    role: Optional store for apps that need username uniqueness; provides reserve/release/change atomicity.
-    why: Split out from UserStore because many deployments (email-only login) never need it, and forcing it into UserStore would penalize them.
+    role: "Optional store for apps that need username uniqueness; provides reserve/release/change atomicity."
+    why: "Split out from UserStore because many deployments (email-only login) never need it, and forcing it into UserStore would penalize them."
   - name: AuthError
     kind: struct
-    role: Structured account-level error (Code, Message, Field) shared by local and federated flows.
-    why: Field is included so a single error type can drive both form re-rendering and JSON API responses.
+    role: "Structured account-level error (Code, Message, Field) shared by local and federated flows."
+    why: "Field is included so a single error type can drive both form re-rendering and JSON API responses."
   - name: AuthError.Error
     kind: method
-    role: Satisfies the error interface by returning Message.
-    why: Code (not Message) is the stable identifier — callers should switch on Code, not parse Error().
+    role: "Satisfies the error interface by returning Message."
+    why: "Code (not Message) is the stable identifier — callers should switch on Code, not parse Error()."
   - name: NewAuthError
     kind: func
-    role: Constructor for AuthError.
-    why: Exists mainly for call-site readability; AuthError fields are all exported.
+    role: "Constructor for AuthError."
+    why: "Exists mainly for call-site readability; AuthError fields are all exported."
   - name: AuthErrorHandler
     kind: type
-    role: Function type that lets the host app render auth errors (redirect, flash, JSON) and signals "handled" via bool return.
-    why: Returning false to fall through to default JSON keeps the library usable without forcing every caller to write an error renderer.
+    role: "Function type that lets the host app render auth errors (redirect, flash, JSON) and signals \"handled\" via bool return."
+    why: "Returning false to fall through to default JSON keeps the library usable without forcing every caller to write an error renderer."
   - name: CredentialsValidator
     kind: type
-    role: Function signature that validates (username, password, usernameType) and returns a User.
-    why: Function-typed (not interface) so both localauth's password login and apiauth's password-grant can plug in the same callback without ceremony.
+    role: "Function signature that validates (username, password, usernameType) and returns a User."
+    why: "Function-typed (not interface) so both localauth's password login and apiauth's password-grant can plug in the same callback without ceremony."
   - name: ErrCodeEmailExists
     kind: const
-    role: Stable error code for "email already in use".
-    why: Constant so callers can switch on it without string-comparing user-facing messages.
+    role: "Stable error code for \"email already in use\"."
+    why: "Constant so callers can switch on it without string-comparing user-facing messages."
   - name: ErrCodeUsernameTaken
     kind: const
-    role: Stable error code for "username already reserved".
-    why: Same rationale as ErrCodeEmailExists — UI/API layers branch on Code.
+    role: "Stable error code for \"username already reserved\"."
+    why: "Same rationale as ErrCodeEmailExists — UI/API layers branch on Code."
   - name: ErrCodeWeakPassword
     kind: const
-    role: Stable error code for password policy violations.
-    why: Policy lives in localauth, but the error code is here so non-local flows can reuse it (e.g. password reset).
+    role: "Stable error code for password policy violations."
+    why: "Policy lives in localauth, but the error code is here so non-local flows can reuse it (e.g. password reset)."
   - name: ErrCodeInvalidUsername
     kind: const
-    role: Stable error code for malformed username.
-    why: Distinct from ErrCodeUsernameTaken — "invalid" is a format issue, "taken" is a uniqueness issue.
+    role: "Stable error code for malformed username."
+    why: "Distinct from ErrCodeUsernameTaken — \"invalid\" is a format issue, \"taken\" is a uniqueness issue."
   - name: ErrCodeInvalidEmail
     kind: const
-    role: Stable error code for malformed email.
-    why: Format errors are separate codes so UIs can hint at the right field-level fix.
+    role: "Stable error code for malformed email."
+    why: "Format errors are separate codes so UIs can hint at the right field-level fix."
   - name: ErrCodeInvalidPhone
     kind: const
-    role: Stable error code for malformed phone number.
-    why: Mirrors email for parity since DetectUsernameType treats both as first-class identity types.
+    role: "Stable error code for malformed phone number."
+    why: "Mirrors email for parity since DetectUsernameType treats both as first-class identity types."
   - name: ErrCodeMissingField
     kind: const
-    role: Stable error code for omitted required input.
-    why: Catch-all that lets handlers report Field without needing a code per missing field.
+    role: "Stable error code for omitted required input."
+    why: "Catch-all that lets handlers report Field without needing a code per missing field."
   - name: ErrCodeInvalidCreds
     kind: const
-    role: Stable error code for failed credential validation.
-    why: Deliberately non-specific so it can't leak whether the username or password was wrong.
+    role: "Stable error code for failed credential validation."
+    why: "Deliberately non-specific so it can't leak whether the username or password was wrong."
 depends_on: []
 

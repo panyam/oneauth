@@ -1,51 +1,51 @@
 package: fs
-purpose: Filesystem-backed CredentialStore that persists per-server ServerCredential entries in a single JSON file with owner-only permissions.
+purpose: "Filesystem-backed CredentialStore that persists per-server ServerCredential entries in a single JSON file with owner-only permissions."
 language: go
 last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
 last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: FSCredentialStore
     kind: struct
-    role: In-memory map of normalized-URL to ServerCredential, guarded by a RWMutex and backed by a JSON file.
-    why: Mutations stay in memory until Save, so callers control when secrets touch disk.
+    role: "In-memory map of normalized-URL to ServerCredential, guarded by a RWMutex and backed by a JSON file."
+    why: "Mutations stay in memory until Save, so callers control when secrets touch disk."
   - name: credentialFile
     kind: struct
-    role: On-disk JSON envelope wrapping the servers map under a "servers" key.
-    why: Single top-level object leaves room for schema/version fields without breaking older readers.
+    role: "On-disk JSON envelope wrapping the servers map under a \"servers\" key."
+    why: "Single top-level object leaves room for schema/version fields without breaking older readers."
   - name: NewFSCredentialStore
     kind: func
-    role: Constructor that defaults the path to ~/.config/<appName>/credentials.json and eagerly loads any existing file.
-    why: First-run callers want an empty-but-usable store rather than a "file not found" error.
+    role: "Constructor that defaults the path to ~/.config/<appName>/credentials.json and eagerly loads any existing file."
+    why: "First-run callers want an empty-but-usable store rather than a \"file not found\" error."
   - name: normalizeURL
     kind: func
-    role: Collapses a server URL to scheme://host, defaulting missing scheme to https.
-    why: Tokens are per-issuer, not per-endpoint; path/query variants must dedup onto one entry.
+    role: "Collapses a server URL to scheme://host, defaulting missing scheme to https."
+    why: "Tokens are per-issuer, not per-endpoint; path/query variants must dedup onto one entry."
   - name: FSCredentialStore.GetCredential
     kind: method
-    role: Lookup by normalized URL; returns (nil, nil) on miss.
-    why: Errors are reserved for URL parsing; missing-credential is a normal state, not a failure.
+    role: "Lookup by normalized URL; returns (nil, nil) on miss."
+    why: "Errors are reserved for URL parsing; missing-credential is a normal state, not a failure."
   - name: FSCredentialStore.SetCredential
     kind: method
-    role: Stores a credential under its normalized key and marks the store dirty.
-    why: Defers disk write to Save so many updates batch into one file rewrite.
+    role: "Stores a credential under its normalized key and marks the store dirty."
+    why: "Defers disk write to Save so many updates batch into one file rewrite."
   - name: FSCredentialStore.RemoveCredential
     kind: method
-    role: Deletes a credential by normalized key and marks the store dirty.
-    why: Mirrors Set's batching model so removals also wait for Save.
+    role: "Deletes a credential by normalized key and marks the store dirty."
+    why: "Mirrors Set's batching model so removals also wait for Save."
   - name: FSCredentialStore.ListServers
     kind: method
-    role: Returns all normalized server URL keys.
-    why: Exposes the canonical scheme://host form callers can pass back into Get/Remove.
+    role: "Returns all normalized server URL keys."
+    why: "Exposes the canonical scheme://host form callers can pass back into Get/Remove."
   - name: FSCredentialStore.Save
     kind: method
-    role: Writes the map to disk as indented JSON when dirty, creating dir 0700 and file 0600.
-    why: Restricted perms because contents are bearer tokens; no-op when unchanged to avoid needless fsync.
+    role: "Writes the map to disk as indented JSON when dirty, creating dir 0700 and file 0600."
+    why: "Restricted perms because contents are bearer tokens; no-op when unchanged to avoid needless fsync."
   - name: FSCredentialStore.Path
     kind: method
-    role: Returns the resolved path to the credentials file.
-    why: After default-path resolution, callers (and logs) need to know where the file actually landed.
+    role: "Returns the resolved path to the credentials file."
+    why: "After default-path resolution, callers (and logs) need to know where the file actually landed."
 depends_on:
   - path: ../..
     uses:
       - ServerCredential
-    why: FSCredentialStore implements client.CredentialStore and stores client.ServerCredential values keyed by normalized server URL.
+    why: "FSCredentialStore implements client.CredentialStore and stores client.ServerCredential values keyed by normalized server URL."

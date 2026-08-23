@@ -1,253 +1,253 @@
 package: apiauth
-purpose: API token authentication — token issuance (password / refresh / client_credentials / jwt-bearer / token-exchange), JWT validation middleware, RFC 7662 introspection, RFC 7009 revocation, RFC 8414 / OIDC discovery, and a transport-independent `OneAuth` core that composes focused interfaces (`TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator`).
+purpose: "API token authentication — token issuance (password / refresh / client_credentials / jwt-bearer / token-exchange), JWT validation middleware, RFC 7662 introspection, RFC 7009 revocation, RFC 8414 / OIDC discovery, and a transport-independent `OneAuth` core that composes focused interfaces (`TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator`)."
 language: go
 last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
 last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: APIAuth
     kind: struct
-    role: HTTP-facing token endpoint — `ServeHTTP` dispatches `/api/token` on `grant_type` (password / refresh_token / client_credentials / jwt-bearer / token-exchange) plus API-key and session management handlers.
-    why: Owns the legacy `/api/token` shape (form + JSON, rate limiting, custom claims, callbacks); per #218 the token-minting and validation surface routes through `Issuer()` / `Validator()` accessors rather than inline JWT logic.
+    role: "HTTP-facing token endpoint — `ServeHTTP` dispatches `/api/token` on `grant_type` (password / refresh_token / client_credentials / jwt-bearer / token-exchange) plus API-key and session management handlers."
+    why: "Owns the legacy `/api/token` shape (form + JSON, rate limiting, custom claims, callbacks); per #218 the token-minting and validation surface routes through `Issuer()` / `Validator()` accessors rather than inline JWT logic."
   - name: APIAuth.Issuer
     kind: method
-    role: Lazy-builds (once) the `TokenIssuer` from `APIAuth` fields — signing key/alg, issuer/audience, `ClientKeyStore`, `RefreshTokenStore`, `ValidateCredentials`, `GetSubjectScopes`, `CustomClaimsFunc`.
-    why: Lets callers populate `APIAuth` fields after construction (existing pattern) and still funnel every grant handler through one `TokenIssuer` instance.
+    role: "Lazy-builds (once) the `TokenIssuer` from `APIAuth` fields — signing key/alg, issuer/audience, `ClientKeyStore`, `RefreshTokenStore`, `ValidateCredentials`, `GetSubjectScopes`, `CustomClaimsFunc`."
+    why: "Lets callers populate `APIAuth` fields after construction (existing pattern) and still funnel every grant handler through one `TokenIssuer` instance."
   - name: APIAuth.Validator
     kind: method
-    role: Lazy-builds (once) the `TokenValidator` from `APIAuth` fields — signing/verify key, alg, blacklist, issuer/audience.
-    why: Same lazy-build pattern as `Issuer()`; `APIMiddleware` reuses the same path when no explicit `Validator` is wired.
+    role: "Lazy-builds (once) the `TokenValidator` from `APIAuth` fields — signing/verify key, alg, blacklist, issuer/audience."
+    why: "Same lazy-build pattern as `Issuer()`; `APIMiddleware` reuses the same path when no explicit `Validator` is wired."
   - name: APIMiddleware
     kind: struct
-    role: HTTP middleware (`ValidateToken`, `RequireScopes`, `Optional`, `RequireAuthorizationDetails`) that validates Bearer tokens or API keys and sets user info in the request context.
-    why: Resource-server entry point; chains JWT (single- or multi-tenant via `KeyStore`), `oa_`-prefixed API keys, and `IntrospectionValidator` fallback in one path.
+    role: "HTTP middleware (`ValidateToken`, `RequireScopes`, `Optional`, `RequireAuthorizationDetails`) that validates Bearer tokens or API keys and sets user info in the request context."
+    why: "Resource-server entry point; chains JWT (single- or multi-tenant via `KeyStore`), `oa_`-prefixed API keys, and `IntrospectionValidator` fallback in one path."
   - name: OneAuth
     kind: struct
-    role: Transport-independent core. Composes `Issuer`, `Validator`, `Introspector`, `Revoker`, `Authenticator` plus shared state (`KeyStore`, `Blacklist`, `RefreshStore`) and grouped `Hooks`.
-    why: Issue 110's no-god-object refactor — callers wire deps once via `NewOneAuth` and get HTTP wrappers (`IntrospectionHTTPHandler`, `RevocationHTTPHandler`, `HTTPMiddleware`) for free.
+    role: "Transport-independent core. Composes `Issuer`, `Validator`, `Introspector`, `Revoker`, `Authenticator` plus shared state (`KeyStore`, `Blacklist`, `RefreshStore`) and grouped `Hooks`."
+    why: "Issue 110's no-god-object refactor — callers wire deps once via `NewOneAuth` and get HTTP wrappers (`IntrospectionHTTPHandler`, `RevocationHTTPHandler`, `HTTPMiddleware`) for free."
   - name: NewOneAuth
     kind: func
-    role: Builds a fully wired `*OneAuth` from `OneAuthConfig`.
-    why: Each composed implementation receives only the deps it actually needs.
+    role: "Builds a fully wired `*OneAuth` from `OneAuthConfig`."
+    why: "Each composed implementation receives only the deps it actually needs."
   - name: OneAuthConfig
     kind: struct
-    role: Inputs for `NewOneAuth` — KeyStore, signing key/alg, issuer/audience, expiry, Blacklist, RefreshStore, password-grant callbacks, Hooks.
-    why: Single config surface that fans out into Issuer / Validator / Revoker / Authenticator constructors.
+    role: "Inputs for `NewOneAuth` — KeyStore, signing key/alg, issuer/audience, expiry, Blacklist, RefreshStore, password-grant callbacks, Hooks."
+    why: "Single config surface that fans out into Issuer / Validator / Revoker / Authenticator constructors."
   - name: TokenIssuer
     kind: interface
-    role: Mints access tokens. Methods `CreateAccessToken` / `ClientCredentials` / `RefreshGrant` / `PasswordGrant` — all `(ctx, *XRequest) → (*XResponse, error)`.
-    why: gRPC-shape convention (issue 175); transport bindings call these instead of `APIAuth`.
+    role: "Mints access tokens. Methods `CreateAccessToken` / `ClientCredentials` / `RefreshGrant` / `PasswordGrant` — all `(ctx, *XRequest) → (*XResponse, error)`."
+    why: "gRPC-shape convention (issue 175); transport bindings call these instead of `APIAuth`."
   - name: TokenValidator
     kind: interface
-    role: Parses and validates tokens (signature, expiry, issuer, audience, blacklist). Methods `ValidateToken` / `CheckScopes` / `CheckAuthorizationDetails`.
-    why: Lets middleware and introspector share one local-validation path; multi-tenant `KeyLookup` baked in.
+    role: "Parses and validates tokens (signature, expiry, issuer, audience, blacklist). Methods `ValidateToken` / `CheckScopes` / `CheckAuthorizationDetails`."
+    why: "Lets middleware and introspector share one local-validation path; multi-tenant `KeyLookup` baked in."
   - name: TokenIntrospector
     kind: interface
-    role: RFC 7662 introspection — returns `{Active: false}` for any invalid token (never reveals why, per §2.2).
-    why: Decouples the introspection handler from the validation backend; in-process implementation delegates to a `TokenValidator`.
+    role: "RFC 7662 introspection — returns `{Active: false}` for any invalid token (never reveals why, per §2.2)."
+    why: "Decouples the introspection handler from the validation backend; in-process implementation delegates to a `TokenValidator`."
   - name: TokenRevoker
     kind: interface
-    role: RFC 7009 revocation — tries refresh-token store and access-token blacklist based on `token_type_hint`.
-    why: Separates the revocation policy from the HTTP wrapper so the same revoker can be reused from gRPC / MCP transports.
+    role: "RFC 7009 revocation — tries refresh-token store and access-token blacklist based on `token_type_hint`."
+    why: "Separates the revocation policy from the HTTP wrapper so the same revoker can be reused from gRPC / MCP transports."
   - name: ClientAuthenticator
     kind: interface
-    role: Verifies client credentials via `client_secret_basic` / `client_secret_post` / `private_key_jwt`. Single method `AuthenticateClient`.
-    why: Shared by the token, introspection, and revocation handlers; routing by which fields are set in `AuthenticateClientRequest` keeps every endpoint accepting all three OAuth-defined auth channels.
+    role: "Verifies client credentials via `client_secret_basic` / `client_secret_post` / `private_key_jwt`. Single method `AuthenticateClient`."
+    why: "Shared by the token, introspection, and revocation handlers; routing by which fields are set in `AuthenticateClientRequest` keeps every endpoint accepting all three OAuth-defined auth channels."
   - name: TokenInfo
     kind: struct
-    role: Validated claims returned from `TokenValidator.ValidateToken` — `Subject`, `Scopes`, `AuthorizationDetails`, `CustomClaims`, `AuthType`.
-    why: Single shape consumed by both the new middleware path and the in-process introspector.
+    role: "Validated claims returned from `TokenValidator.ValidateToken` — `Subject`, `Scopes`, `AuthorizationDetails`, `CustomClaims`, `AuthType`."
+    why: "Single shape consumed by both the new middleware path and the in-process introspector."
   - name: jwtValidator
     kind: type
-    role: Local JWT validator implementing `TokenValidator`. Resolves keys by `kid` then `client_id` claim, cross-checks kid owner vs claim, validates type/iss/aud/exp/blacklist; falls back to `signingKey` when no `KeyLookup` resolves.
-    why: The kid-vs-`client_id`-claim cross-check prevents cross-app token forgery (app A signing with `client_id`=B). Self-validation fallback supports the "APIAuth holds its own key" mode (no KeyStore needed).
+    role: "Local JWT validator implementing `TokenValidator`. Resolves keys by `kid` then `client_id` claim, cross-checks kid owner vs claim, validates type/iss/aud/exp/blacklist; falls back to `signingKey` when no `KeyLookup` resolves."
+    why: "The kid-vs-`client_id`-claim cross-check prevents cross-app token forgery (app A signing with `client_id`=B). Self-validation fallback supports the \"APIAuth holds its own key\" mode (no KeyStore needed)."
   - name: NewJWTValidator
     kind: func
-    role: Constructs a `TokenValidator` from `JWTValidatorConfig`.
-    why: Shared by `APIMiddleware` (lazy) and `OneAuth`.
+    role: "Constructs a `TokenValidator` from `JWTValidatorConfig`."
+    why: "Shared by `APIMiddleware` (lazy) and `OneAuth`."
   - name: jwtIssuer
     kind: type
-    role: `TokenIssuer` implementation; signs JWTs with HS/RS/ES keys, generates `jti`, embeds RFC 9396 `authorization_details`, runs theft detection on `RefreshGrant`.
-    why: Transport-free counterpart to per-grant minting; what `NewOneAuth` and `APIAuth.Issuer()` both wire.
+    role: "`TokenIssuer` implementation; signs JWTs with HS/RS/ES keys, generates `jti`, embeds RFC 9396 `authorization_details`, runs theft detection on `RefreshGrant`."
+    why: "Transport-free counterpart to per-grant minting; what `NewOneAuth` and `APIAuth.Issuer()` both wire."
   - name: NewJWTIssuer
     kind: func
-    role: Constructs a `TokenIssuer` from `JWTIssuerConfig`.
+    role: "Constructs a `TokenIssuer` from `JWTIssuerConfig`."
     why: ""
   - name: tokenRevoker
     kind: type
-    role: `TokenRevoker` implementation; revokes refresh tokens via `RefreshTokenStore` and access tokens by `jti` via `core.TokenBlacklist`.
-    why: With no hint, tries refresh first (cheaper lookup) then access — matches RFC 7009's permissive behaviour.
+    role: "`TokenRevoker` implementation; revokes refresh tokens via `RefreshTokenStore` and access tokens by `jti` via `core.TokenBlacklist`."
+    why: "With no hint, tries refresh first (cheaper lookup) then access — matches RFC 7009's permissive behaviour."
   - name: NewTokenRevoker
     kind: func
-    role: Constructs a `TokenRevoker` from `TokenRevokerConfig`.
+    role: "Constructs a `TokenRevoker` from `TokenRevokerConfig`."
     why: ""
   - name: tokenIntrospector
     kind: type
-    role: `TokenIntrospector` that delegates to a `TokenValidator` and re-parses raw JWT claims for the full RFC 7662 response.
-    why: Keeps the local-introspection path consistent with middleware validation.
+    role: "`TokenIntrospector` that delegates to a `TokenValidator` and re-parses raw JWT claims for the full RFC 7662 response."
+    why: "Keeps the local-introspection path consistent with middleware validation."
   - name: NewTokenIntrospector
     kind: func
-    role: Constructs a `TokenIntrospector` over a `TokenValidator`.
+    role: "Constructs a `TokenIntrospector` over a `TokenValidator`."
     why: ""
   - name: clientAuthenticator
     kind: type
-    role: `ClientAuthenticator` with both `client_secret_*` (constant-time compare) and `private_key_jwt` (RFC 7523 §2.2 / OIDC Core §9) paths; uses a `JTIStore` for assertion replay protection.
-    why: Locks the assertion algorithm via `jwt.WithValidMethods(rec.Algorithm)` — defeats the CVE-2016-10555 alg-confusion attack (swap RS256 → HS256, use public key as HMAC secret).
+    role: "`ClientAuthenticator` with both `client_secret_*` (constant-time compare) and `private_key_jwt` (RFC 7523 §2.2 / OIDC Core §9) paths; uses a `JTIStore` for assertion replay protection."
+    why: "Locks the assertion algorithm via `jwt.WithValidMethods(rec.Algorithm)` — defeats the CVE-2016-10555 alg-confusion attack (swap RS256 → HS256, use public key as HMAC secret)."
   - name: NewClientAuthenticator
     kind: func
-    role: Builds a `ClientAuthenticator` over a `keys.KeyLookup` with an in-memory `JTIStore`.
-    why: Default constructor wired by `NewOneAuth` and lazily cached inside `APIAuth.authenticateTokenEndpointClient` so the JTIStore survives across requests.
+    role: "Builds a `ClientAuthenticator` over a `keys.KeyLookup` with an in-memory `JTIStore`."
+    why: "Default constructor wired by `NewOneAuth` and lazily cached inside `APIAuth.authenticateTokenEndpointClient` so the JTIStore survives across requests."
   - name: NewClientAuthenticatorWithJTIStore
     kind: func
-    role: Like `NewClientAuthenticator` but lets callers wire a distributed JTIStore (Redis SETNX, etc.).
-    why: Multi-node deployments need cross-process `jti` replay protection.
+    role: "Like `NewClientAuthenticator` but lets callers wire a distributed JTIStore (Redis SETNX, etc.)."
+    why: "Multi-node deployments need cross-process `jti` replay protection."
   - name: ClientAssertionTypeJWTBearer
     kind: const
-    role: The `client_assertion_type` URN required by RFC 7521 §4.2 (`urn:ietf:params:oauth:client-assertion-type:jwt-bearer`).
-    why: Any other value is rejected — the assertion channel only accepts this URN.
+    role: "The `client_assertion_type` URN required by RFC 7521 §4.2 (`urn:ietf:params:oauth:client-assertion-type:jwt-bearer`)."
+    why: "Any other value is rejected — the assertion channel only accepts this URN."
   - name: MaxClientAssertionLifetime
     kind: const
-    role: 5-minute cap on `exp - iat` for client assertions.
-    why: Bounds JTIStore memory; matches OIDC Core §9's "short-lived" hint and what major IdPs accept.
+    role: "5-minute cap on `exp - iat` for client assertions."
+    why: "Bounds JTIStore memory; matches OIDC Core §9's \"short-lived\" hint and what major IdPs accept."
   - name: JTIStore
     kind: interface
-    role: At-most-once replay tracker for client-assertion `jti` claims — `SeenWithin(jti, lifetime) bool` (atomic check-and-set).
-    why: Swap-in seam for distributed deployments; in-memory default is fine for single-process.
+    role: "At-most-once replay tracker for client-assertion `jti` claims — `SeenWithin(jti, lifetime) bool` (atomic check-and-set)."
+    why: "Swap-in seam for distributed deployments; in-memory default is fine for single-process."
   - name: NewInMemoryJTIStore
     kind: func
-    role: Constructor for the default lazy-GC, mutex-guarded `JTIStore`.
+    role: "Constructor for the default lazy-GC, mutex-guarded `JTIStore`."
     why: ""
   - name: TrustedAssertionIssuer
     kind: struct
-    role: Upstream IdP whose JWT assertions the AS accepts for `jwt-bearer` (RFC 7523 §2.1) and `token-exchange` (RFC 8693 §2.1.1) grants. Fields: `Issuer`, `PublicKey` / `KeyFunc`, `Audiences`, `AcceptedAlgorithms`.
-    why: Federated identity chain entry point — `KeyFunc` enables JWKS-by-`kid` resolution; `AcceptedAlgorithms` locks out alg-confusion.
+    role: "Upstream IdP whose JWT assertions the AS accepts for `jwt-bearer` (RFC 7523 §2.1) and `token-exchange` (RFC 8693 §2.1.1) grants. Fields: `Issuer`, `PublicKey` / `KeyFunc`, `Audiences`, `AcceptedAlgorithms`."
+    why: "Federated identity chain entry point — `KeyFunc` enables JWKS-by-`kid` resolution; `AcceptedAlgorithms` locks out alg-confusion."
   - name: JwtBearerGrantType
     kind: const
-    role: `urn:ietf:params:oauth:grant-type:jwt-bearer` — RFC 7523 §2.1 grant URI.
-    why: Distinguished from RFC 7523 §2.2 client-auth assertions (those live in `client_assertion`, not `assertion`).
+    role: "`urn:ietf:params:oauth:grant-type:jwt-bearer` — RFC 7523 §2.1 grant URI."
+    why: "Distinguished from RFC 7523 §2.2 client-auth assertions (those live in `client_assertion`, not `assertion`)."
   - name: TokenExchangeGrantType
     kind: const
-    role: `urn:ietf:params:oauth:grant-type:token-exchange` — RFC 8693 §2.1.
-    why: Phase 1: JWT `subject_token` → access_token only; audience/resource params are advisory.
+    role: "`urn:ietf:params:oauth:grant-type:token-exchange` — RFC 8693 §2.1."
+    why: "Phase 1: JWT `subject_token` → access_token only; audience/resource params are advisory."
   - name: TokenTypeJWT
     kind: const
-    role: `urn:ietf:params:oauth:token-type:jwt` — the only `subject_token_type` currently honored.
+    role: "`urn:ietf:params:oauth:token-type:jwt` — the only `subject_token_type` currently honored."
     why: ""
   - name: TokenTypeAccessToken
     kind: const
-    role: `urn:ietf:params:oauth:token-type:access_token` — default `requested_token_type` for token exchange.
+    role: "`urn:ietf:params:oauth:token-type:access_token` — default `requested_token_type` for token exchange."
     why: ""
   - name: ASServerMetadata
     kind: struct
-    role: RFC 8414 + OIDC Discovery §4 AS metadata document; includes `ClaimsSupported`, `AuthorizationDetailsTypesSupported`, `TokenEndpointAuthSigningAlgValuesSupported`, `AuthorizationResponseIssParameterSupported` (RFC 9207).
-    why: Pointer-typed RFC 9207 flag distinguishes "advertised false" from "absent".
+    role: "RFC 8414 + OIDC Discovery §4 AS metadata document; includes `ClaimsSupported`, `AuthorizationDetailsTypesSupported`, `TokenEndpointAuthSigningAlgValuesSupported`, `AuthorizationResponseIssParameterSupported` (RFC 9207)."
+    why: "Pointer-typed RFC 9207 flag distinguishes \"advertised false\" from \"absent\"."
   - name: NewASMetadataHandler
     kind: func
-    role: Returns an `http.Handler` that serves AS metadata JSON with `Cache-Control: max-age`.
-    why: Metadata is pre-serialized at construction — failure to marshal panics loudly.
+    role: "Returns an `http.Handler` that serves AS metadata JSON with `Cache-Control: max-age`."
+    why: "Metadata is pre-serialized at construction — failure to marshal panics loudly."
   - name: MountASMetadata
     kind: func
-    role: Registers the same handler at both `/.well-known/oauth-authorization-server` (RFC 8414) and `/.well-known/openid-configuration` (OIDC Discovery).
-    why: Lets OAuth-only and OIDC-only clients both auto-discover the AS without fallback logic.
+    role: "Registers the same handler at both `/.well-known/oauth-authorization-server` (RFC 8414) and `/.well-known/openid-configuration` (OIDC Discovery)."
+    why: "Lets OAuth-only and OIDC-only clients both auto-discover the AS without fallback logic."
   - name: ASMetadataProxy
     kind: struct
-    role: Lazy-fetching, TTL-cached proxy that serves AS metadata fetched from an upstream issuer (tries RFC 8414 first, then OIDC).
-    why: Bridges OIDC-only providers (Keycloak) so clients (VS Code MCP) that only try RFC 8414 can still discover the AS.
+    role: "Lazy-fetching, TTL-cached proxy that serves AS metadata fetched from an upstream issuer (tries RFC 8414 first, then OIDC)."
+    why: "Bridges OIDC-only providers (Keycloak) so clients (VS Code MCP) that only try RFC 8414 can still discover the AS."
   - name: NewASMetadataProxy
     kind: func
-    role: Constructor for `ASMetadataProxy` with configurable TTL (default 1 hour).
+    role: "Constructor for `ASMetadataProxy` with configurable TTL (default 1 hour)."
     why: ""
   - name: ProtectedResourceMetadata
     kind: struct
-    role: RFC 9728 PRM document — `Resource`, `AuthorizationServers`, scopes, token formats, signing algs, introspection endpoint.
-    why: Lets clients discover which AS to trust before calling protected endpoints.
+    role: "RFC 9728 PRM document — `Resource`, `AuthorizationServers`, scopes, token formats, signing algs, introspection endpoint."
+    why: "Lets clients discover which AS to trust before calling protected endpoints."
   - name: NewProtectedResourceHandler
     kind: func
-    role: HTTP handler that serves the PRM JSON.
+    role: "HTTP handler that serves the PRM JSON."
     why: ""
   - name: MountProtectedResource
     kind: func
-    role: Mounts the PRM at `/.well-known/oauth-protected-resource` and optionally an AS metadata proxy at the RFC 8414 well-known on the resource server.
-    why: MCP-spec workflow: clients discover PRM → fetch RFC 8414 from the AS URL → proxy bridges OIDC-only providers.
+    role: "Mounts the PRM at `/.well-known/oauth-protected-resource` and optionally an AS metadata proxy at the RFC 8414 well-known on the resource server."
+    why: "MCP-spec workflow: clients discover PRM → fetch RFC 8414 from the AS URL → proxy bridges OIDC-only providers."
   - name: IntrospectionHandler
     kind: struct
-    role: HTTP wrapper over `TokenIntrospector` for `POST /oauth/introspect` (RFC 7662). Authenticates the caller via `ClientAuthenticator`; returns `{active: false}` for any invalid token.
-    why: Includes `AcceptedAudiences` for assertion-based caller auth; falls back to `derivedAudience(r)` only for single-host deployments.
+    role: "HTTP wrapper over `TokenIntrospector` for `POST /oauth/introspect` (RFC 7662). Authenticates the caller via `ClientAuthenticator`; returns `{active: false}` for any invalid token."
+    why: "Includes `AcceptedAudiences` for assertion-based caller auth; falls back to `derivedAudience(r)` only for single-host deployments."
   - name: NewIntrospectionHandler
     kind: func
-    role: Bridge constructor that adapts an `APIAuth` into the new interface-based handler.
-    why: Lets legacy callers pick up `private_key_jwt` caller-auth automatically.
+    role: "Bridge constructor that adapts an `APIAuth` into the new interface-based handler."
+    why: "Lets legacy callers pick up `private_key_jwt` caller-auth automatically."
   - name: RevocationHandler
     kind: struct
-    role: HTTP wrapper over `TokenRevoker` for `POST /oauth/revoke` (RFC 7009). Always returns 200, even on missing token.
-    why: Same `ClientAuthenticator` plumbing as introspection — revocation is per-RFC always-200 to avoid leaking token existence.
+    role: "HTTP wrapper over `TokenRevoker` for `POST /oauth/revoke` (RFC 7009). Always returns 200, even on missing token."
+    why: "Same `ClientAuthenticator` plumbing as introspection — revocation is per-RFC always-200 to avoid leaking token existence."
   - name: NewRevocationHandler
     kind: func
-    role: Bridge constructor over `APIAuth`.
+    role: "Bridge constructor over `APIAuth`."
     why: ""
   - name: IntrospectionValidator
     kind: struct
-    role: RFC 7662 client — POSTs the token to an upstream introspection endpoint with Basic auth; optional response cache (`CacheTTL`).
-    why: Used as middleware fallback when local JWT validation fails (or when no key material is available); `ValidateForMiddleware` translates the response into middleware's tuple shape.
+    role: "RFC 7662 client — POSTs the token to an upstream introspection endpoint with Basic auth; optional response cache (`CacheTTL`)."
+    why: "Used as middleware fallback when local JWT validation fails (or when no key material is available); `ValidateForMiddleware` translates the response into middleware's tuple shape."
   - name: IntrospectionResult
     kind: struct
-    role: Parsed RFC 7662 response — `Active`, `Sub`, `Scope`, `ClientID`, `TokenType`, `Exp`, `Iat`, `Iss`, `Jti`, `Aud`.
-    why: Single result type returned by both the local `TokenIntrospector` and the remote `IntrospectionValidator`.
+    role: "Parsed RFC 7662 response — `Active`, `Sub`, `Scope`, `ClientID`, `TokenType`, `Exp`, `Iat`, `Iss`, `Jti`, `Aud`."
+    why: "Single result type returned by both the local `TokenIntrospector` and the remote `IntrospectionValidator`."
   - name: Hooks
     kind: struct
-    role: Grouped lifecycle callbacks — `Token`, `Auth`, `Client`, `Security`. Each sub-group's callbacks are individually optional.
-    why: Avoids the "120-field hook struct" antipattern; callers wire only what they need.
+    role: "Grouped lifecycle callbacks — `Token`, `Auth`, `Client`, `Security`. Each sub-group's callbacks are individually optional."
+    why: "Avoids the \"120-field hook struct\" antipattern; callers wire only what they need."
   - name: TokenHooks
     kind: struct
-    role: `OnIssued` / `OnRefreshed` / `OnRevoked` — token lifecycle events.
+    role: "`OnIssued` / `OnRefreshed` / `OnRevoked` — token lifecycle events."
     why: ""
   - name: AuthHooks
     kind: struct
-    role: `OnLoginSuccess` / `OnLoginFailure` / `OnScopeStepUp`.
+    role: "`OnLoginSuccess` / `OnLoginFailure` / `OnScopeStepUp`."
     why: ""
   - name: ClientHooks
     kind: struct
-    role: `OnRegistered` / `OnDeleted` / `OnKeyRotated`.
+    role: "`OnRegistered` / `OnDeleted` / `OnKeyRotated`."
     why: ""
   - name: SecurityHooks
     kind: struct
-    role: `OnTokenRejected` / `OnBlacklistHit` / `OnAlgorithmMismatch` — security telemetry surface.
-    why: `OnAlgorithmMismatch` flags the CVE-2015-9235 attack vector.
+    role: "`OnTokenRejected` / `OnBlacklistHit` / `OnAlgorithmMismatch` — security telemetry surface."
+    why: "`OnAlgorithmMismatch` flags the CVE-2015-9235 attack vector."
   - name: CredentialsValidator
     kind: type
-    role: Type alias re-exported from `accounts` for the password-grant validator function.
-    why: Lets `apiauth`'s field and `localauth`'s host-supplied validator be assignable to each other without conversion.
+    role: "Type alias re-exported from `accounts` for the password-grant validator function."
+    why: "Lets `apiauth`'s field and `localauth`'s host-supplied validator be assignable to each other without conversion."
   - name: extractClientCredentials
     kind: func
-    role: Inspects an HTTP request for client credentials across the three OAuth-defined channels — private_key_jwt assertion → Basic header → form post — and populates an `AuthenticateClientRequest`.
-    why: Centralizes precedence (strongest credential wins) so token / introspection / revocation handlers all accept the same three channels identically.
+    role: "Inspects an HTTP request for client credentials across the three OAuth-defined channels — private_key_jwt assertion → Basic header → form post — and populates an `AuthenticateClientRequest`."
+    why: "Centralizes precedence (strongest credential wins) so token / introspection / revocation handlers all accept the same three channels identically."
   - name: derivedAudience
     kind: func
-    role: Derives the absolute endpoint URL from an HTTP request (honoring `X-Forwarded-Proto` / `X-Forwarded-Host`) as a fallback audience.
-    why: Single-host deployments don't need to configure `AcceptedAudiences` explicitly; behind a path-rewriting proxy this fallback breaks, so production deployments populate the list.
+    role: "Derives the absolute endpoint URL from an HTTP request (honoring `X-Forwarded-Proto` / `X-Forwarded-Host`) as a fallback audience."
+    why: "Single-host deployments don't need to configure `AcceptedAudiences` explicitly; behind a path-rewriting proxy this fallback breaks, so production deployments populate the list."
   - name: GetSubjectFromAPIContext
     kind: func
-    role: Retrieves the JWT subject (RFC 7519 `sub` — user ID for human flows, client_id for client_credentials) from a context populated by `APIMiddleware`.
-    why: Renamed from `GetUserIDFromAPIContext` to reflect dual usage (user / client_id).
+    role: "Retrieves the JWT subject (RFC 7519 `sub` — user ID for human flows, client_id for client_credentials) from a context populated by `APIMiddleware`."
+    why: "Renamed from `GetUserIDFromAPIContext` to reflect dual usage (user / client_id)."
   - name: GetScopesFromAPIContext
     kind: func
-    role: Retrieves granted scopes from the request context.
+    role: "Retrieves granted scopes from the request context."
     why: ""
   - name: GetAuthTypeFromAPIContext
     kind: func
-    role: Retrieves the auth type — `"jwt"` / `"api_key"` / `"introspection"`.
-    why: Lets handlers behave differently for opaque API keys vs JWTs.
+    role: "Retrieves the auth type — `\"jwt\"` / `\"api_key\"` / `\"introspection\"`."
+    why: "Lets handlers behave differently for opaque API keys vs JWTs."
   - name: GetCustomClaimsFromContext
     kind: func
-    role: Retrieves non-standard JWT claims from the request context.
+    role: "Retrieves non-standard JWT claims from the request context."
     why: ""
   - name: GetAuthorizationDetailsFromContext
     kind: func
-    role: Retrieves RFC 9396 `authorization_details` from the request context.
-    why: Backed by a dedicated context key (not the customClaims bag) so RAR is first-class.
+    role: "Retrieves RFC 9396 `authorization_details` from the request context."
+    why: "Backed by a dedicated context key (not the customClaims bag) so RAR is first-class."
   - name: APIMiddleware.RequireAuthorizationDetails
     kind: method
-    role: Middleware factory that requires the token to carry RFC 9396 `authorization_details` for every named type.
-    why: Type-level RAR enforcement — finer-grained than scopes.
+    role: "Middleware factory that requires the token to carry RFC 9396 `authorization_details` for every named type."
+    why: "Type-level RAR enforcement — finer-grained than scopes."
 depends_on:
   - path: ../accounts
     entities: [CredentialsValidator, DetectUsernameType]

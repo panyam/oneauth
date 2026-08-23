@@ -1,54 +1,54 @@
 package: appstoretest
-purpose: Shared contract test suite that every `admin.AppRegistrationStore` backend (InMem, FS, GORM) runs against to prove behavioral parity.
+purpose: "Shared contract test suite that every `admin.AppRegistrationStore` backend (InMem, FS, GORM) runs against to prove behavioral parity."
 language: go
 last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
 last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: Factory
     kind: type
-    role: Function alias `func(t *testing.T) admin.AppRegistrationStore` producing a fresh store per test.
-    why: Inverts construction so the suite stays backend-agnostic; each backend owns temp dirs, DB handles, and `t.Cleanup` registration.
+    role: "Function alias `func(t *testing.T) admin.AppRegistrationStore` producing a fresh store per test."
+    why: "Inverts construction so the suite stays backend-agnostic; each backend owns temp dirs, DB handles, and `t.Cleanup` registration."
   - name: RunAll
     kind: func
-    role: Single entry point that registers every `Test*` function as a named subtest under the caller's `*testing.T`.
-    why: Backends call one function; new contract tests added here automatically apply to every backend without editing call sites.
+    role: "Single entry point that registers every `Test*` function as a named subtest under the caller's `*testing.T`."
+    why: "Backends call one function; new contract tests added here automatically apply to every backend without editing call sites."
   - name: TestSaveAndGet
     kind: func
-    role: Happy-path round-trip — `SaveApp` then `GetApp` returns identical core fields.
-    why: Smoke-tests that the backend wires read and write to the same logical key.
+    role: "Happy-path round-trip — `SaveApp` then `GetApp` returns identical core fields."
+    why: "Smoke-tests that the backend wires read and write to the same logical key."
   - name: TestNotFound
     kind: func
-    role: Asserts `GetApp` on an unknown `client_id` returns the sentinel `admin.ErrAppNotFound`.
-    why: Pins the error-identity contract so callers can branch on the sentinel regardless of backend.
+    role: "Asserts `GetApp` on an unknown `client_id` returns the sentinel `admin.ErrAppNotFound`."
+    why: "Pins the error-identity contract so callers can branch on the sentinel regardless of backend."
   - name: TestDeleteApp
     kind: func
-    role: Save, delete, then verify subsequent `GetApp` returns `ErrAppNotFound`.
-    why: Confirms deletes are durable and visible to reads on the same handle.
+    role: "Save, delete, then verify subsequent `GetApp` returns `ErrAppNotFound`."
+    why: "Confirms deletes are durable and visible to reads on the same handle."
   - name: TestDeleteNonexistent
     kind: func
-    role: Deleting a never-saved `client_id` returns `ErrAppNotFound` (not nil, not a different error).
-    why: Locks in delete-of-missing semantics matching `KeyStorage.DeleteKey` so callers don't have to special-case backends.
+    role: "Deleting a never-saved `client_id` returns `ErrAppNotFound` (not nil, not a different error)."
+    why: "Locks in delete-of-missing semantics matching `KeyStorage.DeleteKey` so callers don't have to special-case backends."
   - name: TestOverwriteApp
     kind: func
-    role: Second `SaveApp` on the same `client_id` replaces (not merges) the prior registration.
-    why: Pins upsert semantics so DCR re-registration produces deterministic state across backends.
+    role: "Second `SaveApp` on the same `client_id` replaces (not merges) the prior registration."
+    why: "Pins upsert semantics so DCR re-registration produces deterministic state across backends."
   - name: TestListApps
     kind: func
-    role: After saving N apps, `ListApps` returns all N (compared after sorting).
-    why: Forces enumeration completeness without relying on insertion order, which differs between FS/GORM/InMem.
+    role: "After saving N apps, `ListApps` returns all N (compared after sorting)."
+    why: "Forces enumeration completeness without relying on insertion order, which differs between FS/GORM/InMem."
   - name: TestListAppsEmpty
     kind: func
-    role: `ListApps` on a fresh store returns an empty slice with nil error.
-    why: Forbids backends from conflating "no apps" with a failure (no `ErrAppNotFound`, no nil-slice-with-error).
+    role: "`ListApps` on a fresh store returns an empty slice with nil error."
+    why: "Forbids backends from conflating \"no apps\" with a failure (no `ErrAppNotFound`, no nil-slice-with-error)."
   - name: TestPersistence
     kind: func
-    role: Save then immediately read back on the same handle and confirm the write is visible.
-    why: Catches write-buffering or uncommitted-transaction bugs in FS and GORM (trivial for InMem).
+    role: "Save then immediately read back on the same handle and confirm the write is visible."
+    why: "Catches write-buffering or uncommitted-transaction bugs in FS and GORM (trivial for InMem)."
   - name: TestAllFieldsRoundTrip
     kind: func
-    role: Saves an `AppRegistration` with every field populated (slices, floats, timestamps, RAR types, DCR metadata) and verifies every field on read-back.
-    why: Catches backend serialization gaps — notably GORM forgetting to JSON-encode slice fields like `RedirectURIs`, `GrantTypes`, `AuthorizationDetailsTypes`.
+    role: "Saves an `AppRegistration` with every field populated (slices, floats, timestamps, RAR types, DCR metadata) and verifies every field on read-back."
+    why: "Catches backend serialization gaps — notably GORM forgetting to JSON-encode slice fields like `RedirectURIs`, `GrantTypes`, `AuthorizationDetailsTypes`."
 depends_on:
   - path: admin
     entities: [AppRegistrationStore, AppRegistration, SaveAppRequest, GetAppRequest, ListAppsRequest, DeleteAppRequest, ErrAppNotFound]
-    why: Contract suite drives the admin.AppRegistrationStore interface and asserts the admin.ErrAppNotFound sentinel — the whole point is to prove every backend honors admin's persistence contract uniformly.
+    why: "Contract suite drives the admin.AppRegistrationStore interface and asserts the admin.ErrAppNotFound sentinel — the whole point is to prove every backend honors admin's persistence contract uniformly."

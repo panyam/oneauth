@@ -1,99 +1,99 @@
 package: utils
-purpose: Stateless crypto and encoding helpers — RSA/ECDSA key generation, PEM/PKCS8 codec, JWK/JWKS conversion, RFC 7638 kid thumbprints, JWT signing-method lookup, and Flask session-cookie decoding.
+purpose: "Stateless crypto and encoding helpers — RSA/ECDSA key generation, PEM/PKCS8 codec, JWK/JWKS conversion, RFC 7638 kid thumbprints, JWT signing-method lookup, and Flask session-cookie decoding."
 language: go
 last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
 last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: MinRSAKeySize
     kind: const
-    role: Minimum RSA key size in bits (2048).
-    why: Enforces the NIST SP 800-57 floor at generation time.
+    role: "Minimum RSA key size in bits (2048)."
+    why: "Enforces the NIST SP 800-57 floor at generation time."
   - name: GenerateRSAKeyPair
     kind: func
-    role: Generates an RSA pair as PEM-encoded private/public bytes.
-    why: Single entry point that pairs key generation with the MinRSAKeySize floor.
+    role: "Generates an RSA pair as PEM-encoded private/public bytes."
+    why: "Single entry point that pairs key generation with the MinRSAKeySize floor."
   - name: GenerateECDSAKeyPair
     kind: func
-    role: Generates an ECDSA P-256 pair as PEM-encoded private/public bytes.
-    why: P-256 is hard-coded since it is the only curve the JWK path supports.
+    role: "Generates an ECDSA P-256 pair as PEM-encoded private/public bytes."
+    why: "P-256 is hard-coded since it is the only curve the JWK path supports."
   - name: ParsePublicKeyPEM
     kind: func
-    role: Parses a PKIX public-key PEM into a crypto.PublicKey.
-    why: One parser handles RSA and ECDSA via PKIX SubjectPublicKeyInfo.
+    role: "Parses a PKIX public-key PEM into a crypto.PublicKey."
+    why: "One parser handles RSA and ECDSA via PKIX SubjectPublicKeyInfo."
   - name: ParsePrivateKeyPEM
     kind: func
-    role: Parses a PKCS8 private-key PEM into a crypto.PrivateKey.
-    why: PKCS8-only so callers cannot accidentally feed PKCS1/SEC1 blocks.
+    role: "Parses a PKCS8 private-key PEM into a crypto.PrivateKey."
+    why: "PKCS8-only so callers cannot accidentally feed PKCS1/SEC1 blocks."
   - name: EncodePublicKeyPEM
     kind: func
-    role: Encodes a crypto.PublicKey as PKIX "PUBLIC KEY" PEM.
-    why: Mirror of ParsePublicKeyPEM so round-trips are symmetric.
+    role: "Encodes a crypto.PublicKey as PKIX \"PUBLIC KEY\" PEM."
+    why: "Mirror of ParsePublicKeyPEM so round-trips are symmetric."
   - name: EncodePrivateKeyPEM
     kind: func
-    role: Encodes a crypto.PrivateKey as PKCS8 "PRIVATE KEY" PEM.
-    why: Always PKCS8 so one parser handles both RSA and ECDSA.
+    role: "Encodes a crypto.PrivateKey as PKCS8 \"PRIVATE KEY\" PEM."
+    why: "Always PKCS8 so one parser handles both RSA and ECDSA."
   - name: DecodeVerifyKey
     kind: func
-    role: Normalizes raw key material into the JWT verify-key type for an alg.
-    why: HMAC passes through, RS256/ES256 PEM-parse, already-typed keys are returned as-is — idempotent so callers can pre-parse.
+    role: "Normalizes raw key material into the JWT verify-key type for an alg."
+    why: "HMAC passes through, RS256/ES256 PEM-parse, already-typed keys are returned as-is — idempotent so callers can pre-parse."
   - name: IsAsymmetricAlg
     kind: func
-    role: Reports whether an alg is RS256 or ES256.
-    why: The single gate between PEM-parse and raw-bytes branches throughout the package.
+    role: "Reports whether an alg is RS256 or ES256."
+    why: "The single gate between PEM-parse and raw-bytes branches throughout the package."
   - name: SigningMethodForAlg
     kind: func
-    role: Maps an alg string to a jwt.SigningMethod.
-    why: Errors on unknown algs instead of silently defaulting to HS256; empty string is the one allowed HS256 alias.
+    role: "Maps an alg string to a jwt.SigningMethod."
+    why: "Errors on unknown algs instead of silently defaulting to HS256; empty string is the one allowed HS256 alias."
   - name: JWK
     kind: struct
-    role: RFC 7517 JSON Web Key holding only public components.
-    why: Private fields (d, p, q, dp, dq, qi) are intentionally omitted so they cannot leak via JWKS.
+    role: "RFC 7517 JSON Web Key holding only public components."
+    why: "Private fields (d, p, q, dp, dq, qi) are intentionally omitted so they cannot leak via JWKS."
   - name: JWKSet
     kind: struct
-    role: RFC 7517 §5 wrapper for a list of JWKs.
-    why: Standard JWKS endpoint payload shape.
+    role: "RFC 7517 §5 wrapper for a list of JWKs."
+    why: "Standard JWKS endpoint payload shape."
   - name: PublicKeyToJWK
     kind: func
-    role: Converts any crypto.PublicKey to a JWK by dispatching on key type.
-    why: Unsupported types error rather than producing a partial JWK, so publishers get a single safe call.
+    role: "Converts any crypto.PublicKey to a JWK by dispatching on key type."
+    why: "Unsupported types error rather than producing a partial JWK, so publishers get a single safe call."
   - name: RSAPublicKeyToJWK
     kind: func
-    role: Builds an RSA JWK with use=sig and key_ops=[verify].
-    why: Restricts the advertised key to verification to discourage misuse.
+    role: "Builds an RSA JWK with use=sig and key_ops=[verify]."
+    why: "Restricts the advertised key to verification to discourage misuse."
   - name: ECDSAPublicKeyToJWK
     kind: func
-    role: Builds an EC JWK with zero-padded x/y coordinates.
-    why: Uses pub.Bytes() (Go 1.25+) over deprecated X/Y and pads to the curve coordinate length so JWKs are byte-stable.
+    role: "Builds an EC JWK with zero-padded x/y coordinates."
+    why: "Uses pub.Bytes() (Go 1.25+) over deprecated X/Y and pads to the curve coordinate length so JWKs are byte-stable."
   - name: JWKToPublicKey
     kind: func
-    role: Reconstructs a crypto.PublicKey and alg from a JWK.
-    why: Validates exponent and coordinate sizes so malformed JWKs error instead of building invalid keys.
+    role: "Reconstructs a crypto.PublicKey and alg from a JWK."
+    why: "Validates exponent and coordinate sizes so malformed JWKs error instead of building invalid keys."
   - name: ComputeKid
     kind: func
-    role: Computes a deterministic 43-char kid for a key.
-    why: RFC 7638 thumbprint for asymmetric keys, SHA-256 base64url for HMAC; []byte under an asymmetric alg is parsed to take the thumbprint path.
+    role: "Computes a deterministic 43-char kid for a key."
+    why: "RFC 7638 thumbprint for asymmetric keys, SHA-256 base64url for HMAC; []byte under an asymmetric alg is parsed to take the thumbprint path."
   - name: StrMap
     kind: type
-    role: Alias for map[string]any used for decoded Flask payloads.
-    why: Shorthand so cookie code does not repeat the long type.
+    role: "Alias for map[string]any used for decoded Flask payloads."
+    why: "Shorthand so cookie code does not repeat the long type."
   - name: FlaskAuth
     kind: struct
-    role: Decodes and verifies Flask session cookies from an app secret.
-    why: Self-contained interop with a Python Flask backend; LogCookies gates verbose debug logging.
+    role: "Decodes and verifies Flask session cookies from an app secret."
+    why: "Self-contained interop with a Python Flask backend; LogCookies gates verbose debug logging."
   - name: FlaskAuth.NormalizedSecretKey
     kind: method
-    role: Pads or truncates the secret to 32 bytes and base64-encodes it as a Fernet key.
-    why: Mirrors Flask's derivation quirk so Fernet decryption matches the Python side.
+    role: "Pads or truncates the secret to 32 bytes and base64-encodes it as a Fernet key."
+    why: "Mirrors Flask's derivation quirk so Fernet decryption matches the Python side."
   - name: FlaskAuth.DecodeSessionCookie
     kind: method
-    role: Decodes a base64 cookie body into a StrMap.
-    why: Handles the optional '.' prefix that signals zlib-compressed payloads and normalizes URL-safe base64.
+    role: "Decodes a base64 cookie body into a StrMap."
+    why: "Handles the optional '.' prefix that signals zlib-compressed payloads and normalizes URL-safe base64."
   - name: FlaskAuth.DecodeSessionUserId
     kind: method
-    role: Fernet-decrypts a session user ID into its '|'-split parts.
-    why: '~'-prefixed parts are excel-base-decoded back to numeric IDs, matching the Flask convention.
+    role: "Fernet-decrypts a session user ID into its '|'-split parts."
+    why: "'~'-prefixed parts are excel-base-decoded back to numeric IDs, matching the Flask convention."
   - name: FlaskAuth.ParseSignedCookieValue
     kind: method
-    role: Extracts _user_id parts plus the full session map from a signed cookie.
-    why: Composes DecodeSessionCookie and DecodeSessionUserId so callers get both halves in one call.
+    role: "Extracts _user_id parts plus the full session map from a signed cookie."
+    why: "Composes DecodeSessionCookie and DecodeSessionUserId so callers get both halves in one call."
 depends_on: []

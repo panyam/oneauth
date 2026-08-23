@@ -1,65 +1,65 @@
 package: federatedauth
-purpose: Orchestrates provider-mediated (OAuth/SAML) authentication callbacks — turning provider userInfo into an accounts.User, linking new channels onto existing users, and establishing the session via httpauth.
+purpose: "Orchestrates provider-mediated (OAuth/SAML) authentication callbacks — turning provider userInfo into an accounts.User, linking new channels onto existing users, and establishing the session via httpauth."
 language: go
 last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
 last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: AuthUserStore
     kind: interface
-    role: Composite store contract — accounts.UserStore + IdentityStore + ChannelStore plus an EnsureAuthUser orchestrator method.
-    why: Callbacks only ever want "the bundle"; one interface keeps the bridge constructor monomorphic instead of pinning four separate dependencies.
+    role: "Composite store contract — accounts.UserStore + IdentityStore + ChannelStore plus an EnsureAuthUser orchestrator method."
+    why: "Callbacks only ever want \"the bundle\"; one interface keeps the bridge constructor monomorphic instead of pinning four separate dependencies."
   - name: OAuthBridge
     kind: struct
-    role: Holds the *httpauth.OneAuth (session/cookies) plus the AuthUserStore; its methods are what OAuth callbacks dispatch through.
-    why: The two halves of a federated flow — provider-shape callback signature and session establishment — live in different packages; the bridge is the seam that owns the per-instance wiring.
+    role: "Holds the *httpauth.OneAuth (session/cookies) plus the AuthUserStore; its methods are what OAuth callbacks dispatch through."
+    why: "The two halves of a federated flow — provider-shape callback signature and session establishment — live in different packages; the bridge is the seam that owns the per-instance wiring."
   - name: NewOAuthBridge
     kind: function
-    role: Constructs an OAuthBridge from a OneAuth and AuthUserStore.
-    why: Explicit constructor so the host app owns the dependency graph; no globals.
+    role: "Constructs an OAuthBridge from a OneAuth and AuthUserStore."
+    why: "Explicit constructor so the host app owns the dependency graph; no globals."
   - name: OAuthBridge.SaveUserAndRedirect
     kind: method
-    role: Post-token-exchange entry point — ensures the user, sets the logged-in subject cookie, redirects to the stored callback URL.
-    why: This is the shape OAuth provider handlers (oa2.NewGoogleOAuth2, etc.) call back into; centralising it stops every provider from re-implementing session-setting.
+    role: "Post-token-exchange entry point — ensures the user, sets the logged-in subject cookie, redirects to the stored callback URL."
+    why: "This is the shape OAuth provider handlers (oa2.NewGoogleOAuth2, etc.) call back into; centralising it stops every provider from re-implementing session-setting."
   - name: OAuthBridge.HandleLinkOAuthCallback
     kind: method
-    role: Alternate callback path that links a provider channel onto an already-logged-in user instead of logging anyone in.
-    why: First-time-login vs link-to-existing-account share token-exchange but diverge afterwards; one method per intent keeps the email-match security check explicit.
+    role: "Alternate callback path that links a provider channel onto an already-logged-in user instead of logging anyone in."
+    why: "First-time-login vs link-to-existing-account share token-exchange but diverge afterwards; one method per intent keeps the email-match security check explicit."
   - name: OAuthBridge.StartLinkOAuth
     kind: method
-    role: Stashes the logged-in user ID into session as linkingUserID before redirecting to the provider.
-    why: The OAuth round-trip doesn't carry app state; session is the only honest place to remember "the user who clicked Link".
+    role: "Stashes the logged-in user ID into session as linkingUserID before redirecting to the provider."
+    why: "The OAuth round-trip doesn't carry app state; session is the only honest place to remember \"the user who clicked Link\"."
   - name: OAuthBridge.GetLinkingUserID
     kind: method
-    role: Pop-reads linkingUserID from session inside the callback to detect linking mode.
-    why: Pop (not peek) so a single round-trip can't be replayed; absence means normal login.
+    role: "Pop-reads linkingUserID from session inside the callback to detect linking mode."
+    why: "Pop (not peek) so a single round-trip can't be replayed; absence means normal login."
   - name: EnsureAuthUserConfig
     kind: struct
-    role: Bundle of stores (UserStore, IdentityStore, ChannelStore, optional UsernameStore) consumed by NewEnsureAuthUserFunc.
-    why: Lets the factory take a struct instead of a 4-arg constructor; UsernameStore is split out because it's optional.
+    role: "Bundle of stores (UserStore, IdentityStore, ChannelStore, optional UsernameStore) consumed by NewEnsureAuthUserFunc."
+    why: "Lets the factory take a struct instead of a 4-arg constructor; UsernameStore is split out because it's optional."
   - name: EnsureAuthUserFunc
     kind: type
-    role: Function signature for "given (authtype, provider, token, userInfo), return an accounts.User".
-    why: Hiding the concrete factory behind a func type lets test doubles and alternate implementations (e.g., for localauth's password flow) slot in.
+    role: "Function signature for \"given (authtype, provider, token, userInfo), return an accounts.User\"."
+    why: "Hiding the concrete factory behind a func type lets test doubles and alternate implementations (e.g., for localauth's password flow) slot in."
   - name: NewEnsureAuthUserFunc
     kind: function
-    role: Factory that closes over EnsureAuthUserConfig and dispatches to handleExistingUser or handleNewUser based on whether the email identity already exists.
-    why: Keeps the new-vs-existing branching out of the callback handler — the bridge stays a thin HTTP shim.
+    role: "Factory that closes over EnsureAuthUserConfig and dispatches to handleExistingUser or handleNewUser based on whether the email identity already exists."
+    why: "Keeps the new-vs-existing branching out of the callback handler — the bridge stays a thin HTTP shim."
   - name: handleExistingUser
     kind: function
-    role: Links a new channel to an existing user keyed by email identity; updates user.profile["channels"] and backfills name/picture if blank.
-    why: Two users with the same email shouldn't exist; the email→identity lookup is the join key for channel linking.
+    role: "Links a new channel to an existing user keyed by email identity; updates user.profile[\"channels\"] and backfills name/picture if blank."
+    why: "Two users with the same email shouldn't exist; the email→identity lookup is the join key for channel linking."
   - name: handleNewUser
     kind: function
-    role: First-login path — mints a secure user ID, creates User + Identity (Verified=(authtype=="oauth")) + Channel atomically-from-the-caller's-view.
-    why: Bootstrap of the account graph; the Verified flag distinguishes OAuth-trusted emails from local-signup unverified ones.
+    role: "First-login path — mints a secure user ID, creates User + Identity (Verified=(authtype==\"oauth\")) + Channel atomically-from-the-caller's-view."
+    why: "Bootstrap of the account graph; the Verified flag distinguishes OAuth-trusted emails from local-signup unverified ones."
   - name: containsString
     kind: function
-    role: Tiny slice-contains helper for the channels list.
-    why: Avoid pulling in slices.Contains or a deps just for a 5-line helper used in two places.
+    role: "Tiny slice-contains helper for the channels list."
+    why: "Avoid pulling in slices.Contains or a deps just for a 5-line helper used in two places."
   - name: newSecureUserId
     kind: function
-    role: 16 random bytes hex-encoded for first-time federated logins.
-    why: User IDs must not be guessable or collidable across providers; crypto/rand is the right primitive.
+    role: "16 random bytes hex-encoded for first-time federated logins."
+    why: "User IDs must not be guessable or collidable across providers; crypto/rand is the right primitive."
 depends_on:
   - path: ../accounts
     entities: [User, BasicUser, Identity, Channel, IdentityKey, LinkedChannels, UserStore, IdentityStore, ChannelStore, UsernameStore, GetUserByIDRequest, SaveUserRequest, CreateUserRequest, GetIdentityRequest, SaveIdentityRequest, GetChannelRequest, SaveChannelRequest]

@@ -1,201 +1,201 @@
 package: localauth
-purpose: Local username/password authentication — HTTP handlers and store-backed callbacks for signup, login, email verification, password reset, and credential linking onto OAuth-only users.
+purpose: "Local username/password authentication — HTTP handlers and store-backed callbacks for signup, login, email verification, password reset, and credential linking onto OAuth-only users."
 language: go
 last_rebuilt: 1fdddf397a0df7dcf0037de53891635664d8372f
 last_rebuilt_at: 2026-05-27T20:17:38Z
 entities:
   - name: LocalAuth
     kind: struct
-    role: Config-as-struct that wires credential validators, stores, email sender, signup policy, error handlers, rate limiter, and lockout into the local-auth HTTP handlers.
-    why: All behavior is driven by which optional fields are set; nil fields disable features (e.g. nil TokenStore disables reset) rather than erroring at construction.
+    role: "Config-as-struct that wires credential validators, stores, email sender, signup policy, error handlers, rate limiter, and lockout into the local-auth HTTP handlers."
+    why: "All behavior is driven by which optional fields are set; nil fields disable features (e.g. nil TokenStore disables reset) rather than erroring at construction."
   - name: LocalAuth.ServeHTTP
     kind: method
-    role: Login POST handler — parses form, rate-limits, checks lockout, validates credentials, fires HandleUser on success.
-    why: Rate-limit and lockout checks run BEFORE credential validation so attackers can't bypass them via timing/state; key is `IP:username`.
+    role: "Login POST handler — parses form, rate-limits, checks lockout, validates credentials, fires HandleUser on success."
+    why: "Rate-limit and lockout checks run BEFORE credential validation so attackers can't bypass them via timing/state; key is `IP:username`."
   - name: LocalAuth.HandleSignup
     kind: method
-    role: Registration POST handler — parses form, validates against SignupPolicy or legacy validator, enforces username uniqueness, creates user, optionally emails verification, auto-logs-in.
-    why: Auto-login is skipped only when `RequireEmailVerification` AND `EmailSender` are both set; CreateUser error substrings are mapped to `ErrCodeEmailExists` for 4xx mapping.
+    role: "Registration POST handler — parses form, validates against SignupPolicy or legacy validator, enforces username uniqueness, creates user, optionally emails verification, auto-logs-in."
+    why: "Auto-login is skipped only when `RequireEmailVerification` AND `EmailSender` are both set; CreateUser error substrings are mapped to `ErrCodeEmailExists` for 4xx mapping."
   - name: LocalAuth.HandleVerifyEmail
     kind: method
-    role: GET handler that verifies an email-verification token from the `?token` query param via the configured VerifyEmail callback.
-    why: Only token plumbing lives here; identity-marking is delegated to the configured func so backends stay swappable.
+    role: "GET handler that verifies an email-verification token from the `?token` query param via the configured VerifyEmail callback."
+    why: "Only token plumbing lives here; identity-marking is delegated to the configured func so backends stay swappable."
   - name: LocalAuth.HandleForgotPasswordForm
     kind: method
-    role: GET handler that either redirects to ForgotPasswordURL or renders a minimal built-in HTML form.
-    why: Dual-mode (redirect vs built-in form) lets apps own the UI without forcing them to ship one.
+    role: "GET handler that either redirects to ForgotPasswordURL or renders a minimal built-in HTML form."
+    why: "Dual-mode (redirect vs built-in form) lets apps own the UI without forcing them to ship one."
   - name: LocalAuth.HandleForgotPassword
     kind: method
-    role: POST handler that mints a password-reset token and emails a reset link, always returning success.
-    why: Always reports success even if the email is unknown or token creation fails, to prevent account enumeration.
+    role: "POST handler that mints a password-reset token and emails a reset link, always returning success."
+    why: "Always reports success even if the email is unknown or token creation fails, to prevent account enumeration."
   - name: LocalAuth.HandleResetPasswordForm
     kind: method
-    role: GET handler that redirects to ResetPasswordURL or renders a built-in reset form with the token embedded.
-    why: Embeds token via `html/template.HTMLEscapeString` to prevent reflected XSS (gosec G705).
+    role: "GET handler that redirects to ResetPasswordURL or renders a built-in reset form with the token embedded."
+    why: "Embeds token via `html/template.HTMLEscapeString` to prevent reflected XSS (gosec G705)."
   - name: LocalAuth.HandleResetPassword
     kind: method
-    role: POST handler that validates the reset token + type, enforces min length, updates the password, and deletes the one-time token.
-    why: Enforces an inline 8-char minimum independent of SignupPolicy; deletes token after use so links can't be replayed.
+    role: "POST handler that validates the reset token + type, enforces min length, updates the password, and deletes the one-time token."
+    why: "Enforces an inline 8-char minimum independent of SignupPolicy; deletes token after use so links can't be replayed."
   - name: LocalAuth.HandleLinkCredentials
     kind: method
-    role: Returns a protected-route handler that adds a local password (and optional username) to an existing logged-in OAuth-only user.
-    why: Requires a caller-supplied GetLoggedInUserFunc; maps "already exist" errors to 409 Conflict.
+    role: "Returns a protected-route handler that adds a local password (and optional username) to an existing logged-in OAuth-only user."
+    why: "Requires a caller-supplied GetLoggedInUserFunc; maps \"already exist\" errors to 409 Conflict."
   - name: SignupPolicy
     kind: struct
-    role: Declarative signup requirements — which fields are required, uniqueness enforcement flags, min password length, username regex.
-    why: Replaces the older imperative SignupValidator; preset values (PolicyUsernameRequired, PolicyEmailOnly, PolicyFlexible) cover the common shapes.
+    role: "Declarative signup requirements — which fields are required, uniqueness enforcement flags, min password length, username regex."
+    why: "Replaces the older imperative SignupValidator; preset values (PolicyUsernameRequired, PolicyEmailOnly, PolicyFlexible) cover the common shapes."
   - name: DefaultSignupPolicy
     kind: func
-    role: Returns a sensible default — email + password required, username optional, min password 8, alnum+underscore+hyphen username pattern.
-    why: Used implicitly when LocalAuth.SignupPolicy is nil but called through the policy path.
+    role: "Returns a sensible default — email + password required, username optional, min password 8, alnum+underscore+hyphen username pattern."
+    why: "Used implicitly when LocalAuth.SignupPolicy is nil but called through the policy path."
   - name: SignupPolicy.GetUsernamePattern
     kind: method
-    role: Returns the compiled username regexp, falling back to the default pattern if the field is empty.
-    why: Recompiles on each call (cheap, called once per signup) so callers can hot-swap policies.
+    role: "Returns the compiled username regexp, falling back to the default pattern if the field is empty."
+    why: "Recompiles on each call (cheap, called once per signup) so callers can hot-swap policies."
   - name: SignupPolicy.GetMinPasswordLength
     kind: method
-    role: Returns MinPasswordLength, defaulting to 8 if zero or negative.
-    why: Defensive default keeps misconfigured policies from accepting empty passwords.
+    role: "Returns MinPasswordLength, defaulting to 8 if zero or negative."
+    why: "Defensive default keeps misconfigured policies from accepting empty passwords."
   - name: Credentials
     kind: struct
-    role: Holds Username, Email, Phone, Password for signup or login; Email/Phone are `*string` (optional).
-    why: Pointer-optional fields let signup distinguish "not provided" from "empty"; on login Username field carries username/email/phone interchangeably.
+    role: "Holds Username, Email, Phone, Password for signup or login; Email/Phone are `*string` (optional)."
+    why: "Pointer-optional fields let signup distinguish \"not provided\" from \"empty\"; on login Username field carries username/email/phone interchangeably."
   - name: SignupValidator
     kind: type
-    role: `func(creds *Credentials) error` — legacy imperative signup validator.
-    why: Kept for backwards compatibility; SignupPolicy is preferred and takes precedence when set.
+    role: "`func(creds *Credentials) error` — legacy imperative signup validator."
+    why: "Kept for backwards compatibility; SignupPolicy is preferred and takes precedence when set."
   - name: CredentialsValidator
     kind: type alias
-    role: Type alias for `accounts.CredentialsValidator` — the login-side credential check.
-    why: Re-exported so localauth callers don't need a second import for this widely-used type.
+    role: "Type alias for `accounts.CredentialsValidator` — the login-side credential check."
+    why: "Re-exported so localauth callers don't need a second import for this widely-used type."
   - name: CreateUserFunc
     kind: type
-    role: `func(creds *Credentials) (accounts.User, error)` — pluggable user-creation hook called by HandleSignup.
-    why: Lets apps inject custom user-creation logic; default impl produced by NewCreateUserFunc.
+    role: "`func(creds *Credentials) (accounts.User, error)` — pluggable user-creation hook called by HandleSignup."
+    why: "Lets apps inject custom user-creation logic; default impl produced by NewCreateUserFunc."
   - name: DefaultSignupValidator
     kind: var
-    role: Built-in SignupValidator — username 3-20 alnum/`_`/`-`, requires email or phone, basic format checks, min 8-char password.
-    why: Used when SignupPolicy is nil and no custom validator is set, so HandleSignup is usable out of the box.
+    role: "Built-in SignupValidator — username 3-20 alnum/`_`/`-`, requires email or phone, basic format checks, min 8-char password."
+    why: "Used when SignupPolicy is nil and no custom validator is set, so HandleSignup is usable out of the box."
   - name: DetectUsernameType
     kind: func
-    role: Re-export of `accounts.DetectUsernameType`; classifies a login identifier as `email`, `phone`, or `username`.
-    why: Avoids forcing localauth users to also import `accounts/` for this helper.
+    role: "Re-export of `accounts.DetectUsernameType`; classifies a login identifier as `email`, `phone`, or `username`."
+    why: "Avoids forcing localauth users to also import `accounts/` for this helper."
   - name: VerificationType
     kind: type
-    role: String-typed enum for verification tokens (`email_verification`, `password_reset`).
-    why: Renamed from `core.TokenType` to avoid colliding with OAuth access/refresh token semantics; string values stay stable for persisted data.
+    role: "String-typed enum for verification tokens (`email_verification`, `password_reset`)."
+    why: "Renamed from `core.TokenType` to avoid colliding with OAuth access/refresh token semantics; string values stay stable for persisted data."
   - name: VerificationToken
     kind: struct
-    role: Short-lived email-mediated token — Token, Type, Subject, Email, CreatedAt, ExpiresAt.
-    why: Renamed from `core.AuthToken` to reflect its role as a verification token (not an OAuth token); `Subject` (formerly `UserID`) may be empty for password-reset flows so the AS doesn't have to reveal whether the email belongs to a registered user. JSON tag stays `"subject"` for stable persistence.
+    role: "Short-lived email-mediated token — Token, Type, Subject, Email, CreatedAt, ExpiresAt."
+    why: "Renamed from `core.AuthToken` to reflect its role as a verification token (not an OAuth token); `Subject` (formerly `UserID`) may be empty for password-reset flows so the AS doesn't have to reveal whether the email belongs to a registered user. JSON tag stays `\"subject\"` for stable persistence."
   - name: VerificationTokenStore
     kind: interface
-    role: CRUD for verification tokens — CreateToken, GetToken, DeleteToken, DeleteSubjectTokens. Every method follows `(ctx, *Req) → (*Resp, error)`.
-    why: Storage-agnostic; backends in stores/ implement it. Renamed from `core.TokenStore` and migrated to gRPC-shape in #204d so the interface can grow new fields additively without breaking implementations.
+    role: "CRUD for verification tokens — CreateToken, GetToken, DeleteToken, DeleteSubjectTokens. Every method follows `(ctx, *Req) → (*Resp, error)`."
+    why: "Storage-agnostic; backends in stores/ implement it. Renamed from `core.TokenStore` and migrated to gRPC-shape in #204d so the interface can grow new fields additively without breaking implementations."
   - name: CreateVerificationTokenRequest
     kind: struct
-    role: Inputs for CreateToken — Subject, Email, Type, ExpiryDuration.
-    why: Request-shape lets callers pass an empty Subject on password-reset (no user-existence leak) without overloading the signature.
+    role: "Inputs for CreateToken — Subject, Email, Type, ExpiryDuration."
+    why: "Request-shape lets callers pass an empty Subject on password-reset (no user-existence leak) without overloading the signature."
   - name: CreateVerificationTokenResponse
     kind: struct
-    role: Wraps the created `*VerificationToken` returned by CreateToken.
-    why: Symmetric typed response per the project-wide gRPC-shape convention (#110/#175).
+    role: "Wraps the created `*VerificationToken` returned by CreateToken."
+    why: "Symmetric typed response per the project-wide gRPC-shape convention (#110/#175)."
   - name: GetVerificationTokenRequest
     kind: struct
-    role: Single-field request — Token string for lookup.
-    why: Even single-field calls take a typed request so future fields (e.g. expected `Type`) can be added without breaking implementations.
+    role: "Single-field request — Token string for lookup."
+    why: "Even single-field calls take a typed request so future fields (e.g. expected `Type`) can be added without breaking implementations."
   - name: GetVerificationTokenResponse
     kind: struct
-    role: Wraps the looked-up `*VerificationToken`.
-    why: Symmetric typed response shape.
+    role: "Wraps the looked-up `*VerificationToken`."
+    why: "Symmetric typed response shape."
   - name: DeleteVerificationTokenRequest
     kind: struct
-    role: Single-field request — Token string for one-time-use deletion.
-    why: Used by both verify-email (after marking the identity verified) and reset-password (after updating the password) to prevent replay.
+    role: "Single-field request — Token string for one-time-use deletion."
+    why: "Used by both verify-email (after marking the identity verified) and reset-password (after updating the password) to prevent replay."
   - name: DeleteVerificationTokenResponse
     kind: struct
-    role: Empty response struct.
-    why: Kept for shape symmetry; future fields (e.g. soft-delete flags) can be added without breaking the interface.
+    role: "Empty response struct."
+    why: "Kept for shape symmetry; future fields (e.g. soft-delete flags) can be added without breaking the interface."
   - name: DeleteSubjectVerificationTokensRequest
     kind: struct
-    role: Bulk-delete request — Subject + Type filter.
-    why: Renamed from the older `DeleteUser…`-style name to match the project-wide Subject vocab from PR 2a (cfcb350).
+    role: "Bulk-delete request — Subject + Type filter."
+    why: "Renamed from the older `DeleteUser…`-style name to match the project-wide Subject vocab from PR 2a (cfcb350)."
   - name: DeleteSubjectVerificationTokensResponse
     kind: struct
-    role: Empty response struct for the bulk-delete call.
-    why: Same shape-symmetry rationale.
+    role: "Empty response struct for the bulk-delete call."
+    why: "Same shape-symmetry rationale."
   - name: VerificationToken.IsExpired
     kind: method
-    role: True if `time.Now()` is after ExpiresAt.
-    why: Simple helper kept on the struct so backends don't re-implement the check.
+    role: "True if `time.Now()` is after ExpiresAt."
+    why: "Simple helper kept on the struct so backends don't re-implement the check."
   - name: VerificationToken.IsValid
     kind: method
-    role: True if Type matches the expected type AND token is not expired.
-    why: Single call collapses the two checks every handler needs.
+    role: "True if Type matches the expected type AND token is not expired."
+    why: "Single call collapses the two checks every handler needs."
   - name: VerificationExpiryEmail
     kind: const
-    role: 24-hour default expiry for email-verification tokens.
-    why: Long enough to survive an overnight signup gap.
+    role: "24-hour default expiry for email-verification tokens."
+    why: "Long enough to survive an overnight signup gap."
   - name: VerificationExpiryPasswordReset
     kind: const
-    role: 1-hour default expiry for password-reset tokens.
-    why: Short window limits the blast radius of a stolen reset link.
+    role: "1-hour default expiry for password-reset tokens."
+    why: "Short window limits the blast radius of a stolen reset link."
   - name: SendEmail
     kind: interface
-    role: App-provided email transport — SendVerificationEmail, SendPasswordResetEmail.
-    why: localauth never directly speaks SMTP; apps inject their provider (SES, SendGrid, console, etc).
+    role: "App-provided email transport — SendVerificationEmail, SendPasswordResetEmail."
+    why: "localauth never directly speaks SMTP; apps inject their provider (SES, SendGrid, console, etc)."
   - name: ConsoleEmailSender
     kind: struct
-    role: Dev-only SendEmail implementation that logs the email body to stdout.
-    why: Lets examples and tests run without a real mail server.
+    role: "Dev-only SendEmail implementation that logs the email body to stdout."
+    why: "Lets examples and tests run without a real mail server."
   - name: VerifyEmailFunc
     kind: type
-    role: `func(token string) error` — callback that verifies an email by token.
-    why: Decouples LocalAuth from store wiring; constructed by NewVerifyEmailFunc.
+    role: "`func(token string) error` — callback that verifies an email by token."
+    why: "Decouples LocalAuth from store wiring; constructed by NewVerifyEmailFunc."
   - name: UpdatePasswordFunc
     kind: type
-    role: `func(email, newPassword string) error` — callback that updates a user's password.
-    why: Decouples LocalAuth from store wiring; constructed by NewUpdatePasswordFunc.
+    role: "`func(email, newPassword string) error` — callback that updates a user's password."
+    why: "Decouples LocalAuth from store wiring; constructed by NewUpdatePasswordFunc."
   - name: GetLoggedInUserFunc
     kind: type
-    role: `func(r *http.Request) (userID string, err error)` — app-supplied resolver for the current session user.
-    why: HandleLinkCredentials needs the logged-in user but localauth has no session model; the app owns session/JWT decoding.
+    role: "`func(r *http.Request) (userID string, err error)` — app-supplied resolver for the current session user."
+    why: "HandleLinkCredentials needs the logged-in user but localauth has no session model; the app owns session/JWT decoding."
   - name: LinkCredentialsConfig
     kind: struct
-    role: Bundles UserStore, IdentityStore, ChannelStore, and optional UsernameStore for HandleLinkCredentials.
-    why: Converted internally to LinkLocalCredentialsConfig so the HTTP handler and the helper share the same store wiring.
+    role: "Bundles UserStore, IdentityStore, ChannelStore, and optional UsernameStore for HandleLinkCredentials."
+    why: "Converted internally to LinkLocalCredentialsConfig so the HTTP handler and the helper share the same store wiring."
   - name: LinkLocalCredentialsConfig
     kind: struct
-    role: Store bundle (User/Identity/Channel + optional Username) used by LinkLocalCredentials.
-    why: Self-contained so localauth doesn't import federatedauth just for the cross-cutting "add local password to OAuth user" flow.
+    role: "Store bundle (User/Identity/Channel + optional Username) used by LinkLocalCredentials."
+    why: "Self-contained so localauth doesn't import federatedauth just for the cross-cutting \"add local password to OAuth user\" flow."
   - name: NewCreateUserFunc
     kind: func
-    role: Builds a CreateUserFunc that creates User + (unverified) Identity + local Channel with a bcrypt password hash.
-    why: Rejects signup if the email/phone identity already exists; email or phone is required as the primary identity.
+    role: "Builds a CreateUserFunc that creates User + (unverified) Identity + local Channel with a bcrypt password hash."
+    why: "Rejects signup if the email/phone identity already exists; email or phone is required as the primary identity."
   - name: NewCredentialsValidator
     kind: func
-    role: Builds a CredentialsValidator for email/phone login that verifies bcrypt password against the local channel.
-    why: Runs bcrypt against `dummyBcryptHash` on missing user to defeat the CWE-208 timing oracle; username login is unsupported in this variant.
+    role: "Builds a CredentialsValidator for email/phone login that verifies bcrypt password against the local channel."
+    why: "Runs bcrypt against `dummyBcryptHash` on missing user to defeat the CWE-208 timing oracle; username login is unsupported in this variant."
   - name: NewCredentialsValidatorWithUsername
     kind: func
-    role: Like NewCredentialsValidator but also resolves username logins via UsernameStore to the user's email identity.
-    why: Falls back to email/phone lookup for non-username inputs; does NOT include the dummy-hash timing defense.
+    role: "Like NewCredentialsValidator but also resolves username logins via UsernameStore to the user's email identity."
+    why: "Falls back to email/phone lookup for non-username inputs; does NOT include the dummy-hash timing defense."
   - name: NewVerifyEmailFunc
     kind: func
-    role: Builds a VerifyEmailFunc that validates the token type, marks the email identity verified, and deletes the token.
-    why: Token deletion failure is logged but non-fatal so verification still succeeds.
+    role: "Builds a VerifyEmailFunc that validates the token type, marks the email identity verified, and deletes the token."
+    why: "Token deletion failure is logged but non-fatal so verification still succeeds."
   - name: NewUpdatePasswordFunc
     kind: func
-    role: Builds an UpdatePasswordFunc that rehashes and stores a new password, creating a local channel if none exists.
-    why: Auto-creates a local channel so OAuth-only users can set a password via the reset flow.
+    role: "Builds an UpdatePasswordFunc that rehashes and stores a new password, creating a local channel if none exists."
+    why: "Auto-creates a local channel so OAuth-only users can set a password via the reset flow."
   - name: LinkLocalCredentials
     kind: func
-    role: Adds a local password channel to an existing user, reserves username, and appends `"local"` to `profile["channels"]`.
-    why: Verifies the email belongs to the userID and rejects if a local channel already exists, preventing hijack.
+    role: "Adds a local password channel to an existing user, reserves username, and appends `\"local\"` to `profile[\"channels\"]`."
+    why: "Verifies the email belongs to the userID and rejects if a local channel already exists, preventing hijack."
   - name: dummyBcryptHash
     kind: var
-    role: Pre-computed bcrypt hash used to make missing-user bcrypt timing match real-user bcrypt timing.
-    why: CWE-208 mitigation; without this, non-existent users return ~1ms while real users take ~50ms, enabling enumeration.
+    role: "Pre-computed bcrypt hash used to make missing-user bcrypt timing match real-user bcrypt timing."
+    why: "CWE-208 mitigation; without this, non-existent users return ~1ms while real users take ~50ms, enabling enumeration."
 depends_on:
   - path: ../accounts
     cites:
