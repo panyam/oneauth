@@ -51,7 +51,11 @@ entities:
   - name: WithTrustedAssertionIssuers
     kind: func
     role: "Enables jwt-bearer (RFC 7523) and token-exchange (RFC 8693) grants and auto-extends advertised grants."
-    why: "Only Option that turns advertisement into real behavior; later WithGrantTypesSupported can still override."
+    why: "One of two Options that turn advertisement into real behavior, alongside WithConfidentialClient; later WithGrantTypesSupported can still override."
+  - name: WithConfidentialClient
+    kind: func
+    role: "Registers a client_secret_post confidential client and wires the AS with an AppStore, so the grants that consult it enforce client authentication."
+    why: "Opt-in on purpose: with no AppStore the grants keep their public / assertion-only path, so tests written before confidential-client enforcement are unaffected. Enabling it changes behavior for every grant that consults the store, not just the one under test."
   - name: TestAuthServer.MintToken
     kind: method
     role: "Mints a standard RS256 access JWT directly, bypassing the HTTP token endpoint."
