@@ -104,6 +104,16 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		return nil, invalidGrant("PKCE verification failed")
 	}
 
+	// RFC 9449 §10: a code issued against a `dpop_jkt` is redeemable
+	// only by that key, and the RFC says MUST reject on mismatch. The
+	// proven key arrives as req.Confirmation, which the token endpoint
+	// fills from the request's DPoP proof, so a request with no proof
+	// fails here too. Checked before the code is consumed so a rejected
+	// attempt does not burn the legitimate client's code.
+	if entry.DPoPJKT != "" && !(&core.Confirmation{JKT: entry.DPoPJKT}).Equal(req.Confirmation) {
+		return nil, invalidGrant("authorization code is bound to a different DPoP key")
+	}
+
 	if _, err := r.Store.DeleteAuthorizationCode(ctx, &core.DeleteAuthorizationCodeRequest{Code: entry.Code}); err != nil {
 		return nil, serverError("consume authorization code: " + err.Error())
 	}

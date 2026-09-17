@@ -71,6 +71,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for rationale and [docs/ROADMAP
 | Authorize-redirect `?iss=` query param | (issuer URL on redirects) | RFC 9207 |
 | `DPoP` proof header on `POST /api/token` (`cnf.jkt` + `token_type: DPoP`) | `DPoPProofValidator` (`apiauth/dpop.go`) via `OneAuthConfig.DPoP` | RFC 9449 §5 |
 | `Authorization: DPoP <token>` + proof on resource requests (`ath`, `cnf.jkt` match, §7.2 downgrade refusal) | `APIMiddleware.DPoP` + `RequireDPoP` | RFC 9449 §7 |
+| `dpop_jkt` on `GET / POST /authorize` (binds the code to the key) | `AuthorizationRequest.DPoPJKT` → `AuthorizationCodeGrant` | RFC 9449 §10 |
 | `traceparent` / `tracestate` inbound + outbound (SEP-414 / #254) | `tracing/` + per-handler `TracerProvider` | [W3C Trace Context](https://www.w3.org/TR/trace-context/) |
 | `POST /api/token` (`requested_token_type=...:id-jag` issuance / ID-JAG redemption for MCP EMA) | `TokenExchanger` + `IDJAGIssuer` (`apiauth/id_jag.go`) → `JwtBearerGranter` | draft-ietf-oauth-identity-assertion-authz-grant-04 + MCP EMA / SEP-990 |
 

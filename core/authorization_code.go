@@ -60,6 +60,21 @@ type AuthorizationCode struct {
 	// SHOULD-mandatory for all clients).
 	CodeChallenge string `json:"code_challenge,omitempty"`
 
+	// DPoPJKT is the RFC 7638 thumbprint of the DPoP key the client
+	// named in the `dpop_jkt` authorization request parameter, empty
+	// when the client sent none (RFC 9449 §10).
+	//
+	// When set, the token request redeeming this code MUST carry a DPoP
+	// proof for the same key. That extends the binding back across the
+	// front channel: without it the key first appears at the token
+	// endpoint, so an intercepted code can be redeemed with the
+	// attacker's key and yields a token bound to the attacker.
+	//
+	// The protection only holds when the client uses a fresh key per
+	// authorization request, which §10 states plainly. A client reusing
+	// one key gains nothing here that PKCE does not already give it.
+	DPoPJKT string `json:"dpop_jkt,omitempty"`
+
 	// CodeChallengeMethod is the transformation the client applied to
 	// the verifier — "S256" (RFC 7636 §4.2) or "plain". Only S256 is
 	// advertised in AS metadata; "plain" is rejected by the apiauth
