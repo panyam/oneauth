@@ -11,7 +11,7 @@ Authlete and OneAuth answer different questions. Auth0 (covered in [AUTH0_GAP_AN
 
 OneAuth is a **Go library** that bundles user/identity/channel management *and* a transport-independent token engine into one importable package. It overlaps with Authlete in the token-engine layer; it overlaps with Auth0 in the user-mgmt layer.
 
-**Headline gap:** Authlete is the leading **spec-completeness** play — FAPI 1 & 2, JAR, JARM, PAR, RAR, CIBA, DPoP, mTLS, OpenID Federation 1.0, OID4VCI, Token Exchange, Device Flow, multiple regional Open Banking profiles. OneAuth covers a much narrower surface: bearer JWT issuance via password/client_credentials/refresh, RAR on the token endpoint, RFC-compliant introspection/revocation/discovery/DCR/JWKS metadata, and Keycloak interop. **No /authorize endpoint, no id_token, no DPoP/mTLS/PAR/JAR/JARM/CIBA/Federation/OID4VC.**
+**Headline gap:** Authlete is the leading **spec-completeness** play — FAPI 1 & 2, JAR, JARM, PAR, RAR, CIBA, DPoP, mTLS, OpenID Federation 1.0, OID4VCI, Token Exchange, Device Flow, multiple regional Open Banking profiles. OneAuth covers a much narrower surface: bearer JWT issuance via password/client_credentials/refresh, RAR on the token endpoint, RFC-compliant introspection/revocation/discovery/DCR/JWKS metadata, and Keycloak interop. **No id_token, no mTLS/PAR/JAR/JARM/CIBA/Federation/OID4VC** (the `/authorize` endpoint shipped under #297, and DPoP shipped under #336).
 
 The honest framing: **OneAuth doesn't compete with Authlete and shouldn't try to.** Authlete is engineered to pass conformance suites for regulated industries (UK/AU/BR/KSA Open Banking, EUDI Wallet, GAIN, FAPI). OneAuth is engineered to make Go services easy to authenticate against an existing IdP (Keycloak, Authlete, Auth0, etc.). The right strategic posture is: pick a small set of Authlete-grade specs that have value *for the resource-server / federated-app niche* and adopt those; ignore the rest.
 
@@ -83,7 +83,7 @@ Legend: **Full** = implemented and conformance-tested · **Partial** = implement
 | **PAR (Pushed Authorization Requests)** | RFC 9126 | Full | None | **None** |
 | **JAR (JWT-Secured Authz Request)** | RFC 9101 | Full | None | **None** |
 | **JARM (JWT-Secured Authz Response Mode)** | OpenID FAPI JARM | Full | None | **None** |
-| **DPoP** | RFC 9449 | Full | None | **None** |
+| **DPoP** | RFC 9449 | Full | Issuance + resource-server enforcement (§4–§7): `cnf.jkt`, `token_type: DPoP`, bound refresh tokens, `ath`, §7.2 downgrade refusal, AS + PR metadata | Nonce protocol (§8/§9), `dpop_jkt` on the authorization request (§10) |
 | **mTLS Client Auth + Cert-Bound Tokens** | RFC 8705 | Full | None | **None** |
 | **HTTP Message Signatures** | RFC 9421 (FAPI 2.0 MS) | Full | None | **None** |
 | **CIBA Core** | OpenID CIBA 1.0 | Full (since 2019) | None | **None** |
@@ -148,7 +148,7 @@ That said, a few Authlete capabilities have value for OneAuth's actual niche (re
 
 | # | Capability | Why it fits OneAuth's niche | Effort |
 |---|---|---|---|
-| 1 | **DPoP (RFC 9449)** for access tokens | Sender-constrained tokens — useful for federated multi-service architectures where a token leak shouldn't let an attacker replay. Validation is cheap; issuance is moderate. | Medium |
+| 1 | ~~**DPoP (RFC 9449)** for access tokens~~ ✅ **Shipped** (#336, PRs 370 + 372) | Sender-constrained tokens — a leaked token is unusable without the key. Remaining: nonce protocol (§8/§9) and `dpop_jkt` (§10). | Done |
 | 2 | ~~**`private_key_jwt` client auth**~~ | Shipped under issue 158. `client_secret_jwt` companion shipped under issue 159. | — |
 | 3 | **Token Exchange (RFC 8693)** | Useful for service-to-service downscoping in federated systems; `MintResourceToken` is already philosophically close. | Medium |
 | 4 | **`authorization_code` grant + `/authorize` endpoint + id_token** | Would make OneAuth a real (minimal) OIDC provider, not just a metadata advertiser. Big lift but is the door to "use OneAuth instead of Keycloak for small deployments." Carefully decide if this is in scope vs. the stated "we are not a full OIDC IdP" position in [ROADMAP.md](../ROADMAP.md). | Large |

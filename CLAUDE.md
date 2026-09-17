@@ -97,6 +97,8 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - **Local main can be locked by another worktree**. When working in a stacked branch, cut new branches from `origin/main` directly (`git checkout -b feat/X origin/main`) — don't try to `git checkout main` if the `conformance/` or `rfc-extensions/` worktrees own it.
 - **`go.work` Go directive**: stdlib CVEs require keeping the `go` directive across all 9 modules in lock-step (root + workspace + 7 sub-modules). `make vulncheck` is the gate.
 - **Backlinks via `#N`**: only when the cross-reference is genuinely the audit trail you want. For background-only references, use plain text (`"issue 123"` not `#123`) — see global `~/.claude/CLAUDE.md` for the full rule.
+- **DPoP `htu` behind a proxy.** The validator derives scheme from `r.TLS` and deliberately ignores `X-Forwarded-Proto` (trusting it would let a client choose the scheme its own proof is checked against). Behind a TLS-terminating proxy set `DPoPConfig.EndpointURL` (token endpoint, one exact URL) or `BaseURL` (resource server, joined to each request path), or every proof fails.
+- **`WWW-Authenticate` params are comma-separated** (RFC 9110 §11.6.1, and RFC 9449 Figure 16). Space-separated params parse as one malformed parameter and a conforming client drops the error. A `Contains(header, 'error="invalid_token"')` assertion passes either way — assert the separator, or capture the real header.
 - **httptest URL needed before mount.** When a handler config requires the server's base URL (e.g., RFC 8628 `VerificationURI`), use `httptest.NewUnstartedServer(mux)` → read `server.URL` → mount → `server.Start()`. Avoids post-hoc handler mutation. Pattern in `tests/e2e/device_flow_test.go`.
 
 ## Gap analyses
