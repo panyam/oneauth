@@ -44,6 +44,7 @@ type RefreshToken struct {
 	Generation           int                   `json:"generation"`  // Increments on rotation
 	Scopes               []string              `json:"scopes"`                          // Granted scopes
 	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
+	Confirmation         *Confirmation         `json:"confirmation,omitempty"`          // RFC 9449 §5 sender-constraint; nil = plain bearer
 	CreatedAt            time.Time             `json:"created_at"`
 	ExpiresAt            time.Time             `json:"expires_at"`
 	LastUsedAt           time.Time             `json:"last_used_at"`
@@ -91,7 +92,7 @@ func (k *APIKey) IsValid() bool {
 // TokenPair represents the response from a successful authentication.
 type TokenPair struct {
 	AccessToken          string                `json:"access_token"`
-	TokenType            string                `json:"token_type"`                        // "Bearer"
+	TokenType            string                `json:"token_type"`                        // "Bearer", or "DPoP" when the token is sender-constrained (RFC 9449 §5)
 	ExpiresIn            int64                 `json:"expires_in"`                        // Seconds until access token expires
 	RefreshToken         string                `json:"refresh_token,omitempty"`
 	Scope                string                `json:"scope,omitempty"`

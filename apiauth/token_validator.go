@@ -408,6 +408,9 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	if req.ClientID != "" {
 		claims["client_id"] = req.ClientID
 	}
+	if !req.Confirmation.IsEmpty() {
+		claims["cnf"] = req.Confirmation
+	}
 	if i.issuer != "" {
 		claims["iss"] = i.issuer
 	}
@@ -450,7 +453,11 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	}
 
 	i.hooks.fireOnIssued(subject, "direct")
-	return &CreateAccessTokenResponse{Token: tokenString, ExpiresIn: int64(i.accessExpiry.Seconds())}, nil
+	return &CreateAccessTokenResponse{
+		Token:     tokenString,
+		ExpiresIn: int64(i.accessExpiry.Seconds()),
+		TokenType: tokenTypeFor(req.Confirmation),
+	}, nil
 }
 
 // ClientCredentials performs the client_credentials grant.
@@ -495,7 +502,7 @@ func (i *jwtIssuer) ClientCredentials(ctx context.Context, req *ClientCredential
 
 	return &ClientCredentialsResponse{Tokens: &core.TokenPair{
 		AccessToken:          tok.Token,
-		TokenType:            "Bearer",
+		TokenType:            tok.TokenType,
 		ExpiresIn:            tok.ExpiresIn,
 		Scope:                strings.Join(req.Scopes, " "),
 		AuthorizationDetails: req.AuthorizationDetails,
@@ -532,6 +539,21 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		return nil, fmt.Errorf("invalid_grant: token has expired")
 	}
 
+	// A bound refresh token is only redeemable by the key it was issued
+	// to (RFC 9449 §5), which is what leaves a stolen one useless. The
+	// check runs before rotation so a failed attempt does not burn the
+	// legitimate client's token.
+	if !rt.Confirmation.IsEmpty() && !rt.Confirmation.Equal(req.Confirmation) {
+		return nil, fmt.Errorf("invalid_grant: refresh token is bound to a different DPoP key")
+	}
+	// An unbound refresh token may still bind the access token it mints
+	// to a presented key; the refresh token's own binding is fixed at
+	// issuance and rotation carries it forward unchanged.
+	confirmation := rt.Confirmation
+	if confirmation.IsEmpty() {
+		confirmation = req.Confirmation
+	}
+
 	// Rotate: invalidate old, create new in same family
 	rotResp, err := i.refreshStore.RotateRefreshToken(ctx, &core.RotateRefreshTokenRequest{OldToken: req.RefreshToken})
 	if err != nil {
@@ -548,6 +570,7 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		Subject:              rt.Subject,
 		Scopes:               rt.Scopes,
 		AuthorizationDetails: rt.AuthorizationDetails,
+		Confirmation:         confirmation,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("server_error: %w", err)
@@ -557,7 +580,7 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 
 	return &RefreshGrantResponse{Tokens: &core.TokenPair{
 		AccessToken:          tok.Token,
-		TokenType:            "Bearer",
+		TokenType:            tok.TokenType,
 		ExpiresIn:            tok.ExpiresIn,
 		RefreshToken:         newRT.Token,
 		Scope:                strings.Join(rt.Scopes, " "),

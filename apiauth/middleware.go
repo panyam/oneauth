@@ -24,6 +24,7 @@ var standardClaims = map[string]bool{
 	"sub": true, "iss": true, "aud": true, "exp": true,
 	"iat": true, "type": true, "scopes": true, "jti": true,
 	"authorization_details": true, // RFC 9396
+	"cnf":                   true, // RFC 7800 / RFC 9449 — sender-constraint, never caller-supplied
 }
 
 // Context keys for API authentication. Unexported so callers go

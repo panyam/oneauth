@@ -65,12 +65,27 @@ type CreateAccessTokenRequest struct {
 	// issued from an ID-JAG to the client_id the ID-JAG names, per the
 	// MCP EMA flow. Empty leaves the claim off.
 	ClientID string
+
+	// Confirmation, when non-empty, binds the token to a
+	// proof-of-possession key: it is emitted as the RFC 7800 `cnf` claim
+	// and flips the grant's reported token_type to DPoP. Nil mints a
+	// plain bearer token, which is what every caller that does not
+	// implement RFC 9449 passes.
+	Confirmation *core.Confirmation
 }
 
 // CreateAccessTokenResponse is the output of TokenIssuer.CreateAccessToken.
 type CreateAccessTokenResponse struct {
 	Token     string
 	ExpiresIn int64
+
+	// TokenType is what the grant must report in the token response:
+	// "DPoP" when the request carried a Confirmation, "Bearer"
+	// otherwise. Returned by the issuer rather than decided at each call
+	// site so a bound token can never be advertised as a bearer token —
+	// a client told "Bearer" would present it without a proof and every
+	// request would fail at the resource server.
+	TokenType string
 }
 
 // ClientCredentialsRequest is the input to TokenIssuer.ClientCredentials.
@@ -92,6 +107,18 @@ type ClientCredentialsResponse struct {
 // RefreshGrantRequest is the input to TokenIssuer.RefreshGrant.
 type RefreshGrantRequest struct {
 	RefreshToken string
+
+	// Confirmation is the proof-of-possession key the client proved on
+	// this request, or nil when it sent no proof.
+	//
+	// A refresh token that was issued bound (RFC 9449 §5) may only be
+	// rotated by the same key: a nil or mismatched Confirmation is
+	// invalid_grant, which is what makes a stolen refresh token useless
+	// on its own. An unbound refresh token accepts either: the access
+	// token still binds to the presented key, while the rotated refresh
+	// token stays unbound, because a refresh token's binding is fixed
+	// when it is issued and not renegotiated on rotation.
+	Confirmation *core.Confirmation
 }
 
 // RefreshGrantResponse wraps the rotated token pair.
@@ -106,6 +133,13 @@ type PasswordGrantRequest struct {
 	Scopes               []string                   // requested (intersected with allowed)
 	AuthorizationDetails []core.AuthorizationDetail // RFC 9396
 	ClientID             string                     // optional — associated client
+
+	// Confirmation binds the issued tokens to the proof-of-possession
+	// key the client proved on this request (RFC 9449 §5), or nil for a
+	// plain bearer token. The token endpoint fills it from the validated
+	// DPoP proof; a caller driving the granter directly supplies it
+	// itself.
+	Confirmation *core.Confirmation
 }
 
 // PasswordGrantResponse holds the output of a successful password grant.
@@ -113,6 +147,7 @@ type PasswordGrantRequest struct {
 type PasswordGrantResponse struct {
 	Subject              string // RFC 7519 sub — user ID for password grant
 	AccessToken          string
+	TokenType            string // "Bearer", or "DPoP" when the request bound the token
 	ExpiresIn            int64
 	GrantedScopes        []string
 	AuthorizationDetails []core.AuthorizationDetail
@@ -163,6 +198,13 @@ type AuthorizationCodeGrantRequest struct {
 	// MUST match (used for private_key_jwt / client_secret_jwt).
 	// Empty falls back to the request URL.
 	AcceptedAudiences []string
+
+	// Confirmation binds the issued tokens to the proof-of-possession
+	// key the client proved on this request (RFC 9449 §5), or nil for a
+	// plain bearer token. The token endpoint fills it from the validated
+	// DPoP proof; a caller driving the granter directly supplies it
+	// itself.
+	Confirmation *core.Confirmation
 }
 
 // AuthorizationCodeGrantResponse wraps the issued token pair.
@@ -203,6 +245,13 @@ type DeviceCodeGrantRequest struct {
 	ClientAssertion     string
 
 	AcceptedAudiences []string
+
+	// Confirmation binds the issued tokens to the proof-of-possession
+	// key the client proved on this request (RFC 9449 §5), or nil for a
+	// plain bearer token. The token endpoint fills it from the validated
+	// DPoP proof; a caller driving the granter directly supplies it
+	// itself.
+	Confirmation *core.Confirmation
 }
 
 // DeviceCodeGrantResponse wraps the issued token pair.
@@ -246,6 +295,13 @@ type JwtBearerGrantRequest struct {
 	// client_secret_jwt client assertion may carry (OIDC Core §9). The
 	// token endpoint fills it from its configured audience list.
 	AcceptedAudiences []string
+
+	// Confirmation binds the issued tokens to the proof-of-possession
+	// key the client proved on this request (RFC 9449 §5), or nil for a
+	// plain bearer token. The token endpoint fills it from the validated
+	// DPoP proof; a caller driving the granter directly supplies it
+	// itself.
+	Confirmation *core.Confirmation
 }
 
 // JwtBearerGrantResponse wraps the issued token pair.
@@ -291,6 +347,13 @@ type TokenExchangeRequest struct {
 	// AcceptedAudiences bounds a client-assertion `aud` (OIDC Core §9);
 	// filled by the token endpoint from its configured audience list.
 	AcceptedAudiences []string
+
+	// Confirmation binds the issued tokens to the proof-of-possession
+	// key the client proved on this request (RFC 9449 §5), or nil for a
+	// plain bearer token. The token endpoint fills it from the validated
+	// DPoP proof; a caller driving the granter directly supplies it
+	// itself.
+	Confirmation *core.Confirmation
 }
 
 // TokenExchangeResponse wraps the issued token pair. The wire

@@ -123,6 +123,7 @@ func (g *defaultPasswordGranter) PasswordGrant(ctx context.Context, req *Passwor
 		Subject:              user.Id(),
 		Scopes:               grantedScopes,
 		AuthorizationDetails: req.AuthorizationDetails,
+		Confirmation:         req.Confirmation,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("server_error: %w", err)
@@ -133,6 +134,7 @@ func (g *defaultPasswordGranter) PasswordGrant(ctx context.Context, req *Passwor
 	return &PasswordGrantResponse{
 		Subject:              user.Id(),
 		AccessToken:          tok.Token,
+		TokenType:            tok.TokenType,
 		ExpiresIn:            tok.ExpiresIn,
 		GrantedScopes:        grantedScopes,
 		AuthorizationDetails: req.AuthorizationDetails,

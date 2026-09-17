@@ -47,9 +47,9 @@ type ASServerMetadata struct {
 	// See: OpenID Connect Discovery 1.0 §3
 	ClaimsSupported []string `json:"claims_supported,omitempty"`
 
-	ResponseTypesSupported        []string `json:"response_types_supported,omitempty"`
-	GrantTypesSupported           []string `json:"grant_types_supported,omitempty"`
-	TokenEndpointAuthMethods      []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+	ResponseTypesSupported   []string `json:"response_types_supported,omitempty"`
+	GrantTypesSupported      []string `json:"grant_types_supported,omitempty"`
+	TokenEndpointAuthMethods []string `json:"token_endpoint_auth_methods_supported,omitempty"`
 
 	// TokenEndpointAuthSigningAlgValuesSupported lists the JWT alg
 	// values the AS accepts on a private_key_jwt or client_secret_jwt
@@ -59,6 +59,17 @@ type ASServerMetadata struct {
 	// Typical values: "RS256", "ES256" (private_key_jwt); "HS256",
 	// "HS384", "HS512" (client_secret_jwt).
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
+
+	// DPoPSigningAlgValuesSupported lists the JWT alg values the AS
+	// accepts on a DPoP proof (RFC 9449 §5.1). Its presence is how a
+	// client discovers that DPoP is available at all, so advertise it
+	// only when a DPoPProofValidator is wired — a client that sees the
+	// field will send proofs, and an AS that ignores them hands back
+	// bearer tokens the client then presents incorrectly. Fill it from
+	// OneAuth.DPoP.SigningAlgValuesSupported().
+	//
+	// See: https://www.rfc-editor.org/rfc/rfc9449#section-5.1
+	DPoPSigningAlgValuesSupported []string `json:"dpop_signing_alg_values_supported,omitempty"`
 
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
 	SubjectTypesSupported         []string `json:"subject_types_supported,omitempty"`

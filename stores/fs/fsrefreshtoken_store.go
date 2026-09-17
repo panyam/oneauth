@@ -55,18 +55,19 @@ func (s *FSRefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.
 
 	now := time.Now()
 	refreshToken := &core.RefreshToken{
-		Token:      token,
-		TokenHash:  s.hashToken(token),
-		Subject:    req.Subject,
-		ClientID:   req.ClientID,
-		DeviceInfo: req.DeviceInfo,
-		Family:     family[:16],
-		Generation: 1,
-		Scopes:     req.Scopes,
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
-		LastUsedAt: now,
-		Revoked:    false,
+		Token:        token,
+		TokenHash:    s.hashToken(token),
+		Subject:      req.Subject,
+		ClientID:     req.ClientID,
+		DeviceInfo:   req.DeviceInfo,
+		Family:       family[:16],
+		Generation:   1,
+		Scopes:       req.Scopes,
+		Confirmation: req.Confirmation,
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(core.TokenExpiryRefreshToken),
+		LastUsedAt:   now,
+		Revoked:      false,
 	}
 
 	if err := s.saveToken(refreshToken); err != nil {
@@ -158,6 +159,7 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.
 		Generation:           old.Generation + 1,
 		Scopes:               old.Scopes,
 		AuthorizationDetails: old.AuthorizationDetails,
+		Confirmation:         old.Confirmation,
 		CreatedAt:            now,
 		ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt:           now,

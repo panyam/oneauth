@@ -162,6 +162,7 @@ func (h *jwtBearerGranter) JwtBearerGrant(ctx context.Context, req *JwtBearerGra
 		Scopes:               req.Scopes,
 		AuthorizationDetails: req.AuthorizationDetails,
 		ClientID:             clientID,
+		Confirmation:         req.Confirmation,
 	})
 	if err != nil {
 		return nil, serverError("failed to create token")
@@ -169,7 +170,7 @@ func (h *jwtBearerGranter) JwtBearerGrant(ctx context.Context, req *JwtBearerGra
 
 	return &JwtBearerGrantResponse{Tokens: &core.TokenPair{
 		AccessToken:          tok.Token,
-		TokenType:            "Bearer",
+		TokenType:            tok.TokenType,
 		ExpiresIn:            tok.ExpiresIn,
 		Scope:                joinScopes(req.Scopes),
 		AuthorizationDetails: req.AuthorizationDetails,

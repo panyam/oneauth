@@ -68,6 +68,12 @@ type OneAuth struct {
 	// can validate confidential-client assertions.
 	AcceptedAudiences []string
 
+	// DPoP mirrors OneAuthConfig.DPoP. Exposed so transport bindings
+	// read the AS-wide policy without re-plumbing it: the token endpoint
+	// validates proofs through it, and AS metadata derivation reads its
+	// SigningAlgValuesSupported.
+	DPoP *DPoPProofValidator
+
 	// Hooks — lifecycle callbacks grouped by concern.
 	Hooks Hooks
 }
@@ -199,6 +205,18 @@ type OneAuthConfig struct {
 	// distributed implementation for multi-node deployments. Only
 	// consulted when TrustedAssertionIssuers is non-empty.
 	IDJAGReplayStore JTIStore
+
+	// DPoP, when non-nil, opts the AS into RFC 9449 sender-constrained
+	// tokens: the token endpoint validates a DPoP proof on any request
+	// that carries one and binds the issued tokens to the proof key
+	// (`cnf.jkt`, `token_type: DPoP`). Nil (default) keeps the AS
+	// bearer-only and makes it ignore DPoP headers, per the
+	// capability-gating convention (#344). Build one with
+	// NewDPoPProofValidator.
+	//
+	// Issuance only. Enforcing the binding on resource requests is the
+	// middleware's half of RFC 9449 and lands with #336's second phase.
+	DPoP *DPoPProofValidator
 
 	// TracerProvider opts the validator's signature-verify hot path
 	// into SEP-414 tracing. Nil keeps it on the no-op fast path.
@@ -337,6 +355,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		AppStore:                 cfg.AppStore,
 		AllowPlainPKCE:           cfg.AllowPlainPKCE,
 		AcceptedAudiences:        cfg.AcceptedAudiences,
+		DPoP:                     cfg.DPoP,
 		Hooks:                    cfg.Hooks,
 	}
 	return oa
