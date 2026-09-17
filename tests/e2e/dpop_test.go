@@ -46,6 +46,7 @@ import (
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/stores/fs"
+	"github.com/panyam/oneauth/utils"
 )
 
 const (
@@ -126,15 +127,23 @@ func (e *dpopE2EEnv) proof(method, targetURL string) string {
 		"iat": time.Now().Unix(),
 	})
 	token.Header["typ"] = "dpop+jwt"
-	token.Header["jwk"] = map[string]any{
-		"kty": "EC",
-		"crv": "P-256",
-		"x":   base64.RawURLEncoding.EncodeToString(e.clientKey.PublicKey.X.Bytes()),
-		"y":   base64.RawURLEncoding.EncodeToString(e.clientKey.PublicKey.Y.Bytes()),
-	}
+	token.Header["jwk"] = jwkHeaderFor(e.t, &e.clientKey.PublicKey)
 	signed, err := token.SignedString(e.clientKey)
 	require.NoError(e.t, err)
 	return signed
+}
+
+// jwkHeaderFor renders a public key as the proof's `jwk` header. It goes
+// through utils rather than reading X/Y directly: those coordinates are
+// big.Ints, so Bytes() drops a leading zero byte and produces a short — and
+// therefore invalid — JWK coordinate roughly one key in 256.
+func jwkHeaderFor(t *testing.T, pub *ecdsa.PublicKey) map[string]any {
+	t.Helper()
+	encoded, err := json.Marshal(utils.ECDSAPublicKeyToJWK("", "ES256", pub))
+	require.NoError(t, err)
+	var members map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &members))
+	return members
 }
 
 // postToken sends a form-encoded token request, attaching a proof when
