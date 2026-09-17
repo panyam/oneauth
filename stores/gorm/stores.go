@@ -34,6 +34,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&AppRegistrationModel{},
 		&DeviceAuthorizationModel{},
 		&AuthorizationCodeModel{},
+		&PushedAuthorizationRequestModel{},
 	)
 }
 

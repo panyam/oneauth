@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -53,6 +54,12 @@ type AuthorizationRequest struct {
 	// thumbprint of the key the client will prove at the token
 	// endpoint. Optional; empty leaves the issued code unbound.
 	DPoPJKT string
+
+	// RequestURI is the RFC 9126 reference this request was resolved
+	// from, empty for a request whose parameters arrived in the URL.
+	// IssueCode consumes it once a code has been minted, which is what
+	// makes a pushed reference good for one authorization.
+	RequestURI string
 }
 
 // Scopes returns the request's scope claim split on the RFC 6749
@@ -129,6 +136,18 @@ type AuthorizationHandler struct {
 	// runtime. Surfaces the OAuth 2.0 escape hatch to operators who
 	// may have set the flag and forgotten.
 	allowPlainPKCEWarning sync.Once
+
+	// PushedStore resolves RFC 9126 `request_uri` references. Nil makes
+	// the endpoint reject any request carrying one, which is the right
+	// answer for a deployment that does not run a PAR endpoint.
+	PushedStore core.PushedAuthorizationRequestStore
+
+	// RequirePushedRequests refuses any authorization request that did
+	// not arrive through the PAR endpoint (RFC 9126 §4, "Authorization
+	// server policy MAY dictate... that PAR be the only means"). Pair it
+	// with `require_pushed_authorization_requests` in AS metadata so
+	// clients learn the policy before hitting it.
+	RequirePushedRequests bool
 }
 
 // ParseAndValidate parses an HTTP request's query / form into an
@@ -161,6 +180,75 @@ func (h *AuthorizationHandler) ParseAndValidate(r *http.Request) (req *Authoriza
 		values = r.PostForm
 	}
 
+	requestURI := strings.TrimSpace(values.Get("request_uri"))
+	if requestURI == "" {
+		if h.RequirePushedRequests {
+			return nil, true, "invalid_request", "this server accepts authorization requests only through the pushed authorization request endpoint (RFC 9126)"
+		}
+		return h.ValidateValues(r.Context(), values)
+	}
+
+	pushed, displayErr, errCode, errDescription := h.resolvePushedRequest(r.Context(), requestURI, strings.TrimSpace(values.Get("client_id")))
+	if errCode != "" {
+		return nil, displayErr, errCode, errDescription
+	}
+	// The stored payload is authoritative. Anything else the browser
+	// carried is ignored rather than merged, which is what makes a
+	// pushed request tamper-proof between the push and the redirect:
+	// the consent screen's own hidden inputs cannot override it either.
+	req, displayErr, errCode, errDescription = h.ValidateValues(r.Context(), pushed.Payload)
+	if req != nil {
+		req.RequestURI = requestURI
+	}
+	return req, displayErr, errCode, errDescription
+}
+
+// resolvePushedRequest looks up a `request_uri` and checks the three
+// conditions RFC 9126 §4 puts on it: the reference must exist, must not
+// have expired, and must belong to the client presenting it. A reference
+// whose code has already been issued is refused as used.
+//
+// Every failure here is a display error rather than a redirect. The
+// parameters that would tell us where to redirect live inside the record
+// we just failed to trust, so redirecting would mean trusting a
+// client_id and redirect_uri that arrived in the browser URL.
+func (h *AuthorizationHandler) resolvePushedRequest(ctx context.Context, requestURI, clientID string) (pushed *core.PushedAuthorizationRequest, displayErr bool, errCode, errDescription string) {
+	if h.PushedStore == nil {
+		return nil, true, "invalid_request", "request_uri is not supported by this server"
+	}
+	resp, err := h.PushedStore.GetPushedAuthorizationRequest(ctx, &core.GetPushedAuthorizationRequestRequest{RequestURI: requestURI})
+	if err != nil {
+		if errors.Is(err, core.ErrPushedRequestNotFound) {
+			return nil, true, "invalid_request", "unknown request_uri"
+		}
+		return nil, true, "server_error", "could not resolve request_uri"
+	}
+	record := resp.Request
+	if record.IsExpired(time.Now()) {
+		return nil, true, "invalid_request", "request_uri has expired"
+	}
+	if record.Consumed {
+		return nil, true, "invalid_request", "request_uri has already been used"
+	}
+	// §2.2 binds the reference to the client that pushed it. A client_id
+	// in the URL that disagrees means someone is trying to spend another
+	// client's pushed request.
+	if clientID != "" && clientID != record.ClientID {
+		return nil, true, "invalid_request", "request_uri was not issued to this client"
+	}
+	return record, false, "", ""
+}
+
+// ValidateValues applies the RFC 6749 §4.1.1 syntax checks and the
+// (client_id, redirect_uri) registration check to an already-extracted
+// parameter set.
+//
+// It is exported so the PAR endpoint can run the same validation on a
+// pushed request that /authorize runs on a redirected one. RFC 9126 §4
+// requires exactly that ("MUST validate authorization requests arising
+// from a pushed request as it would any other"), and sharing the function
+// is what keeps the two from drifting.
+func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Values) (req *AuthorizationRequest, displayErr bool, errCode, errDescription string) {
 	req = &AuthorizationRequest{
 		ClientID:            strings.TrimSpace(values.Get("client_id")),
 		RedirectURI:         strings.TrimSpace(values.Get("redirect_uri")),
@@ -185,7 +273,7 @@ func (h *AuthorizationHandler) ParseAndValidate(r *http.Request) (req *Authoriza
 	// registry. Same "display, do not redirect" rule — an unregistered
 	// redirect_uri MUST NOT receive the error (per §4.1.2.1) because
 	// it might be attacker-controlled.
-	if err := h.validateRedirectURI(r.Context(), req.ClientID, req.RedirectURI); err != nil {
+	if err := h.validateRedirectURI(ctx, req.ClientID, req.RedirectURI); err != nil {
 		return req, true, "unauthorized_client", err.Error()
 	}
 
@@ -259,6 +347,21 @@ func (h *AuthorizationHandler) IssueCode(ctx context.Context, req *Authorization
 	}
 	if _, err := h.Store.CreateAuthorizationCode(ctx, &core.CreateAuthorizationCodeRequest{Code: entry}); err != nil {
 		return "", err
+	}
+
+	// A pushed reference is spent when it produces a code, not when it
+	// is first read (RFC 9126 §4). Reading it twice is ordinary: the
+	// consent screen renders on GET and approves on POST, and a user who
+	// reloads before approving has done nothing wrong. Consuming here
+	// keeps "one code per pushed request" while leaving that alone.
+	//
+	// A failure to consume is logged rather than fatal: the code is
+	// already minted and the client is entitled to it. The reference
+	// expires on its own within a minute.
+	if req.RequestURI != "" && h.PushedStore != nil {
+		if _, err := h.PushedStore.ConsumePushedAuthorizationRequest(ctx, &core.ConsumePushedAuthorizationRequestRequest{RequestURI: req.RequestURI}); err != nil {
+			log.Printf("apiauth.AuthorizationHandler: could not consume request_uri %q after issuing a code: %v", req.RequestURI, err)
+		}
 	}
 	return code, nil
 }

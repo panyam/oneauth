@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/panyam/oneauth/core"
 )
 
 // AuthorizeMountConfig configures MountAuthorize. Mirrors the
@@ -59,6 +61,26 @@ type AuthorizeMountConfig struct {
 	// embed in the rendered HTML form. Wire `httpauth.CSRFToken`.
 	// Required.
 	CSRFTokenFromRequest func(r *http.Request) string
+
+	// PushedStore opts the mount into RFC 9126. When set, POST /par is
+	// mounted alongside the authorize routes and /authorize resolves a
+	// `request_uri` against this store. Nil leaves PAR off and makes
+	// /authorize reject any request carrying a request_uri.
+	//
+	// /par is a back-channel endpoint, so it is mounted WITHOUT
+	// BrowserMiddleware: the client calls it directly, and a CSRF or
+	// session wrapper there would reject a legitimate push.
+	PushedStore core.PushedAuthorizationRequestStore
+
+	// RequirePushedRequests refuses any authorization request that did
+	// not come through /par (RFC 9126 §4). Pair it with
+	// ASServerMetadata.RequirePushedAuthorizationRequests so clients
+	// discover the policy rather than meeting it as an error.
+	RequirePushedRequests bool
+
+	// PushedRequestExpiry overrides DefaultPushedRequestExpiry for
+	// minted request_uri values.
+	PushedRequestExpiry time.Duration
 
 	// LoginRedirectURL is where Consent / Decide redirect
 	// unauthenticated users. Empty defaults to "/auth/login".
@@ -121,14 +143,16 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 	}
 
 	authzHandler := &AuthorizationHandler{
-		Store:                cfg.OneAuth.AuthorizationCodeStore,
-		AppStore:             cfg.OneAuth.AppStore,
-		RedirectURIValidator: cfg.RedirectURIValidator,
-		IssuerURL:            cfg.IssuerURL,
-		EmitIssParameter:     cfg.EmitIssParameter,
-		RedirectOverride:     cfg.RedirectOverride,
-		Expiry:               cfg.Expiry,
-		AllowPlainPKCE:       cfg.OneAuth.AllowPlainPKCE,
+		Store:                 cfg.OneAuth.AuthorizationCodeStore,
+		AppStore:              cfg.OneAuth.AppStore,
+		RedirectURIValidator:  cfg.RedirectURIValidator,
+		IssuerURL:             cfg.IssuerURL,
+		EmitIssParameter:      cfg.EmitIssParameter,
+		RedirectOverride:      cfg.RedirectOverride,
+		Expiry:                cfg.Expiry,
+		AllowPlainPKCE:        cfg.OneAuth.AllowPlainPKCE,
+		PushedStore:           cfg.PushedStore,
+		RequirePushedRequests: cfg.RequirePushedRequests,
 	}
 
 	verifier := &AuthorizeVerificationHandler{
@@ -148,4 +172,16 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 	}
 	mux.Handle("GET /authorize", wrap(http.HandlerFunc(verifier.Consent)))
 	mux.Handle("POST /authorize", wrap(http.HandlerFunc(verifier.Decide)))
+
+	if cfg.PushedStore != nil {
+		mux.Handle("POST /par", &PARHandler{
+			Authorization:     authzHandler,
+			Store:             cfg.PushedStore,
+			Authenticator:     cfg.OneAuth.Authenticator,
+			AppStore:          cfg.OneAuth.AppStore,
+			DPoP:              cfg.OneAuth.DPoP,
+			Expiry:            cfg.PushedRequestExpiry,
+			AcceptedAudiences: cfg.OneAuth.AcceptedAudiences,
+		})
+	}
 }
