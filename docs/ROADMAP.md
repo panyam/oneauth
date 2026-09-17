@@ -136,6 +136,23 @@ Shipped initial in `v0.1.13`; corrected byte-strict semantics in the patch after
 
 ---
 
+## RFC 9449 — DPoP Sender-Constrained Tokens ✅ COMPLETE
+
+Closes #336 across two PRs: the authorization server binds tokens to a client key, then the resource server makes that binding mean something.
+
+| # | Surface | Status |
+|---|---------|--------|
+| 370 | AS half. `DPoPProofValidator` (`typ`, asymmetric alg allow-list, embedded `jwk`, signature, `htm`, `htu`, `iat` window, `jti` replay via the existing `JTIStore`). `cnf.jkt` on issued tokens, `token_type: DPoP` reported by the issuer rather than each grant, refresh-token binding persisted in FS / GORM / GAE and carried through rotation, `dpop_signing_alg_values_supported` on AS metadata. | Merged |
+| 372 | RS half. `Authorization: DPoP` extraction, `ath` checking, `cnf.jkt` match, and the §7.2 refusal of a bound token presented as Bearer. `WWW-Authenticate` advertises both schemes with the error on the scheme the client used. `RequireDPoP` + `dpop_bound_access_tokens_required` on protected-resource metadata, `cnf` on introspection, `TokenInfo.Confirmation`. | Merged |
+
+**Design notes.** The binding travels as `core.Confirmation`, a struct rather than a bare thumbprint string, so RFC 8705 mTLS adds `x5t#S256` as a field instead of a second parameter on every issuance path. The shared `TokenBindingValidator` seam stays unbuilt until #335 shows the second shape — an interface with one implementation is a guess about the second.
+
+**Rollout order matters.** A resource server with `APIMiddleware.DPoP` nil accepts a bound token as an ordinary bearer token, which RFC 9449 §7.2 both predicts and permits. Enforce at the resource servers first, then issue bound tokens; the reverse order gives a window where the binding protects nothing.
+
+**Outstanding:** nonce protocol (§8/§9), `dpop_jkt` on the authorization request (§10), Keycloak interop (#371).
+
+---
+
 ## Execution Order
 
 ```

@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-v0.1.35
+v0.1.36
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
@@ -35,6 +35,7 @@ v0.1.35
 - sshkeys-ed25519: `sshkeys.GenerateEd25519()` returns an OpenSSH-format private PEM + an `authorized_keys`-format public line. Separate Go submodule (`github.com/panyam/oneauth/sshkeys`) mirroring the `stores/{fs,gorm,gae}` shape; depends on `oneauth/keys` + `golang.org/x/crypto/ssh`. Private PEM persists through `EncryptedKeyStorage` automatically — the header type triggers the widened encryption predicate with no caller-side opt-in.
 - security-headers: HSTS, CSP, X-Frame-Options middleware
 - rich-authorization-requests: RFC 9396 authorization_details on token endpoint, introspection, middleware enforcement
+- dpop-sender-constrained-tokens: RFC 9449 end to end. **Issuance** (`OneAuthConfig.DPoP`): a token request carrying a `DPoP` proof gets `cnf.jkt` in the access token, `token_type: DPoP` in the response, and a refresh token only that key can rotate (binding persists in FS / GORM / GAE and survives rotation). **Enforcement** (`APIMiddleware.DPoP`): accepts `Authorization: DPoP <token>` with a per-request proof, checks `htm` / `htu` / `iat` / `jti` / `ath`, matches the proof key against the token's `cnf.jkt`, and refuses a bound token presented as Bearer (§7.2 downgrade). `RequireDPoP` refuses bearer presentations outright, backing RFC 9728 `dpop_bound_access_tokens_required`. Introspection reports `cnf` so remote-validating resource servers enforce the same binding. Both halves are off until wired — a resource server that leaves `DPoP` nil accepts bound tokens as bearer tokens, which is what §7.2 says a DPoP-unaware RS does, so enforce at the resource servers before relying on the binding. AS metadata advertises `dpop_signing_alg_values_supported` (ES256 / RS256 / PS256 by default; symmetric algorithms can never be enabled). Validated against the RFC's own published vectors (Figure 2/9 proof and thumbprint, Figure 13/14 access token and `ath`). Closes issue 336 across PRs 370 and 372.
 - token-revocation: RFC 7009 endpoint for access and refresh token revocation
 - transport-agnostic-core: Every transport-agnostic interface in the library follows the `(ctx context.Context, *XRequest) → (*XResponse, error)` convention. `apiauth/` (issue 175): `TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator`. `admin/` (issues 168/169/170/172): `ClientRegistrationManager` (RFC 7592 self-service) and `ClientRegistrar` (admin CRUD). HTTP handlers across both packages are thin wrappers; wire formats unchanged. Map to gRPC stubs without further refactor.
 - lifecycle-hooks: Grouped callbacks (TokenHooks, AuthHooks, ClientHooks, SecurityHooks) for audit, alerting, integration
