@@ -27,6 +27,7 @@ type AuthClient struct {
 	baseTransport http.RoundTripper
 	tokenEndpoint string      // e.g., "/auth/cli/token"
 	cachedASMeta  *ASMetadata // cached AS discovery metadata for auth method negotiation
+	dpopKey       *DPoPKey    // RFC 9449 proof-of-possession key; nil keeps every request on the bearer path
 
 	// OnToken is an optional callback invoked after a successful token
 	// refresh (the refresh_token grant path through refreshTokenLocked).
@@ -117,6 +118,23 @@ func WithTransport(transport http.RoundTripper) ClientOption {
 func WithASMetadata(meta *ASMetadata) ClientOption {
 	return func(c *AuthClient) {
 		c.cachedASMeta = meta
+	}
+}
+
+// WithDPoPKey binds this client's tokens to a proof-of-possession key
+// (RFC 9449). Token requests carry a DPoP proof, issued tokens come back
+// bound to the key, and requests through the client's HTTP transport present
+// them under the DPoP scheme with a fresh proof each time.
+//
+// Leaving it unset keeps every request on the bearer path, which is what a
+// client that has not adopted DPoP wants and what every existing caller
+// gets.
+//
+// The key must outlive the tokens issued against it. A client that discards
+// it holds tokens nothing can present.
+func WithDPoPKey(key *DPoPKey) ClientOption {
+	return func(c *AuthClient) {
+		c.dpopKey = key
 	}
 }
 
@@ -631,7 +649,18 @@ func (c *AuthClient) requestTokenFormWithAssertion(ctx context.Context, tokenEnd
 // executeTokenRequest dispatches a fully-prepared token request and
 // decodes the OAuth response into a ServerCredential. Shared by
 // requestTokenForm and requestTokenFormWithAssertion.
+//
+// When a DPoP key is configured this is where the proof is attached, which
+// covers every grant the client drives without each one repeating the work.
+// No `ath` here: the request has no access token yet.
 func (c *AuthClient) executeTokenRequest(req *http.Request) (*ServerCredential, error) {
+	if c.dpopKey != nil {
+		proof, err := c.dpopKey.Proof(req.Method, req.URL.String(), "")
+		if err != nil {
+			return nil, fmt.Errorf("mint DPoP proof: %w", err)
+		}
+		req.Header.Set("DPoP", proof)
+	}
 
 	// Use base transport directly to avoid auth loop
 	httpClient := &http.Client{Transport: c.baseTransport}
@@ -750,7 +779,9 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	// Clone request and add auth header if we have a token
 	if token != "" {
 		req = req.Clone(req.Context())
-		req.Header.Set("Authorization", "Bearer "+token)
+		if err := t.client.authorize(req, token); err != nil {
+			return nil, err
+		}
 	}
 
 	// Make the request using base transport
@@ -774,7 +805,11 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 				newToken, _ := t.client.GetToken()
 				if newToken != "" {
 					req = req.Clone(req.Context())
-					req.Header.Set("Authorization", "Bearer "+newToken)
+					// A fresh proof, not the one already sent: a proof is
+					// single-use, and its `ath` names the old token.
+					if err := t.client.authorize(req, newToken); err != nil {
+						return nil, err
+					}
 					return t.base.RoundTrip(req)
 				}
 			} else {
@@ -786,6 +821,30 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	return resp, nil
+}
+
+// authorize sets the Authorization header for a resource request, and the
+// DPoP proof when the client holds a key.
+//
+// The scheme has to match how the token was issued: a DPoP-bound token
+// presented as `Bearer` is refused by any resource server implementing
+// RFC 9449 §7.2, and a bearer token presented as `DPoP` has no binding to
+// check. Deciding from the client's own key rather than from the token
+// response keeps the two in step even when a credential is loaded from
+// storage.
+func (c *AuthClient) authorize(req *http.Request, token string) error {
+	if c.dpopKey == nil {
+		req.Header.Set("Authorization", "Bearer "+token)
+		return nil
+	}
+
+	proof, err := c.dpopKey.Proof(req.Method, req.URL.String(), token)
+	if err != nil {
+		return fmt.Errorf("mint DPoP proof: %w", err)
+	}
+	req.Header.Set("Authorization", "DPoP "+token)
+	req.Header.Set("DPoP", proof)
+	return nil
 }
 
 // parseAuthzDetailsFromRaw converts raw JSON authorization_details ([]any from

@@ -282,7 +282,11 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		authMethod = SelectAuthMethod(cfg.ClientSecret, asMethods)
 	}
 
-	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, cfg.Scopes, cfg.Resource)
+	dpopJKT := ""
+	if c.dpopKey != nil {
+		dpopJKT = c.dpopKey.Thumbprint()
+	}
+	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, cfg.Scopes, cfg.Resource, dpopJKT)
 
 	// Open browser
 	openFn := cfg.OpenBrowser
@@ -457,8 +461,14 @@ func (c *AuthClient) exchangeCode(ctx context.Context, p exchangeCodeParams) (*S
 }
 
 // buildAuthorizationURL constructs the full authorization URL with PKCE, state,
-// and optional resource indicator (RFC 8707).
-func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state string, scopes []string, resource string) string {
+// an optional resource indicator (RFC 8707), and an optional dpop_jkt
+// (RFC 9449 §10).
+//
+// dpopJKT binds the authorization code to the client's DPoP key, so an
+// intercepted code cannot be redeemed with a different one. §10 is explicit
+// that this adds protection over PKCE alone only when the key is unique per
+// authorization request.
+func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state string, scopes []string, resource, dpopJKT string) string {
 	u, _ := url.Parse(endpoint)
 	q := u.Query()
 	q.Set("response_type", "code")
@@ -472,6 +482,9 @@ func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state str
 	}
 	if resource != "" {
 		q.Set("resource", resource)
+	}
+	if dpopJKT != "" {
+		q.Set("dpop_jkt", dpopJKT)
 	}
 	u.RawQuery = q.Encode()
 	return u.String()
