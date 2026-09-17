@@ -246,7 +246,7 @@
 <p>Shipped initial in <code>v0.1.13</code>; corrected byte-strict semantics in the patch after <code>v0.1.21</code>. Downstream <code>mcpkit#380</code> can drop its in-tree <code>ValidateIss</code> copy.</p>
 <hr />
 <h2 id="rfc-9449--dpop-sender-constrained-tokens--complete">RFC 9449 — DPoP Sender-Constrained Tokens ✅ COMPLETE <a class="anchor" href="#rfc-9449--dpop-sender-constrained-tokens--complete">¶</a></h2>
-<p>Closes #336 across two PRs: the authorization server binds tokens to a client key, then the resource server makes that binding mean something.</p>
+<p>Closes #336 across four PRs: the authorization server binds tokens to a client key, the resource server makes that binding mean something, the code is bound at the front channel, and the SDK can finally hold a key of its own.</p>
 <table>
 <thead>
 <tr>
@@ -266,11 +266,22 @@
 <td>RS half. <code>Authorization: DPoP</code> extraction, <code>ath</code> checking, <code>cnf.jkt</code> match, and the §7.2 refusal of a bound token presented as Bearer. <code>WWW-Authenticate</code> advertises both schemes with the error on the scheme the client used. <code>RequireDPoP</code> + <code>dpop_bound_access_tokens_required</code> on protected-resource metadata, <code>cnf</code> on introspection, <code>TokenInfo.Confirmation</code>.</td>
 <td>Merged</td>
 </tr>
+<tr>
+<td>378</td>
+<td><code>dpop_jkt</code> on the authorization request (§10, issue 374). The code carries the thumbprint and only that key redeems it, so an intercepted code cannot be traded for a token bound to the interceptor. Enforced with the plumbing 370 already built: the granter compares against <code>req.Confirmation</code>.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>379</td>
+<td>Client SDK (issue 377). <code>client.DPoPKey</code> mints a proof per request; <code>WithDPoPKey</code> attaches proofs to token requests, presents tokens under the DPoP scheme with <code>ath</code>, and sends <code>dpop_jkt</code> on browser login. Before this the SDK could not obtain or spend a bound token.</td>
+<td>Merged</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Design notes.</strong> The binding travels as <code>core.Confirmation</code>, a struct rather than a bare thumbprint string, so RFC 8705 mTLS adds <code>x5t#S256</code> as a field instead of a second parameter on every issuance path. The shared <code>TokenBindingValidator</code> seam stays unbuilt until #335 shows the second shape — an interface with one implementation is a guess about the second.</p>
 <p><strong>Rollout order matters.</strong> A resource server with <code>APIMiddleware.DPoP</code> nil accepts a bound token as an ordinary bearer token, which RFC 9449 §7.2 both predicts and permits. Enforce at the resource servers first, then issue bound tokens; the reverse order gives a window where the binding protects nothing.</p>
-<p><strong>Outstanding:</strong> nonce protocol (§8/§9), <code>dpop_jkt</code> on the authorization request (§10), Keycloak interop (#371).</p>
+<p><strong>One trap the client work surfaced.</strong> A DPoP proof is single-use and its <code>ath</code> names one token, so any retry-after-refresh path has to mint a fresh proof rather than resend the one already sent. Against a single-node server with an in-memory <code>jti</code> store, reusing it looks fine, which is what makes it easy to ship.</p>
+<p><strong>Outstanding:</strong> nonce protocol (§8/§9, #375), <code>dpop_jkt</code> carried on a pushed authorization request (§10.1, rides with PAR in #337), Keycloak interop (#371).</p>
 <hr />
 <h2 id="execution-order">Execution Order <a class="anchor" href="#execution-order">¶</a></h2>
 <pre><code>Bug Fixes
