@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	cloud.google.com/go/datastore v1.21.0
-	github.com/panyam/oneauth v0.1.36
+	github.com/panyam/oneauth v0.1.37
 	golang.org/x/crypto v0.55.0
 	google.golang.org/api v0.264.0
 )

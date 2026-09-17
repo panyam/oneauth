@@ -1,5 +1,99 @@
 # OneAuth Release Notes
 
+> Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
+> 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
+
+## Version 0.1.37
+
+### DPoP — sender-constrained access and refresh tokens (RFC 9449)
+
+A token can now be bound to a key the client holds, so a leaked token is
+unusable by whoever leaks it. Both halves ship together: the authorization
+server binds the token, and the resource server refuses to honor it unless the
+presenter proves the key.
+
+Everything here is off by default. An existing deployment that wires neither
+side behaves exactly as it did in 0.1.36.
+
+**Issuance (PR 370).** Set `OneAuthConfig.DPoP` to a `DPoPProofValidator` and
+the token endpoint starts accepting a `DPoP` proof header on any grant. A
+request that carries a valid proof gets `cnf.jkt` in the access token,
+`token_type: DPoP` in the response, and a refresh token only that key can
+rotate. A request with no proof gets exactly what it got before.
+
+- Proof validation per §4.3: `typ`, an asymmetric `alg` allow-list (ES256,
+  RS256, PS256 by default; symmetric algorithms can never be enabled), the
+  embedded public `jwk` with private members rejected, the signature, `htm`,
+  `htu`, an `iat` window, and `jti` replay through the existing `JTIStore`.
+- Refresh-token binding persists in all three backends (FS, GORM, Datastore)
+  and is carried forward on rotation. A bound refresh token presented without
+  its key is `invalid_grant`.
+- `dpop_signing_alg_values_supported` on authorization-server metadata.
+
+**Enforcement (PR 372).** Set `APIMiddleware.DPoP` and the resource server
+accepts `Authorization: DPoP <token>` with a per-request proof, checks the
+proof's `ath` against the presented token, and matches the proof key against
+the token's `cnf.jkt`.
+
+- A bound token presented under the `Bearer` scheme is refused, per §7.2.
+  Without that check a thief drops the `DPoP` header and the binding buys
+  nothing.
+- `WWW-Authenticate` advertises both schemes, with error information on the
+  scheme the client actually used.
+- `APIMiddleware.RequireDPoP` refuses bearer presentations outright, backing
+  `dpop_bound_access_tokens_required` on protected-resource metadata
+  (RFC 9728), which lands alongside `dpop_signing_alg_values_supported`.
+- Introspection responses carry `cnf`, so a resource server that validates
+  remotely enforces the same binding as one validating the JWT locally.
+
+**Rollout order.** A resource server with `APIMiddleware.DPoP` unset accepts a
+bound token as an ordinary bearer token, which RFC 9449 §7.2 both predicts and
+permits. Wire enforcement at the resource servers first, then start issuing
+bound tokens. The reverse order leaves a window where the binding protects
+nothing.
+
+**Deployment note (GORM).** The `refresh_tokens` table gains a
+`confirmation_jkt` column. Run `AutoMigrate` before deploying. The column is
+empty for existing rows, which reads back as an unbound token, so current
+behavior is preserved. Datastore adds an equivalent optional property and
+needs no migration.
+
+**API additions.** `core.Confirmation` (the RFC 7800 `cnf` claim as a type),
+`CreateAccessTokenRequest.Confirmation`, `CreateAccessTokenResponse.TokenType`,
+`RefreshGrantRequest.Confirmation` and the same field on each grant request
+type, `TokenInfo.Confirmation`, `IntrospectionResult.Cnf`, and
+`IntrospectionValidator.ValidateInfo`. The confirmation is a struct rather
+than a bare thumbprint string so that mTLS certificate binding (`x5t#S256`,
+issue 335) adds a field instead of a second parameter on every issuance path.
+
+**One behavior change without a flag.** `cnf` is now a standard claim, so it
+no longer appears in `TokenInfo.CustomClaims`. Code reading `cnf` out of the
+custom-claims bag should read `TokenInfo.Confirmation` instead. This also stops
+a deployment's `CustomClaimsFunc` from writing a binding the server never
+verified.
+
+**Conformance.** Validated against the RFC's own published vectors: the
+Figure 2 proof and the Figure 9 thumbprint it produces, plus the Figure 13
+access token and the Figure 14 `ath` computed from it.
+
+Closes issue 336. Remaining RFC 9449 surface: the nonce protocol (§8, §9) and
+`dpop_jkt` on the authorization request (§10). Keycloak interop for the
+resource-server half is issue 371.
+
+### Documentation
+
+Coverage tables that still listed DPoP as a gap are corrected (`RFC_9449.md`,
+`RFC_9728.md`, the Authlete gap analysis, the FAPI readiness note), and
+`ROADMAP.md` records the two PRs with the design decisions behind them
+(PR 373). `CAPABILITIES.md` gains the `dpop-sender-constrained-tokens` entry.
+`testutil`'s `WithConfidentialClient` is documented in its sidecar (PR 367).
+
+### Dependencies
+
+Grouped `go_modules` security bumps across the workspace (PRs 368, 369).
+
+---
+
 ## Version 0.1.6
 
 ### Convention closure for issues 175 + 172
