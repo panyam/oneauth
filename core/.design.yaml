@@ -16,14 +16,50 @@ entities:
     kind: method
     role: "True iff token is not revoked AND not expired."
     why: "Two-line composite that callers want at almost every read site; centralising it avoids subtle \"forgot to check Revoked\" bugs."
+  - name: Confirmation
+    kind: struct
+    role: "RFC 7800 `cnf` claim — the proof-of-possession key a token is bound to. `JKT` carries the RFC 9449 DPoP thumbprint; nil means a plain bearer token."
+    why: "A struct rather than a bare thumbprint string so RFC 8705 mTLS binding (`x5t#S256`, #335) adds a field instead of a second parallel parameter on every issuance path."
+  - name: Confirmation.IsEmpty
+    kind: method
+    role: "True for a nil receiver or an empty thumbprint."
+    why: "Nil-safe so callers can test a token's binding without a nil check; an empty `cnf` must never be emitted, since it claims a binding nothing can satisfy."
+  - name: Confirmation.Equal
+    kind: method
+    role: "Compares two confirmations, treating nil and empty as equal."
+    why: "The refresh grant's check that the key presented on a rotation is the key the refresh token was issued to."
   - name: APIKey
     kind: struct
     role: "Long-lived programmatic credential split into public KeyID + bcrypt-hashed secret, bound to a Subject."
     why: "Bearer-style alternative to OAuth flows for service-to-service callers that can rotate independently of user tokens."
+  - name: Confirmation
+    kind: struct
+    role: "RFC 7800 `cnf` claim — the proof-of-possession key a token is bound to. `JKT` carries the RFC 9449 DPoP thumbprint; nil means a plain bearer token."
+    why: "A struct rather than a bare thumbprint string so RFC 8705 mTLS binding (`x5t#S256`, #335) adds a field instead of a second parallel parameter on every issuance path."
+  - name: Confirmation.IsEmpty
+    kind: method
+    role: "True for a nil receiver or an empty thumbprint."
+    why: "Nil-safe so callers can test a token's binding without a nil check; an empty `cnf` must never be emitted, since it claims a binding nothing can satisfy."
+  - name: Confirmation.Equal
+    kind: method
+    role: "Compares two confirmations, treating nil and empty as equal."
+    why: "The refresh grant's check that the key presented on a rotation is the key the refresh token was issued to."
   - name: APIKey.IsExpired
     kind: method
     role: "Wall-clock check against ExpiresAt; nil ExpiresAt means never expires."
     why: "API keys differ from refresh tokens in that expiry is optional; encoding that asymmetry on the type stops callers from inventing their own nil-handling."
+  - name: Confirmation
+    kind: struct
+    role: "RFC 7800 `cnf` claim — the proof-of-possession key a token is bound to. `JKT` carries the RFC 9449 DPoP thumbprint; nil means a plain bearer token."
+    why: "A struct rather than a bare thumbprint string so RFC 8705 mTLS binding (`x5t#S256`, #335) adds a field instead of a second parallel parameter on every issuance path."
+  - name: Confirmation.IsEmpty
+    kind: method
+    role: "True for a nil receiver or an empty thumbprint."
+    why: "Nil-safe so callers can test a token's binding without a nil check; an empty `cnf` must never be emitted, since it claims a binding nothing can satisfy."
+  - name: Confirmation.Equal
+    kind: method
+    role: "Compares two confirmations, treating nil and empty as equal."
+    why: "The refresh grant's check that the key presented on a rotation is the key the refresh token was issued to."
   - name: APIKey.IsValid
     kind: method
     role: "True iff key is not revoked AND not expired."
@@ -156,6 +192,18 @@ entities:
     kind: struct
     role: "Empty acknowledgement."
     why: "gRPC-shape parity."
+  - name: Confirmation
+    kind: struct
+    role: "RFC 7800 `cnf` claim — the proof-of-possession key a token is bound to. `JKT` carries the RFC 9449 DPoP thumbprint; nil means a plain bearer token."
+    why: "A struct rather than a bare thumbprint string so RFC 8705 mTLS binding (`x5t#S256`, #335) adds a field instead of a second parallel parameter on every issuance path."
+  - name: Confirmation.IsEmpty
+    kind: method
+    role: "True for a nil receiver or an empty thumbprint."
+    why: "Nil-safe so callers can test a token's binding without a nil check; an empty `cnf` must never be emitted, since it claims a binding nothing can satisfy."
+  - name: Confirmation.Equal
+    kind: method
+    role: "Compares two confirmations, treating nil and empty as equal."
+    why: "The refresh grant's check that the key presented on a rotation is the key the refresh token was issued to."
   - name: APIKeyStore
     kind: interface
     role: "CRUD + validation over API keys; gRPC-shape — every method takes ctx + *XRequest and returns *XResponse, error; CreateAPIKey returns the plaintext FullKey exactly once."

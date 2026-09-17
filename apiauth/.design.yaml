@@ -248,11 +248,27 @@ entities:
     kind: method
     role: "Middleware factory that requires the token to carry RFC 9396 `authorization_details` for every named type."
     why: "Type-level RAR enforcement — finer-grained than scopes."
+  - name: DPoPProofValidator
+    kind: struct
+    role: "RFC 9449 DPoP proof validator. `Validate` checks a proof JWT (`typ`, asymmetric `alg` allow-list, embedded public `jwk`, signature, `htm`, `htu`, `iat` window, `jti` replay, optional `ath`) and returns the RFC 7638 thumbprint; `Confirm` does the same from an `*http.Request`."
+    why: "Lives in `apiauth` rather than a subpackage because the token endpoint's binding path is unexported; replay rides the existing `JTIStore` under a `dpop:` key prefix so a proof cannot burn a client assertion's `jti`."
+  - name: NewDPoPProofValidator
+    kind: func
+    role: "Builds a validator from `DPoPConfig`, defaulting algs to ES256/RS256/PS256, the `iat` window to 30s each way, and the replay store to an in-process one."
+    why: "Wiring it into `OneAuthConfig.DPoP` is the opt-in switch for RFC 9449 (#344 capability gating); nil leaves the AS bearer-only and makes it ignore DPoP headers."
+  - name: DPoPProofValidator.SigningAlgValuesSupported
+    kind: method
+    role: "Returns a copy of the accepted proof algorithms for the `dpop_signing_alg_values_supported` AS metadata field."
+    why: "Advertising a list the validator does not honor makes clients send proofs the AS then rejects, so the metadata reads from the validator rather than being configured twice."
+  - name: tokenTypeFor
+    kind: func
+    role: "Maps a `*core.Confirmation` to the response `token_type` — DPoP when bound, Bearer otherwise."
+    why: "Single source of truth: a bound token advertised as Bearer would be presented without a proof and rejected by every resource server."
 depends_on:
   - path: ../accounts
     entities: [CredentialsValidator, DetectUsernameType]
   - path: ../core
-    entities: [APIKeyStore, AuthorizationDetail, ContainsAllScopes, CreateAPIKeyRequest, CreateRefreshTokenRequest, ErrAPIKeyNotFound, ErrTokenNotFound, ErrTokenReused, GenerateSecureToken, GetAPIKeyByIDRequest, GetRefreshTokenRequest, GetSubjectFromContext, GetSubjectScopesFunc, GetSubjectTokensRequest, IntersectScopes, JoinScopes, ListSubjectAPIKeysRequest, ParseScopes, RateLimiter, RefreshTokenStore, RevokeAPIKeyRequest, RevokeRefreshTokenRequest, RevokeSubjectTokensRequest, RevokeTokenFamilyRequest, RotateRefreshTokenRequest, ScopeOffline, ScopeProfile, ScopeRead, ScopeWrite, SetSubjectInContext, TokenBlacklist, TokenError, TokenExpiryAccessToken, TokenPair, TokenRequest, UpdateAPIKeyLastUsedRequest, ValidateAll, ValidateAPIKeyRequest]
+    entities: [APIKeyStore, AuthorizationDetail, Confirmation, ContainsAllScopes, CreateAPIKeyRequest, CreateRefreshTokenRequest, ErrAPIKeyNotFound, ErrTokenNotFound, ErrTokenReused, GenerateSecureToken, GetAPIKeyByIDRequest, GetRefreshTokenRequest, GetSubjectFromContext, GetSubjectScopesFunc, GetSubjectTokensRequest, IntersectScopes, JoinScopes, ListSubjectAPIKeysRequest, ParseScopes, RateLimiter, RefreshTokenStore, RevokeAPIKeyRequest, RevokeRefreshTokenRequest, RevokeSubjectTokensRequest, RevokeTokenFamilyRequest, RotateRefreshTokenRequest, ScopeOffline, ScopeProfile, ScopeRead, ScopeWrite, SetSubjectInContext, TokenBlacklist, TokenError, TokenExpiryAccessToken, TokenPair, TokenRequest, UpdateAPIKeyLastUsedRequest, ValidateAll, ValidateAPIKeyRequest]
   - path: ../keys
     entities: [GetKeyByKidRequest, GetKeyRequest, KeyLookup, KeyStorage]
   - path: ../utils
