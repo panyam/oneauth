@@ -127,7 +127,7 @@
 <h2 id="executive-summary">Executive Summary <a class="anchor" href="#executive-summary">¶</a></h2>
 <p>Authlete and OneAuth answer different questions. Auth0 (covered in <a href="AUTH0_GAP_ANALYSIS.md">AUTH0_GAP_ANALYSIS.md</a>) is a full IdP-as-a-service. <strong>Authlete is a semi-hosted OAuth/OIDC <em>protocol engine</em></strong> — its customer builds an authorization-server frontend (login UI, consent screens, user store, sessions) and delegates all the protocol-correct token issuance, validation, and lifecycle work to Authlete via REST APIs. Authlete does not see end users.</p>
 <p>OneAuth is a <strong>Go library</strong> that bundles user/identity/channel management <em>and</em> a transport-independent token engine into one importable package. It overlaps with Authlete in the token-engine layer; it overlaps with Auth0 in the user-mgmt layer.</p>
-<p><strong>Headline gap:</strong> Authlete is the leading <strong>spec-completeness</strong> play — FAPI 1 &amp; 2, JAR, JARM, PAR, RAR, CIBA, DPoP, mTLS, OpenID Federation 1.0, OID4VCI, Token Exchange, Device Flow, multiple regional Open Banking profiles. OneAuth covers a much narrower surface: bearer JWT issuance via password/client_credentials/refresh, RAR on the token endpoint, RFC-compliant introspection/revocation/discovery/DCR/JWKS metadata, and Keycloak interop. <strong>No /authorize endpoint, no id_token, no DPoP/mTLS/PAR/JAR/JARM/CIBA/Federation/OID4VC.</strong></p>
+<p><strong>Headline gap:</strong> Authlete is the leading <strong>spec-completeness</strong> play — FAPI 1 &amp; 2, JAR, JARM, PAR, RAR, CIBA, DPoP, mTLS, OpenID Federation 1.0, OID4VCI, Token Exchange, Device Flow, multiple regional Open Banking profiles. OneAuth covers a much narrower surface: bearer JWT issuance via password/client_credentials/refresh, RAR on the token endpoint, RFC-compliant introspection/revocation/discovery/DCR/JWKS metadata, and Keycloak interop. <strong>No id_token, no mTLS/PAR/JAR/JARM/CIBA/Federation/OID4VC</strong> (the <code>/authorize</code> endpoint shipped under #297, and DPoP shipped under #336).</p>
 <p>The honest framing: <strong>OneAuth doesn&rsquo;t compete with Authlete and shouldn&rsquo;t try to.</strong> Authlete is engineered to pass conformance suites for regulated industries (UK/AU/BR/KSA Open Banking, EUDI Wallet, GAIN, FAPI). OneAuth is engineered to make Go services easy to authenticate against an existing IdP (Keycloak, Authlete, Auth0, etc.). The right strategic posture is: pick a small set of Authlete-grade specs that have value <em>for the resource-server / federated-app niche</em> and adopt those; ignore the rest.</p>
 <hr />
 <h2 id="1-architectural-model-comparison">1. Architectural Model Comparison <a class="anchor" href="#1-architectural-model-comparison">¶</a></h2>
@@ -359,8 +359,8 @@
 <td><strong>DPoP</strong></td>
 <td>RFC 9449</td>
 <td>Full</td>
-<td>None</td>
-<td><strong>None</strong></td>
+<td>Issuance + resource-server enforcement (§4–§7): <code>cnf.jkt</code>, <code>token_type: DPoP</code>, bound refresh tokens, <code>ath</code>, §7.2 downgrade refusal, AS + PR metadata</td>
+<td>Nonce protocol (§8/§9), <code>dpop_jkt</code> on the authorization request (§10)</td>
 </tr>
 <tr>
 <td><strong>mTLS Client Auth + Cert-Bound Tokens</strong></td>
@@ -569,9 +569,9 @@
 <tbody>
 <tr>
 <td>1</td>
-<td><strong>DPoP (RFC 9449)</strong> for access tokens</td>
-<td>Sender-constrained tokens — useful for federated multi-service architectures where a token leak shouldn&rsquo;t let an attacker replay. Validation is cheap; issuance is moderate.</td>
-<td>Medium</td>
+<td><del><strong>DPoP (RFC 9449)</strong> for access tokens</del> ✅ <strong>Shipped</strong> (#336, PRs 370 + 372)</td>
+<td>Sender-constrained tokens — a leaked token is unusable without the key. Remaining: nonce protocol (§8/§9) and <code>dpop_jkt</code> (§10).</td>
+<td>Done</td>
 </tr>
 <tr>
 <td>2</td>

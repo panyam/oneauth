@@ -245,6 +245,33 @@
 </table>
 <p>Shipped initial in <code>v0.1.13</code>; corrected byte-strict semantics in the patch after <code>v0.1.21</code>. Downstream <code>mcpkit#380</code> can drop its in-tree <code>ValidateIss</code> copy.</p>
 <hr />
+<h2 id="rfc-9449--dpop-sender-constrained-tokens--complete">RFC 9449 — DPoP Sender-Constrained Tokens ✅ COMPLETE <a class="anchor" href="#rfc-9449--dpop-sender-constrained-tokens--complete">¶</a></h2>
+<p>Closes #336 across two PRs: the authorization server binds tokens to a client key, then the resource server makes that binding mean something.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Surface</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>370</td>
+<td>AS half. <code>DPoPProofValidator</code> (<code>typ</code>, asymmetric alg allow-list, embedded <code>jwk</code>, signature, <code>htm</code>, <code>htu</code>, <code>iat</code> window, <code>jti</code> replay via the existing <code>JTIStore</code>). <code>cnf.jkt</code> on issued tokens, <code>token_type: DPoP</code> reported by the issuer rather than each grant, refresh-token binding persisted in FS / GORM / GAE and carried through rotation, <code>dpop_signing_alg_values_supported</code> on AS metadata.</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>372</td>
+<td>RS half. <code>Authorization: DPoP</code> extraction, <code>ath</code> checking, <code>cnf.jkt</code> match, and the §7.2 refusal of a bound token presented as Bearer. <code>WWW-Authenticate</code> advertises both schemes with the error on the scheme the client used. <code>RequireDPoP</code> + <code>dpop_bound_access_tokens_required</code> on protected-resource metadata, <code>cnf</code> on introspection, <code>TokenInfo.Confirmation</code>.</td>
+<td>Merged</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Design notes.</strong> The binding travels as <code>core.Confirmation</code>, a struct rather than a bare thumbprint string, so RFC 8705 mTLS adds <code>x5t#S256</code> as a field instead of a second parameter on every issuance path. The shared <code>TokenBindingValidator</code> seam stays unbuilt until #335 shows the second shape — an interface with one implementation is a guess about the second.</p>
+<p><strong>Rollout order matters.</strong> A resource server with <code>APIMiddleware.DPoP</code> nil accepts a bound token as an ordinary bearer token, which RFC 9449 §7.2 both predicts and permits. Enforce at the resource servers first, then issue bound tokens; the reverse order gives a window where the binding protects nothing.</p>
+<p><strong>Outstanding:</strong> nonce protocol (§8/§9), <code>dpop_jkt</code> on the authorization request (§10), Keycloak interop (#371).</p>
+<hr />
 <h2 id="execution-order">Execution Order <a class="anchor" href="#execution-order">¶</a></h2>
 <pre><code>Bug Fixes
     #52 Fix aud array (P0) ◄── blocks everything
