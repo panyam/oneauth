@@ -33,6 +33,7 @@ type AuthorizationCodeModel struct {
 	Subject              string                     `gorm:"size:256;not null"`
 	CodeChallenge        string                     `gorm:"size:256"`
 	CodeChallengeMethod  string                     `gorm:"size:16"`
+	DPoPJKT              string                     `gorm:"size:64"` // RFC 9449 §10 dpop_jkt; empty = code not key-bound
 	AuthorizationDetails []core.AuthorizationDetail `gorm:"serializer:json"`
 	IssuedAt             time.Time                  `gorm:"autoCreateTime"`
 	ExpiresAt            time.Time                  `gorm:"not null;index"`
@@ -156,6 +157,7 @@ func authCodeToModel(c *core.AuthorizationCode) *AuthorizationCodeModel {
 		Subject:              c.Subject,
 		CodeChallenge:        c.CodeChallenge,
 		CodeChallengeMethod:  c.CodeChallengeMethod,
+		DPoPJKT:              c.DPoPJKT,
 		AuthorizationDetails: c.AuthorizationDetails,
 		IssuedAt:             c.IssuedAt,
 		ExpiresAt:            c.ExpiresAt,
@@ -172,6 +174,7 @@ func modelToAuthCode(m *AuthorizationCodeModel) *core.AuthorizationCode {
 		Subject:              m.Subject,
 		CodeChallenge:        m.CodeChallenge,
 		CodeChallengeMethod:  m.CodeChallengeMethod,
+		DPoPJKT:              m.DPoPJKT,
 		AuthorizationDetails: m.AuthorizationDetails,
 		IssuedAt:             m.IssuedAt,
 		ExpiresAt:            m.ExpiresAt,

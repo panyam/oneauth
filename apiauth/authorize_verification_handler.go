@@ -88,6 +88,7 @@ type authorizeConsentData struct {
 	ResponseType        string
 	CodeChallenge       string
 	CodeChallengeMethod string
+	DPoPJKT             string
 	CSRFToken           string
 	ActionURL           string
 }
@@ -143,6 +144,7 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		ResponseType:        req.ResponseType,
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
+		DPoPJKT:             req.DPoPJKT,
 		CSRFToken:           h.csrfToken(r),
 		ActionURL:           r.URL.Path,
 	}
@@ -283,6 +285,7 @@ var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent"
     <input type="hidden" name="state" value="{{.State}}">
     <input type="hidden" name="code_challenge" value="{{.CodeChallenge}}">
     <input type="hidden" name="code_challenge_method" value="{{.CodeChallengeMethod}}">
+    {{if .DPoPJKT}}<input type="hidden" name="dpop_jkt" value="{{.DPoPJKT}}">{{end}}
     <button type="submit" name="action" value="approve">Approve</button>
     <button type="submit" name="action" value="deny">Deny</button>
   </form>

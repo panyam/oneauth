@@ -264,6 +264,10 @@ entities:
     kind: method
     role: "Validates the DPoP proof on a request to a protected resource (RFC 9449 §7.1) and returns the key it proves. Requires the access token so `ath` is checked; a missing proof is an error here, unlike `Confirm`."
     why: "Proves possession of a key and says nothing about whether that key is the one the token was issued to — the caller compares the result against the token's own `cnf`, which keeps the two questions separable."
+  - name: AuthorizationRequest.DPoPJKT
+    kind: field
+    role: "The RFC 9449 §10 `dpop_jkt` parameter, stored on the issued authorization code and enforced when that code is redeemed."
+    why: "Extends the key binding back across the front channel — without it the key first appears at the token endpoint, so an intercepted code redeems into a token bound to the interceptor. Only protects when the client uses a fresh key per request, which §10 states outright."
   - name: APIMiddleware.DPoP
     kind: field
     role: "Opts a resource server into RFC 9449 enforcement: accepts `Authorization: DPoP`, checks `ath` and `cnf.jkt`, and refuses a bound token sent as Bearer."

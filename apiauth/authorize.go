@@ -48,6 +48,11 @@ type AuthorizationRequest struct {
 	State               string
 	CodeChallenge       string
 	CodeChallengeMethod string
+
+	// DPoPJKT is the RFC 9449 §10 `dpop_jkt` parameter: the RFC 7638
+	// thumbprint of the key the client will prove at the token
+	// endpoint. Optional; empty leaves the issued code unbound.
+	DPoPJKT string
 }
 
 // Scopes returns the request's scope claim split on the RFC 6749
@@ -164,6 +169,7 @@ func (h *AuthorizationHandler) ParseAndValidate(r *http.Request) (req *Authoriza
 		State:               values.Get("state"),
 		CodeChallenge:       strings.TrimSpace(values.Get("code_challenge")),
 		CodeChallengeMethod: strings.TrimSpace(values.Get("code_challenge_method")),
+		DPoPJKT:             strings.TrimSpace(values.Get("dpop_jkt")),
 	}
 
 	// RFC 6749 §4.1.2.1 — missing client_id / redirect_uri is a
@@ -247,6 +253,7 @@ func (h *AuthorizationHandler) IssueCode(ctx context.Context, req *Authorization
 		Subject:             subject,
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
+		DPoPJKT:             req.DPoPJKT,
 		IssuedAt:            now,
 		ExpiresAt:           now.Add(expiry),
 	}
