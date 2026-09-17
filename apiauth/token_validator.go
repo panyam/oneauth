@@ -197,7 +197,27 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 		AuthorizationDetails: authzDetails,
 		CustomClaims:         customClaims,
 		AuthType:             "jwt",
+		Confirmation:         confirmationFromClaims(claims),
 	}}, nil
+}
+
+// confirmationFromClaims reads the RFC 7800 `cnf` claim. A token with no
+// `cnf`, or one whose `cnf` names no key this build understands, returns nil
+// and is treated as a plain bearer token — the alternative, inventing an
+// empty Confirmation, would assert a binding no key can satisfy and lock the
+// legitimate client out.
+//
+// See: https://www.rfc-editor.org/rfc/rfc9449#section-6
+func confirmationFromClaims(claims jwt.MapClaims) *core.Confirmation {
+	raw, ok := claims["cnf"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	jkt, _ := raw["jkt"].(string)
+	if jkt == "" {
+		return nil
+	}
+	return &core.Confirmation{JKT: jkt}
 }
 
 // CheckScopes validates a token and verifies it contains all required scopes.

@@ -41,6 +41,10 @@ func (ti *tokenIntrospector) Introspect(ctx context.Context, req *IntrospectRequ
 		Active:    true,
 		Sub:       info.Subject,
 		TokenType: "access_token",
+		// Sender-constraint travels with the introspection response so a
+		// resource server that does not validate the JWT itself can still
+		// enforce the binding (RFC 9449 §6).
+		Cnf: info.Confirmation,
 	}
 
 	// Add scope as space-separated string

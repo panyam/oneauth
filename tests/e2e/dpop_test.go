@@ -9,10 +9,11 @@ package e2e_test
 //	POST /api/token   grant_type=refresh_token      + DPoP header
 //	GET  /.well-known/openid-configuration          — dpop_signing_alg_values_supported
 //
-// Resource-server enforcement (`ath`, the cnf.jkt match, the
-// `WWW-Authenticate: DPoP` challenge) is the other half of #336 and is
-// deliberately not asserted here: a bound token is still accepted as a
-// bearer token by the middleware until that lands.
+//	GET  /protected                                 — DPoP-bound token at the resource server
+//
+// The resource-server leg closes the loop: the same in-process AS issues a
+// bound token and the middleware then accepts it only when the client proves
+// the key again, and refuses the Bearer downgrade.
 //
 // Why a hand-rolled fixture instead of TestEnv: DPoP's htu check needs the
 // server's external URL at construction time, so the AS is built around
@@ -28,6 +29,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -97,6 +99,19 @@ func newDPoPE2EEnv(t *testing.T) *dpopE2EEnv {
 	})
 
 	mux.Handle("POST /api/token", apiauth.NewTokenEndpointHandler(oa))
+
+	// The resource server shares this process, so its base URL is the same
+	// listener the token endpoint answers on.
+	resourceMW := &apiauth.APIMiddleware{
+		JWTSecretKey: dpopE2EJWTSecret,
+		JWTIssuer:    dpopE2EIssuer,
+		DPoP: apiauth.NewDPoPProofValidator(apiauth.DPoPConfig{
+			BaseURL: "http://" + server.Listener.Addr().String(),
+		}),
+	}
+	mux.Handle("GET /protected", resourceMW.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"subject": apiauth.GetSubjectFromAPIContext(r.Context())})
+	})))
 	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{
 		Issuer:                        dpopE2EIssuer,
 		TokenEndpoint:                 tokenEndpointURL,
@@ -115,17 +130,29 @@ func newDPoPE2EEnv(t *testing.T) *dpopE2EEnv {
 // proof mints a fresh proof for one request, the way a client library would:
 // new jti every call, htm/htu naming this exact request.
 func (e *dpopE2EEnv) proof(method, targetURL string) string {
+	return e.proofWithATH(method, targetURL, "")
+}
+
+// proofWithATH is proof plus the RFC 9449 §4.2 `ath` binding it to one
+// access token, which resource-server requests require and token requests
+// have no token for.
+func (e *dpopE2EEnv) proofWithATH(method, targetURL, accessToken string) string {
 	e.t.Helper()
 	jti := make([]byte, 16)
 	_, err := rand.Read(jti)
 	require.NoError(e.t, err)
 
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"jti": base64.RawURLEncoding.EncodeToString(jti),
 		"htm": method,
 		"htu": targetURL,
 		"iat": time.Now().Unix(),
-	})
+	}
+	if accessToken != "" {
+		sum := sha256.Sum256([]byte(accessToken))
+		claims["ath"] = base64.RawURLEncoding.EncodeToString(sum[:])
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 	token.Header["typ"] = "dpop+jwt"
 	token.Header["jwk"] = jwkHeaderFor(e.t, &e.clientKey.PublicKey)
 	signed, err := token.SignedString(e.clientKey)
@@ -286,4 +313,71 @@ func requireJKT(t *testing.T, env *dpopE2EEnv) string {
 	require.Equal(t, http.StatusOK, status, body)
 	cnf := dpopClaims(t, body["access_token"].(string))["cnf"].(map[string]any)
 	return cnf["jkt"].(string)
+}
+
+// getProtected calls the resource server with the given scheme, attaching a
+// proof for this exact request when withProof is set.
+func (e *dpopE2EEnv) getProtected(scheme, token string, withProof bool) (int, string) {
+	e.t.Helper()
+	target := e.server.URL + "/protected"
+	req, err := http.NewRequest(http.MethodGet, target, nil)
+	require.NoError(e.t, err)
+	req.Header.Set("Authorization", scheme+" "+token)
+	if withProof {
+		req.Header.Set("DPoP", e.proofWithATH(http.MethodGet, target, token))
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(e.t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(e.t, err)
+	return resp.StatusCode, string(body)
+}
+
+// TestDPoP_E2E_BoundTokenRoundTrip drives the arc both halves of #336 exist
+// for: get a bound token from the AS, spend it at the resource server, and
+// watch the same token fail when the proof is dropped.
+func TestDPoP_E2E_BoundTokenRoundTrip(t *testing.T) {
+	env := newDPoPE2EEnv(t)
+
+	status, body := env.postToken(url.Values{
+		"grant_type":    {"client_credentials"},
+		"client_id":     {dpopE2EClientID},
+		"client_secret": {dpopE2EClientToken},
+		"scope":         {"read"},
+	}, true)
+	require.Equal(t, http.StatusOK, status, body)
+	require.Equal(t, "DPoP", body["token_type"])
+	token := body["access_token"].(string)
+
+	status, page := env.getProtected("DPoP", token, true)
+	require.Equal(t, http.StatusOK, status, page)
+	assert.Contains(t, page, dpopE2EClientID)
+
+	// Same token, no proof, Bearer scheme: the downgrade RFC 9449 §7.2
+	// closes. Without this the binding would protect nothing.
+	status, _ = env.getProtected("Bearer", token, false)
+	assert.Equal(t, http.StatusUnauthorized, status)
+
+	// Same token under the right scheme but with no proof at all.
+	status, _ = env.getProtected("DPoP", token, false)
+	assert.Equal(t, http.StatusUnauthorized, status)
+}
+
+// An unbound token keeps working as a bearer token against the same resource
+// server, which is what lets a fleet adopt DPoP one client at a time.
+func TestDPoP_E2E_BearerTokenStillReachesTheResource(t *testing.T) {
+	env := newDPoPE2EEnv(t)
+
+	status, body := env.postToken(url.Values{
+		"grant_type":    {"client_credentials"},
+		"client_id":     {dpopE2EClientID},
+		"client_secret": {dpopE2EClientToken},
+	}, false)
+	require.Equal(t, http.StatusOK, status, body)
+
+	status, page := env.getProtected("Bearer", body["access_token"].(string), false)
+
+	require.Equal(t, http.StatusOK, status, page)
 }

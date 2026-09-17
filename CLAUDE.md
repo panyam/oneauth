@@ -69,7 +69,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for rationale and [docs/ROADMAP
 | `POST /device/authorize` + `POST /api/token` (`grant_type=…:device_code`) | `DeviceAuthorizationHandler` + `DeviceCodeGranter` | RFC 8628 |
 | `GET / POST /authorize` + `POST /api/token` (`grant_type=authorization_code`) | `AuthorizationHandler` + `AuthorizeVerificationHandler` + `AuthorizationCodeGranter` (via `MountAuthorize`) | RFC 6749 §4.1 + RFC 7636 (PKCE S256) + RFC 9207 (`iss` on redirect) |
 | Authorize-redirect `?iss=` query param | (issuer URL on redirects) | RFC 9207 |
-| `DPoP` proof header on `POST /api/token` (`cnf.jkt` + `token_type: DPoP`) | `DPoPProofValidator` (`apiauth/dpop.go`) via `OneAuthConfig.DPoP` | RFC 9449 (issuance half; RS enforcement tracked under #336) |
+| `DPoP` proof header on `POST /api/token` (`cnf.jkt` + `token_type: DPoP`) | `DPoPProofValidator` (`apiauth/dpop.go`) via `OneAuthConfig.DPoP` | RFC 9449 §5 |
+| `Authorization: DPoP <token>` + proof on resource requests (`ath`, `cnf.jkt` match, §7.2 downgrade refusal) | `APIMiddleware.DPoP` + `RequireDPoP` | RFC 9449 §7 |
 | `traceparent` / `tracestate` inbound + outbound (SEP-414 / #254) | `tracing/` + per-handler `TracerProvider` | [W3C Trace Context](https://www.w3.org/TR/trace-context/) |
 | `POST /api/token` (`requested_token_type=...:id-jag` issuance / ID-JAG redemption for MCP EMA) | `TokenExchanger` + `IDJAGIssuer` (`apiauth/id_jag.go`) → `JwtBearerGranter` | draft-ietf-oauth-identity-assertion-authz-grant-04 + MCP EMA / SEP-990 |
 
