@@ -50,6 +50,12 @@ type ASMetadata struct {
 	TokenEndpointAuthMethods                   []string `json:"token_endpoint_auth_methods_supported,omitempty"`
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
 
+	// DPoPSigningAlgValuesSupported lists the JWS algorithms the server
+	// accepts on a DPoP proof (RFC 9449 §5.1). Its presence is how a
+	// client learns the server supports DPoP at all. Check a key against
+	// it with DPoPKey.SupportedBy before sending proofs.
+	DPoPSigningAlgValuesSupported []string `json:"dpop_signing_alg_values_supported,omitempty"`
+
 	// AuthorizationResponseIssParameterSupported surfaces the RFC 9207
 	// advertisement value from the AS metadata document. Pointer semantics
 	// are load-bearing for the §2.4 enforcement rules a consumer applies

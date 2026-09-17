@@ -472,6 +472,14 @@ entities:
     kind: func
     role: "Checks Client ID Metadata Document URLs (HTTPS + non-root path)."
     why: "Encodes the draft CIMD URL rules so callers don't have to."
+  - name: DPoPKey
+    kind: struct
+    role: "RFC 9449 client key: mints a per-request proof JWT and exposes the RFC 7638 thumbprint used as `cnf.jkt` and `dpop_jkt`."
+    why: "ES256 only, because a proof is minted on every request and P-256 signing is far cheaper than RSA for an ephemeral key. Each call produces a fresh `jti`, which is what makes a retried request need a new proof rather than the one already sent."
+  - name: WithDPoPKey
+    kind: func
+    role: "Binds an AuthClient's tokens to a DPoPKey: proofs on token requests, DPoP-scheme presentation on resource requests, `dpop_jkt` on browser login."
+    why: "Nil keeps every request on the bearer path, so adopting DPoP is per-client rather than a breaking change for existing callers."
 depends_on:
   - path: ../core/
     uses:

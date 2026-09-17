@@ -85,7 +85,45 @@ client.NewAuthClient(url, store, client.WithTransport(customTransport))
 // Pre-populate AS metadata for auth method negotiation (#72)
 meta, _ := client.DiscoverAS("https://auth.example.com")
 client.NewAuthClient(url, store, client.WithASMetadata(meta))
+
+// Bind tokens to a proof-of-possession key (RFC 9449 DPoP)
+key, _ := client.NewDPoPKey()
+client.NewAuthClient(url, store, client.WithDPoPKey(key))
 ```
+
+#### DPoP (RFC 9449)
+
+With a key configured, the client mints a proof on every token request, and
+the tokens that come back are bound to that key. Requests through
+`HTTPClient()` then present the token as `Authorization: DPoP <token>` with a
+fresh proof each time, including the `ath` claim that ties the proof to that
+specific token.
+
+```go
+key, err := client.NewDPoPKey()          // ES256, generated
+c := client.NewAuthClient(url, store, client.WithDPoPKey(key))
+
+// Optional: fail fast when the server does not accept our algorithm
+meta, _ := client.DiscoverAS("https://auth.example.com")
+if err := key.SupportedBy(meta.DPoPSigningAlgValuesSupported); err != nil {
+    return err
+}
+
+cred, _ := c.ClientCredentialsToken(id, secret, []string{"read"})
+resp, _ := c.HTTPClient().Get("https://api.example.com/data")  // DPoP scheme
+```
+
+Three things worth knowing:
+
+- **The key must outlive the tokens.** A client that discards it holds tokens
+  nothing can present. `NewDPoPKeyFromECDSA` wraps a key loaded from storage
+  for an application that persists tokens across restarts.
+- **Browser login sends `dpop_jkt`.** With a key configured,
+  `LoginWithBrowser` adds the thumbprint to the authorization request, which
+  binds the authorization code to the key (RFC 9449 §10). Per the RFC that
+  adds protection over PKCE alone only when the key is unique per
+  authorization request, so generate one per login if that is the goal.
+- **Without a key, nothing changes.** Every request stays on the bearer path.
 
 ### Methods
 
