@@ -66,21 +66,36 @@ func (h *TokenEndpointHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 	span.SetAttributes(attribute.String("oauth.grant_type", req.GrantType))
 
+	// The DPoP proof covers the request, not the grant, so it is checked
+	// once here and the resulting key binding is handed to whichever
+	// grant runs. A failed proof fails the request before any grant is
+	// attempted — a client that meant to get a sender-constrained token
+	// must never be handed a bearer token as a consolation prize.
+	cnf, gErr := h.dpopConfirmation(r)
+	if gErr != nil {
+		span.SetStatus(codes.Error, "invalid_dpop_proof")
+		h.writeError(w, gErr)
+		return
+	}
+	if cnf != nil {
+		span.SetAttributes(attribute.String("oauth.token_type", TokenTypeDPoP))
+	}
+
 	switch req.GrantType {
 	case "password":
-		h.handlePassword(w, r, req)
+		h.handlePassword(w, r, req, cnf)
 	case "refresh_token":
-		h.handleRefresh(w, r, req)
+		h.handleRefresh(w, r, req, cnf)
 	case "client_credentials":
-		h.handleClientCredentials(w, r, req)
+		h.handleClientCredentials(w, r, req, cnf)
 	case AuthorizationCodeGrantType:
-		h.dispatchAuthorizationCode(w, r, req)
+		h.dispatchAuthorizationCode(w, r, req, cnf)
 	case DeviceCodeGrantType:
-		h.dispatchDeviceCode(w, r, req)
+		h.dispatchDeviceCode(w, r, req, cnf)
 	case JwtBearerGrantType:
-		h.dispatchJwtBearer(w, r, req)
+		h.dispatchJwtBearer(w, r, req, cnf)
 	case TokenExchangeGrantType:
-		h.dispatchTokenExchange(w, r, req)
+		h.dispatchTokenExchange(w, r, req, cnf)
 	default:
 		span.SetStatus(codes.Error, "unsupported_grant_type")
 		h.writeError(w, unsupportedGrantType("grant_type not supported"))
@@ -136,7 +151,7 @@ func parseTokenRequest(r *http.Request) (*core.TokenRequest, *GrantError) {
 // access-token mint to OneAuth.PasswordGranter. Returns
 // unsupported_grant_type when the granter slot is nil (default for
 // OAuth 2.1-strict deployments). Per capability-gating umbrella #344.
-func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
+func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Request, req *core.TokenRequest, cnf *core.Confirmation) {
 	if h.OneAuth == nil {
 		h.writeError(w, serverError("token endpoint not configured"))
 		return
@@ -159,6 +174,7 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 		Scopes:               core.ParseScopes(req.Scope),
 		AuthorizationDetails: req.AuthorizationDetails,
 		ClientID:             req.ClientID,
+		Confirmation:         cnf,
 	})
 	if err != nil {
 		// The granter uses an `invalid_grant: ...` prefix for
@@ -186,10 +202,11 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 			"created_at": time.Now().UTC().Format(time.RFC3339),
 		}
 		createResp, rtErr := h.OneAuth.RefreshStore.CreateRefreshToken(r.Context(), &core.CreateRefreshTokenRequest{
-			Subject:    resp.Subject,
-			ClientID:   req.ClientID,
-			DeviceInfo: deviceInfo,
-			Scopes:     resp.GrantedScopes,
+			Subject:      resp.Subject,
+			ClientID:     req.ClientID,
+			DeviceInfo:   deviceInfo,
+			Scopes:       resp.GrantedScopes,
+			Confirmation: cnf,
 		})
 		if rtErr != nil {
 			log.Printf("create refresh token: %v", rtErr)
@@ -202,7 +219,7 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 	h.fireOnLoginSuccess(resp.Subject)
 	h.writeTokens(w, &core.TokenPair{
 		AccessToken:          resp.AccessToken,
-		TokenType:            "Bearer",
+		TokenType:            resp.TokenType,
 		ExpiresIn:            resp.ExpiresIn,
 		RefreshToken:         refreshTokenStr,
 		Scope:                core.JoinScopes(resp.GrantedScopes),
@@ -211,7 +228,7 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 }
 
 // handleRefresh delegates the full grant flow to TokenIssuer.RefreshGrant.
-func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
+func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Request, req *core.TokenRequest, cnf *core.Confirmation) {
 	if h.OneAuth == nil || h.OneAuth.Issuer == nil {
 		h.writeError(w, serverError("token endpoint not configured"))
 		return
@@ -220,7 +237,10 @@ func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Requ
 		h.writeError(w, invalidRequest("refresh_token is required"))
 		return
 	}
-	resp, err := h.OneAuth.Issuer.RefreshGrant(r.Context(), &RefreshGrantRequest{RefreshToken: req.RefreshToken})
+	resp, err := h.OneAuth.Issuer.RefreshGrant(r.Context(), &RefreshGrantRequest{
+		RefreshToken: req.RefreshToken,
+		Confirmation: cnf,
+	})
 	if err != nil {
 		msg := err.Error()
 		switch {
@@ -245,7 +265,7 @@ func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Requ
 // method does its own client-secret check and would reject any
 // request authenticated via the assertion path (where ClientSecret
 // is empty by construction).
-func (h *TokenEndpointHandler) handleClientCredentials(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
+func (h *TokenEndpointHandler) handleClientCredentials(w http.ResponseWriter, r *http.Request, req *core.TokenRequest, cnf *core.Confirmation) {
 	if h.OneAuth == nil || h.OneAuth.Issuer == nil {
 		h.writeError(w, serverError("token endpoint not configured"))
 		return
@@ -267,6 +287,7 @@ func (h *TokenEndpointHandler) handleClientCredentials(w http.ResponseWriter, r 
 		Subject:              authedClientID,
 		Scopes:               scopes,
 		AuthorizationDetails: req.AuthorizationDetails,
+		Confirmation:         cnf,
 	})
 	if err != nil {
 		log.Printf("client_credentials mint: %v", err)
@@ -276,7 +297,7 @@ func (h *TokenEndpointHandler) handleClientCredentials(w http.ResponseWriter, r 
 
 	h.writeTokens(w, &core.TokenPair{
 		AccessToken:          tok.Token,
-		TokenType:            "Bearer",
+		TokenType:            tok.TokenType,
 		ExpiresIn:            tok.ExpiresIn,
 		Scope:                core.JoinScopes(scopes),
 		AuthorizationDetails: req.AuthorizationDetails,
@@ -304,7 +325,7 @@ func dispatchClientCredentials(r *http.Request, req *core.TokenRequest) (clientI
 	return req.ClientID, req.ClientSecret, req.ClientAssertionType, req.ClientAssertion
 }
 
-func (h *TokenEndpointHandler) dispatchAuthorizationCode(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
+func (h *TokenEndpointHandler) dispatchAuthorizationCode(w http.ResponseWriter, r *http.Request, req *core.TokenRequest, cnf *core.Confirmation) {
 	if h.OneAuth == nil || h.OneAuth.AuthorizationCodeGranter == nil {
 		h.writeError(w, unsupportedGrantType("authorization_code grant not enabled"))
 		return
@@ -320,6 +341,7 @@ func (h *TokenEndpointHandler) dispatchAuthorizationCode(w http.ResponseWriter, 
 		ClientAssertionType: assertionType,
 		ClientAssertion:     assertion,
 		AcceptedAudiences:   audiences,
+		Confirmation:        cnf,
 	})
 	if err != nil {
 		h.writeError(w, err)
@@ -328,7 +350,7 @@ func (h *TokenEndpointHandler) dispatchAuthorizationCode(w http.ResponseWriter, 
 	h.writeTokens(w, resp.Tokens)
 }
 
-func (h *TokenEndpointHandler) dispatchDeviceCode(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
+func (h *TokenEndpointHandler) dispatchDeviceCode(w http.ResponseWriter, r *http.Request, req *core.TokenRequest, cnf *core.Confirmation) {
 	if h.OneAuth == nil || h.OneAuth.DeviceCodeGranter == nil {
 		h.writeError(w, unsupportedGrantType("device authorization grant not enabled"))
 		return
@@ -342,6 +364,7 @@ func (h *TokenEndpointHandler) dispatchDeviceCode(w http.ResponseWriter, r *http
 		ClientAssertionType: assertionType,
 		ClientAssertion:     assertion,
 		AcceptedAudiences:   audiences,
+		Confirmation:        cnf,
 	})
 	if err != nil {
 		h.writeError(w, err)
@@ -350,7 +373,7 @@ func (h *TokenEndpointHandler) dispatchDeviceCode(w http.ResponseWriter, r *http
 	h.writeTokens(w, resp.Tokens)
 }
 
-func (h *TokenEndpointHandler) dispatchJwtBearer(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
+func (h *TokenEndpointHandler) dispatchJwtBearer(w http.ResponseWriter, r *http.Request, req *core.TokenRequest, cnf *core.Confirmation) {
 	if h.OneAuth == nil || h.OneAuth.JwtBearerGranter == nil {
 		h.writeError(w, unsupportedGrantType("jwt-bearer grant not configured"))
 		return
@@ -365,6 +388,7 @@ func (h *TokenEndpointHandler) dispatchJwtBearer(w http.ResponseWriter, r *http.
 		ClientAssertionType:  assertionType,
 		ClientAssertion:      assertion,
 		AcceptedAudiences:    h.acceptedAudiences(r),
+		Confirmation:         cnf,
 	})
 	if err != nil {
 		h.writeError(w, err)
@@ -373,7 +397,7 @@ func (h *TokenEndpointHandler) dispatchJwtBearer(w http.ResponseWriter, r *http.
 	h.writeTokens(w, resp.Tokens)
 }
 
-func (h *TokenEndpointHandler) dispatchTokenExchange(w http.ResponseWriter, r *http.Request, req *core.TokenRequest) {
+func (h *TokenEndpointHandler) dispatchTokenExchange(w http.ResponseWriter, r *http.Request, req *core.TokenRequest, cnf *core.Confirmation) {
 	if h.OneAuth == nil || h.OneAuth.TokenExchanger == nil {
 		h.writeError(w, unsupportedGrantType("token-exchange grant not configured"))
 		return
@@ -392,12 +416,35 @@ func (h *TokenEndpointHandler) dispatchTokenExchange(w http.ResponseWriter, r *h
 		ClientAssertionType:  assertionType,
 		ClientAssertion:      assertion,
 		AcceptedAudiences:    h.acceptedAudiences(r),
+		Confirmation:         cnf,
 	})
 	if err != nil {
 		h.writeError(w, err)
 		return
 	}
 	h.writeTokens(w, resp.Tokens)
+}
+
+// dpopConfirmation validates the request's DPoP proof, if any, and
+// returns the key binding to apply to the issued tokens.
+//
+// Three outcomes: no validator wired returns (nil, nil) and the AS stays
+// bearer-only, so a client that sends a proof to a non-DPoP deployment
+// still gets a working bearer token (RFC 9449 §5); a validator wired but
+// no proof sent returns (nil, nil) because DPoP is per-request opt-in; a
+// proof that fails any check returns an invalid_dpop_proof GrantError.
+func (h *TokenEndpointHandler) dpopConfirmation(r *http.Request) (*core.Confirmation, *GrantError) {
+	if h.OneAuth == nil || h.OneAuth.DPoP == nil {
+		return nil, nil
+	}
+	cnf, err := h.OneAuth.DPoP.Confirm(r.Context(), r)
+	if err != nil {
+		if ge, ok := asGrantError(err); ok {
+			return nil, ge
+		}
+		return nil, invalidDPoPProof(err.Error())
+	}
+	return cnf, nil
 }
 
 // authenticateClient runs whichever auth method the request carries

@@ -17,6 +17,12 @@ type CreateRefreshTokenRequest struct {
 	ClientID   string
 	DeviceInfo map[string]any
 	Scopes     []string
+
+	// Confirmation binds the refresh token to a proof-of-possession key
+	// (RFC 9449 §5). Non-nil means only a client that can prove possession
+	// of that key may redeem it; rotation carries the binding forward.
+	// Nil issues a plain bearer refresh token.
+	Confirmation *Confirmation
 }
 
 type CreateRefreshTokenResponse struct {

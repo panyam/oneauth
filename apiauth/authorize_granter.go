@@ -116,6 +116,7 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		Subject:              entry.Subject,
 		Scopes:               entry.Scopes,
 		AuthorizationDetails: entry.AuthorizationDetails,
+		Confirmation:         req.Confirmation,
 	})
 	if err != nil {
 		return nil, serverError("create access token: " + err.Error())
@@ -123,16 +124,17 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 
 	pair := &core.TokenPair{
 		AccessToken:          tok.Token,
-		TokenType:            "Bearer",
+		TokenType:            tok.TokenType,
 		ExpiresIn:            tok.ExpiresIn,
 		Scope:                joinScopes(entry.Scopes),
 		AuthorizationDetails: entry.AuthorizationDetails,
 	}
 	if r.RefreshStore != nil {
 		createResp, rtErr := r.RefreshStore.CreateRefreshToken(ctx, &core.CreateRefreshTokenRequest{
-			Subject:  entry.Subject,
-			ClientID: entry.ClientID,
-			Scopes:   entry.Scopes,
+			Subject:      entry.Subject,
+			ClientID:     entry.ClientID,
+			Scopes:       entry.Scopes,
+			Confirmation: req.Confirmation,
 		})
 		if rtErr == nil && createResp != nil && createResp.Token != nil {
 			pair.RefreshToken = createResp.Token.Token

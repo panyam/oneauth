@@ -752,17 +752,18 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 
 	key := s.namespacedKey(KindRefreshToken, tokenHash)
 	entity := &RefreshTokenEntity{
-		Key:        key,
-		Subject:    req.Subject,
-		ClientID:   req.ClientID,
-		DeviceInfo: deviceBytes,
-		Family:     family[:16],
-		Generation: 1,
-		Scopes:     scopeBytes,
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
-		LastUsedAt: now,
-		Revoked:    false,
+		Key:             key,
+		Subject:         req.Subject,
+		ClientID:        req.ClientID,
+		DeviceInfo:      deviceBytes,
+		Family:          family[:16],
+		Generation:      1,
+		Scopes:          scopeBytes,
+		ConfirmationJKT: confirmationJKT(req.Confirmation),
+		CreatedAt:       now,
+		ExpiresAt:       now.Add(core.TokenExpiryRefreshToken),
+		LastUsedAt:      now,
+		Revoked:         false,
 	}
 
 	if _, err := s.client.Put(ctx, key, entity); err != nil {
@@ -770,18 +771,19 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 	}
 
 	return &core.CreateRefreshTokenResponse{Token: &core.RefreshToken{
-		Token:      token,
-		TokenHash:  tokenHash,
-		Subject:    req.Subject,
-		ClientID:   req.ClientID,
-		DeviceInfo: req.DeviceInfo,
-		Family:     family[:16],
-		Generation: 1,
-		Scopes:     req.Scopes,
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
-		LastUsedAt: now,
-		Revoked:    false,
+		Token:        token,
+		TokenHash:    tokenHash,
+		Subject:      req.Subject,
+		ClientID:     req.ClientID,
+		DeviceInfo:   req.DeviceInfo,
+		Family:       family[:16],
+		Generation:   1,
+		Scopes:       req.Scopes,
+		Confirmation: req.Confirmation,
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(core.TokenExpiryRefreshToken),
+		LastUsedAt:   now,
+		Revoked:      false,
 	}}, nil
 }
 
@@ -808,6 +810,7 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 		Generation:           entity.Generation,
 		Scopes:               scopes,
 		AuthorizationDetails: authzDetails,
+		Confirmation:         confirmationFor(entity.ConfirmationJKT),
 		CreatedAt:            entity.CreatedAt,
 		ExpiresAt:            entity.ExpiresAt,
 		LastUsedAt:           entity.LastUsedAt,
@@ -926,6 +929,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			Generation:           oldRT.Generation + 1,
 			Scopes:               scopeBytes,
 			AuthorizationDetails: authzDetailsBytes,
+			ConfirmationJKT:      confirmationJKT(oldRT.Confirmation),
 			CreatedAt:            now,
 			ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
 			LastUsedAt:           now,
@@ -946,10 +950,11 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			Generation:           oldRT.Generation + 1,
 			Scopes:               oldRT.Scopes,
 			AuthorizationDetails: oldRT.AuthorizationDetails,
+			Confirmation:         oldRT.Confirmation,
 			CreatedAt:            now,
 			ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
 			LastUsedAt:           now,
-			Revoked:    false,
+			Revoked:              false,
 		}
 
 		return nil
@@ -1632,4 +1637,25 @@ func (s *UsernameStore) ChangeUsername(ctx context.Context, req *accounts.Change
 		return nil, err
 	}
 	return &accounts.ChangeUsernameResponse{}, nil
+}
+
+// confirmationJKT flattens an RFC 7800 confirmation to the thumbprint string
+// the entity stores. Datastore has no struct-column type worth spending here:
+// a token carries at most one binding, so one indexed string beats a JSON
+// blob that would have to be decoded on every read.
+func confirmationJKT(cnf *core.Confirmation) string {
+	if cnf == nil {
+		return ""
+	}
+	return cnf.JKT
+}
+
+// confirmationFor is the inverse. An empty column means the token was issued
+// unbound and must map back to nil: an empty Confirmation would assert a
+// binding that no key satisfies, making the token unredeemable.
+func confirmationFor(jkt string) *core.Confirmation {
+	if jkt == "" {
+		return nil
+	}
+	return &core.Confirmation{JKT: jkt}
 }

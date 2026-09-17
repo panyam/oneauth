@@ -212,15 +212,16 @@ func VerificationTokenToModel(t *localauth.VerificationToken) *VerificationToken
 
 // RefreshTokenModel is the GORM model for refresh tokens
 type RefreshTokenModel struct {
-	TokenHash  string      `gorm:"primaryKey;size:64"`
-	Token      string      `gorm:"-"` // Not stored, only used in memory
-	Subject    string      `gorm:"size:64;index"`
-	ClientID   string      `gorm:"size:64"`
-	DeviceInfo JSONMap     `gorm:"type:jsonb"`
-	Family     string      `gorm:"size:32;index"`
+	TokenHash            string                   `gorm:"primaryKey;size:64"`
+	Token                string                   `gorm:"-"` // Not stored, only used in memory
+	Subject              string                   `gorm:"size:64;index"`
+	ClientID             string                   `gorm:"size:64"`
+	DeviceInfo           JSONMap                  `gorm:"type:jsonb"`
+	Family               string                   `gorm:"size:32;index"`
 	Generation           int                      `gorm:"default:1"`
 	Scopes               StringSlice              `gorm:"type:jsonb"`
 	AuthorizationDetails AuthorizationDetailsJSON `gorm:"type:jsonb"` // RFC 9396
+	ConfirmationJKT      string                   `gorm:"size:64"`    // RFC 9449 §5 cnf.jkt; empty = plain bearer
 	CreatedAt            time.Time                `gorm:"autoCreateTime"`
 	ExpiresAt            time.Time                `gorm:"index"`
 	LastUsedAt           time.Time
@@ -243,6 +244,7 @@ func (m *RefreshTokenModel) ToRefreshToken() *core.RefreshToken {
 		Generation:           m.Generation,
 		Scopes:               m.Scopes,
 		AuthorizationDetails: m.AuthorizationDetails,
+		Confirmation:         confirmationFromJKT(m.ConfirmationJKT),
 		CreatedAt:            m.CreatedAt,
 		ExpiresAt:            m.ExpiresAt,
 		LastUsedAt:           m.LastUsedAt,
@@ -262,11 +264,12 @@ func RefreshTokenToModel(t *core.RefreshToken) *RefreshTokenModel {
 		Generation:           t.Generation,
 		Scopes:               StringSlice(t.Scopes),
 		AuthorizationDetails: AuthorizationDetailsJSON(t.AuthorizationDetails),
+		ConfirmationJKT:      jktFromConfirmation(t.Confirmation),
 		CreatedAt:            t.CreatedAt,
 		ExpiresAt:            t.ExpiresAt,
-		LastUsedAt: t.LastUsedAt,
-		RevokedAt:  t.RevokedAt,
-		Revoked:    t.Revoked,
+		LastUsedAt:           t.LastUsedAt,
+		RevokedAt:            t.RevokedAt,
+		Revoked:              t.Revoked,
 	}
 }
 
@@ -332,4 +335,25 @@ type UsernameModel struct {
 
 func (UsernameModel) TableName() string {
 	return "usernames"
+}
+
+// confirmationFromJKT rebuilds the RFC 7800 confirmation from the stored
+// thumbprint column. An empty column means the token was issued unbound, and
+// must map back to a nil Confirmation rather than an empty struct — an empty
+// struct would claim a binding no key can satisfy, locking the client out of
+// its own refresh token.
+func confirmationFromJKT(jkt string) *core.Confirmation {
+	if jkt == "" {
+		return nil
+	}
+	return &core.Confirmation{JKT: jkt}
+}
+
+// jktFromConfirmation is the inverse: the thumbprint to persist, or empty
+// for an unbound token.
+func jktFromConfirmation(cnf *core.Confirmation) string {
+	if cnf == nil {
+		return ""
+	}
+	return cnf.JKT
 }

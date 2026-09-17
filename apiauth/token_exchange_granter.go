@@ -147,6 +147,7 @@ func (x *tokenExchanger) TokenExchange(ctx context.Context, req *TokenExchangeRe
 		Subject:              subject,
 		Scopes:               req.Scopes,
 		AuthorizationDetails: req.AuthorizationDetails,
+		Confirmation:         req.Confirmation,
 	})
 	if err != nil {
 		return nil, serverError("failed to create token")
@@ -154,7 +155,7 @@ func (x *tokenExchanger) TokenExchange(ctx context.Context, req *TokenExchangeRe
 
 	return &TokenExchangeResponse{Tokens: &core.TokenPair{
 		AccessToken:          tok.Token,
-		TokenType:            "Bearer",
+		TokenType:            tok.TokenType,
 		ExpiresIn:            tok.ExpiresIn,
 		Scope:                core.JoinScopes(req.Scopes),
 		AuthorizationDetails: req.AuthorizationDetails,

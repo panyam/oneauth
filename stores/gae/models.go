@@ -132,11 +132,12 @@ type RefreshTokenEntity struct {
 	Key                  *datastore.Key `datastore:"__key__"` // Key is the token hash
 	Subject              string         `datastore:"subject"`
 	ClientID             string         `datastore:"client_id,omitempty"`
-	DeviceInfo           []byte         `datastore:"device_info,noindex"`            // JSON encoded
+	DeviceInfo           []byte         `datastore:"device_info,noindex"`           // JSON encoded
 	Family               string         `datastore:"family"`
 	Generation           int            `datastore:"generation"`
 	Scopes               []byte         `datastore:"scopes,noindex"`                // JSON encoded
 	AuthorizationDetails []byte         `datastore:"authorization_details,noindex"` // JSON encoded, RFC 9396
+	ConfirmationJKT      string         `datastore:"confirmation_jkt,omitempty"`    // RFC 9449 §5 cnf.jkt; empty = plain bearer
 	CreatedAt            time.Time      `datastore:"created_at"`
 	ExpiresAt            time.Time      `datastore:"expires_at"`
 	LastUsedAt           time.Time      `datastore:"last_used_at"`

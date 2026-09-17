@@ -372,17 +372,18 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 
 	now := time.Now()
 	model := &RefreshTokenModel{
-		TokenHash:  s.hashToken(token),
-		Token:      token,
-		Subject:    req.Subject,
-		ClientID:   req.ClientID,
-		DeviceInfo: req.DeviceInfo,
-		Family:     family[:16],
-		Generation: 1,
-		Scopes:     req.Scopes,
-		ExpiresAt:  now.Add(core.TokenExpiryRefreshToken),
-		LastUsedAt: now,
-		Revoked:    false,
+		TokenHash:       s.hashToken(token),
+		Token:           token,
+		Subject:         req.Subject,
+		ClientID:        req.ClientID,
+		DeviceInfo:      req.DeviceInfo,
+		Family:          family[:16],
+		Generation:      1,
+		Scopes:          req.Scopes,
+		ConfirmationJKT: jktFromConfirmation(req.Confirmation),
+		ExpiresAt:       now.Add(core.TokenExpiryRefreshToken),
+		LastUsedAt:      now,
+		Revoked:         false,
 	}
 
 	if err := s.db.WithContext(ctx).Create(model).Error; err != nil {
@@ -455,6 +456,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			Generation:           oldModel.Generation + 1,
 			Scopes:               oldModel.Scopes,
 			AuthorizationDetails: oldModel.AuthorizationDetails,
+			ConfirmationJKT:      oldModel.ConfirmationJKT,
 			ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
 			LastUsedAt:           now,
 			Revoked:              false,

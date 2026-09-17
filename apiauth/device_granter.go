@@ -112,8 +112,9 @@ func (r *deviceCodeGranter) DeviceCodeGrant(ctx context.Context, req *DeviceCode
 	}
 
 	tok, err := r.Issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{
-		Subject: subject,
-		Scopes:  auth.Scopes,
+		Subject:      subject,
+		Scopes:       auth.Scopes,
+		Confirmation: req.Confirmation,
 	})
 	if err != nil {
 		return nil, serverError("create access token: " + err.Error())
@@ -121,15 +122,16 @@ func (r *deviceCodeGranter) DeviceCodeGrant(ctx context.Context, req *DeviceCode
 
 	pair := &core.TokenPair{
 		AccessToken: tok.Token,
-		TokenType:   "Bearer",
+		TokenType:   tok.TokenType,
 		ExpiresIn:   tok.ExpiresIn,
 		Scope:       joinScopes(auth.Scopes),
 	}
 	if r.RefreshStore != nil {
 		createResp, rtErr := r.RefreshStore.CreateRefreshToken(ctx, &core.CreateRefreshTokenRequest{
-			Subject:  subject,
-			ClientID: auth.ClientID,
-			Scopes:   auth.Scopes,
+			Subject:      subject,
+			ClientID:     auth.ClientID,
+			Scopes:       auth.Scopes,
+			Confirmation: req.Confirmation,
 		})
 		if rtErr == nil && createResp != nil && createResp.Token != nil {
 			pair.RefreshToken = createResp.Token.Token
