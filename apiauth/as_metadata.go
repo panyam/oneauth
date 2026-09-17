@@ -60,6 +60,22 @@ type ASServerMetadata struct {
 	// "HS384", "HS512" (client_secret_jwt).
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
 
+	// PushedAuthorizationRequestEndpoint is the URL of the RFC 9126 PAR
+	// endpoint. Its presence is how a client discovers that pushing is
+	// available, so advertise it only where /par is actually mounted.
+	//
+	// See: https://www.rfc-editor.org/rfc/rfc9126#section-5
+	PushedAuthorizationRequestEndpoint string `json:"pushed_authorization_request_endpoint,omitempty"`
+
+	// RequirePushedAuthorizationRequests advertises that this AS accepts
+	// authorization requests only through the PAR endpoint (RFC 9126 §5).
+	// Pointer semantics separate absence (omitted, which the RFC reads as
+	// false) from an explicit false. Set it true only alongside
+	// AuthorizeMountConfig.RequirePushedRequests, which is what enforces
+	// it; advertising a policy nothing enforces tells clients they are
+	// constrained when they are not.
+	RequirePushedAuthorizationRequests *bool `json:"require_pushed_authorization_requests,omitempty"`
+
 	// DPoPSigningAlgValuesSupported lists the JWT alg values the AS
 	// accepts on a DPoP proof (RFC 9449 §5.1). Its presence is how a
 	// client discovers that DPoP is available at all, so advertise it

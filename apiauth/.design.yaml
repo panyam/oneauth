@@ -260,6 +260,18 @@ entities:
     kind: method
     role: "Returns a copy of the accepted proof algorithms for the `dpop_signing_alg_values_supported` AS metadata field."
     why: "Advertising a list the validator does not honor makes clients send proofs the AS then rejects, so the metadata reads from the validator rather than being configured twice."
+  - name: PARHandler
+    kind: struct
+    role: "RFC 9126 pushed authorization request endpoint. Authenticates the pushing client, validates the payload through `AuthorizationHandler.ValidateValues`, stores it, and returns an opaque `request_uri`."
+    why: "Validation goes through the authorize endpoint's own function because §4 requires a pushed request to be checked as any other would be; a second copy of the rules would drift. The payload is stored verbatim so extension parameters the server does not parse still survive to the redirect."
+  - name: AuthorizationHandler.ValidateValues
+    kind: method
+    role: "Applies the RFC 6749 §4.1.1 syntax and registration checks to an extracted parameter set, independent of how those parameters arrived."
+    why: "Exported so /par runs the same validation /authorize runs. Splitting it out of ParseAndValidate is what lets a pushed request and a redirected one share one rulebook."
+  - name: AuthorizationHandler.PushedStore
+    kind: field
+    role: "Resolves `request_uri` references at /authorize. Nil makes the endpoint refuse any request carrying one."
+    why: "Refusing rather than ignoring matters: silently processing the URL parameters instead would downgrade a request the client believed was protected."
   - name: DPoPProofValidator.ConfirmResource
     kind: method
     role: "Validates the DPoP proof on a request to a protected resource (RFC 9449 §7.1) and returns the key it proves. Requires the access token so `ath` is checked; a missing proof is an error here, unlike `Confirm`."
