@@ -46,6 +46,23 @@ type ProtectedResourceMetadata struct {
 	// Optional.
 	SigningAlgsSupported []string `json:"resource_signing_alg_values_supported,omitempty"`
 
+	// DPoPSigningAlgValuesSupported lists the JWS alg values this resource
+	// server accepts on a DPoP proof (RFC 9728 §2, RFC 9449). Fill it from
+	// the middleware's validator via
+	// DPoPProofValidator.SigningAlgValuesSupported() so the advertisement
+	// cannot drift from what is actually accepted.
+	DPoPSigningAlgValuesSupported []string `json:"dpop_signing_alg_values_supported,omitempty"`
+
+	// DPoPBoundAccessTokensRequired advertises that this resource server
+	// always requires a DPoP-bound access token (RFC 9728 §2). Pointer
+	// semantics distinguish absence (omit from JSON, which the RFC reads as
+	// false) from an explicit false.
+	//
+	// Set this true only when APIMiddleware.RequireDPoP is also true.
+	// Advertising a requirement the middleware does not enforce tells
+	// clients they are protected by a binding that nothing checks.
+	DPoPBoundAccessTokensRequired *bool `json:"dpop_bound_access_tokens_required,omitempty"`
+
 	// DocumentationURI points to human-readable documentation for the resource
 	// server's API. Optional.
 	DocumentationURI string `json:"resource_documentation,omitempty"`

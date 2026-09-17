@@ -86,7 +86,23 @@ type DPoPConfig struct {
 	// TLS itself: behind a TLS-terminating proxy the derived scheme is
 	// http while the client signs https, and every proof fails. Set this
 	// to the URL clients actually call.
+	//
+	// This pins one exact URL, which suits a validator wired to a single
+	// endpoint (the token endpoint). A resource server serving many paths
+	// sets BaseURL instead.
 	EndpointURL string
+
+	// BaseURL is the externally-visible scheme and host of a resource
+	// server, with no path. The expected `htu` is BaseURL joined to the
+	// path of each inbound request, so one validator covers every route
+	// the resource server exposes.
+	//
+	// Same proxy caveat as EndpointURL: set it whenever something in
+	// front of the process terminates TLS or rewrites the Host header.
+	// Empty derives both scheme and host per request.
+	//
+	// EndpointURL wins when both are set.
+	BaseURL string
 
 	// Now overrides the clock. Nil uses time.Now. Tests pin it to
 	// validate the RFC's own example proofs against their fixed `iat`.
@@ -107,6 +123,7 @@ type DPoPProofValidator struct {
 	maxAge      time.Duration
 	jtiStore    JTIStore
 	endpointURL string
+	baseURL     string
 	now         func() time.Time
 }
 
@@ -120,6 +137,7 @@ func NewDPoPProofValidator(cfg DPoPConfig) *DPoPProofValidator {
 		maxAge:      cfg.MaxAge,
 		jtiStore:    cfg.JTIStore,
 		endpointURL: cfg.EndpointURL,
+		baseURL:     strings.TrimSuffix(cfg.BaseURL, "/"),
 		now:         cfg.Now,
 	}
 	if len(v.allowedAlgs) == 0 {
@@ -306,21 +324,61 @@ func (v *DPoPProofValidator) Confirm(ctx context.Context, r *http.Request) (*cor
 	return &core.Confirmation{JKT: resp.JKT}, nil
 }
 
-// requestURL returns the URL a proof's `htu` is compared against: the
-// configured EndpointURL when set, otherwise the inbound request's own
-// scheme, host and path. The derived form deliberately ignores
+// requestURL returns the URL a proof's `htu` is compared against: the pinned
+// EndpointURL, else BaseURL joined to this request's path, else the inbound
+// request's own scheme, host and path. The derived form deliberately ignores
 // X-Forwarded-Proto — trusting it would let any client pick the scheme its
 // proof is checked against, and the honest fix for a proxied deployment is
-// to set EndpointURL.
+// to configure the URL.
 func (v *DPoPProofValidator) requestURL(r *http.Request) string {
 	if v.endpointURL != "" {
 		return v.endpointURL
+	}
+	if v.baseURL != "" {
+		return v.baseURL + r.URL.Path
 	}
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
 	}
 	return scheme + "://" + r.Host + r.URL.Path
+}
+
+// ConfirmResource validates the DPoP proof on a request to a protected
+// resource and returns the key it proves possession of. Unlike Confirm, a
+// missing proof is an error: the caller only reaches here when the client
+// presented its token under the DPoP scheme, so a proof was promised.
+//
+// accessToken is the token from the Authorization header. It is required,
+// because RFC 9449 §7.1 has the resource server check `ath`, which is what
+// stops a proof captured alongside one token from being reused with another
+// token the same client holds.
+//
+// The returned confirmation is what the caller compares against the token's
+// own `cnf` — this function proves possession of a key, and says nothing
+// about whether that key is the one the token was issued to.
+//
+// See: https://www.rfc-editor.org/rfc/rfc9449#section-7.1
+func (v *DPoPProofValidator) ConfirmResource(ctx context.Context, r *http.Request, accessToken string) (*core.Confirmation, error) {
+	proofs := r.Header.Values(DPoPHeader)
+	switch len(proofs) {
+	case 0:
+		return nil, invalidDPoPProof("request presents a DPoP-bound token with no DPoP proof")
+	case 1:
+	default:
+		return nil, invalidDPoPProof("request carries more than one DPoP header")
+	}
+
+	resp, err := v.Validate(ctx, &DPoPProofRequest{
+		Proof:       proofs[0],
+		Method:      r.Method,
+		URL:         v.requestURL(r),
+		AccessToken: accessToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &core.Confirmation{JKT: resp.JKT}, nil
 }
 
 // publicKeyFromProofHeader turns the proof's `jwk` header into a verification

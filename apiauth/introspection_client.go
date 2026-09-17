@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/tracing"
 )
 
@@ -84,6 +85,12 @@ type IntrospectionResult struct {
 	Iss       string `json:"iss,omitempty"`
 	Jti       string `json:"jti,omitempty"`
 	Aud       any    `json:"aud,omitempty"`
+
+	// Cnf is the RFC 7800 confirmation the authorization server reports for
+	// the token, nil for a plain bearer token. RFC 9449 §6 has the AS convey
+	// `cnf.jkt` here so a resource server validating by introspection can
+	// enforce the same key binding as one validating the JWT locally.
+	Cnf *core.Confirmation `json:"cnf,omitempty"`
 }
 
 // Validate is the context-free convenience form of ValidateWithContext.
@@ -184,21 +191,36 @@ func (v *IntrospectionValidator) ValidateForMiddleware(token string) (userID str
 // HTTP call so trace context propagates to the upstream introspection
 // server (see ValidateWithContext).
 func (v *IntrospectionValidator) ValidateForMiddlewareWithContext(ctx context.Context, token string) (userID string, scopes []string, authType string, customClaims map[string]any, err error) {
-	result, err := v.ValidateWithContext(ctx, token)
+	info, err := v.ValidateInfo(ctx, token)
 	if err != nil {
 		return "", nil, "", nil, err
 	}
+	return info.Subject, info.Scopes, info.AuthType, info.CustomClaims, nil
+}
+
+// ValidateInfo validates a token via the introspection endpoint and returns
+// the full TokenInfo, including the RFC 7800 `cnf` the introspection response
+// carried. A resource server that validates by introspection rather than
+// locally needs that confirmation to enforce an RFC 9449 key binding, which
+// is why this exists alongside the older tuple-returning form.
+//
+// An inactive token is an error here, unlike ValidateWithContext: a caller
+// asking for TokenInfo wants a usable identity or a refusal.
+func (v *IntrospectionValidator) ValidateInfo(ctx context.Context, token string) (*TokenInfo, error) {
+	result, err := v.ValidateWithContext(ctx, token)
+	if err != nil {
+		return nil, err
+	}
 	if !result.Active {
-		return "", nil, "", nil, fmt.Errorf("token is not active")
+		return nil, fmt.Errorf("token is not active")
 	}
 
-	// Parse scopes
+	var scopes []string
 	if result.Scope != "" {
 		scopes = strings.Split(result.Scope, " ")
 	}
 
-	// Build custom claims map
-	customClaims = make(map[string]any)
+	customClaims := make(map[string]any)
 	if result.ClientID != "" {
 		customClaims["client_id"] = result.ClientID
 	}
@@ -212,7 +234,13 @@ func (v *IntrospectionValidator) ValidateForMiddlewareWithContext(ctx context.Co
 		customClaims["aud"] = result.Aud
 	}
 
-	return result.Sub, scopes, "introspection", customClaims, nil
+	return &TokenInfo{
+		Subject:      result.Sub,
+		Scopes:       scopes,
+		CustomClaims: customClaims,
+		AuthType:     "introspection",
+		Confirmation: result.Cnf,
+	}, nil
 }
 
 // getCached returns a cached result if it exists and hasn't expired.

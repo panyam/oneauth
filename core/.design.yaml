@@ -27,7 +27,7 @@ entities:
   - name: Confirmation.Equal
     kind: method
     role: "Compares two confirmations, treating nil and empty as equal."
-    why: "The refresh grant's check that the key presented on a rotation is the key the refresh token was issued to."
+    why: "Backs both binding checks: the refresh grant's test that a rotation presents the issuing key, and the resource server's test that a request proves the key the access token names."
   - name: APIKey
     kind: struct
     role: "Long-lived programmatic credential split into public KeyID + bcrypt-hashed secret, bound to a Subject."
@@ -43,7 +43,7 @@ entities:
   - name: Confirmation.Equal
     kind: method
     role: "Compares two confirmations, treating nil and empty as equal."
-    why: "The refresh grant's check that the key presented on a rotation is the key the refresh token was issued to."
+    why: "Backs both binding checks: the refresh grant's test that a rotation presents the issuing key, and the resource server's test that a request proves the key the access token names."
   - name: APIKey.IsExpired
     kind: method
     role: "Wall-clock check against ExpiresAt; nil ExpiresAt means never expires."
@@ -59,7 +59,7 @@ entities:
   - name: Confirmation.Equal
     kind: method
     role: "Compares two confirmations, treating nil and empty as equal."
-    why: "The refresh grant's check that the key presented on a rotation is the key the refresh token was issued to."
+    why: "Backs both binding checks: the refresh grant's test that a rotation presents the issuing key, and the resource server's test that a request proves the key the access token names."
   - name: APIKey.IsValid
     kind: method
     role: "True iff key is not revoked AND not expired."
@@ -203,7 +203,7 @@ entities:
   - name: Confirmation.Equal
     kind: method
     role: "Compares two confirmations, treating nil and empty as equal."
-    why: "The refresh grant's check that the key presented on a rotation is the key the refresh token was issued to."
+    why: "Backs both binding checks: the refresh grant's test that a rotation presents the issuing key, and the resource server's test that a request proves the key the access token names."
   - name: APIKeyStore
     kind: interface
     role: "CRUD + validation over API keys; gRPC-shape — every method takes ctx + *XRequest and returns *XResponse, error; CreateAPIKey returns the plaintext FullKey exactly once."

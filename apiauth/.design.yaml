@@ -260,6 +260,22 @@ entities:
     kind: method
     role: "Returns a copy of the accepted proof algorithms for the `dpop_signing_alg_values_supported` AS metadata field."
     why: "Advertising a list the validator does not honor makes clients send proofs the AS then rejects, so the metadata reads from the validator rather than being configured twice."
+  - name: DPoPProofValidator.ConfirmResource
+    kind: method
+    role: "Validates the DPoP proof on a request to a protected resource (RFC 9449 §7.1) and returns the key it proves. Requires the access token so `ath` is checked; a missing proof is an error here, unlike `Confirm`."
+    why: "Proves possession of a key and says nothing about whether that key is the one the token was issued to — the caller compares the result against the token's own `cnf`, which keeps the two questions separable."
+  - name: APIMiddleware.DPoP
+    kind: field
+    role: "Opts a resource server into RFC 9449 enforcement: accepts `Authorization: DPoP`, checks `ath` and `cnf.jkt`, and refuses a bound token sent as Bearer."
+    why: "Nil accepts a bound token as an ordinary bearer token, which is exactly what RFC 9449 §7.2 says a DPoP-unaware RS does — so issuing bound tokens is not protection until every resource server wires this."
+  - name: APIMiddleware.RequireDPoP
+    kind: field
+    role: "Refuses every Bearer presentation, so each request must carry a bound token and a proof."
+    why: "The enforcement behind RFC 9728 `dpop_bound_access_tokens_required`; advertising that field without this set tells clients a check runs that does not."
+  - name: authError
+    kind: struct
+    role: "A failed authentication plus the WWW-Authenticate challenge it should produce (scheme, error code, description)."
+    why: "RFC 9449 §7.2 wants error information on the scheme the client actually used, and RFC 6750 §3.1 wants no error at all when the request presented nothing — neither is expressible with a bare error string."
   - name: tokenTypeFor
     kind: func
     role: "Maps a `*core.Confirmation` to the response `token_type` — DPoP when bound, Bearer otherwise."

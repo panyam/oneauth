@@ -551,8 +551,16 @@ type TokenInfo struct {
 	// CustomClaims are non-standard JWT claims (everything not in standardClaims).
 	CustomClaims map[string]any
 
-	// AuthType is "jwt" or "api_key".
+	// AuthType is "jwt", "api_key", or "introspection".
 	AuthType string
+
+	// Confirmation is the token's RFC 7800 `cnf` claim, or nil for a plain
+	// bearer token. A resource server compares it against the key proven on
+	// the request (RFC 9449 §7.1) and must refuse the token when it is
+	// non-nil and the request carries no matching proof — including when
+	// the token arrives under the Bearer scheme, which is the downgrade
+	// RFC 9449 §7.2 exists to close.
+	Confirmation *core.Confirmation
 }
 
 // Note: IntrospectionResult is defined in introspection_client.go.
