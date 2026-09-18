@@ -28,7 +28,11 @@
         <nav class="top-nav">
             
             
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
             <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
             
             <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
             
@@ -46,6 +50,41 @@
     
     
     <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
         
         <div class="sidebar-section">
             <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
@@ -67,6 +106,27 @@
         </div>
         
         <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
             <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
             
             <ul class="sidebar-list">
@@ -80,6 +140,8 @@
                 <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
                 
                 <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
                 
             </ul>
             
@@ -228,5 +290,35 @@ Package pattern: <code>./...</code></p>
     </div>
 </footer>
 
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
 </body>
 </html>

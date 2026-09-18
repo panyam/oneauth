@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented (apiauth/BCLDispatcher &#43; LogoutTokenIssuer)">
+    <title>OpenID Connect Back-Channel Logout 1.0 · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OpenID Connect Back-Channel Logout 1.0</h1>
+        
+        <p class="lead">Implemented (apiauth/BCLDispatcher &#43; LogoutTokenIssuer)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/OIDC_BCL.md"><code>docs/oauth/OIDC_BCL.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="openid-connect-back-channel-logout-10">OpenID Connect Back-Channel Logout 1.0 <a class="anchor" href="#openid-connect-back-channel-logout-10">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> OpenID Foundation Specification<br />
+<strong>Published:</strong> 2019 (final)<br />
+<strong>L-tier / T-tier:</strong> L7 · T8 (lifecycle / logout)<br />
+<strong>OneAuth coverage:</strong> Implemented (<code>apiauth/BCLDispatcher</code> + <code>LogoutTokenIssuer</code>)<br />
+<strong>See also:</strong> <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a> · <a href="RFC_7009.md"><code>RFC_7009.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>OIDC Back-Channel Logout is the &ldquo;log out everywhere&rdquo; mechanism — when a<br />
+user logs out at the IdP, the AS <em>pushes</em> a signed <code>logout_token</code> to every<br />
+relying party (RP) that registered a logout receiver, so they can drop<br />
+their local session.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without BCL</th>
+<th>With BCL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>User logs out at the IdP, but their session at every relying party stays alive until each one&rsquo;s session cookie expires</td>
+<td>AS broadcasts logout to every connected RP; RPs drop their session immediately</td>
+</tr>
+<tr>
+<td>Cross-device logout (&ldquo;log out from all devices&rdquo;) requires per-RP plumbing</td>
+<td>Single source of truth at the AS; standardized notification protocol</td>
+</tr>
+<tr>
+<td>Auditing &ldquo;who logged out where, when&rdquo; needs custom telemetry</td>
+<td>The signed <code>logout_token</code> is the audit record</td>
+</tr>
+<tr>
+<td>Front-channel logout (browser iframe magic) is fragile — third-party cookie blocking breaks it</td>
+<td>Back-channel is server-to-server; immune to browser quirks</td>
+</tr>
+</tbody>
+</table>
+<p>OIDC defined three logout mechanisms — Front-Channel, Back-Channel, and<br />
+RP-Initiated. Back-Channel is the most operationally robust because it&rsquo;s<br />
+HTTP server-to-server, not browser-orchestrated. It&rsquo;s the mechanism modern<br />
+SSO deployments standardize on.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>You&rsquo;re using Google Workspace at a company. You&rsquo;re logged into Gmail,<br />
+Google Drive, the corporate intranet (which SSOs through Google), Slack<br />
+(which also SSOs through Google), and a few SaaS tools. You hit &ldquo;Sign out<br />
+of all&rdquo; at Google.</p>
+<p>Under BCL, what happens next:</p>
+<ol>
+<li>Google&rsquo;s AS marks your session ended.</li>
+<li>Google&rsquo;s AS sends a <code>POST</code> to <em>each</em> RP&rsquo;s registered<br />
+<code>backchannel_logout_uri</code>, with a signed <code>logout_token</code> JWT in the body.</li>
+<li>Slack receives the POST, validates the token, kills your Slack session.</li>
+<li>The corporate intranet receives, validates, kills.</li>
+<li>Every other SSO-connected app does the same.</li>
+</ol>
+<p>Within seconds, you&rsquo;re logged out everywhere. Your next visit to any of<br />
+those apps redirects you back to Google&rsquo;s login.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong><code>logout_token</code> is a JWT, signed by the AS.</strong> Required claims (§2.4):
+<ul>
+<li><code>iss</code> — same as the OIDC issuer</li>
+<li><code>sub</code> and/or <code>sid</code> — <code>sub</code> for &ldquo;log out <em>this user</em> everywhere&rdquo;;<br />
+<code>sid</code> for &ldquo;log out <em>this session</em>&rdquo; (need at least one)</li>
+<li><code>aud</code> — the RP&rsquo;s client_id</li>
+<li><code>iat</code> — issued at</li>
+<li><code>jti</code> — unique per logout token (for replay defense)</li>
+<li><code>events</code> — exactly <code>{&quot;http://schemas.openid.net/event/backchannel-logout&quot;: {}}</code><br />
+(yes, a JSON object with an HTTP URL as the key — that&rsquo;s the<br />
+normative shape)</li>
+</ul>
+</li>
+<li><strong><code>nonce</code> MUST NOT appear.</strong> Per §2.4 ¶6, a stray <code>nonce</code> is grounds<br />
+for the receiver to reject. The logout_token is <em>not</em> an id_token —<br />
+different replay model.</li>
+<li><strong>RP registers <code>backchannel_logout_uri</code> at DCR.</strong> Plus optionally<br />
+<code>backchannel_logout_session_required: true</code> — meaning &ldquo;I want <code>sid</code><br />
+in the logout_token, not just <code>sub</code>.&rdquo;</li>
+<li><strong>AS POSTs to the registered URI</strong> with<br />
+<code>Content-Type: application/x-www-form-urlencoded</code> and<br />
+<code>logout_token=&lt;JWT&gt;</code>. Per §2.7 the receiver returns <code>200 OK</code> on<br />
+success; non-200 responses are logged but don&rsquo;t block dispatch to<br />
+other RPs.</li>
+<li><strong><code>logout_token</code> is single-purpose.</strong> Don&rsquo;t reuse for anything else.<br />
+Receivers identify it by <code>events</code> claim.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p><strong>RP registers logout receiver via DCR:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/apps/dcr</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_name&#34;</span>: <span style="color:#d14">&#34;Acme SSO Client&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;redirect_uris&#34;</span>: [<span style="color:#d14">&#34;https://acme.example/oauth/cb&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;backchannel_logout_uri&#34;</span>: <span style="color:#d14">&#34;https://acme.example/oauth/logout&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;backchannel_logout_session_required&#34;</span>: <span style="color:#000;font-weight:bold">true</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>AS dispatches logout (when user signs out):</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/oauth/logout</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> acme.example
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>logout_token=eyJhbGciOiJSUzI1NiIsImtpZCI6Imtfa2V5XzEifQ.eyJpc3MiOiJodHRwczovL2FzLmV4YW1wbGUuY29tIiwic3ViIjoidXNlci00MiIsImF1ZCI6ImFjbWUtY2xpZW50Iiwic2lkIjoic2Vzc2lvbi1mYW0tYWJjIiwiaWF0IjoxNzE3MDAwMDAwLCJqdGkiOiJsdC03N2RmIiwiZXZlbnRzIjp7Imh0dHA6Ly9zY2hlbWFzLm9wZW5pZC5uZXQvZXZlbnQvYmFja2NoYW5uZWwtbG9nb3V0Ijp7fX19.signature
+</span></span></code></pre><p>Decoded <code>logout_token</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iss&#34;</span>: <span style="color:#d14">&#34;https://as.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;sub&#34;</span>: <span style="color:#d14">&#34;user-42&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;aud&#34;</span>: <span style="color:#d14">&#34;acme-client&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;sid&#34;</span>: <span style="color:#d14">&#34;session-fam-abc&#34;</span>,                  <span style="color:#a61717;background-color:#e3d2d2">←</span> <span style="color:#a61717;background-color:#e3d2d2">session</span> <span style="color:#a61717;background-color:#e3d2d2">ID</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iat&#34;</span>: <span style="color:#099">1717000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;jti&#34;</span>: <span style="color:#d14">&#34;lt-77df&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;events&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;http://schemas.openid.net/event/backchannel-logout&#34;</span>: {}
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>RP responds 200 OK; RP kills the session(s) matching <code>sub</code> or <code>sid</code>.</strong></p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L7 OIDC.</strong> Identity-layer concern.</li>
+<li><strong>T8 (lifecycle).</strong> Logout is an event after the active session phase.</li>
+<li>Pairs with <strong><a href="RFC_7009.md">RFC 7009 Revocation</a></strong> — AS revokes the<br />
+user&rsquo;s tokens <em>and</em> notifies RPs. Both happen at logout.</li>
+</ul>
+<h2 id="oauth-20--21-status">OAuth 2.0 / 2.1 status <a class="anchor" href="#oauth-20--21-status">¶</a></h2>
+<p>Not an OAuth spec at all; it&rsquo;s OIDC. Adopted by every major IdP that<br />
+supports OIDC SSO. The session-management story (front-channel logout,<br />
+session iframe, etc.) is messier and less universally adopted; back-<br />
+channel is the cleanest of the three OIDC logout specs and the one new<br />
+deployments standardize on.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>BCL surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BCLDispatcher</code> — fans out logout to all subscribed RPs</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/bcl_dispatcher.go:46</code> (struct) + <code>Dispatch</code> method at line 126</td>
+<td>Per-RP failure doesn&rsquo;t block other RPs</td>
+</tr>
+<tr>
+<td><code>LogoutTokenIssuer</code> — mints the signed <code>logout_token</code> JWT</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/logout_token.go</code></td>
+<td>All required claims plus <code>events</code>; <code>nonce</code> deliberately omitted per §2.4 ¶6 (line 115)</td>
+</tr>
+<tr>
+<td><code>backchannel_logout_uri</code> DCR field</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/dcr.go:112</code> echoed back per OIDC BCL §3.1</td>
+<td>RP registers via 7591 metadata</td>
+</tr>
+<tr>
+<td><code>backchannel_logout_session_required</code> DCR field</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/dcr.go:113</code></td>
+<td>Controls whether <code>sid</code> MUST appear in the dispatched token</td>
+</tr>
+<tr>
+<td>Per-RP <code>aud</code> enforcement</td>
+<td><strong>Implemented</strong></td>
+<td><code>bcl_dispatcher.go:77</code> comment: &ldquo;(mis-configured or malicious) <code>backchannel_logout_uri</code> cannot be&rdquo; — RP receives only its own audience</td>
+<td></td>
+</tr>
+<tr>
+<td><code>OnSubjectRevoked</code> / <code>OnTokenRevoked</code> hooks for orchestration</td>
+<td><strong>Implemented</strong></td>
+<td><code>bcl_integration_test.go:72,126</code> exercises both</td>
+<td>Composes with refresh-token family revoke (RFC 7009 + RFC 9700 §4.14)</td>
+</tr>
+<tr>
+<td>AS metadata: <code>backchannel_logout_supported</code>, <code>backchannel_logout_session_supported</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/as_metadata.go:86,93</code></td>
+<td>Discovery advertised</td>
+</tr>
+<tr>
+<td><code>logout_token</code> JWT signature validation (RP side)</td>
+<td><strong>Implemented</strong> (in OneAuth&rsquo;s own client SDK)</td>
+<td>Helps clients consuming OneAuth-issued logout_tokens</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Test coverage</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/bcl_dispatcher_test.go</code>, <code>bcl_integration_test.go</code>, <code>bcl_integration_test.go:122–145</code> end-to-end with <code>OnTokenRevoked</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>OneAuth&rsquo;s BCL implementation is one of the cleanest L7 surfaces in the<br />
+codebase. The dispatcher / issuer split, the explicit <code>sid</code> semantics, and<br />
+the hook-based revoke orchestration are reference-quality.</p>
+<h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
+<ul>
+<li><a href="OIDC_Core.md">OIDC Core</a> — defines the session that&rsquo;s being terminated</li>
+<li><a href="https://openid.net/specs/openid-connect-frontchannel-1_0.html">OIDC Front-Channel Logout 1.0</a> — sibling; browser-driven (more fragile)</li>
+<li><a href="https://openid.net/specs/openid-connect-session-1_0.html">OIDC Session Management 1.0</a> — sibling; iframe-based session-state polling</li>
+<li><a href="https://openid.net/specs/openid-connect-rpinitiated-1_0.html">RP-Initiated Logout 1.0</a> — RP-side trigger that may chain into BCL</li>
+<li><a href="RFC_7009.md">RFC 7009</a> — Token Revocation; BCL often triggers revocation as a side effect</li>
+<li><a href="RFC_9700.md">RFC 9700</a> — §4.14 refresh rotation; the family revoke that BCL events also trigger</li>
+<li>Repo issue 156 covers the broader OIDC logout suite (front-channel, session management) for OneAuth</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://openid.net/specs/openid-connect-backchannel-1_0.html">OIDC Back-Channel Logout 1.0</a></li>
+<li><a href="https://openid.net/specs/">OIDC Specifications</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

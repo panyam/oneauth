@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OneAuth is a Go authentication library that provides a unified interface for local and OAuth-based authentication. It separates concerns between...">
+    <title>OneAuth Developer Guide · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OneAuth Developer Guide</h1>
+        
+        <p class="lead">OneAuth is a Go authentication library that provides a unified interface for local and OAuth-based authentication. It separates concerns between...</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/DEVELOPER_GUIDE.md"><code>docs/DEVELOPER_GUIDE.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oneauth-developer-guide">OneAuth Developer Guide <a class="anchor" href="#oneauth-developer-guide">¶</a></h1>
+<p>OneAuth is a Go authentication library that provides a unified interface for local and OAuth-based authentication. It separates concerns between users, identities, and authentication channels to support multiple authentication methods per user.</p>
+<h2 id="documentation">Documentation <a class="anchor" href="#documentation">¶</a></h2>
+<h3 id="getting-started">Getting Started <a class="anchor" href="#getting-started">¶</a></h3>
+<ul>
+<li><strong><a href="GETTING_STARTED.md">GETTING_STARTED.md</a></strong> — Installation, store setup, LocalAuth config, route mounting (5-minute quickstart)</li>
+</ul>
+<h3 id="core-guides">Core Guides <a class="anchor" href="#core-guides">¶</a></h3>
+<ul>
+<li><strong><a href="BROWSER_AUTH.md">BROWSER_AUTH.md</a></strong> — OAuth integration, channel linking, session management, validation, error handling</li>
+<li><strong><a href="API_AUTH.md">API_AUTH.md</a></strong> — JWT tokens, APIAuth setup, APIMiddleware, API keys, scopes, custom claims, multi-tenant KeyStore</li>
+<li><strong><a href="GRPC.md">GRPC.md</a></strong> — gRPC context utilities and auth interceptors</li>
+<li><strong><a href="STORES.md">STORES.md</a></strong> — Store interfaces, FS/GORM/GAE implementations, KeyStore, keystoretest suite</li>
+</ul>
+<h3 id="reference">Reference <a class="anchor" href="#reference">¶</a></h3>
+<ul>
+<li><strong><a href="TESTING.md">TESTING.md</a></strong> — Testing patterns, security considerations, troubleshooting, migration guide</li>
+<li><strong><a href="ARCHITECTURE.md">ARCHITECTURE.md</a></strong> — Design decisions, data model, component overview, federated auth flow</li>
+<li><strong><a href="AUTH_FLOWS.md">AUTH_FLOWS.md</a></strong> — Detailed authentication flow diagrams</li>
+<li><strong><a href="USER_GUIDE.md">USER_GUIDE.md</a></strong> — End-user facing guide</li>
+<li><strong><a href="RELEASE_NOTES.md">RELEASE_NOTES.md</a></strong> — Version history and changelog</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

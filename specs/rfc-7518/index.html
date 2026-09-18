@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented via github.com/golang-jwt/jwt/v5">
+    <title>RFC 7518 — JSON Web Algorithms (JWA) · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 7518 — JSON Web Algorithms (JWA)</h1>
+        
+        <p class="lead">Implemented via github.com/golang-jwt/jwt/v5</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7518.md"><code>docs/oauth/RFC_7518.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-7518--json-web-algorithms-jwa">RFC 7518 — JSON Web Algorithms (JWA) <a class="anchor" href="#rfc-7518--json-web-algorithms-jwa">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2015-05<br />
+<strong>L-tier / T-tier:</strong> L1 · (referenced by L1 siblings; no flow of its own)<br />
+<strong>OneAuth coverage:</strong> Implemented via <code>github.com/golang-jwt/jwt/v5</code><br />
+<strong>JOSE family:</strong> <a href="RFC_7515.md">JWS</a> · <a href="RFC_7516.md">JWE</a> · <a href="RFC_7517.md">JWK</a> · <a href="RFC_7518.md">JWA</a> · <a href="RFC_7519.md">JWT</a><br />
+<strong>See also:</strong> <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>JWA is the registry — the catalog of named cryptographic algorithms that<br />
+JWS, JWE, and JWK headers reference by string. It&rsquo;s the &ldquo;menu&rdquo; the other<br />
+JOSE specs read from.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without JWA</th>
+<th>With JWA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Every JWS-using deployment invents its own <code>alg</code> string conventions</td>
+<td>One IANA-registered table; libraries everywhere agree on what <code>RS256</code> means</td>
+</tr>
+<tr>
+<td>Algorithm evolution requires re-spec&rsquo;ing the parent RFC</td>
+<td>New algorithms (Ed25519, Ed448) plug into JWA without touching JWS</td>
+</tr>
+<tr>
+<td>Implementation conformance is per-algorithm — each one has its own RFC pointer</td>
+<td>The JWA table points at the canonical RFC for every alg</td>
+</tr>
+</tbody>
+</table>
+<p>JWA is a <em>boring</em> spec on purpose. Its boringness is its value — the algs<br />
+are defined once, tested once, and reused by every JOSE consumer.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>Every <code>alg</code> field you&rsquo;ve ever seen in a JWT header is a JWA value:</p>
+<table>
+<thead>
+<tr>
+<th><code>alg</code></th>
+<th>What it is</th>
+<th>Where you&rsquo;ve seen it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code></td>
+<td>&ldquo;Unsigned&rdquo; — the famous attack vector</td>
+<td>&ldquo;alg:none&rdquo; CVEs across multiple libraries (~2015)</td>
+</tr>
+<tr>
+<td><code>HS256</code></td>
+<td>HMAC + SHA-256 (symmetric)</td>
+<td>Quick-and-dirty internal token signing; jwt.io default</td>
+</tr>
+<tr>
+<td><code>RS256</code></td>
+<td>RSASSA-PKCS1-v1_5 + SHA-256</td>
+<td>Google, GitHub, most enterprise IdPs</td>
+</tr>
+<tr>
+<td><code>RS384</code> / <code>RS512</code></td>
+<td>RSASSA + SHA-384/512</td>
+<td>Higher-security variants of RS256</td>
+</tr>
+<tr>
+<td><code>PS256</code></td>
+<td>RSASSA-PSS + SHA-256</td>
+<td>FAPI 1.0 Advanced mandates this over RS256</td>
+</tr>
+<tr>
+<td><code>ES256</code></td>
+<td>ECDSA P-256 + SHA-256</td>
+<td>Smaller signatures; Apple Sign-In tokens</td>
+</tr>
+<tr>
+<td><code>ES384</code> / <code>ES512</code></td>
+<td>ECDSA P-384/521</td>
+<td>Higher-security variants</td>
+</tr>
+<tr>
+<td><code>EdDSA</code></td>
+<td>Ed25519 (registered later via RFC 8037)</td>
+<td>Modern recommendation; not in original 7518 table</td>
+</tr>
+</tbody>
+</table>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong><code>alg=none</code> is the classic footgun.</strong> When a library accepts<br />
+<code>{&quot;alg&quot;:&quot;none&quot;}</code> and skips signature verification, tokens are forgeable<br />
+trivially. Defense: verifier explicitly allowlists algs; never trusts<br />
+the header.</li>
+<li><strong>Algorithm/key-type binding.</strong> An <code>RS256</code> token requires an RSA key; an<br />
+<code>ES256</code> token requires a P-256 EC key. Mismatch (e.g., verifying an<br />
+<code>HS256</code>-tagged token using an RSA <em>public</em> key as the secret) is another<br />
+famous attack — fixed in libraries by hard-tying alg to key type.</li>
+<li><strong>JWA also covers JWE algs</strong> (key wrapping like <code>RSA-OAEP-256</code>, content<br />
+encryption like <code>A256GCM</code>). Less commonly touched in OAuth contexts.</li>
+<li><strong>JWE&rsquo;s <code>enc</code> parameter is separate from <code>alg</code>.</strong> <code>alg</code> is how the<br />
+content key gets wrapped to the recipient; <code>enc</code> is how the payload<br />
+itself is encrypted. Both live in JWA.</li>
+<li><strong>Vendor profiles often restrict the allowed set.</strong> FAPI 1.0 Advanced<br />
+forbids <code>RS256</code> in favor of <code>PS256</code>. Internal services may forbid<br />
+<code>HS256</code> and require asymmetric algs to avoid shared-secret hazards.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p>JWA appears only as fields in other JOSE structures. Examples:</p>
+<p>In a JWS header:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{<span style="color:#000080">&#34;alg&#34;</span>:<span style="color:#d14">&#34;RS256&#34;</span>,<span style="color:#000080">&#34;typ&#34;</span>:<span style="color:#d14">&#34;JWT&#34;</span>,<span style="color:#000080">&#34;kid&#34;</span>:<span style="color:#d14">&#34;...&#34;</span>}
+</span></span></code></pre><p>In a JWK:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{<span style="color:#000080">&#34;kty&#34;</span>:<span style="color:#d14">&#34;RSA&#34;</span>,<span style="color:#000080">&#34;alg&#34;</span>:<span style="color:#d14">&#34;RS256&#34;</span>,<span style="color:#000080">&#34;kid&#34;</span>:<span style="color:#d14">&#34;...&#34;</span>,<span style="color:#000080">&#34;n&#34;</span>:<span style="color:#d14">&#34;...&#34;</span>,<span style="color:#000080">&#34;e&#34;</span>:<span style="color:#d14">&#34;AQAB&#34;</span>}
+</span></span></code></pre><p>In a JWE header:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{<span style="color:#000080">&#34;alg&#34;</span>:<span style="color:#d14">&#34;RSA-OAEP-256&#34;</span>,<span style="color:#000080">&#34;enc&#34;</span>:<span style="color:#d14">&#34;A256GCM&#34;</span>,<span style="color:#000080">&#34;kid&#34;</span>:<span style="color:#d14">&#34;...&#34;</span>,<span style="color:#000080">&#34;typ&#34;</span>:<span style="color:#d14">&#34;JWT&#34;</span>}
+</span></span></code></pre><p>There is no &ldquo;JWA wire format&rdquo; — JWA <em>is</em> the vocabulary.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L1 token format.</strong> JWA underpins the other JOSE specs without ever<br />
+appearing in its own right.</li>
+<li><strong>No T-tier.</strong> It&rsquo;s referenced from T5 (issue), T7 (verify), and T0<br />
+(publish) — but only through its siblings.</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>Not part of bare 2.0. Universally referenced in any 2.0 deployment that<br />
+ships JWTs (which is most modern ones). The <code>alg</code>-confusion class of attacks<br />
+forced every JWT library and every 2.0 AS to ship algorithm allowlists in<br />
+the years after publication.</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>Same. 2.1 doesn&rsquo;t restrict algorithm choice itself — that&rsquo;s left to vendor<br />
+profiles. FAPI 2.0 (L8) does restrict allowed algs.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>7518 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HS256</code></td>
+<td><strong>Implemented</strong></td>
+<td>golang-jwt; used for some symmetric-key flows</td>
+<td>Never published to JWKS (<code>keys/jwks_handler.go:21–22</code>)</td>
+</tr>
+<tr>
+<td><code>RS256</code></td>
+<td><strong>Implemented</strong></td>
+<td>golang-jwt; default asymmetric for many deployments</td>
+<td>Published to JWKS via <code>utils/jwk.go</code></td>
+</tr>
+<tr>
+<td><code>ES256</code> (P-256)</td>
+<td><strong>Implemented</strong></td>
+<td>golang-jwt; smaller-signature alternative</td>
+<td>Published to JWKS</td>
+</tr>
+<tr>
+<td><code>PS256</code></td>
+<td><strong>Not implemented</strong></td>
+<td>—</td>
+<td>Needed for FAPI 1.0 Advanced; tracked under future FAPI work</td>
+</tr>
+<tr>
+<td><code>EdDSA</code> (Ed25519)</td>
+<td><strong>Not implemented</strong></td>
+<td>—</td>
+<td>Modern recommendation; partial coverage via <code>sshkeys/</code> for SSH-only contexts; not wired into apiauth signing</td>
+</tr>
+<tr>
+<td><code>none</code> rejection</td>
+<td><strong>Implemented</strong></td>
+<td>golang-jwt v5 default</td>
+<td>Algorithm allowlist guards prevent accidental acceptance</td>
+</tr>
+<tr>
+<td><code>RS256</code>-with-<code>HS256</code>-key-confusion guard</td>
+<td><strong>Implemented</strong></td>
+<td>Library enforces; OneAuth never passes a public key as a symmetric secret</td>
+<td>The classic attack is blocked by library design</td>
+</tr>
+</tbody>
+</table>
+<p>The two gaps (PS256, EdDSA) are FAPI-track items, not L0 spine concerns.</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<p>JWA itself is just a registry — you don&rsquo;t choose to use it or not. The<br />
+<em>algorithm choice</em> is what matters:</p>
+<ul>
+<li><strong>HS256</strong>: convenient but the verifier needs the secret. Avoid for<br />
+cross-org token verification.</li>
+<li><strong>RS256</strong>: long-standing default; FAPI 1.0 Advanced banned it in favor<br />
+of PS256 due to PKCS1-v1_5 padding concerns. Still ubiquitous outside<br />
+FAPI.</li>
+<li><strong>ES256</strong>: smaller signatures than RSA, faster verify, comparable<br />
+security. Good default for new deployments.</li>
+<li><strong>EdDSA</strong>: modern recommendation when libraries support it; smallest<br />
+signatures, simplest verifier, no curve-parameter footguns.</li>
+</ul>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_7515.md">RFC 7515 JWS</a> — consumes JWA&rsquo;s signing algs</li>
+<li><a href="RFC_7516.md">RFC 7516 JWE</a> — consumes JWA&rsquo;s encryption algs</li>
+<li><a href="RFC_7517.md">RFC 7517 JWK</a> — JWK entries carry an <code>alg</code> from JWA&rsquo;s table</li>
+<li><a href="https://datatracker.ietf.org/doc/rfc8037/">RFC 8037</a> — registered Ed25519/Ed448 into JWA after the fact</li>
+<li><a href="https://datatracker.ietf.org/doc/rfc9468/">RFC 9468</a> — registered hybrid PQ algorithms (future-proofing)</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc7518/">Datatracker: rfc7518</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc7518.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=7518">Errata search</a></li>
+<li><a href="https://www.iana.org/assignments/jose/jose.xhtml">IANA JOSE registry</a> — the live registry</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

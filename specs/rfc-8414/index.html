@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented (apiauth.MountASMetadata)">
+    <title>RFC 8414 — OAuth 2.0 Authorization Server Metadata · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 8414 — OAuth 2.0 Authorization Server Metadata</h1>
+        
+        <p class="lead">Implemented (apiauth.MountASMetadata)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8414.md"><code>docs/oauth/RFC_8414.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-8414--oauth-20-authorization-server-metadata">RFC 8414 — OAuth 2.0 Authorization Server Metadata <a class="anchor" href="#rfc-8414--oauth-20-authorization-server-metadata">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2018-06<br />
+<strong>L-tier / T-tier:</strong> L2 · T0 (setup / discovery)<br />
+<strong>OneAuth coverage:</strong> Implemented (<code>apiauth.MountASMetadata</code>)<br />
+<strong>See also:</strong> <a href="RFC_9728.md"><code>RFC_9728.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>RFC 8414 is the standard &ldquo;discovery doc&rdquo; for an OAuth AS — a JSON document<br />
+at a well-known URL that tells clients where the AS&rsquo;s endpoints are, which<br />
+algorithms it supports, which grants it accepts, and where to find its<br />
+JWKS.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without 8414</th>
+<th>With 8414</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clients hardcode endpoint URLs (<code>/oauth/token</code>, <code>/oauth2/v1/token</code>, vendor variations)</td>
+<td>One well-known URL; client SDKs auto-configure</td>
+</tr>
+<tr>
+<td>Adding a new grant or capability requires every consumer to know about it out-of-band</td>
+<td>Discovery doc declares it; SDKs see new fields appear and adapt</td>
+</tr>
+<tr>
+<td>Cross-org integrations need a setup checklist of URLs and key locations</td>
+<td>Pointer to the well-known URL is the whole setup</td>
+</tr>
+<tr>
+<td>Verifying public keys means hardcoding key material or PEM files</td>
+<td><code>jwks_uri</code> points at the live JWKS (RFC 7517)</td>
+</tr>
+</tbody>
+</table>
+<p>8414 is the spec that made &ldquo;drop in an issuer URL and have the rest auto-wire&rdquo;<br />
+the default UX for modern OAuth SDKs. Before 8414, OIDC Discovery 1.0 (2014)<br />
+established the pattern; 8414 generalized it for OAuth-only deployments.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>Every modern OAuth SDK works like this:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Auth0 SDK</span>
+</span></span><span style="display:flex;"><span>auth0 <span style="color:#000;font-weight:bold">=</span> Auth0Client(issuer<span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;https://tenant.us.auth0.com&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># SDK fetches: https://tenant.us.auth0.com/.well-known/openid-configuration</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Now it knows: token endpoint, JWKS URI, supported algs, scopes, ...</span>
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// OneAuth client
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>client, err <span style="color:#000;font-weight:bold">:=</span> oneauth.<span style="color:#900;font-weight:bold">New</span>(ctx, <span style="color:#d14">&#34;https://as.example.com&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// SDK fetches: https://as.example.com/.well-known/openid-configuration
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Now it knows everything it needs to authorize and validate
+</span></span></span></code></pre><p>That&rsquo;s 8414 at work. The single string <code>https://as.example.com</code> is enough<br />
+because the discovery doc carries everything else.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong>Two well-known paths.</strong> RFC 8414 specifies<br />
+<code>/.well-known/oauth-authorization-server</code>; OIDC Discovery 1.0 uses<br />
+<code>/.well-known/openid-configuration</code>. Most servers serve both with<br />
+identical content for compatibility — OneAuth does this via<br />
+<code>MountASMetadata</code>.</li>
+<li><strong><code>issuer</code> is load-bearing.</strong> The <code>issuer</code> field must match the URL the<br />
+client used to fetch the doc (RFC 8414 §3.3). Mismatches mean an<br />
+attacker swapped the discovery doc. This is part of the mix-up defense<br />
+story (see <a href="RFC_9207.md">RFC_9207.md</a>).</li>
+<li><strong>Capability advertisements.</strong> Fields like <code>grant_types_supported</code>,<br />
+<code>code_challenge_methods_supported</code>, <code>scopes_supported</code>,<br />
+<code>response_types_supported</code> let clients negotiate. RFC 9700 strongly<br />
+recommends advertising only secure choices (e.g., <code>S256</code> only for PKCE,<br />
+no <code>plain</code>).</li>
+<li><strong>Extensibility is by design.</strong> New RFCs add new metadata fields. E.g.,<br />
+<code>authorization_details_types_supported</code> (RFC 9396),<br />
+<code>dpop_signing_alg_values_supported</code> (RFC 9449),<br />
+<code>backchannel_logout_supported</code> (OIDC BCL),<br />
+<code>authorization_response_iss_parameter_supported</code> (RFC 9207). Discovery<br />
+<em>is</em> the extension surface.</li>
+<li><strong>Caching matters.</strong> Discovery docs are read often. Set sensible<br />
+<code>Cache-Control</code> headers (typical: 1 hour). OneAuth honors a<br />
+configurable <code>CacheMaxAge</code> on <code>ASServerMetadata</code>.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">GET</span> <span style="color:#555">/.well-known/oauth-authorization-server</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>Cache-Control<span style="color:#000;font-weight:bold">:</span> public, max-age=3600
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;issuer&#34;</span>: <span style="color:#d14">&#34;https://as.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;authorization_endpoint&#34;</span>: <span style="color:#d14">&#34;https://as.example.com/authorize&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_endpoint&#34;</span>: <span style="color:#d14">&#34;https://as.example.com/api/token&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;introspection_endpoint&#34;</span>: <span style="color:#d14">&#34;https://as.example.com/oauth/introspect&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;revocation_endpoint&#34;</span>: <span style="color:#d14">&#34;https://as.example.com/oauth/revoke&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;jwks_uri&#34;</span>: <span style="color:#d14">&#34;https://as.example.com/.well-known/jwks.json&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;registration_endpoint&#34;</span>: <span style="color:#d14">&#34;https://as.example.com/apps/dcr&#34;</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scopes_supported&#34;</span>: [<span style="color:#d14">&#34;openid&#34;</span>, <span style="color:#d14">&#34;profile&#34;</span>, <span style="color:#d14">&#34;email&#34;</span>, <span style="color:#d14">&#34;read&#34;</span>, <span style="color:#d14">&#34;write&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;response_types_supported&#34;</span>: [<span style="color:#d14">&#34;code&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;grant_types_supported&#34;</span>: [
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;authorization_code&#34;</span>, <span style="color:#d14">&#34;refresh_token&#34;</span>, <span style="color:#d14">&#34;client_credentials&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;urn:ietf:params:oauth:grant-type:device_code&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;urn:ietf:params:oauth:grant-type:jwt-bearer&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;urn:ietf:params:oauth:grant-type:token-exchange&#34;</span>
+</span></span><span style="display:flex;"><span>  ],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;code_challenge_methods_supported&#34;</span>: [<span style="color:#d14">&#34;S256&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_endpoint_auth_methods_supported&#34;</span>: [
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;client_secret_basic&#34;</span>, <span style="color:#d14">&#34;client_secret_post&#34;</span>, <span style="color:#d14">&#34;client_secret_jwt&#34;</span>, <span style="color:#d14">&#34;private_key_jwt&#34;</span>
+</span></span><span style="display:flex;"><span>  ],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;claims_supported&#34;</span>: [<span style="color:#d14">&#34;sub&#34;</span>, <span style="color:#d14">&#34;iss&#34;</span>, <span style="color:#d14">&#34;aud&#34;</span>, <span style="color:#d14">&#34;exp&#34;</span>, <span style="color:#d14">&#34;iat&#34;</span>, <span style="color:#d14">&#34;jti&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;authorization_details_types_supported&#34;</span>: [<span style="color:#d14">&#34;payment_initiation&#34;</span>, <span style="color:#d14">&#34;account_information&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;authorization_response_iss_parameter_supported&#34;</span>: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;backchannel_logout_supported&#34;</span>: <span style="color:#000;font-weight:bold">true</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The fields the AS chooses to populate <em>are</em> the deployment&rsquo;s documentation.<br />
+A client SDK reading this doc knows it can do RAR (<code>authorization_details_*</code>),<br />
+that PKCE is S256-only (<code>code_challenge_methods_supported</code>), and that<br />
+backchannel logout is in scope.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L2 lifecycle &amp; discovery.</strong> 8414 is what makes the AS <em>self-describing</em>.</li>
+<li><strong>T0 (deployment setup).</strong> Discovery is queried once on client startup<br />
+(or on cache miss); subsequent flows assume it.</li>
+<li><strong>Sibling specs</strong>: OIDC Discovery 1.0 for identity-layer fields; RFC 9728<br />
+for protected resources (sibling, RS-side).</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>Published 2018, <em>after</em> 2.0. Not part of bare 6749. But the OIDC Discovery<br />
+spec (2014) established the pattern, and 8414 became the universal way to<br />
+advertise <em>any</em> OAuth AS in production — OIDC or not.</p>
+<p>Modern major IdPs all publish 8414-shaped metadata, often at <em>both</em><br />
+well-known paths (<code>/oauth-authorization-server</code> + <code>/openid-configuration</code>)<br />
+because clients historically went to the OIDC path first.</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>Not mandated by 2.1 either, but in practice if you&rsquo;re shipping a 2.1-strict<br />
+AS you&rsquo;ll publish 8414 metadata — that&rsquo;s how clients negotiate the strict<br />
+features. 2.1 references 8414 throughout as the way to advertise required<br />
+capabilities (<code>code_challenge_methods_supported</code>, etc.).</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>8414 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/.well-known/oauth-authorization-server</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/as_metadata.go:153</code> <code>MountASMetadata</code> registers it</td>
+<td>Co-served with the OIDC path</td>
+</tr>
+<tr>
+<td><code>/.well-known/openid-configuration</code></td>
+<td><strong>Implemented</strong></td>
+<td>Same — both paths share the handler</td>
+<td>One JSON, two URLs</td>
+</tr>
+<tr>
+<td><code>ASServerMetadata</code> struct</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/as_metadata.go:20–98</code></td>
+<td>Covers 6749, 7517, 7591, 8628, 9207, 9396, OIDC BCL, OIDC discovery fields</td>
+</tr>
+<tr>
+<td><code>jwks_uri</code> advertisement</td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.JWKSURI</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>authorization_response_iss_parameter_supported</code> (RFC 9207)</td>
+<td><strong>Implemented</strong></td>
+<td><code>as_metadata.go:78</code> field; opt-in per-deployment</td>
+<td>Pointer to RFC 9207</td>
+</tr>
+<tr>
+<td><code>authorization_details_types_supported</code> (RFC 9396)</td>
+<td><strong>Implemented</strong></td>
+<td><code>as_metadata.go:37</code></td>
+<td>RAR types enumerable per-deployment</td>
+</tr>
+<tr>
+<td><code>code_challenge_methods_supported=[&quot;S256&quot;]</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>as_metadata.go:63</code></td>
+<td><code>plain</code> deliberately absent — clients refuse non-S256 ASes</td>
+</tr>
+<tr>
+<td><code>backchannel_logout_supported</code> (OIDC BCL)</td>
+<td><strong>Implemented</strong></td>
+<td><code>as_metadata.go:86</code></td>
+<td>Optional, advertised when wired</td>
+</tr>
+<tr>
+<td><code>dpop_signing_alg_values_supported</code> (RFC 9449)</td>
+<td><strong>Not implemented</strong></td>
+<td>—</td>
+<td>DPoP gap (covered separately under RFC_9449.md)</td>
+</tr>
+<tr>
+<td><code>Cache-Control</code> on responses</td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.CacheMaxAge</code> field</td>
+<td>Configurable per-deployment</td>
+</tr>
+<tr>
+<td><strong>Discovery-proxy mode</strong> (fetch upstream metadata)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/as_metadata_proxy.go</code> <code>ASMetadataProxy</code></td>
+<td>For RS deployments that proxy a foreign AS&rsquo;s discovery</td>
+</tr>
+</tbody>
+</table>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<p>You&rsquo;ll almost always publish discovery metadata. The one carve-out is<br />
+locked-down internal deployments where the client population is known and<br />
+configured statically — even there, publishing the doc costs nothing.</p>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_6749.md">RFC 6749</a> — the framework whose endpoints discovery describes</li>
+<li><a href="RFC_7517.md">RFC 7517</a> — JWKS; <code>jwks_uri</code> points here</li>
+<li><a href="RFC_9728.md">RFC 9728</a> — Protected Resource Metadata; the RS-side sibling</li>
+<li><a href="RFC_9207.md">RFC 9207</a> — <code>authorization_response_iss_parameter_supported</code></li>
+<li><a href="RFC_9449.md">RFC 9449</a> — DPoP advertises <code>dpop_signing_alg_values_supported</code></li>
+<li><a href="RFC_7591.md">RFC 7591</a> — DCR; <code>registration_endpoint</code> points here</li>
+<li><a href="OIDC_Discovery.md">OIDC Discovery 1.0</a> — the predecessor / superset for identity-layer fields</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc8414/">Datatracker: rfc8414</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc8414.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=8414">Errata search</a></li>
+<li><a href="https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#authorization-server-metadata">IANA OAuth AS Metadata registry</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

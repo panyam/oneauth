@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OneAuth handlers can be tested without a running HTTP server using httptest:">
+    <title>Testing, Security &amp; Troubleshooting · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Testing, Security &amp; Troubleshooting</h1>
+        
+        <p class="lead">OneAuth handlers can be tested without a running HTTP server using httptest:</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/TESTING.md"><code>docs/TESTING.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="testing-security--troubleshooting">Testing, Security &amp; Troubleshooting <a class="anchor" href="#testing-security--troubleshooting">¶</a></h1>
+<h2 id="testing">Testing <a class="anchor" href="#testing">¶</a></h2>
+<p>OneAuth handlers can be tested without a running HTTP server using <code>httptest</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">TestSignup</span>(t <span style="color:#000;font-weight:bold">*</span>testing.T) {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Setup
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    tmpDir, _ <span style="color:#000;font-weight:bold">:=</span> os.<span style="color:#900;font-weight:bold">MkdirTemp</span>(<span style="color:#d14">&#34;&#34;</span>, <span style="color:#d14">&#34;test-*&#34;</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">defer</span> os.<span style="color:#900;font-weight:bold">RemoveAll</span>(tmpDir)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    userStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSUserStore</span>(tmpDir)
+</span></span><span style="display:flex;"><span>    identityStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSIdentityStore</span>(tmpDir)
+</span></span><span style="display:flex;"><span>    channelStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSChannelStore</span>(tmpDir)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    createUser <span style="color:#000;font-weight:bold">:=</span> oneauth.<span style="color:#900;font-weight:bold">NewCreateUserFunc</span>(userStore, identityStore, channelStore)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    localAuth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oneauth.LocalAuth{
+</span></span><span style="display:flex;"><span>        CreateUser: createUser,
+</span></span><span style="display:flex;"><span>        HandleUser: <span style="color:#000;font-weight:bold">func</span>(authtype, provider <span style="color:#458;font-weight:bold">string</span>, token <span style="color:#000;font-weight:bold">*</span>oauth2.Token,
+</span></span><span style="display:flex;"><span>                        userInfo <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any, w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>            w.<span style="color:#900;font-weight:bold">WriteHeader</span>(http.StatusOK)
+</span></span><span style="display:flex;"><span>            json.<span style="color:#900;font-weight:bold">NewEncoder</span>(w).<span style="color:#900;font-weight:bold">Encode</span>(<span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{<span style="color:#d14">&#34;success&#34;</span>: <span style="color:#000;font-weight:bold">true</span>})
+</span></span><span style="display:flex;"><span>        },
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Create request
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    form <span style="color:#000;font-weight:bold">:=</span> url.Values{}
+</span></span><span style="display:flex;"><span>    form.<span style="color:#900;font-weight:bold">Set</span>(<span style="color:#d14">&#34;username&#34;</span>, <span style="color:#d14">&#34;testuser&#34;</span>)
+</span></span><span style="display:flex;"><span>    form.<span style="color:#900;font-weight:bold">Set</span>(<span style="color:#d14">&#34;email&#34;</span>, <span style="color:#d14">&#34;test@example.com&#34;</span>)
+</span></span><span style="display:flex;"><span>    form.<span style="color:#900;font-weight:bold">Set</span>(<span style="color:#d14">&#34;password&#34;</span>, <span style="color:#d14">&#34;password123&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    req <span style="color:#000;font-weight:bold">:=</span> httptest.<span style="color:#900;font-weight:bold">NewRequest</span>(http.MethodPost, <span style="color:#d14">&#34;/auth/signup&#34;</span>,
+</span></span><span style="display:flex;"><span>                                strings.<span style="color:#900;font-weight:bold">NewReader</span>(form.<span style="color:#900;font-weight:bold">Encode</span>()))
+</span></span><span style="display:flex;"><span>    req.Header.<span style="color:#900;font-weight:bold">Set</span>(<span style="color:#d14">&#34;Content-Type&#34;</span>, <span style="color:#d14">&#34;application/x-www-form-urlencoded&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rr <span style="color:#000;font-weight:bold">:=</span> httptest.<span style="color:#900;font-weight:bold">NewRecorder</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Test
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    localAuth.<span style="color:#900;font-weight:bold">HandleSignup</span>(rr, req)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Assert
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#000;font-weight:bold">if</span> rr.Code <span style="color:#000;font-weight:bold">!=</span> http.StatusOK {
+</span></span><span style="display:flex;"><span>        t.<span style="color:#900;font-weight:bold">Errorf</span>(<span style="color:#d14">&#34;Expected status 200, got %d&#34;</span>, rr.Code)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="reusable-test-infrastructure-testutil">Reusable Test Infrastructure (<code>testutil/</code>) <a class="anchor" href="#reusable-test-infrastructure-testutil">¶</a></h3>
+<p>For integration tests that need an in-process auth server, use the <code>testutil</code> package instead of wiring one up manually:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/testutil&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">TestMyFeature</span>(t <span style="color:#000;font-weight:bold">*</span>testing.T) {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Starts an RS256 auth server with JWKS, token endpoint, AS metadata
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    srv <span style="color:#000;font-weight:bold">:=</span> testutil.<span style="color:#900;font-weight:bold">NewTestAuthServer</span>(t, testutil.<span style="color:#900;font-weight:bold">WithAudience</span>(<span style="color:#d14">&#34;my-api&#34;</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Mint tokens directly (no HTTP round-trip)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    token, _ <span style="color:#000;font-weight:bold">:=</span> srv.<span style="color:#900;font-weight:bold">MintToken</span>(<span style="color:#d14">&#34;user-42&#34;</span>, []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;read&#34;</span>, <span style="color:#d14">&#34;write&#34;</span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Or use standard OAuth helpers (work against any OAuth server)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    clientID, secret <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">registerApp</span>(t, srv)
+</span></span><span style="display:flex;"><span>    tok <span style="color:#000;font-weight:bold">:=</span> testutil.<span style="color:#900;font-weight:bold">GetClientCredentialsToken</span>(t, srv.<span style="color:#900;font-weight:bold">TokenEndpoint</span>(), clientID, secret)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>See <code>testutil/SUMMARY.md</code> for the full API. Downstream projects (mcpkit, relay) can import this package directly.</p>
+<h3 id="test-file-reference">Test File Reference <a class="anchor" href="#test-file-reference">¶</a></h3>
+<ul>
+<li><code>testutil/server_test.go</code> — TestAuthServer, OAuth helpers, JWKS, OIDC discovery</li>
+<li><code>tests/e2e/</code> — In-process e2e tests (auth server + 2 resource servers)</li>
+<li><code>tests/keycloak/</code> — Keycloak interop tests (uses testutil helpers)</li>
+<li><code>local_test.go</code>, <code>auth_flows_test.go</code> — complete browser auth patterns</li>
+<li><code>api_auth_test.go</code> — API authentication with JWT, refresh tokens, and API keys</li>
+<li><code>custom_claims_test.go</code> — custom claims injection and multi-tenant JWT validation</li>
+<li><code>keystore_test.go</code> — KeyStore interface and InMemoryKeyStore usage</li>
+<li><code>grpc/context_test.go</code>, <code>grpc/interceptor_test.go</code> — gRPC patterns</li>
+</ul>
+<h2 id="security-considerations">Security Considerations <a class="anchor" href="#security-considerations">¶</a></h2>
+<h3 id="password-storage">Password Storage <a class="anchor" href="#password-storage">¶</a></h3>
+<p>OneAuth uses bcrypt with default cost for password hashing. Passwords are never stored in plain text.</p>
+<h3 id="token-security">Token Security <a class="anchor" href="#token-security">¶</a></h3>
+<ul>
+<li>Verification tokens: 32 bytes, hex-encoded (64 characters)</li>
+<li>Default expiry: 24 hours for email verification, 1 hour for password reset</li>
+<li>Tokens are single-use and deleted after consumption</li>
+<li>Expired tokens are automatically rejected</li>
+</ul>
+<h3 id="rate-limiting">Rate Limiting <a class="anchor" href="#rate-limiting">¶</a></h3>
+<p>Implement rate limiting at the HTTP handler level:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>rateLimiter <span style="color:#000;font-weight:bold">:=</span> ratelimit.<span style="color:#900;font-weight:bold">New</span>(<span style="color:#099">10</span>, time.Minute) <span style="color:#998;font-style:italic">// 10 requests per minute
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/auth/login&#34;</span>, rateLimiter.<span style="color:#900;font-weight:bold">Wrap</span>(localAuth))
+</span></span></code></pre><h2 id="best-practices">Best Practices <a class="anchor" href="#best-practices">¶</a></h2>
+<ol>
+<li><strong>Use HTTPS in production</strong>: Protect credentials in transit</li>
+<li><strong>Implement session timeouts</strong>: Expire inactive sessions</li>
+<li><strong>Log authentication events</strong>: Track failed login attempts</li>
+<li><strong>Validate redirects</strong>: Prevent open redirect vulnerabilities</li>
+<li><strong>Use CSRF protection</strong>: Protect state-changing operations</li>
+<li><strong>Implement account lockout</strong>: After repeated failed attempts</li>
+<li><strong>Store secrets securely</strong>: Use environment variables or secret managers</li>
+<li><strong>Regular security updates</strong>: Keep dependencies up to date</li>
+</ol>
+<h2 id="troubleshooting">Troubleshooting <a class="anchor" href="#troubleshooting">¶</a></h2>
+<h3 id="invalid-credentials-on-correct-password">&ldquo;Invalid credentials&rdquo; on correct password <a class="anchor" href="#invalid-credentials-on-correct-password">¶</a></h3>
+<p>Check that <code>UsernameField</code> is configured correctly for login:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// If your login form uses &#34;email&#34; field
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>localAuth.UsernameField = <span style="color:#d14">&#34;email&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// If your login form uses &#34;username&#34; field
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>localAuth.UsernameField = <span style="color:#d14">&#34;username&#34;</span>
+</span></span></code></pre><h3 id="email-verification-not-working">Email verification not working <a class="anchor" href="#email-verification-not-working">¶</a></h3>
+<p>Ensure all required fields are configured:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>localAuth.EmailSender = yourEmailSender  <span style="color:#998;font-style:italic">// Must not be nil
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>localAuth.TokenStore = tokenStore        <span style="color:#998;font-style:italic">// Must not be nil
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>localAuth.BaseURL = <span style="color:#d14">&#34;https://yourapp.com&#34;</span> <span style="color:#998;font-style:italic">// Must be set
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>localAuth.VerifyEmail = verifyFunc       <span style="color:#998;font-style:italic">// Must be set
+</span></span></span></code></pre><h3 id="token-expired-errors">Token expired errors <a class="anchor" href="#token-expired-errors">¶</a></h3>
+<p>Check token expiry durations:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Use longer expiry for email verification
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>token, _ <span style="color:#000;font-weight:bold">:=</span> tokenStore.<span style="color:#900;font-weight:bold">CreateToken</span>(userID, email,
+</span></span><span style="display:flex;"><span>    oneauth.TokenTypeEmailVerification,
+</span></span><span style="display:flex;"><span>    <span style="color:#099">48</span> <span style="color:#000;font-weight:bold">*</span> time.Hour)  <span style="color:#998;font-style:italic">// 48 hours instead of default 24
+</span></span></span></code></pre><h2 id="migration-guide">Migration Guide <a class="anchor" href="#migration-guide">¶</a></h2>
+<h3 id="from-password-only-to-multi-auth">From Password-Only to Multi-Auth <a class="anchor" href="#from-password-only-to-multi-auth">¶</a></h3>
+<ol>
+<li>Deploy identity/channel store schema</li>
+<li>Migrate existing users to new schema</li>
+<li>Update authentication handlers</li>
+<li>Add OAuth routes</li>
+<li>Update frontend to show multiple login options</li>
+</ol>
+<h3 id="example-migration-script">Example Migration Script <a class="anchor" href="#example-migration-script">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">migrateUsers</span>(oldDB <span style="color:#000;font-weight:bold">*</span>sql.DB, userStore UserStore, identityStore IdentityStore,
+</span></span><span style="display:flex;"><span>                  channelStore ChannelStore) <span style="color:#458;font-weight:bold">error</span> {
+</span></span><span style="display:flex;"><span>    rows, err <span style="color:#000;font-weight:bold">:=</span> oldDB.<span style="color:#900;font-weight:bold">Query</span>(<span style="color:#d14">&#34;SELECT id, email, password_hash FROM old_users&#34;</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> err
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">defer</span> rows.<span style="color:#900;font-weight:bold">Close</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">for</span> rows.<span style="color:#900;font-weight:bold">Next</span>() {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">var</span> userID, email, passwordHash <span style="color:#458;font-weight:bold">string</span>
+</span></span><span style="display:flex;"><span>        rows.<span style="color:#900;font-weight:bold">Scan</span>(<span style="color:#000;font-weight:bold">&amp;</span>userID, <span style="color:#000;font-weight:bold">&amp;</span>email, <span style="color:#000;font-weight:bold">&amp;</span>passwordHash)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// Create user
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>        profile <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{<span style="color:#d14">&#34;email&#34;</span>: email}
+</span></span><span style="display:flex;"><span>        userStore.<span style="color:#900;font-weight:bold">CreateUser</span>(userID, <span style="color:#000;font-weight:bold">true</span>, profile)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// Create identity
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>        identity <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>Identity{
+</span></span><span style="display:flex;"><span>            Type:     <span style="color:#d14">&#34;email&#34;</span>,
+</span></span><span style="display:flex;"><span>            Value:    email,
+</span></span><span style="display:flex;"><span>            UserID:   userID,
+</span></span><span style="display:flex;"><span>            Verified: <span style="color:#000;font-weight:bold">true</span>, <span style="color:#998;font-style:italic">// Assume existing users are verified
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>        }
+</span></span><span style="display:flex;"><span>        identityStore.<span style="color:#900;font-weight:bold">SaveIdentity</span>(identity)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// Create channel
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>        identityKey <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">IdentityKey</span>(<span style="color:#d14">&#34;email&#34;</span>, email)
+</span></span><span style="display:flex;"><span>        channel <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>Channel{
+</span></span><span style="display:flex;"><span>            Provider:    <span style="color:#d14">&#34;local&#34;</span>,
+</span></span><span style="display:flex;"><span>            IdentityKey: identityKey,
+</span></span><span style="display:flex;"><span>            Credentials: <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{<span style="color:#d14">&#34;password_hash&#34;</span>: passwordHash},
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        channelStore.<span style="color:#900;font-weight:bold">SaveChannel</span>(channel)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="performance-considerations">Performance Considerations <a class="anchor" href="#performance-considerations">¶</a></h2>
+<h3 id="file-based-stores">File-Based Stores <a class="anchor" href="#file-based-stores">¶</a></h3>
+<p>The provided file-based stores are suitable for:</p>
+<ul>
+<li>Development environments</li>
+<li>Small applications (&lt; 1000 users)</li>
+<li>Prototypes and MVPs</li>
+</ul>
+<p>For production with larger user bases, implement database-backed stores. See <a href="STORES.md">STORES.md</a> for GORM and GAE implementations.</p>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

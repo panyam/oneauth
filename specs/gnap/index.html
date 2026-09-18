@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Watch-only — no implementation planned">
+    <title>GNAP — Grant Negotiation and Authorization Protocol (RFC 9635) · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>GNAP — Grant Negotiation and Authorization Protocol (RFC 9635)</h1>
+        
+        <p class="lead">Watch-only — no implementation planned</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/GNAP.md"><code>docs/oauth/GNAP.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="gnap--grant-negotiation-and-authorization-protocol-rfc-9635">GNAP — Grant Negotiation and Authorization Protocol (RFC 9635) <a class="anchor" href="#gnap--grant-negotiation-and-authorization-protocol-rfc-9635">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2024-10<br />
+<strong>L-tier / T-tier:</strong> L8 · (replacement, not extension)<br />
+<strong>OneAuth coverage:</strong> Watch-only — no implementation planned<br />
+<strong>See also:</strong> <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>GNAP is the IETF&rsquo;s <em>speculative replacement</em> for OAuth 2.0 — a from-scratch<br />
+redesign that consolidates &ldquo;the spec is OAuth + N extensions&rdquo; into one<br />
+larger document with cleaner primitives. Published 2024 as an IETF<br />
+Proposed Standard; production adoption is essentially zero.</p>
+<h2 id="why-it-exists">Why it exists <a class="anchor" href="#why-it-exists">¶</a></h2>
+<p>Through the 2010s the OAuth WG accumulated extensions: PKCE, JAR, PAR,<br />
+RAR, DPoP, mTLS, token exchange. Each one fit a real problem. <em>Together</em><br />
+they form a complex deployment surface — every IdP picks a subset, every<br />
+client SDK supports a different combination, conformance becomes a per-<br />
+vendor matrix.</p>
+<p>GNAP is the <em>clean-slate</em> answer to that complexity. Instead of<br />
+&ldquo;OAuth 2.0 + 12 extensions,&rdquo; GNAP is one specification that incorporates<br />
+the lessons learned:</p>
+<ul>
+<li>Built-in support for multiple resource access patterns (not just<br />
+bearer)</li>
+<li>Built-in support for cryptographic key binding (not bolted on via<br />
+DPoP/mTLS)</li>
+<li>Cleaner extension model</li>
+<li>HTTP semantics that more naturally fit modern API patterns</li>
+</ul>
+<h2 id="current-adoption-state">Current adoption state <a class="anchor" href="#current-adoption-state">¶</a></h2>
+<p><strong>Essentially none in production.</strong> As of mid-2026:</p>
+<ul>
+<li>A handful of academic and reference implementations exist</li>
+<li>No major IdP (Auth0, Okta, Azure AD, Keycloak, Google) has shipped<br />
+production GNAP support</li>
+<li>No regulator (FAPI, Open Banking, healthcare) has adopted GNAP profiles</li>
+<li>OAuth 2.0 / 2.1 + the extension stack remains the deployed reality</li>
+</ul>
+<p>The IETF community&rsquo;s posture is roughly: <em>OAuth 2.x will be the deployed<br />
+standard for the next decade; GNAP is a long-horizon successor</em>. Whether<br />
+it ever achieves widespread deployment depends on:</p>
+<ul>
+<li>Tooling support (client SDKs in every major language)</li>
+<li>Implementer demand</li>
+<li>Whether the marginal cleanliness wins over the network effects of<br />
+the existing OAuth ecosystem</li>
+</ul>
+<p>History suggests <em>successor</em> protocols rarely displace incumbents (SAML<br />
+didn&rsquo;t kill OAuth; OAuth 1.0a didn&rsquo;t survive OAuth 2.0; XACML never<br />
+achieved escape velocity). But GNAP could break that pattern if the<br />
+existing OAuth surface continues compounding.</p>
+<h2 id="what-it-looks-like-briefly">What it looks like (briefly) <a class="anchor" href="#what-it-looks-like-briefly">¶</a></h2>
+<p>GNAP uses one negotiation endpoint and structured JSON requests instead<br />
+of the form-encoded body of OAuth&rsquo;s token endpoint. A simplified GNAP<br />
+&ldquo;start&rdquo; request:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/tx</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;access_token&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;access&#34;</span>: [
+</span></span><span style="display:flex;"><span>      { <span style="color:#000080">&#34;type&#34;</span>: <span style="color:#d14">&#34;payment_initiation&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#000080">&#34;actions&#34;</span>: [<span style="color:#d14">&#34;initiate&#34;</span>],
+</span></span><span style="display:flex;"><span>        <span style="color:#000080">&#34;amount&#34;</span>: <span style="color:#d14">&#34;500.00&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#000080">&#34;currency&#34;</span>: <span style="color:#d14">&#34;GBP&#34;</span> }
+</span></span><span style="display:flex;"><span>    ]
+</span></span><span style="display:flex;"><span>  },
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;key&#34;</span>: { <span style="color:#000080">&#34;proof&#34;</span>: <span style="color:#d14">&#34;httpsig&#34;</span>,
+</span></span><span style="display:flex;"><span>             <span style="color:#000080">&#34;jwk&#34;</span>: { <span style="color:#000080">&#34;kty&#34;</span>:<span style="color:#d14">&#34;EC&#34;</span>, <span style="color:#000080">&#34;crv&#34;</span>:<span style="color:#d14">&#34;P-256&#34;</span>, <span style="color:#000080">&#34;x&#34;</span>:<span style="color:#d14">&#34;...&#34;</span>, <span style="color:#000080">&#34;y&#34;</span>:<span style="color:#d14">&#34;...&#34;</span> } }
+</span></span><span style="display:flex;"><span>  },
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;interact&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;start&#34;</span>: [<span style="color:#d14">&#34;redirect&#34;</span>],
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;finish&#34;</span>: { <span style="color:#000080">&#34;method&#34;</span>:<span style="color:#d14">&#34;redirect&#34;</span>,
+</span></span><span style="display:flex;"><span>                <span style="color:#000080">&#34;uri&#34;</span>:<span style="color:#d14">&#34;https://client.example/cb&#34;</span>,
+</span></span><span style="display:flex;"><span>                <span style="color:#000080">&#34;nonce&#34;</span>:<span style="color:#d14">&#34;abc...&#34;</span> }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The response is a structured continuation URI plus, when ready, a<br />
+structured access token grant.</p>
+<p>The shape is <em>cleaner</em> than OAuth&rsquo;s accumulated wire — but the OAuth<br />
+ecosystem&rsquo;s switching cost is enormous.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L8 (future / watch-only).</strong> Not a peer of any L0–L7 RFC — a potential<br />
+<em>replacement</em> for the whole stack.</li>
+<li>GNAP&rsquo;s relationship to OAuth is <em>succession</em> rather than composition.<br />
+A GNAP-only AS doesn&rsquo;t speak OAuth on the wire (though it can be<br />
+bridged).</li>
+</ul>
+<h2 id="oauth-20--21-status">OAuth 2.0 / 2.1 status <a class="anchor" href="#oauth-20--21-status">¶</a></h2>
+<p>GNAP doesn&rsquo;t extend or constrain OAuth 2.0/2.1 — it&rsquo;s a parallel,<br />
+incompatible protocol. The IETF GNAP WG explicitly positions it as a<br />
+<em>successor</em>, not an upgrade path.</p>
+<p>This means:</p>
+<ul>
+<li>Production OAuth 2.0 deployments are unaffected.</li>
+<li>A new build today should <em>not</em> choose GNAP — interop with the<br />
+ecosystem doesn&rsquo;t yet exist.</li>
+<li>A library project (like OneAuth) should monitor the spec&rsquo;s deployment<br />
+trajectory without committing engineering effort.</li>
+</ul>
+<h2 id="when-to-revisit">When to revisit <a class="anchor" href="#when-to-revisit">¶</a></h2>
+<p>Three signals would justify GNAP work:</p>
+<ol>
+<li><strong>A major IdP ships production GNAP</strong> with public conformance.<br />
+(None have as of mid-2026.)</li>
+<li><strong>A regulator adopts GNAP</strong> as the required protocol for some<br />
+profile (e.g., a future FAPI 3.0 successor).</li>
+<li><strong>A material consumer use case</strong> asks for GNAP specifically — most<br />
+likely an academic or research deployment.</li>
+</ol>
+<p>Until one of those signals fires, GNAP stays in the <em>interesting future<br />
+work</em> column.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>GNAP surface</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Any GNAP support</td>
+<td><strong>Not planned</strong></td>
+<td>Watch-only</td>
+</tr>
+<tr>
+<td>OAuth-to-GNAP bridging</td>
+<td><strong>Not planned</strong></td>
+<td>Premature; no producer or consumer demand</td>
+</tr>
+</tbody>
+</table>
+<p>This is a deliberate non-investment. The opportunity cost of GNAP work<br />
+today would be deferring real OAuth 2.x feature gaps that have<br />
+deployment demand.</p>
+<h2 id="when-not-to-think-about-it">When NOT to think about it <a class="anchor" href="#when-not-to-think-about-it">¶</a></h2>
+<p>In every working session of OneAuth development for the next several<br />
+years. Note its existence; check the spec&rsquo;s deployment trajectory<br />
+annually; otherwise direct effort at the L5/L6/L7 OAuth surfaces that<br />
+<em>do</em> have demand.</p>
+<h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
+<ul>
+<li><a href="RFC_6749.md">OAuth 2.0 / 2.1</a> — what GNAP would notionally replace</li>
+<li><a href="https://datatracker.ietf.org/doc/draft-ietf-gnap-resource-servers/">GNAP design rationale</a></li>
+<li>IETF GNAP WG home</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc9635/">RFC 9635: GNAP</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9635.html">RFC editor copy</a></li>
+<li><a href="https://datatracker.ietf.org/wg/gnap/">IETF GNAP working group</a></li>
+<li><a href="https://datatracker.ietf.org/doc/draft-ietf-gnap-resource-servers/">GNAP resource servers spec</a> (companion)</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

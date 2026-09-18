@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="The legacy apiauth.APIAuth god struct is removed. The new wire-up is apiauth.NewOneAuth plus the per-concern HTTP factory methods on the returned...">
+    <title>Migration Guide · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Migration Guide</h1>
+        
+        <p class="lead">The legacy apiauth.APIAuth god struct is removed. The new wire-up is apiauth.NewOneAuth plus the per-concern HTTP factory methods on the returned...</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/MIGRATION.md"><code>docs/MIGRATION.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="migration-guide">Migration Guide <a class="anchor" href="#migration-guide">¶</a></h1>
+<h2 id="next-release--apiauth-retired-298">Next release — <code>APIAuth</code> retired (#298) <a class="anchor" href="#next-release--apiauth-retired-298">¶</a></h2>
+<p>The legacy <code>apiauth.APIAuth</code> god struct is removed. The new wire-up is <code>apiauth.NewOneAuth</code> plus the per-concern HTTP factory methods on the returned <code>*OneAuth</code>.</p>
+<h3 id="code-changes-consumers">Code changes (consumers) <a class="anchor" href="#code-changes-consumers">¶</a></h3>
+<p>Before:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>apiAuth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIAuth{
+</span></span><span style="display:flex;"><span>    JWTSecretKey:           secret,
+</span></span><span style="display:flex;"><span>    JWTIssuer:              issuer,
+</span></span><span style="display:flex;"><span>    JWTAudience:            audience,
+</span></span><span style="display:flex;"><span>    RefreshTokenStore:      refreshStore,
+</span></span><span style="display:flex;"><span>    ValidateCredentials:    validateCreds,
+</span></span><span style="display:flex;"><span>    GetSubjectScopes:       getScopes,
+</span></span><span style="display:flex;"><span>    Blacklist:              blacklist,
+</span></span><span style="display:flex;"><span>    ClientKeyStore:         keyStore,
+</span></span><span style="display:flex;"><span>    ClientAuthenticator:    customAuthenticator, <span style="color:#998;font-style:italic">// optional
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    AcceptedAudiences:      []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;https://as/api/token&#34;</span>},
+</span></span><span style="display:flex;"><span>    TrustedAssertionIssuers: trustedIssuers,
+</span></span><span style="display:flex;"><span>    DeviceAuthStore:        deviceStore,
+</span></span><span style="display:flex;"><span>    AuthorizationCodeStore: codeStore,
+</span></span><span style="display:flex;"><span>    AppStore:               appStore,
+</span></span><span style="display:flex;"><span>    TracerProvider:         tp,
+</span></span><span style="display:flex;"><span>    TokenHooks:             tokenHooks,
+</span></span><span style="display:flex;"><span>    CustomClaimsFunc:       customClaims,
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// JWTSigningAlg / JWTSigningKey / JWTVerifyKey for asymmetric setups
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;POST /api/token&#34;</span>, apiAuth.ServeHTTP)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;POST /api/logout&#34;</span>, apiAuth.HandleLogout)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;POST /api/logout-all&#34;</span>, apiAuth.HandleLogoutAll)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;GET /api/sessions&#34;</span>, apiAuth.HandleListSessions)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;GET /api/keys&#34;</span>, apiAuth.HandleAPIKeys)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;DELETE /api/keys/&#34;</span>, apiAuth.HandleRevokeAPIKey)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;POST /oauth/introspect&#34;</span>, apiauth.<span style="color:#900;font-weight:bold">NewIntrospectionHandler</span>(apiAuth, keyStore))
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;POST /oauth/revoke&#34;</span>, apiauth.<span style="color:#900;font-weight:bold">NewRevocationHandler</span>(apiAuth, keyStore))
+</span></span></code></pre><p>After:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>oa <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewOneAuth</span>(apiauth.OneAuthConfig{
+</span></span><span style="display:flex;"><span>    KeyStore:                keyStore,    <span style="color:#998;font-style:italic">// was ClientKeyStore — KeyStorage implements KeyLookup
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    SigningKey:              []<span style="color:#0086b3">byte</span>(secret), <span style="color:#998;font-style:italic">// for asymmetric: pass the private key directly
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    SigningAlg:              <span style="color:#d14">&#34;HS256&#34;</span>,        <span style="color:#998;font-style:italic">// was JWTSigningAlg
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    VerifyKey:               <span style="color:#000;font-weight:bold">nil</span>,            <span style="color:#998;font-style:italic">// asymmetric: public key for the validator (omit for HS256)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    Issuer:                  issuer,         <span style="color:#998;font-style:italic">// was JWTIssuer
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    Audience:                audience,       <span style="color:#998;font-style:italic">// was JWTAudience
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    RefreshStore:            refreshStore,   <span style="color:#998;font-style:italic">// was RefreshTokenStore
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    ValidateCredentials:     validateCreds,
+</span></span><span style="display:flex;"><span>    GetSubjectScopes:        getScopes,
+</span></span><span style="display:flex;"><span>    Blacklist:               blacklist,
+</span></span><span style="display:flex;"><span>    Authenticator:           customAuthenticator,
+</span></span><span style="display:flex;"><span>    AcceptedAudiences:       []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;https://as/api/token&#34;</span>},
+</span></span><span style="display:flex;"><span>    TrustedAssertionIssuers: trustedIssuers,
+</span></span><span style="display:flex;"><span>    DeviceAuthStore:         deviceStore,
+</span></span><span style="display:flex;"><span>    AuthorizationCodeStore:  codeStore,
+</span></span><span style="display:flex;"><span>    AppStore:                appStore,
+</span></span><span style="display:flex;"><span>    TracerProvider:          tp,
+</span></span><span style="display:flex;"><span>    Hooks:                   apiauth.Hooks{Token: tokenHooks}, <span style="color:#998;font-style:italic">// was top-level TokenHooks
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    CustomClaims:            customClaims,                     <span style="color:#998;font-style:italic">// was CustomClaimsFunc
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>tokenEndpoint <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewTokenEndpointHandler</span>(oa)
+</span></span><span style="display:flex;"><span>sessions <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">SessionsHTTPHandler</span>()
+</span></span><span style="display:flex;"><span>apiKeys <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">APIKeysHTTPHandler</span>(apiKeyStore, getScopes)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;POST /api/token&#34;</span>, tokenEndpoint)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;POST /api/logout&#34;</span>, sessions.HandleLogout)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;POST /api/logout-all&#34;</span>, sessions.HandleLogoutAll)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;GET /api/sessions&#34;</span>, sessions.HandleListSessions)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;GET /api/keys&#34;</span>, apiKeys.HandleAPIKeys)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">HandleFunc</span>(<span style="color:#d14">&#34;DELETE /api/keys/&#34;</span>, apiKeys.HandleRevokeAPIKey)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;POST /oauth/introspect&#34;</span>, oa.<span style="color:#900;font-weight:bold">IntrospectionHTTPHandler</span>())
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;POST /oauth/revoke&#34;</span>, oa.<span style="color:#900;font-weight:bold">RevocationHTTPHandler</span>())
+</span></span></code></pre><p>Field-by-field mapping for the swap:</p>
+<pre><code>APIAuth.JWTSecretKey         →  OneAuthConfig.SigningKey ([]byte) + .SigningAlg &quot;HS256&quot;
+APIAuth.JWTSigningKey        →  OneAuthConfig.SigningKey (private key) + .SigningAlg
+APIAuth.JWTVerifyKey         →  OneAuthConfig.VerifyKey (public key)
+APIAuth.JWTSigningAlg        →  OneAuthConfig.SigningAlg
+APIAuth.JWTIssuer            →  OneAuthConfig.Issuer
+APIAuth.JWTAudience          →  OneAuthConfig.Audience
+APIAuth.RefreshTokenStore    →  OneAuthConfig.RefreshStore
+APIAuth.ClientKeyStore       →  OneAuthConfig.KeyStore   (KeyStorage implements KeyLookup)
+APIAuth.ClientAuthenticator  →  OneAuthConfig.Authenticator
+APIAuth.CustomClaimsFunc     →  OneAuthConfig.CustomClaims
+APIAuth.TokenHooks           →  OneAuthConfig.Hooks.Token
+APIAuth.OnLoginSuccess (deprecated field) → OneAuthConfig.Hooks.Auth.OnLoginSuccess (signature drops *http.Request)
+APIAuth.OnLoginFailure (deprecated field) → OneAuthConfig.Hooks.Auth.OnLoginFailure (signature drops *http.Request)
+APIAuth.ServeHTTP            →  apiauth.NewTokenEndpointHandler(oa)
+APIAuth.HandleLogout / HandleLogoutAll / HandleListSessions → oa.SessionsHTTPHandler()
+APIAuth.HandleAPIKeys / HandleRevokeAPIKey                  → oa.APIKeysHTTPHandler(apiKeyStore, getScopes)
+APIAuth.ApproveDeviceAuthorization / DenyDeviceAuthorization → call core.DeviceAuthorizationStore.Approve... / Deny... directly
+apiauth.NewIntrospectionHandler(apiAuth, ks)                → oa.IntrospectionHTTPHandler()
+apiauth.NewRevocationHandler(apiAuth, ks)                   → oa.RevocationHTTPHandler()
+DeviceFlowMountConfig.APIAuth  → DeviceFlowMountConfig.OneAuth
+AuthorizeMountConfig.APIAuth   → AuthorizeMountConfig.OneAuth
+</code></pre>
+<h3 id="test-fixtures">Test fixtures <a class="anchor" href="#test-fixtures">¶</a></h3>
+<p>Tests that constructed <code>&amp;apiauth.APIAuth{...}</code> for assertions on issued tokens should construct a <code>*OneAuth</code> and either keep references to the relevant handlers or use a small fixture struct that bundles them. See <code>apiauth/test_helpers_test.go</code> for a working example.</p>
+<h3 id="late-binding-the-audience">Late-binding the audience <a class="anchor" href="#late-binding-the-audience">¶</a></h3>
+<p>The legacy <code>&amp;apiauth.APIAuth{}</code> struct let callers mutate <code>JWTAudience</code> <em>after</em> construction. That was convenient for test fixtures whose audience equals a URL only known once another component (e.g. an MCP resource server) had started. The new <code>*OneAuth</code> snapshots configuration into immutable issuer/validator instances, so the mutation pattern is gone.</p>
+<p>When the audience genuinely can&rsquo;t be known at <code>NewOneAuth</code> time — common for in-process fixtures, less common in production — use <code>OneAuthConfig.AudienceFunc</code>. It is consulted on every token mint and every validation. A non-empty return takes precedence over the eager <code>Audience</code>; an empty return falls back to it.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">var</span> audMu sync.Mutex
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">var</span> aud <span style="color:#458;font-weight:bold">string</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>oa <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewOneAuth</span>(apiauth.OneAuthConfig{
+</span></span><span style="display:flex;"><span>    SigningKey:   privKey,
+</span></span><span style="display:flex;"><span>    SigningAlg:   <span style="color:#d14">&#34;RS256&#34;</span>,
+</span></span><span style="display:flex;"><span>    Issuer:       <span style="color:#d14">&#34;https://as.example&#34;</span>,
+</span></span><span style="display:flex;"><span>    AudienceFunc: <span style="color:#000;font-weight:bold">func</span>() <span style="color:#458;font-weight:bold">string</span> {
+</span></span><span style="display:flex;"><span>        audMu.<span style="color:#900;font-weight:bold">Lock</span>()
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">defer</span> audMu.<span style="color:#900;font-weight:bold">Unlock</span>()
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> aud
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Some time later, once the resource server has its URL:
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>audMu.<span style="color:#900;font-weight:bold">Lock</span>()
+</span></span><span style="display:flex;"><span>aud = rs.URL
+</span></span><span style="display:flex;"><span>audMu.<span style="color:#900;font-weight:bold">Unlock</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// All subsequent /api/token calls stamp aud=rs.URL. No rebuild.
+</span></span></span></code></pre><p>Production deployments where the audience is a stable configuration value should leave <code>AudienceFunc</code> nil and set <code>Audience</code> directly. Lazy resolution adds one function call per mint and per validate.</p>
+<p><code>testutil.TestAuthServer</code> exposes the same pattern via <code>testutil.WithAudienceFunc(fn)</code> — the test owns the storage, testutil plumbs the closure straight to <code>OneAuthConfig.AudienceFunc</code>. The test fixture is a <em>consumer</em> of the canonical API, not a special path.</p>
+<h3 id="behavioral-notes">Behavioral notes <a class="anchor" href="#behavioral-notes">¶</a></h3>
+<ul>
+<li><code>Hooks.Auth.OnLoginSuccess</code> / <code>OnLoginFailure</code> no longer carry <code>*http.Request</code> — wrap with HTTP middleware if you need IP / user-agent details.</li>
+<li><code>TokenEndpointHandler.handleClientCredentials</code> calls <code>Issuer.CreateAccessToken</code> directly with the already-authenticated <code>client_id</code>. The legacy code path delegated to <code>Issuer.ClientCredentials</code>, which re-validated the secret — fine for <code>client_secret_basic</code> / <code>client_secret_post</code> but it broke <code>private_key_jwt</code>. The new shape is uniformly correct across all four token-endpoint auth methods.</li>
+<li>BCL hooks (<code>Hooks.Token.OnSubjectRevoked</code> / <code>OnTokenRevoked</code>) are snapshotted by <code>NewOneAuth</code>. Configure them in <code>OneAuthConfig.Hooks</code> before calling the constructor; do not mutate <code>oa.Hooks.Token</code> afterwards — <code>TokenRevoker</code> and <code>SessionsHandler</code> will not see the change.</li>
+</ul>
+<h2 id="v013--v014--subject-vocab-phase-2-consumers-helpers-transports">v0.1.3 → v0.1.4 — Subject vocab (phase 2: consumers, helpers, transports) <a class="anchor" href="#v013--v014--subject-vocab-phase-2-consumers-helpers-transports">¶</a></h2>
+<p>Completes the rename started in v0.1.3. Go API surfaces that handle the <em>principal-of-a-token</em> concept move from <strong>UserID</strong> to <strong>Subject</strong>. Account-model types (<code>accounts.User</code>, <code>accounts.Identity.UserID</code>, etc.) remain untouched.</p>
+<h3 id="code-changes-consumers-1">Code changes (consumers) <a class="anchor" href="#code-changes-consumers-1">¶</a></h3>
+<p>Search-and-replace on your consumer:</p>
+<pre><code>core.GetUserIDFromContext         →  core.GetSubjectFromContext
+core.SetUserIDInContext           →  core.SetSubjectInContext
+core.DefaultUserParamName         →  core.DefaultSubjectParamName
+core.GetUserScopesFunc            →  core.GetSubjectScopesFunc
+core.DefaultGetUserScopes         →  core.DefaultGetSubjectScopes
+apiauth.GetUserIDFromAPIContext   →  apiauth.GetSubjectFromAPIContext
+APIAuth.GetUserScopes             →  GetSubjectScopes
+JWTIssuerConfig.GetUserScopes     →  GetSubjectScopes
+OneAuthConfig.GetUserScopes       →  GetSubjectScopes
+PasswordGrantResponse.UserID      →  .Subject
+TokenInfo.UserID                  →  .Subject
+Middleware.UserParamName          →  SubjectParamName
+Middleware.GetLoggedInUserId(     →  Middleware.GetLoggedInSubject(
+OneAuth.SetLoggedInUserID(        →  OneAuth.SetLoggedInSubject(
+grpc.UserIDFromContext            →  grpc.SubjectFromContext
+grpc.UserIDFromContextWithConfig  →  grpc.SubjectFromContextWithConfig
+grpc.UserIDToOutgoingContext      →  grpc.SubjectToOutgoingContext
+grpc.DefaultMetadataKeyUserID     →  grpc.DefaultMetadataKeySubject
+grpc.Config.MetadataKeyUserID     →  grpc.Config.MetadataKeySubject
+</code></pre>
+<h3 id="session-invalidation-no-code-action-needed">Session invalidation (no code action needed) <a class="anchor" href="#session-invalidation-no-code-action-needed">¶</a></h3>
+<p>The session-cookie key flipped from <code>loggedInUserId</code> to <code>loggedInSubject</code>. Cookies issued by ≤ v0.1.3 are not recognised — users re-login on next visit. No SQL or session-store migration needed.</p>
+<h3 id="grpc-fleet-upgrade">gRPC fleet upgrade <a class="anchor" href="#grpc-fleet-upgrade">¶</a></h3>
+<p>The metadata header changed from <code>x-user-id</code> to <code>x-subject</code>. Upgrade gRPC clients and servers together. <code>SwitchUserTo*</code> and <code>x-switch-user</code> are unchanged (impersonation is human-user-scoped).</p>
+<hr />
+<h2 id="v012--v013--subject-vocab-phase-1-token-bearing-types">v0.1.2 → v0.1.3 — Subject vocab (phase 1: token-bearing types) <a class="anchor" href="#v012--v013--subject-vocab-phase-1-token-bearing-types">¶</a></h2>
+<p>The principal field on token-bearing types renames from <code>UserID</code> to <code>Subject</code> to match RFC 7519 / RFC 8693 vocabulary. Affects <code>core.RefreshToken</code>, <code>core.APIKey</code>, <code>localauth.VerificationToken</code>, and the storage interface methods on <code>RefreshTokenStore</code>, <code>APIKeyStore</code>, and <code>VerificationTokenStore</code>.</p>
+<h3 id="code-changes-consumers-2">Code changes (consumers) <a class="anchor" href="#code-changes-consumers-2">¶</a></h3>
+<p>Search-and-replace on your consumer:</p>
+<pre><code>.UserID                         →  .Subject     (only on RefreshToken / APIKey / VerificationToken instances)
+GetUserTokens(                  →  GetSubjectTokens(
+RevokeUserTokens(               →  RevokeSubjectTokens(
+ListUserAPIKeys(                →  ListSubjectAPIKeys(
+DeleteUserTokens(               →  DeleteSubjectTokens(
+</code></pre>
+<p><code>accounts.Identity.UserID</code>, <code>accounts.Username.UserID</code>, <code>UserStore</code>, and the <code>httpauth</code> public surface all stay unchanged.</p>
+<h3 id="stored-data-migration">Stored data migration <a class="anchor" href="#stored-data-migration">¶</a></h3>
+<h4 id="gorm-postgres--mysql--sqlite">GORM (Postgres / MySQL / SQLite) <a class="anchor" href="#gorm-postgres--mysql--sqlite">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">ALTER</span><span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">TABLE</span><span style="color:#bbb"> </span>refresh_tokens<span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">RENAME</span><span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">COLUMN</span><span style="color:#bbb"> </span>user_id<span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">TO</span><span style="color:#bbb"> </span>subject;<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb"></span><span style="color:#000;font-weight:bold">ALTER</span><span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">TABLE</span><span style="color:#bbb"> </span>api_keys<span style="color:#bbb">       </span><span style="color:#000;font-weight:bold">RENAME</span><span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">COLUMN</span><span style="color:#bbb"> </span>user_id<span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">TO</span><span style="color:#bbb"> </span>subject;<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb"></span><span style="color:#000;font-weight:bold">ALTER</span><span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">TABLE</span><span style="color:#bbb"> </span>auth_tokens<span style="color:#bbb">    </span><span style="color:#000;font-weight:bold">RENAME</span><span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">COLUMN</span><span style="color:#bbb"> </span>user_id<span style="color:#bbb"> </span><span style="color:#000;font-weight:bold">TO</span><span style="color:#bbb"> </span>subject;<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb"></span><span style="color:#998;font-style:italic">-- indexes on user_id are auto-renamed by Postgres/MySQL. On SQLite,
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">-- drop and recreate the index after the rename.
+</span></span></span></code></pre><h4 id="filesystem-store">Filesystem store <a class="anchor" href="#filesystem-store">¶</a></h4>
+<p><code>stores/fs</code> persists JSON files with a <code>user_id</code> field on three token kinds:<br />
+<code>refresh_tokens/*.json</code>, <code>api_keys/*.json</code>, <code>tokens/*.json</code>. Rewrite the<br />
+field name in place, or <strong>reset the store</strong> (re-issue all tokens / API<br />
+keys; users re-verify email).</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic"># In each affected directory:</span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span> f in refresh_tokens api_keys tokens; <span style="color:#000;font-weight:bold">do</span>
+</span></span><span style="display:flex;"><span>  find <span style="color:#d14">&#34;</span><span style="color:#008080">$f</span><span style="color:#d14">&#34;</span> -name <span style="color:#d14">&#39;*.json&#39;</span> -exec sed -i.bak <span style="color:#d14">&#39;s/&#34;user_id&#34;:/&#34;subject&#34;:/g&#39;</span> <span style="color:#000;font-weight:bold">{}</span> <span style="color:#d14">\;</span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">done</span>
+</span></span></code></pre><h4 id="gae--datastore">GAE / Datastore <a class="anchor" href="#gae--datastore">¶</a></h4>
+<p><code>subject</code> becomes the new Datastore property name on<br />
+<code>RefreshToken</code>, <code>APIKey</code>, and <code>AuthToken</code> kinds. Either run a Datastore<br />
+update job to copy <code>user_id</code> → <code>subject</code> and drop <code>user_id</code>, or reset<br />
+those kinds. Active filter queries on those kinds also need updating<br />
+(they used <code>FilterField(&quot;user_id&quot;, ...)</code> — the library now filters by<br />
+<code>subject</code>).</p>
+<p>If you have no production data on these stores (dev / staging), the<br />
+simplest path is to delete those kinds and let the library recreate<br />
+them with the new property.</p>
+<h3 id="easier-alternative">Easier alternative <a class="anchor" href="#easier-alternative">¶</a></h3>
+<p>If you have no production data persisted yet, just reset the three<br />
+token stores and re-issue everything on next login. No SQL needed.</p>
+<hr />
+<h1 id="migration-guide-sub-module-split-v00x--v0040">Migration Guide: Sub-Module Split (v0.0.x → v0.0.40) <a class="anchor" href="#migration-guide-sub-module-split-v00x--v0040">¶</a></h1>
+<h2 id="what-changed">What Changed <a class="anchor" href="#what-changed">¶</a></h2>
+<p>OneAuth is now split into multiple Go modules. The core module (<code>github.com/panyam/oneauth</code>) is lightweight (~6 deps). Heavy backends are separate sub-modules that you import only if you need them.</p>
+<h2 id="who-is-affected">Who Is Affected <a class="anchor" href="#who-is-affected">¶</a></h2>
+<ul>
+<li><strong>Apps that import <code>stores/gorm</code></strong> — add <code>github.com/panyam/oneauth/stores/gorm</code> to your <code>go.mod</code></li>
+<li><strong>Apps that import <code>stores/gae</code></strong> — add <code>github.com/panyam/oneauth/stores/gae</code></li>
+<li><strong>Apps that import <code>saml</code></strong> — add <code>github.com/panyam/oneauth/saml</code></li>
+<li><strong>Apps that import <code>grpc</code></strong> — add <code>github.com/panyam/oneauth/grpc</code></li>
+<li><strong>Apps that import <code>oauth2</code></strong> — add <code>github.com/panyam/oneauth/oauth2</code></li>
+<li><strong>Apps that only use <code>core</code>, <code>keys</code>, <code>apiauth</code>, <code>localauth</code>, <code>httpauth</code>, <code>admin</code>, <code>stores/fs</code></strong> — no changes needed</li>
+</ul>
+<h2 id="migration-steps">Migration Steps <a class="anchor" href="#migration-steps">¶</a></h2>
+<h3 id="1-update-gomod">1. Update go.mod <a class="anchor" href="#1-update-gomod">¶</a></h3>
+<p><strong>Before (single module):</strong></p>
+<pre><code>require github.com/panyam/oneauth v0.0.38
+</code></pre>
+<p><strong>After (add sub-modules you use):</strong></p>
+<pre><code>require (
+    github.com/panyam/oneauth            v0.0.40
+    github.com/panyam/oneauth/stores/gorm v0.0.40  // only if you use GORM stores
+)
+</code></pre>
+<h3 id="2-update-imports-if-you-havent-already">2. Update imports (if you haven&rsquo;t already) <a class="anchor" href="#2-update-imports-if-you-havent-already">¶</a></h3>
+<p>The subpackage reorganization (v0.0.39) moved types from the root package to subpackages. If you&rsquo;re still on v0.0.38, update imports per the table in CLAUDE.md.</p>
+<h3 id="3-run-go-mod-tidy">3. Run go mod tidy <a class="anchor" href="#3-run-go-mod-tidy">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>go mod tidy
+</span></span></code></pre><h2 id="module-map">Module Map <a class="anchor" href="#module-map">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>What</th>
+<th>Heavy Deps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>github.com/panyam/oneauth</code></td>
+<td>Core: types, keys, apiauth, localauth, httpauth, admin, stores/fs</td>
+<td>None (jwt, scs, x/crypto, x/oauth2)</td>
+</tr>
+<tr>
+<td><code>.../stores/gorm</code></td>
+<td>GORM SQL stores</td>
+<td>gorm.io/gorm, postgres/sqlite drivers</td>
+</tr>
+<tr>
+<td><code>.../stores/gae</code></td>
+<td>Google Datastore stores</td>
+<td>cloud.google.com/go/datastore + GCP SDK</td>
+</tr>
+<tr>
+<td><code>.../saml</code></td>
+<td>SAML SP</td>
+<td>crewjam/saml, XML libs</td>
+</tr>
+<tr>
+<td><code>.../grpc</code></td>
+<td>gRPC interceptors</td>
+<td>google.golang.org/grpc, protobuf</td>
+</tr>
+<tr>
+<td><code>.../oauth2</code></td>
+<td>OAuth2 provider clients</td>
+<td>golang.org/x/oauth2/google</td>
+</tr>
+</tbody>
+</table>
+<h2 id="common-scenarios">Common Scenarios <a class="anchor" href="#common-scenarios">¶</a></h2>
+<h3 id="i-just-want-jwt-validation-for-my-api">&ldquo;I just want JWT validation for my API&rdquo; <a class="anchor" href="#i-just-want-jwt-validation-for-my-api">¶</a></h3>
+<pre><code>require github.com/panyam/oneauth v0.0.40
+
+import (
+    &quot;github.com/panyam/oneauth/apiauth&quot;
+    &quot;github.com/panyam/oneauth/keys&quot;
+)
+</code></pre>
+<p><strong>Deps pulled:</strong> jwt/v5, x/crypto. That&rsquo;s it.</p>
+<h3 id="i-want-jwt--gorm-persistence">&ldquo;I want JWT + GORM persistence&rdquo; <a class="anchor" href="#i-want-jwt--gorm-persistence">¶</a></h3>
+<pre><code>require (
+    github.com/panyam/oneauth            v0.0.40
+    github.com/panyam/oneauth/stores/gorm v0.0.40
+)
+</code></pre>
+<h3 id="i-want-the-full-server-everything">&ldquo;I want the full server (everything)&rdquo; <a class="anchor" href="#i-want-the-full-server-everything">¶</a></h3>
+<pre><code>require (
+    github.com/panyam/oneauth            v0.0.40
+    github.com/panyam/oneauth/stores/gorm v0.0.40
+    github.com/panyam/oneauth/stores/gae  v0.0.40
+    github.com/panyam/oneauth/saml        v0.0.40
+    github.com/panyam/oneauth/grpc        v0.0.40
+    github.com/panyam/oneauth/oauth2      v0.0.40
+)
+</code></pre>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

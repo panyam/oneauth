@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Gap (candidate for FAPI track)">
+    <title>RFC 8705 — OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 8705 — OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens</h1>
+        
+        <p class="lead">Gap (candidate for FAPI track)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8705.md"><code>docs/oauth/RFC_8705.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-8705--oauth-20-mutual-tls-client-authentication-and-certificate-bound-access-tokens">RFC 8705 — OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens <a class="anchor" href="#rfc-8705--oauth-20-mutual-tls-client-authentication-and-certificate-bound-access-tokens">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2020-02<br />
+<strong>L-tier / T-tier:</strong> L5 · T5 (auth + mint binding) + T6 (present) + T7 (verify binding)<br />
+<strong>OneAuth coverage:</strong> Gap (candidate for FAPI track)<br />
+<strong>See also:</strong> <a href="RFC_9449.md"><code>RFC_9449.md</code></a> · <a href="RFC_7523.md"><code>RFC_7523.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>RFC 8705 does <em>two things</em> — it authenticates clients at <code>/token</code> via the<br />
+TLS client certificate they present (no <code>client_secret</code>), and it binds the<br />
+issued access token to that certificate so a stolen token can&rsquo;t be replayed<br />
+without the matching private key.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without 8705</th>
+<th>With 8705</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bearer access tokens replay from anywhere they leak (logs, proxies, caches)</td>
+<td>Token is bound to a TLS cert — useless without the cert&rsquo;s private key</td>
+</tr>
+<tr>
+<td>Client authentication relies on shared secrets (<code>client_secret_basic</code>) or asymmetric JWT (<code>private_key_jwt</code>)</td>
+<td>TLS cert IS the credential — proof of possession built into the transport</td>
+</tr>
+<tr>
+<td>Sender constraint for confidential clients requires a separate proof layer per request</td>
+<td>mTLS handles both auth and binding at the transport layer — zero per-request overhead</td>
+</tr>
+<tr>
+<td>FAPI deployments need a strict client-auth + sender-binding combo</td>
+<td>mTLS + cert-bound tokens is one of two FAPI-approved paths (the other is DPoP)</td>
+</tr>
+</tbody>
+</table>
+<p>8705 is the &ldquo;FAPI-grade with PKI infrastructure&rdquo; answer. For deployments<br />
+that already have a CA pipeline (banks, healthcare, government), mTLS<br />
+makes the most operational sense — extend the existing cert plumbing into<br />
+the OAuth surface.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>UK Open Banking, EU PSD2, and similar regulated APIs require strong client<br />
+authentication AND sender-constrained tokens. A bank&rsquo;s third-party<br />
+integrator (e.g., a budgeting app) holds a cert issued by a regulator-<br />
+trusted CA. On every call:</p>
+<ol>
+<li>App&rsquo;s outbound TLS handshake presents the cert.</li>
+<li>The AS validates the cert chain, treats <code>sub_dn</code> as the client identifier,<br />
+issues an access token with <code>cnf.x5t#S256</code> = thumbprint of the cert.</li>
+<li>App calls the RS; TLS again presents the cert; RS verifies the<br />
+<code>cnf.x5t#S256</code> claim against the actual TLS cert thumbprint.</li>
+<li>If the cert is missing, expired, or replaced, the token is rejected.</li>
+</ol>
+<p>This is the gold-standard binding model for high-stakes APIs. The cost is<br />
+PKI complexity — but for organizations that already run PKI (banks,<br />
+governments), the marginal cost is zero.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong>Two client authentication methods</strong>:
+<ul>
+<li><strong><code>tls_client_auth</code></strong> (§2.1): cert chain back to a recognized CA, with<br />
+a registered &ldquo;expected&rdquo; subject DN or SAN. AS validates chain<br />
+against trusted roots. The PKI-rich deployment path.</li>
+<li><strong><code>self_signed_tls_client_auth</code></strong> (§2.2): client presents a<br />
+self-signed cert; AS matches the cert&rsquo;s thumbprint against one<br />
+published in the client&rsquo;s <code>jwks</code> / <code>jwks_uri</code>. The &ldquo;I have a cert<br />
+but no CA&rdquo; path. Operationally closer to <code>private_key_jwt</code>.</li>
+</ul>
+</li>
+<li><strong>Certificate-bound access tokens</strong> (§3): independent of how the client<br />
+authenticated, the issued access token carries<br />
+<code>cnf.x5t#S256</code> = SHA-256 thumbprint of the cert used at issuance.</li>
+<li><strong><code>cnf.x5t#S256</code> validation at the RS</strong> (§3.2): on every request, the<br />
+RS extracts the TLS cert thumbprint and compares against the <code>cnf</code><br />
+claim. Mismatch → reject. This is where the sender constraint<br />
+actually does its job.</li>
+<li><strong>Discovery advertisement</strong>:
+<ul>
+<li><code>tls_client_certificate_bound_access_tokens: true</code> in AS metadata<br />
+(RFC 8414)</li>
+<li><code>mtls_endpoint_aliases</code> for ASes that segregate mTLS-only endpoints</li>
+</ul>
+</li>
+<li><strong>MTLS endpoint aliases pattern</strong> — some ASes serve mTLS on different<br />
+hostnames or ports (e.g., <code>mtls.as.example.com:443</code>) to keep TLS<br />
+termination separate. The <code>mtls_endpoint_aliases</code> metadata field<br />
+advertises these alternative paths.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p><strong>Setup — client registers (or self-publishes) its cert:</strong></p>
+<p>For <code>tls_client_auth</code>, registration includes one or more of:</p>
+<ul>
+<li><code>tls_client_auth_subject_dn</code> — &ldquo;CN=acme-client, O=Acme Corp&rdquo;</li>
+<li><code>tls_client_auth_san_dns</code> — <code>acme-client.example.com</code></li>
+<li><code>tls_client_auth_san_uri</code>, <code>tls_client_auth_san_ip</code>, <code>tls_client_auth_san_email</code></li>
+</ul>
+<p>For <code>self_signed_tls_client_auth</code>, the client publishes its cert (or<br />
+thumbprint) in its <code>jwks</code> / <code>jwks_uri</code>.</p>
+<p><strong>Token mint — client presents cert via TLS, AS issues bound token:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/api/token</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> mtls.as.example.com         (mTLS-only endpoint)
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">[client</span> certificate presented in TLS handshake; no Authorization header]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>grant_type=client_credentials
+</span></span><span style="display:flex;"><span>&amp;scope=read+write
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;access_token&#34;</span>: <span style="color:#d14">&#34;eyJhbGciOi...&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_type&#34;</span>: <span style="color:#d14">&#34;Bearer&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;expires_in&#34;</span>: <span style="color:#099">3600</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scope&#34;</span>: <span style="color:#d14">&#34;read write&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The issued JWT carries:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iss&#34;</span>: <span style="color:#d14">&#34;https://as.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;sub&#34;</span>: <span style="color:#d14">&#34;acme-client&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;aud&#34;</span>: <span style="color:#d14">&#34;https://api.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;exp&#34;</span>: <span style="color:#099">1750000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iat&#34;</span>: <span style="color:#099">1749996400</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_id&#34;</span>: <span style="color:#d14">&#34;acme-client&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scope&#34;</span>: <span style="color:#d14">&#34;read write&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;cnf&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;x5t#S256&#34;</span>: <span style="color:#d14">&#34;AaXf2WnsoFn7zCUcr3...thumbprint-of-the-cert&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>Resource access — RS verifies cert thumbprint matches <code>cnf</code>:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">GET</span> <span style="color:#555">/api/me</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> api.example.com
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Bearer eyJhbGciOi...
+</span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">[client</span> certificate presented in TLS handshake]
+</span></span></code></pre><p>RS algorithm:</p>
+<ol>
+<li>Parse and verify JWT signature.</li>
+<li>Extract <code>cnf.x5t#S256</code> claim.</li>
+<li>Compute SHA-256 thumbprint of the <em>actual</em> TLS client cert.</li>
+<li>Compare. Mismatch → 401.</li>
+</ol>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L5 client auth strength</strong> (slot 1) + <strong>L5 token sender constraint</strong><br />
+(slot 2). 8705 fills both with one mechanism.</li>
+<li><strong>T5 (issue / mint binding)</strong> + <strong>T6 (present cert)</strong> + <strong>T7 (verify<br />
+binding)</strong>. Cross-cuts the runtime path more than most RFCs.</li>
+<li>Sibling spec at the same slot: <strong><a href="RFC_9449.md">RFC 9449 DPoP</a></strong> — same<br />
+property (sender constraint) via app-layer crypto rather than TLS.<br />
+Choose one based on deployment topology, not security level (both are<br />
+equivalent at FAPI 2.0).</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>Published 2020. Adopted in regulated deployments (Open Banking, Open<br />
+Finance, government APIs). Niche outside FAPI-style profiles — most consumer<br />
+OAuth deployments don&rsquo;t have PKI to plug into.</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>Not mandated by 2.1. Optional. FAPI 2.0 (which builds on 2.1) requires<br />
+one of <code>mTLS</code> or <code>DPoP</code> — pick by deployment topology.</p>
+<h2 id="migration-path-bearer--mtls-bound">Migration path (bearer → mTLS-bound) <a class="anchor" href="#migration-path-bearer--mtls-bound">¶</a></h2>
+<p>This is a heavier lift than the L0/L1 migrations because PKI<br />
+infrastructure isn&rsquo;t always there. If you&rsquo;re starting from<br />
+client_secret_basic and want to add mTLS:</p>
+<ol>
+<li><strong>Decide cert sourcing</strong> — PKI (CA-issued) vs self-signed-with-JWKS.<br />
+Self-signed is operationally similar to <code>private_key_jwt</code> — easier path<br />
+if you don&rsquo;t already run a CA.</li>
+<li><strong>Stand up mTLS endpoint termination</strong> — typically via a reverse proxy<br />
+(nginx, envoy) that handles TLS and forwards client cert via a<br />
+trusted header (<code>X-Client-Cert</code>). The AS process reads the header.</li>
+<li><strong>Decide endpoint segregation</strong> — separate <code>mtls.as.example.com</code><br />
+hostname OR same hostname with mTLS-optional. Most prefer<br />
+segregation.</li>
+<li><strong>Add <code>cnf.x5t#S256</code> claim to issued tokens</strong> when the client used<br />
+mTLS to authenticate.</li>
+<li><strong>RS-side: validate cert thumbprint against <code>cnf</code> on every request.</strong></li>
+<li><strong>Update AS metadata</strong> with<br />
+<code>tls_client_certificate_bound_access_tokens</code> and<br />
+<code>mtls_endpoint_aliases</code>.</li>
+</ol>
+<p>The PKI side dominates effort; the OAuth wire changes are small.</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>No PKI infrastructure</strong>: DPoP (RFC 9449) gives the same sender<br />
+constraint without certificate management.</li>
+<li><strong>Public clients</strong> (mobile, SPA): they can&rsquo;t reliably hold a TLS client<br />
+cert. DPoP is the right answer for these.</li>
+<li><strong>Behind a TLS-terminating proxy you don&rsquo;t control</strong> (some PaaS): you<br />
+may not see the client cert. Either negotiate cert forwarding with the<br />
+PaaS or switch to DPoP.</li>
+<li><strong>Simple internal services on a trusted network</strong>: mTLS adds operational<br />
+overhead without solving a problem you have.</li>
+</ul>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>8705 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tls_client_auth</code> client auth method (§2.1)</td>
+<td><strong>Gap</strong></td>
+<td>No mTLS handlers in <code>apiauth/</code>; single reference in <code>admin/DESIGN.md:19</code> mentions mTLS as a future admin authenticator (unrelated to OAuth client auth)</td>
+<td>Required for FAPI 1.0 Advanced / FAPI 2.0</td>
+</tr>
+<tr>
+<td><code>self_signed_tls_client_auth</code> (§2.2)</td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+<td>Lower-PKI path; operationally similar to <code>private_key_jwt</code></td>
+</tr>
+<tr>
+<td><code>cnf.x5t#S256</code> claim emission on issued tokens</td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+<td>The actual sender-binding mechanism</td>
+</tr>
+<tr>
+<td>RS-side <code>cnf.x5t#S256</code> validation</td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+<td>Symmetric to emission</td>
+</tr>
+<tr>
+<td><code>tls_client_certificate_bound_access_tokens</code> AS metadata field</td>
+<td><strong>Gap</strong></td>
+<td><code>apiauth/as_metadata.go</code> lacks this field; would need adding</td>
+<td>Discovery advertisement</td>
+</tr>
+<tr>
+<td><code>mtls_endpoint_aliases</code> AS metadata field</td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+<td>For deployments with segregated mTLS endpoints</td>
+</tr>
+<tr>
+<td>DCR client metadata fields (<code>tls_client_auth_subject_dn</code>, etc.)</td>
+<td><strong>Gap</strong></td>
+<td><code>admin/dcr.go</code> <code>DCRRequest</code> doesn&rsquo;t carry these fields</td>
+<td>Required for client registration when using <code>tls_client_auth</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Implementation sketch.</strong> When this lands, the cleanest shape is:</p>
+<ol>
+<li>A new <code>ClientAuthenticator</code> strategy alongside the existing<br />
+<code>client_secret_*</code> / <code>private_key_jwt</code> / <code>client_secret_jwt</code> flavors,<br />
+reading the cert from a configurable trusted header (<code>X-Client-Cert</code><br />
+default, since OneAuth typically runs behind a TLS-terminating proxy).</li>
+<li>A <code>TokenBindingValidator</code> interface (shared seam with DPoP) that<br />
+exposes the cnf-claim emission and verification paths. Both 8705 and<br />
+9449 plug in behind the interface.</li>
+<li>AS metadata fields added incrementally — opt-in per deployment.</li>
+</ol>
+<p>This is also where FAPI test conformance starts to become reachable.</p>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_9449.md">RFC 9449</a> — DPoP; the sibling sender-constraint mechanism for non-PKI deployments</li>
+<li><a href="RFC_7523.md">RFC 7523</a> — JWT bearer client auth; the asymmetric-key alternative when you have neither PKI nor DPoP</li>
+<li><a href="RFC_9068.md">RFC 9068</a> — JWT AT profile; the issued tokens carry <code>cnf.x5t#S256</code> as a standard claim</li>
+<li><a href="RFC_9700.md">RFC 9700</a> — §4.10 names sender constraint as the defense; doesn&rsquo;t pick between mTLS and DPoP</li>
+<li><a href="FAPI.md">FAPI 1.0 / 2.0</a> — the profile that mandates one of mTLS or DPoP</li>
+<li><a href="https://datatracker.ietf.org/doc/rfc7800/">RFC 7800</a> — defines <code>cnf</code> claim semantics</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc8705/">Datatracker: rfc8705</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc8705.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=8705">Errata search</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

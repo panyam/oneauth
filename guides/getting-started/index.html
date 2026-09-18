@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Get a Go application running with local authentication in 5 minutes.">
+    <title>Getting Started with OneAuth · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Getting Started with OneAuth</h1>
+        
+        <p class="lead">Get a Go application running with local authentication in 5 minutes.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/GETTING_STARTED.md"><code>docs/GETTING_STARTED.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="getting-started-with-oneauth">Getting Started with OneAuth <a class="anchor" href="#getting-started-with-oneauth">¶</a></h1>
+<p>Get a Go application running with local authentication in 5 minutes.</p>
+<h2 id="get-a-token-in-30-seconds-no-go-code">Get a token in 30 seconds (no Go code) <a class="anchor" href="#get-a-token-in-30-seconds-no-go-code">¶</a></h2>
+<p>If you just need to test against an OAuth server, the <code>oneauth</code> CLI ships<br />
+the four standard grants and a few sibling subcommands. No application<br />
+boilerplate required.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>go install github.com/panyam/oneauth/cmd/oneauth@latest
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Service-to-service token via RFC 6749 §4.4 client_credentials.</span>
+</span></span><span style="display:flex;"><span>oneauth token client-credentials https://auth.example.com <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  --client-id my-app --client-secret-stdin <span style="color:#000;font-weight:bold">&lt;&lt;&lt;</span><span style="color:#d14">&#34;</span><span style="color:#008080">$CLIENT_SECRET</span><span style="color:#d14">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Check whether a token is still active (RFC 7662).</span>
+</span></span><span style="display:flex;"><span>oneauth introspect https://auth.example.com <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  --token <span style="color:#d14">&#34;</span><span style="color:#008080">$ACCESS_TOKEN</span><span style="color:#d14">&#34;</span> --client-id my-rs --client-secret-stdin <span style="color:#000;font-weight:bold">&lt;&lt;&lt;</span><span style="color:#d14">&#34;</span><span style="color:#008080">$RS_SECRET</span><span style="color:#d14">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Register a fresh client (RFC 7591) and stash credentials in env vars.</span>
+</span></span><span style="display:flex;"><span><span style="color:#0086b3">eval</span> <span style="color:#d14">&#34;</span><span style="color:#000;font-weight:bold">$(</span>oneauth dcr register https://auth.example.com <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  --client-name <span style="color:#d14">&#39;ci-runner&#39;</span> --grant-types client_credentials --format bash<span style="color:#000;font-weight:bold">)</span><span style="color:#d14">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Inspect the AS&#39;s verification keys.</span>
+</span></span><span style="display:flex;"><span>oneauth jwks https://auth.example.com --format table
+</span></span></code></pre><p><code>oneauth --help</code> enumerates every subcommand. The walkthrough below is<br />
+for embedding the SDK into your Go app — skip it if the CLI covers your<br />
+case.</p>
+<h2 id="installation">Installation <a class="anchor" href="#installation">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>go get github.com/panyam/oneauth
+</span></span></code></pre><h2 id="setting-up-stores">Setting Up Stores <a class="anchor" href="#setting-up-stores">¶</a></h2>
+<p>OneAuth requires stores for users, identities, channels, and tokens. The library provides file-based implementations for development:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> (
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/core&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/localauth&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>storagePath <span style="color:#000;font-weight:bold">:=</span> <span style="color:#d14">&#34;/path/to/storage&#34;</span>
+</span></span><span style="display:flex;"><span>userStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSUserStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>identityStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSIdentityStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>channelStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSChannelStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>tokenStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSTokenStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// For API authentication
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>refreshTokenStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSRefreshTokenStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>apiKeyStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSAPIKeyStore</span>(storagePath)
+</span></span></code></pre><p>For production store options (GORM, GAE), see <a href="STORES.md">STORES.md</a>.</p>
+<h2 id="configuring-local-authentication">Configuring Local Authentication <a class="anchor" href="#configuring-local-authentication">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Create authentication callbacks using helper functions
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>createUser <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewCreateUserFunc</span>(userStore, identityStore, channelStore)
+</span></span><span style="display:flex;"><span>validateCreds <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewCredentialsValidator</span>(identityStore, channelStore, userStore)
+</span></span><span style="display:flex;"><span>verifyEmail <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewVerifyEmailFunc</span>(identityStore, tokenStore)
+</span></span><span style="display:flex;"><span>updatePassword <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewUpdatePasswordFunc</span>(identityStore, channelStore)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Configure local authentication
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>localAuth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>localauth.LocalAuth{
+</span></span><span style="display:flex;"><span>    CreateUser:          createUser,
+</span></span><span style="display:flex;"><span>    ValidateCredentials: validateCreds,
+</span></span><span style="display:flex;"><span>    ValidateSignup:      <span style="color:#000;font-weight:bold">nil</span>, <span style="color:#998;font-style:italic">// Uses default validator
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    EmailSender:         <span style="color:#000;font-weight:bold">&amp;</span>core.ConsoleEmailSender{},
+</span></span><span style="display:flex;"><span>    TokenStore:          tokenStore,
+</span></span><span style="display:flex;"><span>    BaseURL:             <span style="color:#d14">&#34;https://yourapp.com&#34;</span>,
+</span></span><span style="display:flex;"><span>    RequireEmailVerification: <span style="color:#000;font-weight:bold">false</span>,
+</span></span><span style="display:flex;"><span>    UsernameField:       <span style="color:#d14">&#34;email&#34;</span>,
+</span></span><span style="display:flex;"><span>    VerifyEmail:         verifyEmail,
+</span></span><span style="display:flex;"><span>    UpdatePassword:      updatePassword,
+</span></span><span style="display:flex;"><span>    HandleUser: <span style="color:#000;font-weight:bold">func</span>(authtype <span style="color:#458;font-weight:bold">string</span>, provider <span style="color:#458;font-weight:bold">string</span>, token <span style="color:#000;font-weight:bold">*</span>oauth2.Token,
+</span></span><span style="display:flex;"><span>                      userInfo <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any, w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// Create session, set cookies, redirect, etc.
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    },
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="setting-up-routes">Setting Up Routes <a class="anchor" href="#setting-up-routes">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>mux <span style="color:#000;font-weight:bold">:=</span> http.<span style="color:#900;font-weight:bold">NewServeMux</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Authentication routes
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/auth/login&#34;</span>, localAuth)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/auth/signup&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(localAuth.HandleSignup))
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/auth/verify-email&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(localAuth.HandleVerifyEmail))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Password reset routes
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/auth/forgot-password&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(<span style="color:#000;font-weight:bold">func</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> r.Method <span style="color:#000;font-weight:bold">==</span> http.MethodGet {
+</span></span><span style="display:flex;"><span>        localAuth.<span style="color:#900;font-weight:bold">HandleForgotPasswordForm</span>(w, r)
+</span></span><span style="display:flex;"><span>    } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>        localAuth.<span style="color:#900;font-weight:bold">HandleForgotPassword</span>(w, r)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/auth/reset-password&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(<span style="color:#000;font-weight:bold">func</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> r.Method <span style="color:#000;font-weight:bold">==</span> http.MethodGet {
+</span></span><span style="display:flex;"><span>        localAuth.<span style="color:#900;font-weight:bold">HandleResetPasswordForm</span>(w, r)
+</span></span><span style="display:flex;"><span>    } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>        localAuth.<span style="color:#900;font-weight:bold">HandleResetPassword</span>(w, r)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}))
+</span></span></code></pre><h2 id="helper-functions">Helper Functions <a class="anchor" href="#helper-functions">¶</a></h2>
+<p>OneAuth provides helper functions to create callbacks from stores:</p>
+<h3 id="newcreateuserfunc">NewCreateUserFunc <a class="anchor" href="#newcreateuserfunc">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>createUser <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewCreateUserFunc</span>(userStore, identityStore, channelStore)
+</span></span><span style="display:flex;"><span>user, err <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">createUser</span>(<span style="color:#000;font-weight:bold">&amp;</span>core.Credentials{
+</span></span><span style="display:flex;"><span>    Username: <span style="color:#d14">&#34;johndoe&#34;</span>,
+</span></span><span style="display:flex;"><span>    Email:    <span style="color:#000;font-weight:bold">&amp;</span>email,
+</span></span><span style="display:flex;"><span>    Password: <span style="color:#d14">&#34;password123&#34;</span>,
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre><h3 id="newcredentialsvalidator">NewCredentialsValidator <a class="anchor" href="#newcredentialsvalidator">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>validateCreds <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewCredentialsValidator</span>(identityStore, channelStore, userStore)
+</span></span><span style="display:flex;"><span>user, err <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">validateCreds</span>(<span style="color:#d14">&#34;john@example.com&#34;</span>, <span style="color:#d14">&#34;password123&#34;</span>, <span style="color:#d14">&#34;email&#34;</span>)
+</span></span></code></pre><h3 id="newverifyemailfunc">NewVerifyEmailFunc <a class="anchor" href="#newverifyemailfunc">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>verifyEmail <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewVerifyEmailFunc</span>(identityStore, tokenStore)
+</span></span><span style="display:flex;"><span>err <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">verifyEmail</span>(tokenString)
+</span></span></code></pre><h3 id="newupdatepasswordfunc">NewUpdatePasswordFunc <a class="anchor" href="#newupdatepasswordfunc">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>updatePassword <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewUpdatePasswordFunc</span>(identityStore, channelStore)
+</span></span><span style="display:flex;"><span>err <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">updatePassword</span>(<span style="color:#d14">&#34;john@example.com&#34;</span>, <span style="color:#d14">&#34;newpassword456&#34;</span>)
+</span></span></code></pre><h2 id="next-steps">Next Steps <a class="anchor" href="#next-steps">¶</a></h2>
+<ul>
+<li><a href="API_AUTH.md">API_AUTH.md</a> — JWT-based API authentication for mobile apps, SPAs, and services</li>
+<li><a href="BROWSER_AUTH.md">BROWSER_AUTH.md</a> — OAuth integration, session management, channel linking</li>
+<li><a href="STORES.md">STORES.md</a> — Store interfaces and persistent implementations (GORM, GAE)</li>
+<li><a href="GRPC.md">GRPC.md</a> — gRPC authentication interceptors</li>
+<li><a href="TESTING.md">TESTING.md</a> — Testing, security, and troubleshooting</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

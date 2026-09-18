@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Gap">
+    <title>OpenID Connect Client-Initiated Backchannel Authentication (CIBA) 1.0 · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OpenID Connect Client-Initiated Backchannel Authentication (CIBA) 1.0</h1>
+        
+        <p class="lead">Gap</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/OIDC_CIBA.md"><code>docs/oauth/OIDC_CIBA.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="openid-connect-client-initiated-backchannel-authentication-ciba-10">OpenID Connect Client-Initiated Backchannel Authentication (CIBA) 1.0 <a class="anchor" href="#openid-connect-client-initiated-backchannel-authentication-ciba-10">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> OpenID Foundation Specification<br />
+<strong>Published:</strong> 2021 (final)<br />
+<strong>L-tier / T-tier:</strong> L4 (grant) + L7 (identity) · T5<br />
+<strong>OneAuth coverage:</strong> Gap<br />
+<strong>See also:</strong> <a href="RFC_8628.md"><code>RFC_8628.md</code></a> · <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>CIBA lets a client <em>initiate authentication for a specific user</em> via a<br />
+back-channel call to the AS — the AS then pushes a confirmation prompt to<br />
+that user&rsquo;s device (push notification, in-app prompt) and the client polls<br />
+or gets notified when the user approves.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without CIBA</th>
+<th>With CIBA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pre-authenticated workflows (&ldquo;Call center confirms a transfer with the customer&rdquo;) need ad-hoc out-of-band protocols</td>
+<td>Standardized — CIBA is exactly this use case</td>
+</tr>
+<tr>
+<td>Device flow (RFC 8628) requires the user to <em>read</em> a short code somewhere — doesn&rsquo;t fit voice assistants, IVRs, or push-only UX</td>
+<td>CIBA pushes a prompt to the user&rsquo;s authenticator device directly</td>
+</tr>
+<tr>
+<td>AI agents / orchestrators needing real-time user consent have no clean OIDC path</td>
+<td>CIBA is the cleanest fit (Auth0&rsquo;s &ldquo;Auth for AI Agents&rdquo; track names this explicitly)</td>
+</tr>
+<tr>
+<td>Bank fraud teams confirming high-value transfers need to verify &ldquo;user actually approved&rdquo; via the same trust chain as login</td>
+<td>CIBA reuses the OIDC trust + audit chain</td>
+</tr>
+</tbody>
+</table>
+<p>CIBA is the <em>decoupled-authentication</em> path. Where OIDC Core assumes the<br />
+user has a browser at the client and the client redirects them, CIBA<br />
+assumes the user has an <em>authenticator device</em> (phone, security key) that<br />
+the AS can prompt independently.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>You&rsquo;re talking to a call-center agent who&rsquo;s helping you with your bank.<br />
+The agent wants to make a high-value change. Instead of asking you to log<br />
+in to a web portal:</p>
+<ol>
+<li>Agent (client) calls the bank&rsquo;s CIBA endpoint with<br />
+<code>login_hint=&quot;customer@example.com&quot;</code> and a description of the change<br />
+they&rsquo;re about to make.</li>
+<li>The bank&rsquo;s AS receives the request, pushes a confirmation prompt to<br />
+your phone: &ldquo;Bank: Approve account-balance disclosure to call-center<br />
+agent? [Approve] [Deny]&rdquo;</li>
+<li>You approve on your phone via biometric.</li>
+<li>Agent&rsquo;s CIBA endpoint completes — the agent&rsquo;s client receives a token<br />
+with <code>id_token</code> confirming &ldquo;yes, <a href="mailto:customer@example.com">customer@example.com</a> did approve.&rdquo;</li>
+<li>Agent proceeds, with an auditable record that the customer themselves<br />
+approved.</li>
+</ol>
+<p>This is also the pattern for &ldquo;Confirm with Touch ID&rdquo; UX in some banks, and<br />
+the emerging pattern for AI agent workflows where the agent needs to ask<br />
+the user for permission for a specific action without redirecting their<br />
+browser.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong>Decoupled in two dimensions</strong>:
+<ul>
+<li>The <em>device</em> the user authenticates on (phone) is different from the<br />
+<em>device</em> the client is on (call-center workstation, AI agent, IoT<br />
+device, voice assistant).</li>
+<li>The <em>channel</em> the client uses to talk to the AS (back-channel HTTP)<br />
+is different from the channel the AS uses to talk to the user<br />
+(push notification).</li>
+</ul>
+</li>
+<li><strong>One endpoint: <code>POST /bc-authorize</code></strong> (typically<br />
+<code>/bc-authorize</code> or <code>/ciba</code>). Returns <code>auth_req_id</code> plus <code>expires_in</code><br />
+and <code>interval</code>. The client uses <code>auth_req_id</code> to track this specific<br />
+authentication request.</li>
+<li><strong>Three notification modes</strong> (§7.1):
+<ul>
+<li><strong><code>poll</code></strong> — client polls a CIBA-specific token endpoint until done</li>
+<li><strong><code>ping</code></strong> — AS pings the client&rsquo;s pre-registered URL when the user<br />
+has approved; client then exchanges</li>
+<li><strong><code>push</code></strong> — AS pushes the tokens directly to the client (least<br />
+common; security model is harder)</li>
+</ul>
+</li>
+<li><strong><code>login_hint</code> or <code>id_token_hint</code> or <code>login_hint_token</code></strong> identifies<br />
+which user the authentication is for. CIBA-aware ASes accept any of<br />
+these per their deployment policy.</li>
+<li><strong><code>binding_message</code></strong> is the user-readable string shown on the<br />
+authenticator device. Important for context: &ldquo;Approve £500 transfer to<br />
+ACME?&rdquo; beats &ldquo;Approve auth_req_id=abc123?&rdquo;.</li>
+<li><strong>Polling discipline</strong> mirrors RFC 8628 device flow: <code>interval</code>,<br />
+<code>slow_down</code>, <code>authorization_pending</code>, <code>access_denied</code>,<br />
+<code>expired_token</code>.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p><strong>Client initiates CIBA:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/bc-authorize</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Basic &lt;client-creds&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>scope=openid+profile
+</span></span><span style="display:flex;"><span>&amp;login_hint=customer%40example.com
+</span></span><span style="display:flex;"><span>&amp;binding_message=Approve+%C2%A3500+transfer+to+ACME%3F
+</span></span><span style="display:flex;"><span>&amp;acr_values=urn%3Amace%3Aincommon%3Aiap%3Asilver
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>Cache-Control<span style="color:#000;font-weight:bold">:</span> no-store
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;auth_req_id&#34;</span>:  <span style="color:#d14">&#34;1c266114-a1be-4252-8ad1-04986c5b9ac1&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;expires_in&#34;</span>:   <span style="color:#099">120</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;interval&#34;</span>:     <span style="color:#099">5</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>Push to user (mechanism is implementation-defined)</strong> — typically a push<br />
+notification with <code>binding_message</code> shown on the user&rsquo;s authenticator<br />
+device. User approves with biometric or PIN.</p>
+<p><strong>Client polls (poll mode):</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/api/token</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Basic &lt;client-creds&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>grant_type=urn:openid:params:grant-type:ciba
+</span></span><span style="display:flex;"><span>&amp;auth_req_id=1c266114-a1be-4252-8ad1-04986c5b9ac1
+</span></span></code></pre><p>While pending: <code>{&quot;error&quot;:&quot;authorization_pending&quot;}</code>. When approved:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;access_token&#34;</span>:  <span style="color:#d14">&#34;2YotnFZFEjr1zCsicMWpAA&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_type&#34;</span>:    <span style="color:#d14">&#34;Bearer&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;expires_in&#34;</span>:    <span style="color:#099">3600</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;refresh_token&#34;</span>: <span style="color:#d14">&#34;tGzv3JOkF0XG5Qx2TlKWIA&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;id_token&#34;</span>:      <span style="color:#d14">&#34;eyJhbGciOi...&#34;</span>     <span style="color:#a61717;background-color:#e3d2d2">←</span> <span style="color:#a61717;background-color:#e3d2d2">carries</span> <span style="color:#a61717;background-color:#e3d2d2">proof</span> <span style="color:#a61717;background-color:#e3d2d2">user</span> <span style="color:#a61717;background-color:#e3d2d2">approved</span> <span style="color:#a61717;background-color:#e3d2d2">with</span> <span style="color:#a61717;background-color:#e3d2d2">binding_message</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The <code>id_token</code> claims may include <code>urn:openid:params:jwt:claim:rt_hash</code><br />
+and an <code>urn:openid:params:jwt:claim:auth_req_id</code> so the client can verify<br />
+this id_token corresponds to that specific authentication request.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L4 grant + L7 identity.</strong> CIBA is <em>both</em> a new grant type AND an<br />
+OIDC-specific identity flow.</li>
+<li><strong>T5 (token endpoint).</strong> No redirect, no browser at the client.</li>
+<li><strong>Sibling solution: <a href="RFC_8628.md">RFC 8628 device flow</a></strong> — device<br />
+flow assumes the user can read a code; CIBA assumes the user gets a<br />
+push. Pick by the user-side UX you actually have.</li>
+</ul>
+<h2 id="oauth-20--21-status">OAuth 2.0 / 2.1 status <a class="anchor" href="#oauth-20--21-status">¶</a></h2>
+<p>Not an OAuth-WG spec; OpenID Foundation. Coexists with OAuth 2.0 / 2.1<br />
+unchanged. Treated as an OIDC-layer grant.</p>
+<h2 id="migration-path">Migration path <a class="anchor" href="#migration-path">¶</a></h2>
+<p>CIBA is largely additive — it&rsquo;s a new endpoint + new grant_type. Most of<br />
+the complexity is <em>not</em> in the OAuth/OIDC plumbing; it&rsquo;s in:</p>
+<ol>
+<li><strong>The authenticator-device side</strong> — building or integrating push-based<br />
+authenticator support (custom app, FIDO2 token, vendor MFA solution).</li>
+<li><strong>Identifying users from <code>login_hint</code></strong> — your IdP needs a way to map<br />
+the hint to a known user + their authenticator device.</li>
+<li><strong>The user consent UX</strong> — the device-side prompt design is what<br />
+determines if the spec actually works in practice.</li>
+</ol>
+<p>The OAuth plumbing on top is short: add a back-channel auth endpoint,<br />
+add a new grant_type, plumb auth_req_id through the same token-mint path.</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>The user has a browser at the client</strong> — use OIDC Core auth-code +<br />
+PKCE. CIBA is for &ldquo;browser at the client is not available.&rdquo;</li>
+<li><strong>The user <em>only</em> has a browser</strong> — device flow (RFC 8628) is the fit<br />
+(&ldquo;display this code on the laptop, go enter it on your phone&rdquo;).</li>
+<li><strong>No authenticator-device infrastructure</strong> — CIBA assumes you can reach<br />
+the user&rsquo;s device via push. Without that, you can&rsquo;t ship it.</li>
+</ul>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>CIBA surface</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /bc-authorize</code> endpoint</td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>urn:openid:params:grant-type:ciba</code> grant dispatch</td>
+<td><strong>Gap</strong></td>
+<td>Would slot alongside other grant types in the <code>apiauth/token_endpoint.go:69</code> switch</td>
+</tr>
+<tr>
+<td>Poll / ping / push notification mode handling</td>
+<td><strong>Gap</strong></td>
+<td>Poll mode is the simplest first target</td>
+</tr>
+<tr>
+<td><code>login_hint</code> / <code>id_token_hint</code> resolution to user</td>
+<td><strong>Gap</strong></td>
+<td>Per-deployment user lookup integration</td>
+</tr>
+<tr>
+<td>Push notification to authenticator device</td>
+<td><strong>Gap</strong></td>
+<td>Out-of-scope for an OAuth library — needs platform integration</td>
+</tr>
+<tr>
+<td><code>binding_message</code> propagation through to user-side prompt</td>
+<td><strong>Gap</strong></td>
+<td>Display-side concern</td>
+</tr>
+<tr>
+<td><code>auth_req_id</code> store with TTL</td>
+<td><strong>Gap</strong></td>
+<td>Analogous to <code>DeviceAuthorizationStore</code></td>
+</tr>
+<tr>
+<td>AS metadata: <code>backchannel_authentication_endpoint</code>, <code>backchannel_token_delivery_modes_supported</code>, etc.</td>
+<td><strong>Gap</strong></td>
+<td>Discovery advertisement</td>
+</tr>
+<tr>
+<td><code>id_token</code> issuance</td>
+<td><strong>Gap</strong></td>
+<td>Foundational — see <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a></td>
+</tr>
+</tbody>
+</table>
+<p>CIBA gates on two prerequisites in OneAuth: (1) OIDC Core id_token<br />
+issuance (currently a gap), and (2) authenticator-device integration<br />
+(out-of-scope for a library; depends on the deploying application&rsquo;s<br />
+stack).</p>
+<p>OneAuth&rsquo;s Auth0-for-AI-Agents track (repo issue 125) is the natural home<br />
+for CIBA — AI agents calling APIs that need just-in-time user consent map<br />
+directly onto CIBA&rsquo;s design intent.</p>
+<h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
+<ul>
+<li><a href="OIDC_Core.md">OIDC Core</a> — id_token issuance is a prerequisite</li>
+<li><a href="OIDC_Discovery.md">OIDC Discovery</a> — CIBA metadata advertised here</li>
+<li><a href="RFC_8628.md">RFC 8628 Device Authorization</a> — sibling decoupled-auth pattern</li>
+<li><a href="RFC_9396.md">RFC 9396 RAR</a> — <code>binding_message</code> plus RAR&rsquo;s structured <code>authorization_details</code> gives the user precise context on what they&rsquo;re approving</li>
+<li>Repo issue 125 — AI-agent auth track that naturally hosts CIBA work</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html">OpenID Connect CIBA Core 1.0</a></li>
+<li><a href="https://openid.net/specs/openid-financial-api-ciba-ID1.html">FAPI-CIBA Profile</a> — FAPI&rsquo;s CIBA flavor</li>
+<li><a href="https://openid.net/specs/">OIDC Specifications</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented end-to-end (client &#43; server, server enforcement landed in PR 297)">
+    <title>RFC 7636 — Proof Key for Code Exchange (PKCE) · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 7636 — Proof Key for Code Exchange (PKCE)</h1>
+        
+        <p class="lead">Implemented end-to-end (client &#43; server, server enforcement landed in PR 297)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7636.md"><code>docs/oauth/RFC_7636.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-7636--proof-key-for-code-exchange-pkce">RFC 7636 — Proof Key for Code Exchange (PKCE) <a class="anchor" href="#rfc-7636--proof-key-for-code-exchange-pkce">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2015-09<br />
+<strong>L-tier / T-tier:</strong> L0 · T1 (prepare) + T5 (verify)<br />
+<strong>OneAuth coverage:</strong> Implemented end-to-end (client + server, server enforcement landed in PR 297)<br />
+<strong>See also:</strong> <a href="RFC_6749.md"><code>RFC_6749.md</code></a> · <a href="RFC_oauth21.md"><code>RFC_oauth21.md</code></a> · <a href="RFC_9700.md"><code>RFC_9700.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>PKCE proves that the client <em>exchanging</em> the authorization code is the same<br />
+client that <em>requested</em> it — closing the &ldquo;what if someone steals my code<br />
+mid-flight&rdquo; attack on public clients (and, in 2.1, all clients).</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without PKCE</th>
+<th>With PKCE</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A malicious mobile app registers the same redirect URI scheme as Spotify; Spotify&rsquo;s <code>code</code> is delivered to the attacker; attacker swaps it for tokens at <code>/token</code></td>
+<td>Attacker has the <code>code</code> but not the <code>code_verifier</code>; <code>/token</code> rejects with <code>invalid_grant</code></td>
+</tr>
+<tr>
+<td>Public clients (no secret) had no way to authenticate at <code>/token</code> — anyone with the <code>code</code> got the token</td>
+<td>Public clients prove possession via a fresh per-request secret (the verifier) that never crossed the wire</td>
+</tr>
+<tr>
+<td>Confidential clients felt safe (they have a client secret) — but a leaked code + compromised redirect was still exploitable</td>
+<td>Defense-in-depth — even confidential clients use PKCE in OAuth 2.1 §4.1.1</td>
+</tr>
+</tbody>
+</table>
+<p>PKCE is the cleanest piece of OAuth security work in the decade after 6749.<br />
+It&rsquo;s <em>one round of hashing</em> and one extra parameter at each endpoint.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>You install a third-party Reddit client. It uses Reddit&rsquo;s OAuth. On Android,<br />
+<em>any app can register itself as a handler for a custom URI scheme</em> — so a<br />
+malicious app could in principle intercept the <code>redirect_uri=myredditclient://callback</code><br />
+that Reddit redirects to.</p>
+<p>Without PKCE: malicious app catches the <code>code</code>, runs to Reddit&rsquo;s <code>/token</code><br />
+with it. Reddit hands over tokens (no client secret needed for public mobile<br />
+clients). Account compromised.</p>
+<p>With PKCE: the <em>real</em> Reddit client generated a random <code>code_verifier</code> at<br />
+launch, kept it in memory, and sent only <code>code_challenge = SHA256(verifier)</code><br />
+to <code>/authorize</code>. When the malicious app reaches <code>/token</code> with the<br />
+intercepted <code>code</code>, it doesn&rsquo;t know the verifier. Reddit&rsquo;s <code>/token</code> computes<br />
+<code>SHA256(provided_verifier)</code> and compares against the stored challenge —<br />
+mismatch → <code>invalid_grant</code> → attacker gets nothing.</p>
+<p>The defense costs the legitimate client a single SHA-256 hash; it costs the<br />
+attacker the whole account.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong>One-time secret per auth request.</strong> Client picks a high-entropy random<br />
+<code>code_verifier</code> (43–128 bytes, [A-Z][a-z][0-9]-._~). Throws it away<br />
+after one use.</li>
+<li><strong>Send the <em>hash</em>, not the secret.</strong> <code>code_challenge = BASE64URL(SHA256(verifier))</code>.<br />
+This is sent on <code>/authorize</code>. The verifier itself only crosses the wire on<br />
+the (TLS-encrypted) <code>/token</code> POST.</li>
+<li><strong>Two transformation methods — only one survives.</strong> <code>plain</code> (<code>challenge == verifier</code>)<br />
+and <code>S256</code> (<code>challenge == SHA256(verifier)</code>). OAuth 2.1 §4.1.1 rejects<br />
+<code>plain</code> and so does OneAuth&rsquo;s <code>/authorize</code>.</li>
+<li><strong>Verification is at <code>/token</code>.</strong> AS stores <code>(code, code_challenge, method)</code><br />
+when issuing the code. At exchange, AS computes <code>transformation(provided_verifier)</code><br />
+and compares to stored challenge. Mismatch → <code>invalid_grant</code>.</li>
+<li><strong>PKCE replaces client authentication for public clients</strong> <em>and</em> defends<br />
+confidential clients against code injection — that&rsquo;s why 2.1 makes it<br />
+universal, not &ldquo;public-only&rdquo; as 7636 originally suggested.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p><strong>T1 — client prepares.</strong> In memory:</p>
+<pre><code>verifier  = &quot;dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&quot;   # 43 chars, random
+challenge = BASE64URL(SHA256(verifier))
+          = &quot;E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&quot;
+</code></pre>
+<p><strong>T2 — <code>/authorize</code> with the challenge:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">GET /authorize?response_type=code
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;client_id=public-client-1
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;redirect_uri=https%3A%2F%2Fapp.example.com%2Fcb
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;code_challenge_method=S256
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;state=xyz HTTP/1.1
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Host: as.example.com
+</span></span></span></code></pre><p><strong>T5 — <code>/token</code> with the verifier:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/api/token</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>grant_type=authorization_code
+</span></span><span style="display:flex;"><span>&amp;code=SplxlOBeZQQYbYS6WxSbIA
+</span></span><span style="display:flex;"><span>&amp;redirect_uri=https%3A%2F%2Fapp.example.com%2Fcb
+</span></span><span style="display:flex;"><span>&amp;client_id=public-client-1
+</span></span><span style="display:flex;"><span>&amp;code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+</span></span></code></pre><p>The AS pulls the stored <code>code_challenge</code> for this <code>code</code>, computes<br />
+<code>SHA256(code_verifier)</code>, compares — pass → issue tokens; fail →<br />
+<code>{&quot;error&quot;:&quot;invalid_grant&quot;}</code>.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L0 spine.</strong> Originally a 7636 add-on; OAuth 2.1 §4.1.1 makes it part of<br />
+the spine.</li>
+<li><strong>T-tier: T1 (prepare) and T5 (verify).</strong> The challenge ships on the<br />
+outbound <code>/authorize</code> request (T1); the verifier closes the loop on the<br />
+inbound <code>/token</code> POST (T5). Nothing about T2–T4 changes.</li>
+<li>PKCE is the cheapest of the L0 defenses: ~30 lines of code on each side.</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>7636 was published 2015 as a <strong>SHOULD for public clients</strong>. Under bare 2.0</p>
+<ul>
+<li>7636, PKCE is <em>recommended</em> for public (browser, mobile) clients, <em>not<br />
+required for anyone</em>, and <strong>both <code>plain</code> and <code>S256</code> are conformant<br />
+challenge methods</strong>. Confidential clients with a server-side secret were<br />
+considered to not need PKCE under the original 7636 framing.</li>
+</ul>
+<p>The wider 2.0 ecosystem has tightened this over time:</p>
+<ul>
+<li>RFC 9700 (the BCP) recommends PKCE for <strong>all</strong> clients</li>
+<li>Most major IdPs require PKCE for public clients today, with <code>S256</code> only</li>
+<li>Some require it for confidential clients too as part of their security<br />
+profiles</li>
+<li>But this is &ldquo;vendor convention,&rdquo; not &ldquo;spec mandate&rdquo; — under bare 2.0,<br />
+a deployment that allows <code>plain</code> or skips PKCE for confidential clients<br />
+is still 2.0-conformant</li>
+</ul>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>OAuth 2.1 §4.1.1 promotes PKCE from SHOULD to <strong>MUST for every<br />
+authorization_code exchange — public <em>and</em> confidential clients alike</strong>.<br />
+It also rejects the <code>plain</code> method outright; only <code>S256</code> is conformant<br />
+under 2.1.</p>
+<p>This is the cleanest 2.0 → 2.1 tightening: same protocol surface, stricter<br />
+defaults.</p>
+<h2 id="migration-path">Migration path <a class="anchor" href="#migration-path">¶</a></h2>
+<p>Most modern deployments are already most of the way there. The remaining<br />
+work, in order of difficulty:</p>
+<ol>
+<li><strong>Client SDKs (easy):</strong> ship a <code>code_verifier</code> + <code>code_challenge</code> even<br />
+if your AS doesn&rsquo;t require it. ASes ignore unknown params. The cost is<br />
+one SHA-256 per login. This is what OneAuth&rsquo;s client SDK does<br />
+(<code>client/browser_login.go:467–468</code>).</li>
+<li><strong>AS (medium):</strong> add <code>code_challenge</code> storage to authorization-code<br />
+records, require <code>code_challenge_method=S256</code> at <code>/authorize</code>, verify<br />
+<code>code_verifier</code> at <code>/token</code>. This is what OneAuth&rsquo;s <code>/authorize</code><br />
+endpoint does (<code>apiauth/authorize.go:192–210</code>,<br />
+<code>apiauth/authorize_granter.go:100</code>).</li>
+<li><strong>Legacy client tail (hard):</strong> older clients that didn&rsquo;t ship PKCE need<br />
+to update. Run a deprecation window with logging — fail-soft (accept<br />
+PKCE-absent flows with a warning) → fail-hard (reject) once usage<br />
+drops. Most IdPs are running this exact window today.</li>
+<li><strong>Confidential clients (controversial):</strong> some operators argue<br />
+confidential clients with mTLS / private_key_jwt don&rsquo;t need PKCE. 2.1<br />
+disagrees; the BCP §2.1.1 disagrees. The pragmatic answer is &ldquo;add it<br />
+anyway, it&rsquo;s one SHA-256.&rdquo;</li>
+</ol>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<p>In 2025, you shouldn&rsquo;t <em>not</em> use it on a new deployment. The classic<br />
+exception — first-party desktop clients with hardcoded redirects on a<br />
+trusted OS — has gotten brittle as native-app guidance (RFC 8252) has<br />
+hardened. And under 2.1 the exception goes away entirely. The <em>only</em><br />
+reason to skip PKCE today is interop with an AS that doesn&rsquo;t support it<br />
+(and most do).</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>7636 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Client-side: compute challenge from verifier (§4.2)</td>
+<td><strong>Implemented</strong></td>
+<td><code>client/browser_login.go:467–468</code> sets <code>code_challenge</code> + <code>code_challenge_method=S256</code></td>
+<td>Uses a local <code>computeCodeChallenge</code> (<code>client/browser_login.go:507</code>, called at <code>:173</code>), not the <code>core</code> helper</td>
+</tr>
+<tr>
+<td>Client-side: send verifier on token exchange (§4.5)</td>
+<td><strong>Implemented</strong></td>
+<td><code>client/browser_login.go:402</code> sets <code>code_verifier</code> in POST</td>
+<td>Round-trip exercised by <code>apiauth/authorize_grant_test.go</code></td>
+</tr>
+<tr>
+<td>Client-side: refuse AS that doesn&rsquo;t advertise S256 (§4.2)</td>
+<td><strong>Implemented</strong></td>
+<td><code>client/browser_login.go:256–260</code> reads <code>code_challenge_methods_supported</code> from discovery</td>
+<td>Hard-fails on missing S256</td>
+</tr>
+<tr>
+<td>Server-side: require <code>code_challenge</code> on <code>/authorize</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize.go:192–196</code> rejects missing</td>
+<td><code>invalid_request</code> returned</td>
+</tr>
+<tr>
+<td>Server-side: require explicit <code>code_challenge_method</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize.go:198–203</code> rejects missing</td>
+<td>Explicit &ldquo;no plain default&rdquo; — <code>plain</code> would otherwise be 7636 §4.3&rsquo;s default</td>
+</tr>
+<tr>
+<td>Server-side: reject <code>plain</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize.go:205–210</code> accepts only <code>S256</code> by default[^plain]</td>
+<td>2.1 §4.1.1 conformant</td>
+</tr>
+<tr>
+<td>Server-side: verify at <code>/token</code> (§4.6)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize_granter.go:100</code> calls <code>core.VerifyPKCE</code>; mismatch → <code>invalid_grant</code></td>
+<td>Uses constant-time compare in <code>core/pkce.go:63–67</code></td>
+</tr>
+<tr>
+<td>Primitives shared across modules</td>
+<td><strong>Implemented</strong></td>
+<td><code>core/pkce.go</code> (<code>ComputeCodeChallenge</code>, <code>VerifyPKCE</code>, <code>CodeChallengeMethodS256</code>)</td>
+<td>Moved to <code>core/</code> in PR 300 so sub-modules can import without circular deps</td>
+</tr>
+<tr>
+<td>AS metadata advertises <code>S256</code> only</td>
+<td><strong>Implemented</strong></td>
+<td><code>cmd/oneauth-server</code> config; <code>code_challenge_methods_supported=[&quot;S256&quot;]</code></td>
+<td>Discovery-aware clients (incl. OneAuth&rsquo;s own SDK) refuse to start without it</td>
+</tr>
+</tbody>
+</table>
+<p>PKCE is the cleanest &ldquo;fully implemented&rdquo; row in the OAuth 2.1 audit table.<br />
+Both sides are exercised by integration tests; the primitives live in <code>core/</code><br />
+where every sub-module can pull them.</p>
+<p>[^plain]: <code>AuthorizationHandler</code> now carries an <code>AllowPlainPKCE</code> opt-in<br />
+(<code>apiauth/authorize.go:120</code>, default off, wired from<br />
+<code>OneAuthConfig.AllowPlainPKCE</code>). With it left unset, <code>/authorize</code><br />
+rejects <code>code_challenge_method=plain</code>, so &ldquo;S256-only&rdquo; holds by<br />
+default. Operators running OAuth 2.0 fleets can flip it on to accept<br />
+<code>plain</code>; the redemption-time <code>core.VerifyPKCE</code> handles either method.</p>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_6749.md">RFC 6749</a> — the auth-code grant 7636 patches</li>
+<li><a href="RFC_oauth21.md">OAuth 2.1 draft</a> — promotes 7636 from &ldquo;for public clients&rdquo; to &ldquo;for all clients&rdquo;</li>
+<li><a href="RFC_9700.md">RFC 9700</a> — §2.1.1 names 7636 as the mandatory code-injection defense</li>
+<li><a href="https://datatracker.ietf.org/doc/rfc8252/">RFC 8252</a> — Native Apps; 7636 is the security cornerstone of the native-app flow</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc7636/">Datatracker: rfc7636</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc7636.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=7636">Errata search</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

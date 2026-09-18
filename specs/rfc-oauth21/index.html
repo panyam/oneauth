@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Baseline alignment landed in PR 296 (issue 140). Audit table: docs/OAUTH21_ALIGNMENT.md(../OAUTH21_ALIGNMENT.md)">
+    <title>OAuth 2.1 (draft-ietf-oauth-v2-1) · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OAuth 2.1 (draft-ietf-oauth-v2-1)</h1>
+        
+        <p class="lead">Baseline alignment landed in PR 296 (issue 140). Audit table: docs/OAUTH21_ALIGNMENT.md(../OAUTH21_ALIGNMENT.md)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_oauth21.md"><code>docs/oauth/RFC_oauth21.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oauth-21-draft-ietf-oauth-v2-1">OAuth 2.1 (draft-ietf-oauth-v2-1) <a class="anchor" href="#oauth-21-draft-ietf-oauth-v2-1">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Internet-Draft (active)<br />
+<strong>Latest:</strong> <a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/">draft-ietf-oauth-v2-1</a><br />
+<strong>L-tier / T-tier:</strong> L0 · T0–T8 (foundational)<br />
+<strong>OneAuth coverage:</strong> Baseline alignment landed in PR 296 (issue 140). Audit table: <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a><br />
+<strong>See also:</strong> <a href="RFC_6749.md"><code>RFC_6749.md</code></a> · <a href="RFC_9700.md"><code>RFC_9700.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>OAuth 2.1 is RFC 6749 with the Security BCP (RFC 9700), PKCE (RFC 7636), and<br />
+Bearer Token Usage (RFC 6750) consolidated into a single document — and with<br />
+the grants that two decades of attacks killed (implicit, ROPC) removed.</p>
+<blockquote>
+<p><strong>Status reality.</strong> 2.1 is still an active Internet-Draft (currently<br />
+<code>draft-ietf-oauth-v2-1</code>). There is no public timeline for promotion to<br />
+RFC. <strong>OAuth 2.0 remains the published standard the production world<br />
+deploys.</strong> Treating 2.1 as &ldquo;the spec to build to today&rdquo; is reasonable<br />
+for <em>new</em> AS deployments; treating it as a hard requirement for <em>existing</em><br />
+2.0 deployments is premature — those will likely live another decade.</p>
+</blockquote>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without 2.1</th>
+<th>With 2.1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>To deploy an OAuth AS securely in 2025 you must read RFC 6749 + RFC 6750 + RFC 7636 + RFC 9700 + ~10 errata threads and synthesize them yourself</td>
+<td>One document; the synthesis is the spec</td>
+</tr>
+<tr>
+<td>Insecure flows (implicit, ROPC) are still legal per 6749 — deployments quietly leave them on</td>
+<td>Removed at the spec level — implementations have a normative reason to delete the code</td>
+</tr>
+<tr>
+<td>&ldquo;PKCE is for public clients&rdquo; is a popular misreading of 7636</td>
+<td>2.1 mandates PKCE for <em>all</em> clients, confidential included</td>
+</tr>
+<tr>
+<td><code>iss</code> on redirect is &ldquo;you should consider this&rdquo; in 9700</td>
+<td>2.1 makes it required for new deployments</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Important framing:</strong> 2.1 does not invent new protocol surface. It&rsquo;s<br />
+<em>subtractive</em> and <em>prescriptive</em>. If you already follow 9700 + 7636 against<br />
+6749, you&rsquo;re 90% of the way to 2.1. The remaining 10% is closing the legacy<br />
+trapdoors.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>You inherit an OAuth deployment from 2015. The audit asks: &ldquo;are we OAuth 2.1<br />
+compliant?&rdquo; You don&rsquo;t want to read four RFCs. You want a checklist. 2.1 is<br />
+that checklist:</p>
+<ul>
+<li>Implicit grant on? <strong>Turn it off.</strong> (§2.1.2)</li>
+<li>ROPC password grant on? <strong>Turn it off.</strong> (§7.6)</li>
+<li>PKCE optional? <strong>Make it mandatory for everyone.</strong> (§4.1.1)</li>
+<li>Redirect URI matching wildcard / substring? <strong>Exact match only.</strong> (§3.1.2.2)</li>
+<li>Refresh tokens long-lived without rotation? <strong>Rotate + detect reuse.</strong> (§6.1)</li>
+<li>Bearer tokens in <code>?access_token=...</code> query params? <strong>Remove that path.</strong> (§5.4)</li>
+</ul>
+<p>Each item maps to a code change. The audit becomes a project plan.</p>
+<h2 id="key-changes-vs-20">Key changes vs 2.0 <a class="anchor" href="#key-changes-vs-20">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>OAuth 2.0 (6749)</th>
+<th>OAuth 2.1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Implicit grant</td>
+<td>Allowed (§4.2)</td>
+<td><strong>Removed</strong></td>
+</tr>
+<tr>
+<td>Password grant (ROPC)</td>
+<td>Allowed (§4.3)</td>
+<td><strong>Removed</strong></td>
+</tr>
+<tr>
+<td>PKCE</td>
+<td>SHOULD for public clients (per 7636/BCP)</td>
+<td><strong>MUST for all clients on auth-code</strong></td>
+</tr>
+<tr>
+<td>PKCE methods</td>
+<td><code>plain</code> and <code>S256</code></td>
+<td><strong><code>S256</code> only</strong> (<code>plain</code> rejected)</td>
+</tr>
+<tr>
+<td>Redirect URI matching</td>
+<td>Various (vendor)</td>
+<td><strong>Exact string match</strong></td>
+</tr>
+<tr>
+<td>Redirect URI scheme</td>
+<td>Any</td>
+<td><strong>HTTPS</strong> required (loopback exempt per RFC 8252)</td>
+</tr>
+<tr>
+<td>Bearer in query string</td>
+<td>Discouraged (6750 §2.3)</td>
+<td><strong>Forbidden</strong> (§5.4)</td>
+</tr>
+<tr>
+<td>Refresh token</td>
+<td>No rotation mandate</td>
+<td><strong>Rotation + family-revoke on reuse</strong> required</td>
+</tr>
+<tr>
+<td>Mix-up defense</td>
+<td>Nothing</td>
+<td><code>iss</code> on redirect per RFC 9207 required</td>
+</tr>
+</tbody>
+</table>
+<h2 id="relation-to-other-rfcs">Relation to other RFCs <a class="anchor" href="#relation-to-other-rfcs">¶</a></h2>
+<p>OAuth 2.1 is the <em>spec-level digest</em> of the L0 spine:</p>
+<pre><code>        6749 (the framework)
+            |
+            +— 6750 (how to USE a bearer token) ─────────┐
+            |                                              \
+            +— 7636 (PKCE — proves the client requesting    &gt; OAuth 2.1
+            |        the code is the same client            /
+            |        exchanging it)                        /
+            |                                             /
+            +— 9700 (the Security BCP — accumulated      /
+                     wisdom from a decade of attacks) ─/
+</code></pre>
+<p>Reading 2.1 <em>after</em> you&rsquo;ve read 9700 makes every restriction click. Reading<br />
+2.1 <em>first</em> leaves you wondering &ldquo;but why?&rdquo; — the answers are in 9700.</p>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p>There is no &ldquo;2.1 wire format&rdquo; — the wire is still 6749&rsquo;s wire. What 2.1<br />
+changes is what&rsquo;s <em>required</em> vs <em>allowed</em>. The example from<br />
+<a href="RFC_6749.md"><code>RFC_6749.md</code></a> is already 2.1-compliant because it carries<br />
+PKCE (S256), an <code>iss</code> on the redirect, and exact redirect URI matching at<br />
+both registration and authorization. Under pre-2.1, the same <code>/authorize</code><br />
+request without <code>code_challenge</code> would have been accepted. Under 2.1, it&rsquo;s<br />
+rejected:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">302</span> <span style="color:#900;font-weight:bold">Found</span>
+</span></span><span style="display:flex;"><span>Location<span style="color:#000;font-weight:bold">:</span> https://client.example.com/cb?error=invalid_request
+</span></span><span style="display:flex;"><span>                                       &amp;error_description=code_challenge+is+required+%28PKCE%29
+</span></span><span style="display:flex;"><span>                                       &amp;state=xyzABC
+</span></span><span style="display:flex;"><span>                                       &amp;iss=https://as.example.com
+</span></span></code></pre><p>That redirect — error + <code>iss</code> — is exactly what OneAuth&rsquo;s <code>/authorize</code> does<br />
+today (<code>apiauth/authorize.go:173</code>).</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L0 spine.</strong> 2.1 <em>is</em> the spine; it&rsquo;s the document that legitimizes the<br />
+constraints downstream L-tiers assume.</li>
+<li><strong>T-tier: T0–T8.</strong> Every T-step has at least one 2.1 paragraph against<br />
+it — by design, since 2.1 is &ldquo;all of 6749 + the defenses.&rdquo;</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>2.1 <em>is built on</em> 2.0; the wire is identical. The relationship is <em>strict<br />
+mode profile</em>, not <em>replacement</em>. 2.0 deployments remain fully legal — RFC<br />
+6749 is the Internet Standard and is not deprecated. 2.1 is a draft.</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>Active Internet-Draft (<code>draft-ietf-oauth-v2-1</code>) under WG review. No fixed<br />
+promotion date. The major IdPs (Google, GitHub, Azure AD, Okta, Auth0) ship<br />
+<em>selected</em> 2.1 defaults today — PKCE-everywhere is widely on; query-param<br />
+bearer is widely off — but they brand themselves as &ldquo;OAuth 2.0 with<br />
+[selected] BCP defenses,&rdquo; not as &ldquo;OAuth 2.1.&rdquo; That&rsquo;s a fair stance.</p>
+<p>For OneAuth, see the audit-table verdict in<br />
+<a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>. The shortcut:</p>
+<ul>
+<li>5/8 compliant today (post PR 297)</li>
+<li>2 deliberate transition gaps (ROPC, query-param bearer)</li>
+<li>1 historical gap closed by recent work (PKCE server-side enforcement)</li>
+</ul>
+<h2 id="migration-path">Migration path <a class="anchor" href="#migration-path">¶</a></h2>
+<p>This is the only doc in this folder whose <em>primary purpose</em> is the migration<br />
+question. The path is:</p>
+<ol>
+<li><strong>Audit against <code>docs/OAUTH21_ALIGNMENT.md</code> rows.</strong> This is the row-by-row<br />
+gap analysis.</li>
+<li><strong>Close gaps that have no business cost</strong> — PKCE-required, S256-only,<br />
+exact redirect URI matching, refresh rotation. These break nothing<br />
+correctly-implemented clients do today.</li>
+<li><strong>Plan migrations for 2.0-legal-but-2.1-illegal features</strong>:
+<ul>
+<li><strong>ROPC</strong>: identify callers, document <code>localauth/</code> HTTP-login alternative,<br />
+ship as a breaking change behind a major version bump</li>
+<li><strong>Query-param bearer</strong>: document the WebSocket-auth alternative<br />
+(subprotocol headers, initial-frame auth, short-lived per-connection<br />
+tickets), then remove</li>
+</ul>
+</li>
+<li><strong>Treat the dual-status as a feature.</strong> OneAuth-as-AS being 2.1-strict<br />
+while OneAuth&rsquo;s SDK and middleware speak 2.0 to the world is <em>the<br />
+intended deployment posture</em>. Don&rsquo;t try to force the SDK side to be 2.1<br />
+too — you&rsquo;d lose interop with every production IdP.</li>
+</ol>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<p>If you maintain a legacy IdP for clients that depend on ROPC or implicit, or<br />
+that haven&rsquo;t yet shipped PKCE on their client SDKs, you&rsquo;ll leave 6749-only<br />
+flows enabled for the deprecation window. 2.1 is a destination — pace it.<br />
+OneAuth&rsquo;s own ROPC and query-param-bearer carve-outs (see<br />
+<a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a> rows 3 and 7) are<br />
+exactly this kind of deprecation window.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<p>The single source of truth is <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>.<br />
+The row-by-row table there is kept in lock-step with the codebase as each<br />
+non-compliance is closed. As of this writing (post PR 297):</p>
+<table>
+<thead>
+<tr>
+<th>2.1 requirement</th>
+<th>OneAuth verdict</th>
+<th>Tracking</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. PKCE required for all auth-code</td>
+<td><strong>Compliant</strong> (server enforces on <code>/authorize</code>)</td>
+<td>landed PR 297</td>
+</tr>
+<tr>
+<td>2. Implicit grant removed</td>
+<td><strong>Compliant by absence</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>3. ROPC removed</td>
+<td><strong>Non-compliant</strong></td>
+<td>issue 294</td>
+</tr>
+<tr>
+<td>4. Exact redirect URI matching</td>
+<td><strong>Compliant</strong> (DCR + <code>/authorize</code>)</td>
+<td>landed PR 296 / 297</td>
+</tr>
+<tr>
+<td>5. PKCE S256-only</td>
+<td><strong>Compliant</strong></td>
+<td>landed PR 297</td>
+</tr>
+<tr>
+<td>6. HTTPS redirect URIs</td>
+<td><strong>Compliant</strong> (DCR)</td>
+<td>landed PR 296</td>
+</tr>
+<tr>
+<td>7. Bearer NOT in query string</td>
+<td><strong>Non-compliant</strong> (opt-in deprecation warning)</td>
+<td>issue 295</td>
+</tr>
+<tr>
+<td>8. Refresh token rotation</td>
+<td><strong>Compliant</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>If a row above moves, update <code>docs/OAUTH21_ALIGNMENT.md</code> <em>and</em> this doc <em>and</em><br />
+<a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a> §6 in the same change.</p>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_6749.md">RFC 6749</a> — the framework 2.1 builds on</li>
+<li><a href="RFC_6750.md">RFC 6750</a> — Bearer; 2.1 §5 mostly re-exports 6750 with the query-string carve-out removed</li>
+<li><a href="RFC_7636.md">RFC 7636</a> — PKCE; 2.1 makes it universal</li>
+<li><a href="RFC_9700.md">RFC 9700</a> — the BCP whose <em>normative</em> recommendations 2.1 promotes to MUST</li>
+<li><a href="RFC_9207.md">RFC 9207</a> — <code>iss</code> on redirect; 2.1 mandates</li>
+<li><a href="https://datatracker.ietf.org/doc/rfc8252/">RFC 8252</a> — Native Apps; loopback redirect exemption</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/">draft-ietf-oauth-v2-1 (latest)</a></li>
+<li><a href="https://datatracker.ietf.org/wg/oauth/about/">WG OAuth status page</a> for the current revision</li>
+</ul>
+<blockquote>
+<p><strong>Maintenance note.</strong> When 2.1 graduates to RFC status, update this file&rsquo;s<br />
+title, status, and the spec-link section, and add <code>RFC_xxxx.md</code> redirection<br />
+if the filename moves.</p>
+</blockquote>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

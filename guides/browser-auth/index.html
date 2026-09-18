@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error...">
+    <title>Browser Authentication · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Browser Authentication</h1>
+        
+        <p class="lead">Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error...</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/BROWSER_AUTH.md"><code>docs/BROWSER_AUTH.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="browser-authentication">Browser Authentication <a class="anchor" href="#browser-authentication">¶</a></h1>
+<p>Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error handling for browser-based authentication flows.</p>
+<h2 id="how-it-works">How It Works <a class="anchor" href="#how-it-works">¶</a></h2>
+<pre><code class="language-mermaid">flowchart LR
+    B[&quot;Browser&quot;]
+    L[&quot;LocalAuth&quot;]
+    H[&quot;HandleUser&lt;br/&gt;(app-owned)&lt;br/&gt;set session&quot;]
+
+    B --&gt;|&quot;POST /auth/login&quot;| L
+    L --&gt;|&quot;cookie&quot;| B
+    L --&gt;|&quot;callback&quot;| H
+</code></pre>
+<p>OneAuth handles credential validation; your application controls session creation via the <code>HandleUser</code> callback.</p>
+<h2 id="setup">Setup <a class="anchor" href="#setup">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> (
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/core&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/localauth&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/httpauth&#34;</span>
+</span></span><span style="display:flex;"><span>    oa2 <span style="color:#d14">&#34;github.com/panyam/oneauth/oauth2&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>storagePath <span style="color:#000;font-weight:bold">:=</span> <span style="color:#d14">&#34;/path/to/storage&#34;</span>
+</span></span><span style="display:flex;"><span>userStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSUserStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>identityStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSIdentityStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>channelStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSChannelStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>tokenStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSTokenStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>usernameStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSUsernameStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Create OneAuth router
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>oneAuth <span style="color:#000;font-weight:bold">:=</span> httpauth.<span style="color:#900;font-weight:bold">New</span>(<span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span>oneAuth.HandleUser = localauth.<span style="color:#900;font-weight:bold">NewEnsureAuthUserFunc</span>(localauth.EnsureAuthUserConfig{
+</span></span><span style="display:flex;"><span>    UserStore:     userStore,
+</span></span><span style="display:flex;"><span>    IdentityStore: identityStore,
+</span></span><span style="display:flex;"><span>    ChannelStore:  channelStore,
+</span></span><span style="display:flex;"><span>    UsernameStore: usernameStore,
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Add local auth (email/password)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>la <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewLocalAuth</span>(localauth.LocalAuthConfig{
+</span></span><span style="display:flex;"><span>    Session:       session,
+</span></span><span style="display:flex;"><span>    UserStore:     userStore,
+</span></span><span style="display:flex;"><span>    IdentityStore: identityStore,
+</span></span><span style="display:flex;"><span>    ChannelStore:  channelStore,
+</span></span><span style="display:flex;"><span>    TokenStore:    tokenStore,
+</span></span><span style="display:flex;"><span>    UsernameStore: usernameStore,
+</span></span><span style="display:flex;"><span>    SignupPolicy: <span style="color:#000;font-weight:bold">&amp;</span>core.SignupPolicy{
+</span></span><span style="display:flex;"><span>        RequireEmail:    <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>        RequirePassword: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>        MinPasswordLength: <span style="color:#099">8</span>,
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>oneAuth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/local&#34;</span>, la)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Add OAuth providers
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>oneAuth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/google&#34;</span>, oa2.<span style="color:#900;font-weight:bold">NewGoogleOAuth2</span>(clientID, clientSecret, callbackURL, oneAuth.SaveUserAndRedirect).<span style="color:#900;font-weight:bold">Handler</span>())
+</span></span><span style="display:flex;"><span>oneAuth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/github&#34;</span>, oa2.<span style="color:#900;font-weight:bold">NewGithubOAuth2</span>(clientID, clientSecret, callbackURL, oneAuth.SaveUserAndRedirect).<span style="color:#900;font-weight:bold">Handler</span>())
+</span></span></code></pre><h2 id="request-flows">Request Flows <a class="anchor" href="#request-flows">¶</a></h2>
+<h3 id="login-flow">Login Flow <a class="anchor" href="#login-flow">¶</a></h3>
+<pre><code>1. POST /auth/login (email or username, password)
+2. LocalAuth.ServeHTTP
+3. Auto-detect input: contains &quot;@&quot; → email, otherwise → username
+4. If username: UsernameStore.GetUserByUsername → userID → User → email
+5. Identity lookup by email
+6. Channel lookup (provider=local) → password hash
+7. bcrypt.CompareHashAndPassword
+8. HandleUser callback → session creation
+9. Redirect to callbackURL
+</code></pre>
+<h3 id="signup-flow">Signup Flow <a class="anchor" href="#signup-flow">¶</a></h3>
+<pre><code>1. POST /auth/signup (email, password, optional username)
+2. Validate per SignupPolicy
+3. Check Identity doesn't exist for email
+4. Create User with profile
+5. Create Identity (type=email, verified=false)
+6. Create Channel (provider=local, password_hash)
+7. If UsernameStore configured + username provided: reserve username
+8. Optional: send verification email
+9. Auto-login → HandleUser callback → session
+10. Redirect to callbackURL
+</code></pre>
+<h3 id="email-verification-flow">Email Verification Flow <a class="anchor" href="#email-verification-flow">¶</a></h3>
+<pre><code>1. After signup, verification email sent (if EmailSender configured)
+2. Email contains link: /auth/verify?token=abc123
+3. User clicks link
+4. Token validated (exists + not expired)
+5. Identity.Verified = true
+6. Token deleted (single-use)
+</code></pre>
+<h3 id="password-reset-flow">Password Reset Flow <a class="anchor" href="#password-reset-flow">¶</a></h3>
+<pre><code>1. POST /auth/forgot-password (email)
+2. Create password reset token (time-limited)
+3. Email link: /auth/reset-password?token=abc123
+4. User clicks link, enters new password
+5. POST /auth/reset-password (token, new_password)
+6. Update password hash in local Channel
+   (or create local Channel if user is OAuth-only)
+7. Token deleted (single-use)
+</code></pre>
+<h2 id="login-decision-tree">Login Decision Tree <a class="anchor" href="#login-decision-tree">¶</a></h2>
+<pre><code class="language-mermaid">flowchart TD
+    START[&quot;LOGIN ATTEMPT&quot;]
+    SUCCESS[&quot;LOGIN SUCCESS&lt;br/&gt;Create Session&quot;]
+
+    START --&gt; OAUTH[&quot;OAuth (Google/GitHub)&quot;]
+    START --&gt; LOCAL[&quot;Email/Username + Password&quot;]
+
+    OAUTH --&gt; O1[&quot;1. Provider authenticates user&quot;]
+    O1 --&gt; O2[&quot;2. Callback receives: email, name, avatar&quot;]
+    O2 --&gt; O3[&quot;3. Look up Identity by email&quot;]
+    O3 --&gt;|&quot;NOT found&quot;| O4[&quot;Create User + Identity + Channel&quot;]
+    O3 --&gt;|&quot;FOUND&quot;| O5[&quot;Get User, add/update OAuth Channel&quot;]
+    O4 --&gt; SUCCESS
+    O5 --&gt; SUCCESS
+
+    LOCAL --&gt; AT{&quot;Contains '@'?&quot;}
+
+    AT --&gt;|&quot;YES&quot;| E1[&quot;Look up Identity by email&quot;]
+    E1 --&gt;|&quot;NOT found&quot;| E1X[&quot;'Invalid credentials'&quot;]
+    E1 --&gt;|&quot;FOUND&quot;| E2[&quot;Get local Channel&quot;]
+    E2 --&gt;|&quot;No local Channel&quot;| E2X[&quot;error&quot;]
+    E2 --&gt; E3[&quot;Verify password&quot;]
+    E3 --&gt; SUCCESS
+
+    AT --&gt;|&quot;NO&quot;| U1[&quot;UsernameStore.GetUserByUsername()&quot;]
+    U1 --&gt;|&quot;NOT found&quot;| U1X[&quot;'Invalid credentials'&quot;]
+    U1 --&gt;|&quot;FOUND&quot;| U2[&quot;resolve to email, continue&quot;]
+    U2 --&gt; SUCCESS
+</code></pre>
+<h2 id="signup-decision-tree">Signup Decision Tree <a class="anchor" href="#signup-decision-tree">¶</a></h2>
+<pre><code class="language-mermaid">flowchart TD
+    S[&quot;SIGNUP ATTEMPT (email + password)&quot;]
+    S --&gt; V[&quot;Validate SignupPolicy&quot;]
+    V --&gt; C{&quot;Check Identity exists for email?&quot;}
+
+    C --&gt;|&quot;EXISTS&quot;| X1[&quot;Error: 'Email already registered'&quot;]
+    X1 --&gt; X2[&quot;OnSignupError callback&quot;]
+
+    C --&gt;|&quot;NOT found&quot;| N1[&quot;Create User&quot;]
+    N1 --&gt; N2[&quot;Create Identity (verified=false)&quot;]
+    N2 --&gt; N3[&quot;Create Channel (local, password_hash)&quot;]
+    N3 --&gt; N4[&quot;Reserve username (if UsernameStore + username provided)&quot;]
+    N4 --&gt; N5[&quot;Send verification email (if EmailSender configured)&quot;]
+    N5 --&gt; N6[&quot;Auto-login → redirect&quot;]
+</code></pre>
+<h2 id="oauth-integration">OAuth Integration <a class="anchor" href="#oauth-integration">¶</a></h2>
+<h3 id="adding-oauth-providers">Adding OAuth Providers <a class="anchor" href="#adding-oauth-providers">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>oneAuth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/google&#34;</span>, oauth2.<span style="color:#900;font-weight:bold">NewGoogleOAuth2</span>(
+</span></span><span style="display:flex;"><span>    clientID,
+</span></span><span style="display:flex;"><span>    clientSecret,
+</span></span><span style="display:flex;"><span>    callbackURL,
+</span></span><span style="display:flex;"><span>    oneAuth.SaveUserAndRedirect,
+</span></span><span style="display:flex;"><span>).<span style="color:#900;font-weight:bold">Handler</span>())
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>oneAuth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/github&#34;</span>, oauth2.<span style="color:#900;font-weight:bold">NewGithubOAuth2</span>(
+</span></span><span style="display:flex;"><span>    clientID,
+</span></span><span style="display:flex;"><span>    clientSecret,
+</span></span><span style="display:flex;"><span>    callbackURL,
+</span></span><span style="display:flex;"><span>    oneAuth.SaveUserAndRedirect,
+</span></span><span style="display:flex;"><span>).<span style="color:#900;font-weight:bold">Handler</span>())
+</span></span></code></pre><h3 id="pkce-proof-key-for-code-exchange">PKCE (Proof Key for Code Exchange) <a class="anchor" href="#pkce-proof-key-for-code-exchange">¶</a></h3>
+<p>All OAuth2 flows use PKCE (RFC 7636) by default to prevent authorization code interception attacks. This is especially important for public clients (SPAs, mobile apps) where the client secret cannot be securely stored.</p>
+<pre><code>Authorization redirect:
+  → code_challenge=SHA256(verifier) &amp; code_challenge_method=S256
+  → verifier stored in HttpOnly cookie (pkce_verifier)
+
+Callback:
+  ← reads verifier from cookie
+  ← sends code_verifier in token exchange
+  ← provider verifies SHA256(verifier) == challenge
+</code></pre>
+<p>PKCE is enabled by default. To disable for a provider that doesn&rsquo;t support it:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>google <span style="color:#000;font-weight:bold">:=</span> oauth2.<span style="color:#900;font-weight:bold">NewGoogleOAuth2</span>(clientID, clientSecret, callbackURL, handleUser)
+</span></span><span style="display:flex;"><span>google.DisablePKCE = <span style="color:#000;font-weight:bold">true</span>  <span style="color:#998;font-style:italic">// logs a warning — not recommended
+</span></span></span></code></pre><p>See: <a href="https://datatracker.ietf.org/doc/html/rfc7636">RFC 7636</a></p>
+<h2 id="channel-linking-multiple-auth-methods">Channel Linking (Multiple Auth Methods) <a class="anchor" href="#channel-linking-multiple-auth-methods">¶</a></h2>
+<p>A user can sign up with email/password and later link their Google account, or vice versa. Multiple channels share the same user via email Identity.</p>
+<pre><code class="language-mermaid">flowchart TD
+    U[&quot;User (id: abc123)&quot;]
+    U --&gt; I[&quot;Identity: email → user@example.com (verified)&quot;]
+    U --&gt; CL[&quot;Channel: local → email:user@example.com (password_hash)&quot;]
+    U --&gt; CG[&quot;Channel: google → email:user@example.com (oauth profile)&quot;]
+    U --&gt; CH[&quot;Channel: github → email:user@example.com (oauth profile)&quot;]
+</code></pre>
+<p>The user profile tracks linked providers: <code>profile[&quot;channels&quot;] = [&quot;local&quot;, &quot;google&quot;, &quot;github&quot;]</code></p>
+<h3 id="provider-linking-matrix">Provider Linking Matrix <a class="anchor" href="#provider-linking-matrix">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Second auth attempt →</th>
+<th>Local Email + Password</th>
+<th>Google OAuth</th>
+<th>Different Email</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No existing account</td>
+<td>Create new</td>
+<td>Create new</td>
+<td>Create new</td>
+</tr>
+<tr>
+<td>Has Local (same email)</td>
+<td>Login</td>
+<td>Link OAuth</td>
+<td>New account</td>
+</tr>
+<tr>
+<td>Has Google (same email)</td>
+<td>Fails*</td>
+<td>Login</td>
+<td>New account</td>
+</tr>
+</tbody>
+</table>
+<p>* &ldquo;Fails&rdquo; = Signup fails because Identity exists, but no local Channel.<br />
+User should login via OAuth, then set password via profile or password reset.</p>
+<p><strong>Key rule</strong>: Same email = same account (via Identity), regardless of auth method.</p>
+<h3 id="setting-up-channel-aware-user-creation">Setting Up Channel-Aware User Creation <a class="anchor" href="#setting-up-channel-aware-user-creation">¶</a></h3>
+<p>Use <code>NewEnsureAuthUserFunc</code> for OAuth callbacks that automatically link channels:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>config <span style="color:#000;font-weight:bold">:=</span> localauth.EnsureAuthUserConfig{
+</span></span><span style="display:flex;"><span>    UserStore:     userStore,
+</span></span><span style="display:flex;"><span>    IdentityStore: identityStore,
+</span></span><span style="display:flex;"><span>    ChannelStore:  channelStore,
+</span></span><span style="display:flex;"><span>    UsernameStore: usernameStore, <span style="color:#998;font-style:italic">// Optional
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>ensureUser <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewEnsureAuthUserFunc</span>(config)
+</span></span><span style="display:flex;"><span>oneAuth.UserStore = <span style="color:#000;font-weight:bold">&amp;</span>myAuthUserStore{ensureUser: ensureUser}
+</span></span></code></pre><h3 id="adding-password-to-oauth-user">Adding Password to OAuth User <a class="anchor" href="#adding-password-to-oauth-user">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>linkConfig <span style="color:#000;font-weight:bold">:=</span> localauth.LinkCredentialsConfig{
+</span></span><span style="display:flex;"><span>    UserStore:     userStore,
+</span></span><span style="display:flex;"><span>    IdentityStore: identityStore,
+</span></span><span style="display:flex;"><span>    ChannelStore:  channelStore,
+</span></span><span style="display:flex;"><span>    UsernameStore: usernameStore,
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>getUser <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">func</span>(r <span style="color:#000;font-weight:bold">*</span>http.Request) (<span style="color:#458;font-weight:bold">string</span>, <span style="color:#458;font-weight:bold">error</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> <span style="color:#900;font-weight:bold">getLoggedInUserIDFromSession</span>(r), <span style="color:#000;font-weight:bold">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;POST /auth/link-credentials&#34;</span>,
+</span></span><span style="display:flex;"><span>    localAuth.<span style="color:#900;font-weight:bold">HandleLinkCredentials</span>(linkConfig, getUser))
+</span></span></code></pre><p>Frontend form:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>&lt;<span style="color:#000080">form</span> <span style="color:#008080">action</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;/auth/link-credentials&#34;</span> <span style="color:#008080">method</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;POST&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#000080">input</span> <span style="color:#008080">name</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;username&#34;</span> <span style="color:#008080">placeholder</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;Username (optional)&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#000080">input</span> <span style="color:#008080">name</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;password&#34;</span> <span style="color:#008080">type</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;password&#34;</span> <span style="color:#008080">placeholder</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;Password&#34;</span> <span style="color:#008080">required</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#000080">button</span> <span style="color:#008080">type</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;submit&#34;</span>&gt;Add Password Login&lt;/<span style="color:#000080">button</span>&gt;
+</span></span><span style="display:flex;"><span>&lt;/<span style="color:#000080">form</span>&gt;
+</span></span></code></pre><h3 id="adding-oauth-to-password-user">Adding OAuth to Password User <a class="anchor" href="#adding-oauth-to-password-user">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Step 1: Start linking flow
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">handleLinkGoogle</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    userID <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">getLoggedInUserID</span>(r)
+</span></span><span style="display:flex;"><span>    oneAuth.<span style="color:#900;font-weight:bold">StartLinkOAuth</span>(r, userID)
+</span></span><span style="display:flex;"><span>    http.<span style="color:#900;font-weight:bold">Redirect</span>(w, r, <span style="color:#d14">&#34;/auth/google/&#34;</span>, http.StatusFound)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Step 2: In your OAuth callback, detect linking mode
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">googleCallback</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// ... exchange code for token, get userInfo ...
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>    linkingUserID <span style="color:#000;font-weight:bold">:=</span> oneAuth.<span style="color:#900;font-weight:bold">GetLinkingUserID</span>(r)
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> linkingUserID <span style="color:#000;font-weight:bold">!=</span> <span style="color:#d14">&#34;&#34;</span> {
+</span></span><span style="display:flex;"><span>        linkConfig <span style="color:#000;font-weight:bold">:=</span> localauth.LinkOAuthConfig{
+</span></span><span style="display:flex;"><span>            UserStore:     userStore,
+</span></span><span style="display:flex;"><span>            IdentityStore: identityStore,
+</span></span><span style="display:flex;"><span>            ChannelStore:  channelStore,
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        oneAuth.<span style="color:#900;font-weight:bold">HandleLinkOAuthCallback</span>(linkConfig, linkingUserID, <span style="color:#d14">&#34;google&#34;</span>, userInfo, w, r)
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Normal login/signup flow
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    oneAuth.<span style="color:#900;font-weight:bold">SaveUserAndRedirect</span>(<span style="color:#d14">&#34;oauth&#34;</span>, <span style="color:#d14">&#34;google&#34;</span>, token, userInfo, w, r)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="programmatic-channel-linking">Programmatic Channel Linking <a class="anchor" href="#programmatic-channel-linking">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>err <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">LinkLocalCredentials</span>(config, userID, <span style="color:#d14">&#34;newusername&#34;</span>, <span style="color:#d14">&#34;password123&#34;</span>, userEmail)
+</span></span></code></pre><h3 id="channel-linking-security">Channel Linking Security <a class="anchor" href="#channel-linking-security">¶</a></h3>
+<ol>
+<li><strong>Email Matching</strong>: OAuth linking verifies the OAuth email matches the user&rsquo;s existing email</li>
+<li><strong>Cannot Link Different Emails</strong>: Users cannot link an OAuth account with a different email address</li>
+<li><strong>Duplicate Prevention</strong>: The same provider can only be linked once per identity</li>
+</ol>
+<h3 id="username-based-login">Username-Based Login <a class="anchor" href="#username-based-login">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>validateCreds <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewCredentialsValidatorWithUsername</span>(
+</span></span><span style="display:flex;"><span>    identityStore, channelStore, userStore, usernameStore,
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>la <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>localauth.LocalAuth{
+</span></span><span style="display:flex;"><span>    ValidateCredentials: validateCreds,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Users can then login with either <code>user@example.com</code> + password or <code>johndoe</code> + password.</p>
+<h2 id="user-journeys">User Journeys <a class="anchor" href="#user-journeys">¶</a></h2>
+<h3 id="journey-1-multiple-oauth-providers-same-email">Journey 1: Multiple OAuth Providers (Same Email) <a class="anchor" href="#journey-1-multiple-oauth-providers-same-email">¶</a></h3>
+<pre><code>Day 1: &quot;Continue with Google&quot; (alice@gmail.com)
+  → Create User, Identity, Channel(google)
+
+Day 7: &quot;Continue with GitHub&quot; (alice@gmail.com — same email)
+  → Identity exists → same user
+  → Create Channel(github) for existing user
+
+Result: Login with Google OR GitHub, same account
+</code></pre>
+<h3 id="journey-2-oauth-user-adds-password">Journey 2: OAuth User Adds Password <a class="anchor" href="#journey-2-oauth-user-adds-password">¶</a></h3>
+<pre><code>Day 1: &quot;Continue with Google&quot;
+  → Create User + Channel(google)
+
+Day 3: Set username &quot;bobsmith&quot; + password
+  → Reserve username, create Channel(local)
+
+Result: Login via Google, email+password, or username+password
+</code></pre>
+<h3 id="journey-3-email-signup-then-link-oauth">Journey 3: Email Signup, Then Link OAuth <a class="anchor" href="#journey-3-email-signup-then-link-oauth">¶</a></h3>
+<pre><code>Day 1: Sign up with email + password
+  → Create User + Channel(local)
+
+Day 5: &quot;Continue with Google&quot; (same email)
+  → Identity exists → add Channel(google)
+
+Result: Login with email+password OR Google
+</code></pre>
+<h3 id="journey-4-oauth-user-resets-password-no-local-channel">Journey 4: OAuth User Resets Password (No Local Channel) <a class="anchor" href="#journey-4-oauth-user-resets-password-no-local-channel">¶</a></h3>
+<pre><code>Day 1: &quot;Continue with Google&quot;
+  → User has no local Channel
+
+Day 2: &quot;Forgot Password&quot; → enter email → reset link
+  → NewUpdatePasswordFunc detects no local Channel
+  → Creates Channel(local) with new password
+
+Result: Login via Google OR email+password
+</code></pre>
+<h3 id="journey-5-different-emails-on-different-providers">Journey 5: Different Emails on Different Providers <a class="anchor" href="#journey-5-different-emails-on-different-providers">¶</a></h3>
+<pre><code>Day 1: Google login (alice@gmail.com) → User A
+Day 3: GitHub login (alice@company.com) → User B (different account!)
+
+By design: different emails = different accounts.
+</code></pre>
+<h2 id="session-management">Session Management <a class="anchor" href="#session-management">¶</a></h2>
+<p>The <code>HandleUser</code> callback is called after successful authentication:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>HandleUser: <span style="color:#000;font-weight:bold">func</span>(authtype <span style="color:#458;font-weight:bold">string</span>, provider <span style="color:#458;font-weight:bold">string</span>, token <span style="color:#000;font-weight:bold">*</span>oauth2.Token,
+</span></span><span style="display:flex;"><span>                  userInfo <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any, w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// token is nil for local auth, populated for OAuth
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    sessionID <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">generateSessionID</span>()
+</span></span><span style="display:flex;"><span>    sessionStore.<span style="color:#900;font-weight:bold">Save</span>(sessionID, userInfo)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    http.<span style="color:#900;font-weight:bold">SetCookie</span>(w, <span style="color:#000;font-weight:bold">&amp;</span>http.Cookie{
+</span></span><span style="display:flex;"><span>        Name:     <span style="color:#d14">&#34;session_id&#34;</span>,
+</span></span><span style="display:flex;"><span>        Value:    sessionID,
+</span></span><span style="display:flex;"><span>        Path:     <span style="color:#d14">&#34;/&#34;</span>,
+</span></span><span style="display:flex;"><span>        HttpOnly: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>        Secure:   <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>        SameSite: http.SameSiteLaxMode,
+</span></span><span style="display:flex;"><span>    })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    json.<span style="color:#900;font-weight:bold">NewEncoder</span>(w).<span style="color:#900;font-weight:bold">Encode</span>(<span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{
+</span></span><span style="display:flex;"><span>        <span style="color:#d14">&#34;success&#34;</span>: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#d14">&#34;user&#34;</span>:    userInfo,
+</span></span><span style="display:flex;"><span>    })
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="email-integration">Email Integration <a class="anchor" href="#email-integration">¶</a></h2>
+<h3 id="custom-email-sender">Custom Email Sender <a class="anchor" href="#custom-email-sender">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> SMTPEmailSender <span style="color:#000;font-weight:bold">struct</span> {
+</span></span><span style="display:flex;"><span>    host, username, password <span style="color:#458;font-weight:bold">string</span>
+</span></span><span style="display:flex;"><span>    port                     <span style="color:#458;font-weight:bold">int</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> (s <span style="color:#000;font-weight:bold">*</span>SMTPEmailSender) <span style="color:#900;font-weight:bold">SendVerificationEmail</span>(to, link <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span> {
+</span></span><span style="display:flex;"><span>    auth <span style="color:#000;font-weight:bold">:=</span> smtp.<span style="color:#900;font-weight:bold">PlainAuth</span>(<span style="color:#d14">&#34;&#34;</span>, s.username, s.password, s.host)
+</span></span><span style="display:flex;"><span>    msg <span style="color:#000;font-weight:bold">:=</span> fmt.<span style="color:#900;font-weight:bold">Sprintf</span>(<span style="color:#d14">&#34;To: %s\r\nSubject: Verify your email\r\n\r\nClick: %s\r\n&#34;</span>, to, link)
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> smtp.<span style="color:#900;font-weight:bold">SendMail</span>(fmt.<span style="color:#900;font-weight:bold">Sprintf</span>(<span style="color:#d14">&#34;%s:%d&#34;</span>, s.host, s.port), auth, s.username, []<span style="color:#458;font-weight:bold">string</span>{to}, []<span style="color:#0086b3">byte</span>(msg))
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> (s <span style="color:#000;font-weight:bold">*</span>SMTPEmailSender) <span style="color:#900;font-weight:bold">SendPasswordResetEmail</span>(to, link <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span> { <span style="color:#998;font-style:italic">/* similar */</span> }
+</span></span></code></pre><h3 id="console-email-sender-development">Console Email Sender (Development) <a class="anchor" href="#console-email-sender-development">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>la.EmailSender = <span style="color:#000;font-weight:bold">&amp;</span>localauth.ConsoleEmailSender{}
+</span></span></code></pre><p>Logs emails to stdout instead of sending them.</p>
+<h2 id="validation">Validation <a class="anchor" href="#validation">¶</a></h2>
+<h3 id="signuppolicy-recommended">SignupPolicy (Recommended) <a class="anchor" href="#signuppolicy-recommended">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>la.SignupPolicy = <span style="color:#000;font-weight:bold">&amp;</span>core.SignupPolicy{
+</span></span><span style="display:flex;"><span>    RequireUsername:       <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>    RequireEmail:          <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>    RequirePassword:       <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>    EnforceUsernameUnique: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>    EnforceEmailUnique:    <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>    MinPasswordLength:     <span style="color:#099">12</span>,
+</span></span><span style="display:flex;"><span>    UsernamePattern:       <span style="color:#d14">`^[a-z][a-z0-9_]{2,19}$`</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h4 id="preset-policies">Preset Policies <a class="anchor" href="#preset-policies">¶</a></h4>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Username</th>
+<th>Email</th>
+<th>Password</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PolicyEmailOnly</code></td>
+<td>Optional</td>
+<td>Required</td>
+<td>Required</td>
+<td>Most web apps</td>
+</tr>
+<tr>
+<td><code>PolicyUsernameRequired</code></td>
+<td>Required</td>
+<td>Required</td>
+<td>Required</td>
+<td>Apps needing usernames</td>
+</tr>
+<tr>
+<td><code>PolicyFlexible</code></td>
+<td>Optional</td>
+<td>Optional</td>
+<td>Optional</td>
+<td>OAuth-first apps</td>
+</tr>
+</tbody>
+</table>
+<h3 id="custom-validator-legacy">Custom Validator (Legacy) <a class="anchor" href="#custom-validator-legacy">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>la.ValidateSignup = <span style="color:#000;font-weight:bold">func</span>(creds <span style="color:#000;font-weight:bold">*</span>core.Credentials) <span style="color:#458;font-weight:bold">error</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> <span style="color:#0086b3">len</span>(creds.Password) &lt; <span style="color:#099">12</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> fmt.<span style="color:#900;font-weight:bold">Errorf</span>(<span style="color:#d14">&#34;password must be at least 12 characters&#34;</span>)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>If <code>SignupPolicy</code> is set, it takes precedence over <code>ValidateSignup</code>.</p>
+<h2 id="error-handling">Error Handling <a class="anchor" href="#error-handling">¶</a></h2>
+<h3 id="structured-errors-autherror">Structured Errors (AuthError) <a class="anchor" href="#structured-errors-autherror">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> AuthError <span style="color:#000;font-weight:bold">struct</span> {
+</span></span><span style="display:flex;"><span>    Code    <span style="color:#458;font-weight:bold">string</span> <span style="color:#998;font-style:italic">// &#34;email_exists&#34;, &#34;username_taken&#34;, etc.
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    Message <span style="color:#458;font-weight:bold">string</span> <span style="color:#998;font-style:italic">// Human-readable message
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    Field   <span style="color:#458;font-weight:bold">string</span> <span style="color:#998;font-style:italic">// Form field with the error
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>email_exists</code></td>
+<td>Email already registered</td>
+</tr>
+<tr>
+<td><code>username_taken</code></td>
+<td>Username already taken</td>
+</tr>
+<tr>
+<td><code>weak_password</code></td>
+<td>Password doesn&rsquo;t meet requirements</td>
+</tr>
+<tr>
+<td><code>invalid_username</code></td>
+<td>Username format invalid</td>
+</tr>
+<tr>
+<td><code>invalid_email</code></td>
+<td>Email format invalid</td>
+</tr>
+<tr>
+<td><code>missing_field</code></td>
+<td>Required field not provided</td>
+</tr>
+<tr>
+<td><code>invalid_credentials</code></td>
+<td>Wrong email/password</td>
+</tr>
+</tbody>
+</table>
+<h3 id="custom-error-handlers">Custom Error Handlers <a class="anchor" href="#custom-error-handlers">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>la.OnSignupError = <span style="color:#000;font-weight:bold">func</span>(err <span style="color:#000;font-weight:bold">*</span>core.AuthError, w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) <span style="color:#458;font-weight:bold">bool</span> {
+</span></span><span style="display:flex;"><span>    session.<span style="color:#900;font-weight:bold">SetFlash</span>(r, <span style="color:#d14">&#34;error&#34;</span>, err.Message)
+</span></span><span style="display:flex;"><span>    session.<span style="color:#900;font-weight:bold">SetFlash</span>(r, <span style="color:#d14">&#34;error_field&#34;</span>, err.Field)
+</span></span><span style="display:flex;"><span>    http.<span style="color:#900;font-weight:bold">Redirect</span>(w, r, <span style="color:#d14">&#34;/signup&#34;</span>, http.StatusSeeOther)
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">true</span> <span style="color:#998;font-style:italic">// handled
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>la.OnLoginError = <span style="color:#000;font-weight:bold">func</span>(err <span style="color:#000;font-weight:bold">*</span>core.AuthError, w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) <span style="color:#458;font-weight:bold">bool</span> {
+</span></span><span style="display:flex;"><span>    session.<span style="color:#900;font-weight:bold">SetFlash</span>(r, <span style="color:#d14">&#34;login_error&#34;</span>, err.Message)
+</span></span><span style="display:flex;"><span>    http.<span style="color:#900;font-weight:bold">Redirect</span>(w, r, <span style="color:#d14">&#34;/login&#34;</span>, http.StatusSeeOther)
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">true</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>If the handler returns <code>false</code> (or is nil), OneAuth returns a default JSON response:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{<span style="color:#000080">&#34;error&#34;</span>: <span style="color:#d14">&#34;Email already registered&#34;</span>, <span style="color:#000080">&#34;code&#34;</span>: <span style="color:#d14">&#34;email_exists&#34;</span>, <span style="color:#000080">&#34;field&#34;</span>: <span style="color:#d14">&#34;email&#34;</span>}
+</span></span></code></pre><h3 id="http-status-codes">HTTP Status Codes <a class="anchor" href="#http-status-codes">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200</code></td>
+<td>Successful authentication</td>
+</tr>
+<tr>
+<td><code>400</code></td>
+<td>Invalid input or validation failure</td>
+</tr>
+<tr>
+<td><code>401</code></td>
+<td>Invalid credentials</td>
+</tr>
+<tr>
+<td><code>409</code></td>
+<td>Resource already exists</td>
+</tr>
+<tr>
+<td><code>500</code></td>
+<td>Server-side error</td>
+</tr>
+</tbody>
+</table>
+<h2 id="password-reset-redirect-mode">Password Reset Redirect Mode <a class="anchor" href="#password-reset-redirect-mode">¶</a></h2>
+<p>Two response modes for password reset:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>When</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JSON (default)</td>
+<td><code>ForgotPasswordURL</code> / <code>ResetPasswordURL</code> empty</td>
+<td>GET renders basic HTML form, POST returns JSON</td>
+</tr>
+<tr>
+<td>Redirect</td>
+<td>URLs set</td>
+<td>GET redirects to app page, POST redirects with query params</td>
+</tr>
+</tbody>
+</table>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/auth/forgot-password&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(<span style="color:#000;font-weight:bold">func</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> r.Method <span style="color:#000;font-weight:bold">==</span> http.MethodGet {
+</span></span><span style="display:flex;"><span>        localAuth.<span style="color:#900;font-weight:bold">HandleForgotPasswordForm</span>(w, r)
+</span></span><span style="display:flex;"><span>    } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>        localAuth.<span style="color:#900;font-weight:bold">HandleForgotPassword</span>(w, r)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/auth/reset-password&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(<span style="color:#000;font-weight:bold">func</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> r.Method <span style="color:#000;font-weight:bold">==</span> http.MethodGet {
+</span></span><span style="display:flex;"><span>        localAuth.<span style="color:#900;font-weight:bold">HandleResetPasswordForm</span>(w, r)
+</span></span><span style="display:flex;"><span>    } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>        localAuth.<span style="color:#900;font-weight:bold">HandleResetPassword</span>(w, r)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}))
+</span></span></code></pre><h3 id="form-field-configuration">Form Field Configuration <a class="anchor" href="#form-field-configuration">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>la.UsernameField = <span style="color:#d14">&#34;email&#34;</span>
+</span></span><span style="display:flex;"><span>la.PasswordField = <span style="color:#d14">&#34;password&#34;</span>
+</span></span><span style="display:flex;"><span>la.EmailField = <span style="color:#d14">&#34;email&#34;</span>
+</span></span><span style="display:flex;"><span>la.PhoneField = <span style="color:#d14">&#34;phone&#34;</span>
+</span></span></code></pre><h2 id="rate-limiting-and-account-lockout">Rate Limiting and Account Lockout <a class="anchor" href="#rate-limiting-and-account-lockout">¶</a></h2>
+<h3 id="rate-limiting">Rate Limiting <a class="anchor" href="#rate-limiting">¶</a></h3>
+<p><code>LocalAuth</code> supports an optional <code>RateLimiter</code> field that throttles login attempts per key (typically per IP or per email). The interface is defined in <code>core</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>la.RateLimiter = core.<span style="color:#900;font-weight:bold">NewInMemoryRateLimiter</span>(<span style="color:#099">10</span>, time.Minute) <span style="color:#998;font-style:italic">// 10 attempts per minute
+</span></span></span></code></pre><p><code>core.RateLimiter</code> is a shared interface used by both <code>localauth</code> and <code>apiauth</code>.</p>
+<h3 id="account-lockout">Account Lockout <a class="anchor" href="#account-lockout">¶</a></h3>
+<p><code>LocalAuth</code> supports an optional <code>Lockout</code> field (<code>core.AccountLockout</code>) that temporarily locks accounts after repeated failed login attempts. Lockouts are auto-expiring — no manual unlock is needed.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>la.Lockout = <span style="color:#000;font-weight:bold">&amp;</span>core.AccountLockout{
+</span></span><span style="display:flex;"><span>    MaxAttempts:    <span style="color:#099">5</span>,
+</span></span><span style="display:flex;"><span>    LockoutWindow:  <span style="color:#099">10</span> <span style="color:#000;font-weight:bold">*</span> time.Minute,
+</span></span><span style="display:flex;"><span>    LockoutDuration: <span style="color:#099">30</span> <span style="color:#000;font-weight:bold">*</span> time.Minute,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="timing-oracle-fix-cwe-208">Timing Oracle Fix (CWE-208) <a class="anchor" href="#timing-oracle-fix-cwe-208">¶</a></h3>
+<p>The credential validator now uses constant-time comparison for password validation failures, preventing timing-based user enumeration attacks. When a user is not found, a dummy bcrypt comparison is performed so the response time is indistinguishable from a real password check.</p>
+<h2 id="security-considerations">Security Considerations <a class="anchor" href="#security-considerations">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Protection</th>
+<th>Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Password Hashing</td>
+<td>bcrypt with cost 10</td>
+</tr>
+<tr>
+<td>Single-Use Tokens</td>
+<td>Deleted from TokenStore after use</td>
+</tr>
+<tr>
+<td>Token Expiration</td>
+<td>Time-limited verification/reset tokens</td>
+</tr>
+<tr>
+<td>Generic Login Errors</td>
+<td>&ldquo;Invalid credentials&rdquo; (prevents enumeration)</td>
+</tr>
+<tr>
+<td>Constant-Time Comparison</td>
+<td>Via bcrypt internals + dummy hash on missing user (CWE-208 fix)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="csrf-protection-csrfmiddleware">CSRF Protection (CSRFMiddleware) <a class="anchor" href="#csrf-protection-csrfmiddleware">¶</a></h3>
+<p>OneAuth provides a <code>CSRFMiddleware</code> using the <strong>double-submit cookie</strong> pattern. It is opt-in — applications wrap their form endpoints to enable protection.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>csrf <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>httpauth.CSRFMiddleware{Secure: <span style="color:#000;font-weight:bold">true</span>} <span style="color:#998;font-style:italic">// set Secure: true for HTTPS
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Wrap form GET handlers (generates CSRF cookie + injects token into context)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;GET /auth/login&#34;</span>, csrf.<span style="color:#900;font-weight:bold">Protect</span>(http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(<span style="color:#000;font-weight:bold">func</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">renderTemplate</span>(w, <span style="color:#d14">&#34;login.html&#34;</span>, <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{
+</span></span><span style="display:flex;"><span>        <span style="color:#d14">&#34;CSRFField&#34;</span>: httpauth.<span style="color:#900;font-weight:bold">CSRFTemplateField</span>(r),
+</span></span><span style="display:flex;"><span>    })
+</span></span><span style="display:flex;"><span>})))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Wrap form POST handlers (validates cookie vs. form field/header)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;POST /auth/login&#34;</span>, csrf.<span style="color:#900;font-weight:bold">Protect</span>(http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(la.ServeHTTP)))
+</span></span></code></pre><p>In templates, include the hidden field inside <code>&lt;form&gt;</code> tags:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>&lt;<span style="color:#000080">form</span> <span style="color:#008080">method</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;POST&#34;</span> <span style="color:#008080">action</span><span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;/auth/login&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>    {{.CSRFField}}
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">&lt;!-- other fields --&gt;</span>
+</span></span><span style="display:flex;"><span>&lt;/<span style="color:#000080">form</span>&gt;
+</span></span></code></pre><p><strong>How it works:</strong></p>
+<ul>
+<li><strong>Safe methods</strong> (GET, HEAD, OPTIONS): Generates a random token, stores it in a <code>csrf_token</code> cookie (not HttpOnly, so JS can read it for AJAX), and injects it into the request context.</li>
+<li><strong>Unsafe methods</strong> (POST, PUT, DELETE, PATCH): Validates that the token from the <code>csrf_token</code> form field or <code>X-CSRF-Token</code> header matches the cookie value using constant-time comparison.</li>
+<li><strong>Bearer-token requests</strong>: Automatically exempt (not vulnerable to CSRF).</li>
+<li><strong>Per-session tokens</strong>: Token persists for the cookie lifetime (default: 1 hour). No per-request rotation, so back button and multi-tab usage work.</li>
+</ul>
+<p><strong>Configuration options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CookieName</code></td>
+<td><code>csrf_token</code></td>
+<td>Cookie name</td>
+</tr>
+<tr>
+<td><code>FieldName</code></td>
+<td><code>csrf_token</code></td>
+<td>Form field name</td>
+</tr>
+<tr>
+<td><code>HeaderName</code></td>
+<td><code>X-CSRF-Token</code></td>
+<td>Header name for AJAX</td>
+</tr>
+<tr>
+<td><code>MaxAge</code></td>
+<td><code>3600</code> (1 hour)</td>
+<td>Cookie lifetime in seconds</td>
+</tr>
+<tr>
+<td><code>Secure</code></td>
+<td><code>false</code></td>
+<td>Set <code>true</code> for HTTPS</td>
+</tr>
+<tr>
+<td><code>SameSite</code></td>
+<td><code>Strict</code></td>
+<td>SameSite cookie attribute</td>
+</tr>
+<tr>
+<td><code>ErrorHandler</code></td>
+<td>403 JSON</td>
+<td>Custom error handler</td>
+</tr>
+<tr>
+<td><code>ExemptFunc</code></td>
+<td>Bearer exempt</td>
+<td>Custom exemption logic</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Template helpers:</strong></p>
+<ul>
+<li><code>httpauth.CSRFToken(r)</code> — extract token string from request context</li>
+<li><code>httpauth.CSRFTemplateField(r)</code> — returns <code>&lt;input type=&quot;hidden&quot; name=&quot;csrf_token&quot; value=&quot;...&quot;&gt;</code> as <code>template.HTML</code></li>
+</ul>
+<h3 id="recommended-application-level-protections">Recommended Application-Level Protections <a class="anchor" href="#recommended-application-level-protections">¶</a></h3>
+<ol>
+<li><del><strong>Rate Limiting</strong>: Per-IP and per-account limits on login attempts</del> <strong>Provided</strong> — use <code>LocalAuth.RateLimiter</code> and <code>LocalAuth.Lockout</code> (see above)</li>
+<li><del><strong>CSRF Tokens</strong>: On all auth forms</del> <strong>Provided</strong> — use <code>CSRFMiddleware</code> (see above)</li>
+<li><strong>Session Security</strong>: HttpOnly, Secure, SameSite cookies</li>
+<li><strong>HTTPS</strong>: Required for OAuth callbacks</li>
+<li><strong>Audit Logging</strong>: Log all auth events</li>
+</ol>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented (apiauth/IntrospectionHandler)">
+    <title>RFC 7662 — OAuth 2.0 Token Introspection · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 7662 — OAuth 2.0 Token Introspection</h1>
+        
+        <p class="lead">Implemented (apiauth/IntrospectionHandler)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7662.md"><code>docs/oauth/RFC_7662.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-7662--oauth-20-token-introspection">RFC 7662 — OAuth 2.0 Token Introspection <a class="anchor" href="#rfc-7662--oauth-20-token-introspection">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2015-10<br />
+<strong>L-tier / T-tier:</strong> L2 · T7 (verify)<br />
+<strong>OneAuth coverage:</strong> Implemented (<code>apiauth/IntrospectionHandler</code>)<br />
+<strong>See also:</strong> <a href="RFC_9068.md"><code>RFC_9068.md</code></a> · <a href="RFC_7009.md"><code>RFC_7009.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>Introspection is the RS-side mechanism to ask the AS &ldquo;is this token still<br />
+valid, and what&rsquo;s in it?&rdquo; — the canonical alternative to local JWT<br />
+verification (RFC 9068).</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without 7662</th>
+<th>With 7662</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Opaque tokens can&rsquo;t be validated by anyone except the AS — RSes must call vendor-specific APIs</td>
+<td>Standardized <code>POST /introspect</code> returns <code>{active, scope, sub, exp, ...}</code></td>
+</tr>
+<tr>
+<td>Revoked-but-not-yet-expired tokens can&rsquo;t be detected by local verifiers</td>
+<td>AS knows the live revocation state; introspection reflects it immediately</td>
+</tr>
+<tr>
+<td>Multi-vendor RS deployments need N introspection client implementations</td>
+<td>One spec; one client</td>
+</tr>
+<tr>
+<td>RSes can&rsquo;t authenticate themselves to introspection</td>
+<td>Standardized — RS authenticates to AS the same way clients do</td>
+</tr>
+</tbody>
+</table>
+<p>Introspection is the path forward for opaque tokens, sender-constrained<br />
+revocation, and any RS that wants real-time revocation rather than<br />
+&ldquo;trust the JWT until exp.&rdquo;</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>You&rsquo;re building an internal API gateway that proxies to dozens of<br />
+downstream services. You want every request validated against a central<br />
+revocation list (not &ldquo;trust the JWT until it expires&rdquo;). You issue opaque<br />
+tokens from your AS and have the gateway call <code>/introspect</code> on every<br />
+request:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/oauth/introspect</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.internal.example.com
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Basic &lt;gateway-creds&gt;
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>token=opaque-abc-123
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;active&#34;</span>: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scope&#34;</span>: <span style="color:#d14">&#34;read write&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_id&#34;</span>: <span style="color:#d14">&#34;client-internal-gateway&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;username&#34;</span>: <span style="color:#d14">&#34;sri@example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;exp&#34;</span>: <span style="color:#099">1750000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iat&#34;</span>: <span style="color:#099">1749996400</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;sub&#34;</span>: <span style="color:#d14">&#34;user-42&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>If a user clicks &ldquo;revoke session,&rdquo; the AS marks the token revoked<br />
+<em>immediately</em>; the next gateway-side introspection returns <code>{&quot;active&quot;: false}</code>.<br />
+This is the fundamental difference vs JWT — JWTs are valid until <code>exp</code> no<br />
+matter what.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong><code>{&quot;active&quot;: true|false}</code> is the universal answer.</strong> Active tokens<br />
+return additional claims; inactive ones return <em>only</em> <code>{&quot;active&quot;: false}</code><br />
+(RFC 7662 §2.2 — exact wording: &ldquo;a JSON object with the boolean member<br />
+<code>active</code> set to <code>false</code>&rdquo;). Don&rsquo;t leak why the token is inactive.</li>
+<li><strong>The caller must authenticate.</strong> Introspection reveals token contents —<br />
+only legitimate RSes (or other authorized parties) should be able to<br />
+introspect. RFC 7662 §2.1 mandates caller authentication; OneAuth uses<br />
+HTTP Basic.</li>
+<li><strong>Returned claims overlap with JWT claims (RFC 7519)</strong> — <code>iss</code>, <code>sub</code>,<br />
+<code>aud</code>, <code>exp</code>, <code>iat</code>, <code>nbf</code>, <code>jti</code>. Plus introspection-specific:<br />
+<code>active</code>, <code>scope</code>, <code>username</code>, <code>client_id</code>, <code>token_type</code>. RFC 9396 RAR<br />
+tokens carry <code>authorization_details</code> in the introspection response too.</li>
+<li><strong>JWT vs introspection is a deployment-time choice.</strong> They solve<br />
+overlapping problems. JWT: cheap (no AS round-trip), can&rsquo;t be revoked<br />
+mid-life. Introspection: expensive (network call per request), reflects<br />
+live state. Some deployments do both (JWT + introspection cache).</li>
+<li><strong>Performance pattern</strong>: cache introspection results with a short TTL<br />
+(5-60s typical). Bounds revocation latency to TTL while killing the<br />
+per-request round-trip in the hot path.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p><strong>Active token:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/oauth/introspect</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Basic &lt;RS-credentials&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>token=2YotnFZFEjr1zCsicMWpAA&amp;token_type_hint=access_token
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>Cache-Control<span style="color:#000;font-weight:bold">:</span> no-store
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;active&#34;</span>: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scope&#34;</span>: <span style="color:#d14">&#34;read write&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_id&#34;</span>: <span style="color:#d14">&#34;client-abc&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;username&#34;</span>: <span style="color:#d14">&#34;sri&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_type&#34;</span>: <span style="color:#d14">&#34;Bearer&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;exp&#34;</span>: <span style="color:#099">1750000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iat&#34;</span>: <span style="color:#099">1749996400</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;sub&#34;</span>: <span style="color:#d14">&#34;user-42&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;aud&#34;</span>: <span style="color:#d14">&#34;https://api.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iss&#34;</span>: <span style="color:#d14">&#34;https://as.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;jti&#34;</span>: <span style="color:#d14">&#34;abcd-1234&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;authorization_details&#34;</span>: [
+</span></span><span style="display:flex;"><span>    { <span style="color:#000080">&#34;type&#34;</span>: <span style="color:#d14">&#34;payment_initiation&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;actions&#34;</span>: [<span style="color:#d14">&#34;initiate&#34;</span>],
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;instructedAmount&#34;</span>: { <span style="color:#000080">&#34;currency&#34;</span>: <span style="color:#d14">&#34;EUR&#34;</span>, <span style="color:#000080">&#34;amount&#34;</span>: <span style="color:#d14">&#34;500.00&#34;</span> } }
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>Inactive (revoked, expired, never existed — all same response):</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{<span style="color:#000080">&#34;active&#34;</span>: <span style="color:#000;font-weight:bold">false</span>}
+</span></span></code></pre><p>The deliberate uniformity matters — leaking &ldquo;wrong token&rdquo; vs &ldquo;revoked&rdquo; vs<br />
+&ldquo;expired&rdquo; would let attackers probe.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L2 lifecycle.</strong> Introspection is the runtime answer to &ldquo;is this token<br />
+still good?&rdquo;</li>
+<li><strong>T7 (verify).</strong> RS-side verification path; the alternative to local<br />
+JWT decoding.</li>
+<li><strong>Pairs with <a href="RFC_7009.md">RFC 7009 Revocation</a>.</strong> Revocation is the<br />
+mutation; introspection is the read.</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>Published 2015. Not part of bare 6749 but widely adopted. Major IdPs ship<br />
+introspection endpoints either:</p>
+<ul>
+<li>As a first-class feature (Auth0, Okta, Keycloak — yes)</li>
+<li>Or implicitly via JWT — clients verify locally and treat that as the<br />
+introspection answer (Google, GitHub — JWT-only path)</li>
+</ul>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>Not mandated by 2.1. The JWT-vs-introspection choice remains a deployment<br />
+decision. 2.1 references 7662 throughout but doesn&rsquo;t require it.</p>
+<p>In 2.1 strict deployments shipping JWTs, introspection is sometimes<br />
+<em>omitted</em> to avoid implementation complexity — clients verify locally with<br />
+JWKS and accept the revocation-latency tradeoff. Whether to ship<br />
+introspection is a question of how fast you need revocation to propagate.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>7662 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /oauth/introspect</code> endpoint</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/introspection.go:131</code> <code>IntrospectionHandler.ServeHTTP</code></td>
+<td>RFC 7662 §2.2 compliant</td>
+</tr>
+<tr>
+<td>Caller authentication via HTTP Basic</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/introspection.go:152</code> rejects unauthenticated with <code>WWW-Authenticate: Basic realm=&quot;introspection&quot;</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>{&quot;active&quot;:false}</code> for invalid tokens (uniform response)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/introspection.go:177</code> per §2.2 invariant</td>
+<td>Doesn&rsquo;t leak revoked-vs-expired distinction</td>
+</tr>
+<tr>
+<td>Full claim set on active tokens</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/introspection.go:185</code> returns full claim envelope</td>
+<td>Includes scope, client_id, sub, iat, exp</td>
+</tr>
+<tr>
+<td><code>authorization_details</code> (RFC 9396 RAR) in response</td>
+<td><strong>Implemented</strong></td>
+<td>Per <code>apiauth/auth_rar_test.go</code> exercising introspection-with-RAR</td>
+<td>—</td>
+</tr>
+<tr>
+<td>W3C Trace Context (SEP-414 / issue 254)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/introspection.go:42–44</code> <code>TracerProvider</code> field; emits <code>oneauth.token.introspect</code> span with <code>oauth.token_active</code> attribute</td>
+<td>Nil-safe tracing</td>
+</tr>
+<tr>
+<td>Introspection result caching</td>
+<td><strong>Not built-in</strong></td>
+<td>—</td>
+<td>Caller&rsquo;s responsibility today; could be a future helper</td>
+</tr>
+</tbody>
+</table>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<p>If your tokens are JWTs and you can tolerate &ldquo;token valid until exp&rdquo;<br />
+semantics, skip introspection — you save a round-trip per request, and<br />
+RFC 9068 covers the verification path locally.</p>
+<p>You need introspection when:</p>
+<ul>
+<li>Tokens are opaque (no other validation option)</li>
+<li>Revocation must propagate faster than the access-token lifetime</li>
+<li>You&rsquo;re running multiple RSes that share a centralized revocation list</li>
+<li>Audit/compliance requires the AS to log every token check</li>
+</ul>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_7009.md">RFC 7009</a> — Revocation; the mutation paired with this read</li>
+<li><a href="RFC_9068.md">RFC 9068</a> — JWT AT profile; the local-verification alternative</li>
+<li><a href="RFC_6749.md">RFC 6749</a> — the framework whose tokens this validates</li>
+<li><a href="RFC_9396.md">RFC 9396</a> — RAR; carried in introspection responses for RAR-typed tokens</li>
+<li><a href="RFC_7519.md">RFC 7519</a> — JWT claims that are shared between JWT verification and introspection</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc7662/">Datatracker: rfc7662</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc7662.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=7662">Errata search</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

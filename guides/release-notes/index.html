@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A token can now be bound to a key the client holds, so a leaked token is">
+    <title>OneAuth Release Notes · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OneAuth Release Notes</h1>
+        
+        <p class="lead">A token can now be bound to a key the client holds, so a leaked token is</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/RELEASE_NOTES.md"><code>docs/RELEASE_NOTES.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oneauth-release-notes">OneAuth Release Notes <a class="anchor" href="#oneauth-release-notes">¶</a></h1>
+<blockquote>
+<p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
+0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
+</blockquote>
+<h2 id="version-0137">Version 0.1.37 <a class="anchor" href="#version-0137">¶</a></h2>
+<h3 id="dpop--sender-constrained-access-and-refresh-tokens-rfc-9449">DPoP — sender-constrained access and refresh tokens (RFC 9449) <a class="anchor" href="#dpop--sender-constrained-access-and-refresh-tokens-rfc-9449">¶</a></h3>
+<p>A token can now be bound to a key the client holds, so a leaked token is<br />
+unusable by whoever leaks it. Both halves ship together: the authorization<br />
+server binds the token, and the resource server refuses to honor it unless the<br />
+presenter proves the key.</p>
+<p>Everything here is off by default. An existing deployment that wires neither<br />
+side behaves exactly as it did in 0.1.36.</p>
+<p><strong>Issuance (PR 370).</strong> Set <code>OneAuthConfig.DPoP</code> to a <code>DPoPProofValidator</code> and<br />
+the token endpoint starts accepting a <code>DPoP</code> proof header on any grant. A<br />
+request that carries a valid proof gets <code>cnf.jkt</code> in the access token,<br />
+<code>token_type: DPoP</code> in the response, and a refresh token only that key can<br />
+rotate. A request with no proof gets exactly what it got before.</p>
+<ul>
+<li>Proof validation per §4.3: <code>typ</code>, an asymmetric <code>alg</code> allow-list (ES256,<br />
+RS256, PS256 by default; symmetric algorithms can never be enabled), the<br />
+embedded public <code>jwk</code> with private members rejected, the signature, <code>htm</code>,<br />
+<code>htu</code>, an <code>iat</code> window, and <code>jti</code> replay through the existing <code>JTIStore</code>.</li>
+<li>Refresh-token binding persists in all three backends (FS, GORM, Datastore)<br />
+and is carried forward on rotation. A bound refresh token presented without<br />
+its key is <code>invalid_grant</code>.</li>
+<li><code>dpop_signing_alg_values_supported</code> on authorization-server metadata.</li>
+</ul>
+<p><strong>Enforcement (PR 372).</strong> Set <code>APIMiddleware.DPoP</code> and the resource server<br />
+accepts <code>Authorization: DPoP &lt;token&gt;</code> with a per-request proof, checks the<br />
+proof&rsquo;s <code>ath</code> against the presented token, and matches the proof key against<br />
+the token&rsquo;s <code>cnf.jkt</code>.</p>
+<ul>
+<li>A bound token presented under the <code>Bearer</code> scheme is refused, per §7.2.<br />
+Without that check a thief drops the <code>DPoP</code> header and the binding buys<br />
+nothing.</li>
+<li><code>WWW-Authenticate</code> advertises both schemes, with error information on the<br />
+scheme the client actually used.</li>
+<li><code>APIMiddleware.RequireDPoP</code> refuses bearer presentations outright, backing<br />
+<code>dpop_bound_access_tokens_required</code> on protected-resource metadata<br />
+(RFC 9728), which lands alongside <code>dpop_signing_alg_values_supported</code>.</li>
+<li>Introspection responses carry <code>cnf</code>, so a resource server that validates<br />
+remotely enforces the same binding as one validating the JWT locally.</li>
+</ul>
+<p><strong>Rollout order.</strong> A resource server with <code>APIMiddleware.DPoP</code> unset accepts a<br />
+bound token as an ordinary bearer token, which RFC 9449 §7.2 both predicts and<br />
+permits. Wire enforcement at the resource servers first, then start issuing<br />
+bound tokens. The reverse order leaves a window where the binding protects<br />
+nothing.</p>
+<p><strong>Deployment note (GORM).</strong> The <code>refresh_tokens</code> table gains a<br />
+<code>confirmation_jkt</code> column. Run <code>AutoMigrate</code> before deploying. The column is<br />
+empty for existing rows, which reads back as an unbound token, so current<br />
+behavior is preserved. Datastore adds an equivalent optional property and<br />
+needs no migration.</p>
+<p><strong>API additions.</strong> <code>core.Confirmation</code> (the RFC 7800 <code>cnf</code> claim as a type),<br />
+<code>CreateAccessTokenRequest.Confirmation</code>, <code>CreateAccessTokenResponse.TokenType</code>,<br />
+<code>RefreshGrantRequest.Confirmation</code> and the same field on each grant request<br />
+type, <code>TokenInfo.Confirmation</code>, <code>IntrospectionResult.Cnf</code>, and<br />
+<code>IntrospectionValidator.ValidateInfo</code>. The confirmation is a struct rather<br />
+than a bare thumbprint string so that mTLS certificate binding (<code>x5t#S256</code>,<br />
+issue 335) adds a field instead of a second parameter on every issuance path.</p>
+<p><strong>One behavior change without a flag.</strong> <code>cnf</code> is now a standard claim, so it<br />
+no longer appears in <code>TokenInfo.CustomClaims</code>. Code reading <code>cnf</code> out of the<br />
+custom-claims bag should read <code>TokenInfo.Confirmation</code> instead. This also stops<br />
+a deployment&rsquo;s <code>CustomClaimsFunc</code> from writing a binding the server never<br />
+verified.</p>
+<p><strong>Conformance.</strong> Validated against the RFC&rsquo;s own published vectors: the<br />
+Figure 2 proof and the Figure 9 thumbprint it produces, plus the Figure 13<br />
+access token and the Figure 14 <code>ath</code> computed from it.</p>
+<p>Closes issue 336. Remaining RFC 9449 surface: the nonce protocol (§8, §9) and<br />
+<code>dpop_jkt</code> on the authorization request (§10). Keycloak interop for the<br />
+resource-server half is issue 371.</p>
+<h3 id="documentation">Documentation <a class="anchor" href="#documentation">¶</a></h3>
+<p>Coverage tables that still listed DPoP as a gap are corrected (<code>RFC_9449.md</code>,<br />
+<code>RFC_9728.md</code>, the Authlete gap analysis, the FAPI readiness note), and<br />
+<code>ROADMAP.md</code> records the two PRs with the design decisions behind them<br />
+(PR 373). <code>CAPABILITIES.md</code> gains the <code>dpop-sender-constrained-tokens</code> entry.<br />
+<code>testutil</code>&rsquo;s <code>WithConfidentialClient</code> is documented in its sidecar (PR 367).</p>
+<h3 id="dependencies">Dependencies <a class="anchor" href="#dependencies">¶</a></h3>
+<p>Grouped <code>go_modules</code> security bumps across the workspace (PRs 368, 369).</p>
+<hr />
+<h2 id="version-016">Version 0.1.6 <a class="anchor" href="#version-016">¶</a></h2>
+<h3 id="convention-closure-for-issues-175--172">Convention closure for issues 175 + 172 <a class="anchor" href="#convention-closure-for-issues-175--172">¶</a></h3>
+<p>The <code>(ctx, *XRequest) → (*XResponse, error)</code> convention adopted across the library (CLAUDE.md &ldquo;gRPC-shape convention everywhere&rdquo;) is now closed-loop for <code>apiauth/</code> and <code>admin/</code>:</p>
+<ul>
+<li><strong><code>apiauth/</code></strong>: all five transport-agnostic interfaces (<code>TokenIssuer</code>, <code>TokenValidator</code>, <code>TokenIntrospector</code>, <code>TokenRevoker</code>, <code>ClientAuthenticator</code>) follow the convention. HTTP handlers are thin wrappers. Four legacy positional methods on <code>APIAuth</code> — <code>CreateAccessToken</code>, <code>ValidateAccessToken</code>, <code>ValidateAccessTokenFull</code>, <code>VerifyTokenFunc</code> — are now marked <code>// Deprecated:</code> and point at the canonical interface methods. They remain as the internal implementation backing the HTTP handlers; consolidation + outright removal is tracked under issue 218.</li>
+<li><strong><code>admin/</code></strong>: <code>ClientRegistrar</code> interface (Register / RegisterLegacy / ListClients / GetClient / DeleteClient / RotateSecret) is in shape, implemented on <code>AppRegistrar</code>, and covered by pure-Go interface tests (<code>client_admin_test.go</code>) that bypass HTTP entirely. <code>ClientRegistrationManager</code> (RFC 7592 self-service) already adopted the convention via issues 168/169/170.</li>
+</ul>
+<p>Documentation updated: <code>apiauth/SUMMARY.md</code> now carries the convention paragraph that <code>admin/SUMMARY.md</code> already had.</p>
+<p>Closes 175, 172. Follow-up consolidation tracked under 218. Client SDK migration tracked under 217.</p>
+<hr />
+<h2 id="version-015">Version 0.1.5 <a class="anchor" href="#version-015">¶</a></h2>
+<h3 id="client-sdk--rfc-8693-token-exchange--rfc-7523-21-jwt-bearer-grant">Client SDK — RFC 8693 token exchange + RFC 7523 §2.1 JWT bearer grant <a class="anchor" href="#client-sdk--rfc-8693-token-exchange--rfc-7523-21-jwt-bearer-grant">¶</a></h3>
+<p>Two new general-purpose OAuth primitives on <code>AuthClient</code>. Both are additive — no existing behavior changes.</p>
+<p><strong><code>AuthClient.TokenExchange(*TokenExchangeRequest)</code> — RFC 8693.</strong> Exchange a subject token (plus optional actor token / requested type / audience / resource / scope) for a freshly issued token. Returns <code>TokenExchangeResponse</code> including <code>IssuedTokenType</code> (required by RFC 8693 §2.2). Useful for bridging trust domains — e.g. exchanging an upstream-IdP ID token for an internal ID-JAG.</p>
+<p><strong><code>AuthClient.JwtBearerGrant(*JwtBearerGrantRequest)</code> — RFC 7523 §2.1.</strong> Present a signed JWT (typically the output of a prior token exchange or trusted upstream issuance) as <code>assertion</code> at the token endpoint to obtain an access token. Distinct from the <code>private_key_jwt</code> client authentication method, which authenticates the client itself — both can coexist in the same request.</p>
+<p>Both methods reuse the existing <code>AuthClient</code> client-authentication negotiation: <code>client_secret_basic</code>, <code>client_secret_post</code>, and <code>private_key_jwt</code> (via <code>ClientAssertionConfig</code>) all work transparently.</p>
+<p><strong>Wire shape:</strong> <code>application/x-www-form-urlencoded</code> with the appropriate <code>grant_type</code> value. <code>audience</code> and <code>resource</code> are emitted as repeated form values per RFC 8693 §2.1 / RFC 8707 §2. <code>scope</code> is space-delimited per RFC 6749 §3.3.</p>
+<p><strong>Tests:</strong> 5 unit tests covering wire shape + minimal request omission + all three client-auth methods, plus 2 e2e tests against the in-process <code>testutil.TestAuthServer</code> with <code>TrustedAssertionIssuers</code> configured.</p>
+<p>Near-term consumer: mcpkit&rsquo;s SEP-990 enterprise-managed authorization (mcpkit issue 448), which chains these two primitives in an <code>EnterpriseManagedTokenSource</code> with two-stage caching.</p>
+<p>See issue 213.</p>
+<hr />
+<h2 id="version-014-pr-2b--subject-vocab-consumer-side-rename">Version 0.1.4 (PR 2b — Subject vocab consumer-side rename) <a class="anchor" href="#version-014-pr-2b--subject-vocab-consumer-side-rename">¶</a></h2>
+<h3 id="subject-vocabulary--phase-2-consumers-helpers-transports">Subject vocabulary — phase 2: consumers, helpers, transports <a class="anchor" href="#subject-vocabulary--phase-2-consumers-helpers-transports">¶</a></h3>
+<p><strong>Breaking.</strong> Completes the rename started in v0.1.3 (PR 2a). All Go API surfaces that handle the <em>principal-of-a-token</em> concept now use <strong>Subject</strong> — context helpers, scope callbacks, response types, HTTP middleware methods, gRPC functions, gRPC metadata header, and the session cookie key. Account-model types (<code>accounts.User</code>, <code>accounts.Identity.UserID</code>, <code>accounts.Username.UserID</code>, etc.) stay as <strong>UserID</strong> — see v0.1.3 notes.</p>
+<p><strong>Go API renames:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>core.GetUserIDFromContext(ctx)</code></td>
+<td><code>core.GetSubjectFromContext(ctx)</code></td>
+</tr>
+<tr>
+<td><code>core.SetUserIDInContext(ctx, ...)</code></td>
+<td><code>core.SetSubjectInContext(ctx, ...)</code></td>
+</tr>
+<tr>
+<td><code>core.DefaultUserParamName = &quot;loggedInUserId&quot;</code></td>
+<td><code>core.DefaultSubjectParamName = &quot;loggedInSubject&quot;</code></td>
+</tr>
+<tr>
+<td><code>core.GetUserScopesFunc</code> / <code>DefaultGetUserScopes</code></td>
+<td><code>core.GetSubjectScopesFunc</code> / <code>DefaultGetSubjectScopes</code></td>
+</tr>
+<tr>
+<td><code>apiauth.APIAuth.GetUserScopes</code></td>
+<td><code>apiauth.APIAuth.GetSubjectScopes</code></td>
+</tr>
+<tr>
+<td><code>apiauth.OneAuthConfig.GetUserScopes</code></td>
+<td><code>apiauth.OneAuthConfig.GetSubjectScopes</code></td>
+</tr>
+<tr>
+<td><code>apiauth.JWTIssuerConfig.GetUserScopes</code></td>
+<td><code>apiauth.JWTIssuerConfig.GetSubjectScopes</code></td>
+</tr>
+<tr>
+<td><code>apiauth.PasswordGrantResponse.UserID</code></td>
+<td><code>.Subject</code></td>
+</tr>
+<tr>
+<td><code>apiauth.TokenInfo.UserID</code></td>
+<td><code>.Subject</code></td>
+</tr>
+<tr>
+<td><code>apiauth.GetUserIDFromAPIContext(ctx)</code></td>
+<td><code>GetSubjectFromAPIContext(ctx)</code></td>
+</tr>
+<tr>
+<td><code>httpauth.Middleware.UserParamName</code></td>
+<td><code>SubjectParamName</code></td>
+</tr>
+<tr>
+<td><code>httpauth.Middleware.GetLoggedInUserId(r)</code></td>
+<td><code>GetLoggedInSubject(r)</code></td>
+</tr>
+<tr>
+<td><code>httpauth.OneAuth.SetLoggedInUserID(...)</code></td>
+<td><code>SetLoggedInSubject(...)</code></td>
+</tr>
+<tr>
+<td><code>grpc.UserIDFromContext</code> / <code>UserIDFromContextWithConfig</code></td>
+<td><code>SubjectFromContext</code> / <code>SubjectFromContextWithConfig</code></td>
+</tr>
+<tr>
+<td><code>grpc.UserIDToOutgoingContext</code> / <code>WithKey</code></td>
+<td><code>SubjectToOutgoingContext</code> / <code>WithKey</code></td>
+</tr>
+<tr>
+<td><code>grpc.DefaultMetadataKeyUserID = &quot;x-user-id&quot;</code></td>
+<td><code>DefaultMetadataKeySubject = &quot;x-subject&quot;</code></td>
+</tr>
+<tr>
+<td><code>grpc.Config.MetadataKeyUserID</code></td>
+<td><code>MetadataKeySubject</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Active sessions invalidated.</strong> The session-cookie key flipped from <code>loggedInUserId</code> to <code>loggedInSubject</code>. Cookies issued by v0.1.3 and earlier are not recognised by v0.1.4 — affected users will be prompted to log in again. No code or data migration needed; the new cookies are issued on next login.</p>
+<p><strong>gRPC clients/servers must upgrade in lock-step.</strong> The metadata header changed from <code>x-user-id</code> to <code>x-subject</code>. A v0.1.4 server will not see subjects sent by a v0.1.3 client (and vice versa).</p>
+<p><strong><code>SwitchUser*</code> stays.</strong> <code>grpc.SwitchUserToOutgoingContext</code>, <code>SwitchUserToOutgoingContextWithKey</code>, <code>MetadataKeySwitchUser</code>, and <code>DefaultMetadataKeySwitchUser = &quot;x-switch-user&quot;</code> are unchanged — impersonation is human-user-scoped by nature.</p>
+<p>Combined with v0.1.3, this completes the Subject vocab rename across the library.</p>
+<hr />
+<h2 id="version-013-pr-2a--token-subject-foundation">Version 0.1.3 (PR 2a — token Subject foundation) <a class="anchor" href="#version-013-pr-2a--token-subject-foundation">¶</a></h2>
+<h3 id="subject-vocabulary--phase-1-token-bearing-types">Subject vocabulary — phase 1: token-bearing types <a class="anchor" href="#subject-vocabulary--phase-1-token-bearing-types">¶</a></h3>
+<p><strong>Breaking.</strong> The token-bearing types in <code>core/</code> and <code>localauth/</code> now use <strong>Subject</strong> (RFC 7519 <code>sub</code>) for the principal field, replacing <strong>UserID</strong>. Motivation: in <code>client_credentials</code> flows the principal is a service account, not a human user — <code>UserID</code> was misleading. <code>Subject</code> is what the JWT <code>sub</code> claim, RFC 7662 introspection, RFC 8693 token exchange, and Spring Security / JWT / X.509 idiom all call this concept. Account-model types (<code>accounts.User</code>, <code>accounts.Identity.UserID</code>, <code>accounts.Username.UserID</code>) stay as <strong>UserID</strong> — those are application user records, not OAuth subjects.</p>
+<p><strong>Go API renames:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>core.RefreshToken.UserID</code> (<code>json:&quot;user_id&quot;</code>)</td>
+<td><code>core.RefreshToken.Subject</code> (<code>json:&quot;subject&quot;</code>)</td>
+</tr>
+<tr>
+<td><code>core.APIKey.UserID</code> (<code>json:&quot;user_id&quot;</code>)</td>
+<td><code>core.APIKey.Subject</code> (<code>json:&quot;subject&quot;</code>)</td>
+</tr>
+<tr>
+<td><code>localauth.VerificationToken.UserID</code> (<code>json:&quot;user_id&quot;</code>)</td>
+<td><code>localauth.VerificationToken.Subject</code> (<code>json:&quot;subject&quot;</code>)</td>
+</tr>
+<tr>
+<td><code>RefreshTokenStore.CreateRefreshToken(userID, ...)</code></td>
+<td><code>CreateRefreshToken(subject, ...)</code></td>
+</tr>
+<tr>
+<td><code>RefreshTokenStore.RevokeUserTokens(userID)</code></td>
+<td><code>RevokeSubjectTokens(subject)</code></td>
+</tr>
+<tr>
+<td><code>RefreshTokenStore.GetUserTokens(userID)</code></td>
+<td><code>GetSubjectTokens(subject)</code></td>
+</tr>
+<tr>
+<td><code>APIKeyStore.CreateAPIKey(userID, ...)</code></td>
+<td><code>CreateAPIKey(subject, ...)</code></td>
+</tr>
+<tr>
+<td><code>APIKeyStore.ListUserAPIKeys(userID)</code></td>
+<td><code>ListSubjectAPIKeys(subject)</code></td>
+</tr>
+<tr>
+<td><code>VerificationTokenStore.CreateToken(userID, ...)</code></td>
+<td><code>CreateToken(subject, ...)</code></td>
+</tr>
+<tr>
+<td><code>VerificationTokenStore.DeleteUserTokens(userID, ...)</code></td>
+<td><code>DeleteSubjectTokens(subject, ...)</code></td>
+</tr>
+</tbody>
+</table>
+<p>All three backends (<code>stores/fs</code>, <code>stores/gorm</code>, <code>stores/gae</code>) updated. Models renamed in lock-step.</p>
+<p><strong>Storage migration required.</strong> GORM column renames: <code>refresh_tokens.user_id</code> → <code>subject</code>, <code>api_keys.user_id</code> → <code>subject</code>, <code>auth_tokens.user_id</code> → <code>subject</code>. FS JSON storage: <code>user_id</code> → <code>subject</code> on the three token kinds. GAE Datastore: same field renames. Existing data must be migrated or the affected stores reset — see <code>docs/MIGRATION.md</code>.</p>
+<p><strong>Out of scope (deferred to PR 2b):</strong></p>
+<ul>
+<li><code>core.GetUserIDFromContext</code> / <code>SetUserIDInContext</code> / <code>DefaultUserParamName=&quot;loggedInUserId&quot;</code></li>
+<li><code>core.GetUserScopesFunc</code></li>
+<li><code>apiauth.PasswordGrantResponse.UserID</code> / <code>TokenInfo.UserID</code> / <code>GetUserIDFromAPIContext</code></li>
+<li><code>httpauth.Middleware.GetLoggedInUserId</code> / <code>OneAuth.SetLoggedInUserID</code> (public surface stays — internals flip in PR 2b)</li>
+<li><code>grpc.UserIDFromContext</code> / <code>DefaultMetadataKeyUserID=&quot;x-user-id&quot;</code></li>
+<li>Session cookie key <code>loggedInUserId</code> (PR 2b invalidates active sessions)</li>
+</ul>
+<p>See issue tracker for PR 2b.</p>
+<hr />
+<h2 id="version-012">Version 0.1.2 <a class="anchor" href="#version-012">¶</a></h2>
+<h3 id="client-sdk--grpc-shape-clientcredentials--rfc-8707--rfc-9396-plumbing">Client SDK — gRPC-shape <code>ClientCredentials</code> + RFC 8707 / RFC 9396 plumbing <a class="anchor" href="#client-sdk--grpc-shape-clientcredentials--rfc-8707--rfc-9396-plumbing">¶</a></h3>
+<p><strong>New <code>AuthClient.ClientCredentials(req *ClientCredentialsRequest)</code>.</strong> Consolidated entry point for the client_credentials grant. Single request struct carries <code>ClientID</code>, <code>ClientSecret</code>, optional <code>ClientAssertion</code> (private_key_jwt), <code>Scopes</code>, <code>Resources []string</code> (RFC 8707 resource indicators — emitted as repeated <code>resource</code> form values per §2), and <code>AuthorizationDetails []core.AuthorizationDetail</code> (RFC 9396 — JSON-encoded into the <code>authorization_details</code> form value per §6.1). Extends the <code>(ctx, *XRequest) → (*XResponse, error)</code> convention adopted by <code>apiauth/</code> (#175) and <code>admin/</code> (#172) into the client SDK.</p>
+<p><strong><code>ClientCredentialsToken</code> and <code>ClientCredentialsTokenWithAssertion</code></strong> now wrap <code>ClientCredentials</code> — existing callers unaffected. New code should target the request struct directly to access <code>Resources</code> / <code>AuthorizationDetails</code>.</p>
+<p><strong><code>ClientCredentialsSource.Resources</code> and <code>.AuthorizationDetails</code></strong> restored as live fields, this time actually wired into the underlying token request. Resolves the dead-field gap that #211 flagged when removing the previous (non-functional) versions.</p>
+<p>End-to-end coverage: <code>TestRAR_ClientCredentials_SDKForm</code> in the e2e suite exercises the full SDK → AS round-trip with both RFCs in play.</p>
+<p>Follow-up to #211.</p>
+<hr />
+<h2 id="version-011">Version 0.1.1 <a class="anchor" href="#version-011">¶</a></h2>
+<h3 id="client-sdk--private-key-jwt-ergonomics">Client SDK — <code>private_key_jwt</code> ergonomics <a class="anchor" href="#client-sdk--private-key-jwt-ergonomics">¶</a></h3>
+<p><strong><code>ClientAssertionConfig.Audience</code> (additive).</strong> New field on <code>ClientAssertionConfig</code> overrides the <code>aud</code> claim of a minted assertion. When empty, behaviour is unchanged (positional argument — typically the token endpoint URL — per OIDC Core §9). Set the field when targeting an RFC 7523bis-strict AS that requires <code>aud</code> to be the issuer identifier. <code>MintClientAssertion</code> and <code>ClientCredentialsTokenWithAssertion</code> both honour the override.</p>
+<p><strong><code>ClientCredentialsSource.ClientAssertion</code> (additive).</strong> New <code>*ClientAssertionConfig</code> field on <code>ClientCredentialsSource</code>. When non-nil, the source routes through <code>ClientCredentialsTokenWithAssertion</code> instead of <code>ClientCredentialsToken</code>, applying the same caching, OnToken, and <code>ProactiveRefresher</code> machinery as the secret-based path. <code>ClientSecret</code> is ignored when <code>ClientAssertion</code> is set.</p>
+<p><strong>Cleanup — dead fields removed (breaking).</strong> Removed <code>ClientCredentialsSource.Audience</code> (RFC 8707 resource indicator) and <code>ClientCredentialsSource.AuthorizationDetails</code> (RFC 9396). Both fields were declared on the struct but <strong>never</strong> wired into the underlying token request, making them silent no-ops. No internal caller and no downstream consumer (mcpkit, goapplib, projects/*) set these fields. Proper RFC 8707 / RFC 9396 plumbing for client_credentials is tracked as a follow-up — the right home is the token-request layer, not the cached source.</p>
+<p>Unblocks SEP-1046 conformance work in mcpkit issue 447 (umbrella 439).</p>
+<p>See: issue 211.</p>
+<hr />
+<h2 id="version-0032">Version 0.0.32 <a class="anchor" href="#version-0032">¶</a></h2>
+<h3 id="apimiddleware-enhancements">APIMiddleware Enhancements <a class="anchor" href="#apimiddleware-enhancements">¶</a></h3>
+<p><strong>Query-parameter token fallback</strong>: Added configurable <code>TokenQueryParam</code> field to <code>APIMiddleware</code>. WebSocket clients often cannot set Authorization headers, so this enables <code>GET /ws?token=&lt;jwt&gt;</code> as a fallback. The Authorization header always takes precedence when both are present.</p>
+<p><strong>Custom claims in request context</strong>: Custom (non-standard) JWT claims are now stored in the request context during validation. Use the new <code>GetCustomClaimsFromContext(ctx)</code> helper to retrieve them downstream.</p>
+<p><strong>Internal changes</strong>: <code>validateRequest</code> and <code>validateJWT</code> now return custom claims alongside standard fields. All middleware methods (<code>ValidateToken</code>, <code>RequireScopes</code>, <code>Optional</code>) propagate custom claims into the request context.</p>
+<hr />
+<h2 id="version-0031">Version 0.0.31 <a class="anchor" href="#version-0031">¶</a></h2>
+<h3 id="app-registration-api--reference-server">App Registration API &amp; Reference Server <a class="anchor" href="#app-registration-api--reference-server">¶</a></h3>
+<ul>
+<li><strong><code>AdminAuth</code> interface</strong> with <code>APIKeyAuth</code> and <code>NoAuth</code> implementations for protecting admin endpoints</li>
+<li><strong><code>AppRegistrar</code> HTTP handler</strong> providing full App CRUD: register, list, get, delete, and rotate secret</li>
+<li><strong><code>MintResourceToken</code> helper</strong> for issuing resource-scoped JWTs with app/subject claims</li>
+<li><strong>Config-driven reference server</strong> in <code>cmd/oneauth-server/</code> with YAML config and environment variable substitution</li>
+<li>Deployable to <strong>GAE, Docker Compose, and Kubernetes</strong></li>
+<li><strong>Integration tests</strong> (pytest) covering the full app registration lifecycle</li>
+</ul>
+<hr />
+<h2 id="version-0030">Version 0.0.30 <a class="anchor" href="#version-0030">¶</a></h2>
+<h3 id="redirect-mode-for-password-reset-flows">Redirect Mode for Password Reset Flows <a class="anchor" href="#redirect-mode-for-password-reset-flows">¶</a></h3>
+<p><code>LocalAuth</code> now supports redirect-based password reset for server-rendered apps. New fields <code>ForgotPasswordURL</code> and <code>ResetPasswordURL</code> control the behavior: when set, GET requests redirect to the app&rsquo;s themed page, and POST requests redirect with query params (<code>?sent=true</code>, <code>?success=true</code>, <code>?error=...</code>). When empty (default), handlers behave as before (HTML form / JSON response).</p>
+<h3 id="bug-fix-multipart-form-parsing">Bug Fix: Multipart Form Parsing <a class="anchor" href="#bug-fix-multipart-form-parsing">¶</a></h3>
+<p><code>HandleForgotPassword</code> and <code>HandleResetPassword</code> now correctly parse both <code>application/x-www-form-urlencoded</code> and <code>multipart/form-data</code> bodies. Previously, JavaScript <code>new FormData(form)</code> submissions returned 400 errors.</p>
+<hr />
+<h2 id="version-0029">Version 0.0.29 <a class="anchor" href="#version-0029">¶</a></h2>
+<h3 id="bug-fix-password-reset-for-oauth-only-users">Bug Fix: Password Reset for OAuth-Only Users <a class="anchor" href="#bug-fix-password-reset-for-oauth-only-users">¶</a></h3>
+<p><code>NewUpdatePasswordFunc</code> now creates a local channel on-demand when one doesn&rsquo;t exist, enabling OAuth-only users to set a password via the standard reset flow. Previously these users received &ldquo;local auth not configured&rdquo; errors.</p>
+<hr />
+<h2 id="version-020">Version 0.2.0 <a class="anchor" href="#version-020">¶</a></h2>
+<h3 id="api-authentication--store-reorganization">API Authentication &amp; Store Reorganization <a class="anchor" href="#api-authentication--store-reorganization">¶</a></h3>
+<p>Major release adding API authentication (JWT access tokens, refresh tokens with rotation and theft detection, API keys, scopes) and new store backends.</p>
+<p><strong>New endpoints</strong>: <code>/api/login</code>, <code>/api/logout</code>, <code>/api/logout-all</code>, <code>/api/keys</code> (CRUD).</p>
+<p><strong>APIMiddleware</strong>: <code>ValidateToken</code>, <code>RequireScopes</code>, and <code>Optional</code> handlers for protecting API routes. Supports both JWT and API key authentication.</p>
+<p><strong>Store reorganization</strong>: Stores moved to <code>stores/fs</code>, <code>stores/gorm</code>, and <code>stores/gae</code> subdirectories. GORM provides full SQL database support; GAE provides Google Cloud Datastore support.</p>
+<p><strong>New store interfaces</strong>: <code>RefreshTokenStore</code> and <code>APIKeyStore</code>.</p>
+<p><strong>Breaking change</strong>: Import paths changed from <code>github.com/panyam/oneauth/stores</code> to <code>github.com/panyam/oneauth/stores/{fs,gorm,gae}</code>.</p>
+<p><strong>New dependencies</strong>: <code>github.com/golang-jwt/jwt/v5</code>, <code>gorm.io/gorm</code> (optional), <code>cloud.google.com/go/datastore</code> (optional).</p>
+<hr />
+<h2 id="version-010-initial-release">Version 0.1.0 (Initial Release) <a class="anchor" href="#version-010-initial-release">¶</a></h2>
+<h3 id="overview">Overview <a class="anchor" href="#overview">¶</a></h3>
+<p>Initial release of OneAuth, a Go authentication library providing unified local and OAuth-based authentication with multi-method account linking.</p>
+<h3 id="core-features">Core Features <a class="anchor" href="#core-features">¶</a></h3>
+<ul>
+<li><strong>Three-layer model</strong>: Users, Identities, and Channels with global identity verification</li>
+<li><strong>Local auth</strong>: Email/phone + password with bcrypt hashing, configurable validation</li>
+<li><strong>OAuth integration</strong>: Google, GitHub, etc. with automatic identity unification across providers</li>
+<li><strong>Email verification</strong>: Token-based flow with configurable expiry and extensible sender interface</li>
+<li><strong>Password reset</strong>: Secure token-based flow with anti-enumeration (always returns success)</li>
+<li><strong>Session management</strong>: Callback-based (<code>HandleUser</code>) supporting cookies, JWTs, or custom schemes</li>
+</ul>
+<h3 id="storage">Storage <a class="anchor" href="#storage">¶</a></h3>
+<ul>
+<li><strong>File-based stores</strong> (FS): JSON file storage for Users, Identities, Channels, and Tokens. Suitable for development and small-scale use (&lt;1000 users).</li>
+<li><strong>Database-agnostic interfaces</strong>: <code>UserStore</code>, <code>IdentityStore</code>, <code>ChannelStore</code>, <code>TokenStore</code> for production implementations.</li>
+</ul>
+<h3 id="http-endpoints">HTTP Endpoints <a class="anchor" href="#http-endpoints">¶</a></h3>
+<p><code>/auth/login</code>, <code>/auth/signup</code>, <code>/auth/verify-email</code>, <code>/auth/forgot-password</code>, <code>/auth/reset-password</code>. Accepts form-encoded and JSON bodies; returns JSON responses.</p>
+<h3 id="helper-functions">Helper Functions <a class="anchor" href="#helper-functions">¶</a></h3>
+<p><code>NewCreateUserFunc</code>, <code>NewCredentialsValidator</code>, <code>NewVerifyEmailFunc</code>, <code>NewUpdatePasswordFunc</code>, <code>DetectUsernameType</code>, <code>DefaultSignupValidator</code>, <code>GenerateSecureToken</code>.</p>
+<h3 id="known-limitations">Known Limitations <a class="anchor" href="#known-limitations">¶</a></h3>
+<p>File-based stores not recommended at scale. No built-in rate limiting, CSRF protection, or session storage (application responsibility). Console email sender only.</p>
+<h3 id="dependencies-1">Dependencies <a class="anchor" href="#dependencies-1">¶</a></h3>
+<p><code>golang.org/x/crypto/bcrypt</code>, <code>golang.org/x/oauth2</code> (optional).</p>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

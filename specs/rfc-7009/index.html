@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented (apiauth/RevocationHandler)">
+    <title>RFC 7009 — OAuth 2.0 Token Revocation · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 7009 — OAuth 2.0 Token Revocation</h1>
+        
+        <p class="lead">Implemented (apiauth/RevocationHandler)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7009.md"><code>docs/oauth/RFC_7009.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-7009--oauth-20-token-revocation">RFC 7009 — OAuth 2.0 Token Revocation <a class="anchor" href="#rfc-7009--oauth-20-token-revocation">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2013-08<br />
+<strong>L-tier / T-tier:</strong> L2 · T8 (lifecycle)<br />
+<strong>OneAuth coverage:</strong> Implemented (<code>apiauth/RevocationHandler</code>)<br />
+<strong>See also:</strong> <a href="RFC_7662.md"><code>RFC_7662.md</code></a> · <a href="RFC_9700.md"><code>RFC_9700.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>Token revocation gives clients (and servers) a way to invalidate tokens<br />
+<em>before</em> their natural expiry — the &ldquo;Disconnect app&rdquo; / &ldquo;Log out everywhere&rdquo;<br />
+mechanism.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without 7009</th>
+<th>With 7009</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Refresh tokens last days/weeks/months; revoking requires custom vendor APIs</td>
+<td>One standardized endpoint; one form parameter</td>
+</tr>
+<tr>
+<td>User logs out but their tokens stay valid until expiry — leaked-credential window</td>
+<td>Tokens dead immediately on revoke</td>
+</tr>
+<tr>
+<td>Refresh-token rotation reuse detection needs a place to land the &ldquo;burn the family&rdquo; action</td>
+<td>Revocation cascades cleanly through token families</td>
+</tr>
+<tr>
+<td>Compliance/security teams can&rsquo;t audit token lifecycle endpoints — they don&rsquo;t exist</td>
+<td>Standardized audit point for revocation events</td>
+</tr>
+</tbody>
+</table>
+<p>7009 is the simplest L2 RFC. Two pages of normative text. The endpoint<br />
+returns 200 OK in all cases (per §2.2) — clients don&rsquo;t get error feedback<br />
+about <em>why</em> a revocation may have failed, by design (don&rsquo;t leak token<br />
+existence).</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>You&rsquo;re using a third-party calendar integration on your phone. You uninstall<br />
+the app. The app&rsquo;s last lifecycle hook fires, and the app calls:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/oauth/revoke</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> calendar-api.example.com
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Basic &lt;client-creds&gt;
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>token=long-lived-refresh-abc123&amp;token_type_hint=refresh_token
+</span></span></code></pre><p>Server returns 200 OK. The refresh token is now dead. Any access tokens<br />
+still descended from it (token family) are also revoked. Even if a backup<br />
+of the device leaks the token six months later, it&rsquo;s already dead at the<br />
+server.</p>
+<p>The &ldquo;Disconnect this app&rdquo; buttons in every IdP&rsquo;s dashboard are 7009 calls<br />
+under the hood.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong>Two parameters: <code>token</code> and <code>token_type_hint</code>.</strong> The hint is<br />
+<code>access_token</code> or <code>refresh_token</code>; AS uses it for lookup ordering but<br />
+doesn&rsquo;t require accuracy. AS searches its token store and revokes<br />
+whichever it finds.</li>
+<li><strong><code>200 OK</code> is the only success response.</strong> Per §2.2, ASes MUST return<br />
+200 OK regardless of whether the token was found, already revoked,<br />
+or never existed. This is a deliberate information-leak defense.</li>
+<li><strong>Caller authentication required.</strong> Same as introspection — only<br />
+authorized parties (clients revoking their own tokens, or admin<br />
+tooling) should be able to revoke.</li>
+<li><strong>Revoking a refresh token revokes the family.</strong> Per RFC 9700 §4.14,<br />
+revoking a refresh token also revokes the descendant access tokens —<br />
+this is what &ldquo;log out everywhere&rdquo; relies on. OneAuth&rsquo;s implementation<br />
+does this via <code>RevokeTokenFamily</code>.</li>
+<li><strong>Idempotent.</strong> Revoke twice == revoke once. Safe to retry.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/oauth/revoke</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Basic czZCaGRSa3F0Mzo3RmpmcDBaQnIxS3REUmJuZlZkbUl3
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>token=2YotnFZFEjr1zCsicMWpAA&amp;token_type_hint=refresh_token
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span></code></pre><p>Empty body. That&rsquo;s the entire happy path. Errors (failed caller<br />
+authentication) get JSON error responses per §2.2.1 — but the <em>token not<br />
+found / already revoked / wrong type</em> cases all return success.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L2 lifecycle.</strong> Revocation is the <em>write</em> side; introspection is the<br />
+<em>read</em> side.</li>
+<li><strong>T8 (lifecycle event).</strong> Refresh / revoke / logout — the post-flow<br />
+cleanup phase.</li>
+<li>Couples tightly with <strong>RFC 9700 §4.14</strong> (refresh token rotation with<br />
+reuse detection). The family-revoke on reuse is exactly the operation<br />
+this endpoint exposes for explicit invocation.</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>Part of the 2.0 ecosystem from 2013. Widely deployed; every major IdP ships<br />
+a revocation endpoint. Often advertised as part of OIDC RP-Initiated<br />
+Logout flows.</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>Not changed by 2.1. The revocation endpoint stays put with the same<br />
+semantics. 2.1&rsquo;s contribution to lifecycle is <em>requiring</em> refresh-token<br />
+rotation with reuse detection (RFC 9700 §4.14) — and the reuse-detection<br />
+path uses revocation internally via the family-revoke action.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>7009 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /oauth/revoke</code> endpoint</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/revocation.go:19</code> <code>RevocationHandler</code></td>
+<td>RFC 7009 §2 compliant</td>
+</tr>
+<tr>
+<td><code>token</code> + <code>token_type_hint</code> parsing</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/revocation.go:97–102</code></td>
+<td>Hint is honored as a lookup ordering hint, not a strict filter</td>
+</tr>
+<tr>
+<td><code>200 OK</code> for all non-error cases</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/revocation.go:107</code> &ldquo;RFC 7009 §2.2: always 200 OK&rdquo; comment</td>
+<td>Doesn&rsquo;t leak token existence</td>
+</tr>
+<tr>
+<td>Caller authentication via HTTP Basic</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/revocation.go:82,91</code> rejects unauthenticated; <code>WWW-Authenticate: Basic realm=&quot;revocation&quot;</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Family revoke on refresh-token revocation</td>
+<td><strong>Implemented</strong></td>
+<td>Transport-independent <code>Revoker.Revoke</code> interface; concrete implementations cascade via <code>RevokeTokenFamily</code></td>
+<td>Tied to refresh rotation per RFC 9700 §4.14</td>
+</tr>
+<tr>
+<td>Idempotency</td>
+<td><strong>Implemented</strong></td>
+<td>Revocation is state-set, not state-toggle</td>
+<td>Safe to retry</td>
+</tr>
+</tbody>
+</table>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<p>You will always ship a revocation endpoint on a production AS. The carve-out:</p>
+<ul>
+<li><strong>Pure access-token-only deployments</strong> (no refresh tokens, short-lived<br />
+access tokens, no client logout UX) can skip revocation — tokens expire<br />
+fast enough. Rare in practice.</li>
+</ul>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_7662.md">RFC 7662</a> — Introspection; the read side of token state</li>
+<li><a href="RFC_9700.md">RFC 9700</a> — §4.14 ties revocation to refresh rotation</li>
+<li><a href="RFC_6749.md">RFC 6749</a> — the framework whose tokens this revokes</li>
+<li><a href="RFC_8628.md">RFC 8628</a> — Device flow; revocation revokes device-flow tokens too</li>
+<li>OIDC RP-Initiated Logout 1.0 — uses 7009 under the hood for token cleanup on logout</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc7009/">Datatracker: rfc7009</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc7009.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=7009">Errata search</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

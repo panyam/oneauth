@@ -28,7 +28,11 @@
         <nav class="top-nav">
             
             
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
             <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
             
             <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
             
@@ -46,6 +50,41 @@
     
     
     <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
         
         <div class="sidebar-section">
             <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
@@ -67,6 +106,27 @@
         </div>
         
         <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
             <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
             
             <ul class="sidebar-list">
@@ -80,6 +140,8 @@
                 <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
                 
                 <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
                 
             </ul>
             
@@ -284,32 +346,36 @@
 <p><strong>Outstanding:</strong> nonce protocol (§8/§9, #375), <code>dpop_jkt</code> carried on a pushed authorization request (§10.1, rides with PAR in #337), Keycloak interop (#371).</p>
 <hr />
 <h2 id="execution-order">Execution Order <a class="anchor" href="#execution-order">¶</a></h2>
-<pre><code>Bug Fixes
-    #52 Fix aud array (P0) ◄── blocks everything
+<pre><code class="language-mermaid">flowchart TD
+    subgraph BUGS[&quot;Bug Fixes&quot;]
+        I52[&quot;#52 Fix aud array (P0)&quot;]
+    end
 
-                    ┌─────────────────────────┐
-                    │ Phase 1: Resource Server │
-                    │ Standards                │
-                    ├─────────────────────────┤
-                    │ #46 PRM (RFC 9728)      │◄── Smallest, do first
-                    │ #47 Introspection (7662)│◄── Already on roadmap
-                    └───────────┬─────────────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              ▼                                   ▼
-┌─────────────────────────┐         ┌─────────────────────────┐
-│ Phase 2: DCR Wrapper    │         │ Phase 3: Keycloak Tests │
-│ #48 (RFC 7591/7592)     │         │ #49                     │◄── Can start in parallel
-└─────────────────────────┘         └─────────────┬───────────┘
-                                                  │
-              ┌───────────────────────────────────┘
-              ▼
-OAuth Client Capabilities (parallel track)
-    #53 client_credentials ◄── foundational grant
-    #54 Headless OAuth + PKCE ◄── supersedes old Phase 3
-    #51 AS Discovery client ◄── enhances #54
-    #55 Introspection client ◄── requires #47 + #53
-    #50 OIDC Discovery server (optional)
+    subgraph PHASE1[&quot;Phase 1: Resource Server Standards&quot;]
+        I46[&quot;#46 PRM (RFC 9728)&lt;br/&gt;Smallest, do first&quot;]
+        I47[&quot;#47 Introspection (7662)&lt;br/&gt;Already on roadmap&quot;]
+    end
+
+    subgraph PHASE2[&quot;Phase 2: DCR Wrapper&quot;]
+        I48[&quot;#48 (RFC 7591/7592)&quot;]
+    end
+
+    subgraph PHASE3[&quot;Phase 3: Keycloak Tests&quot;]
+        I49[&quot;#49&lt;br/&gt;Can start in parallel&quot;]
+    end
+
+    subgraph CLIENTCAPS[&quot;OAuth Client Capabilities (parallel track)&quot;]
+        I53[&quot;#53 client_credentials&lt;br/&gt;foundational grant&quot;]
+        I54[&quot;#54 Headless OAuth + PKCE&lt;br/&gt;supersedes old Phase 3&quot;]
+        I51[&quot;#51 AS Discovery client&lt;br/&gt;enhances #54&quot;]
+        I55[&quot;#55 Introspection client&lt;br/&gt;requires #47 + #53&quot;]
+        I50[&quot;#50 OIDC Discovery server (optional)&quot;]
+    end
+
+    BUGS --&gt;|&quot;blocks everything&quot;| PHASE1
+    PHASE1 --&gt; PHASE2
+    PHASE1 --&gt; PHASE3
+    PHASE3 --&gt; CLIENTCAPS
 </code></pre>
 <p><strong>Recommended order:</strong></p>
 <ol>
@@ -557,5 +623,35 @@ OAuth Client Capabilities (parallel track)
     </div>
 </footer>
 
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
 </body>
 </html>

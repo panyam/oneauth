@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Gap (candidate for L5 work)">
+    <title>RFC 9449 — OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP) · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 9449 — OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP)</h1>
+        
+        <p class="lead">Gap (candidate for L5 work)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9449.md"><code>docs/oauth/RFC_9449.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-9449--oauth-20-demonstrating-proof-of-possession-at-the-application-layer-dpop">RFC 9449 — OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP) <a class="anchor" href="#rfc-9449--oauth-20-demonstrating-proof-of-possession-at-the-application-layer-dpop">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2023-09<br />
+<strong>L-tier / T-tier:</strong> L5 · T5 (issue) + T6 (present proof) + T7 (verify)<br />
+<strong>OneAuth coverage:</strong> Implemented — issuance (<code>cnf.jkt</code>, bound refresh tokens), resource-server enforcement, <code>dpop_jkt</code> at <code>/authorize</code> and on a pushed request, client SDK proof minting. Nonce protocol (§8/§9) outstanding<br />
+<strong>See also:</strong> <a href="RFC_8705.md"><code>RFC_8705.md</code></a> · <a href="RFC_9068.md"><code>RFC_9068.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>DPoP binds an access token to a key the <em>client itself</em> generates — letting<br />
+public clients (browsers, mobile apps, CLIs without PKI) get the same<br />
+&ldquo;useless if stolen&rdquo; property as mTLS-bound tokens, without any PKI<br />
+infrastructure.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without DPoP</th>
+<th>With DPoP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Public clients (browsers, mobile apps) can&rsquo;t use mTLS-bound tokens — no TLS client cert</td>
+<td>Client generates its own ephemeral keypair; proves possession via signed proof JWT</td>
+</tr>
+<tr>
+<td>Bearer tokens leaked from a mobile app&rsquo;s keychain are usable from anywhere</td>
+<td>Stolen token without the matching private key is useless</td>
+</tr>
+<tr>
+<td>FAPI 2.0 requires sender-constrained tokens, but PKI is impractical for consumer apps</td>
+<td>DPoP gives FAPI-grade binding without PKI</td>
+</tr>
+<tr>
+<td>Sender-binding for high-scale public APIs requires a separate proof per request anyway</td>
+<td>DPoP makes that proof a tiny signed JWT in a header — cheap</td>
+</tr>
+</tbody>
+</table>
+<p>DPoP is the <em>public-client</em> answer to &ldquo;how do we get sender-binding without<br />
+PKI?&rdquo; It pairs naturally with PKCE — same threat model (public client, no<br />
+durable secret), same defense pattern (per-flow ephemeral key, proof of<br />
+possession).</p>
+<p>DPoP is newer than mTLS (2023 vs 2020) and the design benefits — both as<br />
+a spec (<code>nonce</code> for replay defense built in) and as deployment ergonomics<br />
+(no PKI to manage).</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>A mobile banking app that needs FAPI 2.0 compliance:</p>
+<ol>
+<li>On startup, the app generates an EC P-256 keypair in the keychain.</li>
+<li>When initiating OAuth, the app sends a <em>DPoP proof JWT</em> in a header:<br />
+<code>DPoP: &lt;signed-JWT-binding-to-this-key&gt;</code>. The AS issues an access token<br />
+with <code>cnf.jkt</code> = thumbprint of the app&rsquo;s public key.</li>
+<li>Every API call to the RS includes both the access token AND a fresh<br />
+DPoP proof JWT signed with the same key, bound to that specific<br />
+request&rsquo;s method + URL.</li>
+<li>RS verifies: token signature (via JWKS), proof signature (via key<br />
+embedded in proof header), <code>cnf.jkt</code> matches the proof key&rsquo;s<br />
+thumbprint, request method+URL match the proof&rsquo;s claim.</li>
+<li>If anyone steals the access token, the proof can&rsquo;t be forged without<br />
+the private key.</li>
+</ol>
+<p>The public/private key never leaves the app. No PKI. No CA. Same sender-<br />
+constraint as mTLS.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong>The DPoP proof JWT</strong> is signed by a key the client controls. Its<br />
+header has <code>typ:&quot;dpop+jwt&quot;</code>, an embedded <code>jwk</code> (the public key), and<br />
+<code>alg</code>. Its claims include:
+<ul>
+<li><code>jti</code> — unique per proof (replay defense)</li>
+<li><code>htm</code> — HTTP method (e.g., <code>POST</code>, <code>GET</code>)</li>
+<li><code>htu</code> — HTTP target URI (e.g., <code>https://as.example.com/api/token</code>)</li>
+<li><code>iat</code> — issued at (timestamp)</li>
+<li><code>ath</code> — (when binding to an access token) SHA-256 of the access token</li>
+<li><code>nonce</code> — (when server demanded one) AS-provided nonce echoed back</li>
+</ul>
+</li>
+<li><strong>Two binding points:</strong>
+<ul>
+<li>At <code>/token</code>: AS issues an access token with <code>cnf.jkt</code> = thumbprint<br />
+of the proof key (RFC 7638 thumbprint, per <a href="RFC_7517.md">RFC 7517</a>).</li>
+<li>At the RS: every request carries a DPoP proof bound to (method, URL,<br />
+access-token hash); RS verifies the proof key matches <code>cnf.jkt</code>.</li>
+</ul>
+</li>
+<li><strong>Nonce protocol (§8 + §9)</strong> for replay defense:
+<ul>
+<li>AS or RS can respond <code>401 Unauthorized</code> with<br />
+<code>DPoP-Nonce: &lt;value&gt;</code> and <code>WWW-Authenticate: DPoP error=&quot;use_dpop_nonce&quot;</code><br />
+when it wants a server-provided nonce in the next proof.</li>
+<li>Client includes <code>nonce</code> claim in the next proof; server records and<br />
+enforces single-use.</li>
+<li>Without nonce, the <code>jti</code>-only defense is bounded by the server&rsquo;s<br />
+clock-skew window.</li>
+</ul>
+</li>
+<li><strong>Token type changes from <code>Bearer</code> to <code>DPoP</code></strong> in the Authorization<br />
+header: <code>Authorization: DPoP &lt;access-token&gt;</code>. RSes that don&rsquo;t speak<br />
+DPoP would ignore it; RSes that do, validate the proof.</li>
+<li><strong>Discovery advertisement</strong>:
+<ul>
+<li><code>dpop_signing_alg_values_supported</code> in AS metadata</li>
+<li><code>dpop_bound_access_tokens_required</code> in PR metadata (RFC 9728)</li>
+</ul>
+</li>
+<li><strong>Public clients ≠ unsigned clients.</strong> DPoP is the public-client<br />
+analogue of <code>private_key_jwt</code> — both are asymmetric proof-of-possession,<br />
+but DPoP uses an ephemeral client-generated key rather than a registered<br />
+one.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p><strong>At <code>/token</code></strong> — client presents DPoP proof, AS issues token with cnf binding:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/api/token</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>DPoP<span style="color:#000;font-weight:bold">:</span> eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4Ijoi...&#34;,&#34;eSI6Ii...&#34;.eyJqdGkiOiJodWQ4...&#34;,&#34;aHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vYXMuZXhhbXBsZS5jb20vYXBpL3Rva2VuIiwiaWF0IjoxNzE3MDAwMDAwfQ.signature
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>grant_type=authorization_code
+</span></span><span style="display:flex;"><span>&amp;code=Spl...
+</span></span><span style="display:flex;"><span>&amp;code_verifier=dBj...
+</span></span><span style="display:flex;"><span>&amp;client_id=public-mobile-app
+</span></span></code></pre><p>Decoded DPoP proof JWT:</p>
+<pre><code>header  : { &quot;typ&quot;:&quot;dpop+jwt&quot;, &quot;alg&quot;:&quot;ES256&quot;,
+            &quot;jwk&quot;: { &quot;kty&quot;:&quot;EC&quot;, &quot;crv&quot;:&quot;P-256&quot;, &quot;x&quot;:&quot;...&quot;, &quot;y&quot;:&quot;...&quot; } }
+payload : { &quot;jti&quot;:&quot;hud8-tbd6-...&quot;, &quot;htm&quot;:&quot;POST&quot;, &quot;htu&quot;:&quot;https://as.example.com/api/token&quot;,
+            &quot;iat&quot;:1717000000 }
+</code></pre>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;access_token&#34;</span>: <span style="color:#d14">&#34;eyJhbGciOi...&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_type&#34;</span>:   <span style="color:#d14">&#34;DPoP&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;expires_in&#34;</span>:   <span style="color:#099">3600</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scope&#34;</span>:        <span style="color:#d14">&#34;read write&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Issued JWT includes:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iss&#34;</span>: <span style="color:#d14">&#34;https://as.example.com&#34;</span>, <span style="color:#000080">&#34;sub&#34;</span>: <span style="color:#d14">&#34;user-42&#34;</span>, <span style="color:#a61717;background-color:#e3d2d2">...,</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;cnf&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;jkt&#34;</span>: <span style="color:#d14">&#34;AaXf2WnsoFn7zCUcr3...thumbprint-of-proof-key&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>At the RS</strong> — client includes a fresh DPoP proof bound to this request:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">GET</span> <span style="color:#555">/api/me</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> api.example.com
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> DPoP eyJhbGciOi...
+</span></span><span style="display:flex;"><span>DPoP<span style="color:#000;font-weight:bold">:</span> eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7...}.eyJqdGkiOiJyZG52aGstNDQyIiwiaHRtIjoiR0VUIiwiaHR1IjoiaHR0cHM6Ly9hcGkuZXhhbXBsZS5jb20vYXBpL21lIiwiaWF0IjoxNzE3MDAxMDAwLCJhdGgiOiJTLU0xanBzZ3o2Z3VTU3VkVTM...&#34;}.signature
+</span></span></code></pre><p>Decoded RS-side proof:</p>
+<pre><code>header  : { &quot;typ&quot;:&quot;dpop+jwt&quot;, &quot;alg&quot;:&quot;ES256&quot;, &quot;jwk&quot;: {...same as before} }
+payload : { &quot;jti&quot;:&quot;rdnvhk-442&quot;, &quot;htm&quot;:&quot;GET&quot;, &quot;htu&quot;:&quot;https://api.example.com/api/me&quot;,
+            &quot;iat&quot;:1717001000, &quot;ath&quot;:&quot;S-M1jpsgz6guSSudU3...&quot; }
+</code></pre>
+<p>RS algorithm:</p>
+<ol>
+<li>Verify JWT signature on access token (via JWKS).</li>
+<li>Verify DPoP proof signature (via <code>jwk</code> in proof header).</li>
+<li>Compute thumbprint of <code>jwk</code>; compare to access token&rsquo;s <code>cnf.jkt</code>.<br />
+Mismatch → reject.</li>
+<li>Verify <code>htm</code> matches request method.</li>
+<li>Verify <code>htu</code> matches request URL.</li>
+<li>Verify <code>ath</code> matches SHA-256 of access token.</li>
+<li>Check <code>jti</code> against replay store; record if first-seen.</li>
+</ol>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L5 token sender constraint.</strong> DPoP is the public-client / no-PKI path.</li>
+<li><strong>T5 (issue)</strong> + <strong>T6 (present proof on every request)</strong> + <strong>T7<br />
+(verify proof + cnf match)</strong>.</li>
+<li>Sibling spec: <strong><a href="RFC_8705.md">RFC 8705 mTLS</a></strong> — same property<br />
+(sender constraint) via TLS rather than app layer. Choose by deployment<br />
+topology.</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>Published 2023. Brand new in OAuth terms. Adoption climbing — Auth0 ships<br />
+DPoP support, Microsoft is adding it, FAPI 2.0 includes it as a peer to<br />
+mTLS. Not yet universal but the trajectory is clear.</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>Not mandated by 2.1. FAPI 2.0 (which builds on 2.1) requires one of mTLS or<br />
+DPoP. For non-FAPI 2.1 deployments, DPoP is optional but increasingly<br />
+recommended for public clients — RFC 9700 §4.10 names sender constraint<br />
+generally as a defense; DPoP is its public-client embodiment.</p>
+<h2 id="migration-path-bearer--dpop-bound">Migration path (bearer → DPoP-bound) <a class="anchor" href="#migration-path-bearer--dpop-bound">¶</a></h2>
+<p>Easier than mTLS — no PKI. The lift is at the wire-protocol level.</p>
+<ol>
+<li><strong>Decide which surfaces use DPoP</strong> — most deployments enable for<br />
+public clients first (mobile apps, SPAs), keep confidential clients<br />
+on <code>private_key_jwt</code>.</li>
+<li><strong>Client SDK side</strong>: generate ephemeral keypair at startup; sign proof<br />
+JWTs per request; cache + replay-defend <code>jti</code>.</li>
+<li><strong>AS side</strong>: validate DPoP proof at <code>/token</code> (proof signature, <code>jti</code><br />
+uniqueness, <code>htm</code>/<code>htu</code> match the request, <code>iat</code> within window); emit<br />
+<code>cnf.jkt</code> claim on issued tokens; change <code>token_type</code> from <code>Bearer</code><br />
+to <code>DPoP</code>.</li>
+<li><strong>RS side</strong>: validate access token (as today) + DPoP proof on every<br />
+request (signature, <code>jkt</code> match, <code>htm</code>/<code>htu</code> match, <code>ath</code> match,<br />
+<code>jti</code> replay).</li>
+<li><strong>Nonce protocol</strong> is a Phase 2 — useful but not required out of<br />
+the gate. Without it, <code>jti</code> + short window does the job.</li>
+</ol>
+<p>Co-exist with Bearer tokens during the transition: AS issues both shapes<br />
+depending on whether the client sent a DPoP proof.</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>Server-to-server with PKI already in place</strong> — mTLS is the simpler<br />
+fit; you&rsquo;re already running the cert plumbing.</li>
+<li><strong>High-throughput internal services on a trusted network</strong> — proof<br />
+generation is cheap but non-zero; if the network&rsquo;s already controlled,<br />
+the marginal value may not justify the implementation cost.</li>
+<li><strong>Clients on resource-constrained hardware</strong> (some IoT) that can&rsquo;t<br />
+reliably sign proofs per request.</li>
+</ul>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>9449 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DPoP proof JWT validation at <code>/token</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/dpop.go</code> — <code>DPoPProofValidator</code></td>
+<td><code>typ</code>, <code>alg</code> allow-list, embedded <code>jwk</code>, signature, <code>htm</code>, <code>htu</code>, <code>iat</code> window, <code>jti</code> replay</td>
+</tr>
+<tr>
+<td><code>cnf.jkt</code> claim emission on issued tokens</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/token_validator.go</code> (<code>CreateAccessToken</code>)</td>
+<td>Every grant: password, client_credentials, refresh, authorization_code, device_code, jwt-bearer, token-exchange</td>
+</tr>
+<tr>
+<td><code>token_type: &quot;DPoP&quot;</code> in token response</td>
+<td><strong>Implemented</strong></td>
+<td><code>CreateAccessTokenResponse.TokenType</code></td>
+<td>Reported by the issuer, not each call site, so a bound token can&rsquo;t be advertised as Bearer</td>
+</tr>
+<tr>
+<td>Refresh-token binding (§5)</td>
+<td><strong>Implemented</strong></td>
+<td><code>core.RefreshToken.Confirmation</code>; FS / GORM / GAE stores</td>
+<td>Rotation carries the binding forward; a bound token is unredeemable without its key</td>
+</tr>
+<tr>
+<td>RS-side proof validation (every request: <code>htm</code>, <code>htu</code>, <code>ath</code>, <code>jti</code>)</td>
+<td><strong>Implemented</strong></td>
+<td><code>DPoPProofValidator.ConfirmResource</code>; wired via <code>APIMiddleware.DPoP</code></td>
+<td><code>ath</code> is required on the resource leg</td>
+</tr>
+<tr>
+<td><code>cnf.jkt</code> thumbprint match at RS</td>
+<td><strong>Implemented</strong></td>
+<td><code>APIMiddleware.enforceBinding</code></td>
+<td>Includes the §7.2 refusal of a bound token sent as Bearer</td>
+</tr>
+<tr>
+<td>Nonce protocol (<code>DPoP-Nonce</code> header)</td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+<td>Not required for v1</td>
+</tr>
+<tr>
+<td><code>Authorization: DPoP &lt;token&gt;</code> parsing</td>
+<td><strong>Implemented</strong></td>
+<td><code>APIMiddleware.credentials</code></td>
+<td>Bearer and DPoP; any other scheme is refused</td>
+</tr>
+<tr>
+<td><code>dpop_jkt</code> on the authorization request (§10)</td>
+<td><strong>Implemented</strong></td>
+<td><code>AuthorizationRequest.DPoPJKT</code> → <code>core.AuthorizationCode.DPoPJKT</code>; enforced in <code>AuthorizationCodeGrant</code></td>
+<td>Front channel</td>
+</tr>
+<tr>
+<td><code>dpop_jkt</code> or a DPoP header on a pushed request (§10.1)</td>
+<td><strong>Implemented</strong></td>
+<td><code>PARHandler.resolveDPoPBinding</code> (#337)</td>
+<td>Both forms accepted; a mismatch between them is rejected</td>
+</tr>
+<tr>
+<td><code>dpop_signing_alg_values_supported</code> AS metadata</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/as_metadata.go</code>; fill from <code>DPoPProofValidator.SigningAlgValuesSupported()</code></td>
+<td>Advertise only when a validator is wired</td>
+</tr>
+<tr>
+<td><code>dpop_bound_access_tokens_required</code> PR metadata</td>
+<td><strong>Implemented</strong></td>
+<td><code>ProtectedResourceMetadata</code>; enforced by <code>APIMiddleware.RequireDPoP</code></td>
+<td>Advertise only when the middleware enforces it</td>
+</tr>
+<tr>
+<td><code>cnf</code> on introspection responses</td>
+<td><strong>Implemented</strong></td>
+<td><code>IntrospectionResult.Cnf</code></td>
+<td>Lets an RS that validates by introspection enforce the same binding</td>
+</tr>
+<tr>
+<td><code>WWW-Authenticate: DPoP</code> challenges</td>
+<td><strong>Implemented</strong></td>
+<td><code>APIMiddleware.challenge</code></td>
+<td>Both schemes advertised; error rides the scheme the client used (§7.2)</td>
+</tr>
+<tr>
+<td>Client-side proof minting</td>
+<td><strong>Implemented</strong></td>
+<td><code>client.DPoPKey</code> + <code>client.WithDPoPKey</code></td>
+<td>Token requests, resource requests (<code>ath</code>), and <code>dpop_jkt</code> on browser login</td>
+</tr>
+<tr>
+<td>Crypto primitive: RFC 7638 thumbprint</td>
+<td><strong>Implemented</strong></td>
+<td><code>utils/jwk_thumbprint.go:19–82</code> — RSA + EC supported</td>
+<td>Validated against the RFC 9449 Figure 2 / Figure 9 vector in <code>apiauth/dpop_proof_test.go</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Wiring it up.</strong> DPoP is off until a validator is supplied, so an existing<br />
+deployment keeps issuing bearer tokens until it opts in:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>validator <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewDPoPProofValidator</span>(apiauth.DPoPConfig{
+</span></span><span style="display:flex;"><span>    EndpointURL: <span style="color:#d14">&#34;https://as.example.com/api/token&#34;</span>, <span style="color:#998;font-style:italic">// required behind a TLS-terminating proxy
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>})
+</span></span><span style="display:flex;"><span>oa <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewOneAuth</span>(apiauth.OneAuthConfig{ <span style="color:#998;font-style:italic">/* ... */</span> DPoP: validator })
+</span></span></code></pre><p>Then advertise it: <code>ASServerMetadata.DPoPSigningAlgValuesSupported = validator.SigningAlgValuesSupported()</code>.</p>
+<p>A client opts in per request by sending a <code>DPoP</code> header; one that does not<br />
+still gets a bearer token from the same endpoint.</p>
+<p>A resource server opts in the same way, with its own externally-visible base<br />
+URL:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>mw <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIMiddleware{ <span style="color:#998;font-style:italic">/* ... */</span> }
+</span></span><span style="display:flex;"><span>mw.DPoP = apiauth.<span style="color:#900;font-weight:bold">NewDPoPProofValidator</span>(apiauth.DPoPConfig{
+</span></span><span style="display:flex;"><span>    BaseURL: <span style="color:#d14">&#34;https://rs.example.com&#34;</span>, <span style="color:#998;font-style:italic">// htu is this plus each request path
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>})
+</span></span><span style="display:flex;"><span>mw.RequireDPoP = <span style="color:#000;font-weight:bold">true</span> <span style="color:#998;font-style:italic">// optional: refuse bearer presentations outright
+</span></span></span></code></pre><p>Until a resource server wires that, it accepts a bound token as an ordinary<br />
+bearer token, which RFC 9449 §7.2 both predicts and permits. Issuing bound<br />
+tokens is therefore not protection on its own; the binding starts constraining<br />
+anyone only once the resource servers check it.</p>
+<p><strong>What is left.</strong></p>
+<ol>
+<li>The nonce protocol (§8 for the authorization server, §9 for the<br />
+resource server), tracked under #375. It closes proof pre-generation,<br />
+which the <code>iat</code> window bounds but does not prevent, and the client<br />
+retry loop it needs now has a key to build on.</li>
+<li>A <code>TokenBindingValidator</code> interface (shared seam with mTLS) — deferred<br />
+on purpose until #335 makes the second shape visible, since an<br />
+interface with one implementation is a guess about the second.</li>
+<li>PKCE pairs <em>naturally</em> with DPoP — both are per-flow ephemeral<br />
+asymmetric defenses. A future &ldquo;FAPI 2.0 strict mode&rdquo; toggle in<br />
+OneAuth would enable PKCE + DPoP + PAR + JAR together.</li>
+</ol>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_8705.md">RFC 8705 mTLS</a> — sibling sender-constraint mechanism (PKI-based)</li>
+<li><a href="RFC_9068.md">RFC 9068</a> — JWT AT profile; <code>cnf.jkt</code> is a recognized claim there</li>
+<li><a href="RFC_7517.md">RFC 7517</a> / <a href="https://datatracker.ietf.org/doc/rfc7638/">RFC 7638</a> — JWK thumbprint computation</li>
+<li><a href="https://datatracker.ietf.org/doc/rfc7800/">RFC 7800</a> — <code>cnf</code> claim semantics</li>
+<li><a href="RFC_9700.md">RFC 9700</a> — §4.10 sender constraint defense</li>
+<li><a href="FAPI.md">FAPI 2.0</a> — requires either DPoP or mTLS</li>
+<li><a href="RFC_oauth21.md">OAuth 2.1 draft</a> — mentions DPoP as the public-client sender-constraint option</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc9449/">Datatracker: rfc9449</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9449.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=9449">Errata search</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Not conformant — L5 is half-landed (DPoP shipped under #336; mTLS tracked under #335), L6 (PAR #337 / JAR #338) outstanding">
+    <title>FAPI 1.0 / 2.0 — Financial-grade API Security Profiles · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>FAPI 1.0 / 2.0 — Financial-grade API Security Profiles</h1>
+        
+        <p class="lead">Not conformant — L5 is half-landed (DPoP shipped under #336; mTLS tracked under #335), L6 (PAR #337 / JAR #338) outstanding</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/FAPI.md"><code>docs/oauth/FAPI.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="fapi-10--20--financial-grade-api-security-profiles">FAPI 1.0 / 2.0 — Financial-grade API Security Profiles <a class="anchor" href="#fapi-10--20--financial-grade-api-security-profiles">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> OpenID Foundation Specifications (final)<br />
+<strong>Published:</strong> FAPI 1.0 (2021), FAPI 2.0 Security Profile (2024)<br />
+<strong>L-tier / T-tier:</strong> L8 · T0 (profile of all)<br />
+<strong>OneAuth coverage:</strong> Not conformant — L5 is half-landed (DPoP shipped under #336; mTLS tracked under #335), L6 is half-landed (PAR shipped under #337; JAR tracked under #338)<br />
+<strong>See also:</strong> <a href="RFC_9126.md"><code>RFC_9126.md</code></a> · <a href="RFC_9101.md"><code>RFC_9101.md</code></a> · <a href="RFC_9449.md"><code>RFC_9449.md</code></a> · <a href="RFC_8705.md"><code>RFC_8705.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>FAPI is a <em>profile</em> of OAuth 2.0 + OIDC + the security extensions — it<br />
+doesn&rsquo;t invent new protocol surface; it <em>mandates</em> the right composition<br />
+(PAR + JAR + RAR + DPoP/mTLS + signed responses) for regulated, high-<br />
+stakes APIs.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without FAPI</th>
+<th>With FAPI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Regulators of banking / open finance / healthcare can&rsquo;t tell you &ldquo;use OAuth&rdquo; because OAuth is too permissive — too many ways to get it insecure</td>
+<td>One spec lists the mandatory extensions and forbids the insecure choices</td>
+</tr>
+<tr>
+<td>Per-jurisdiction OAuth profiles diverge (UK Open Banking, EU PSD2, Brazil Open Finance, etc.)</td>
+<td>FAPI is the common base; regional profiles layer minimal additions on top</td>
+</tr>
+<tr>
+<td>Implementers don&rsquo;t know which extensions to combine for &ldquo;secure enough&rdquo; deployments</td>
+<td>FAPI is the answer to &ldquo;what extensions do I turn on for banking-grade security?&rdquo;</td>
+</tr>
+<tr>
+<td>Conformance testing is per-vendor</td>
+<td>Open Identity Foundation runs a public FAPI conformance test suite</td>
+</tr>
+</tbody>
+</table>
+<p>FAPI is the <em>composition</em> of the L5 and L6 RFCs into a normative<br />
+deployment profile. It&rsquo;s the spec where &ldquo;we want sender-constrained tokens<br />
+AND request integrity AND structured authorization&rdquo; stops being a wish<br />
+list and starts being a checklist.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>You&rsquo;re integrating with a UK Open Banking account information service. The<br />
+regulator (Open Banking Implementation Entity) doesn&rsquo;t write its own<br />
+protocol; it points at FAPI:</p>
+<ul>
+<li><em>&ldquo;All AISPs/PISPs MUST be FAPI 1.0 Advanced conformant by Q3 2025.&rdquo;</em></li>
+</ul>
+<p>To pass conformance you must ship:</p>
+<ul>
+<li>PAR (request transport)</li>
+<li>JAR (signed requests)</li>
+<li>mTLS <em>or</em> private_key_jwt for client auth</li>
+<li>mTLS-bound <em>or</em> DPoP-bound access tokens</li>
+<li>JARM-signed authorization responses</li>
+<li>PS256 (FAPI 1.0) or ES256 (FAPI 2.0) signing</li>
+</ul>
+<p>Each item is a separate RFC; FAPI is the document that says &ldquo;all of them,<br />
+together, with these settings.&rdquo;</p>
+<p>The same pattern shows up in Brazil Open Finance, Australia CDR, the EU&rsquo;s<br />
+PSD2 ecosystem, and increasingly in healthcare APIs requiring patient-<br />
+consent-driven access.</p>
+<h2 id="three-fapi-profiles-which-one-matters">Three FAPI profiles (which one matters?) <a class="anchor" href="#three-fapi-profiles-which-one-matters">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Profile</th>
+<th>Year</th>
+<th>Scope</th>
+<th>Notable mandates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FAPI 1.0 Baseline</strong></td>
+<td>2021</td>
+<td>Read-only APIs (e.g., account info)</td>
+<td>PKCE, JAR optional, mTLS-bound or DPoP-bound tokens, PS256</td>
+</tr>
+<tr>
+<td><strong>FAPI 1.0 Advanced</strong></td>
+<td>2021</td>
+<td>Read-write APIs (e.g., payment initiation)</td>
+<td>PAR + JAR + RAR all mandatory, PS256, signed responses (JARM), mTLS or private_key_jwt</td>
+</tr>
+<tr>
+<td><strong>FAPI 2.0 Security Profile</strong></td>
+<td>2024</td>
+<td>Successor to both</td>
+<td>Simpler, modernized; PAR + DPoP/mTLS mandatory; deprecates JARM in favor of JAR-everywhere</td>
+</tr>
+</tbody>
+</table>
+<p>Most new builds in 2025+ target FAPI 2.0. The 1.0 profiles persist because<br />
+regulators move slowly — they wrote 1.0 conformance into rules and have<br />
+not yet rolled forward.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong>FAPI doesn&rsquo;t invent endpoints or grants.</strong> It mandates which of the<br />
+<em>existing</em> OAuth/OIDC extensions are required and forbids the loose<br />
+alternatives (no implicit, no ROPC, no <code>plain</code> PKCE, no <code>none</code> alg).</li>
+<li><strong>Sender-constrained tokens are mandatory.</strong> Either mTLS-bound<br />
+(<code>cnf.x5t#S256</code>, RFC 8705) or DPoP-bound (<code>cnf.jkt</code>, RFC 9449). The<br />
+choice depends on PKI availability, not security level.</li>
+<li><strong>Request integrity is mandatory.</strong> JAR for the signature; PAR for the<br />
+transport. Even at FAPI 2.0 with everything modernized, JAR/PAR<br />
+remain the request-side baseline.</li>
+<li><strong>Strict alg choices.</strong> PS256 / ES256 only — <code>RS256</code> and <code>HS256</code> are<br />
+forbidden. The &ldquo;alg=none&rdquo; footgun is closed by the spec, not just by<br />
+the implementer.</li>
+<li><strong>Public + open client model has gone.</strong> All clients are confidential<br />
+in FAPI; SPAs and mobile-only deployments either run an authorized<br />
+backend (BFF pattern) or accept that they&rsquo;re not FAPI.</li>
+<li><strong>JARM (JWT-secured Authorization Response Mode)</strong> is the FAPI 1.0<br />
+signed-response sibling of JAR (signed <em>request</em>). FAPI 2.0 reuses<br />
+JAR&rsquo;s framework instead of carrying JARM separately.</li>
+</ol>
+<h2 id="wire-pattern-the-full-fapi-20-baseline">Wire pattern (the full FAPI 2.0 baseline) <a class="anchor" href="#wire-pattern-the-full-fapi-20-baseline">¶</a></h2>
+<pre><code>Setup time (T0):
+  ✓ AS publishes OIDC Discovery with strict capability advertisement
+  ✓ JWKS published; only PS256 / ES256 signing keys
+  ✓ DPoP / mTLS endpoint segregation if needed
+
+Each request (T1):
+  ✓ Client POSTs request to /par with JAR-signed JWT body
+  ✓ AS returns short request_uri
+  ✓ Client redirects: GET /authorize?client_id=X&amp;request_uri=urn:ietf:...
+
+User auth (T3):
+  ✓ Strong authentication (MFA / FIDO2 typical)
+  ✓ acr / amr / auth_time claims populated
+
+Redirect back (T4):
+  ✓ iss param on redirect (RFC 9207)
+
+Token endpoint (T5):
+  ✓ Client auth via mTLS or private_key_jwt
+  ✓ Issued tokens carry cnf.x5t#S256 (mTLS) or cnf.jkt (DPoP)
+  ✓ authorization_details (RAR) echoed back
+
+Resource access (T6, T7):
+  ✓ Bearer token + DPoP proof OR mTLS connection
+  ✓ RS verifies cnf claim matches actual sender binding
+  ✓ RS validates authorization_details matches the operation requested
+
+Lifecycle (T8):
+  ✓ Refresh rotation with reuse detection
+  ✓ Revocation on user-initiated logout
+</code></pre>
+<p>Every checkmark corresponds to a specific RFC (mostly the L4–L6 + RFC 9700<br />
+ones). FAPI is the layer that says: &ldquo;all of them, no exceptions.&rdquo;</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L8 profiles.</strong> Not a peer to other RFCs — a <em>consumer</em> of them.</li>
+<li><strong>T0 (sets the deployment policy that gates all later T-steps).</strong></li>
+<li><strong>Composes L1 (JWT/JWS), L2 (discovery), L3 (DCR for cert-bound<br />
+clients), L4 (the grants), L5 (mTLS or DPoP), L6 (PAR + JAR + RAR),<br />
+L7 (OIDC), and L0 (PKCE + BCP).</strong></li>
+</ul>
+<h2 id="oauth-20-vs-oauth-21-status">OAuth 2.0 vs OAuth 2.1 status <a class="anchor" href="#oauth-20-vs-oauth-21-status">¶</a></h2>
+<p>FAPI 1.0 is layered on OAuth 2.0 explicitly. FAPI 2.0 references OAuth 2.1<br />
+as its baseline (along with OAuth 2.0 — many of FAPI 2.0&rsquo;s mandates <em>are</em><br />
+2.1&rsquo;s mandates, just made explicit in a regulated context).</p>
+<p>If your trajectory is FAPI 2.0:</p>
+<ul>
+<li>You&rsquo;re already on the 2.1-strict path (PKCE everywhere, no implicit, no<br />
+ROPC, exact redirect, refresh rotation).</li>
+<li>You add the L5 and L6 layers explicitly (mTLS or DPoP, PAR, JAR).</li>
+<li>You restrict algorithms and disable the loose extensions.</li>
+</ul>
+<h2 id="migration-path-regular-oauth--fapi">Migration path (regular OAuth → FAPI) <a class="anchor" href="#migration-path-regular-oauth--fapi">¶</a></h2>
+<p>FAPI is gated on extension coverage; you can&rsquo;t &ldquo;kind of&rdquo; be FAPI. The<br />
+ordered path is:</p>
+<ol>
+<li><strong>Close the L0 + L1 gaps first.</strong> OAuth 2.1 alignment + JOSE +<br />
+RFC 9068. (For OneAuth, this is done — see<br />
+<a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>.)</li>
+<li><strong>Ship the L5 sender constraint.</strong> mTLS for confidential-with-PKI<br />
+deployments; DPoP for everyone else. Most teams ship DPoP first<br />
+because PKI is harder.</li>
+<li><strong>Ship the L6 request integrity.</strong> PAR + JAR. PAR is the easier<br />
+precursor; JAR builds on existing JWS plumbing.</li>
+<li><strong>Restrict alg choices.</strong> Lock down to PS256 / ES256 in AS metadata<br />
+and JWKS; reject HS256 and RS256.</li>
+<li><strong>Run the OpenID FAPI conformance suite</strong> against your AS in<br />
+<code>dryrun</code> mode. It surfaces gaps mercilessly.</li>
+<li><strong>Submit for self-certification</strong> if a regulator requires it.</li>
+</ol>
+<p>For OneAuth, that order is: L5 first (DPoP &gt; mTLS), then L6 (PAR &gt; JAR),<br />
+then alg lockdown. With those landed, FAPI 2.0 conformance is in reach.</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>Consumer-grade OAuth without regulatory pressure.</strong> FAPI is heavy.<br />
+The operational complexity (cert management for mTLS, per-flow PAR<br />
+state, signed-request construction) is wasted if you don&rsquo;t need it.</li>
+<li><strong>Internal services on controlled networks.</strong> Same argument — the<br />
+threat model FAPI defends against (browser-side leakage, regulator-<br />
+required attribution, cross-org token replay) often doesn&rsquo;t apply.</li>
+<li><strong>Strict latency budgets.</strong> PAR adds one round-trip; DPoP adds proof<br />
+signing per request. Cheap, but not free. High-frequency internal<br />
+services may not want the overhead.</li>
+</ul>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<p><strong>Not FAPI-conformant.</strong> The blocking gaps are explicit:</p>
+<table>
+<thead>
+<tr>
+<th>FAPI requirement</th>
+<th>OneAuth status</th>
+<th>Doc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PAR</td>
+<td>Gap</td>
+<td><a href="RFC_9126.md"><code>RFC_9126.md</code></a></td>
+</tr>
+<tr>
+<td>JAR</td>
+<td>Gap (repo issue 150)</td>
+<td><a href="RFC_9101.md"><code>RFC_9101.md</code></a></td>
+</tr>
+<tr>
+<td>RAR</td>
+<td><strong>Implemented</strong></td>
+<td><a href="RFC_9396.md"><code>RFC_9396.md</code></a></td>
+</tr>
+<tr>
+<td>DPoP (sender constraint, public clients)</td>
+<td>Gap</td>
+<td><a href="RFC_9449.md"><code>RFC_9449.md</code></a></td>
+</tr>
+<tr>
+<td>mTLS (sender constraint, PKI clients)</td>
+<td>Gap</td>
+<td><a href="RFC_8705.md"><code>RFC_8705.md</code></a></td>
+</tr>
+<tr>
+<td>PS256 algorithm</td>
+<td>Gap (logged)</td>
+<td><a href="RFC_7518.md"><code>RFC_7518.md</code></a> + <code>_PENDING_GAPS.md</code> entry 4</td>
+</tr>
+<tr>
+<td>OIDC Core (id_token issuance)</td>
+<td>Gap (largest open item)</td>
+<td><a href="OIDC_Core.md"><code>OIDC_Core.md</code></a></td>
+</tr>
+<tr>
+<td>JARM (signed authz responses, FAPI 1.0 only)</td>
+<td>Gap (tracked under repo issue 151)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2.1 spine alignment (PKCE everywhere, no implicit, etc.)</td>
+<td>Mostly compliant</td>
+<td><a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a></td>
+</tr>
+<tr>
+<td>Refresh rotation + reuse detect</td>
+<td>Implemented</td>
+<td><a href="RFC_9700.md"><code>RFC_9700.md</code></a></td>
+</tr>
+<tr>
+<td><code>iss</code> on redirect</td>
+<td>Implemented</td>
+<td><a href="RFC_9207.md"><code>RFC_9207.md</code></a></td>
+</tr>
+<tr>
+<td>Strict redirect URI matching + HTTPS</td>
+<td>Implemented (DCR + <code>/authorize</code>)</td>
+<td><a href="RFC_9700.md"><code>RFC_9700.md</code></a></td>
+</tr>
+</tbody>
+</table>
+<p>The &ldquo;what&rsquo;s needed&rdquo; reduces to: <strong>L5 (DPoP + mTLS) + L6 (PAR + JAR) +<br />
+OIDC Core id_token + PS256.</strong> That&rsquo;s a substantial body of work but the<br />
+shape of each piece is well-defined.</p>
+<p><strong>The strategic question</strong> for OneAuth isn&rsquo;t <em>whether</em> FAPI is reachable<br />
+(it is), but <em>whether the user base needs it.</em> If demand exists for<br />
+banking-grade APIs the work pays off. If consumer SSO is the primary<br />
+target, FAPI may always be aspirational.</p>
+<h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
+<ul>
+<li><a href="RFC_9126.md">RFC 9126 PAR</a> — mandatory</li>
+<li><a href="RFC_9101.md">RFC 9101 JAR</a> — mandatory</li>
+<li><a href="RFC_9396.md">RFC 9396 RAR</a> — strongly recommended for transaction APIs</li>
+<li><a href="RFC_9449.md">RFC 9449 DPoP</a> — sender constraint (public)</li>
+<li><a href="RFC_8705.md">RFC 8705 mTLS</a> — sender constraint (PKI)</li>
+<li><a href="OIDC_Core.md">OIDC Core</a> — id_token + auth_time + acr</li>
+<li><a href="RFC_9700.md">RFC 9700 BCP</a> — the security baseline</li>
+<li>Repo issues: 151 (JARM), 152 (RFC 9421 HTTP Message Signatures for FAPI 2.0 message signing), 160 (<code>attest_jwt_client_auth</code>), 161 (regional Open Banking profiles)</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://openid.net/specs/openid-financial-api-part-1-1_0.html">FAPI 1.0 Baseline</a></li>
+<li><a href="https://openid.net/specs/openid-financial-api-part-2-1_0.html">FAPI 1.0 Advanced</a></li>
+<li><a href="https://openid.net/specs/fapi-2_0-security-profile.html">FAPI 2.0 Security Profile</a></li>
+<li><a href="https://openid.net/specs/fapi-2_0-message-signing.html">FAPI 2.0 Message Signing</a></li>
+<li><a href="https://gitlab.com/openid/conformance-suite">OpenID Conformance Suite</a> — the public test runner</li>
+<li><a href="https://openid.net/wg/fapi/">FAPI WG home</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OneAuth provides gRPC authentication utilities in the grpc subpackage for propagating user identity from HTTP sessions to gRPC service calls.">
+    <title>gRPC Authentication · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>gRPC Authentication</h1>
+        
+        <p class="lead">OneAuth provides gRPC authentication utilities in the grpc subpackage for propagating user identity from HTTP sessions to gRPC service calls.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/GRPC.md"><code>docs/GRPC.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="grpc-authentication">gRPC Authentication <a class="anchor" href="#grpc-authentication">¶</a></h1>
+<p>OneAuth provides gRPC authentication utilities in the <code>grpc</code> subpackage for propagating user identity from HTTP sessions to gRPC service calls.</p>
+<h2 id="installation">Installation <a class="anchor" href="#installation">¶</a></h2>
+<p>The gRPC package is included with OneAuth:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> oagrpc <span style="color:#d14">&#34;github.com/panyam/oneauth/grpc&#34;</span>
+</span></span></code></pre><h2 id="context-utilities">Context Utilities <a class="anchor" href="#context-utilities">¶</a></h2>
+<h3 id="extracting-user-id-from-context">Extracting User ID from Context <a class="anchor" href="#extracting-user-id-from-context">¶</a></h3>
+<p>In your gRPC service implementations, extract the authenticated user:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> (s <span style="color:#000;font-weight:bold">*</span>MyService) <span style="color:#900;font-weight:bold">GetUserProfile</span>(ctx context.Context, req <span style="color:#000;font-weight:bold">*</span>pb.GetUserProfileRequest) (<span style="color:#000;font-weight:bold">*</span>pb.UserProfile, <span style="color:#458;font-weight:bold">error</span>) {
+</span></span><span style="display:flex;"><span>    userID <span style="color:#000;font-weight:bold">:=</span> oagrpc.<span style="color:#900;font-weight:bold">UserIDFromContext</span>(ctx)
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> userID <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;&#34;</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">nil</span>, status.<span style="color:#900;font-weight:bold">Error</span>(codes.Unauthenticated, <span style="color:#d14">&#34;authentication required&#34;</span>)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Use userID to fetch profile...
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#000;font-weight:bold">return</span> profile, <span style="color:#000;font-weight:bold">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="injecting-user-id-into-outgoing-context">Injecting User ID into Outgoing Context <a class="anchor" href="#injecting-user-id-into-outgoing-context">¶</a></h3>
+<p>When making gRPC calls from an HTTP handler (e.g., in a gRPC-gateway):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> (h <span style="color:#000;font-weight:bold">*</span>Handler) <span style="color:#900;font-weight:bold">handleRequest</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Get user from session/token
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    userID <span style="color:#000;font-weight:bold">:=</span> h.authMiddleware.<span style="color:#900;font-weight:bold">GetLoggedInUserId</span>(r)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Add to outgoing gRPC context
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    ctx <span style="color:#000;font-weight:bold">:=</span> oagrpc.<span style="color:#900;font-weight:bold">UserIDToOutgoingContext</span>(r.<span style="color:#900;font-weight:bold">Context</span>(), userID)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Make gRPC call
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    resp, err <span style="color:#000;font-weight:bold">:=</span> h.grpcClient.<span style="color:#900;font-weight:bold">SomeMethod</span>(ctx, req)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="using-with-grpc-gateway">Using with gRPC-Gateway <a class="anchor" href="#using-with-grpc-gateway">¶</a></h3>
+<p>With grpc-gateway&rsquo;s <code>runtime.ServeMux</code>, inject user ID via metadata:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>gwmux <span style="color:#000;font-weight:bold">:=</span> runtime.<span style="color:#900;font-weight:bold">NewServeMux</span>(
+</span></span><span style="display:flex;"><span>    runtime.<span style="color:#900;font-weight:bold">WithMetadata</span>(<span style="color:#000;font-weight:bold">func</span>(ctx context.Context, r <span style="color:#000;font-weight:bold">*</span>http.Request) metadata.MD {
+</span></span><span style="display:flex;"><span>        userID <span style="color:#000;font-weight:bold">:=</span> authMiddleware.<span style="color:#900;font-weight:bold">GetLoggedInUserId</span>(r)
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">if</span> userID <span style="color:#000;font-weight:bold">!=</span> <span style="color:#d14">&#34;&#34;</span> {
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">return</span> metadata.<span style="color:#900;font-weight:bold">Pairs</span>(oagrpc.DefaultMetadataKeyUserID, userID)
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> metadata.<span style="color:#900;font-weight:bold">Pairs</span>()
+</span></span><span style="display:flex;"><span>    }),
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre><h2 id="auth-interceptors">Auth Interceptors <a class="anchor" href="#auth-interceptors">¶</a></h2>
+<h3 id="basic-usage">Basic Usage <a class="anchor" href="#basic-usage">¶</a></h3>
+<p>Add authentication enforcement to your gRPC server:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> oagrpc <span style="color:#d14">&#34;github.com/panyam/oneauth/grpc&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>server <span style="color:#000;font-weight:bold">:=</span> grpc.<span style="color:#900;font-weight:bold">NewServer</span>(
+</span></span><span style="display:flex;"><span>    grpc.<span style="color:#900;font-weight:bold">UnaryInterceptor</span>(oagrpc.<span style="color:#900;font-weight:bold">UnaryAuthInterceptor</span>(<span style="color:#000;font-weight:bold">nil</span>)),
+</span></span><span style="display:flex;"><span>    grpc.<span style="color:#900;font-weight:bold">StreamInterceptor</span>(oagrpc.<span style="color:#900;font-weight:bold">StreamAuthInterceptor</span>(<span style="color:#000;font-weight:bold">nil</span>)),
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre><p>With default config, all methods require authentication. Unauthenticated requests receive <code>codes.Unauthenticated</code>.</p>
+<h3 id="public-methods">Public Methods <a class="anchor" href="#public-methods">¶</a></h3>
+<p>Allow certain methods to be accessed without authentication:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>config <span style="color:#000;font-weight:bold">:=</span> oagrpc.<span style="color:#900;font-weight:bold">NewPublicMethodsConfig</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;/myapp.v1.AuthService/Login&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;/myapp.v1.AuthService/Register&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;/myapp.v1.HealthService/Check&#34;</span>,
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>server <span style="color:#000;font-weight:bold">:=</span> grpc.<span style="color:#900;font-weight:bold">NewServer</span>(
+</span></span><span style="display:flex;"><span>    grpc.<span style="color:#900;font-weight:bold">UnaryInterceptor</span>(oagrpc.<span style="color:#900;font-weight:bold">UnaryAuthInterceptor</span>(config)),
+</span></span><span style="display:flex;"><span>    grpc.<span style="color:#900;font-weight:bold">StreamInterceptor</span>(oagrpc.<span style="color:#900;font-weight:bold">StreamAuthInterceptor</span>(config)),
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre><h3 id="optional-authentication">Optional Authentication <a class="anchor" href="#optional-authentication">¶</a></h3>
+<p>For services where authentication is optional (user ID available if authenticated, but not required):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>config <span style="color:#000;font-weight:bold">:=</span> oagrpc.<span style="color:#900;font-weight:bold">OptionalAuthConfig</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>server <span style="color:#000;font-weight:bold">:=</span> grpc.<span style="color:#900;font-weight:bold">NewServer</span>(
+</span></span><span style="display:flex;"><span>    grpc.<span style="color:#900;font-weight:bold">UnaryInterceptor</span>(oagrpc.<span style="color:#900;font-weight:bold">UnaryAuthInterceptor</span>(config)),
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre><p>Your service can then check if the user is authenticated:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> (s <span style="color:#000;font-weight:bold">*</span>MyService) <span style="color:#900;font-weight:bold">GetContent</span>(ctx context.Context, req <span style="color:#000;font-weight:bold">*</span>pb.GetContentRequest) (<span style="color:#000;font-weight:bold">*</span>pb.Content, <span style="color:#458;font-weight:bold">error</span>) {
+</span></span><span style="display:flex;"><span>    userID <span style="color:#000;font-weight:bold">:=</span> oagrpc.<span style="color:#900;font-weight:bold">UserIDFromContext</span>(ctx)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> userID <span style="color:#000;font-weight:bold">!=</span> <span style="color:#d14">&#34;&#34;</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// Personalized content for authenticated user
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>        <span style="color:#000;font-weight:bold">return</span> s.<span style="color:#900;font-weight:bold">getPersonalizedContent</span>(userID, req)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Generic content for anonymous user
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#000;font-weight:bold">return</span> s.<span style="color:#900;font-weight:bold">getPublicContent</span>(req)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="configuration">Configuration <a class="anchor" href="#configuration">¶</a></h2>
+<h3 id="custom-metadata-keys">Custom Metadata Keys <a class="anchor" href="#custom-metadata-keys">¶</a></h3>
+<p>Use custom metadata keys if needed:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>config <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oagrpc.InterceptorConfig{
+</span></span><span style="display:flex;"><span>    Config: <span style="color:#000;font-weight:bold">&amp;</span>oagrpc.Config{
+</span></span><span style="display:flex;"><span>        MetadataKeyUserID:     <span style="color:#d14">&#34;x-custom-user-id&#34;</span>,
+</span></span><span style="display:flex;"><span>        MetadataKeySwitchUser: <span style="color:#d14">&#34;x-custom-switch-user&#34;</span>,
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    RequireAuth: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>    PublicMethods: <span style="color:#0086b3">make</span>(<span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]<span style="color:#458;font-weight:bold">bool</span>),
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="switch-user-for-testing">Switch User for Testing <a class="anchor" href="#switch-user-for-testing">¶</a></h3>
+<p>Enable user switching for development/testing:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>config <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oagrpc.InterceptorConfig{
+</span></span><span style="display:flex;"><span>    Config: <span style="color:#000;font-weight:bold">&amp;</span>oagrpc.Config{
+</span></span><span style="display:flex;"><span>        EnableSwitchAuth: <span style="color:#000;font-weight:bold">true</span>, <span style="color:#998;font-style:italic">// Only enable in dev/test!
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    },
+</span></span><span style="display:flex;"><span>    RequireAuth: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>    PublicMethods: <span style="color:#0086b3">make</span>(<span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]<span style="color:#458;font-weight:bold">bool</span>),
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>When enabled, the <code>x-switch-user</code> metadata header overrides the actual user ID.</p>
+<h2 id="complete-integration-example">Complete Integration Example <a class="anchor" href="#complete-integration-example">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">package</span> main
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> (
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;context&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;net&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;net/http&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/grpc-ecosystem/grpc-gateway/v2/runtime&#34;</span>
+</span></span><span style="display:flex;"><span>    oa <span style="color:#d14">&#34;github.com/panyam/oneauth&#34;</span>
+</span></span><span style="display:flex;"><span>    oagrpc <span style="color:#d14">&#34;github.com/panyam/oneauth/grpc&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;google.golang.org/grpc&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;google.golang.org/grpc/metadata&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">main</span>() {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Setup oneauth for HTTP
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    authMiddleware <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oa.Middleware{
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// ... configure ...
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Setup gRPC server with auth interceptors
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    grpcServer <span style="color:#000;font-weight:bold">:=</span> grpc.<span style="color:#900;font-weight:bold">NewServer</span>(
+</span></span><span style="display:flex;"><span>        grpc.<span style="color:#900;font-weight:bold">UnaryInterceptor</span>(oagrpc.<span style="color:#900;font-weight:bold">UnaryAuthInterceptor</span>(
+</span></span><span style="display:flex;"><span>            oagrpc.<span style="color:#900;font-weight:bold">NewPublicMethodsConfig</span>(<span style="color:#d14">&#34;/myapp.v1.Auth/Login&#34;</span>),
+</span></span><span style="display:flex;"><span>        )),
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Register services
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    pb.<span style="color:#900;font-weight:bold">RegisterMyServiceServer</span>(grpcServer, <span style="color:#000;font-weight:bold">&amp;</span>myServiceImpl{})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Start gRPC server
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    lis, _ <span style="color:#000;font-weight:bold">:=</span> net.<span style="color:#900;font-weight:bold">Listen</span>(<span style="color:#d14">&#34;tcp&#34;</span>, <span style="color:#d14">&#34;:9090&#34;</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">go</span> grpcServer.<span style="color:#900;font-weight:bold">Serve</span>(lis)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Setup gRPC-gateway with user ID injection
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    gwmux <span style="color:#000;font-weight:bold">:=</span> runtime.<span style="color:#900;font-weight:bold">NewServeMux</span>(
+</span></span><span style="display:flex;"><span>        runtime.<span style="color:#900;font-weight:bold">WithMetadata</span>(<span style="color:#000;font-weight:bold">func</span>(ctx context.Context, r <span style="color:#000;font-weight:bold">*</span>http.Request) metadata.MD {
+</span></span><span style="display:flex;"><span>            userID <span style="color:#000;font-weight:bold">:=</span> authMiddleware.<span style="color:#900;font-weight:bold">GetLoggedInUserId</span>(r)
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">if</span> userID <span style="color:#000;font-weight:bold">!=</span> <span style="color:#d14">&#34;&#34;</span> {
+</span></span><span style="display:flex;"><span>                <span style="color:#000;font-weight:bold">return</span> metadata.<span style="color:#900;font-weight:bold">Pairs</span>(oagrpc.DefaultMetadataKeyUserID, userID)
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">return</span> metadata.<span style="color:#900;font-weight:bold">Pairs</span>()
+</span></span><span style="display:flex;"><span>        }),
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Register gateway handlers
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    pb.<span style="color:#900;font-weight:bold">RegisterMyServiceHandlerFromEndpoint</span>(context.<span style="color:#900;font-weight:bold">Background</span>(), gwmux, <span style="color:#d14">&#34;:9090&#34;</span>, <span style="color:#000;font-weight:bold">nil</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Start HTTP server
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    http.<span style="color:#900;font-weight:bold">ListenAndServe</span>(<span style="color:#d14">&#34;:8080&#34;</span>, authMiddleware.<span style="color:#900;font-weight:bold">ExtractUser</span>(gwmux))
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre>
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

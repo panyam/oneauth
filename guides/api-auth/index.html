@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OneAuth provides a complete API authentication system for mobile apps, SPAs, CLI tools, and service-to-service communication.">
+    <title>API Authentication · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>API Authentication</h1>
+        
+        <p class="lead">OneAuth provides a complete API authentication system for mobile apps, SPAs, CLI tools, and service-to-service communication.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/API_AUTH.md"><code>docs/API_AUTH.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="api-authentication">API Authentication <a class="anchor" href="#api-authentication">¶</a></h1>
+<p>OneAuth provides a complete API authentication system for mobile apps, SPAs, CLI tools, and service-to-service communication.</p>
+<h2 id="token-architecture">Token Architecture <a class="anchor" href="#token-architecture">¶</a></h2>
+<p>OneAuth uses a hybrid token architecture:</p>
+<ul>
+<li><strong>Access Tokens</strong>: Short-lived JWTs (15 min default) containing user ID, scopes, and expiry. Validated statelessly without database lookup.</li>
+<li><strong>Refresh Tokens</strong>: Long-lived opaque tokens (7 days default) stored in the database. Rotated on each use with theft detection.</li>
+<li><strong>API Keys</strong>: Long-lived keys for automation. Stored as bcrypt hashes like passwords.</li>
+</ul>
+<h2 id="setting-up-apiauth">Setting Up APIAuth <a class="anchor" href="#setting-up-apiauth">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> (
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/apiauth&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/core&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Setup stores
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>storagePath <span style="color:#000;font-weight:bold">:=</span> <span style="color:#d14">&#34;/path/to/storage&#34;</span>
+</span></span><span style="display:flex;"><span>refreshTokenStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSRefreshTokenStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>apiKeyStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSAPIKeyStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Configure API authentication
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>apiAuth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIAuth{
+</span></span><span style="display:flex;"><span>    ValidateCredentials: validateCreds, <span style="color:#998;font-style:italic">// From NewCredentialsValidator
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    RefreshTokenStore:   refreshTokenStore,
+</span></span><span style="display:flex;"><span>    APIKeyStore:         apiKeyStore,
+</span></span><span style="display:flex;"><span>    JWTSecretKey:        os.<span style="color:#900;font-weight:bold">Getenv</span>(<span style="color:#d14">&#34;JWT_SECRET&#34;</span>),  <span style="color:#998;font-style:italic">// HMAC signing (HS256)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#998;font-style:italic">// JWTSigningKey:    privKey,   // Optional: *rsa.PrivateKey or *ecdsa.PrivateKey (RS256/ES256)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#998;font-style:italic">// JWTVerifyKey:     pubKey,    // Optional: *rsa.PublicKey or *ecdsa.PublicKey
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#998;font-style:italic">// JWTSigningAlg:    &#34;RS256&#34;,   // Set when using asymmetric keys
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    JWTIssuer:           <span style="color:#d14">&#34;yourapp.com&#34;</span>,
+</span></span><span style="display:flex;"><span>    JWTAudience:         <span style="color:#d14">&#34;yourapp-api&#34;</span>,
+</span></span><span style="display:flex;"><span>    AccessTokenExpiry:   <span style="color:#099">15</span> <span style="color:#000;font-weight:bold">*</span> time.Minute,
+</span></span><span style="display:flex;"><span>    RefreshTokenExpiry:  <span style="color:#099">7</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">24</span> <span style="color:#000;font-weight:bold">*</span> time.Hour,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Scope resolution callback
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    GetUserScopes: <span style="color:#000;font-weight:bold">func</span>(userID <span style="color:#458;font-weight:bold">string</span>) ([]<span style="color:#458;font-weight:bold">string</span>, <span style="color:#458;font-weight:bold">error</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;read&#34;</span>, <span style="color:#d14">&#34;write&#34;</span>, <span style="color:#d14">&#34;profile&#34;</span>}, <span style="color:#000;font-weight:bold">nil</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Mount routes
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/login&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(apiAuth.HandleLogin))
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/logout&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(apiAuth.HandleLogout))
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/logout-all&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(apiAuth.HandleLogoutAll))
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/keys&#34;</span>, http.<span style="color:#900;font-weight:bold">HandlerFunc</span>(apiAuth.HandleAPIKeys))
+</span></span></code></pre><h2 id="api-endpoints">API Endpoints <a class="anchor" href="#api-endpoints">¶</a></h2>
+<h3 id="password-grant">Password Grant <a class="anchor" href="#password-grant">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /api/login
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Content-Type: application/json
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">{&#34;grant_type&#34;:&#34;password&#34;,&#34;username&#34;:&#34;user@example.com&#34;,&#34;password&#34;:&#34;secret&#34;}
+</span></span></span></code></pre><p>Response:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;access_token&#34;</span>: <span style="color:#d14">&#34;eyJhbGciOiJIUzI1NiIs...&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;refresh_token&#34;</span>: <span style="color:#d14">&#34;a1b2c3d4e5f6...&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;token_type&#34;</span>: <span style="color:#d14">&#34;Bearer&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;expires_in&#34;</span>: <span style="color:#099">900</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;scope&#34;</span>: <span style="color:#d14">&#34;read write profile&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="refresh-token-grant">Refresh Token Grant <a class="anchor" href="#refresh-token-grant">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /api/login
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Content-Type: application/json
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">{&#34;grant_type&#34;:&#34;refresh_token&#34;,&#34;refresh_token&#34;:&#34;a1b2c3d4e5f6...&#34;}
+</span></span></span></code></pre><p>Returns a new token pair. The old refresh token is invalidated (rotation).</p>
+<h3 id="client-credentials-grant-rfc-6749-44">Client Credentials Grant (RFC 6749 §4.4) <a class="anchor" href="#client-credentials-grant-rfc-6749-44">¶</a></h3>
+<p>Machine-to-machine authentication. The client authenticates with <code>client_id</code> + <code>client_secret</code> and receives an access token with <code>sub=client_id</code>. No user context, no refresh token.</p>
+<p><strong>Requires</strong> <code>ClientKeyStore</code> to be configured on <code>APIAuth</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>apiAuth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIAuth{
+</span></span><span style="display:flex;"><span>    JWTSecretKey:   os.<span style="color:#900;font-weight:bold">Getenv</span>(<span style="color:#d14">&#34;JWT_SECRET&#34;</span>),
+</span></span><span style="display:flex;"><span>    ClientKeyStore: keyStore,  <span style="color:#998;font-style:italic">// KeyLookup for client credential lookup
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#998;font-style:italic">// ... other config
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><p><strong>Via client_secret_post</strong> (credentials in request body, form-encoded per RFC 6749 §4.4.2):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /api/token
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Content-Type: application/x-www-form-urlencoded
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">grant_type=client_credentials&amp;client_id=billing-svc&amp;client_secret=xxx&amp;scope=billing:read
+</span></span></span></code></pre><blockquote>
+<p>Note: The token endpoint also accepts JSON bodies for backward compatibility, but<br />
+form-encoded is the RFC 6749 standard and should be preferred for new integrations.<br />
+The client SDK&rsquo;s <code>ClientCredentialsToken</code> now sends form-encoded requests.</p>
+</blockquote>
+<p><strong>Via client_secret_basic</strong> (HTTP Basic auth, RFC 6749 §2.3.1 default):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /api/token
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Authorization: Basic YmlsbGluZy1zdmM6eHh4
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Content-Type: application/x-www-form-urlencoded
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">grant_type=client_credentials&amp;scope=billing:read
+</span></span></span></code></pre><p>Response:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;access_token&#34;</span>: <span style="color:#d14">&#34;eyJhbGciOiJIUzI1NiIs...&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;token_type&#34;</span>: <span style="color:#d14">&#34;Bearer&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;expires_in&#34;</span>: <span style="color:#099">900</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;scope&#34;</span>: <span style="color:#d14">&#34;billing:read&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Note: no <code>refresh_token</code> — machine clients re-authenticate when the token expires.</p>
+<h3 id="logout">Logout <a class="anchor" href="#logout">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /api/logout
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Content-Type: application/json
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">{&#34;refresh_token&#34;:&#34;a1b2c3d4e5f6...&#34;}
+</span></span></span></code></pre><p>Revokes the specified refresh token.</p>
+<h3 id="logout-all-sessions">Logout All Sessions <a class="anchor" href="#logout-all-sessions">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /api/logout-all
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+</span></span></span></code></pre><p>Revokes all refresh tokens for the authenticated user.</p>
+<h2 id="apimiddleware">APIMiddleware <a class="anchor" href="#apimiddleware">¶</a></h2>
+<p>Protect API endpoints with the <code>APIMiddleware</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>middleware <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIMiddleware{
+</span></span><span style="display:flex;"><span>    JWTSecretKey:    apiAuth.JWTSecretKey,
+</span></span><span style="display:flex;"><span>    JWTIssuer:       apiAuth.JWTIssuer,
+</span></span><span style="display:flex;"><span>    JWTAudience:     apiAuth.JWTAudience,
+</span></span><span style="display:flex;"><span>    APIKeyStore:     apiKeyStore,
+</span></span><span style="display:flex;"><span>    AuthHeader:      <span style="color:#d14">&#34;Authorization&#34;</span>, <span style="color:#998;font-style:italic">// Default
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    LegacyQueryParamBearer: <span style="color:#d14">&#34;token&#34;</span>,  <span style="color:#998;font-style:italic">// Optional OAuth 2.0 path (retired in 2.1 §5.4); see docs/DEMOS.md for WebSocket alternatives
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><h3 id="token-extraction">Token Extraction <a class="anchor" href="#token-extraction">¶</a></h3>
+<p>The middleware extracts tokens from two sources, in order of precedence:</p>
+<ol>
+<li><strong>Authorization header</strong> (default): <code>Authorization: Bearer &lt;token&gt;</code></li>
+<li><strong>Query parameter</strong> (when <code>LegacyQueryParamBearer</code> is set): <code>GET /ws?token=&lt;jwt&gt;</code> — OAuth 2.0 legacy path; OAuth 2.1 §5.4 retired query-param bearer carry. For WebSocket use cases see <a href="DEMOS.md">docs/DEMOS.md</a> for three header-clean alternatives.</li>
+</ol>
+<p>The query parameter fallback is useful for WebSocket clients and other contexts where setting HTTP headers is not possible. If both are present, the header takes precedence.</p>
+<h3 id="protecting-endpoints">Protecting Endpoints <a class="anchor" href="#protecting-endpoints">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Require valid token
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/protected&#34;</span>, middleware.<span style="color:#900;font-weight:bold">ValidateToken</span>(handler))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Require specific scopes
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/write&#34;</span>, middleware.<span style="color:#900;font-weight:bold">RequireScopes</span>(<span style="color:#d14">&#34;write&#34;</span>)(handler))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Optional authentication (allows anonymous)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/public&#34;</span>, middleware.<span style="color:#900;font-weight:bold">Optional</span>(handler))
+</span></span></code></pre><h3 id="extracting-user-info-in-handlers">Extracting User Info in Handlers <a class="anchor" href="#extracting-user-info-in-handlers">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">protectedHandler</span>(w http.ResponseWriter, r <span style="color:#000;font-weight:bold">*</span>http.Request) {
+</span></span><span style="display:flex;"><span>    userID <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">GetUserIDFromAPIContext</span>(r.<span style="color:#900;font-weight:bold">Context</span>())
+</span></span><span style="display:flex;"><span>    scopes <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">GetScopesFromAPIContext</span>(r.<span style="color:#900;font-weight:bold">Context</span>())
+</span></span><span style="display:flex;"><span>    authType <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">GetAuthTypeFromAPIContext</span>(r.<span style="color:#900;font-weight:bold">Context</span>()) <span style="color:#998;font-style:italic">// &#34;jwt&#34; or &#34;api_key&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Extract custom (non-standard) claims injected via CustomClaimsFunc
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    custom <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">GetCustomClaimsFromContext</span>(r.<span style="color:#900;font-weight:bold">Context</span>())
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> custom <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>        tenantID <span style="color:#000;font-weight:bold">:=</span> custom[<span style="color:#d14">&#34;tenant_id&#34;</span>].(<span style="color:#458;font-weight:bold">string</span>)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="api-key-management">API Key Management <a class="anchor" href="#api-key-management">¶</a></h2>
+<h3 id="create-api-key">Create API Key <a class="anchor" href="#create-api-key">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /api/keys
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Content-Type: application/json
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">{&#34;name&#34;:&#34;CI/CD Key&#34;,&#34;scopes&#34;:[&#34;read&#34;,&#34;write&#34;]}
+</span></span></span></code></pre><p>Response:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;key&#34;</span>: <span style="color:#d14">&#34;oa_abc123...xyz789&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;key_id&#34;</span>: <span style="color:#d14">&#34;oa_abc123&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;name&#34;</span>: <span style="color:#d14">&#34;CI/CD Key&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;scopes&#34;</span>: [<span style="color:#d14">&#34;read&#34;</span>, <span style="color:#d14">&#34;write&#34;</span>],
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;created_at&#34;</span>: <span style="color:#d14">&#34;2024-01-15T10:30:00Z&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>Important</strong>: The full key is only shown once at creation time.</p>
+<h3 id="list-api-keys">List API Keys <a class="anchor" href="#list-api-keys">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">GET /api/keys
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+</span></span></span></code></pre><h3 id="revoke-api-key">Revoke API Key <a class="anchor" href="#revoke-api-key">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">DELETE /api/keys/oa_abc123
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+</span></span></span></code></pre><h3 id="using-api-keys">Using API Keys <a class="anchor" href="#using-api-keys">¶</a></h3>
+<p>API keys can be used instead of JWTs:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl https://api.example.com/endpoint <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Authorization: Bearer oa_abc123...xyz789&#34;</span>
+</span></span></code></pre><p>The middleware automatically detects API keys (by prefix) vs JWTs.</p>
+<h2 id="scopes">Scopes <a class="anchor" href="#scopes">¶</a></h2>
+<p>OneAuth provides built-in scopes (in <code>core</code>):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">const</span> (
+</span></span><span style="display:flex;"><span>    ScopeRead    = <span style="color:#d14">&#34;read&#34;</span>     <span style="color:#998;font-style:italic">// Read user data
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    ScopeWrite   = <span style="color:#d14">&#34;write&#34;</span>    <span style="color:#998;font-style:italic">// Modify user data
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    ScopeProfile = <span style="color:#d14">&#34;profile&#34;</span>  <span style="color:#998;font-style:italic">// Access profile info
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    ScopeOffline = <span style="color:#d14">&#34;offline&#34;</span>  <span style="color:#998;font-style:italic">// Enable refresh tokens
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>)
+</span></span></code></pre><p>Use <code>ValidateScopes</code> to check if requested scopes are allowed:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>granted <span style="color:#000;font-weight:bold">:=</span> core.<span style="color:#900;font-weight:bold">ValidateScopes</span>(requested, allowed)
+</span></span></code></pre><h2 id="token-rotation-and-theft-detection">Token Rotation and Theft Detection <a class="anchor" href="#token-rotation-and-theft-detection">¶</a></h2>
+<p>Refresh tokens are rotated on each use. If a token is reused (indicating potential theft), the entire token family is revoked:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// First use: success, returns new token pair
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>newToken, err <span style="color:#000;font-weight:bold">:=</span> refreshTokenStore.<span style="color:#900;font-weight:bold">RotateRefreshToken</span>(token, expiry)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Second use of same token: ErrTokenReused
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>newToken, err <span style="color:#000;font-weight:bold">:=</span> refreshTokenStore.<span style="color:#900;font-weight:bold">RotateRefreshToken</span>(token, expiry)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// err == core.ErrTokenReused
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Entire family revoked automatically
+</span></span></span></code></pre><h2 id="custom-claims">Custom Claims <a class="anchor" href="#custom-claims">¶</a></h2>
+<p>Inject application-specific claims into JWTs using <code>CustomClaimsFunc</code>. This is useful for embedding metadata like tenant IDs, quotas, or client identifiers:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>apiAuth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIAuth{
+</span></span><span style="display:flex;"><span>    JWTSecretKey: os.<span style="color:#900;font-weight:bold">Getenv</span>(<span style="color:#d14">&#34;JWT_SECRET&#34;</span>),
+</span></span><span style="display:flex;"><span>    JWTIssuer:    <span style="color:#d14">&#34;yourapp.com&#34;</span>,
+</span></span><span style="display:flex;"><span>    CustomClaimsFunc: <span style="color:#000;font-weight:bold">func</span>(userID <span style="color:#458;font-weight:bold">string</span>, scopes []<span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any, <span style="color:#458;font-weight:bold">error</span>) {
+</span></span><span style="display:flex;"><span>        tenant <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">getTenantForUser</span>(userID)
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{
+</span></span><span style="display:flex;"><span>            <span style="color:#d14">&#34;tenant_id&#34;</span>:  tenant.ID,
+</span></span><span style="display:flex;"><span>            <span style="color:#d14">&#34;plan&#34;</span>:       tenant.Plan,
+</span></span><span style="display:flex;"><span>            <span style="color:#d14">&#34;max_seats&#34;</span>:  tenant.MaxSeats,
+</span></span><span style="display:flex;"><span>        }, <span style="color:#000;font-weight:bold">nil</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>Important</strong>: Standard JWT claims (<code>sub</code>, <code>iss</code>, <code>aud</code>, <code>exp</code>, <code>iat</code>, <code>type</code>, <code>scopes</code>) cannot be overridden. Colliding keys are logged and silently ignored.</p>
+<p>To extract custom claims on the validation side, use <code>ValidateAccessTokenFull</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>userID, scopes, customClaims, err <span style="color:#000;font-weight:bold">:=</span> apiAuth.<span style="color:#900;font-weight:bold">ValidateAccessTokenFull</span>(tokenString)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// handle error
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>tenantID <span style="color:#000;font-weight:bold">:=</span> customClaims[<span style="color:#d14">&#34;tenant_id&#34;</span>].(<span style="color:#458;font-weight:bold">string</span>)
+</span></span></code></pre><p>If <code>CustomClaimsFunc</code> is nil, behavior is identical to before (backwards-compatible). If the callback returns an error, <code>CreateAccessToken</code> fails and the error propagates.</p>
+<h2 id="multi-tenant-jwt-validation-keystore">Multi-Tenant JWT Validation (KeyStore) <a class="anchor" href="#multi-tenant-jwt-validation-keystore">¶</a></h2>
+<p>For architectures where multiple clients (apps, tenants) each mint their own JWTs, use a <code>KeyStore</code> for per-client key lookup instead of a single shared secret.</p>
+<h3 id="the-problem">The Problem <a class="anchor" href="#the-problem">¶</a></h3>
+<p>With a single <code>JWTSecretKey</code>, all token issuers share one secret. This means:</p>
+<ul>
+<li>You can&rsquo;t revoke access for one issuer without rotating the key for all</li>
+<li>A compromised secret affects all clients</li>
+<li>You can&rsquo;t have different clients use different signing algorithms</li>
+</ul>
+<h3 id="the-solution-keylookup--keystorage-interfaces">The Solution: KeyLookup / KeyStorage Interfaces <a class="anchor" href="#the-solution-keylookup--keystorage-interfaces">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> KeyLookup <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetKey</span>(clientID <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>KeyRecord, <span style="color:#458;font-weight:bold">error</span>)      <span style="color:#998;font-style:italic">// lookup by client ID
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#900;font-weight:bold">GetKeyByKid</span>(kid <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>KeyRecord, <span style="color:#458;font-weight:bold">error</span>)      <span style="color:#998;font-style:italic">// lookup by key ID (RFC 7638 thumbprint)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> KeyStorage <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    KeyLookup
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">PutKey</span>(rec <span style="color:#000;font-weight:bold">*</span>KeyRecord) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">DeleteKey</span>(clientID <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ListKeyIDs</span>() ([]<span style="color:#458;font-weight:bold">string</span>, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>For the full <code>KeyLookup</code> and <code>KeyStorage</code> interface details and persistent implementations, see <a href="STORES.md#keylookup--keystorage">STORES.md</a>.</p>
+<h3 id="setting-up-multi-tenant-validation">Setting Up Multi-Tenant Validation <a class="anchor" href="#setting-up-multi-tenant-validation">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 1. Create a KeyStore and register client keys
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>keyStore <span style="color:#000;font-weight:bold">:=</span> keys.<span style="color:#900;font-weight:bold">NewInMemoryKeyStore</span>()
+</span></span><span style="display:flex;"><span>keyStore.<span style="color:#900;font-weight:bold">PutKey</span>(<span style="color:#000;font-weight:bold">&amp;</span>keys.KeyRecord{ClientID: <span style="color:#d14">&#34;app-alpha&#34;</span>, Key: []<span style="color:#0086b3">byte</span>(<span style="color:#d14">&#34;alpha-secret-key&#34;</span>), Algorithm: <span style="color:#d14">&#34;HS256&#34;</span>})
+</span></span><span style="display:flex;"><span>keyStore.<span style="color:#900;font-weight:bold">PutKey</span>(<span style="color:#000;font-weight:bold">&amp;</span>keys.KeyRecord{ClientID: <span style="color:#d14">&#34;app-beta&#34;</span>,  Key: []<span style="color:#0086b3">byte</span>(<span style="color:#d14">&#34;beta-secret-key&#34;</span>),  Algorithm: <span style="color:#d14">&#34;HS256&#34;</span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 2. Configure middleware with KeyStore (replaces JWTSecretKey)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>middleware <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIMiddleware{
+</span></span><span style="display:flex;"><span>    KeyStore:    keyStore,
+</span></span><span style="display:flex;"><span>    JWTIssuer:   <span style="color:#d14">&#34;resource.example.com&#34;</span>, <span style="color:#998;font-style:italic">// optional: still validates issuer
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    APIKeyStore: apiKeyStore,            <span style="color:#998;font-style:italic">// optional: API keys still work
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 3. Protect endpoints — tokens are verified per-client
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/resource&#34;</span>, middleware.<span style="color:#900;font-weight:bold">ValidateToken</span>(handler))
+</span></span></code></pre><h3 id="how-it-works">How It Works <a class="anchor" href="#how-it-works">¶</a></h3>
+<p>When a JWT arrives, the middleware:</p>
+<ol>
+<li>Parses the token without verifying the signature</li>
+<li>Extracts the <code>client_id</code> claim from the unverified payload</li>
+<li>Calls <code>KeyStore.GetKey(clientID)</code> — returns a <code>*KeyRecord</code> containing the key and expected algorithm; if the JWT&rsquo;s <code>alg</code> header doesn&rsquo;t match <code>rec.Algorithm</code>, the token is rejected (prevents algorithm confusion attacks)</li>
+<li>Uses <code>rec.Key</code> — the key material for this client</li>
+<li>Verifies the JWT signature with the client-specific key</li>
+</ol>
+<p>If <code>KeyStore</code> is nil, the middleware falls back to single <code>JWTSecretKey</code> behavior (backwards-compatible).</p>
+<h3 id="minting-tokens-for-multi-tenant-systems">Minting Tokens for Multi-Tenant Systems <a class="anchor" href="#minting-tokens-for-multi-tenant-systems">¶</a></h3>
+<p>On the app/client side, use <code>CustomClaimsFunc</code> to embed the <code>client_id</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>hostAuth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIAuth{
+</span></span><span style="display:flex;"><span>    JWTSecretKey: hostSharedSecret,
+</span></span><span style="display:flex;"><span>    JWTIssuer:    <span style="color:#d14">&#34;resource.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>    CustomClaimsFunc: <span style="color:#000;font-weight:bold">func</span>(userID <span style="color:#458;font-weight:bold">string</span>, scopes []<span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any, <span style="color:#458;font-weight:bold">error</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any{
+</span></span><span style="display:flex;"><span>            <span style="color:#d14">&#34;client_id&#34;</span>:     <span style="color:#d14">&#34;app-alpha&#34;</span>,
+</span></span><span style="display:flex;"><span>            <span style="color:#d14">&#34;client_domain&#34;</span>: <span style="color:#d14">&#34;alpha.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>            <span style="color:#d14">&#34;max_rooms&#34;</span>:     <span style="color:#099">10</span>,
+</span></span><span style="display:flex;"><span>            <span style="color:#d14">&#34;max_msg_rate&#34;</span>:  <span style="color:#099">30.0</span>,
+</span></span><span style="display:flex;"><span>        }, <span style="color:#000;font-weight:bold">nil</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Mint a scoped token for a user
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>token, _, err <span style="color:#000;font-weight:bold">:=</span> hostAuth.<span style="color:#900;font-weight:bold">CreateAccessToken</span>(<span style="color:#d14">&#34;user-123&#34;</span>, []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;read&#34;</span>, <span style="color:#d14">&#34;write&#34;</span>})
+</span></span></code></pre><h3 id="algorithm-confusion-prevention">Algorithm Confusion Prevention <a class="anchor" href="#algorithm-confusion-prevention">¶</a></h3>
+<p>The <code>KeyRecord.Algorithm</code> field prevents algorithm confusion attacks. When a token arrives, the middleware calls <code>GetKey(clientID)</code> and compares the JWT&rsquo;s <code>alg</code> header against <code>rec.Algorithm</code>. If a client is registered with <code>HS256</code> but sends a token with <code>alg: none</code> or <code>alg: RS256</code>, the token is rejected before signature verification.</p>
+<h3 id="future-asymmetric-keys">Future: Asymmetric Keys <a class="anchor" href="#future-asymmetric-keys">¶</a></h3>
+<p>The <code>KeyStore</code> interface supports asymmetric signing:</p>
+<ul>
+<li><code>GetKey</code> returns a <code>*KeyRecord</code> whose <code>Key</code> field can be <code>*rsa.PublicKey</code> or <code>*ecdsa.PublicKey</code> for RS256/ES256</li>
+<li>For signing, <code>Key</code> can be <code>*rsa.PrivateKey</code> or <code>*ecdsa.PrivateKey</code></li>
+<li>Per-app algorithm choice: some apps use HS256, others use RS256</li>
+<li>Both modes coexist on the same middleware</li>
+</ul>
+<h2 id="app-registration">App Registration <a class="anchor" href="#app-registration">¶</a></h2>
+<p>For federated systems where external apps register and receive credentials for minting scoped JWTs, OneAuth provides:</p>
+<ul>
+<li><strong><code>AppRegistrar</code></strong>: An embeddable HTTP handler for app CRUD operations (register, list, get, delete, rotate secret). Stores app credentials in a <code>KeyStorage</code>.</li>
+<li><strong><code>MintResourceToken</code></strong>: A helper function that apps call after authenticating their own users, producing scoped JWTs that downstream resource servers can validate via KeyStore.</li>
+</ul>
+<p>For the full registration flow and architecture, see <a href="ARCHITECTURE.md">ARCHITECTURE.md</a>.</p>
+<h2 id="recent-changes">Recent Changes <a class="anchor" href="#recent-changes">¶</a></h2>
+<h3 id="ratelimiter-interface-moved-to-core">RateLimiter interface moved to core <a class="anchor" href="#ratelimiter-interface-moved-to-core">¶</a></h3>
+<p>The <code>RateLimiter</code> interface previously in <code>apiauth</code> has moved to <code>core</code> so it can be shared with <code>localauth</code>. The interface is unchanged — update imports from <code>apiauth.RateLimiter</code> to <code>core.RateLimiter</code>. <code>core.InMemoryRateLimiter</code> is available for both API and browser auth.</p>
+<h3 id="token-blacklist-jti-based-revocation">Token Blacklist (jti-based revocation) <a class="anchor" href="#token-blacklist-jti-based-revocation">¶</a></h3>
+<p>Access tokens now include a <code>jti</code> (JWT ID) claim (RFC 7519 §4.1.7). When <code>APIAuth.Blacklist</code> or <code>APIMiddleware.Blacklist</code> is set, revoked token IDs are checked during validation.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>bl <span style="color:#000;font-weight:bold">:=</span> core.<span style="color:#900;font-weight:bold">NewInMemoryBlacklist</span>()
+</span></span><span style="display:flex;"><span>auth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIAuth{
+</span></span><span style="display:flex;"><span>    JWTSecretKey: secret,
+</span></span><span style="display:flex;"><span>    Blacklist:    bl,  <span style="color:#998;font-style:italic">// enables immediate token revocation
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>middleware <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIMiddleware{
+</span></span><span style="display:flex;"><span>    JWTSecretKey: secret,
+</span></span><span style="display:flex;"><span>    Blacklist:    bl,  <span style="color:#998;font-style:italic">// same blacklist shared with middleware
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Revoke a token by its jti claim
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>bl.<span style="color:#900;font-weight:bold">Revoke</span>(jti, tokenExpiry)
+</span></span></code></pre><p>Backward compatible: when <code>Blacklist</code> is nil (default), tokens are validated by signature + expiry only.</p>
+<p>For distributed deployments, implement <code>core.TokenBlacklist</code> backed by Redis (<code>SET jti:&lt;id&gt; 1 EX &lt;ttl&gt;</code>).</p>
+<h3 id="audience-validation-in-validateaccesstoken">Audience validation in ValidateAccessToken <a class="anchor" href="#audience-validation-in-validateaccesstoken">¶</a></h3>
+<p><code>ValidateAccessToken</code> now checks the <code>aud</code> (audience) claim when <code>JWTAudience</code> is configured on <code>APIAuth</code> or <code>APIMiddleware</code>. Previously the audience was set when minting but not validated on verification. Tokens minted without an <code>aud</code> claim are still accepted when <code>JWTAudience</code> is empty.</p>
+<p><strong>Array audience support (#52):</strong> Per RFC 7519 §4.1.3, the <code>aud</code> claim may be a single string or an array of strings. All validation sites (<code>ValidateAccessToken</code>, <code>ValidateAccessTokenFull</code>, <code>APIMiddleware.validateJWT</code>) handle both formats. This ensures interoperability with Keycloak, Auth0, Azure AD, and other IdPs that send <code>aud</code> as an array (e.g., <code>[&quot;api://default&quot;, &quot;https://example.com&quot;]</code>).</p>
+<h3 id="signingmethodforalg-returns-error">SigningMethodForAlg returns error <a class="anchor" href="#signingmethodforalg-returns-error">¶</a></h3>
+<p><code>SigningMethodForAlg</code> now returns <code>(jwt.SigningMethod, error)</code> instead of just <code>jwt.SigningMethod</code>. Unknown or unsupported algorithm strings return an error rather than silently falling back. Callers must handle the error.</p>
+<h3 id="tokenpair-moved-to-core">TokenPair moved to core <a class="anchor" href="#tokenpair-moved-to-core">¶</a></h3>
+<p><code>TokenPair</code> has moved from <code>apiauth</code> to <code>core</code>. Update imports: <code>apiauth.TokenPair</code> becomes <code>core.TokenPair</code>.</p>
+<h2 id="protected-resource-metadata-rfc-9728">Protected Resource Metadata (RFC 9728) <a class="anchor" href="#protected-resource-metadata-rfc-9728">¶</a></h2>
+<p>Resource servers can advertise their capabilities at <code>GET /.well-known/oauth-protected-resource</code> so OAuth clients can auto-discover which auth servers to use, what scopes to request, and what token formats are supported.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/apiauth&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>meta <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.ProtectedResourceMetadata{
+</span></span><span style="display:flex;"><span>    Resource:              <span style="color:#d14">&#34;https://api.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>    AuthorizationServers:  []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;https://auth.example.com&#34;</span>},
+</span></span><span style="display:flex;"><span>    ScopesSupported:       []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;read&#34;</span>, <span style="color:#d14">&#34;write&#34;</span>},
+</span></span><span style="display:flex;"><span>    TokenFormatsSupported: []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;jwt&#34;</span>},
+</span></span><span style="display:flex;"><span>    SigningAlgsSupported:  []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;RS256&#34;</span>, <span style="color:#d14">&#34;ES256&#34;</span>},
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;GET /.well-known/oauth-protected-resource&#34;</span>,
+</span></span><span style="display:flex;"><span>    apiauth.<span style="color:#900;font-weight:bold">NewProtectedResourceHandler</span>(meta))
+</span></span></code></pre><p>Response:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;resource&#34;</span>: <span style="color:#d14">&#34;https://api.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;authorization_servers&#34;</span>: [<span style="color:#d14">&#34;https://auth.example.com&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scopes_supported&#34;</span>: [<span style="color:#d14">&#34;read&#34;</span>, <span style="color:#d14">&#34;write&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_formats_supported&#34;</span>: [<span style="color:#d14">&#34;jwt&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;resource_signing_alg_values_supported&#34;</span>: [<span style="color:#d14">&#34;RS256&#34;</span>, <span style="color:#d14">&#34;ES256&#34;</span>]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The handler sets <code>Cache-Control: public, max-age=3600</code> by default (configurable via <code>CacheMaxAge</code>). Only responds to GET (405 for other methods). Optional fields are omitted when empty.</p>
+<p>See <a href="https://www.rfc-editor.org/rfc/rfc9728">RFC 9728</a> for the full specification.</p>
+<h2 id="token-introspection-rfc-7662">Token Introspection (RFC 7662) <a class="anchor" href="#token-introspection-rfc-7662">¶</a></h2>
+<p>Resource servers can validate tokens by querying the auth server instead of doing local JWT validation via JWKS. This enables blacklist checking, supports opaque tokens, and simplifies resource server implementations.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/apiauth&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>handler <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.IntrospectionHandler{
+</span></span><span style="display:flex;"><span>    Auth:           apiAuth,       <span style="color:#998;font-style:italic">// APIAuth with JWTSecretKey configured
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    ClientKeyStore: keyStore,      <span style="color:#998;font-style:italic">// Authenticates calling resource servers
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;POST /oauth/introspect&#34;</span>, handler)
+</span></span></code></pre><p>Resource servers call the endpoint with HTTP Basic auth (using their client_credentials):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /oauth/introspect
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Content-Type: application/x-www-form-urlencoded
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Authorization: Basic &lt;base64(client_id:client_secret)&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">token=eyJhbGciOiJIUzI1NiIs...
+</span></span></span></code></pre><p>Active token response:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;active&#34;</span>: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;sub&#34;</span>: <span style="color:#d14">&#34;user-42&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;scope&#34;</span>: <span style="color:#d14">&#34;read write&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;iss&#34;</span>: <span style="color:#d14">&#34;yourapp.com&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;exp&#34;</span>: <span style="color:#099">1699999999</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;iat&#34;</span>: <span style="color:#099">1699999000</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;jti&#34;</span>: <span style="color:#d14">&#34;unique-token-id&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;token_type&#34;</span>: <span style="color:#d14">&#34;access_token&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Inactive token response (expired, revoked, invalid, tampered — never reveals why):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;active&#34;</span>: <span style="color:#000;font-weight:bold">false</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Responses include <code>Cache-Control: no-store</code> and <code>Pragma: no-cache</code> per RFC 7662.</p>
+<p>See <a href="https://www.rfc-editor.org/rfc/rfc7662">RFC 7662</a> for the full specification.</p>
+<h2 id="oidc-discovery--as-metadata-rfc-8414">OIDC Discovery / AS Metadata (RFC 8414) <a class="anchor" href="#oidc-discovery--as-metadata-rfc-8414">¶</a></h2>
+<p>The auth server can advertise its endpoints at <code>GET /.well-known/openid-configuration</code> so OIDC-aware clients auto-discover them. This is metadata-only — it does NOT make OneAuth a full OIDC provider.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/apiauth&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>handler <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewASMetadataHandler</span>(<span style="color:#000;font-weight:bold">&amp;</span>apiauth.ASServerMetadata{
+</span></span><span style="display:flex;"><span>    Issuer:                <span style="color:#d14">&#34;https://auth.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>    TokenEndpoint:         <span style="color:#d14">&#34;https://auth.example.com/api/token&#34;</span>,
+</span></span><span style="display:flex;"><span>    JWKSURI:               <span style="color:#d14">&#34;https://auth.example.com/.well-known/jwks.json&#34;</span>,
+</span></span><span style="display:flex;"><span>    IntrospectionEndpoint: <span style="color:#d14">&#34;https://auth.example.com/oauth/introspect&#34;</span>,
+</span></span><span style="display:flex;"><span>    GrantTypesSupported:   []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;password&#34;</span>, <span style="color:#d14">&#34;refresh_token&#34;</span>, <span style="color:#d14">&#34;client_credentials&#34;</span>},
+</span></span><span style="display:flex;"><span>    ResponseTypesSupported: []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;token&#34;</span>},
+</span></span><span style="display:flex;"><span>    TokenEndpointAuthMethods: []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;client_secret_post&#34;</span>, <span style="color:#d14">&#34;client_secret_basic&#34;</span>},
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;GET /.well-known/openid-configuration&#34;</span>, handler)
+</span></span></code></pre><p>Clients discover endpoints via <code>client.DiscoverAS()</code> (#51):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>meta, _ <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">DiscoverAS</span>(<span style="color:#d14">&#34;https://auth.example.com&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// meta.TokenEndpoint, meta.JWKSURI, meta.IntrospectionEndpoint, etc.
+</span></span></span></code></pre><p>See <a href="https://www.rfc-editor.org/rfc/rfc8414">RFC 8414</a> for the full specification.</p>
+<h2 id="security-considerations">Security Considerations <a class="anchor" href="#security-considerations">¶</a></h2>
+<ol>
+<li><strong>JWT Secret</strong>: Use a strong, random secret (32+ bytes). Store in environment variables.</li>
+<li><strong>HTTPS</strong>: Always use HTTPS in production to protect tokens in transit.</li>
+<li><strong>Token Expiry</strong>: Keep access tokens short-lived (15 min). Use refresh tokens for longer sessions.</li>
+<li><strong>API Key Storage</strong>: Store API keys securely. They cannot be recovered if lost.</li>
+<li><strong>Scope Validation</strong>: Always validate scopes in your handlers for defense-in-depth.</li>
+<li><strong>Audience Validation</strong>: Set <code>JWTAudience</code> to prevent tokens minted for other services from being accepted. Both string and array <code>aud</code> claims are supported (RFC 7519 §4.1.3).</li>
+</ol>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

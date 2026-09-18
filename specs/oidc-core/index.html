@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Partial — /authorize shipped in PR 297 (OAuth-layer), but id_token issuance, nonce, and /userinfo are gaps">
+    <title>OpenID Connect Core 1.0 · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OpenID Connect Core 1.0</h1>
+        
+        <p class="lead">Partial — /authorize shipped in PR 297 (OAuth-layer), but id_token issuance, nonce, and /userinfo are gaps</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/OIDC_Core.md"><code>docs/oauth/OIDC_Core.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="openid-connect-core-10">OpenID Connect Core 1.0 <a class="anchor" href="#openid-connect-core-10">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> OpenID Foundation Specification (not an IETF RFC)<br />
+<strong>Published:</strong> 2014 (latest errata 2024)<br />
+<strong>L-tier / T-tier:</strong> L7 · T3 (user auth) + T5 (id_token issue)<br />
+<strong>OneAuth coverage:</strong> Partial — <code>/authorize</code> shipped in PR 297 (OAuth-layer), but id_token issuance, nonce, and <code>/userinfo</code> are gaps<br />
+<strong>See also:</strong> <a href="OIDC_Discovery.md"><code>OIDC_Discovery.md</code></a> · <a href="OIDC_BCL.md"><code>OIDC_BCL.md</code></a> · <a href="OIDC_CIBA.md"><code>OIDC_CIBA.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>OpenID Connect Core is the identity layer on top of OAuth 2.0 — it adds the<br />
+<code>id_token</code> (a JWT carrying user identity claims), a standardized <code>/userinfo</code><br />
+endpoint, and the protocol details for &ldquo;Sign in with Google / GitHub /<br />
+Microsoft&rdquo; that the world&rsquo;s consumer SSO depends on.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without OIDC</th>
+<th>With OIDC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OAuth gives you an access token to <em>do things</em>, but no way to know <em>who the user is</em></td>
+<td><code>id_token</code> is a JWT identity assertion; verify it, you know the user</td>
+</tr>
+<tr>
+<td>Every IdP invents its own &ldquo;who is this user?&rdquo; endpoint with vendor-specific claim shapes</td>
+<td>Standardized <code>/userinfo</code> returning standard claims (<code>sub</code>, <code>name</code>, <code>email</code>, <code>email_verified</code>, &hellip;)</td>
+</tr>
+<tr>
+<td>Cross-org SSO requires bespoke federation protocols (SAML, custom JWT)</td>
+<td>OIDC works against any OAuth AS that&rsquo;s added the identity layer</td>
+</tr>
+<tr>
+<td>Session management (&ldquo;are they still logged in?&rdquo;) is per-vendor</td>
+<td>OIDC adds standardized session, logout, and front-/back-channel notification</td>
+</tr>
+</tbody>
+</table>
+<p>OIDC&rsquo;s importance is <em>cultural</em>, not just technical: it&rsquo;s the spec that<br />
+made &ldquo;Sign in with X&rdquo; universal. Every modern consumer app that defers<br />
+auth to a third-party identity provider is using OIDC under the hood.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>When you click <em>&ldquo;Sign in with Google&rdquo;</em> on a new app:</p>
+<ol>
+<li>The browser flows through OAuth (auth-code + PKCE) — covered by the L0<br />
+spine.</li>
+<li>The token endpoint returns <code>{access_token, id_token, refresh_token}</code> —<br />
+the <code>id_token</code> is OIDC&rsquo;s contribution. Without OIDC, you&rsquo;d only get the<br />
+access token.</li>
+<li>The app decodes the <code>id_token</code> and reads:
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iss&#34;</span>:            <span style="color:#d14">&#34;https://accounts.google.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;sub&#34;</span>:            <span style="color:#d14">&#34;100123456789012345678&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;aud&#34;</span>:            <span style="color:#d14">&#34;32555350559.apps.googleusercontent.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;exp&#34;</span>:            <span style="color:#099">1717003600</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iat&#34;</span>:            <span style="color:#099">1717000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;auth_time&#34;</span>:      <span style="color:#099">1717000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;nonce&#34;</span>:          <span style="color:#d14">&#34;abcd1234...&#34;</span>,     <span style="color:#a61717;background-color:#e3d2d2">←</span> <span style="color:#a61717;background-color:#e3d2d2">matches</span> <span style="color:#a61717;background-color:#e3d2d2">the</span> <span style="color:#a61717;background-color:#e3d2d2">value</span> <span style="color:#a61717;background-color:#e3d2d2">the</span> <span style="color:#a61717;background-color:#e3d2d2">app</span> <span style="color:#a61717;background-color:#e3d2d2">sent</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;email&#34;</span>:          <span style="color:#d14">&#34;sri@example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;email_verified&#34;</span>: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;name&#34;</span>:           <span style="color:#d14">&#34;Sri Panyam&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;picture&#34;</span>:        <span style="color:#d14">&#34;https://lh3.googleusercontent.com/...&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;at_hash&#34;</span>:        <span style="color:#d14">&#34;x7vplJ-rh-OnePf-XKkLOA&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></li>
+<li>The app now knows <em>who</em> the user is, without calling any further API.<br />
+The access token is for <em>doing things</em> (calling Gmail, calendar, etc.);<br />
+the id_token is for <em>knowing who</em>.</li>
+</ol>
+<p>Every &ldquo;Continue with X&rdquo; button on the public internet ships this flow.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong><code>id_token</code> is a JWT.</strong> Always JWS-signed; sometimes JWE-encrypted on<br />
+top. The header has <code>typ:JWT</code>; the payload carries identity claims.</li>
+<li><strong>Required <code>id_token</code> claims</strong>: <code>iss</code>, <code>sub</code>, <code>aud</code>, <code>exp</code>, <code>iat</code>. For<br />
+public clients, <code>nonce</code> is also required.</li>
+<li><strong><code>nonce</code> is the id_token&rsquo;s replay defense.</strong> Client generates a fresh<br />
+random <code>nonce</code>, sends it on <code>/authorize</code>, AS echoes it in the<br />
+<code>id_token</code>. Client verifies match.</li>
+<li><strong>Three response_type modes</strong> for getting the id_token:
+<ul>
+<li><code>code</code> — auth-code flow, id_token at the <em>token endpoint</em> (the modern<br />
+recommendation; safest)</li>
+<li><code>id_token</code> (or <code>id_token token</code>) — implicit flow, id_token in the<br />
+redirect fragment. <strong>OAuth 2.1 removes implicit; OIDC implicit is<br />
+correspondingly deprecated.</strong></li>
+<li><code>code id_token</code> (or <code>code id_token token</code>) — hybrid flow, id_token<br />
+in fragment + access token via code. Niche; mostly historical.</li>
+</ul>
+</li>
+<li><strong>The <code>openid</code> scope is required.</strong> That&rsquo;s the magic that tells the AS<br />
+&ldquo;issue an id_token, not just an access token.&rdquo; Without <code>scope=openid</code>,<br />
+you&rsquo;re doing pure OAuth, not OIDC.</li>
+<li><strong><code>/userinfo</code> endpoint</strong> returns identity claims for callers holding an<br />
+access token. The same claims that go in the id_token <em>can</em> be served<br />
+here instead — useful when you want fresh data later in a session.</li>
+<li><strong>Standard scopes for identity claims</strong>: <code>openid</code> (required), <code>profile</code>,<br />
+<code>email</code>, <code>address</code>, <code>phone</code>. Each scope unlocks a defined claim subset<br />
+on <code>/userinfo</code> and (optionally) in the id_token.</li>
+<li><strong><code>acr</code> and <code>amr</code> claims</strong> report <em>how</em> the user was authenticated<br />
+(acr = Authentication Context Class Reference; amr = Authentication<br />
+Methods References, e.g. <code>[&quot;pwd&quot;, &quot;mfa&quot;]</code>). Required for step-up auth.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p><strong>Authorization request</strong> (note the <code>scope=openid</code> and <code>nonce</code>):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">GET /authorize?response_type=code
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;client_id=oidc-rp-1
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;redirect_uri=https%3A%2F%2Fapp.example.com%2Fcb
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;scope=openid+profile+email
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;state=xyz
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;nonce=abcd1234
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;code_challenge=E9Mel...
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;code_challenge_method=S256 HTTP/1.1
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Host: as.example.com
+</span></span></span></code></pre><p><strong>Token response includes <code>id_token</code>:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;access_token&#34;</span>:  <span style="color:#d14">&#34;2YotnFZFEjr1zCsicMWpAA&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_type&#34;</span>:    <span style="color:#d14">&#34;Bearer&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;expires_in&#34;</span>:    <span style="color:#099">3600</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;refresh_token&#34;</span>: <span style="color:#d14">&#34;tGzv3JOkF0XG5Qx2TlKWIA&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scope&#34;</span>:         <span style="color:#d14">&#34;openid profile email&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;id_token&#34;</span>:      <span style="color:#d14">&#34;eyJhbGciOi...&#34;</span>     <span style="color:#a61717;background-color:#e3d2d2">←</span> <span style="color:#a61717;background-color:#e3d2d2">the</span> <span style="color:#a61717;background-color:#e3d2d2">OIDC</span> <span style="color:#a61717;background-color:#e3d2d2">contribution</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Decoded <code>id_token</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iss&#34;</span>:            <span style="color:#d14">&#34;https://as.example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;sub&#34;</span>:            <span style="color:#d14">&#34;user-42&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;aud&#34;</span>:            <span style="color:#d14">&#34;oidc-rp-1&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;exp&#34;</span>:            <span style="color:#099">1717003600</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iat&#34;</span>:            <span style="color:#099">1717000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;auth_time&#34;</span>:      <span style="color:#099">1717000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;nonce&#34;</span>:          <span style="color:#d14">&#34;abcd1234&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;email&#34;</span>:          <span style="color:#d14">&#34;sri@example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;email_verified&#34;</span>: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;name&#34;</span>:           <span style="color:#d14">&#34;Sri Panyam&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;at_hash&#34;</span>:        <span style="color:#d14">&#34;x7vplJ-rh-OnePf-XKkLOA&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>Userinfo call:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">GET</span> <span style="color:#555">/userinfo</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Bearer 2YotnFZFEjr1zCsicMWpAA
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;sub&#34;</span>:            <span style="color:#d14">&#34;user-42&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;email&#34;</span>:          <span style="color:#d14">&#34;sri@example.com&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;email_verified&#34;</span>: <span style="color:#000;font-weight:bold">true</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;name&#34;</span>:           <span style="color:#d14">&#34;Sri Panyam&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L7 identity.</strong> OIDC is the identity layer; everything below it<br />
+(L0–L6) is pure delegation.</li>
+<li><strong>T3 (user auth at AS)</strong> is where OIDC&rsquo;s <code>acr</code>/<code>amr</code>/<code>auth_time</code><br />
+semantics matter; <strong>T5 (token endpoint)</strong> is where the <code>id_token</code><br />
+ships.</li>
+<li>OIDC composes with all the OAuth extensions — PKCE, PAR, JAR, RAR,<br />
+DPoP. Most modern enterprise IdP deployments are OIDC + selected<br />
+OAuth extensions.</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>OIDC is a layer <em>on top of</em> OAuth 2.0. It doesn&rsquo;t change OAuth&rsquo;s spec<br />
+status. Universal in consumer SSO. Standard in enterprise SSO (Azure AD /<br />
+Entra ID, Okta, Auth0, Keycloak all ship OIDC by default).</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>OIDC 1.0 wasn&rsquo;t updated alongside OAuth 2.1 (the OIDC working group is at<br />
+OpenID Foundation, not IETF). The two specs co-exist:</p>
+<ul>
+<li>OIDC implicit flow (response_type=id_token without code) is a peer of<br />
+OAuth 2.0&rsquo;s implicit grant. 2.1 removes the OAuth implicit; OIDC<br />
+implicit is correspondingly stale (still spec-legal but rarely shipped<br />
+in new builds).</li>
+<li>OIDC hybrid flows are 2.1-compatible only with the <code>code id_token</code><br />
+shape (no <code>token</code> in response_type), with PKCE mandatory.</li>
+</ul>
+<p>For new builds: ship OIDC with <code>response_type=code</code>, PKCE, and treat<br />
+implicit/hybrid as legacy.</p>
+<h2 id="migration-path-pure-oauth--oidc">Migration path (pure OAuth → OIDC) <a class="anchor" href="#migration-path-pure-oauth--oidc">¶</a></h2>
+<p>Adding OIDC to a working OAuth AS is largely additive:</p>
+<ol>
+<li><strong>Implement id_token issuance</strong> at <code>/token</code> when <code>scope=openid</code> is<br />
+requested. Sign with the same JWKS used for access tokens (or a<br />
+separate identity-signing key — same JWKS publication mechanism).</li>
+<li><strong>Wire nonce parameter handling</strong> at <code>/authorize</code> — store in the<br />
+authorization code record, echo in the issued id_token.</li>
+<li><strong>Stand up <code>/userinfo</code></strong> — bearer-token-authed; return identity claims<br />
+per the granted scopes (<code>openid</code>, <code>profile</code>, <code>email</code>, &hellip;).</li>
+<li><strong>Update discovery</strong> with OIDC-specific fields (see <a href="OIDC_Discovery.md"><code>OIDC_Discovery.md</code></a>).</li>
+<li><strong>Add scope-to-claims mapping</strong> for <code>profile</code>, <code>email</code>, <code>address</code>,<br />
+<code>phone</code>.</li>
+<li><strong>Add <code>auth_time</code>, <code>acr</code>, <code>amr</code> emission</strong> based on how the user was<br />
+authenticated. The hard work isn&rsquo;t OIDC; it&rsquo;s defining your<br />
+authentication taxonomy.</li>
+</ol>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>Pure machine-to-machine APIs.</strong> No user → no identity → no OIDC. Use<br />
+<code>client_credentials</code> only.</li>
+<li><strong>Federated authorization without identity.</strong> If you&rsquo;re using OAuth for<br />
+delegation but the resource server doesn&rsquo;t care <em>who</em> the user is<br />
+beyond an opaque <code>sub</code>, you can skip id_token issuance and keep the<br />
+surface smaller.</li>
+</ul>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>OIDC Core surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/authorize</code> endpoint</td>
+<td><strong>Implemented</strong> (OAuth layer)</td>
+<td><code>apiauth/authorize.go</code> <code>AuthorizationHandler</code> (PR 297)</td>
+<td>Issues <code>code</code> only; no id_token issuance yet</td>
+</tr>
+<tr>
+<td><code>id_token</code> issuance</td>
+<td><strong>Gap</strong></td>
+<td>Only <code>apiauth/token_exchange_grant.go:27</code> <code>TokenTypeIDToken</code> constant exists (for 8693); no actual id_token mint anywhere</td>
+<td>The foundational OIDC piece — without it the rest is mostly moot</td>
+</tr>
+<tr>
+<td><code>nonce</code> parameter handling</td>
+<td><strong>Gap</strong></td>
+<td>No <code>nonce</code> references in <code>apiauth/authorize*.go</code> or <code>core/authorization_code.go</code></td>
+<td>Required for OIDC replay defense</td>
+</tr>
+<tr>
+<td><code>/userinfo</code> endpoint</td>
+<td><strong>Gap</strong></td>
+<td><code>apiauth/as_metadata.go:33</code> <code>UserinfoEndpoint</code> field is wired (advertises a URL) but no handler implements it</td>
+<td>Discovery-advertised; needs implementation</td>
+</tr>
+<tr>
+<td><code>openid</code>/<code>profile</code>/<code>email</code>/etc. scope-to-claims mapping</td>
+<td><strong>Gap</strong></td>
+<td>No scope-aware claim selector</td>
+<td>Needed for both id_token and userinfo</td>
+</tr>
+<tr>
+<td><code>auth_time</code>, <code>acr</code>, <code>amr</code> claims</td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+<td>Needed for OIDC step-up auth</td>
+</tr>
+<tr>
+<td><code>at_hash</code> claim (id_token integrity binding to access_token)</td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+<td>Required when issuing id_token + access_token together</td>
+</tr>
+<tr>
+<td>OIDC Discovery (<code>/.well-known/openid-configuration</code>)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth.MountASMetadata</code> co-serves both paths</td>
+<td>See <a href="OIDC_Discovery.md"><code>OIDC_Discovery.md</code></a></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Implementation sketch.</strong> OIDC Core is the single largest <em>implementable</em><br />
+gap in OneAuth. The foundation (<code>/authorize</code>, JWKS, AS metadata, DCR) is<br />
+all in place; what&rsquo;s missing is the identity-layer plumbing:</p>
+<ol>
+<li><strong><code>IDTokenIssuer</code> interface</strong> alongside <code>TokenIssuer</code>. Signs id_tokens<br />
+with the same JWKS-published keys; emits required claims (<code>iss</code>,<br />
+<code>sub</code>, <code>aud</code>, <code>exp</code>, <code>iat</code>, <code>nonce</code>, <code>at_hash</code>).</li>
+<li><strong>Scope-driven claim selector</strong> that maps <code>openid profile email</code> → set<br />
+of claims. Configurable per-deployment via a <code>ClaimMapping</code> hook.</li>
+<li><strong><code>/userinfo</code> handler</strong> that bearer-auths and returns the same claim<br />
+set the id_token would have carried.</li>
+<li><strong><code>nonce</code> storage + echo</strong> in the authorization code record.</li>
+<li><strong><code>UserSession</code> tracking</strong> for <code>auth_time</code> and (eventually) for OIDC<br />
+front-channel logout and session management.</li>
+</ol>
+<p>This unblocks downstream work (CIBA, full FAPI 2.0 conformance, broader<br />
+OIDC ecosystem interop).</p>
+<h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
+<ul>
+<li><a href="OIDC_Discovery.md">OIDC Discovery 1.0</a> — the discovery doc with OIDC-specific fields</li>
+<li><a href="OIDC_BCL.md">OIDC BCL</a> — back-channel logout</li>
+<li><a href="OIDC_CIBA.md">OIDC CIBA</a> — client-initiated backchannel auth</li>
+<li><a href="RFC_6749.md">RFC 6749</a> — the OAuth framework OIDC layers on</li>
+<li><a href="RFC_7519.md">RFC 7519</a> — JWT (the id_token format)</li>
+<li><a href="RFC_7515.md">RFC 7515</a> — JWS (signs the id_token)</li>
+<li><a href="RFC_7636.md">RFC 7636</a> — PKCE; mandatory companion in modern OIDC</li>
+<li><a href="RFC_9068.md">RFC 9068</a> — JWT AT profile (sibling of OIDC&rsquo;s id_token shape)</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://openid.net/specs/openid-connect-core-1_0.html">OIDC Core 1.0</a></li>
+<li><a href="https://openid.net/specs/">OIDC Specifications</a></li>
+<li><a href="https://openid.net/">OpenID Foundation</a> — the standards body</li>
+<li><a href="https://openid.net/specs/openid-connect-core-1_0-errata-2.html">Errata</a> (most recent)</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Per-RFC summaries: what each spec does, why it exists, and exactly where OneAuth stands on it.">
+    <title>OAuth and OIDC spec library · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OAuth and OIDC spec library</h1>
+        
+        <p class="lead">Per-RFC summaries: what each spec does, why it exists, and exactly where OneAuth stands on it.</p>
+        
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<p>One page per specification. Each summarises what the spec is for, when to reach for it, and carries a grep-verified table of where OneAuth stands on every surface it defines. These are written for deciding what to build next, not as a replacement for the RFC text.</p>
+
+<h2>Start here</h2>
+<p>The map, and the profiles that pull the rest together.</p>
+<table>
+  <thead><tr><th>Specification</th><th>OneAuth coverage</th></tr></thead>
+  <tbody>
+      <tr><td><a href="specs/landscape/">OAuth Landscape</a></td><td class="cov-yes">Implemented / Partial / Gap — links to code</td></tr>
+      <tr><td><a href="specs/rfc-oauth21/">OAuth 2.1 (draft-ietf-oauth-v2-1)</a></td><td class="cov-partial">Baseline alignment landed in PR 296 (issue 140). Audit table: [<code>docs/OAUTH21_ALIGNMENT.md</code>](../OAUTH21_ALIGNMENT.md)</td></tr>
+      <tr><td><a href="specs/fapi/">FAPI 1.0 / 2.0 — Financial-grade API Security Profiles</a></td><td class="cov-no">Not conformant — L5 is half-landed (DPoP shipped under #336; mTLS tracked under #335), L6 is half-landed (PAR shipped under #337; JAR tracked under #338)</td></tr>
+      <tr><td><a href="specs/rfc-9700/">RFC 9700 — OAuth 2.0 Security Best Current Practice</a></td><td class="cov-partial">Adopted as baseline (PR 296). See [§OneAuth status](#oneauth-status).</td></tr>
+  </tbody>
+</table>
+
+<h2>Core framework</h2>
+<p>The base protocol and how a token is carried.</p>
+<table>
+  <thead><tr><th>Specification</th><th>OneAuth coverage</th></tr></thead>
+  <tbody>
+      <tr><td><a href="specs/rfc-6749/">RFC 6749 — The OAuth 2.0 Authorization Framework</a></td><td class="cov-yes">Implemented (token endpoint + <code>/authorize</code> via PR 297)</td></tr>
+      <tr><td><a href="specs/rfc-6750/">RFC 6750 — OAuth 2.0 Bearer Token Usage</a></td><td class="cov-yes">Implemented (header form); query-param fallback deprecated</td></tr>
+      <tr><td><a href="specs/rfc-7636/">RFC 7636 — Proof Key for Code Exchange (PKCE)</a></td><td class="cov-yes">Implemented end-to-end (client + server, server enforcement landed in PR 297)</td></tr>
+      <tr><td><a href="specs/rfc-9207/">RFC 9207 — OAuth 2.0 Authorization Server Issuer Identification</a></td><td class="cov-yes">Implemented (<code>apiauth/authorize.go</code> <code>EmitIssParameter</code>)</td></tr>
+  </tbody>
+</table>
+
+<h2>Tokens and keys</h2>
+<p>JWT, JOSE, and the key formats underneath.</p>
+<table>
+  <thead><tr><th>Specification</th><th>OneAuth coverage</th></tr></thead>
+  <tbody>
+      <tr><td><a href="specs/rfc-7515/">RFC 7515 — JSON Web Signature (JWS)</a></td><td class="cov-yes">Implemented (via <code>github.com/golang-jwt/jwt</code>)</td></tr>
+      <tr><td><a href="specs/rfc-7516/">RFC 7516 — JSON Web Encryption (JWE)</a></td><td class="cov-no">Gap (not used; rarely needed in OAuth)</td></tr>
+      <tr><td><a href="specs/rfc-7517/">RFC 7517 — JSON Web Key (JWK) / JSON Web Key Set (JWKS)</a></td><td class="cov-yes">Implemented (<code>keys/jwks_handler.go</code>, <code>keys/jwks_keystore.go</code>)</td></tr>
+      <tr><td><a href="specs/rfc-7518/">RFC 7518 — JSON Web Algorithms (JWA)</a></td><td class="cov-yes">Implemented via <code>github.com/golang-jwt/jwt/v5</code></td></tr>
+      <tr><td><a href="specs/rfc-7519/">RFC 7519 — JSON Web Token (JWT)</a></td><td class="cov-yes">Implemented (via <code>github.com/golang-jwt/jwt/v5</code>)</td></tr>
+      <tr><td><a href="specs/rfc-9068/">RFC 9068 — JWT Profile for OAuth 2.0 Access Tokens</a></td><td class="cov-yes">Implemented</td></tr>
+  </tbody>
+</table>
+
+<h2>Client authentication and registration</h2>
+<p>How a client proves who it is, and how it gets registered.</p>
+<table>
+  <thead><tr><th>Specification</th><th>OneAuth coverage</th></tr></thead>
+  <tbody>
+      <tr><td><a href="specs/rfc-7521/">RFC 7521 — Assertion Framework for OAuth 2.0 Client Authentication and Authorization Grants</a></td><td class="cov-yes">Implemented (transitively via [RFC 7523](RFC_7523.md))</td></tr>
+      <tr><td><a href="specs/rfc-7523/">RFC 7523 — JSON Web Token (JWT) Profile for OAuth 2.0 Client Authentication and Authorization Grants</a></td><td class="cov-yes">Grant: Implemented. Client auth: Implemented (<code>client_secret_jwt</code> PR 293; <code>private_key_jwt</code> shipped)</td></tr>
+      <tr><td><a href="specs/rfc-7591/">RFC 7591 — OAuth 2.0 Dynamic Client Registration (DCR)</a></td><td class="cov-yes">Implemented (<code>admin/DCRHandler</code>)</td></tr>
+      <tr><td><a href="specs/rfc-7592/">RFC 7592 — OAuth 2.0 Dynamic Client Registration Management</a></td><td class="cov-yes">Implemented (<code>admin/DCRManagementHandler</code>)</td></tr>
+      <tr><td><a href="specs/rfc-8705/">RFC 8705 — OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens</a></td><td class="cov-no">Gap (candidate for FAPI track)</td></tr>
+  </tbody>
+</table>
+
+<h2>Grants and exchanges</h2>
+<p>Ways to obtain a token beyond the browser redirect.</p>
+<table>
+  <thead><tr><th>Specification</th><th>OneAuth coverage</th></tr></thead>
+  <tbody>
+      <tr><td><a href="specs/rfc-8628/">RFC 8628 — OAuth 2.0 Device Authorization Grant</a></td><td class="cov-yes">Implemented (<code>apiauth.MountDeviceFlow</code>)</td></tr>
+      <tr><td><a href="specs/rfc-8693/">RFC 8693 — OAuth 2.0 Token Exchange</a></td><td class="cov-yes">Implemented (Phase 1 — JWT subject tokens)</td></tr>
+      <tr><td><a href="specs/oidc-ciba/">OpenID Connect Client-Initiated Backchannel Authentication (CIBA) 1.0</a></td><td class="cov-no">Gap</td></tr>
+  </tbody>
+</table>
+
+<h2>Request hardening</h2>
+<p>Extensions that change how an authorization request is delivered or constrained.</p>
+<table>
+  <thead><tr><th>Specification</th><th>OneAuth coverage</th></tr></thead>
+  <tbody>
+      <tr><td><a href="specs/rfc-9126/">RFC 9126 — OAuth 2.0 Pushed Authorization Requests (PAR)</a></td><td class="cov-yes">Implemented (<code>apiauth.PARHandler</code> via <code>MountAuthorize</code>; in-memory + GORM stores)</td></tr>
+      <tr><td><a href="specs/rfc-9101/">RFC 9101 — JWT-Secured Authorization Request (JAR)</a></td><td class="cov-no">Gap (tracked under issue 338; issue 150 was consolidated into it)</td></tr>
+      <tr><td><a href="specs/rfc-9396/">RFC 9396 — OAuth 2.0 Rich Authorization Requests (RAR)</a></td><td class="cov-yes">Implemented (<code>core/authorization_details.go</code> + <code>apiauth/</code> token / introspection / middleware)</td></tr>
+      <tr><td><a href="specs/rfc-9449/">RFC 9449 — OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP)</a></td><td class="cov-yes">Implemented — issuance (<code>cnf.jkt</code>, bound refresh tokens), resource-server enforcement, <code>dpop_jkt</code> at <code>/authorize</code> and on a pushed request, client SDK proof minting. Nonce protocol (§8/§9) outstanding</td></tr>
+  </tbody>
+</table>
+
+<h2>Resource server and lifecycle</h2>
+<p>Discovery, introspection, revocation, logout.</p>
+<table>
+  <thead><tr><th>Specification</th><th>OneAuth coverage</th></tr></thead>
+  <tbody>
+      <tr><td><a href="specs/rfc-8414/">RFC 8414 — OAuth 2.0 Authorization Server Metadata</a></td><td class="cov-yes">Implemented (<code>apiauth.MountASMetadata</code>)</td></tr>
+      <tr><td><a href="specs/rfc-9728/">RFC 9728 — OAuth 2.0 Protected Resource Metadata</a></td><td class="cov-yes">Implemented (<code>apiauth.NewProtectedResourceHandler</code>)</td></tr>
+      <tr><td><a href="specs/rfc-7662/">RFC 7662 — OAuth 2.0 Token Introspection</a></td><td class="cov-yes">Implemented (<code>apiauth/IntrospectionHandler</code>)</td></tr>
+      <tr><td><a href="specs/rfc-7009/">RFC 7009 — OAuth 2.0 Token Revocation</a></td><td class="cov-yes">Implemented (<code>apiauth/RevocationHandler</code>)</td></tr>
+      <tr><td><a href="specs/oidc-discovery/">OpenID Connect Discovery 1.0</a></td><td class="cov-yes">Implemented (<code>apiauth.MountASMetadata</code> co-serves both well-known paths)</td></tr>
+      <tr><td><a href="specs/oidc-core/">OpenID Connect Core 1.0</a></td><td class="cov-partial">Partial — <code>/authorize</code> shipped in PR 297 (OAuth-layer), but id_token issuance, nonce, and <code>/userinfo</code> are gaps</td></tr>
+      <tr><td><a href="specs/oidc-bcl/">OpenID Connect Back-Channel Logout 1.0</a></td><td class="cov-yes">Implemented (<code>apiauth/BCLDispatcher</code> + <code>LogoutTokenIssuer</code>)</td></tr>
+  </tbody>
+</table>
+
+<h2>Watch list</h2>
+<p>Tracked, not implemented.</p>
+<table>
+  <thead><tr><th>Specification</th><th>OneAuth coverage</th></tr></thead>
+  <tbody>
+      <tr><td><a href="specs/gnap/">GNAP — Grant Negotiation and Authorization Protocol (RFC 9635)</a></td><td class="cov-no">Watch-only — no implementation planned</td></tr>
+  </tbody>
+</table>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

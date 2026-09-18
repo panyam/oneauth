@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Runnable demos that exercise key OneAuth scenarios end-to-end. Each section describes what the demo proves, how it simplifies things for clarity,...">
+    <title>Demos &amp; Scenarios · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Demos &amp; Scenarios</h1>
+        
+        <p class="lead">Runnable demos that exercise key OneAuth scenarios end-to-end. Each section describes what the demo proves, how it simplifies things for clarity,...</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/DEMOS.md"><code>docs/DEMOS.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="demos--scenarios">Demos &amp; Scenarios <a class="anchor" href="#demos--scenarios">¶</a></h1>
+<p>Runnable demos that exercise key OneAuth scenarios end-to-end. Each section describes what the demo proves, how it simplifies things for clarity, and what changes in a real deployment.</p>
+<hr />
+<h2 id="demo-1-federated-resource-server-auth">Demo 1: Federated Resource Server Auth <a class="anchor" href="#demo-1-federated-resource-server-auth">¶</a></h2>
+<p><strong>Location</strong>: <code>demo/</code> (Docker Compose) + <code>cmd/demo-hostapp/</code> + <code>cmd/demo-resource-server/</code></p>
+<h3 id="what-it-demonstrates">What It Demonstrates <a class="anchor" href="#what-it-demonstrates">¶</a></h3>
+<p>Multiple independent applications (&ldquo;Apps&rdquo;) register with a central auth server, authenticate their own users independently, mint resource-scoped JWTs, and have those tokens validated by resource servers that share no direct connection to the apps.</p>
+<p>This answers the core question: <strong>How does a resource server trust a JWT issued by an application it has never seen before?</strong></p>
+<p>Answer: a shared PostgreSQL <code>signing_keys</code> table acts as the trust anchor. OneAuth server writes signing keys at app registration time. Resource servers read from it at validation time.</p>
+<h3 id="service-topology">Service Topology <a class="anchor" href="#service-topology">¶</a></h3>
+<pre><code>PostgreSQL (shared signing_keys table)
+    |
+    +-- OneAuth Server :9999        (user auth, app registration, key management)
+    +-- Resource-Server-A :4001     (validates JWTs via shared KeyStore)
+    +-- Resource-Server-B :4002     (validates JWTs via shared KeyStore)
+    |
+    +-- DrawApp :3001               (app #1 — registers, owns users, mints resource tokens)
+    +-- ChatApp :3002               (app #2 — same binary, separate user database)
+</code></pre>
+<h3 id="scenarios-exercised">Scenarios Exercised <a class="anchor" href="#scenarios-exercised">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>What It Proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>App auto-registration on startup</td>
+<td>App calls <code>POST /apps/dcr</code> (RFC 7591), gets <code>client_id</code> + <code>client_secret</code>, persists to disk</td>
+</tr>
+<tr>
+<td>Independent user databases</td>
+<td>DrawApp and ChatApp each have their own FS-backed user store — users don&rsquo;t overlap</td>
+</tr>
+<tr>
+<td>Resource token minting</td>
+<td>Authenticated app user clicks &ldquo;Get Resource Token&rdquo; → <code>MintResourceToken()</code> signs JWT with <code>client_secret</code>, includes <code>kid</code> header (RFC 7638 thumbprint)</td>
+</tr>
+<tr>
+<td>Token validation by resource server</td>
+<td>JWT POSTed to resource server&rsquo;s <code>/validate</code> → server reads <code>kid</code> from header, looks up signing key, verifies HMAC. Falls back to <code>client_id</code> claim for legacy tokens</td>
+</tr>
+<tr>
+<td>Cross-resource-server validation</td>
+<td>Token from DrawApp validates on both Resource-Server-A and Resource-Server-B (they share the same KeyStore)</td>
+</tr>
+<tr>
+<td>Cross-app isolation</td>
+<td>Token signed with DrawApp&rsquo;s secret but claiming ChatApp&rsquo;s <code>client_id</code> is rejected (<code>kid</code> owner doesn&rsquo;t match <code>client_id</code> claim)</td>
+</tr>
+<tr>
+<td>Token introspection</td>
+<td>Resource server returns <code>user_id</code>, <code>client_id</code>, <code>scopes</code>, <code>max_rooms</code>, <code>max_msg_rate</code> from JWT custom claims</td>
+</tr>
+<tr>
+<td>WebSocket-style auth</td>
+<td><code>GET /ws?token=...</code> validates token via query param (simulates WebSocket upgrade). Uses <code>APIMiddleware.LegacyQueryParamBearer</code> — the OAuth 2.0 escape hatch; see <a href="#websocket-auth-alternatives">WebSocket auth alternatives</a> below for the three OAuth 2.1-clean replacements</td>
+</tr>
+</tbody>
+</table>
+<h3 id="running-the-demo">Running the Demo <a class="anchor" href="#running-the-demo">¶</a></h3>
+<p><strong>Option A: Live-reload development</strong> (recommended for iterating)</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#0086b3">cd</span> demo
+</span></span><span style="display:flex;"><span>make dev       <span style="color:#998;font-style:italic"># PG in Docker, all Go services native with auto-rebuild</span>
+</span></span></code></pre><p><strong>Option B: Full Docker Compose</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#0086b3">cd</span> demo
+</span></span><span style="display:flex;"><span>make up        <span style="color:#998;font-style:italic"># builds and starts all 6 services in Docker</span>
+</span></span><span style="display:flex;"><span>make status    <span style="color:#998;font-style:italic"># shows URLs and container status</span>
+</span></span></code></pre><h2 id="websocket-auth-alternatives">WebSocket auth alternatives <a class="anchor" href="#websocket-auth-alternatives">¶</a></h2>
+<p>The demo&rsquo;s <code>GET /ws?token=…</code> pattern is the OAuth 2.0 legacy carry, enabled via <code>APIMiddleware.LegacyQueryParamBearer</code>. OAuth 2.1 §5.4 retired query-string bearer tokens because they land in browser history, server access logs, <code>Referer</code> headers, caches, and CDNs.</p>
+<p>A real WebSocket upgrade can&rsquo;t always set the <code>Authorization</code> header on the initial GET (browser <code>WebSocket</code> constructors don&rsquo;t accept arbitrary headers). The three header-clean replacements are below. New deployments should pick one; the legacy field is retained for existing OAuth 2.0 fleets that cannot migrate.</p>
+<h3 id="1-websocket-subprotocol-header-recommended">1. WebSocket subprotocol header (recommended) <a class="anchor" href="#1-websocket-subprotocol-header-recommended">¶</a></h3>
+<p>The browser <code>WebSocket</code> constructor accepts a subprotocol argument. Encode the bearer token as one of the negotiated subprotocols; the server reads it on upgrade.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// client
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">const</span> ws <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">new</span> WebSocket(<span style="color:#d14">&#34;wss://relay.example/ws&#34;</span>, [<span style="color:#d14">`bearer.</span><span style="color:#d14">${</span>jwt<span style="color:#d14">}</span><span style="color:#d14">`</span>]);
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// server (on Upgrade)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>proto <span style="color:#000;font-weight:bold">:=</span> r.Header.<span style="color:#900;font-weight:bold">Get</span>(<span style="color:#d14">&#34;Sec-WebSocket-Protocol&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span> _, part <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">range</span> strings.<span style="color:#900;font-weight:bold">Split</span>(proto, <span style="color:#d14">&#34;,&#34;</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> t, ok <span style="color:#000;font-weight:bold">:=</span> strings.<span style="color:#900;font-weight:bold">CutPrefix</span>(strings.<span style="color:#900;font-weight:bold">TrimSpace</span>(part), <span style="color:#d14">&#34;bearer.&#34;</span>); ok {
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// validate t via APIMiddleware-style flow, then accept upgrade
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>Pros:</strong> standard mechanism (Discord, Slack, others use this); browser-supported. <strong>Cons:</strong> server must parse the subprotocol on upgrade; token visible in DevTools but not in URL bar / logs.</p>
+<h3 id="2-initial-frame-auth">2. Initial-frame auth <a class="anchor" href="#2-initial-frame-auth">¶</a></h3>
+<p>Accept the upgrade unauthenticated; require the first WebSocket frame to be <code>{&quot;type&quot;: &quot;auth&quot;, &quot;token&quot;: &quot;…&quot;}</code>. Defer auth-required handlers until that frame lands; disconnect if the timer expires first.</p>
+<p><strong>Pros:</strong> works with any WebSocket client library (no constructor arg). <strong>Cons:</strong> one extra round-trip; server holds a connection in a half-open state until auth lands.</p>
+<h3 id="3-short-lived-per-connection-ticket">3. Short-lived per-connection ticket <a class="anchor" href="#3-short-lived-per-connection-ticket">¶</a></h3>
+<p>The client POSTs to a regular HTTP endpoint (<code>POST /ws/ticket</code>) with <code>Authorization: Bearer &lt;token&gt;</code> and receives a single-use, ~30-second ticket. WebSocket URL carries <code>?ticket=…</code>. Server consumes the ticket on upgrade and binds it to the connection.</p>
+<p><strong>Pros:</strong> simplest for embedded clients that can&rsquo;t do subprotocol negotiation. <strong>Cons:</strong> the ticket <em>is</em> a URL query carry — but it&rsquo;s connection-scoped, single-use, and short-lived, mitigating the leak surface that motivated OAuth 2.1 §5.4.</p>
+<p>Pick the one that fits your client constraints. The OneAuth library exposes the validation primitives (<code>APIMiddleware.ValidateToken</code>, <code>IntrospectionValidator</code>) any of these patterns can call.</p>
+<h4 id="manual-walkthrough">Manual Walkthrough <a class="anchor" href="#manual-walkthrough">¶</a></h4>
+<ol>
+<li><strong>http://localhost:9999</strong> — OneAuth landing page. Sign up for an account. Dashboard shows registered apps.</li>
+<li><strong>http://localhost:3001</strong> — DrawApp. Sign up (separate user DB). After login, click &ldquo;Get Resource Token&rdquo;. JWT claims display inline.</li>
+<li>Click &ldquo;Validate&rdquo; — JWT is POSTed to Resource-Server-A. Response shows <code>valid: true</code> with user ID and claims.</li>
+<li><strong>http://localhost:4001</strong> — Resource-Server-A status page. See the validation in the log table.</li>
+<li><strong>http://localhost:4001/test</strong> — Paste any JWT to test manually.</li>
+<li><strong>http://localhost:3002</strong> — ChatApp. Repeat flow. Try validating against Resource-Server-B at <code>:4002</code>.</li>
+</ol>
+<h4 id="automated-tests">Automated Tests <a class="anchor" href="#automated-tests">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic"># From repo root, with demo stack running:</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">DEMO_SERVER_URL</span><span style="color:#000;font-weight:bold">=</span>http://localhost:9999 <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span><span style="color:#008080">DEMO_RESOURCE_SERVER_A_URL</span><span style="color:#000;font-weight:bold">=</span>http://localhost:4001 <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span><span style="color:#008080">DEMO_RESOURCE_SERVER_B_URL</span><span style="color:#000;font-weight:bold">=</span>http://localhost:4002 <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span><span style="color:#008080">DEMO_ADMIN_KEY</span><span style="color:#000;font-weight:bold">=</span>demo-admin-key-12345 <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>uv run pytest tests/integration/test_05_browser_auth.py <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>              tests/integration/test_06_federated_flow.py <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>              tests/integration/test_07_multi_host.py <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>              tests/integration/test_08_token_refresh.py -v
+</span></span></code></pre><h3 id="what-the-demo-simplifies-vs-production">What the Demo Simplifies (vs. Production) <a class="anchor" href="#what-the-demo-simplifies-vs-production">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Demo Simplification</th>
+<th>Production Reality</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>In-memory app metadata</strong> — <code>AppRegistrar.apps</code> map is lost on restart. Signing keys survive (in PostgreSQL) but metadata like domain, quotas, created_at is gone.</td>
+<td>Persist app registrations in a database (<code>AppStore</code> interface — not yet implemented).</td>
+</tr>
+<tr>
+<td><strong>FS-backed user stores</strong> — each app stores users on disk under <code>/data/{name}/</code>.</td>
+<td>Use GORM or GAE stores behind a real database. FS stores don&rsquo;t work in clusters.</td>
+</tr>
+<tr>
+<td><strong>HS256 only</strong> — demo uses symmetric HMAC signing for simplicity. The resource server needs the same secret as the app.</td>
+<td>Asymmetric signing (RS256/ES256) is now supported — apps can register with a public key and keep their private key secret. Resource servers only need the public key. See <a href="FEDERATED_AUTH.md#asymmetric-signing-rs256es256">FEDERATED_AUTH.md</a>.</td>
+</tr>
+<tr>
+<td><strong>No JWKS</strong> — resource server reads keys from PostgreSQL directly.</td>
+<td>JWKS endpoint (issue #7) lets resource servers auto-discover public keys via HTTP without shared database access.</td>
+</tr>
+<tr>
+<td><strong>Single PostgreSQL</strong> — all services share one database instance.</td>
+<td>Separate read replicas, or JWKS-based discovery, or each resource server has its own KeyStore sync.</td>
+</tr>
+<tr>
+<td><strong>Static quotas</strong> — <code>max_rooms</code> and <code>max_msg_rate</code> are set at registration time and hardcoded in token minting.</td>
+<td>Dynamic quotas from a billing/entitlement system.</td>
+</tr>
+<tr>
+<td><strong>No token refresh</strong> — resource tokens expire in 15 minutes, app mints a fresh one each time.</td>
+<td>Client-side refresh loop or server-side refresh grant for long-lived sessions.</td>
+</tr>
+<tr>
+<td><strong>No TLS</strong> — all traffic is plaintext HTTP on localhost.</td>
+<td>TLS everywhere. Secrets encrypted at rest.</td>
+</tr>
+<tr>
+<td><strong>Hardcoded admin key</strong> — <code>demo-admin-key-12345</code> in docker-compose env.</td>
+<td>Admin key from secrets manager (e.g., GCP Secret Manager). Rotated regularly.</td>
+</tr>
+<tr>
+<td><strong>Cookie-based sessions</strong> — apps use HttpOnly cookie JWTs for browser sessions.</td>
+<td>Works for browsers but blocks SPA/mobile clients (see Phase 3 OAuth API Mode below).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-architecture-points">Key Architecture Points <a class="anchor" href="#key-architecture-points">¶</a></h3>
+<p><strong>Trust anchor</strong>: The shared <code>signing_keys</code> table. This is the only thing that connects apps and resource servers. Written by oneauth-server at registration, read by resource servers at validation.</p>
+<p><strong>Secret shown once</strong>: <code>POST /apps/dcr</code> returns <code>client_secret</code> exactly once. It&rsquo;s stored in the KeyStore as bytes but never returned again via any API. Apps must persist it (demo-hostapp saves to <code>app_credentials.json</code>).</p>
+<p><strong>Resource server independence</strong>: Once keys are in the shared KeyStore, resource servers validate tokens with zero runtime dependency on the auth server or apps. The resource server only needs database access.</p>
+<p><strong>Credential recovery</strong>: On startup, demo apps verify their cached credentials against the auth server (<code>GET /apps/{client_id}</code>). If the auth server doesn&rsquo;t recognize them (e.g., database was reset), the app deletes its stale credentials and re-registers automatically.</p>
+<hr />
+<h2 id="scenario-oauth-api-mode-not-yet-implemented">Scenario: OAuth API Mode (Not Yet Implemented) <a class="anchor" href="#scenario-oauth-api-mode-not-yet-implemented">¶</a></h2>
+<p><strong>Status</strong>: Superseded by headless OAuth (#54) — <code>LoginWithBrowser</code> + loopback redirect now covers CLI/SPA/mobile via standard auth-code + PKCE. The narrative below is retained for context.</p>
+<h3 id="the-problem">The Problem <a class="anchor" href="#the-problem">¶</a></h3>
+<p>The current OAuth flow (Google/GitHub login) is browser-only:</p>
+<ol>
+<li>Redirect to provider (stores state in cookie)</li>
+<li>Provider redirects back to callback (reads state from cookie)</li>
+<li>Callback sets <code>oa_token</code> HttpOnly cookie and redirects to <code>/dashboard</code></li>
+</ol>
+<p>Every step requires browser cookies and HTTP redirects. SPAs doing <code>fetch()</code> and mobile apps using deep links cannot participate.</p>
+<p><code>APIAuth</code> already returns proper <code>{access_token, refresh_token}</code> JSON — but only for password-based login (<code>grant_type=password</code>). There is no path from &ldquo;OAuth succeeded&rdquo; to &ldquo;here are your API tokens.&rdquo;</p>
+<h3 id="what-would-be-demonstrated">What Would Be Demonstrated <a class="anchor" href="#what-would-be-demonstrated">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Flow</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SPA OAuth login</td>
+<td>React app calls <code>/auth/google/callback?mode=api</code> → receives <code>{access_token, refresh_token}</code> JSON</td>
+</tr>
+<tr>
+<td>Mobile OAuth</td>
+<td>iOS opens Google OAuth in Safari → deep link <code>myapp://auth?code=xyz</code> → app exchanges code for tokens via <code>POST /api/token</code></td>
+</tr>
+<tr>
+<td>PKCE</td>
+<td>Public client generates <code>code_verifier</code> + <code>code_challenge</code>, server validates on exchange</td>
+</tr>
+</tbody>
+</table>
+<h3 id="prerequisites">Prerequisites <a class="anchor" href="#prerequisites">¶</a></h3>
+<ul>
+<li>Phase 3 implementation (API mode OAuth callbacks, token exchange endpoint, PKCE)</li>
+<li>A demo SPA or mobile client that drives the flow</li>
+</ul>
+<hr />
+<h2 id="future-demos">Future Demos <a class="anchor" href="#future-demos">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Demo</th>
+<th>Scenario</th>
+<th>Depends On</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Asymmetric resource server auth</td>
+<td>App uses RS256 private key, resource server validates with public key only</td>
+<td>✅ Core support done (issue #4), demo extension needed</td>
+</tr>
+<tr>
+<td>JWKS discovery</td>
+<td>Resource server auto-fetches app public keys via <code>.well-known/jwks.json</code> — use <code>JWKS_URL</code> env var on demo-resource-server</td>
+<td>✅ Core support done (issue #7), demo extension needed</td>
+</tr>
+<tr>
+<td>Client SDK</td>
+<td>CLI tool authenticates, gets tokens, makes authenticated API calls</td>
+<td>Client SDK migration (lilbattle)</td>
+</tr>
+<tr>
+<td>Multi-factor auth</td>
+<td>Login with password + TOTP code from authenticator app</td>
+<td>MFA implementation</td>
+</tr>
+</tbody>
+</table>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

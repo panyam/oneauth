@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OneAuth uses interface-based storage with three built-in implementations: file-based (FS), GORM (SQL databases), and Google App Engine Datastore...">
+    <title>Stores · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Stores</h1>
+        
+        <p class="lead">OneAuth uses interface-based storage with three built-in implementations: file-based (FS), GORM (SQL databases), and Google App Engine Datastore...</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/STORES.md"><code>docs/STORES.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="stores">Stores <a class="anchor" href="#stores">¶</a></h1>
+<p>OneAuth uses interface-based storage with three built-in implementations: file-based (FS), GORM (SQL databases), and Google App Engine Datastore (GAE).</p>
+<blockquote>
+<p><strong>Sub-module note:</strong> <code>stores/gorm</code> and <code>stores/gae</code> are separate Go modules (each has its own <code>go.mod</code>) to keep heavy dependencies (GORM/drivers, GCP SDK) out of the core module. Store backends import <code>github.com/panyam/oneauth/core</code> for entity types and <code>github.com/panyam/oneauth/keys</code> for key types — not the root <code>oneauth</code> package.</p>
+</blockquote>
+<h2 id="store-interfaces">Store Interfaces <a class="anchor" href="#store-interfaces">¶</a></h2>
+<h3 id="userstore">UserStore <a class="anchor" href="#userstore">¶</a></h3>
+<p>Manages user accounts.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> UserStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">CreateUser</span>(userId <span style="color:#458;font-weight:bold">string</span>, isActive <span style="color:#458;font-weight:bold">bool</span>, profile <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any) (User, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetUserById</span>(userId <span style="color:#458;font-weight:bold">string</span>) (User, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">SaveUser</span>(user User) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="identitystore">IdentityStore <a class="anchor" href="#identitystore">¶</a></h3>
+<p>Manages contact information and verification status.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> IdentityStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetIdentity</span>(identityType, identityValue <span style="color:#458;font-weight:bold">string</span>, createIfMissing <span style="color:#458;font-weight:bold">bool</span>) (<span style="color:#000;font-weight:bold">*</span>Identity, <span style="color:#458;font-weight:bold">bool</span>, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">SaveIdentity</span>(identity <span style="color:#000;font-weight:bold">*</span>Identity) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">SetUserForIdentity</span>(identityType, identityValue <span style="color:#458;font-weight:bold">string</span>, newUserId <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">MarkIdentityVerified</span>(identityType, identityValue <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetUserIdentities</span>(userId <span style="color:#458;font-weight:bold">string</span>) ([]<span style="color:#000;font-weight:bold">*</span>Identity, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Identity types: <code>&quot;email&quot;</code>, <code>&quot;phone&quot;</code></p>
+<h3 id="channelstore">ChannelStore <a class="anchor" href="#channelstore">¶</a></h3>
+<p>Manages authentication methods and provider-specific data.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> ChannelStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetChannel</span>(provider <span style="color:#458;font-weight:bold">string</span>, identityKey <span style="color:#458;font-weight:bold">string</span>, createIfMissing <span style="color:#458;font-weight:bold">bool</span>) (<span style="color:#000;font-weight:bold">*</span>Channel, <span style="color:#458;font-weight:bold">bool</span>, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">SaveChannel</span>(channel <span style="color:#000;font-weight:bold">*</span>Channel) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetChannelsByIdentity</span>(identityKey <span style="color:#458;font-weight:bold">string</span>) ([]<span style="color:#000;font-weight:bold">*</span>Channel, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Providers: <code>&quot;local&quot;</code>, <code>&quot;google&quot;</code>, <code>&quot;github&quot;</code>, etc.</p>
+<h3 id="usernamestore-optional">UsernameStore (Optional) <a class="anchor" href="#usernamestore-optional">¶</a></h3>
+<p>Manages username uniqueness and username-based login. Only needed if your app requires unique usernames or login with username.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> UsernameStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ReserveUsername</span>(username <span style="color:#458;font-weight:bold">string</span>, userID <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetUserByUsername</span>(username <span style="color:#458;font-weight:bold">string</span>) (userID <span style="color:#458;font-weight:bold">string</span>, err <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ReleaseUsername</span>(username <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ChangeUsername</span>(oldUsername, newUsername, userID <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>Why separate from IdentityStore?</strong> Username is a display handle, not a contact method. It has different validation rules, changes more frequently, and enables O(1) lookup for username-based login.</p>
+<h3 id="tokenstore">TokenStore <a class="anchor" href="#tokenstore">¶</a></h3>
+<p>Manages verification and password reset tokens.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> TokenStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">CreateToken</span>(userID, email <span style="color:#458;font-weight:bold">string</span>, tokenType TokenType, expiryDuration time.Duration) (<span style="color:#000;font-weight:bold">*</span>AuthToken, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetToken</span>(token <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>AuthToken, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">DeleteToken</span>(token <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">DeleteUserTokens</span>(userID <span style="color:#458;font-weight:bold">string</span>, tokenType TokenType) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Token types: <code>TokenTypeEmailVerification</code>, <code>TokenTypePasswordReset</code></p>
+<h2 id="store-implementations">Store Implementations <a class="anchor" href="#store-implementations">¶</a></h2>
+<h3 id="file-based-fs">File-Based (FS) <a class="anchor" href="#file-based-fs">¶</a></h3>
+<p>Suitable for development, small applications (&lt; 1000 users), and prototypes.</p>
+<p><strong>Security:</strong> FS stores use a <code>safeName()</code> sanitizer on all key/file names to prevent path traversal attacks. Directories are created with permissions <code>0700</code> and files with <code>0600</code>.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>storagePath <span style="color:#000;font-weight:bold">:=</span> <span style="color:#d14">&#34;/path/to/storage&#34;</span>
+</span></span><span style="display:flex;"><span>userStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSUserStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>identityStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSIdentityStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>channelStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSChannelStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>tokenStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSTokenStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>usernameStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSUsernameStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>refreshTokenStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSRefreshTokenStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>apiKeyStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSAPIKeyStore</span>(storagePath)
+</span></span><span style="display:flex;"><span>appStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSAppStore</span>(storagePath) <span style="color:#998;font-style:italic">// RFC 7591 / 7592 client registrations (issue 166)
+</span></span></span></code></pre><p>The <code>FSAppStore</code> writes one JSON file per registration under <code>{storagePath}/apps/{client_id}.json</code>, with atomic writes (temp file + rename), <code>safeName</code> path-traversal defense, and lazy directory creation. Corrupt files surface as parse errors from <code>GetApp</code> (so operators can detect data integrity issues) but are silently skipped by <code>ListApps</code> (so admin tooling stays usable when one file is hand-edited badly).</p>
+<h3 id="gorm-sql-databases">GORM (SQL Databases) <a class="anchor" href="#gorm-sql-databases">¶</a></h3>
+<p>For production use with PostgreSQL, MySQL, SQLite, etc.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/gorm&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>usernameStore <span style="color:#000;font-weight:bold">:=</span> gorm.<span style="color:#900;font-weight:bold">NewUsernameStore</span>(db)
+</span></span></code></pre><h3 id="gae-google-app-engine-datastore">GAE (Google App Engine Datastore) <a class="anchor" href="#gae-google-app-engine-datastore">¶</a></h3>
+<p>For applications running on Google App Engine.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/gae&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>usernameStore <span style="color:#000;font-weight:bold">:=</span> gae.<span style="color:#900;font-weight:bold">NewUsernameStore</span>(datastoreClient, namespace)
+</span></span></code></pre><h2 id="custom-store-implementation">Custom Store Implementation <a class="anchor" href="#custom-store-implementation">¶</a></h2>
+<p>Implement the store interfaces for your database:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> PostgresUserStore <span style="color:#000;font-weight:bold">struct</span> {
+</span></span><span style="display:flex;"><span>    db <span style="color:#000;font-weight:bold">*</span>sql.DB
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> (s <span style="color:#000;font-weight:bold">*</span>PostgresUserStore) <span style="color:#900;font-weight:bold">CreateUser</span>(userId <span style="color:#458;font-weight:bold">string</span>, isActive <span style="color:#458;font-weight:bold">bool</span>, profile <span style="color:#000;font-weight:bold">map</span>[<span style="color:#458;font-weight:bold">string</span>]any) (core.User, <span style="color:#458;font-weight:bold">error</span>) {
+</span></span><span style="display:flex;"><span>    profileJSON, _ <span style="color:#000;font-weight:bold">:=</span> json.<span style="color:#900;font-weight:bold">Marshal</span>(profile)
+</span></span><span style="display:flex;"><span>    _, err <span style="color:#000;font-weight:bold">:=</span> s.db.<span style="color:#900;font-weight:bold">Exec</span>(
+</span></span><span style="display:flex;"><span>        <span style="color:#d14">&#34;INSERT INTO users (id, is_active, profile, created_at) VALUES ($1, $2, $3, NOW())&#34;</span>,
+</span></span><span style="display:flex;"><span>        userId, isActive, profileJSON,
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">nil</span>, err
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">&amp;</span>PostgresUser{id: userId, profile: profile}, <span style="color:#000;font-weight:bold">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Implement remaining methods...
+</span></span></span></code></pre><h3 id="caching">Caching <a class="anchor" href="#caching">¶</a></h3>
+<p>Implement caching in your store implementations for better performance:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> CachedUserStore <span style="color:#000;font-weight:bold">struct</span> {
+</span></span><span style="display:flex;"><span>    underlying UserStore
+</span></span><span style="display:flex;"><span>    cache      <span style="color:#000;font-weight:bold">*</span>lru.Cache
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> (s <span style="color:#000;font-weight:bold">*</span>CachedUserStore) <span style="color:#900;font-weight:bold">GetUserById</span>(userId <span style="color:#458;font-weight:bold">string</span>) (User, <span style="color:#458;font-weight:bold">error</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> cached, ok <span style="color:#000;font-weight:bold">:=</span> s.cache.<span style="color:#900;font-weight:bold">Get</span>(userId); ok {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> cached.(User), <span style="color:#000;font-weight:bold">nil</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    user, err <span style="color:#000;font-weight:bold">:=</span> s.underlying.<span style="color:#900;font-weight:bold">GetUserById</span>(userId)
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">==</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>        s.cache.<span style="color:#900;font-weight:bold">Add</span>(userId, user)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> user, err
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="keylookup--keystorage">KeyLookup &amp; KeyStorage <a class="anchor" href="#keylookup--keystorage">¶</a></h2>
+<p>For multi-tenant JWT validation, OneAuth provides key management interfaces built around the <code>KeyRecord</code> type.</p>
+<h3 id="keyrecord">KeyRecord <a class="anchor" href="#keyrecord">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> KeyRecord <span style="color:#000;font-weight:bold">struct</span> {
+</span></span><span style="display:flex;"><span>    ClientID  <span style="color:#458;font-weight:bold">string</span> <span style="color:#998;font-style:italic">// app/tenant identifier
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    Key       any    <span style="color:#998;font-style:italic">// []byte (HS256), *rsa.PublicKey (RS256), *ecdsa.PublicKey (ES256), or PEM bytes
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    Algorithm <span style="color:#458;font-weight:bold">string</span> <span style="color:#998;font-style:italic">// &#34;HS256&#34;, &#34;RS256&#34;, &#34;ES256&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><h3 id="keylookup-read-only">KeyLookup (Read-Only) <a class="anchor" href="#keylookup-read-only">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> KeyLookup <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetKey</span>(clientID <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>KeyRecord, <span style="color:#458;font-weight:bold">error</span>)      <span style="color:#998;font-style:italic">// lookup by client ID
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#900;font-weight:bold">GetKeyByKid</span>(kid <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>KeyRecord, <span style="color:#458;font-weight:bold">error</span>)      <span style="color:#998;font-style:italic">// lookup by key ID (RFC 7638 thumbprint)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><h3 id="keystorage-read--write">KeyStorage (Read + Write) <a class="anchor" href="#keystorage-read--write">¶</a></h3>
+<p>Extends <code>KeyLookup</code> with write operations for host registration and key management:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> KeyStorage <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    KeyLookup
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">PutKey</span>(rec <span style="color:#000;font-weight:bold">*</span>KeyRecord) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">DeleteKey</span>(clientID <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ListKeyIDs</span>() ([]<span style="color:#458;font-weight:bold">string</span>, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="inmemorykeystore">InMemoryKeyStore <a class="anchor" href="#inmemorykeystore">¶</a></h3>
+<p>For development and testing:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>keyStore <span style="color:#000;font-weight:bold">:=</span> keys.<span style="color:#900;font-weight:bold">NewInMemoryKeyStore</span>()
+</span></span><span style="display:flex;"><span>keyStore.<span style="color:#900;font-weight:bold">PutKey</span>(<span style="color:#000;font-weight:bold">&amp;</span>keys.KeyRecord{ClientID: <span style="color:#d14">&#34;host-alpha&#34;</span>, Key: []<span style="color:#0086b3">byte</span>(<span style="color:#d14">&#34;alpha-secret-key&#34;</span>), Algorithm: <span style="color:#d14">&#34;HS256&#34;</span>})
+</span></span><span style="display:flex;"><span>keyStore.<span style="color:#900;font-weight:bold">PutKey</span>(<span style="color:#000;font-weight:bold">&amp;</span>keys.KeyRecord{ClientID: <span style="color:#d14">&#34;host-beta&#34;</span>,  Key: []<span style="color:#0086b3">byte</span>(<span style="color:#d14">&#34;beta-secret-key&#34;</span>),  Algorithm: <span style="color:#d14">&#34;HS256&#34;</span>})
+</span></span></code></pre><h3 id="persistent-keystore-implementations">Persistent KeyStore Implementations <a class="anchor" href="#persistent-keystore-implementations">¶</a></h3>
+<h4 id="fs-keystore">FS KeyStore <a class="anchor" href="#fs-keystore">¶</a></h4>
+<p>File-based persistent KeyStore for single-node deployments:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>keyStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSKeyStore</span>(storagePath)
+</span></span></code></pre><h4 id="gorm-keystore">GORM KeyStore <a class="anchor" href="#gorm-keystore">¶</a></h4>
+<p>SQL-backed KeyStore for production use:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/gorm&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>keyStore <span style="color:#000;font-weight:bold">:=</span> gorm.<span style="color:#900;font-weight:bold">NewKeyStore</span>(db)
+</span></span></code></pre><h4 id="gae-keystore">GAE KeyStore <a class="anchor" href="#gae-keystore">¶</a></h4>
+<p>Google App Engine Datastore-backed KeyStore:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/gae&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>keyStore <span style="color:#000;font-weight:bold">:=</span> gae.<span style="color:#900;font-weight:bold">NewKeyStore</span>(datastoreClient, namespace)
+</span></span></code></pre><h3 id="keystoretest-shared-test-suite">keystoretest Shared Test Suite <a class="anchor" href="#keystoretest-shared-test-suite">¶</a></h3>
+<p>The <code>keystoretest</code> package provides a reusable test suite that any <code>KeyStorage</code> implementation can run to verify correctness:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/keystoretest&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">TestMyKeyStore</span>(t <span style="color:#000;font-weight:bold">*</span>testing.T) {
+</span></span><span style="display:flex;"><span>    store <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">NewMyKeyStore</span>(<span style="color:#000;font-weight:bold">...</span>)
+</span></span><span style="display:flex;"><span>    keystoretest.<span style="color:#900;font-weight:bold">RunKeyStoreTests</span>(t, store)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>All three built-in KeyStore implementations (FS, GORM, GAE) use this shared test suite. When implementing a custom KeyStorage, run these tests to verify compatibility.</p>
+<p>For how KeyLookup/KeyStorage is used in multi-tenant JWT validation, see <a href="API_AUTH.md#multi-tenant-jwt-validation-keystore">API_AUTH.md</a>.</p>
+<h2 id="appregistrationstore">AppRegistrationStore <a class="anchor" href="#appregistrationstore">¶</a></h2>
+<p>Persists app registration metadata for <code>AppRegistrar</code> and the DCR handler. Registrations are the source of truth for which <code>client_id</code>s exist and their RFC 7591/7592 metadata; without persistence, revoked apps come back on restart.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> AppRegistrationStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">SaveApp</span>(app <span style="color:#000;font-weight:bold">*</span>AppRegistration) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetApp</span>(clientID <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>AppRegistration, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ListApps</span>() ([]<span style="color:#000;font-weight:bold">*</span>AppRegistration, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">DeleteApp</span>(clientID <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><code>AppRegistrar</code> keeps an in-memory cache hydrated from the store on construction; reads hit the cache, writes go through <code>SaveRegistration</code> which writes the store first and updates the cache.</p>
+<h3 id="implementations">Implementations <a class="anchor" href="#implementations">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Status</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>admin.InMemoryAppStore</code></td>
+<td>Available</td>
+<td>Tests, dev (registrations lost on restart)</td>
+</tr>
+<tr>
+<td><code>stores/fs.FSAppStore</code></td>
+<td>Available (issue 166)</td>
+<td>Single-node, dev-friendly persistence</td>
+</tr>
+<tr>
+<td><code>stores/gorm.GORMAppStore</code></td>
+<td>Available (issue 167)</td>
+<td>Production, multi-node (Postgres / MySQL / SQLite)</td>
+</tr>
+</tbody>
+</table>
+<p>Construct with <code>admin.NewAppRegistrar(keyStore, auth)</code> for the default in-memory store, or <code>admin.NewAppRegistrarWithStore(keyStore, auth, store)</code> to plug in a persistent backend. The <code>cmd/oneauth-server</code> reference deployment exposes the choice via <code>app_store.type</code> (<code>memory</code> | <code>fs</code> | <code>gorm</code>) — see config schema below.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000080">app_store</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">type</span>:<span style="color:#bbb"> </span>gorm <span style="color:#bbb"> </span><span style="color:#998;font-style:italic"># memory | fs | gorm</span><span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">fs</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">    </span><span style="color:#000080">path</span>:<span style="color:#bbb"> </span>${DATA_DIR}/apps<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">  </span><span style="color:#000080">gorm</span>:<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">    </span><span style="color:#000080">driver</span>:<span style="color:#bbb"> </span>postgres<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">    </span><span style="color:#000080">dsn</span>:<span style="color:#bbb"> </span>${DATABASE_URL}<span style="color:#bbb">
+</span></span></span></code></pre><p>When the <code>app_store.gorm</code> config matches the <code>keystore.gorm</code> config (same driver + DSN), <code>cmd/oneauth-server</code> reuses the same connection pool. They open separate pools otherwise. The shared <code>appstoretest</code> contract suite runs against in-memory SQLite by default and against PostgreSQL when <code>ONEAUTH_TEST_PGDB</code> is set.</p>
+<h3 id="appstoretest-shared-test-suite">appstoretest Shared Test Suite <a class="anchor" href="#appstoretest-shared-test-suite">¶</a></h3>
+<p>The <code>appstoretest</code> package mirrors <code>keystoretest</code>: any <code>AppRegistrationStore</code> implementation can run the contract tests to verify correctness.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/appstoretest&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">TestMyAppStore</span>(t <span style="color:#000;font-weight:bold">*</span>testing.T) {
+</span></span><span style="display:flex;"><span>    appstoretest.<span style="color:#900;font-weight:bold">RunAll</span>(t, <span style="color:#000;font-weight:bold">func</span>(t <span style="color:#000;font-weight:bold">*</span>testing.T) admin.AppRegistrationStore {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> <span style="color:#900;font-weight:bold">NewMyAppStore</span>(<span style="color:#000;font-weight:bold">...</span>)
+</span></span><span style="display:flex;"><span>    })
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The suite covers Save/Get/List/Delete contracts, overwrite, persistence (read-after-write), and a full-fields round-trip (catches serialization bugs in slice-typed columns like <code>RedirectURIs</code> and <code>GrantTypes</code>).</p>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

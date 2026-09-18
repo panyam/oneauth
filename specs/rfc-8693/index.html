@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented (Phase 1 — JWT subject tokens)">
+    <title>RFC 8693 — OAuth 2.0 Token Exchange · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 8693 — OAuth 2.0 Token Exchange</h1>
+        
+        <p class="lead">Implemented (Phase 1 — JWT subject tokens)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8693.md"><code>docs/oauth/RFC_8693.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-8693--oauth-20-token-exchange">RFC 8693 — OAuth 2.0 Token Exchange <a class="anchor" href="#rfc-8693--oauth-20-token-exchange">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2020-01<br />
+<strong>L-tier / T-tier:</strong> L4 · T5<br />
+<strong>OneAuth coverage:</strong> Implemented (Phase 1 — JWT subject tokens)<br />
+<strong>See also:</strong> <a href="RFC_7523.md"><code>RFC_7523.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>Token Exchange lets a holder of one token swap it for another token —<br />
+typically used for <em>delegation</em> (&ldquo;user A acts as user B&rdquo;), <em>impersonation</em><br />
+(&ldquo;service S acts as user U&rdquo;), and <em>cross-domain federation</em> (an upstream<br />
+JWT becomes a downstream access token).</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without 8693</th>
+<th>With 8693</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Service-to-service auth with delegation requires custom protocols</td>
+<td>One standardized exchange flow</td>
+</tr>
+<tr>
+<td>GitHub Actions / GCP / AWS federation each defines its own JWT-to-cloud-token API</td>
+<td>All speak token exchange under the hood</td>
+</tr>
+<tr>
+<td>Tracking &ldquo;who actually acted&rdquo; through a delegation chain is ad-hoc</td>
+<td>The <code>act</code> and <code>may_act</code> claims express the chain explicitly</td>
+</tr>
+<tr>
+<td>Subject vs actor distinction is buried in vendor-specific claims</td>
+<td>Spec-defined <code>subject_token</code> (whose authority) vs <code>actor_token</code> (who&rsquo;s exercising it)</td>
+</tr>
+</tbody>
+</table>
+<p>8693 is the spec behind every &ldquo;use this JWT to get a different token&rdquo;<br />
+pattern. The famous public example: GitHub Actions has a workflow OIDC<br />
+token; AWS has IAM. The bridge (&ldquo;AWS OIDC federation&rdquo;) is RFC 8693<br />
+exchange.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>GitHub Actions deploying to AWS without static credentials:</p>
+<ol>
+<li>The CI job is issued a short-lived OIDC token by GitHub:<br />
+<code>{iss: &quot;https://token.actions.githubusercontent.com&quot;, sub: &quot;repo:org/repo:ref:main&quot;, ...}</code>.</li>
+<li>The job calls AWS STS:
+<pre><code>POST https://sts.amazonaws.com/?Action=AssumeRoleWithWebIdentity
+     &amp;WebIdentityToken=&lt;github-oidc-jwt&gt;
+     &amp;RoleArn=arn:aws:iam::123:role/github-deploy
+</code></pre>
+</li>
+<li>AWS verifies the JWT against GitHub&rsquo;s JWKS, applies its OIDC trust<br />
+policy, and returns AWS-format temporary credentials.</li>
+</ol>
+<p>That&rsquo;s a token exchange under the hood (AWS&rsquo;s API predates 8693 and uses<br />
+its own request shape, but the <em>operation</em> is exactly what 8693 standardizes).<br />
+Newer cloud services and identity brokers ship the actual 8693 wire form.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong>Grant type:</strong> <code>urn:ietf:params:oauth:grant-type:token-exchange</code>.</li>
+<li><strong>Two tokens in, one out</strong> (max):
+<ul>
+<li><code>subject_token</code> (required) — whose authority the new token represents</li>
+<li><code>actor_token</code> (optional) — who&rsquo;s actually exercising the authority;<br />
+produces a <em>delegation</em> relationship</li>
+</ul>
+</li>
+<li><strong>Token type indicators</strong> are explicit (and use URIs, not magic strings).<br />
+<code>subject_token_type</code> and <code>actor_token_type</code> are one of<br />
+<code>urn:ietf:params:oauth:token-type:{access_token,refresh_token,id_token,saml1,saml2,jwt}</code>.<br />
+This lets the exchange take in <em>any</em> token shape it&rsquo;s configured to<br />
+trust.</li>
+<li><strong>Output target negotiation</strong>: <code>audience</code>, <code>resource</code>, <code>scope</code>, and<br />
+<code>requested_token_type</code> let the caller ask for what they want — the AS<br />
+may grant less.</li>
+<li><strong>Delegation chain in the issued token</strong> uses the <code>act</code> claim<br />
+(RFC 8693 §4.1, also referenced by RFC 7519 conventions). If A<br />
+delegates to B who delegates to C, the issued token&rsquo;s claims express<br />
+the chain so the RS can audit it.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/api/token</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/x-www-form-urlencoded
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Basic &lt;client-creds&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+</span></span><span style="display:flex;"><span>&amp;subject_token=eyJhbGciOiJSUzI1Ni...
+</span></span><span style="display:flex;"><span>&amp;subject_token_type=urn:ietf:params:oauth:token-type:jwt
+</span></span><span style="display:flex;"><span>&amp;audience=https://downstream-api.example.com
+</span></span><span style="display:flex;"><span>&amp;scope=read+write
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>Cache-Control<span style="color:#000;font-weight:bold">:</span> no-store
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;access_token&#34;</span>:       <span style="color:#d14">&#34;eyJhbGciOiJSUzI1NiIsImtpZ...&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;issued_token_type&#34;</span>:  <span style="color:#d14">&#34;urn:ietf:params:oauth:token-type:access_token&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_type&#34;</span>:         <span style="color:#d14">&#34;Bearer&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;expires_in&#34;</span>:         <span style="color:#099">3600</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scope&#34;</span>:              <span style="color:#d14">&#34;read write&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The issued access token&rsquo;s claims reflect the subject (and optionally actor,<br />
+chained via <code>act</code>) from the original.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L4 grant types.</strong> Token Exchange plugs into the <code>/token</code> slot at T5<br />
+as another grant_type URI.</li>
+<li><strong>T5 (back-channel exchange).</strong> Pure server-to-server — no user<br />
+involvement; subject_token must already exist.</li>
+<li>This is the spec that makes federated identity <em>work</em> across domains<br />
+without static shared credentials.</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>Published 2020. Part of the OAuth 2.0 family. Used today as the basis for<br />
+nearly every modern OIDC federation pattern — even when vendors use their<br />
+own wire formats, the semantics are 8693.</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>Not changed by 2.1. Token Exchange remains a peer grant_type alongside<br />
+auth-code and client_credentials.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>8693 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grant_type=...:token-exchange</code> dispatch</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/token_endpoint.go:82–83</code> <code>case TokenExchangeGrantType</code> → <code>dispatchTokenExchange</code>; handler at <code>apiauth/token_exchange_granter.go:72</code> <code>TokenExchange</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>subject_token</code> parsing (Phase 1: JWT only)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/token_endpoint.go:113</code> reads <code>subject_token</code>; tests at <code>token_exchange_grant_test.go:36–37</code></td>
+<td>RFC 8693 §2.1</td>
+</tr>
+<tr>
+<td><code>subject_token_type=...:jwt</code> / <code>...:id_token</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/token_exchange_granter.go</code> accepts both; <code>token_exchange_grant_test.go</code>, <code>id_jag_test.go</code> exercise</td>
+<td>An <code>id_token</code> is validated as a signed JWT (MCP EMA presents one)</td>
+</tr>
+<tr>
+<td><code>actor_token</code> (delegation)</td>
+<td><strong>Not implemented (Phase 1 scope)</strong></td>
+<td>—</td>
+<td>Future Phase 2; <code>act</code> claim shape needed. ID-JAG redemption leaves a <code>// TODO(ext-auth#13)</code> for the actor claim</td>
+</tr>
+<tr>
+<td><code>audience</code> / <code>resource</code> request</td>
+<td><strong>Partial</strong></td>
+<td>Advisory for <code>access_token</code> output; <strong>bound</strong> for <code>id-jag</code> output (<code>audience</code>→ID-JAG <code>aud</code>, <code>resource</code>→<code>resource</code> claim)</td>
+<td>Access-token audience-targeting still pending</td>
+</tr>
+<tr>
+<td><code>requested_token_type</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>access_token</code> (default) and <code>...:id-jag</code> (<code>apiauth/token_exchange_granter.go</code>)</td>
+<td>id-jag output is opt-in (see below)</td>
+</tr>
+<tr>
+<td><code>issued_token_type</code> in response</td>
+<td><strong>Implemented</strong></td>
+<td>Returned per RFC 8693 §2.2.1</td>
+<td>id-jag output returns <code>token_type: N_A</code></td>
+</tr>
+<tr>
+<td>Subject-token JWT signature validation</td>
+<td><strong>Implemented</strong></td>
+<td>Exchange validates against trusted-issuer JWKS</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>may_act</code> claim handling</td>
+<td><strong>Not implemented</strong></td>
+<td>—</td>
+<td>Future Phase 2</td>
+</tr>
+</tbody>
+</table>
+<p>Phase 1 covers the most common production case (JWT-bearer-style subject<br />
+token exchange). Phase 2 deepens delegation primitives — file as a follow-up<br />
+gap if a real consumer asks.</p>
+<h3 id="id-jag-issuance-mcp-enterprise-managed-authorization--sep-990">ID-JAG issuance (MCP Enterprise-Managed Authorization / SEP-990) <a class="anchor" href="#id-jag-issuance-mcp-enterprise-managed-authorization--sep-990">¶</a></h3>
+<p><code>requested_token_type=urn:ietf:params:oauth:token-type:id-jag</code> mints an<br />
+<strong>Identity Assertion Authorization Grant</strong> instead of an access token — the<br />
+intermediate credential in the MCP EMA two-stage chain<br />
+(<code>id_token</code> → <code>id-jag</code> → MCP access token). Per<br />
+draft-ietf-oauth-identity-assertion-authz-grant-04:</p>
+<ul>
+<li>The ID-JAG is a signed JWT with header <code>typ: oauth-id-jag+jwt</code> and claims<br />
+<code>iss</code>, <code>sub</code>, <code>aud</code> (the resource app&rsquo;s AS, from the request <code>audience</code>),<br />
+<code>client_id</code>, <code>jti</code>, <code>iat</code>, <code>exp</code>, plus <code>scope</code> / <code>resource</code> when supplied.</li>
+<li>The response reports <code>issued_token_type</code> = the id-jag URN and<br />
+<code>token_type: N_A</code> (RFC 8693 §2.2.1 — an ID-JAG is redeemed, not presented<br />
+as a bearer token).</li>
+<li>Issuance is <strong>off by default</strong>. Wire <code>apiauth.NewJWTIDJAGIssuer</code> (signed<br />
+with the IdP key) into <code>TokenExchangerConfig.IDJAGIssuer</code> or<br />
+<code>OneAuthConfig.IDJAGIssuer</code> to opt in — minting a cross-domain<br />
+authorization grant is a sensitive capability gated per #344.</li>
+</ul>
+<p>Redemption is the sibling <a href="RFC_7523.md">RFC 7523</a> jwt-bearer grant. See<br />
+<code>apiauth/id_jag.go</code> and the two-leg e2e in<br />
+<code>client/enterprise_managed_e2e_test.go</code>.</p>
+<p>A confidential requesting client is authenticated on the exchange when its<br />
+<code>client_id</code> names a registered confidential client (issue 356,<br />
+<code>apiauth/confidential_client_auth.go</code>); public / unregistered clients keep the<br />
+assertion-only path.</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>Same-domain machine-to-machine auth</strong> — use <code>client_credentials</code>. No<br />
+delegation needed; no second token to exchange.</li>
+<li><strong>Auth code + refresh flow</strong> — these are the right answer for browser<br />
+and mobile clients. Token Exchange is for <em>credential bridging</em>, not<br />
+for getting an initial token.</li>
+</ul>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_7523.md">RFC 7523</a> — JWT Bearer; sibling grant for &ldquo;I have a JWT, give me a token&rdquo; (simpler, no actor concept)</li>
+<li><a href="RFC_6749.md">RFC 6749</a> — the framework 8693 extends</li>
+<li><a href="RFC_7519.md">RFC 7519</a> — JWT subject_tokens live here</li>
+<li><a href="RFC_9396.md">RFC 9396</a> — RAR; token exchange can ask for and receive narrowed <code>authorization_details</code></li>
+<li><a href="RFC_oauth21.md">OAuth 2.1 draft</a> — unchanged</li>
+<li><a href="RFC_9068.md">RFC 9068</a> — the issued access token follows this profile</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc8693/">Datatracker: rfc8693</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc8693.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=8693">Errata search</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

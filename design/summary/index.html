@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="What each package in the repository is for, and where its detailed notes live.">
+    <title>Package summary · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Package summary</h1>
+        
+        <p class="lead">What each package in the repository is for, and where its detailed notes live.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/SUMMARY.md"><code>docs/SUMMARY.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oneauth-summary">OneAuth Summary <a class="anchor" href="#oneauth-summary">¶</a></h1>
+<h2 id="what-is-oneauth">What is OneAuth? <a class="anchor" href="#what-is-oneauth">¶</a></h2>
+<p>OneAuth is a Go authentication library providing unified local and OAuth-based authentication with support for multiple authentication methods per user account.</p>
+<h2 id="key-features">Key Features <a class="anchor" href="#key-features">¶</a></h2>
+<ul>
+<li><strong>Browser Authentication</strong>: Password login, OAuth (Google, GitHub), email verification, password reset</li>
+<li><strong>API Authentication</strong>: JWT access tokens, refresh tokens, API keys for programmatic access</li>
+<li><strong>Multi-provider</strong>: Single account accessible via password, Google, GitHub, etc. with channel linking</li>
+<li><strong>Flexible Storage</strong>: File-based, GORM (SQL), and GAE/Datastore implementations</li>
+<li><strong>Scope-based Access</strong>: Fine-grained permissions for API endpoints</li>
+<li><strong>Multi-tenant JWT</strong>: KeyStorage/KeyLookup interfaces for per-client signing keys, kid (Key ID) in all JWTs for JWKS-based discovery, key rotation with grace period (KidStore), custom claims, algorithm confusion prevention, asymmetric signing (RS256/ES256), HS256 secret encryption at rest (AES-256-GCM via EncryptedKeyStorage)</li>
+<li><strong>Policy-Based Validation</strong>: Configurable signup requirements (SignupPolicy)</li>
+<li><strong>Username Support</strong>: Optional username uniqueness with username-based login</li>
+<li><strong>App Registration API</strong>: AdminAuth interface (APIKeyAuth, NoAuth), AppRegistrar HTTP handler for App CRUD, MintResourceToken for resource-scoped JWTs</li>
+<li><strong>Protected Resource Metadata</strong>: RFC 9728 — resource servers advertise capabilities at <code>/.well-known/oauth-protected-resource</code> for client auto-discovery</li>
+<li><strong>Client SDK</strong>: AuthClient with CredentialStore, HTTPClient wrapper with automatic token refresh on 401</li>
+<li><strong>CSRF Protection</strong>: Double-submit cookie middleware (<code>CSRFMiddleware</code>) for form endpoints, opt-in per-route</li>
+<li><strong>Reference Server</strong>: Config-driven server in <code>cmd/oneauth-server/</code>, deployable to GAE, Docker, and Kubernetes</li>
+<li><strong>Federated Auth Demo</strong>: 6-service Docker Compose demo (oneauth-server, 2 app services, 2 resource servers, PostgreSQL) in <code>demo/</code></li>
+</ul>
+<h2 id="architecture">Architecture <a class="anchor" href="#architecture">¶</a></h2>
+<p>Three-layer data model separating concerns:</p>
+<ol>
+<li><strong>User</strong>: Account with profile data</li>
+<li><strong>Identity</strong>: Contact method (email/phone) with verification status</li>
+<li><strong>Channel</strong>: Auth mechanism (local, google, github) with credentials</li>
+</ol>
+<h2 id="package-structure">Package Structure <a class="anchor" href="#package-structure">¶</a></h2>
+<pre><code>oneauth/
+├── core/                 # Foundation types: User, Identity, Channel, store interfaces,
+│                         #   tokens, credentials, scopes, email, context helpers
+├── keys/                 # Key storage: KeyRecord, KeyLookup, KeyStorage, InMemoryKeyStore,
+│                         #   EncryptedKeyStorage, KidStore, JWKSHandler, JWKSKeyStore
+├── admin/                # Admin auth: AdminAuth, AppRegistrar, MintResourceToken
+├── apiauth/              # API auth: APIAuth, APIMiddleware, context helpers
+├── localauth/            # Local auth: LocalAuth, signup, helpers (NewCreateUserFunc, etc.)
+├── httpauth/             # HTTP middleware: Middleware, CSRFMiddleware, OneAuth session mux
+├── stores/
+│   ├── fs/               # File-based stores (dev)
+│   ├── gorm/             # GORM SQL stores
+│   └── gae/              # Google Datastore stores
+├── client/               # Client SDK for token management
+│   └── stores/fs/        # File-based credential store
+├── cmd/oneauth-server/   # Reference server (config-driven, GAE/Docker/K8s)
+├── cmd/demo-hostapp/     # Demo app (DrawApp/ChatApp)
+├── cmd/demo-resource-server/  # Demo resource server (JWT validation service)
+├── demo/                 # Docker Compose demo (6 services: auth, 2 apps, 2 resource servers, DB)
+├── appstoretest/         # Shared AppRegistrationStore contract suite
+├── deviceauthtest/       # Shared DeviceAuthorizationStore contract suite (RFC 8628)
+├── keystoretest/         # Shared KeyStore test suite
+├── kidstoretest/         # Shared KidStore contract suite
+├── tests/integration/    # Integration tests (GAE + demo stack)
+├── grpc/                 # gRPC utilities
+├── oauth2/               # OAuth2 providers
+└── saml/                 # SAML support
+</code></pre>
+<p>Each subpackage has a <code>SUMMARY.md</code> for quick orientation.</p>
+<h2 id="quick-start">Quick Start <a class="anchor" href="#quick-start">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> (
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/core&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/localauth&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/apiauth&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Browser auth
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>auth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>localauth.LocalAuth{<span style="color:#000;font-weight:bold">...</span>}
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/auth/login&#34;</span>, auth)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// API auth
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>api <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIAuth{<span style="color:#000;font-weight:bold">...</span>}
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/login&#34;</span>, api)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Protect endpoints with APIMiddleware
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>middleware <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIMiddleware{
+</span></span><span style="display:flex;"><span>    LegacyQueryParamBearer: <span style="color:#d14">&#34;token&#34;</span>,  <span style="color:#998;font-style:italic">// legacy OAuth 2.0 path; OAuth 2.1 §5.4 retired query-param bearer
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;/api/protected&#34;</span>, middleware.<span style="color:#900;font-weight:bold">ValidateToken</span>(handler))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Extract custom claims in handlers
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>claims <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">GetCustomClaimsFromContext</span>(r.<span style="color:#900;font-weight:bold">Context</span>())
+</span></span></code></pre><h3 id="client-sdk">Client SDK <a class="anchor" href="#client-sdk">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> (
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/client&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/client/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Create credential store
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>store, _ <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSCredentialStore</span>(<span style="color:#d14">&#34;&#34;</span>, <span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Create auth client
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>authClient <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(<span style="color:#d14">&#34;https://api.example.com&#34;</span>, store)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Login
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>authClient.<span style="color:#900;font-weight:bold">Login</span>(<span style="color:#d14">&#34;user@example.com&#34;</span>, <span style="color:#d14">&#34;password&#34;</span>, <span style="color:#d14">&#34;read write&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Use authenticated HTTP client (auto-refresh on 401)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>resp, _ <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">HTTPClient</span>().<span style="color:#900;font-weight:bold">Get</span>(<span style="color:#d14">&#34;https://api.example.com/resource&#34;</span>)
+</span></span></code></pre><h2 id="unified-auth-for-http-handlers">Unified Auth for HTTP Handlers <a class="anchor" href="#unified-auth-for-http-handlers">¶</a></h2>
+<p>The <code>Middleware</code> can validate both session-based auth (for browsers) and Bearer tokens (for API/CLI clients) through a unified interface:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Wire up APIAuth&#39;s JWT validation to Middleware
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>apiAuth <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>oneauth.APIAuth{
+</span></span><span style="display:flex;"><span>    JWTSecretKey: <span style="color:#d14">&#34;secret&#34;</span>,
+</span></span><span style="display:flex;"><span>    JWTIssuer:    <span style="color:#d14">&#34;myapp&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>oneauth.Middleware.VerifyToken = apiAuth.<span style="color:#900;font-weight:bold">VerifyTokenFunc</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Now GetLoggedInUserId checks both session AND Bearer token
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>userID <span style="color:#000;font-weight:bold">:=</span> middleware.<span style="color:#900;font-weight:bold">GetLoggedInUserId</span>(r)  <span style="color:#998;font-style:italic">// Works for browser and API clients
+</span></span></span></code></pre><p>The <code>Middleware.GetLoggedInUserId()</code> now:</p>
+<ol>
+<li>Checks request context (previously set by ExtractUser)</li>
+<li>Checks session (for browser clients)</li>
+<li>Checks Authorization header for Bearer tokens (for API/CLI clients)</li>
+</ol>
+<h2 id="channel-linking">Channel Linking <a class="anchor" href="#channel-linking">¶</a></h2>
+<p>OneAuth supports linking multiple auth methods to the same account:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// OAuth callback automatically links to existing user with same email
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>ensureUser <span style="color:#000;font-weight:bold">:=</span> oneauth.<span style="color:#900;font-weight:bold">NewEnsureAuthUserFunc</span>(config)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// OAuth-only user can add password later
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>oneauth.<span style="color:#900;font-weight:bold">LinkLocalCredentials</span>(config, userID, <span style="color:#d14">&#34;username&#34;</span>, <span style="color:#d14">&#34;password&#34;</span>, email)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Password user can link Google account
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>oneauth.<span style="color:#900;font-weight:bold">StartLinkOAuth</span>(r, userID)  <span style="color:#998;font-style:italic">// In &#34;Link Google&#34; handler
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Then in OAuth callback:
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>oneauth.<span style="color:#900;font-weight:bold">HandleLinkOAuthCallback</span>(config, linkingUserID, <span style="color:#d14">&#34;google&#34;</span>, userInfo, w, r)
+</span></span></code></pre><h2 id="documentation">Documentation <a class="anchor" href="#documentation">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Document</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="ARCHITECTURE.md">ARCHITECTURE.md</a></td>
+<td>High-level overview and design principles</td>
+</tr>
+<tr>
+<td><a href="BROWSER_AUTH.md">BROWSER_AUTH.md</a></td>
+<td>Browser-based auth (LocalAuth, OAuth, sessions, validation)</td>
+</tr>
+<tr>
+<td><a href="API_AUTH.md">API_AUTH.md</a></td>
+<td>API auth (JWT, refresh tokens, API keys, KeyStore)</td>
+</tr>
+<tr>
+<td><a href="FEDERATED_AUTH.md">FEDERATED_AUTH.md</a></td>
+<td>Federated auth (AppRegistrar, MintResourceToken, AdminAuth)</td>
+</tr>
+<tr>
+<td><a href="JWT_SIGNING.md">JWT_SIGNING.md</a></td>
+<td>JWT signing algorithms (HS256/RS256/ES256), key management, crypto helpers</td>
+</tr>
+<tr>
+<td><a href="AUTH_FLOWS.md">AUTH_FLOWS.md</a></td>
+<td>Detailed decision trees, user journeys, edge cases</td>
+</tr>
+<tr>
+<td><a href="CLIENT_SDK.md">CLIENT_SDK.md</a></td>
+<td>Client SDK for CLI/programmatic access</td>
+</tr>
+<tr>
+<td><a href="STORES.md">STORES.md</a></td>
+<td>Store interfaces and implementations</td>
+</tr>
+<tr>
+<td><a href="DEMOS.md">DEMOS.md</a></td>
+<td>Runnable demos, scenarios, and production vs. demo comparison</td>
+</tr>
+</tbody>
+</table>
+<h2 id="current-version">Current Version <a class="anchor" href="#current-version">¶</a></h2>
+<ul>
+<li><strong>v0.0.64</strong>: Reusable <code>testutil</code> package (#68). <code>TestAuthServer</code> (in-process RS256 auth server with JWKS, AS metadata, DCR), shared OAuth helpers (<code>GetClientCredentialsToken</code>, <code>DiscoverOIDC</code>, etc.). Token endpoint now accepts form-encoded (RFC 6749) + JSON. Keycloak tests dogfooded. 15 tests.</li>
+<li><strong>v0.0.63</strong>: PKCE metadata verification (#65) + resource parameter RFC 8707 (#66). LoginWithBrowser verifies S256 support in AS metadata before starting auth flow. Resource parameter included in auth URL + token exchange.</li>
+<li><strong>v0.0.62</strong>: DCR conformance wrapper (#48) + Introspection client (#55). <code>DCRHandler</code> at <code>POST /apps/dcr</code> (RFC 7591). <code>IntrospectionValidator</code> with caching + <code>APIMiddleware</code> integration. 13 unit + 3 e2e + 2 Keycloak tests.</li>
+<li><strong>v0.0.61</strong>: Headless OAuth + PKCE for CLI (#54). <code>LoginWithBrowser()</code> on <code>AuthClient</code> — loopback redirect, PKCE, state, auto-discovery. 6 unit tests + Keycloak interop. Also fixes gosec XSS in password reset form.</li>
+<li><strong>v0.0.60</strong>: OIDC Discovery endpoint (#50). <code>ASServerMetadata</code> + <code>NewASMetadataHandler</code> in <code>apiauth/</code> (RFC 8414). Auth server serves <code>/.well-known/openid-configuration</code>. 6 unit + 3 e2e + Keycloak compat test. Completes discovery loop with #51.</li>
+<li><strong>v0.0.59</strong>: AS Metadata Discovery client (#51). <code>DiscoverAS()</code> in <code>client/discovery.go</code> (RFC 8414 + OIDC Discovery). Fallback chain, path-based issuers. 8 unit tests + Keycloak interop.</li>
+<li><strong>v0.0.58</strong>: Token Introspection (#47). <code>IntrospectionHandler</code> in <code>apiauth/</code> (RFC 7662). Resource servers validate tokens via <code>POST /oauth/introspect</code>. Blacklist-aware. 9 unit + 3 e2e tests.</li>
+<li><strong>v0.0.57</strong>: <code>client_credentials</code> grant (#53). Machine-to-machine auth via <code>APIAuth.ClientKeyStore</code>. Server + client side. <code>client_secret_post</code> and <code>client_secret_basic</code>. 8 unit + 2 e2e tests.</li>
+<li><strong>v0.0.56</strong>: Keycloak interop test suite (#49). 10 tests proving <code>APIMiddleware</code> + <code>JWKSKeyStore</code> validate Keycloak-issued tokens. Pre-baked realm JSON, <code>make upkcl/testkcl/downkcl</code>, manual-trigger CI. Separate Go module.</li>
+<li><strong>v0.0.55</strong>: Protected Resource Metadata (#46). <code>ProtectedResourceMetadata</code> + <code>NewProtectedResourceHandler</code> in <code>apiauth/</code> (RFC 9728). Resource servers advertise capabilities at <code>/.well-known/oauth-protected-resource</code>. 7 unit + 3 e2e tests.</li>
+<li><strong>v0.0.54</strong>: Fix JWT <code>aud</code> array validation (#52). <code>matchesAudience()</code> handles both string and array <code>aud</code> claims per RFC 7519 §4.1.3. Interop with Keycloak/Auth0/Azure AD. 8 new tests.</li>
+<li><strong>v0.0.53</strong>: AppRegistrar data race fix (found by e2e race detector). <code>NewAppRegistrar()</code> constructor. Python integration tests removed.</li>
+<li><strong>v0.0.52</strong>: Go e2e tests (#44). 28 in-process tests replacing Python integration suite. Auth + 2 resource servers via httptest.NewServer. All federated tests work (0 skipped). Race-clean. <code>make e2e</code>, <code>make test-hard</code>.</li>
+<li><strong>v0.0.50</strong>: Load testing (#38). <code>hey</code>-based load tests for health, login, JWT validation, admin endpoints. <code>make test-hard</code> now includes unit + integration + load + secrets.</li>
+<li><strong>v0.0.49</strong>: Secret scanning + ZAP dynamic testing (#36, #37). Gitleaks in CI, ZAP baseline scan on push, all Actions pinned by SHA. <code>make secrets</code> for local use.</li>
+<li><strong>v0.0.48</strong>: JWT token blacklist (#23). <code>core.TokenBlacklist</code> interface, <code>InMemoryBlacklist</code>, <code>jti</code> claim in all access tokens, blacklist check in APIAuth + APIMiddleware. 10 tests.</li>
+<li><strong>v0.0.47</strong>: PKCE for OAuth2 (#27). Proof Key for Code Exchange (RFC 7636) enabled by default. <code>DisablePKCE</code> opt-out. HttpOnly cookie for verifier. 8 tests.</li>
+<li><strong>v0.0.46</strong>: Integration security tests (#18). 11 full-stack tests, &ndash;start-server auto-build, refresh token family revocation bug fix, JWT-protected /api/me endpoint, LimitBody on /apps/.</li>
+<li><strong>v0.0.45</strong>: Documentation update. All 15 docs synced with subpackage reorg + security hardening.</li>
+<li><strong>v0.0.44</strong>: Rate limiting, account lockout, timing oracle fix (#31). Login rate limiting via <code>core.RateLimiter</code> (token bucket), account lockout via <code>core.AccountLockout</code>, CWE-208 timing oracle fix in credential validator.</li>
+<li><strong>v0.0.43</strong>: Security headers (#28), JWKS ETag (#24), Go 1.26.1 (#14), static analysis (#15), CI pipeline (#35). <code>SecurityHeaders</code> middleware, JWKS <code>ETag</code>+<code>304</code>, <code>govulncheck</code> clean, GitHub Actions CI.</li>
+<li><strong>v0.0.42</strong>: Crypto hardening (#29), body limits (#34), audience fix (#33). Min RSA 2048, no-panic <code>EncodePrivateKeyPEM</code>, <code>SigningMethodForAlg</code> errors on unknown, <code>LimitBody</code> middleware, audience validation in <code>ValidateAccessToken</code>.</li>
+<li><strong>v0.0.41</strong>: Reference links on all security tests. RFC/CVE/CWE/OWASP links in test docstrings.</li>
+<li><strong>v0.0.40</strong>: Sub-module split (#43), FS path traversal fix (#17). Core module trimmed to 6 deps. Heavy backends are separate Go modules. <code>safeName()</code> sanitizer on all FS stores, permissions tightened to 0700/0600. Migration guide: docs/MIGRATION.md.</li>
+<li><strong>v0.0.39</strong>: Subpackage reorganization + security hardening. Root .go files split into <code>core/</code>, <code>keys/</code>, <code>admin/</code>, <code>apiauth/</code>, <code>localauth/</code>, <code>httpauth/</code>. JWKS <code>key_ops: [&quot;verify&quot;]</code> for RFC compliance (#26). JWT security test suite with 13 tests covering algorithm confusion (CVE-2015-9235), claim validation, and edge cases (#16). Closed #4, #7, #16, #21, #26.</li>
+<li><strong>v0.0.38</strong>: kid in JWTs + KeyStore refactor (#25, #40). All minted JWTs include <code>kid</code> header (RFC 7638 thumbprint). Decomposed god KeyStore interface into focused <code>KeyLookup</code> (read) and <code>KeyStorage</code> (read+write) with <code>KeyRecord</code> struct. <code>EncryptedKeyStorage</code> correctly computes kid from plaintext. <code>KidStore</code> for key rotation grace periods. <code>CompositeKeyLookup</code> chains multiple sources. Cross-app forgery prevention via kid owner cross-check. JWKS uses thumbprint kids. All backends updated.</li>
+<li><strong>v0.0.37</strong>: CSRF protection (#21). <code>CSRFMiddleware</code> with double-submit cookie pattern, constant-time comparison, Bearer exemption. Reference server form endpoints protected. 12 unit tests.</li>
+<li><strong>v0.0.36</strong>: HS256 secret encryption at rest (#19). <code>EncryptedKeyStore</code> decorator with AES-256-GCM, HKDF-SHA256 key derivation, plaintext migration fallback. Configured via <code>ONEAUTH_MASTER_KEY</code> env var.</li>
+<li><strong>v0.0.35</strong>: JWKS endpoint for federated public key discovery (#7). <code>JWKSHandler</code> serves <code>/.well-known/jwks.json</code>, <code>JWKSKeyStore</code> fetches keys from remote JWKS URL, <code>utils/jwk.go</code> JWK conversion utilities. Demo resource server supports <code>JWKS_URL</code> as alternative to shared database.</li>
+<li><strong>v0.0.34</strong>: Asymmetric JWT signing (RS256/ES256). <code>MintResourceTokenWithKey</code>, <code>APIAuth.JWTSigningKey</code>/<code>JWTVerifyKey</code>, <code>AppRegistrar</code> public key registration, <code>utils/crypto_helpers.go</code>, keystoretest asymmetric suite, pre-push hook.</li>
+<li><strong>v0.0.33</strong>: Federated auth demo with guided UI, devloop live-reload, CORS, credential recovery, per-page template routing. Renamed Host/Relay to App/Resource Server throughout.</li>
+<li><strong>v0.0.32</strong>: APIMiddleware enhancements (TokenQueryParam, GetCustomClaimsFromContext).</li>
+<li><strong>v0.0.31</strong>: App Registration API (AdminAuth, AppRegistrar, MintResourceToken). Config-driven reference server (<code>cmd/oneauth-server/</code>).</li>
+<li><strong>v0.0.30</strong>: WritableKeyStore interface. Persistent KeyStore backends (GORM, FS, GAE). Shared test suite in <code>keystoretest/</code>.</li>
+<li><strong>v0.0.29</strong>: CustomClaimsFunc, KeyStore interface, InMemoryKeyStore, multi-tenant JWT validation with algorithm confusion prevention.</li>
+<li><strong>v0.0.28</strong>: Optimistic locking (Version, UpdatedAt) on Identity/Channel. ExpiresAt on Channel for OAuth token expiry tracking.</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

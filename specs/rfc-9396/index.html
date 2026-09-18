@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented (core/authorization_details.go &#43; apiauth/ token / introspection / middleware)">
+    <title>RFC 9396 — OAuth 2.0 Rich Authorization Requests (RAR) · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 9396 — OAuth 2.0 Rich Authorization Requests (RAR)</h1>
+        
+        <p class="lead">Implemented (core/authorization_details.go &#43; apiauth/ token / introspection / middleware)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9396.md"><code>docs/oauth/RFC_9396.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-9396--oauth-20-rich-authorization-requests-rar">RFC 9396 — OAuth 2.0 Rich Authorization Requests (RAR) <a class="anchor" href="#rfc-9396--oauth-20-rich-authorization-requests-rar">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2023-05<br />
+<strong>L-tier / T-tier:</strong> L6 · T1 (prepare) + T5 (carry through mint) + T7 (verify at RS)<br />
+<strong>OneAuth coverage:</strong> Implemented (<code>core/authorization_details.go</code> + <code>apiauth/</code> token / introspection / middleware)<br />
+<strong>See also:</strong> <a href="RFC_9126.md"><code>RFC_9126.md</code></a> · <a href="RFC_9101.md"><code>RFC_9101.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>RAR replaces the flat <code>scope</code> string with a structured<br />
+<code>authorization_details</code> JSON array — letting the request express <em>exactly</em><br />
+what&rsquo;s being asked for (e.g., &ldquo;transfer £500 from account A to merchant B<br />
+once&rdquo;) rather than a coarse &ldquo;payments&rdquo; scope.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without RAR</th>
+<th>With RAR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scope=&quot;payments&quot;</code> means &ldquo;all payment operations forever&rdquo; — coarse, dangerous</td>
+<td><code>authorization_details=[{type:&quot;payment&quot;, amount:500, beneficiary:&quot;B&quot;}]</code> is precise and one-shot</td>
+</tr>
+<tr>
+<td>Banking, healthcare, and regulated APIs invent ad-hoc parameters to carry transaction-specific details</td>
+<td>One spec; one place to put structured authorization data</td>
+</tr>
+<tr>
+<td>Audit trails (what was authorized?) need to parse out vendor-specific extensions</td>
+<td><code>authorization_details</code> is the canonical record</td>
+</tr>
+<tr>
+<td>Step-up authentication (mid-session, &ldquo;approve this particular transfer&rdquo;) needs request-specific data</td>
+<td>RAR is the natural carrier — <code>type</code> + per-type schemas</td>
+</tr>
+</tbody>
+</table>
+<p>RAR is the <em>expressivity</em> upgrade for authorization. Scope is &ldquo;what API<br />
+surface&rdquo;; RAR is &ldquo;what specific operation, with what parameters.&rdquo; They&rsquo;re<br />
+complementary — most deployments ship both.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>UK Open Banking payment initiation under PSD2 — the canonical RAR use case<br />
+that drove the spec:</p>
+<p>A third-party payment service provider (PSP) wants to initiate a £500<br />
+transfer from a customer&rsquo;s account at HSBC to merchant ACME. Without RAR,<br />
+the authorization is &ldquo;the PSP can do payment operations&rdquo; — vague,<br />
+dangerous, hard to audit. With RAR, the authorization request says<br />
+<em>exactly</em> what&rsquo;s being asked:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#d14">&#34;authorization_details&#34;</span><span style="color:#a61717;background-color:#e3d2d2">:</span> [{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;type&#34;</span>: <span style="color:#d14">&#34;payment_initiation&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;actions&#34;</span>: [<span style="color:#d14">&#34;initiate&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;instructedAmount&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;currency&#34;</span>: <span style="color:#d14">&#34;GBP&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;amount&#34;</span>:   <span style="color:#d14">&#34;500.00&#34;</span>
+</span></span><span style="display:flex;"><span>  },
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;creditorName&#34;</span>: <span style="color:#d14">&#34;ACME Corp&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;creditorAccount&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;iban&#34;</span>: <span style="color:#d14">&#34;DE89370400440532013000&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}]
+</span></span></code></pre><p>The customer&rsquo;s bank shows them the actual transaction details on the<br />
+consent screen. The customer approves the <em>specific transfer</em>, not the<br />
+PSP&rsquo;s general access. The issued access token carries the same<br />
+<code>authorization_details</code> — the RS verifies the operation matches.</p>
+<p>Any future API call from the PSP that tries to do something different (a<br />
+different amount, a different beneficiary) is rejected because the token&rsquo;s<br />
+<code>authorization_details</code> don&rsquo;t match.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong><code>authorization_details</code> is an array of objects.</strong> Each object has<br />
+at minimum a <code>type</code> field naming a <em>type-specific schema</em>. Beyond<br />
+<code>type</code>, the schema is defined per type — by the AS, an industry<br />
+profile, or a regulator.</li>
+<li><strong>Three places the data appears on the wire</strong>:
+<ul>
+<li>In the authorization request (T1): <code>authorization_details</code> URL/POST param</li>
+<li>In the token response (T5): mirrored back so the client knows what was granted</li>
+<li>In the token claims / introspection response (T7): the RS reads it</li>
+</ul>
+</li>
+<li><strong>Composes with <code>scope</code>.</strong> Not exclusive — many deployments use scope<br />
+for coarse-grained capabilities and RAR for transaction details.<br />
+<code>scope=payments authorization_details=[{type:&quot;payment_initiation&quot;, ...}]</code>.</li>
+<li><strong><code>type</code> values are registered.</strong> OpenID has defined <code>payment_initiation</code>,<br />
+<code>account_information</code>, <code>customer_information</code>, etc. Industry profiles<br />
+(Open Banking, healthcare) add more. AS can advertise the types it<br />
+accepts via <code>authorization_details_types_supported</code> (RFC 8414).</li>
+<li><strong>Cross-spec composition.</strong> RAR rides naturally inside PAR (RFC 9126)<br />
+and JAR (RFC 9101). The combination — structured authorization<br />
+(RAR), back-channel transport (PAR), signed integrity (JAR) — is the<br />
+FAPI 2.0 baseline.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p><strong>Authorization request with RAR:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">GET /authorize?response_type=code
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;client_id=psp-1
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;redirect_uri=https%3A%2F%2Fpsp.example%2Fcb
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;scope=openid
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;state=xyz
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;code_challenge=E9Mel...
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;code_challenge_method=S256
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">              &amp;authorization_details=%5B%7B%22type%22%3A%22payment_initiation%22%2C%22actions%22%3A%5B%22initiate%22%5D%2C%22instructedAmount%22%3A%7B%22currency%22%3A%22GBP%22%2C%22amount%22%3A%22500.00%22%7D%2C%22creditorName%22%3A%22ACME+Corp%22%7D%5D HTTP/1.1
+</span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Host: bank.example
+</span></span></span></code></pre><p>(URL-decoded <code>authorization_details</code> is the JSON shown above.)</p>
+<p><strong>Token response carries <code>authorization_details</code> back:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;access_token&#34;</span>:       <span style="color:#d14">&#34;eyJhbGciOi...&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_type&#34;</span>:         <span style="color:#d14">&#34;Bearer&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;expires_in&#34;</span>:         <span style="color:#099">3600</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scope&#34;</span>:              <span style="color:#d14">&#34;openid&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;authorization_details&#34;</span>: [{
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;type&#34;</span>: <span style="color:#d14">&#34;payment_initiation&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;actions&#34;</span>: [<span style="color:#d14">&#34;initiate&#34;</span>],
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;instructedAmount&#34;</span>: {<span style="color:#000080">&#34;currency&#34;</span>: <span style="color:#d14">&#34;GBP&#34;</span>, <span style="color:#000080">&#34;amount&#34;</span>: <span style="color:#d14">&#34;500.00&#34;</span>},
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;creditorName&#34;</span>: <span style="color:#d14">&#34;ACME Corp&#34;</span>
+</span></span><span style="display:flex;"><span>  }]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>Issued access token (JWT) carries it as a claim:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iss&#34;</span>: <span style="color:#d14">&#34;...&#34;</span>, <span style="color:#000080">&#34;sub&#34;</span>: <span style="color:#d14">&#34;...&#34;</span>, <span style="color:#000080">&#34;aud&#34;</span>: <span style="color:#d14">&#34;...&#34;</span>, <span style="color:#000080">&#34;exp&#34;</span>: <span style="color:#a61717;background-color:#e3d2d2">...</span>, <span style="color:#000080">&#34;iat&#34;</span>: <span style="color:#a61717;background-color:#e3d2d2">...</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_id&#34;</span>: <span style="color:#d14">&#34;psp-1&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;scope&#34;</span>: <span style="color:#d14">&#34;openid&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;authorization_details&#34;</span>: [{
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;type&#34;</span>: <span style="color:#d14">&#34;payment_initiation&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;actions&#34;</span>: [<span style="color:#d14">&#34;initiate&#34;</span>],
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;instructedAmount&#34;</span>: {<span style="color:#000080">&#34;currency&#34;</span>: <span style="color:#d14">&#34;GBP&#34;</span>, <span style="color:#000080">&#34;amount&#34;</span>: <span style="color:#d14">&#34;500.00&#34;</span>},
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;creditorName&#34;</span>: <span style="color:#d14">&#34;ACME Corp&#34;</span>
+</span></span><span style="display:flex;"><span>  }]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p><strong>RS validates the actual operation against the token:</strong></p>
+<p>When the PSP calls <code>POST /payments</code> with that token, the RS verifies:</p>
+<ul>
+<li>Token signature + standard JWT validation</li>
+<li><code>authorization_details</code> includes a <code>payment_initiation</code> entry</li>
+<li>The actual payment in the request matches <code>instructedAmount</code>,<br />
+<code>creditorName</code>, etc. in the token</li>
+</ul>
+<p>Mismatch → reject. The bank issues <em>exactly</em> the authorization that was<br />
+asked for.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L6 request integrity.</strong> Not because RAR adds signatures (it doesn&rsquo;t),<br />
+but because it tightens the contract — what was asked is exactly what<br />
+was granted.</li>
+<li><strong>T1, T5, T7.</strong> RAR data crosses the whole request lifecycle, unlike<br />
+PAR/JAR which only touch T1.</li>
+<li><strong>AS metadata field</strong>: <code>authorization_details_types_supported</code> lists<br />
+the <code>type</code> values the AS accepts. OneAuth&rsquo;s <code>ASServerMetadata</code> already<br />
+has this.</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>Published 2023. Adopted by Open Banking (UK, EU PSD2, Australia, Brazil),<br />
+some healthcare profiles, and emerging in financial APIs more broadly.<br />
+Not yet mainstream in consumer OAuth, but the design wins are clear<br />
+enough that adoption is growing.</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>Not mandated by 2.1. Optional. The spec is referenced as the right<br />
+mechanism for transaction-specific authorization. FAPI 2.0 mandates RAR<br />
+for payment-initiation use cases.</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>Simple capability-based APIs</strong> where &ldquo;user can read their own<br />
+profile&rdquo; is the full authorization story. <code>scope=profile</code> is exactly<br />
+right; RAR would be over-engineered.</li>
+<li><strong>Internal services without transaction-specific concerns.</strong> RAR&rsquo;s<br />
+expressivity is wasted.</li>
+<li><strong>Deployments without a clear <code>type</code> schema.</strong> Inventing custom RAR<br />
+types without a profile is hard to maintain. If you don&rsquo;t have a<br />
+regulator or industry profile, you&rsquo;re probably premature in adopting<br />
+RAR.</li>
+</ul>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>9396 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AuthorizationDetail</code> type</td>
+<td><strong>Implemented</strong></td>
+<td><code>core/authorization_details.go:29</code> struct with <code>Type</code> + <code>Actions</code> + custom marshaler for extensions</td>
+<td>Type-required (§5.2) validated in <code>Validate()</code></td>
+</tr>
+<tr>
+<td><code>Validate</code> / <code>ValidateAll</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>core/authorization_details.go:56,68</code></td>
+<td>Returns <code>ErrInvalidAuthorizationDetails</code> per §5.2</td>
+</tr>
+<tr>
+<td><code>FilterByType</code> helper</td>
+<td><strong>Implemented</strong></td>
+<td><code>core/authorization_details.go:79</code></td>
+<td>Useful for RS-side per-type checks</td>
+</tr>
+<tr>
+<td>Token-endpoint parsing</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/token_endpoint.go:119–123</code> per §6.1 (JSON-encoded form param), <code>token_endpoint.go:260</code> validates via <code>core.ValidateAll</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Per-grant validation</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize_granter.go:115</code> (auth-code), <code>apiauth/token_endpoint.go:260</code> (client_credentials)</td>
+<td>All grants flow through <code>core.ValidateAll</code></td>
+</tr>
+<tr>
+<td>Refresh-token carry forward</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/token_validator.go:550,564</code> <code>rt.AuthorizationDetails</code></td>
+<td>RAR survives refresh per §10</td>
+</tr>
+<tr>
+<td>Token response includes <code>authorization_details</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/token_endpoint.go:417</code> <code>writeTokens</code> encodes <code>core.TokenPair.AuthorizationDetails</code>, called from all handlers</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JWT claim emission</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/token_validator.go:405–406</code> <code>claims[&quot;authorization_details&quot;] = details</code> (and <code>apiauth/id_jag.go:200–201</code>)</td>
+<td>Carried into issued JWTs</td>
+</tr>
+<tr>
+<td>Middleware extraction (<code>GetAuthorizationDetailsFromContext</code>)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/middleware.go:174</code> accessor; <code>456–457,512</code> parses from JWT, stuffs into context</td>
+<td>RS-side accessor</td>
+</tr>
+<tr>
+<td>Introspection response includes <code>authorization_details</code></td>
+<td><strong>Implemented</strong></td>
+<td>Per <code>apiauth/auth_rar_test.go:97,237</code> exercising</td>
+<td>—</td>
+</tr>
+<tr>
+<td>AS metadata advertisement (<code>authorization_details_types_supported</code>)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/as_metadata.go:37</code></td>
+<td>Deployment-configurable</td>
+</tr>
+<tr>
+<td>DCR client metadata (<code>authorization_details_types</code>)</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/dcr.go:104</code></td>
+<td>Per-client declared types</td>
+</tr>
+</tbody>
+</table>
+<p>OneAuth&rsquo;s RAR implementation is one of the most comprehensive RFC<br />
+coverages in the codebase — it spans token endpoint, refresh, JWT<br />
+emission, introspection, middleware extraction, AS metadata, and DCR.<br />
+This is the model &ldquo;implemented across the surface&rdquo; RFC.</p>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_6749.md">RFC 6749</a> — the framework whose <code>scope</code> mechanism RAR complements</li>
+<li><a href="RFC_9126.md">RFC 9126</a> — PAR; the natural transport for verbose <code>authorization_details</code></li>
+<li><a href="RFC_9101.md">RFC 9101</a> — JAR; signs RAR-bearing requests</li>
+<li><a href="RFC_7662.md">RFC 7662</a> — Introspection; returns <code>authorization_details</code></li>
+<li><a href="RFC_9068.md">RFC 9068</a> — JWT AT profile; <code>authorization_details</code> is a recognized claim</li>
+<li><a href="RFC_8414.md">RFC 8414</a> — <code>authorization_details_types_supported</code> metadata</li>
+<li><a href="FAPI.md">FAPI 2.0</a> — uses RAR for payment-initiation</li>
+<li><a href="https://openid.net/specs/fapi-2_0-security-profile.html">Open Banking</a> — defined the <code>payment_initiation</code> type</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc9396/">Datatracker: rfc9396</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9396.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=9396">Errata search</a></li>
+<li><a href="https://openid.net/specs/openid-financial-api-jarm.html">OpenID authorization_details type registry</a> (informal, evolving)</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

@@ -28,7 +28,11 @@
         <nav class="top-nav">
             
             
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
             <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
             
             <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
             
@@ -46,6 +50,41 @@
     
     
     <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
         
         <div class="sidebar-section">
             <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
@@ -67,6 +106,27 @@
         </div>
         
         <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
             <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
             
             <ul class="sidebar-list">
@@ -80,6 +140,8 @@
                 <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
                 
                 <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
                 
             </ul>
             
@@ -132,30 +194,16 @@
 <li><strong>Callback-Based</strong>: Application controls session management, email delivery, etc.</li>
 </ol>
 <h2 id="three-layer-data-model">Three-Layer Data Model <a class="anchor" href="#three-layer-data-model">¶</a></h2>
-<pre><code>┌─────────────────────────────────────────────────────────┐
-│                         User                            │
-│  - Unique account in the system                         │
-│  - Contains profile data                                │
-│  - Has multiple identities                              │
-└────────────────────────┬────────────────────────────────┘
-                         │
-           ┌─────────────┼──────────────┐
-           │             │              │
-           ▼             ▼              ▼
-┌──────────────┐ ┌──────────────┐  ┌──────────────┐
-│   Identity   │ │   Identity   │  │   Identity   │
-│  email:...   │ │  phone:...   │  │  email:...   │
-│  (verified)  │ │ (unverified) │  │  (verified)  │
-└──────┬───────┘ └──────────────┘  └──────┬───────┘
-       │                                  │
-       │         ┌────────────────────────┤
-       │         │                        │
-       ▼         ▼                        ▼
-┌──────────┐ ┌──────────┐          ┌──────────┐
-│ Channel  │ │ Channel  │          │ Channel  │
-│  local   │ │  google  │          │  github  │
-│(password)│ │ (oauth)  │          │ (oauth)  │
-└──────────┘ └──────────┘          └──────────┘
+<pre><code class="language-mermaid">flowchart TD
+    User[&quot;User&lt;br/&gt;- Unique account in the system&lt;br/&gt;- Contains profile data&lt;br/&gt;- Has multiple identities&quot;]
+
+    User --&gt; Id1[&quot;Identity&lt;br/&gt;email:...&lt;br/&gt;(verified)&quot;]
+    User --&gt; Id2[&quot;Identity&lt;br/&gt;phone:...&lt;br/&gt;(unverified)&quot;]
+    User --&gt; Id3[&quot;Identity&lt;br/&gt;email:...&lt;br/&gt;(verified)&quot;]
+
+    Id1 --&gt; Ch1[&quot;Channel&lt;br/&gt;local&lt;br/&gt;(password)&quot;]
+    Id3 --&gt; Ch2[&quot;Channel&lt;br/&gt;google&lt;br/&gt;(oauth)&quot;]
+    Id3 --&gt; Ch3[&quot;Channel&lt;br/&gt;github&lt;br/&gt;(oauth)&quot;]
 </code></pre>
 <ul>
 <li><strong>User</strong>: Unique account identified by user ID. Contains profile information.</li>
@@ -166,16 +214,28 @@
 <p>Multiple channels can point to the same user via shared email identity, enabling multi-provider login.</p>
 <h2 id="three-authentication-modes">Three Authentication Modes <a class="anchor" href="#three-authentication-modes">¶</a></h2>
 <p>OneAuth supports three authentication modes, each targeting a different client type:</p>
-<pre><code>┌─────────────────────┬───────────────────────┬───────────────────────────┐
-│   Browser Auth      │   API Auth            │   Federated Auth          │
-│   (LocalAuth)       │   (APIAuth)           │   (AppRegistrar +         │
-│                     │                       │    MintResourceToken)     │
-│   Form login/signup │   JWT access tokens   │   App registers,          │
-│   Email verify      │   Refresh tokens      │   mints scoped JWTs,      │
-│   Password reset    │   API keys            │   resource server         │
-│   Session cookies   │   Scope enforcement   │   validates via KeyStore  │
-└─────────────────────┴───────────────────────┴───────────────────────────┘
-</code></pre>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Browser Auth</strong> (<code>LocalAuth</code>)</td>
+<td>Form login/signup · Email verify · Password reset · Session cookies</td>
+</tr>
+<tr>
+<td><strong>API Auth</strong> (<code>APIAuth</code>)</td>
+<td>JWT access tokens · Refresh tokens · API keys · Scope enforcement</td>
+</tr>
+<tr>
+<td><strong>Federated Auth</strong> (<code>AppRegistrar</code> + <code>MintResourceToken</code>)</td>
+<td>App registers, mints scoped JWTs, resource server validates via KeyStore</td>
+</tr>
+</tbody>
+</table>
 <p>Each mode has its own detailed documentation:</p>
 <ul>
 <li><strong><a href="BROWSER_AUTH.md">Browser Auth</a></strong> — Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error handling</li>
@@ -184,43 +244,43 @@
 <li><strong><a href="AUTH_FLOWS.md">Auth Flows</a></strong> — Detailed decision trees for login/signup, provider linking matrix, user journeys, edge cases</li>
 </ul>
 <h2 id="package-organization">Package Organization <a class="anchor" href="#package-organization">¶</a></h2>
-<pre><code>              core/          ← Foundation types, interfaces, zero internal deps
-            / | \  \
-           /  |  \  \
-        keys/ |  localauth/  ← Key mgmt, local auth
-        / \   |
-       /   \  |
-    admin/ apiauth/          ← Admin API, JWT auth
-              |
-           httpauth/         ← HTTP middleware, CSRF, session mux
+<pre><code class="language-mermaid">flowchart TD
+    core[&quot;core/&lt;br/&gt;Foundation types, interfaces,&lt;br/&gt;zero internal deps&quot;]
+    keys[&quot;keys/&lt;br/&gt;Key mgmt&quot;]
+    localauth[&quot;localauth/&lt;br/&gt;Local auth&quot;]
+    admin[&quot;admin/&lt;br/&gt;Admin API&quot;]
+    apiauth[&quot;apiauth/&lt;br/&gt;JWT auth&quot;]
+    httpauth[&quot;httpauth/&lt;br/&gt;HTTP middleware, CSRF, session mux&quot;]
+
+    core --- keys
+    core --- apiauth
+    core --- localauth
+    keys --- admin
+    keys --- apiauth
+    apiauth --- httpauth
 </code></pre>
 <p>Each subpackage has a <code>SUMMARY.md</code> for quick orientation.</p>
 <h2 id="store-architecture">Store Architecture <a class="anchor" href="#store-architecture">¶</a></h2>
-<pre><code>┌──────────────────────────────────────────────────────────────┐
-│  core/ — Store Interfaces                                    │
-│  UserStore | IdentityStore | ChannelStore | TokenStore       │
-│  RefreshTokenStore | APIKeyStore | UsernameStore (opt)       │
-├──────────────────────────────────────────────────────────────┤
-│  keys/ — Key Interfaces                                      │
-│  KeyStorage | KeyLookup (multi-tenant JWT + kid lookup)      │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        │                  │                  │
-        ▼                  ▼                  ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│   stores/fs   │   │  stores/gorm  │   │  stores/gae   │
-│  File-based   │   │  SQL (GORM)   │   │  Datastore    │
-│  Development  │   │  Production   │   │  Google Cloud │
-└───────────────┘   └───────────────┘   └───────────────┘
+<pre><code class="language-mermaid">flowchart TD
+    subgraph Interfaces[&quot;Interfaces&quot;]
+        direction TB
+        CoreIf[&quot;core/ — Store Interfaces&lt;br/&gt;UserStore | IdentityStore | ChannelStore | TokenStore&lt;br/&gt;RefreshTokenStore | APIKeyStore | UsernameStore (opt)&quot;]
+        KeysIf[&quot;keys/ — Key Interfaces&lt;br/&gt;KeyStorage | KeyLookup (multi-tenant JWT + kid lookup)&quot;]
+        CoreIf ~~~ KeysIf
+    end
+
+    Interfaces --&gt; FS[&quot;stores/fs&lt;br/&gt;File-based&lt;br/&gt;Development&quot;]
+    Interfaces --&gt; Gorm[&quot;stores/gorm&lt;br/&gt;SQL (GORM)&lt;br/&gt;Production&quot;]
+    Interfaces --&gt; Gae[&quot;stores/gae&lt;br/&gt;Datastore&lt;br/&gt;Google Cloud&quot;]
 </code></pre>
 <p>For store interfaces, implementations, and KeyStore details, see <strong><a href="STORES.md">Stores</a></strong>.</p>
 <h2 id="demos">Demos <a class="anchor" href="#demos">¶</a></h2>
 <p>See <strong><a href="DEMOS.md">DEMOS.md</a></strong> for runnable demos that exercise key scenarios end-to-end, including what each demo simplifies vs. production usage.</p>
 <h2 id="client-sdk">Client SDK <a class="anchor" href="#client-sdk">¶</a></h2>
 <p>For CLI tools and programmatic clients consuming oneauth-protected APIs:</p>
-<pre><code>AuthClient → Login/Logout → CredentialStore (persists tokens)
-           → HTTPClient() → refreshTransport (auto-refresh on 401)
+<pre><code class="language-mermaid">flowchart LR
+    AuthClient[&quot;AuthClient&quot;] --&gt; LoginLogout[&quot;Login/Logout&quot;] --&gt; CredentialStore[&quot;CredentialStore&lt;br/&gt;(persists tokens)&quot;]
+    AuthClient --&gt; HTTPClient[&quot;HTTPClient()&quot;] --&gt; RefreshTransport[&quot;refreshTransport&lt;br/&gt;(auto-refresh on 401)&quot;]
 </code></pre>
 <p>See <strong><a href="CLIENT_SDK.md">Client SDK</a></strong> for full details.</p>
 <h2 id="security-architecture">Security Architecture <a class="anchor" href="#security-architecture">¶</a></h2>
@@ -437,5 +497,35 @@
     </div>
 </footer>
 
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
 </body>
 </html>

@@ -28,7 +28,11 @@
         <nav class="top-nav">
             
             
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
             <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
             
             <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
             
@@ -46,6 +50,41 @@
     
     
     <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
         
         <div class="sidebar-section">
             <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
@@ -67,6 +106,27 @@
         </div>
         
         <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
             <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
             
             <ul class="sidebar-list">
@@ -80,6 +140,8 @@
                 <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
                 
                 <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
                 
             </ul>
             
@@ -159,13 +221,23 @@
 </tbody>
 </table>
 <h3 id="data-model">Data Model <a class="anchor" href="#data-model">¶</a></h3>
-<pre><code>User (id: abc123)
-├── Profile: {email, username, nickname, avatar, ...}
-├── Identity: email → user@example.com (verified: true/false)
-├── Channel: local → email:user@example.com (password_hash)
-├── Channel: google → email:user@example.com (oauth_token)
-└── Channel: github → email:user@example.com (oauth_token)
+<pre><code class="language-mermaid">flowchart TD
+    U[&quot;User (id: abc123)&quot;]
+    P[&quot;Profile&lt;br/&gt;{email, username, nickname, avatar, ...}&quot;]
+    I[&quot;Identity: email&lt;br/&gt;user@example.com (verified: true/false)&quot;]
+    CL[&quot;Channel: local&lt;br/&gt;email:user@example.com (password_hash)&quot;]
+    CG[&quot;Channel: google&lt;br/&gt;email:user@example.com (oauth_token)&quot;]
+    CH[&quot;Channel: github&lt;br/&gt;email:user@example.com (oauth_token)&quot;]
+    U --&gt; P
+    U --&gt; I
+    U --&gt; CL
+    U --&gt; CG
+    U --&gt; CH
+    CL -.-&gt;|authenticates| I
+    CG -.-&gt;|authenticates| I
+    CH -.-&gt;|authenticates| I
 </code></pre>
+<p>Every channel points at the same identity, which is what makes &ldquo;sign in with Google&rdquo; and &ldquo;sign in with a password&rdquo; land on one account rather than three.</p>
 <p><strong>Key Concepts:</strong></p>
 <ul>
 <li><strong>User</strong>: The account entity with a profile map</li>
@@ -612,6 +684,87 @@ Result: User can now login TWO ways:
 </code></pre>
 <h2 id="oauth-grant-flows">OAuth Grant Flows <a class="anchor" href="#oauth-grant-flows">¶</a></h2>
 <p>Diagrams for the OAuth 2.0 grant flows oneauth ships as an AS and (where applicable) consumes from the CLI / SDK. Distinct from the &ldquo;Supported Flows&rdquo; section above — those describe the user-identity-channel lifecycle this library brokers; the diagrams here describe the wire-level grant exchanges with external clients.</p>
+<h3 id="two-axes-journeys-and-modifiers">Two axes: journeys and modifiers <a class="anchor" href="#two-axes-journeys-and-modifiers">¶</a></h3>
+<p>It is tempting to read OAuth as one long list of specifications. It reads better as two axes.</p>
+<p><strong>Grants are journeys.</strong> Each answers a different question about who is asking and what they have to work with: a user in front of a browser, a machine with no user at all, a television with no keyboard. RFC 6749 named most of them in 2012 and the set has barely moved since.</p>
+<p><strong>Extensions are modifiers.</strong> They do not add journeys. They clip onto an existing one and change how a leg of it is carried or proven. PKCE, PAR, DPoP, RAR and JAR are all modifiers, and nearly every OAuth specification published since 2015 belongs on this axis, because the grants turned out to be roughly right and the attacks turned out to be in the delivery.</p>
+<p>Reading the two axes together explains why a profile like FAPI 2.0 looks like a checklist rather than a flow. It is one journey (authorization code) plus four modifiers (PKCE, PAR, DPoP or mTLS, and JAR).</p>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph J[&quot;Journeys — how a client gets a token&quot;]
+        AC[&quot;Authorization code&lt;br/&gt;user at a browser&quot;]
+        CC[&quot;Client credentials&lt;br/&gt;machine, no user&quot;]
+        DV[&quot;Device grant&lt;br/&gt;no keyboard&quot;]
+        RF[&quot;Refresh&lt;br/&gt;already had a token&quot;]
+        TE[&quot;Token exchange&lt;br/&gt;across trust domains&quot;]
+    end
+    subgraph M[&quot;Modifiers — what they change about a journey&quot;]
+        PKCE[&quot;PKCE&lt;br/&gt;ties redemption to the starter&quot;]
+        PAR[&quot;PAR&lt;br/&gt;request goes back-channel&quot;]
+        JAR[&quot;JAR&lt;br/&gt;request is a signed JWT&quot;]
+        RAR[&quot;RAR&lt;br/&gt;scope becomes structured JSON&quot;]
+        DPOP[&quot;DPoP / mTLS&lt;br/&gt;token bound to a key&quot;]
+    end
+    PKCE --&gt; AC
+    PAR --&gt; AC
+    JAR --&gt; AC
+    RAR --&gt; AC
+    RAR --&gt; CC
+    DPOP --&gt; AC
+    DPOP --&gt; CC
+    DPOP --&gt; DV
+    DPOP --&gt; RF
+    DPOP --&gt; TE
+</code></pre>
+<p>Where OneAuth stands on each modifier:</p>
+<table>
+<thead>
+<tr>
+<th>Modifier</th>
+<th>Spec</th>
+<th>Attaches to</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PKCE</td>
+<td>RFC 7636</td>
+<td>authorization code</td>
+<td>Shipped, and required (S256; <code>plain</code> is opt-in for OAuth 2.0 fleets)</td>
+</tr>
+<tr>
+<td>PAR</td>
+<td>RFC 9126</td>
+<td>authorization code</td>
+<td>Shipped (<a href="https://github.com/panyam/oneauth/issues/337">#337</a>)</td>
+</tr>
+<tr>
+<td>DPoP</td>
+<td>RFC 9449</td>
+<td>every grant</td>
+<td>Shipped except the nonce protocol (<a href="https://github.com/panyam/oneauth/issues/375">#375</a>)</td>
+</tr>
+<tr>
+<td>RAR</td>
+<td>RFC 9396</td>
+<td>token endpoint, introspection, middleware</td>
+<td>Shipped</td>
+</tr>
+<tr>
+<td>mTLS</td>
+<td>RFC 8705</td>
+<td>every grant</td>
+<td>Tracked (<a href="https://github.com/panyam/oneauth/issues/335">#335</a>)</td>
+</tr>
+<tr>
+<td>JAR</td>
+<td>RFC 9101</td>
+<td>authorization code</td>
+<td>Tracked (<a href="https://github.com/panyam/oneauth/issues/338">#338</a>)</td>
+</tr>
+</tbody>
+</table>
+<p>The rest of this section diagrams the journeys first, then the modifiers that attach to them.</p>
 <h3 id="rfc-8628-device-authorization-grant">RFC 8628 Device Authorization Grant <a class="anchor" href="#rfc-8628-device-authorization-grant">¶</a></h3>
 <p>The device-flow case: a device with limited input (smart TV, CLI, IoT) gets a token while the user authorizes on a separate device (phone, laptop). What&rsquo;s distinctive about this grant is that the device asking for the token is <em>not</em> the device the user authorizes on — there is no redirect URL because the polling device has no browser to redirect <em>to</em>, so the AS bridges them via an out-of-band <code>user_code</code> that the user transcribes.</p>
 <p>The happy path:</p>
@@ -627,8 +780,8 @@ Result: User can now login TWO ways:
     AS-&gt;&gt;AS: mint device_code (256-bit hex)&lt;br/&gt;mint user_code (WDJB-MJHT)&lt;br/&gt;store as Status=Pending&lt;br/&gt;expires_at = now + 15min
     AS--&gt;&gt;D: 200 OK&lt;br/&gt;{ device_code, user_code,&lt;br/&gt;  verification_uri,&lt;br/&gt;  verification_uri_complete?,&lt;br/&gt;  expires_in: 900, interval: 5 }
 
-    Note over D,U: Phase 2 — Device shows the code; user transcribes
-    D-&gt;&gt;U: Display &quot;Visit https://as.example/device&lt;br/&gt;and enter WDJB-MJHT&quot;
+    Note over D,U: Phase 2 — Device shows the code, user transcribes
+    D-&gt;&gt;U: Display 'Visit https://as.example/device&lt;br/&gt;and enter WDJB-MJHT'
 
     Note over D,AS: Phase 3 — Device polls token endpoint while user authorizes
     par Device polls
@@ -774,7 +927,7 @@ Result: User can now login TWO ways:
     AS-&gt;&gt;RT: RevokeTokenFamily(F)
     RT-&gt;&gt;RT: revoke EVERY token where family=F&lt;br/&gt;(RT-new and any descendants)
     AS--&gt;&gt;C: 400 invalid_grant&lt;br/&gt;&quot;Token reuse detected, all sessions revoked&quot;
-    Note over C: Both the attacker AND the legitimate&lt;br/&gt;holder now have to re-authenticate.&lt;br/&gt;Legitimate user notices and changes password;&lt;br/&gt;attacker is locked out.
+    Note over C: Both the attacker AND the legitimate&lt;br/&gt;holder now have to re-authenticate.&lt;br/&gt;Legitimate user notices and changes password,&lt;br/&gt;so the attacker is locked out.
 </code></pre>
 <p><strong>Notes the diagram reveals:</strong></p>
 <ul>
@@ -1099,6 +1252,55 @@ Result: User can now login TWO ways:
 <li>Refresh tokens: NOT issued for this grant — the client just gets a new access token directly each time (re-presenting credentials is cheap)</li>
 </ul>
 <p>See: <a href="https://www.rfc-editor.org/rfc/rfc6749#section-4.4">RFC 6749 §4.4</a>, <a href="https://www.rfc-editor.org/rfc/rfc7521">RFC 7521</a>, <a href="https://www.rfc-editor.org/rfc/rfc7523">RFC 7523</a>, <code>apiauth/auth.go</code> (<code>handleClientCredentialsGrant</code>), <code>apiauth/client_authenticator.go</code>, <code>client/client.go</code> (<code>ClientCredentials</code>), <code>cmd/oneauth/cmd/token_client_credentials.go</code>.</p>
+<h3 id="modifier-rfc-9126-pushed-authorization-requests-par">Modifier: RFC 9126 Pushed Authorization Requests (PAR) <a class="anchor" href="#modifier-rfc-9126-pushed-authorization-requests-par">¶</a></h3>
+<p>PAR changes one leg of the authorization-code journey: instead of the client sending the authorization request <em>through the browser</em> as query parameters, it sends it to the AS directly and hands the browser a reference. Same journey, different delivery.</p>
+<p>The point is what stops travelling through the user agent. Scope, <code>redirect_uri</code>, PKCE challenge and any RFC 9396 <code>authorization_details</code> payload stay server-side, so they never reach browser history, access logs or the <code>Referer</code> header of whatever page the user visits next. A payload too large for a URL also stops being a problem, which is the practical reason a deployment reaches for PAR.</p>
+<p>One subtlety worth naming: the reference is spent when a code is issued, not when it is first read. The consent screen reads it twice (once to render, once on approval) and a user who reloads the page in between has done nothing wrong. RFC 9126 §4 permits exactly this reading.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant C as Client app
+    participant B as Browser
+    participant AS as OneAuth AS
+
+    Note over C,AS: Back channel — the request never touches the browser
+    C-&gt;&gt;AS: &quot;POST /par (client auth, response_type, redirect_uri,&lt;br/&gt;scope, code_challenge, authorization_details)&quot;
+    AS-&gt;&gt;AS: Authenticate client&lt;br/&gt;Validate exactly as /authorize would&lt;br/&gt;Store payload, bind it to this client
+    AS--&gt;&gt;C: &quot;201 { request_uri: urn:ietf:params:oauth:request_uri:...,&lt;br/&gt;expires_in: 60 }&quot;
+
+    Note over C,B: Front channel — only a reference travels
+    C-&gt;&gt;B: &quot;Redirect to /authorize?client_id=...&amp;request_uri=urn:...&quot;
+    B-&gt;&gt;AS: &quot;GET /authorize (reference only)&quot;
+    AS-&gt;&gt;AS: Resolve reference&lt;br/&gt;Reject if unknown, expired, consumed,&lt;br/&gt;or pushed by a different client
+    AS--&gt;&gt;B: Consent screen, rendered from the stored payload
+    B-&gt;&gt;AS: &quot;POST /authorize (approve)&quot;
+    AS-&gt;&gt;AS: Issue code, consume the reference
+    AS--&gt;&gt;B: &quot;302 to redirect_uri with code + state&quot;
+    B-&gt;&gt;C: Authorization code
+    C-&gt;&gt;AS: &quot;POST /api/token (code, code_verifier)&quot;
+    AS--&gt;&gt;C: Access token
+</code></pre>
+<h3 id="modifier-rfc-9449-dpop">Modifier: RFC 9449 DPoP <a class="anchor" href="#modifier-rfc-9449-dpop">¶</a></h3>
+<p>DPoP attaches to every journey rather than one. It binds the issued token to a key the client holds, so a token that leaks is useless to whoever leaked it: presenting it requires signing a fresh proof per request.</p>
+<p>Two halves have to be in place for that to mean anything, and the order matters. An authorization server can issue bound tokens while the resource servers still accept them as ordinary bearer tokens, which RFC 9449 §7.2 both predicts and permits. Enforce at the resource servers first.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant C as Client&lt;br/&gt;holds a key pair
+    participant AS as OneAuth AS
+    participant RS as Resource server
+
+    C-&gt;&gt;C: Mint proof&lt;br/&gt;&quot;htm, htu, jti, iat, signed by the private key&quot;
+    C-&gt;&gt;AS: &quot;POST /api/token + DPoP: proof&quot;
+    AS-&gt;&gt;AS: Validate proof&lt;br/&gt;&quot;typ, alg, signature, htm, htu, iat window, jti replay&quot;
+    AS-&gt;&gt;AS: &quot;Thumbprint the public key (RFC 7638)&quot;
+    AS--&gt;&gt;C: &quot;token_type: DPoP&lt;br/&gt;access token carries cnf.jkt&lt;br/&gt;refresh token bound to the same key&quot;
+
+    C-&gt;&gt;C: Mint a NEW proof for this request&lt;br/&gt;&quot;adds ath = hash of the access token&quot;
+    C-&gt;&gt;RS: &quot;GET /resource&lt;br/&gt;Authorization: DPoP token&lt;br/&gt;DPoP: proof&quot;
+    RS-&gt;&gt;RS: Validate proof, check ath&lt;br/&gt;Compare proof key against the token's cnf.jkt
+    RS--&gt;&gt;C: 200 OK
+
+    Note over C,RS: A thief holding only the token cannot mint a proof.&lt;br/&gt;Presenting it as Bearer is refused too, per section 7.2.
+</code></pre>
 <h2 id="edge-cases">Edge Cases <a class="anchor" href="#edge-cases">¶</a></h2>
 <h3 id="race-condition-in-username-reservation">Race Condition in Username Reservation <a class="anchor" href="#race-condition-in-username-reservation">¶</a></h3>
 <p>Two users try to reserve same username simultaneously.</p>
@@ -1310,5 +1512,35 @@ Result: User can now login TWO ways:
     </div>
 </footer>
 
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
 </body>
 </html>

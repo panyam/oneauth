@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="This guide explains how to use applications that implement OneAuth for authentication. OneAuth provides a secure way to create accounts and sign...">
+    <title>OneAuth User Guide · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OneAuth User Guide</h1>
+        
+        <p class="lead">This guide explains how to use applications that implement OneAuth for authentication. OneAuth provides a secure way to create accounts and sign...</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/USER_GUIDE.md"><code>docs/USER_GUIDE.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oneauth-user-guide">OneAuth User Guide <a class="anchor" href="#oneauth-user-guide">¶</a></h1>
+<h2 id="introduction">Introduction <a class="anchor" href="#introduction">¶</a></h2>
+<p>This guide explains how to use applications that implement OneAuth for authentication. OneAuth provides a secure way to create accounts and sign in using passwords or social login providers.</p>
+<h2 id="creating-an-account">Creating an Account <a class="anchor" href="#creating-an-account">¶</a></h2>
+<h3 id="with-email-and-password">With Email and Password <a class="anchor" href="#with-email-and-password">¶</a></h3>
+<ol>
+<li>Navigate to the signup page</li>
+<li>Enter your desired username (3-20 characters, letters, numbers, underscores, and hyphens)</li>
+<li>Enter your email address</li>
+<li>Create a password (minimum 8 characters)</li>
+<li>Click &ldquo;Sign Up&rdquo;</li>
+</ol>
+<p>Some applications may send a verification email. Check your inbox and click the verification link to activate your account.</p>
+<h3 id="with-social-login">With Social Login <a class="anchor" href="#with-social-login">¶</a></h3>
+<p>If enabled by the application:</p>
+<ol>
+<li>Navigate to the login page</li>
+<li>Click &ldquo;Continue with Google&rdquo; or &ldquo;Continue with GitHub&rdquo;</li>
+<li>Authorize the application in the provider&rsquo;s window</li>
+<li>You&rsquo;ll be redirected back and logged in automatically</li>
+</ol>
+<p>Your email from the social provider becomes your identity in the application.</p>
+<h2 id="signing-in">Signing In <a class="anchor" href="#signing-in">¶</a></h2>
+<h3 id="with-password">With Password <a class="anchor" href="#with-password">¶</a></h3>
+<ol>
+<li>Navigate to the login page</li>
+<li>Enter your email address or username</li>
+<li>Enter your password</li>
+<li>Click &ldquo;Sign In&rdquo;</li>
+</ol>
+<h3 id="with-social-login-1">With Social Login <a class="anchor" href="#with-social-login-1">¶</a></h3>
+<ol>
+<li>Navigate to the login page</li>
+<li>Click your preferred social login button</li>
+<li>Authorize if prompted</li>
+<li>You&rsquo;ll be signed in automatically</li>
+</ol>
+<h2 id="multiple-authentication-methods">Multiple Authentication Methods <a class="anchor" href="#multiple-authentication-methods">¶</a></h2>
+<p>OneAuth allows you to use multiple ways to sign into the same account:</p>
+<ul>
+<li>Sign up with email and password</li>
+<li>Later, sign in with Google using the same email</li>
+<li>Both methods access the same account and data</li>
+</ul>
+<p>This provides flexibility while keeping your account unified.</p>
+<h3 id="linking-additional-login-methods">Linking Additional Login Methods <a class="anchor" href="#linking-additional-login-methods">¶</a></h3>
+<p>If you signed up with one method, you can add others:</p>
+<h4 id="adding-password-to-social-login-account">Adding Password to Social Login Account <a class="anchor" href="#adding-password-to-social-login-account">¶</a></h4>
+<p>If you signed up with Google or GitHub and want to add password login:</p>
+<ol>
+<li>Log in with your social account</li>
+<li>Navigate to account settings or profile</li>
+<li>Look for &ldquo;Add Password&rdquo; or &ldquo;Link Password&rdquo;</li>
+<li>Enter your desired password (optionally a username)</li>
+<li>Click &ldquo;Save&rdquo; or &ldquo;Link&rdquo;</li>
+</ol>
+<p>Now you can log in with either Google or email/password.</p>
+<h4 id="adding-social-login-to-password-account">Adding Social Login to Password Account <a class="anchor" href="#adding-social-login-to-password-account">¶</a></h4>
+<p>If you signed up with email/password and want to add Google login:</p>
+<ol>
+<li>Log in with your password</li>
+<li>Navigate to account settings</li>
+<li>Look for &ldquo;Link Google Account&rdquo; or similar</li>
+<li>Click the link button</li>
+<li>Authorize the application in Google&rsquo;s window</li>
+<li>You&rsquo;ll be redirected back and the accounts are linked</li>
+</ol>
+<p>Now you can log in with either method.</p>
+<h3 id="viewing-linked-accounts">Viewing Linked Accounts <a class="anchor" href="#viewing-linked-accounts">¶</a></h3>
+<p>In account settings, you can typically see which login methods are linked:</p>
+<ul>
+<li><strong>Email/Password</strong>: Shows if you have a password set</li>
+<li><strong>Google</strong>: Shows if Google is linked</li>
+<li><strong>GitHub</strong>: Shows if GitHub is linked</li>
+</ul>
+<h3 id="unlinking-accounts">Unlinking Accounts <a class="anchor" href="#unlinking-accounts">¶</a></h3>
+<p>Some applications allow you to unlink login methods:</p>
+<ol>
+<li>Navigate to account settings</li>
+<li>Find the linked account section</li>
+<li>Click &ldquo;Unlink&rdquo; next to the method you want to remove</li>
+</ol>
+<p><strong>Note</strong>: You cannot unlink your last login method. At least one must remain.</p>
+<h2 id="email-verification">Email Verification <a class="anchor" href="#email-verification">¶</a></h2>
+<p>Some applications require email verification for security:</p>
+<ol>
+<li>After signing up, check your email inbox</li>
+<li>Open the verification email</li>
+<li>Click the verification link</li>
+<li>Your email is now verified</li>
+</ol>
+<p>Verification links typically expire after 24 hours. If your link expires, request a new one from the application.</p>
+<h2 id="password-requirements">Password Requirements <a class="anchor" href="#password-requirements">¶</a></h2>
+<p>Passwords must meet these minimum requirements:</p>
+<ul>
+<li>At least 8 characters long</li>
+<li>No maximum length limit</li>
+</ul>
+<p>Some applications may enforce stronger requirements such as:</p>
+<ul>
+<li>Uppercase and lowercase letters</li>
+<li>Numbers</li>
+<li>Special characters</li>
+</ul>
+<p>The signup form will indicate specific requirements if they apply.</p>
+<h2 id="forgot-password">Forgot Password <a class="anchor" href="#forgot-password">¶</a></h2>
+<p>If you forget your password:</p>
+<ol>
+<li>Click &ldquo;Forgot password?&rdquo; on the login page</li>
+<li>Enter your email address</li>
+<li>Click &ldquo;Send Reset Link&rdquo;</li>
+<li>Check your email for the password reset link</li>
+<li>Click the link (valid for 1 hour)</li>
+<li>Enter your new password</li>
+<li>Click &ldquo;Reset Password&rdquo;</li>
+</ol>
+<p>For security, you&rsquo;ll always see a success message even if the email address isn&rsquo;t registered in the system.</p>
+<h2 id="changing-your-password">Changing Your Password <a class="anchor" href="#changing-your-password">¶</a></h2>
+<p>If you&rsquo;re logged in and want to change your password:</p>
+<ol>
+<li>Navigate to account settings</li>
+<li>Look for &ldquo;Change Password&rdquo; or similar option</li>
+<li>Enter your current password</li>
+<li>Enter your new password</li>
+<li>Confirm your new password</li>
+<li>Click &ldquo;Update Password&rdquo;</li>
+</ol>
+<p>Note: The exact steps depend on how the application implements its settings interface.</p>
+<h2 id="account-security">Account Security <a class="anchor" href="#account-security">¶</a></h2>
+<h3 id="best-practices">Best Practices <a class="anchor" href="#best-practices">¶</a></h3>
+<ol>
+<li><strong>Use a strong, unique password</strong>: Don&rsquo;t reuse passwords across sites</li>
+<li><strong>Enable email verification</strong>: If offered, verify your email for account recovery</li>
+<li><strong>Remember where you signed up</strong>: Note whether you used password or social login</li>
+<li><strong>Review account activity</strong>: Check for suspicious login attempts if the application provides this feature</li>
+<li><strong>Sign out on shared devices</strong>: Always sign out when using public computers</li>
+</ol>
+<h3 id="password-managers">Password Managers <a class="anchor" href="#password-managers">¶</a></h3>
+<p>Password managers are recommended for creating and storing strong passwords. They integrate seamlessly with OneAuth-enabled applications.</p>
+<h3 id="social-login-security">Social Login Security <a class="anchor" href="#social-login-security">¶</a></h3>
+<p>When using social login:</p>
+<ul>
+<li>You&rsquo;re trusting the social provider (Google, GitHub, etc.) for authentication</li>
+<li>Revoke application access in your social provider&rsquo;s settings if you no longer use an application</li>
+<li>Your email address from the social provider is used as your identity</li>
+</ul>
+<h2 id="privacy">Privacy <a class="anchor" href="#privacy">¶</a></h2>
+<h3 id="information-collected">Information Collected <a class="anchor" href="#information-collected">¶</a></h3>
+<p>Applications using OneAuth typically store:</p>
+<ul>
+<li>Your email address or phone number</li>
+<li>Your username</li>
+<li>Hashed password (if using password authentication) - bcrypt one-way hash that cannot be reversed</li>
+<li>Profile information from social providers (if using social login)</li>
+</ul>
+<h3 id="information-not-collected">Information Not Collected <a class="anchor" href="#information-not-collected">¶</a></h3>
+<p>OneAuth does not:</p>
+<ul>
+<li>Store passwords in plain text</li>
+<li>Share your credentials between applications</li>
+<li>Track your activity across different applications</li>
+</ul>
+<p>Each application using OneAuth maintains its own user database.</p>
+<h2 id="common-issues">Common Issues <a class="anchor" href="#common-issues">¶</a></h2>
+<h3 id="invalid-credentials-error">&ldquo;Invalid credentials&rdquo; error <a class="anchor" href="#invalid-credentials-error">¶</a></h3>
+<ul>
+<li>Verify you&rsquo;re entering the correct email and password</li>
+<li>Check if caps lock is on</li>
+<li>Ensure you&rsquo;re using the correct authentication method (password vs. social login)</li>
+<li>Try resetting your password if needed</li>
+</ul>
+<h3 id="email-verification-link-not-working">Email verification link not working <a class="anchor" href="#email-verification-link-not-working">¶</a></h3>
+<ul>
+<li>Check if the link has expired (usually 24 hours)</li>
+<li>Ensure you clicked the complete link (some email clients break long URLs)</li>
+<li>Request a new verification link from the application</li>
+</ul>
+<h3 id="not-receiving-emails">Not receiving emails <a class="anchor" href="#not-receiving-emails">¶</a></h3>
+<ul>
+<li>Check your spam/junk folder</li>
+<li>Verify you entered the correct email address</li>
+<li>Wait a few minutes, as email delivery can be delayed</li>
+<li>Contact the application&rsquo;s support if emails continue not to arrive</li>
+</ul>
+<h3 id="cant-remember-which-sign-in-method-was-used">Can&rsquo;t remember which sign-in method was used <a class="anchor" href="#cant-remember-which-sign-in-method-was-used">¶</a></h3>
+<ul>
+<li>Try password login first</li>
+<li>If that fails, try social login options</li>
+<li>Use the &ldquo;Forgot password&rdquo; feature to confirm if a password account exists</li>
+</ul>
+<h3 id="account-lockout">Account lockout <a class="anchor" href="#account-lockout">¶</a></h3>
+<p>Applications may lock your account after too many failed login attempts (typically 5). If this happens:</p>
+<ul>
+<li>Wait for the lockout period to expire (typically 15 minutes)</li>
+<li>Use the &ldquo;Forgot password&rdquo; feature to reset and regain access</li>
+<li>Contact application support if you believe your account was compromised</li>
+</ul>
+<p>You may also see &ldquo;Too many requests&rdquo; if you&rsquo;re attempting logins too rapidly. Wait a minute and try again.</p>
+<h2 id="multiple-accounts">Multiple Accounts <a class="anchor" href="#multiple-accounts">¶</a></h2>
+<p>OneAuth links authentication methods by email address:</p>
+<ul>
+<li><strong>Same email, different methods = Same account</strong>: Signing up with password and later using Google with the same email accesses one account</li>
+<li><strong>Different emails = Different accounts</strong>: Using different email addresses creates separate accounts, even with the same provider</li>
+</ul>
+<h2 id="session-management">Session Management <a class="anchor" href="#session-management">¶</a></h2>
+<h3 id="session-duration">Session Duration <a class="anchor" href="#session-duration">¶</a></h3>
+<p>Applications control how long you stay signed in. Common approaches:</p>
+<ul>
+<li>Active sessions expire after inactivity (15-30 minutes typical)</li>
+<li>Sessions persist until you sign out</li>
+<li>&ldquo;Remember me&rdquo; option for extended sessions</li>
+</ul>
+<h3 id="signing-out">Signing Out <a class="anchor" href="#signing-out">¶</a></h3>
+<p>Always sign out when finished, especially on shared devices:</p>
+<ol>
+<li>Look for &ldquo;Sign Out&rdquo; or &ldquo;Log Out&rdquo; button</li>
+<li>Click it to end your session</li>
+<li>You&rsquo;ll be redirected to the login page</li>
+</ol>
+<h3 id="multiple-devices">Multiple Devices <a class="anchor" href="#multiple-devices">¶</a></h3>
+<p>You can be signed in on multiple devices simultaneously. Signing out on one device doesn&rsquo;t affect other sessions unless the application implements global logout.</p>
+<h2 id="developer-support">Developer Support <a class="anchor" href="#developer-support">¶</a></h2>
+<p>If you experience issues with OneAuth in an application:</p>
+<ol>
+<li>Check the application&rsquo;s support documentation</li>
+<li>Contact the application&rsquo;s support team</li>
+<li>Report bugs to the application developers</li>
+</ol>
+<p>OneAuth is a library integrated by application developers. For issues with specific applications, contact those applications directly.</p>
+<h2 id="technical-users">Technical Users <a class="anchor" href="#technical-users">¶</a></h2>
+<h3 id="api-access">API Access <a class="anchor" href="#api-access">¶</a></h3>
+<p>Applications using OneAuth may provide API access for programmatic use. This includes:</p>
+<p><strong>API Login</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://app.example.com/api/login <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Content-Type: application/json&#34;</span> <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{&#34;grant_type&#34;:&#34;password&#34;,&#34;username&#34;:&#34;your@email.com&#34;,&#34;password&#34;:&#34;yourpassword&#34;}&#39;</span>
+</span></span></code></pre><p>This returns an access token and refresh token for subsequent API calls.</p>
+<p><strong>Using Access Tokens</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl https://app.example.com/api/resource <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Authorization: Bearer YOUR_ACCESS_TOKEN&#34;</span>
+</span></span></code></pre><p>Access tokens expire quickly (typically 15 minutes). Use the refresh token to get a new access token.</p>
+<p><strong>Refreshing Tokens</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl -X POST https://app.example.com/api/login <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -d <span style="color:#d14">&#39;{&#34;grant_type&#34;:&#34;refresh_token&#34;,&#34;refresh_token&#34;:&#34;YOUR_REFRESH_TOKEN&#34;}&#39;</span>
+</span></span></code></pre><p><strong>API Keys</strong></p>
+<p>For long-lived access (CI/CD, scripts, automation), create an API key:</p>
+<ol>
+<li>Log in to the application</li>
+<li>Navigate to API settings or developer settings</li>
+<li>Create a new API key with appropriate scopes</li>
+<li>Store the key securely - it&rsquo;s only shown once</li>
+</ol>
+<p>Use API keys like access tokens:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl https://app.example.com/api/resource <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Authorization: Bearer oa_YOUR_API_KEY&#34;</span>
+</span></span></code></pre><p><strong>Scopes</strong></p>
+<p>API tokens have scopes that limit what they can access:</p>
+<ul>
+<li><code>read</code> - Read data</li>
+<li><code>write</code> - Modify data</li>
+<li><code>profile</code> - Access profile information</li>
+</ul>
+<p>When creating API keys, request only the scopes you need.</p>
+<p><strong>Federated Access</strong></p>
+<p>Some applications use OneAuth in a federated model where you authenticate with one service (your &ldquo;host&rdquo;) and the token grants access to another (e.g., a relay server). In this case:</p>
+<ul>
+<li>You log in to your host application normally</li>
+<li>The host mints a short-lived token scoped for the relay</li>
+<li>Your client uses this token to connect to the relay</li>
+<li>If the token expires, your client reconnects automatically with a fresh token from the host</li>
+</ul>
+<h3 id="use-the-cli">Use the CLI <a class="anchor" href="#use-the-cli">¶</a></h3>
+<p>The <code>oneauth</code> binary covers token acquisition, introspection, dynamic client registration, and JWKS inspection without writing any Go. Install once:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>go install github.com/panyam/oneauth/cmd/oneauth@latest
+</span></span></code></pre><p><strong>Three output formats</strong> are available via <code>--format</code>:</p>
+<ul>
+<li><code>json</code> (default) — RFC 6749 §5.1 shape; pipe to <code>jq</code>.</li>
+<li><code>bash</code> — <code>export OAUTH_…=</code> lines suitable for <code>eval</code> / <code>source</code>.</li>
+<li><code>access-token-only</code> — the bare token; suitable for <code>Authorization: Bearer $(oneauth token cc … --format access-token-only)</code>.</li>
+</ul>
+<p><strong>Sourceable example</strong>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Acquire a token and load it into the calling shell.</span>
+</span></span><span style="display:flex;"><span><span style="color:#0086b3">eval</span> <span style="color:#d14">&#34;</span><span style="color:#000;font-weight:bold">$(</span>oneauth token client-credentials https://auth.example.com <span style="color:#d14">\
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  --client-id my-app --client-secret-stdin --format bash <span style="color:#000;font-weight:bold">&lt;&lt;&lt;</span><span style="color:#d14">&#34;</span><span style="color:#008080">$CLIENT_SECRET</span><span style="color:#d14">&#34;</span><span style="color:#000;font-weight:bold">)</span><span style="color:#d14">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Now $OAUTH_ACCESS_TOKEN is set; use it directly.</span>
+</span></span><span style="display:flex;"><span>curl -H <span style="color:#d14">&#34;Authorization: Bearer </span><span style="color:#008080">$OAUTH_ACCESS_TOKEN</span><span style="color:#d14">&#34;</span> https://api.example.com/me
+</span></span></code></pre><p><strong>Subcommand cheat sheet</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>oneauth token browser &lt;issuer&gt;</code></td>
+<td>Authorization code + PKCE for desktop / CLI clients (RFC 8252).</td>
+</tr>
+<tr>
+<td><code>oneauth token client-credentials &lt;issuer&gt;</code></td>
+<td>Machine-to-machine grant (RFC 6749 §4.4); aliased as <code>cc</code>.</td>
+</tr>
+<tr>
+<td><code>oneauth token password &lt;issuer&gt;</code></td>
+<td>Username/password grant (RFC 6749 §4.3); deprecated for new use.</td>
+</tr>
+<tr>
+<td><code>oneauth token refresh &lt;issuer&gt;</code></td>
+<td>Exchange a refresh token for a fresh access token (RFC 6749 §6).</td>
+</tr>
+<tr>
+<td><code>oneauth token device &lt;issuer&gt;</code></td>
+<td>Device authorization grant (RFC 8628). For headless devices and CLI tools — prints a code, polls until the user approves on a separate device. <code>--open</code> launches a browser; <code>--qr</code> renders an ASCII QR code.</td>
+</tr>
+<tr>
+<td><code>oneauth introspect &lt;issuer&gt;</code></td>
+<td>Check whether a token is active (RFC 7662). <code>--format active</code> returns just <code>true</code>/<code>false</code> for shell predicates.</td>
+</tr>
+<tr>
+<td><code>oneauth dcr register | get | put | delete &lt;issuer&gt;</code></td>
+<td>Dynamic Client Registration + management (RFC 7591 / 7592).</td>
+</tr>
+<tr>
+<td><code>oneauth jwks &lt;issuer&gt;</code></td>
+<td>Fetch + pretty-print the AS&rsquo;s JSON Web Key Set (RFC 7517). <code>--kid</code> / <code>--sig-only</code> filters.</td>
+</tr>
+</tbody>
+</table>
+<p><code>oneauth &lt;subcommand&gt; --help</code> enumerates every flag for each command.</p>
+<h3 id="browser-requirements">Browser Requirements <a class="anchor" href="#browser-requirements">¶</a></h3>
+<p>OneAuth works with modern browsers that support:</p>
+<ul>
+<li>JavaScript enabled</li>
+<li>Cookies enabled</li>
+<li>HTTPS connections</li>
+<li>Form submissions</li>
+</ul>
+<p>For optimal security, keep your browser updated to the latest version.</p>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

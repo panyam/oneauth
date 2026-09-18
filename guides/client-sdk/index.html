@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="The client/ package provides a Go SDK for CLI tools and programmatic clients consuming oneauth-protected APIs. It handles login, token storage,...">
+    <title>Client SDK · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Client SDK</h1>
+        
+        <p class="lead">The client/ package provides a Go SDK for CLI tools and programmatic clients consuming oneauth-protected APIs. It handles login, token storage,...</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/CLIENT_SDK.md"><code>docs/CLIENT_SDK.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="client-sdk">Client SDK <a class="anchor" href="#client-sdk">¶</a></h1>
+<p>The <code>client/</code> package provides a Go SDK for CLI tools and programmatic clients consuming oneauth-protected APIs. It handles login, token storage, automatic token refresh, and authenticated HTTP requests.</p>
+<blockquote>
+<p><strong>Want to skip the SDK and just grab a token?</strong> See <a href="../cmd/oneauth/"><code>cmd/oneauth/</code></a> — a Cobra CLI wrapping the same SDK. <code>oneauth token {browser,client-credentials,password,refresh} &lt;issuer&gt; --client-id …</code> prints a JSON / bash / bare-token shape suitable for shell scripts and CI.</p>
+</blockquote>
+<h2 id="architecture">Architecture <a class="anchor" href="#architecture">¶</a></h2>
+<pre><code class="language-mermaid">flowchart TD
+    AC[&quot;AuthClient&lt;br/&gt;- Login / Logout&lt;br/&gt;- GetToken() with automatic refresh&lt;br/&gt;- HTTPClient() returns authenticated *http.Client&quot;]
+    CS[&quot;CredentialStore&lt;br/&gt;(interface)&quot;]
+    RT[&quot;refreshTransport&lt;br/&gt;(401 retry +&lt;br/&gt;pre-expiry refresh)&quot;]
+    AT[&quot;AuthTransport&lt;br/&gt;(static Bearer header)&quot;]
+    FS[&quot;client/stores/fs&lt;br/&gt;JSON file&lt;br/&gt;~/.config/&amp;lt;app&amp;gt;&quot;]
+
+    AC --&gt; CS
+    AC --&gt; RT
+    AC --&gt; AT
+    CS --&gt; FS
+</code></pre>
+<h2 id="quick-start">Quick Start <a class="anchor" href="#quick-start">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> (
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/client&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/client/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 1. Create a credential store
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>store, err <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSCredentialStore</span>(<span style="color:#d14">&#34;&#34;</span>, <span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Stores credentials at ~/.config/myapp/credentials.json
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 2. Create an auth client
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>authClient <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(<span style="color:#d14">&#34;https://api.example.com&#34;</span>, store)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 3. Login
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">Login</span>(<span style="color:#d14">&#34;user@example.com&#34;</span>, <span style="color:#d14">&#34;password&#34;</span>, <span style="color:#d14">&#34;read write&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 4. Use the authenticated HTTP client
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>resp, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">HTTPClient</span>().<span style="color:#900;font-weight:bold">Get</span>(<span style="color:#d14">&#34;https://api.example.com/resource&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Authorization: Bearer &lt;token&gt; is added automatically
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// On 401, token is refreshed and request retried
+</span></span></span></code></pre><h2 id="authclient">AuthClient <a class="anchor" href="#authclient">¶</a></h2>
+<p>The main entry point for the client SDK.</p>
+<h3 id="constructor">Constructor <a class="anchor" href="#constructor">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">NewAuthClient</span>(serverURL <span style="color:#458;font-weight:bold">string</span>, store CredentialStore, opts <span style="color:#000;font-weight:bold">...</span>ClientOption) <span style="color:#000;font-weight:bold">*</span>AuthClient
+</span></span></code></pre><p>The server URL is normalized to <code>scheme://host</code> (path is stripped). Default token endpoint is <code>/auth/cli/token</code>. If <code>store</code> is nil, a no-op store is used — methods that return credentials (<code>Login</code>, <code>LoginWithBrowser</code>, <code>ClientCredentialsToken</code>) still work and return the credential to the caller, but tokens are not persisted between calls. This is useful for conformance testing and single-request flows (e.g., MCPKit&rsquo;s <code>OAuthTokenSource</code>).</p>
+<h3 id="options">Options <a class="anchor" href="#options">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Custom token endpoint
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(url, store, client.<span style="color:#900;font-weight:bold">WithTokenEndpoint</span>(<span style="color:#d14">&#34;/oauth/token&#34;</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Custom HTTP client (inherits timeout, TLS settings)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(url, store, client.<span style="color:#900;font-weight:bold">WithHTTPClient</span>(<span style="color:#000;font-weight:bold">&amp;</span>http.Client{
+</span></span><span style="display:flex;"><span>    Timeout: <span style="color:#099">30</span> <span style="color:#000;font-weight:bold">*</span> time.Second,
+</span></span><span style="display:flex;"><span>}))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Custom transport
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(url, store, client.<span style="color:#900;font-weight:bold">WithTransport</span>(customTransport))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Pre-populate AS metadata for auth method negotiation (#72)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>meta, _ <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">DiscoverAS</span>(<span style="color:#d14">&#34;https://auth.example.com&#34;</span>)
+</span></span><span style="display:flex;"><span>client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(url, store, client.<span style="color:#900;font-weight:bold">WithASMetadata</span>(meta))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Bind tokens to a proof-of-possession key (RFC 9449 DPoP)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>key, _ <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">NewDPoPKey</span>()
+</span></span><span style="display:flex;"><span>client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(url, store, client.<span style="color:#900;font-weight:bold">WithDPoPKey</span>(key))
+</span></span></code></pre><h4 id="dpop-rfc-9449">DPoP (RFC 9449) <a class="anchor" href="#dpop-rfc-9449">¶</a></h4>
+<p>With a key configured, the client mints a proof on every token request, and<br />
+the tokens that come back are bound to that key. Requests through<br />
+<code>HTTPClient()</code> then present the token as <code>Authorization: DPoP &lt;token&gt;</code> with a<br />
+fresh proof each time, including the <code>ath</code> claim that ties the proof to that<br />
+specific token.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>key, err <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">NewDPoPKey</span>()          <span style="color:#998;font-style:italic">// ES256, generated
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>c <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(url, store, client.<span style="color:#900;font-weight:bold">WithDPoPKey</span>(key))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Optional: fail fast when the server does not accept our algorithm
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>meta, _ <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">DiscoverAS</span>(<span style="color:#d14">&#34;https://auth.example.com&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">:=</span> key.<span style="color:#900;font-weight:bold">SupportedBy</span>(meta.DPoPSigningAlgValuesSupported); err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> err
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>cred, _ <span style="color:#000;font-weight:bold">:=</span> c.<span style="color:#900;font-weight:bold">ClientCredentialsToken</span>(id, secret, []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;read&#34;</span>})
+</span></span><span style="display:flex;"><span>resp, _ <span style="color:#000;font-weight:bold">:=</span> c.<span style="color:#900;font-weight:bold">HTTPClient</span>().<span style="color:#900;font-weight:bold">Get</span>(<span style="color:#d14">&#34;https://api.example.com/data&#34;</span>)  <span style="color:#998;font-style:italic">// DPoP scheme
+</span></span></span></code></pre><p>Three things worth knowing:</p>
+<ul>
+<li><strong>The key must outlive the tokens.</strong> A client that discards it holds tokens<br />
+nothing can present. <code>NewDPoPKeyFromECDSA</code> wraps a key loaded from storage<br />
+for an application that persists tokens across restarts.</li>
+<li><strong>Browser login sends <code>dpop_jkt</code>.</strong> With a key configured,<br />
+<code>LoginWithBrowser</code> adds the thumbprint to the authorization request, which<br />
+binds the authorization code to the key (RFC 9449 §10). Per the RFC that<br />
+adds protection over PKCE alone only when the key is unique per<br />
+authorization request, so generate one per login if that is the goal.</li>
+<li><strong>Without a key, nothing changes.</strong> Every request stays on the bearer path.</li>
+</ul>
+<h3 id="methods">Methods <a class="anchor" href="#methods">¶</a></h3>
+<h4 id="login">Login <a class="anchor" href="#login">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">Login</span>(<span style="color:#d14">&#34;user@example.com&#34;</span>, <span style="color:#d14">&#34;password&#34;</span>, <span style="color:#d14">&#34;read write&#34;</span>)
+</span></span></code></pre><p>Sends a <code>grant_type=password</code> request to the token endpoint. Stores the credential and persists to disk.</p>
+<h4 id="client-credentials-machine-to-machine">Client Credentials (Machine-to-Machine) <a class="anchor" href="#client-credentials-machine-to-machine">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">ClientCredentialsToken</span>(<span style="color:#d14">&#34;billing-svc&#34;</span>, <span style="color:#d14">&#34;secret&#34;</span>, []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;billing:read&#34;</span>})
+</span></span></code></pre><p>Sends a <code>grant_type=client_credentials</code> request as <code>application/x-www-form-urlencoded</code> (RFC 6749 §4.4.2). No refresh token — machine clients re-authenticate when the token expires. Stores the credential for subsequent API calls via <code>HTTPClient()</code>.</p>
+<p><strong>Auth method negotiation (#72):</strong> If AS metadata was provided via <code>WithASMetadata</code>, the client sends credentials using the AS&rsquo;s preferred method (<code>client_secret_basic</code> via Authorization header, or <code>client_secret_post</code> in the form body). Without metadata, defaults to <code>client_secret_basic</code> per RFC 6749 §2.3.1.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// With auth method negotiation
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>meta, _ <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">DiscoverAS</span>(<span style="color:#d14">&#34;https://auth.example.com&#34;</span>)
+</span></span><span style="display:flex;"><span>authClient <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(url, store, client.<span style="color:#900;font-weight:bold">WithASMetadata</span>(meta))
+</span></span><span style="display:flex;"><span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">ClientCredentialsToken</span>(<span style="color:#d14">&#34;svc&#34;</span>, <span style="color:#d14">&#34;secret&#34;</span>, <span style="color:#000;font-weight:bold">nil</span>)
+</span></span></code></pre><h4 id="as-metadata-discovery-rfc-8414--oidc-discovery">AS Metadata Discovery (RFC 8414 / OIDC Discovery) <a class="anchor" href="#as-metadata-discovery-rfc-8414--oidc-discovery">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>meta, err <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">DiscoverAS</span>(<span style="color:#d14">&#34;https://auth.example.com&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// meta.TokenEndpoint, meta.JWKSURI, meta.IntrospectionEndpoint, etc.
+</span></span></span></code></pre><p>Fetches OAuth AS metadata from well-known endpoints. Tries RFC 8414 (<code>/.well-known/oauth-authorization-server</code>) first, falls back to OIDC Discovery (<code>/.well-known/openid-configuration</code>). Supports path-based issuers (e.g., Keycloak realms).</p>
+<p>Use <code>WithHTTPClientForDiscovery(client)</code> to customize the HTTP client (TLS, timeouts).</p>
+<h4 id="browser-login-oauth-authorization-code--pkce">Browser Login (OAuth Authorization Code + PKCE) <a class="anchor" href="#browser-login-oauth-authorization-code--pkce">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">LoginWithBrowser</span>(client.BrowserLoginConfig{
+</span></span><span style="display:flex;"><span>    ClientID: <span style="color:#d14">&#34;my-cli-app&#34;</span>,
+</span></span><span style="display:flex;"><span>    Scopes:   []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;openid&#34;</span>, <span style="color:#d14">&#34;read&#34;</span>, <span style="color:#d14">&#34;write&#34;</span>},
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre><p>Opens the user&rsquo;s default browser to the authorization server&rsquo;s login page. After the user authenticates (password, SSO, MFA — whatever the AS supports), the browser redirects to a temporary loopback server that catches the authorization code. The code is exchanged for tokens via PKCE.</p>
+<p>This is the same pattern used by <code>gh auth login</code>, <code>gcloud auth login</code>, and <code>kubectl</code> with OIDC. Endpoints are auto-discovered via <code>DiscoverAS()</code>, or can be set explicitly via <code>AuthorizationEndpoint</code> and <code>TokenEndpoint</code> in the config.</p>
+<p><strong>Headless mode (#71):</strong> For CI, conformance testing, or headless CLI environments, use <code>FollowRedirects</code> instead of opening a browser:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">LoginWithBrowser</span>(client.BrowserLoginConfig{
+</span></span><span style="display:flex;"><span>    ClientID:    <span style="color:#d14">&#34;my-cli-app&#34;</span>,
+</span></span><span style="display:flex;"><span>    OpenBrowser: client.<span style="color:#900;font-weight:bold">FollowRedirects</span>(<span style="color:#000;font-weight:bold">nil</span>),  <span style="color:#998;font-style:italic">// follows HTTP redirects
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>})
+</span></span></code></pre><p><strong>Confidential client (#72):</strong> Set <code>ClientSecret</code> for confidential clients. The auth method (<code>client_secret_basic</code> vs <code>client_secret_post</code>) is negotiated from AS metadata:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">LoginWithBrowser</span>(client.BrowserLoginConfig{
+</span></span><span style="display:flex;"><span>    ClientID:     <span style="color:#d14">&#34;my-app&#34;</span>,
+</span></span><span style="display:flex;"><span>    ClientSecret: <span style="color:#d14">&#34;app-secret&#34;</span>,
+</span></span><span style="display:flex;"><span>    OpenBrowser:  client.<span style="color:#900;font-weight:bold">FollowRedirects</span>(httpClient),
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre><p><strong>Explicit endpoints with auth methods (#74):</strong> When the caller provides explicit endpoints (skipping discovery), set <code>TokenEndpointAuthMethods</code> so the client negotiates the correct auth method. This is common when the caller performs its own PRM→AS discovery (e.g., MCPKit):</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">LoginWithBrowser</span>(client.BrowserLoginConfig{
+</span></span><span style="display:flex;"><span>    ClientID:                 <span style="color:#d14">&#34;my-app&#34;</span>,
+</span></span><span style="display:flex;"><span>    ClientSecret:             <span style="color:#d14">&#34;app-secret&#34;</span>,
+</span></span><span style="display:flex;"><span>    AuthorizationEndpoint:    meta.AuthorizationEndpoint,
+</span></span><span style="display:flex;"><span>    TokenEndpoint:            meta.TokenEndpoint,
+</span></span><span style="display:flex;"><span>    TokenEndpointAuthMethods: meta.TokenEndpointAuthMethods,
+</span></span><span style="display:flex;"><span>    OpenBrowser:              client.<span style="color:#900;font-weight:bold">FollowRedirects</span>(<span style="color:#000;font-weight:bold">nil</span>),
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre><p>Without <code>TokenEndpointAuthMethods</code>, explicit endpoints default to <code>client_secret_basic</code> per RFC 6749 §2.3.1.</p>
+<h4 id="logout">Logout <a class="anchor" href="#logout">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">Logout</span>()
+</span></span></code></pre><p>Removes the stored credential for this server.</p>
+<h4 id="gettoken">GetToken <a class="anchor" href="#gettoken">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>token, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">GetToken</span>()
+</span></span></code></pre><p>Returns the current access token. If the token expires within 5 minutes and a refresh token is available, it proactively refreshes before returning.</p>
+<h4 id="isloggedin">IsLoggedIn <a class="anchor" href="#isloggedin">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span> authClient.<span style="color:#900;font-weight:bold">IsLoggedIn</span>() {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Has a valid, non-expired credential
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><h4 id="httpclient">HTTPClient <a class="anchor" href="#httpclient">¶</a></h4>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>httpClient <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">HTTPClient</span>()
+</span></span><span style="display:flex;"><span>resp, err <span style="color:#000;font-weight:bold">:=</span> httpClient.<span style="color:#900;font-weight:bold">Get</span>(<span style="color:#d14">&#34;https://api.example.com/resource&#34;</span>)
+</span></span></code></pre><p>Returns an <code>*http.Client</code> wired with <code>refreshTransport</code> that:</p>
+<ol>
+<li>Adds <code>Authorization: Bearer &lt;token&gt;</code> to every request</li>
+<li>Proactively refreshes tokens expiring within 5 minutes</li>
+<li>On 401 response: refreshes the token and retries the request once</li>
+</ol>
+<h2 id="credential-storage">Credential Storage <a class="anchor" href="#credential-storage">¶</a></h2>
+<h3 id="servercredential">ServerCredential <a class="anchor" href="#servercredential">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> ServerCredential <span style="color:#000;font-weight:bold">struct</span> {
+</span></span><span style="display:flex;"><span>    AccessToken  <span style="color:#458;font-weight:bold">string</span>    <span style="color:#d14">`json:&#34;access_token&#34;`</span>
+</span></span><span style="display:flex;"><span>    RefreshToken <span style="color:#458;font-weight:bold">string</span>    <span style="color:#d14">`json:&#34;refresh_token,omitempty&#34;`</span>
+</span></span><span style="display:flex;"><span>    TokenType    <span style="color:#458;font-weight:bold">string</span>    <span style="color:#d14">`json:&#34;token_type,omitempty&#34;`</span>
+</span></span><span style="display:flex;"><span>    UserID       <span style="color:#458;font-weight:bold">string</span>    <span style="color:#d14">`json:&#34;user_id,omitempty&#34;`</span>
+</span></span><span style="display:flex;"><span>    UserEmail    <span style="color:#458;font-weight:bold">string</span>    <span style="color:#d14">`json:&#34;user_email,omitempty&#34;`</span>
+</span></span><span style="display:flex;"><span>    Scope        <span style="color:#458;font-weight:bold">string</span>    <span style="color:#d14">`json:&#34;scope,omitempty&#34;`</span>
+</span></span><span style="display:flex;"><span>    ExpiresAt    time.Time <span style="color:#d14">`json:&#34;expires_at&#34;`</span>
+</span></span><span style="display:flex;"><span>    CreatedAt    time.Time <span style="color:#d14">`json:&#34;created_at&#34;`</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Helper methods:</p>
+<ul>
+<li><code>IsExpired() bool</code> — true if token has expired</li>
+<li><code>IsExpiringSoon(within time.Duration) bool</code> — true if expiring within the given duration</li>
+<li><code>HasRefreshToken() bool</code> — true if refresh token is present</li>
+</ul>
+<h3 id="credentialstore-interface">CredentialStore Interface <a class="anchor" href="#credentialstore-interface">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">type</span> CredentialStore <span style="color:#000;font-weight:bold">interface</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">GetCredential</span>(serverURL <span style="color:#458;font-weight:bold">string</span>) (<span style="color:#000;font-weight:bold">*</span>ServerCredential, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">SetCredential</span>(serverURL <span style="color:#458;font-weight:bold">string</span>, cred <span style="color:#000;font-weight:bold">*</span>ServerCredential) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">RemoveCredential</span>(serverURL <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ListServers</span>() ([]<span style="color:#458;font-weight:bold">string</span>, <span style="color:#458;font-weight:bold">error</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">Save</span>() <span style="color:#458;font-weight:bold">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h3 id="fscredentialstore">FSCredentialStore <a class="anchor" href="#fscredentialstore">¶</a></h3>
+<p>File-based implementation that persists credentials as JSON.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/client/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Default path: ~/.config/myapp/credentials.json
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>store, err <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSCredentialStore</span>(<span style="color:#d14">&#34;&#34;</span>, <span style="color:#d14">&#34;myapp&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Custom path
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>store, err <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSCredentialStore</span>(<span style="color:#d14">&#34;/path/to/credentials.json&#34;</span>, <span style="color:#d14">&#34;&#34;</span>)
+</span></span></code></pre><p>File format:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;servers&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#000080">&#34;https://api.example.com&#34;</span>: {
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;access_token&#34;</span>: <span style="color:#d14">&#34;eyJhbGci...&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;refresh_token&#34;</span>: <span style="color:#d14">&#34;a1b2c3...&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;expires_at&#34;</span>: <span style="color:#d14">&#34;2026-03-15T10:45:00Z&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;user_id&#34;</span>: <span style="color:#d14">&#34;user-123&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000080">&#34;scope&#34;</span>: <span style="color:#d14">&#34;read write&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Security: credentials file is written with <code>0600</code> permissions (owner-only), directory with <code>0700</code>.</p>
+<h2 id="token-refresh-flow">Token Refresh Flow <a class="anchor" href="#token-refresh-flow">¶</a></h2>
+<pre><code class="language-mermaid">flowchart TD
+    U[&quot;User makes request via HTTPClient()&quot;]
+    RT[&quot;refreshTransport.RoundTrip()&quot;]
+    S1[&quot;GetToken() checks if token expires within 5 min&quot;]
+    S1A[&quot;If yes + has refresh token → refresh proactively&quot;]
+    S2[&quot;Adds Authorization: Bearer &amp;lt;token&amp;gt; header&quot;]
+    S3[&quot;Sends request&quot;]
+    S4[&quot;If 401 received + has refresh token:&quot;]
+    S4A[&quot;Refresh token, retry request once with new token&quot;]
+
+    U --&gt; RT
+    RT --&gt; S1
+    S1 --&gt; S1A
+    S1 --&gt; S2
+    S2 --&gt; S3
+    S3 --&gt; S4
+    S4 --&gt; S4A
+</code></pre>
+<p>The refresh uses a <code>grant_type=refresh_token</code> request to the token endpoint. The base transport is used for refresh requests to avoid infinite loops.</p>
+<h2 id="dynamic-client-registration--management-rfc-7591--7592">Dynamic Client Registration &amp; Management (RFC 7591 / 7592) <a class="anchor" href="#dynamic-client-registration--management-rfc-7591--7592">¶</a></h2>
+<p>The <code>client/dcr.go</code> helpers let an application register itself at an authorization server and subsequently manage that registration without going through an admin UI.</p>
+<h3 id="register">Register <a class="anchor" href="#register">¶</a></h3>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>resp, err <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">RegisterClient</span>(asMetadata.RegistrationEndpoint, client.ClientRegistrationRequest{
+</span></span><span style="display:flex;"><span>    ClientName:   <span style="color:#d14">&#34;My Bot&#34;</span>,
+</span></span><span style="display:flex;"><span>    RedirectURIs: []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;https://bot.example/cb&#34;</span>},
+</span></span><span style="display:flex;"><span>    GrantTypes:   []<span style="color:#458;font-weight:bold">string</span>{<span style="color:#d14">&#34;client_credentials&#34;</span>},
+</span></span><span style="display:flex;"><span>}, <span style="color:#000;font-weight:bold">nil</span>)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// resp.ClientID, resp.ClientSecret — the credentials
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// resp.RegistrationAccessToken, resp.RegistrationClientURI — RFC 7592 management credentials
+</span></span></span></code></pre><h3 id="read-your-own-registration-rfc-7592-21">Read your own registration (RFC 7592 §2.1) <a class="anchor" href="#read-your-own-registration-rfc-7592-21">¶</a></h3>
+<p>Once registered, the client holds two extra fields — <code>RegistrationAccessToken</code> and <code>RegistrationClientURI</code>. They are the management credentials for <em>that specific registration</em>.</p>
+<p>The SDK follows the library-wide <code>(ctx, *Request) → (*Response, error)</code> convention so calls thread cancellation/deadlines through and stay shaped for future gRPC stubs.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>got, err <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">GetRegistration</span>(ctx, <span style="color:#000;font-weight:bold">&amp;</span>client.GetRegistrationRequest{
+</span></span><span style="display:flex;"><span>    RegistrationClientURI:   resp.RegistrationClientURI,
+</span></span><span style="display:flex;"><span>    RegistrationAccessToken: resp.RegistrationAccessToken,
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span> errors.<span style="color:#900;font-weight:bold">Is</span>(err, client.ErrRegistrationUnauthorized) {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Token rejected — the AS returned 401. The token may have been rotated
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#998;font-style:italic">// (RFC 7592 §2.2 re-issues on PUT) or the client unregistered.
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>metadata <span style="color:#000;font-weight:bold">:=</span> got.Registration <span style="color:#998;font-style:italic">// *ClientRegistrationResponse
+</span></span></span></code></pre><p><code>GetRegistration</code> returns the current registration metadata wrapped in a response struct. The metadata intentionally <strong>does not</strong> echo <code>client_secret</code>; clients that lose the secret rotate via PUT (below).</p>
+<h3 id="update-your-own-registration-rfc-7592-22">Update your own registration (RFC 7592 §2.2) <a class="anchor" href="#update-your-own-registration-rfc-7592-22">¶</a></h3>
+<p><code>UpdateRegistration</code> performs a <strong>full replacement</strong> of the registration metadata (not a PATCH-style merge — fields omitted from <code>Metadata</code> are cleared on the server). On success the AS rotates the <code>registration_access_token</code>; the new token surfaces on the response and the old one is invalid for any subsequent management call.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>resp, err <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">UpdateRegistration</span>(ctx, <span style="color:#000;font-weight:bold">&amp;</span>client.UpdateRegistrationRequest{
+</span></span><span style="display:flex;"><span>    RegistrationClientURI:   regURI,
+</span></span><span style="display:flex;"><span>    RegistrationAccessToken: oldToken,
+</span></span><span style="display:flex;"><span>    ClientID:                clientID, <span style="color:#998;font-style:italic">// RFC 7592 §2.2 requires it; SDK auto-fills body
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    Metadata: client.ClientRegistrationRequest{
+</span></span><span style="display:flex;"><span>        ClientName: <span style="color:#d14">&#34;My Renamed Bot&#34;</span>,
+</span></span><span style="display:flex;"><span>        Scope:      <span style="color:#d14">&#34;read write admin&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// ... other fields you want to KEEP must also be set; replacement is total
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    },
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> errors.<span style="color:#900;font-weight:bold">Is</span>(err, client.ErrRegistrationUnauthorized) {
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// Old token already rotated, or the AS unregistered the client.
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> err
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>newToken <span style="color:#000;font-weight:bold">:=</span> resp.Registration.RegistrationAccessToken <span style="color:#998;font-style:italic">// persist before discarding oldToken
+</span></span></span></code></pre><p>OneAuth rejects updates that change <code>token_endpoint_auth_method</code> (would require re-keying); clients that need to switch auth method DELETE and re-register.</p>
+<h3 id="delete-your-registration-rfc-7592-23">Delete your registration (RFC 7592 §2.3) <a class="anchor" href="#delete-your-registration-rfc-7592-23">¶</a></h3>
+<p><code>DeleteRegistration</code> removes the registration AND invalidates the signing credentials. After it returns successfully, the <code>client_secret</code> (or asymmetric key) captured at registration can no longer mint access tokens.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>_, err <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">DeleteRegistration</span>(ctx, <span style="color:#000;font-weight:bold">&amp;</span>client.DeleteRegistrationRequest{
+</span></span><span style="display:flex;"><span>    RegistrationClientURI:   regURI,
+</span></span><span style="display:flex;"><span>    RegistrationAccessToken: regToken,
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> errors.<span style="color:#900;font-weight:bold">Is</span>(err, client.ErrRegistrationUnauthorized) {
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// Token rejected — already deleted, or never had management rights
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> err
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 204 No Content. Empty response struct; nothing to inspect.
+</span></span></span></code></pre><p>The response struct is intentionally empty today (the wire response is 204 No Content); it exists to keep the <code>(ctx, *Req) → (*Resp, error)</code> shape and gives forward-compat headroom.</p>
+<h2 id="authtransport-static-token">AuthTransport (Static Token) <a class="anchor" href="#authtransport-static-token">¶</a></h2>
+<p>For simpler cases where you have a static token and don&rsquo;t need refresh:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/client&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>transport <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">NewAuthTransport</span>(<span style="color:#d14">&#34;my-static-token&#34;</span>)
+</span></span><span style="display:flex;"><span>httpClient <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>http.Client{Transport: transport}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>resp, err <span style="color:#000;font-weight:bold">:=</span> httpClient.<span style="color:#900;font-weight:bold">Get</span>(<span style="color:#d14">&#34;https://api.example.com/resource&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Authorization: Bearer my-static-token
+</span></span></span></code></pre><h2 id="complete-example-cli-tool">Complete Example: CLI Tool <a class="anchor" href="#complete-example-cli-tool">¶</a></h2>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">package</span> main
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> (
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;fmt&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;os&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/client&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d14">&#34;github.com/panyam/oneauth/client/stores/fs&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">main</span>() {
+</span></span><span style="display:flex;"><span>    store, _ <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSCredentialStore</span>(<span style="color:#d14">&#34;&#34;</span>, <span style="color:#d14">&#34;mycli&#34;</span>)
+</span></span><span style="display:flex;"><span>    auth <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(<span style="color:#d14">&#34;https://api.example.com&#34;</span>, store)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">switch</span> os.Args[<span style="color:#099">1</span>] {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">case</span> <span style="color:#d14">&#34;login&#34;</span>:
+</span></span><span style="display:flex;"><span>        cred, err <span style="color:#000;font-weight:bold">:=</span> auth.<span style="color:#900;font-weight:bold">Login</span>(os.Args[<span style="color:#099">2</span>], os.Args[<span style="color:#099">3</span>], <span style="color:#d14">&#34;read write&#34;</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>            fmt.<span style="color:#900;font-weight:bold">Fprintf</span>(os.Stderr, <span style="color:#d14">&#34;Login failed: %v\n&#34;</span>, err)
+</span></span><span style="display:flex;"><span>            os.<span style="color:#900;font-weight:bold">Exit</span>(<span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        fmt.<span style="color:#900;font-weight:bold">Printf</span>(<span style="color:#d14">&#34;Logged in as %s\n&#34;</span>, cred.UserEmail)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">case</span> <span style="color:#d14">&#34;whoami&#34;</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">if</span> !auth.<span style="color:#900;font-weight:bold">IsLoggedIn</span>() {
+</span></span><span style="display:flex;"><span>            fmt.<span style="color:#900;font-weight:bold">Println</span>(<span style="color:#d14">&#34;Not logged in&#34;</span>)
+</span></span><span style="display:flex;"><span>            os.<span style="color:#900;font-weight:bold">Exit</span>(<span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        cred, _ <span style="color:#000;font-weight:bold">:=</span> auth.<span style="color:#900;font-weight:bold">GetCredential</span>()
+</span></span><span style="display:flex;"><span>        fmt.<span style="color:#900;font-weight:bold">Printf</span>(<span style="color:#d14">&#34;User: %s (%s)\n&#34;</span>, cred.UserID, cred.UserEmail)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">case</span> <span style="color:#d14">&#34;fetch&#34;</span>:
+</span></span><span style="display:flex;"><span>        resp, err <span style="color:#000;font-weight:bold">:=</span> auth.<span style="color:#900;font-weight:bold">HTTPClient</span>().<span style="color:#900;font-weight:bold">Get</span>(os.Args[<span style="color:#099">2</span>])
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">if</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span> {
+</span></span><span style="display:flex;"><span>            fmt.<span style="color:#900;font-weight:bold">Fprintf</span>(os.Stderr, <span style="color:#d14">&#34;Request failed: %v\n&#34;</span>, err)
+</span></span><span style="display:flex;"><span>            os.<span style="color:#900;font-weight:bold">Exit</span>(<span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">defer</span> resp.Body.<span style="color:#900;font-weight:bold">Close</span>()
+</span></span><span style="display:flex;"><span>        <span style="color:#998;font-style:italic">// ... handle response
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">case</span> <span style="color:#d14">&#34;logout&#34;</span>:
+</span></span><span style="display:flex;"><span>        auth.<span style="color:#900;font-weight:bold">Logout</span>()
+</span></span><span style="display:flex;"><span>        fmt.<span style="color:#900;font-weight:bold">Println</span>(<span style="color:#d14">&#34;Logged out&#34;</span>)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="thread-safety">Thread Safety <a class="anchor" href="#thread-safety">¶</a></h2>
+<p>Both <code>AuthClient</code> and <code>FSCredentialStore</code> are protected by <code>sync.Mutex</code>. Safe for concurrent use from multiple goroutines.</p>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented / Partial / Gap — links to code">
+    <title>OAuth Landscape · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OAuth Landscape</h1>
+        
+        <p class="lead">Implemented / Partial / Gap — links to code</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/LANDSCAPE.md"><code>docs/oauth/LANDSCAPE.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oauth-landscape">OAuth Landscape <a class="anchor" href="#oauth-landscape">¶</a></h1>
+<p>A zoom-in / zoom-out map of OAuth 2.1 and the RFCs that plug into it.</p>
+<p>This is the umbrella doc for <code>docs/oauth/</code>. Per-RFC summaries live in sibling<br />
+<code>RFC_xxxx.md</code> files (linked from the diagrams in §3 and §4). Each per-RFC doc<br />
+follows the template in §8 — short, with a relatable example, a wire sample,<br />
+and OneAuth-specific notes.</p>
+<blockquote>
+<p><strong>Related reading already in the repo.</strong> This doc is the <em>map</em>; existing<br />
+docs are the <em>territory</em>:</p>
+<ul>
+<li><a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a> — gap analysis vs OAuth 2.1</li>
+<li><a href="../AUTH_FLOWS.md"><code>docs/AUTH_FLOWS.md</code></a> — sequence diagrams for built flows</li>
+<li><a href="../JWT_SIGNING.md"><code>docs/JWT_SIGNING.md</code></a> — key/JWKS internals</li>
+<li><a href="../gaps/AUTHLETE_GAP_ANALYSIS.md"><code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code></a> — Authlete-superset gap analysis (tracked under #163)</li>
+<li><a href="../gaps/AUTH0_GAP_ANALYSIS.md"><code>docs/gaps/AUTH0_GAP_ANALYSIS.md</code></a> — Auth0 gap analysis</li>
+</ul>
+</blockquote>
+<hr />
+<h2 id="how-to-use-this-document">How to use this document <a class="anchor" href="#how-to-use-this-document">¶</a></h2>
+<ul>
+<li><strong>Want the big picture?</strong> Read <a href="#1-what-oauth-21-actually-is">§1</a> and skim the L-tier diagram in §3.</li>
+<li><strong>Want to know when a particular RFC kicks in?</strong> Jump to the T-tier diagram in §4.</li>
+<li><strong>Working on a feature?</strong> Find the slot it fills in <a href="#2-the-slots-abstraction--implementation">§2</a>, then click through to the per-RFC doc.</li>
+<li><strong>Auditing OneAuth coverage?</strong> <a href="#6-oneauth-coverage-matrix">§6</a> is the matrix.</li>
+<li><strong>Want a worked example?</strong> <a href="#7-worked-examples">§7</a> traces real-world scenarios across the L and T axes.</li>
+<li><strong>Filling in a new RFC doc?</strong> <a href="#8-template-for-per-rfc-docs">§8</a> is the template.</li>
+</ul>
+<hr />
+<h2 id="1-what-oauth-20-and-21-are">1. What OAuth 2.0 and 2.1 are <a class="anchor" href="#1-what-oauth-20-and-21-are">¶</a></h2>
+<p><strong>OAuth 2.0</strong> (<a href="https://datatracker.ietf.org/doc/rfc6749/">RFC 6749</a>, 2012) is the<br />
+framework the world deploys. Every major IdP — Google, GitHub, Microsoft Azure<br />
+AD, Okta, Auth0, AWS Cognito, Keycloak — speaks 2.0, usually layered with a<br />
+selection of the BCP defenses.</p>
+<p><strong>OAuth 2.1</strong> (<a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/">draft-ietf-oauth-v2-1</a>,<br />
+still an active Internet-Draft — <em>not yet an RFC</em>) is the strict-mode<br />
+consolidation. It bakes in PKCE (RFC 7636), the Security BCP (RFC 9700), and<br />
+Bearer Token Usage (RFC 6750), and drops the grants two decades of attacks<br />
+killed (implicit, ROPC).</p>
+<h3 id="both-share-the-same-skeleton">Both share the same skeleton <a class="anchor" href="#both-share-the-same-skeleton">¶</a></h3>
+<p>Whether you read 2.0 or 2.1, the core is only four things:</p>
+<ol>
+<li><strong>Four roles</strong> — <em>resource owner</em> (you), <em>client</em> (the app asking for<br />
+access), <em>authorization server</em> (the AS, who issues tokens), <em>resource<br />
+server</em> (the RS, who holds the protected data).</li>
+<li><strong>Two endpoints on the AS</strong> — <code>/authorize</code> (browser-mediated, redirect-based)<br />
+and <code>/token</code> (back-channel, HTTP POST).</li>
+<li><strong>A small set of built-in grant types</strong> — 2.0 ships five<br />
+(<code>authorization_code</code>, <code>implicit</code>, <code>password</code>/ROPC, <code>client_credentials</code>,<br />
+<code>refresh_token</code>); 2.1 keeps three (<code>authorization_code</code> + PKCE,<br />
+<code>refresh_token</code>, <code>client_credentials</code>).</li>
+<li><strong>A bearer-token contract</strong> — the RS treats whoever presents the token as<br />
+authorized; the AS decides what&rsquo;s inside.</li>
+</ol>
+<p><strong>A relatable example.</strong> When you click <em>&ldquo;Sign in with Google&rdquo;</em> on a new app:</p>
+<ul>
+<li><em>You</em> are the resource owner; <em>the new app</em> is the client; <em>Google</em> is the AS;<br />
+<em>Google&rsquo;s user-info / Gmail API</em> is the resource server.</li>
+<li>Your browser hits Google&rsquo;s <code>/authorize</code>. You log in, consent, get bounced back<br />
+to the app with a one-time <code>code</code>.</li>
+<li>The app&rsquo;s backend POSTs that <code>code</code> to Google&rsquo;s <code>/token</code> and gets back an<br />
+access token.</li>
+<li>The app calls Google&rsquo;s API with <code>Authorization: Bearer &lt;token&gt;</code>. Google<br />
+decides what claims the token carries.</li>
+</ul>
+<p>This walkthrough is 2.0 <em>and</em> 2.1 simultaneously — they share the wire shape.</p>
+<h3 id="where-20-and-21-differ">Where 2.0 and 2.1 differ <a class="anchor" href="#where-20-and-21-differ">¶</a></h3>
+<p>2.1 doesn&rsquo;t add protocol surface; it <em>constrains</em> 2.0&rsquo;s. Each tightening<br />
+corresponds to a defense in RFC 9700 (the Security BCP):</p>
+<table>
+<thead>
+<tr>
+<th>Defense</th>
+<th>2.0 default</th>
+<th>2.1 mandate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PKCE</td>
+<td>optional; SHOULD for public clients (per 7636)</td>
+<td><strong>MUST for all clients</strong> on auth-code</td>
+</tr>
+<tr>
+<td>PKCE methods</td>
+<td><code>plain</code> and <code>S256</code></td>
+<td><strong><code>S256</code> only</strong> (<code>plain</code> rejected)</td>
+</tr>
+<tr>
+<td>Implicit grant (§4.2)</td>
+<td>allowed</td>
+<td><strong>removed</strong></td>
+</tr>
+<tr>
+<td>ROPC password grant (§4.3)</td>
+<td>allowed</td>
+<td><strong>removed</strong></td>
+</tr>
+<tr>
+<td>Redirect URI matching</td>
+<td>various (vendor)</td>
+<td><strong>exact string match</strong></td>
+</tr>
+<tr>
+<td>Redirect URI scheme</td>
+<td>any</td>
+<td><strong>HTTPS</strong> (loopback exempt per RFC 8252)</td>
+</tr>
+<tr>
+<td>Bearer token in query string (6750 §2.3)</td>
+<td>discouraged</td>
+<td><strong>forbidden</strong></td>
+</tr>
+<tr>
+<td>Refresh token rotation</td>
+<td>not specified</td>
+<td><strong>required + family-revoke on reuse</strong></td>
+</tr>
+<tr>
+<td><code>iss</code> on auth-response redirect</td>
+<td>not required</td>
+<td><strong>required</strong> (per RFC 9207)</td>
+</tr>
+</tbody>
+</table>
+<p>For the row-by-row OneAuth audit against 2.1, see<br />
+<a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>. For the per-RFC<br />
+&ldquo;what does this RFC require under 2.0 vs 2.1&rdquo; breakdown, every per-RFC doc<br />
+in this folder has paired <em>OAuth 2.0 status</em> and <em>OAuth 2.1 status</em> sections<br />
+(§8 template).</p>
+<h3 id="oneauths-stance-21-posture-20-interop">OneAuth&rsquo;s stance: 2.1 posture, 2.0 interop <a class="anchor" href="#oneauths-stance-21-posture-20-interop">¶</a></h3>
+<p>OneAuth&rsquo;s AS aims for <strong>2.1 strictness internally</strong> — PKCE everywhere,<br />
+S256-only, exact redirect match, refresh-token rotation with family revoke.<br />
+Its client SDK and middleware <strong>interop with 2.0 deployments</strong> because that&rsquo;s<br />
+what the production world advertises.</p>
+<p>Some 2.0-legal-but-2.1-illegal features are retained with deprecation flags<br />
+and migration paths in flight:</p>
+<ul>
+<li>ROPC password grant (<a href="https://github.com/panyam/oneauth/issues/294">issue 294</a>)</li>
+<li>Query-param bearer fallback (<a href="https://github.com/panyam/oneauth/issues/295">issue 295</a>)</li>
+</ul>
+<p>These are <em>transition states</em>, not non-compliance. A deployment that needs<br />
+strict 2.1 turns them off; a deployment migrating off a legacy IdP keeps them<br />
+on while it bakes the alternative. Both stances are legitimate.</p>
+<h3 id="whats-deliberately-left-open">What&rsquo;s deliberately left open <a class="anchor" href="#whats-deliberately-left-open">¶</a></h3>
+<p>Everything else — <em>token format, client auth method, how clients are<br />
+registered, how requests get integrity, how tokens are bound to a sender,<br />
+how identity is conveyed, how you discover any of this</em> — both 2.0 and 2.1<br />
+<strong>deliberately leave open.</strong> Those open holes are the <strong>extension slots</strong><br />
+that the rest of the RFC ecosystem fills.</p>
+<hr />
+<h2 id="2-the-slots-abstraction--implementation">2. The slots (abstraction → implementation) <a class="anchor" href="#2-the-slots-abstraction--implementation">¶</a></h2>
+<p>OAuth 2.1 is the <em>interface</em>; most other RFCs are <em>implementations</em> of one slot.</p>
+<table>
+<thead>
+<tr>
+<th>Slot left open by 2.1</th>
+<th>2.1 default</th>
+<th>RFCs that plug in</th>
+<th>Example bite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Token format</strong></td>
+<td>opaque string</td>
+<td>RFC 9068 (JWT AT) — or stay opaque + use introspection</td>
+<td>RS wants to authorize per-request without a network hop → JWT</td>
+</tr>
+<tr>
+<td><strong>Token validation at RS</strong></td>
+<td>&ldquo;ask the AS somehow&rdquo;</td>
+<td>7662 (introspect) · 7519+7517+9068 (verify JWT via JWKS)</td>
+<td>Multi-region RS can&rsquo;t tolerate AS RTT → JWT verify locally</td>
+</tr>
+<tr>
+<td><strong>Client auth at <code>/token</code></strong></td>
+<td>client_secret_basic / _post</td>
+<td>7521 (assertion) · 7523 (client_secret_jwt + private_key_jwt) · 8705 (mTLS) · 9449 (DPoP)</td>
+<td>Leaked client secret = full impersonation → private_key_jwt or mTLS</td>
+</tr>
+<tr>
+<td><strong>Client onboarding</strong></td>
+<td>out-of-band, manual</td>
+<td>7591 (DCR) · 7592 (DCR mgmt)</td>
+<td>SaaS with thousands of integrating apps can&rsquo;t manually provision each</td>
+</tr>
+<tr>
+<td><strong>AS / RS discovery</strong></td>
+<td>hardcoded URLs</td>
+<td>8414 (AS metadata) · 9728 (PR metadata) · 9207 (<code>iss</code> in redirect)</td>
+<td>Client library needs to &ldquo;just work&rdquo; against any compliant AS</td>
+</tr>
+<tr>
+<td><strong>Authorization request transport</strong></td>
+<td>query string on <code>/authorize</code></td>
+<td>9126 PAR (push before redirect) · 9101 JAR (signed request object)</td>
+<td>Banking regulator says the request itself must be integrity-protected → JAR</td>
+</tr>
+<tr>
+<td><strong>Authorization data shape</strong></td>
+<td>space-separated <code>scope</code> string</td>
+<td>9396 RAR (structured <code>authorization_details</code>)</td>
+<td><em>&ldquo;transfer £500 from acct A to acct B&rdquo;</em> doesn&rsquo;t fit in a scope name</td>
+</tr>
+<tr>
+<td><strong>Token-to-sender binding</strong></td>
+<td>none — bearer = whoever holds it</td>
+<td>8705 (cert-bound, <code>cnf.x5t#S256</code>) · 9449 (DPoP-bound, <code>cnf.jkt</code>)</td>
+<td>Stolen access token replays from anywhere → sender constraint kills replay</td>
+</tr>
+<tr>
+<td><strong>Additional grant types</strong></td>
+<td>only 3 baked in</td>
+<td>8628 (device) · 7523 (jwt-bearer) · 8693 (token-exchange) · 7522 (saml-bearer) · OIDC CIBA</td>
+<td>Smart TV has no keyboard → device flow</td>
+</tr>
+<tr>
+<td><strong>Token revocation</strong></td>
+<td>&ldquo;tokens expire&rdquo;</td>
+<td>7009 (revocation endpoint)</td>
+<td>User clicks &ldquo;Disconnect app&rdquo; → revoke now, don&rsquo;t wait for expiry</td>
+</tr>
+<tr>
+<td><strong>Key publication / rotation</strong></td>
+<td>impl detail</td>
+<td>7517 (JWKS) · 7518 (algs)</td>
+<td>RS verifies JWT without static key pinning</td>
+</tr>
+<tr>
+<td><strong>Identity of the user</strong></td>
+<td>not OAuth&rsquo;s job</td>
+<td>OIDC Core (<code>id_token</code>)</td>
+<td>App needs <em>&ldquo;who is this user&rdquo;</em> not just <em>&ldquo;can they access X&rdquo;</em></td>
+</tr>
+<tr>
+<td><strong>Logout / session end</strong></td>
+<td>not OAuth&rsquo;s job</td>
+<td>OIDC Back-Channel / Front-Channel Logout</td>
+<td>User logs out at IdP → app sessions must also end</td>
+</tr>
+<tr>
+<td><strong>Security guidance</strong></td>
+<td>scattered through 6749</td>
+<td>RFC 9700 (BCP) — <em>the</em> normative &ldquo;how to not get pwned&rdquo;</td>
+<td>The footguns 2.1 closes are catalogued here</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Mental shortcut.</strong> If an RFC&rsquo;s title contains <em>&ldquo;metadata,&rdquo; &ldquo;registration,&rdquo;<br />
+&ldquo;introspection,&rdquo; &ldquo;revocation,&rdquo; &ldquo;exchange,&rdquo; &ldquo;bearer,&rdquo; &ldquo;binding,&rdquo; &ldquo;rich,&rdquo;<br />
+&ldquo;pushed,&rdquo; &ldquo;DPoP,&rdquo;</em> or <em>&ldquo;JWT profile&rdquo;</em> — it&rsquo;s filling one of the slots above. The<br />
+OAuth 2.1 core stays small forever; the ecosystem grows by adding slot-fillers.</p>
+<hr />
+<h2 id="3-l-tiers--topical-zoom-levels">3. L-tiers — topical zoom levels <a class="anchor" href="#3-l-tiers--topical-zoom-levels">¶</a></h2>
+<p>Each tier is a <em>category of slot-fillers</em>. Lower tiers depend on higher ones:<br />
+you need L1 (token format) and L2 (lifecycle) before L5 (sender binding) is<br />
+meaningful. Click any RFC node to jump to its summary doc (most are stubs at<br />
+the moment — see <a href="#9-per-rfc-docs-index">§7 index</a>).</p>
+<pre><code class="language-mermaid">flowchart LR
+    Core[&quot;OAuth 2.1 Core&lt;br/&gt;4 roles · 2 endpoints · 3 grants&quot;]:::core
+
+    Core --&gt; L0[&quot;L0 · Spine&quot;]:::tier
+    Core --&gt; L1[&quot;L1 · Token format / JOSE&quot;]:::tier
+    Core --&gt; L2[&quot;L2 · Lifecycle &amp; discovery&quot;]:::tier
+    Core --&gt; L3[&quot;L3 · Client onboarding&quot;]:::tier
+    Core --&gt; L4[&quot;L4 · Grant types&quot;]:::tier
+    Core --&gt; L5[&quot;L5 · Client auth strength&quot;]:::tier
+    Core --&gt; L6[&quot;L6 · Request integrity&quot;]:::tier
+    Core --&gt; L7[&quot;L7 · Identity (OIDC)&quot;]:::tier
+    Core --&gt; L8[&quot;L8 · Profiles / FAPI / GNAP&quot;]:::tier
+
+    L0 --&gt; R6749[&quot;RFC 6749 OAuth 2.0&quot;]
+    L0 --&gt; R6750[&quot;RFC 6750 Bearer&quot;]
+    L0 --&gt; R7636[&quot;RFC 7636 PKCE&quot;]
+    L0 --&gt; R9700[&quot;RFC 9700 Security BCP&quot;]
+    L0 --&gt; R21[&quot;OAuth 2.1 draft&quot;]
+
+    L1 --&gt; R7515[&quot;RFC 7515 JWS&quot;]
+    L1 --&gt; R7516[&quot;RFC 7516 JWE&quot;]
+    L1 --&gt; R7517[&quot;RFC 7517 JWK / JWKS&quot;]
+    L1 --&gt; R7518[&quot;RFC 7518 JWA&quot;]
+    L1 --&gt; R7519[&quot;RFC 7519 JWT&quot;]
+    L1 --&gt; R9068[&quot;RFC 9068 JWT AT&quot;]
+
+    L2 --&gt; R7662[&quot;RFC 7662 Introspect&quot;]
+    L2 --&gt; R7009[&quot;RFC 7009 Revoke&quot;]
+    L2 --&gt; R8414[&quot;RFC 8414 AS Meta&quot;]
+    L2 --&gt; R9728[&quot;RFC 9728 PR Meta&quot;]
+    L2 --&gt; R9207[&quot;RFC 9207 iss param&quot;]
+
+    L3 --&gt; R7591[&quot;RFC 7591 DCR&quot;]
+    L3 --&gt; R7592[&quot;RFC 7592 DCR Mgmt&quot;]
+
+    L4 --&gt; R8628[&quot;RFC 8628 Device&quot;]
+    L4 --&gt; R7523g[&quot;RFC 7523 JWT-bearer grant&quot;]
+    L4 --&gt; R8693[&quot;RFC 8693 Token Exchange&quot;]
+    L4 --&gt; CIBA[&quot;OIDC CIBA&quot;]
+
+    L5 --&gt; R7521[&quot;RFC 7521 Assertion fwk&quot;]
+    L5 --&gt; R7523c[&quot;RFC 7523 JWT client auth&quot;]
+    L5 --&gt; R8705[&quot;RFC 8705 mTLS&quot;]
+    L5 --&gt; R9449[&quot;RFC 9449 DPoP&quot;]
+
+    L6 --&gt; R9126[&quot;RFC 9126 PAR&quot;]
+    L6 --&gt; R9101[&quot;RFC 9101 JAR&quot;]
+    L6 --&gt; R9396[&quot;RFC 9396 RAR&quot;]
+
+    L7 --&gt; OIDC[&quot;OIDC Core&quot;]
+    L7 --&gt; OIDCD[&quot;OIDC Discovery&quot;]
+    L7 --&gt; OIDCBCL[&quot;OIDC Back-Channel Logout&quot;]
+
+    L8 --&gt; FAPI[&quot;FAPI 1.0 / 2.0&quot;]
+    L8 --&gt; GNAP[&quot;GNAP (future)&quot;]
+
+    click R6749 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_6749.md&quot; &quot;OAuth 2.0 Framework&quot;
+    click R6750 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_6750.md&quot; &quot;Bearer Token Usage&quot;
+    click R7636 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7636.md&quot; &quot;PKCE&quot;
+    click R9700 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9700.md&quot; &quot;Security BCP&quot;
+    click R21 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_oauth21.md&quot; &quot;OAuth 2.1 draft&quot;
+    click R7515 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7515.md&quot; &quot;JWS&quot;
+    click R7516 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7516.md&quot; &quot;JWE&quot;
+    click R7517 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7517.md&quot; &quot;JWK / JWKS&quot;
+    click R7518 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7518.md&quot; &quot;JWA&quot;
+    click R7519 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7519.md&quot; &quot;JWT&quot;
+    click R9068 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9068.md&quot; &quot;JWT Access Token Profile&quot;
+    click R7662 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7662.md&quot; &quot;Introspection&quot;
+    click R7009 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7009.md&quot; &quot;Revocation&quot;
+    click R8414 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8414.md&quot; &quot;AS Metadata&quot;
+    click R9728 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9728.md&quot; &quot;Protected Resource Metadata&quot;
+    click R9207 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9207.md&quot; &quot;Authorization Server Issuer Identification&quot;
+    click R7591 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7591.md&quot; &quot;Dynamic Client Registration&quot;
+    click R7592 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7592.md&quot; &quot;DCR Management&quot;
+    click R8628 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8628.md&quot; &quot;Device Authorization Grant&quot;
+    click R7523g &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7523.md&quot; &quot;JWT Bearer (grant + client auth)&quot;
+    click R8693 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8693.md&quot; &quot;Token Exchange&quot;
+    click R7521 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7521.md&quot; &quot;Assertion Framework&quot;
+    click R7523c &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7523.md&quot; &quot;JWT Bearer (client auth)&quot;
+    click R8705 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8705.md&quot; &quot;Mutual TLS&quot;
+    click R9449 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9449.md&quot; &quot;DPoP&quot;
+    click R9126 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9126.md&quot; &quot;PAR&quot;
+    click R9101 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9101.md&quot; &quot;JAR&quot;
+    click R9396 &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9396.md&quot; &quot;RAR&quot;
+    click OIDC &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/OIDC_Core.md&quot; &quot;OIDC Core&quot;
+    click OIDCD &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/OIDC_Discovery.md&quot; &quot;OIDC Discovery&quot;
+    click OIDCBCL &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/OIDC_BCL.md&quot; &quot;OIDC Back-Channel Logout&quot;
+    click FAPI &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/FAPI.md&quot; &quot;FAPI 1.0 / 2.0&quot;
+    click GNAP &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/GNAP.md&quot; &quot;GNAP&quot;
+    click CIBA &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/OIDC_CIBA.md&quot; &quot;OIDC CIBA&quot;
+
+    classDef core fill:#1e293b,color:#fff,stroke:#0f172a,stroke-width:2px
+    classDef tier fill:#3730a3,color:#fff,stroke:#312e81,stroke-width:1.5px
+</code></pre>
+<h3 id="quick-reference-table">Quick-reference table <a class="anchor" href="#quick-reference-table">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Theme</th>
+<th>Read first</th>
+<th>Implies</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L0</td>
+<td>The spine</td>
+<td>RFC 9700 (BCP), then 2.1 draft</td>
+<td>Everything else assumes L0</td>
+</tr>
+<tr>
+<td>L1</td>
+<td>Token format / JOSE</td>
+<td>RFC 7519 (JWT) → 9068</td>
+<td>Enables L2 introspection-vs-JWT choice, L5 sender-binding via <code>cnf</code></td>
+</tr>
+<tr>
+<td>L2</td>
+<td>Lifecycle &amp; discovery</td>
+<td>RFC 8414</td>
+<td>Makes a deployment <em>operable</em> (introspect / revoke / discover)</td>
+</tr>
+<tr>
+<td>L3</td>
+<td>Client onboarding</td>
+<td>RFC 7591</td>
+<td>Enables programmatic-onboarding apps (SaaS, marketplaces)</td>
+</tr>
+<tr>
+<td>L4</td>
+<td>Additional grant types</td>
+<td>RFC 8628 (device)</td>
+<td>Each grant is a slot-filler for <code>/token</code></td>
+</tr>
+<tr>
+<td>L5</td>
+<td>Client auth strength</td>
+<td>RFC 7523</td>
+<td>Replaces shared-secret auth; required for FAPI</td>
+</tr>
+<tr>
+<td>L6</td>
+<td>Authz request integrity</td>
+<td>RFC 9126 PAR</td>
+<td>Makes the <code>/authorize</code> request itself trustworthy</td>
+</tr>
+<tr>
+<td>L7</td>
+<td>Identity (OIDC)</td>
+<td>OIDC Core</td>
+<td>Adds <em>who is this user</em> on top of <em>can they access X</em></td>
+</tr>
+<tr>
+<td>L8</td>
+<td>Profiles</td>
+<td>FAPI 2.0</td>
+<td>Composes L5+L6 with strict configuration</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-t-tiers--temporal-when-it-kicks-in">4. T-tiers — temporal &ldquo;when it kicks in&rdquo; <a class="anchor" href="#4-t-tiers--temporal-when-it-kicks-in">¶</a></h2>
+<p>T0–T8 is the temporal sequence of a single login + resource access + lifecycle<br />
+event. Same click-through to per-RFC docs.</p>
+<pre><code class="language-mermaid">flowchart TD
+    T0[&quot;T0 · Deployment setup&lt;br/&gt;(static, before any user)&quot;]
+    T1[&quot;T1 · Authz request prep&lt;br/&gt;(client)&quot;]
+    T2[&quot;T2 · Browser /authorize&lt;br/&gt;(redirect)&quot;]
+    T3[&quot;T3 · User auth at AS&lt;br/&gt;(login + consent)&quot;]
+    T4[&quot;T4 · Redirect back with code&quot;]
+    T5[&quot;T5 · Code → token at /token&lt;br/&gt;(back-channel)&quot;]
+    T6[&quot;T6 · Client → RS with token&quot;]
+    T7[&quot;T7 · RS validates token&quot;]
+    T8[&quot;T8 · Lifecycle&lt;br/&gt;(refresh / revoke / logout)&quot;]
+
+    T0 --&gt; T1 --&gt; T2 --&gt; T3 --&gt; T4 --&gt; T5 --&gt; T6 --&gt; T7 --&gt; T8
+
+    T0 -.-&gt; T0a[&quot;RFC 8414 AS metadata&quot;]
+    T0 -.-&gt; T0b[&quot;RFC 7517 JWKS publish&quot;]
+    T0 -.-&gt; T0c[&quot;RFC 9728 PR metadata&quot;]
+    T0 -.-&gt; T0d[&quot;RFC 7591/7592 DCR&quot;]
+
+    T1 -.-&gt; T1a[&quot;RFC 9126 PAR (optional)&quot;]
+    T1 -.-&gt; T1b[&quot;RFC 9101 JAR (optional)&quot;]
+    T1 -.-&gt; T1c[&quot;RFC 9396 RAR (optional)&quot;]
+    T1 -.-&gt; T1d[&quot;RFC 7636 PKCE challenge&quot;]
+
+    T4 -.-&gt; T4a[&quot;RFC 9207 iss param&quot;]
+
+    T5 -.-&gt; T5a[&quot;Client auth: 7521/7523/8705/9449&quot;]
+    T5 -.-&gt; T5b[&quot;Grant: 8628 / 7523 / 8693&quot;]
+    T5 -.-&gt; T5c[&quot;PKCE verify: 7636&quot;]
+    T5 -.-&gt; T5d[&quot;Token shape: 9068 (+ cnf from 8705/9449)&quot;]
+
+    T6 -.-&gt; T6a[&quot;RFC 6750 Bearer header&quot;]
+    T6 -.-&gt; T6b[&quot;RFC 9449 DPoP proof&quot;]
+    T6 -.-&gt; T6c[&quot;RFC 8705 mTLS connection&quot;]
+
+    T7 -.-&gt; T7a[&quot;JWT verify: 7519 + 7517 + 9068&quot;]
+    T7 -.-&gt; T7b[&quot;Introspect: RFC 7662&quot;]
+    T7 -.-&gt; T7c[&quot;Check cnf: 8705 / 9449&quot;]
+    T7 -.-&gt; T7d[&quot;RAR check: 9396&quot;]
+
+    T8 -.-&gt; T8a[&quot;BCP: 9700 (refresh rotation)&quot;]
+    T8 -.-&gt; T8b[&quot;Revoke: 7009&quot;]
+    T8 -.-&gt; T8c[&quot;Logout: OIDC BCL&quot;]
+
+    click T0a &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8414.md&quot;
+    click T0b &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7517.md&quot;
+    click T0c &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9728.md&quot;
+    click T0d &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7591.md&quot;
+    click T1a &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9126.md&quot;
+    click T1b &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9101.md&quot;
+    click T1c &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9396.md&quot;
+    click T1d &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7636.md&quot;
+    click T4a &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9207.md&quot;
+    click T5a &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7523.md&quot;
+    click T5b &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8628.md&quot;
+    click T5c &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7636.md&quot;
+    click T5d &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9068.md&quot;
+    click T6a &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_6750.md&quot;
+    click T6b &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9449.md&quot;
+    click T6c &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_8705.md&quot;
+    click T7a &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9068.md&quot;
+    click T7b &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7662.md&quot;
+    click T7c &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9449.md&quot;
+    click T7d &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9396.md&quot;
+    click T8a &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_9700.md&quot;
+    click T8b &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_7009.md&quot;
+    click T8c &quot;https://github.com/panyam/oneauth/blob/main/docs/oauth/OIDC_BCL.md&quot;
+</code></pre>
+<h3 id="what-happens-at-each-t-step">What happens at each T-step <a class="anchor" href="#what-happens-at-each-t-step">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What</th>
+<th>Required RFCs</th>
+<th>Optional / when-applicable</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T0</strong></td>
+<td>AS publishes metadata + JWKS; clients are registered</td>
+<td>6749</td>
+<td>8414, 7517, 9728, 7591/7592</td>
+</tr>
+<tr>
+<td><strong>T1</strong></td>
+<td>Client builds auth request, computes PKCE challenge</td>
+<td>6749, 7636</td>
+<td>9126, 9101, 9396</td>
+</tr>
+<tr>
+<td><strong>T2</strong></td>
+<td>Browser hits <code>/authorize</code></td>
+<td>6749</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>T3</strong></td>
+<td>User logs in + consents at the AS</td>
+<td>(not OAuth)</td>
+<td>OIDC for ID claims</td>
+</tr>
+<tr>
+<td><strong>T4</strong></td>
+<td>AS redirects back with <code>code</code> (+ <code>iss</code>)</td>
+<td>6749</td>
+<td>9207</td>
+</tr>
+<tr>
+<td><strong>T5</strong></td>
+<td>Client POSTs code to <code>/token</code>; AS issues access (+ refresh, + id_token)</td>
+<td>6749, 7636</td>
+<td>7523/8705/9449 client auth; 9068 JWT shape; 8628/7523/8693 alt grants</td>
+</tr>
+<tr>
+<td><strong>T6</strong></td>
+<td>Client calls RS with the token</td>
+<td>6750</td>
+<td>9449 (DPoP header), 8705 (mTLS)</td>
+</tr>
+<tr>
+<td><strong>T7</strong></td>
+<td>RS validates the token</td>
+<td>7519+7517+9068 <em>or</em> 7662</td>
+<td>8705/9449 cnf check; 9396 RAR check</td>
+</tr>
+<tr>
+<td><strong>T8</strong></td>
+<td>Refresh / revoke / logout</td>
+<td>6749 (refresh), 9700 (rotation rules)</td>
+<td>7009, OIDC BCL</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-how-l-tiers-and-t-tiers-cross-reference">5. How L-tiers and T-tiers cross-reference <a class="anchor" href="#5-how-l-tiers-and-t-tiers-cross-reference">¶</a></h2>
+<p>Each RFC has a <strong>topical home</strong> (L-tier) and one or more <strong>moments in time</strong><br />
+when it activates (T-tiers). The two axes are orthogonal — L tells you <em>what<br />
+kind of thing</em> it is, T tells you <em>when it fires</em>.</p>
+<table>
+<thead>
+<tr>
+<th>RFC</th>
+<th>L-tier</th>
+<th>T-tier(s)</th>
+<th>Doc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6749 OAuth 2.0 framework</td>
+<td>L0</td>
+<td>T2, T5</td>
+<td><a href="RFC_6749.md">RFC_6749.md</a></td>
+</tr>
+<tr>
+<td>6750 Bearer token usage</td>
+<td>L0</td>
+<td>T6</td>
+<td><a href="RFC_6750.md">RFC_6750.md</a></td>
+</tr>
+<tr>
+<td>7636 PKCE</td>
+<td>L0</td>
+<td>T1, T5</td>
+<td><a href="RFC_7636.md">RFC_7636.md</a></td>
+</tr>
+<tr>
+<td>9700 Security BCP</td>
+<td>L0</td>
+<td><em>always-on</em></td>
+<td><a href="RFC_9700.md">RFC_9700.md</a></td>
+</tr>
+<tr>
+<td>OAuth 2.1 draft</td>
+<td>L0</td>
+<td>T0–T8</td>
+<td><a href="RFC_oauth21.md">RFC_oauth21.md</a></td>
+</tr>
+<tr>
+<td>7515 JWS</td>
+<td>L1</td>
+<td>T5, T7</td>
+<td><a href="RFC_7515.md">RFC_7515.md</a></td>
+</tr>
+<tr>
+<td>7516 JWE</td>
+<td>L1</td>
+<td>T5, T7 (if encrypted)</td>
+<td><a href="RFC_7516.md">RFC_7516.md</a></td>
+</tr>
+<tr>
+<td>7517 JWK / JWKS</td>
+<td>L1</td>
+<td>T0, T7</td>
+<td><a href="RFC_7517.md">RFC_7517.md</a></td>
+</tr>
+<tr>
+<td>7518 JWA</td>
+<td>L1</td>
+<td>T5, T7</td>
+<td><a href="RFC_7518.md">RFC_7518.md</a></td>
+</tr>
+<tr>
+<td>7519 JWT</td>
+<td>L1</td>
+<td>T5, T7</td>
+<td><a href="RFC_7519.md">RFC_7519.md</a></td>
+</tr>
+<tr>
+<td>9068 JWT AT profile</td>
+<td>L1</td>
+<td>T5, T7</td>
+<td><a href="RFC_9068.md">RFC_9068.md</a></td>
+</tr>
+<tr>
+<td>7662 Introspection</td>
+<td>L2</td>
+<td>T7</td>
+<td><a href="RFC_7662.md">RFC_7662.md</a></td>
+</tr>
+<tr>
+<td>7009 Revocation</td>
+<td>L2</td>
+<td>T8</td>
+<td><a href="RFC_7009.md">RFC_7009.md</a></td>
+</tr>
+<tr>
+<td>8414 AS metadata</td>
+<td>L2</td>
+<td>T0</td>
+<td><a href="RFC_8414.md">RFC_8414.md</a></td>
+</tr>
+<tr>
+<td>9728 PR metadata</td>
+<td>L2</td>
+<td>T0</td>
+<td><a href="RFC_9728.md">RFC_9728.md</a></td>
+</tr>
+<tr>
+<td>9207 Issuer ID</td>
+<td>L2</td>
+<td>T4</td>
+<td><a href="RFC_9207.md">RFC_9207.md</a></td>
+</tr>
+<tr>
+<td>7591 DCR</td>
+<td>L3</td>
+<td>T0</td>
+<td><a href="RFC_7591.md">RFC_7591.md</a></td>
+</tr>
+<tr>
+<td>7592 DCR mgmt</td>
+<td>L3</td>
+<td>T0</td>
+<td><a href="RFC_7592.md">RFC_7592.md</a></td>
+</tr>
+<tr>
+<td>8628 Device</td>
+<td>L4</td>
+<td>T5 (alt to T2–T4)</td>
+<td><a href="RFC_8628.md">RFC_8628.md</a></td>
+</tr>
+<tr>
+<td>7523 JWT bearer (grant + client auth)</td>
+<td>L4, L5</td>
+<td>T5</td>
+<td><a href="RFC_7523.md">RFC_7523.md</a></td>
+</tr>
+<tr>
+<td>8693 Token Exchange</td>
+<td>L4</td>
+<td>T5</td>
+<td><a href="RFC_8693.md">RFC_8693.md</a></td>
+</tr>
+<tr>
+<td>7521 Assertion fwk</td>
+<td>L5</td>
+<td>T5</td>
+<td><a href="RFC_7521.md">RFC_7521.md</a></td>
+</tr>
+<tr>
+<td>8705 mTLS</td>
+<td>L5</td>
+<td>T5, T6, T7</td>
+<td><a href="RFC_8705.md">RFC_8705.md</a></td>
+</tr>
+<tr>
+<td>9449 DPoP</td>
+<td>L5</td>
+<td>T5, T6, T7</td>
+<td><a href="RFC_9449.md">RFC_9449.md</a></td>
+</tr>
+<tr>
+<td>9126 PAR</td>
+<td>L6</td>
+<td>T1</td>
+<td><a href="RFC_9126.md">RFC_9126.md</a></td>
+</tr>
+<tr>
+<td>9101 JAR</td>
+<td>L6</td>
+<td>T1</td>
+<td><a href="RFC_9101.md">RFC_9101.md</a></td>
+</tr>
+<tr>
+<td>9396 RAR</td>
+<td>L6</td>
+<td>T1, T5, T7</td>
+<td><a href="RFC_9396.md">RFC_9396.md</a></td>
+</tr>
+<tr>
+<td>OIDC Core</td>
+<td>L7</td>
+<td>T3, T5</td>
+<td><a href="OIDC_Core.md">OIDC_Core.md</a></td>
+</tr>
+<tr>
+<td>OIDC Discovery</td>
+<td>L7</td>
+<td>T0</td>
+<td><a href="OIDC_Discovery.md">OIDC_Discovery.md</a></td>
+</tr>
+<tr>
+<td>OIDC BCL</td>
+<td>L7</td>
+<td>T8</td>
+<td><a href="OIDC_BCL.md">OIDC_BCL.md</a></td>
+</tr>
+<tr>
+<td>FAPI 1.0 / 2.0</td>
+<td>L8</td>
+<td>T0 (profile of all)</td>
+<td><a href="FAPI.md">FAPI.md</a></td>
+</tr>
+<tr>
+<td>GNAP</td>
+<td>L8 (future)</td>
+<td>replacement, not extension</td>
+<td><a href="GNAP.md">GNAP.md</a></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-oneauth-coverage-matrix">6. OneAuth coverage matrix <a class="anchor" href="#6-oneauth-coverage-matrix">¶</a></h2>
+<p>Status legend:</p>
+<ul>
+<li><strong>Implemented</strong> — handler/code exists and is exercised by tests</li>
+<li><strong>Partial</strong> — some sub-features only (notes column says which)</li>
+<li><strong>Gap</strong> — not implemented; candidate work</li>
+<li><strong>N/A (positioning)</strong> — deliberately outside OneAuth&rsquo;s scope</li>
+</ul>
+<blockquote>
+<p>Coverage is seeded from the standards table in <code>CLAUDE.md</code>. Per-RFC docs<br />
+verify by grep and update this column as we go. If you spot a row that&rsquo;s<br />
+stale, fix it here <em>and</em> in the per-RFC doc.</p>
+</blockquote>
+<blockquote>
+<p><strong>The status column is OneAuth&rsquo;s <em>deployment posture</em> — not a 2.0/2.1<br />
+version verdict.</strong> &ldquo;Implemented&rdquo; means the wire surface is built and tested;<br />
+it does not mean the deployment is fully 2.1-conformant (or 2.0-conformant<br />
+for that matter). Per-version detail lives in each <code>RFC_*.md</code> under its<br />
+<em>OAuth 2.0 status</em> and <em>OAuth 2.1 status</em> sections, and the 2.1 audit<br />
+proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>RFC</th>
+<th>OneAuth status</th>
+<th>Where it lives</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6749 OAuth 2.0</td>
+<td>Implemented</td>
+<td><code>apiauth/api_auth.go</code>, <code>apiauth/oneauth.go</code>, <code>apiauth/authorize*.go</code></td>
+<td><code>/authorize</code> + <code>authorization_code</code> grant added in #297 (see <code>apiauth.MountAuthorize</code>)</td>
+</tr>
+<tr>
+<td>6750 Bearer</td>
+<td>Implemented</td>
+<td><code>apiauth/</code>, <code>httpauth/</code></td>
+<td>Opt-in query-param fallback deprecated (see <code>OAUTH21_ALIGNMENT.md</code>)</td>
+</tr>
+<tr>
+<td>7009 Revocation</td>
+<td>Implemented</td>
+<td><code>apiauth/RevocationHandler</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>7515–7519 JOSE</td>
+<td>Implemented (via libs)</td>
+<td><code>keys/</code>, <code>apiauth/</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>7517 JWKS</td>
+<td>Implemented</td>
+<td><code>keys/jwks_handler.go</code></td>
+<td>Asymmetric only — HS256 secrets correctly omitted</td>
+</tr>
+<tr>
+<td>7521 Assertion fwk</td>
+<td>Implemented (transitively via 7523)</td>
+<td><code>apiauth/</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>7523 JWT client auth</td>
+<td>Partial</td>
+<td><code>apiauth/</code> (PR #293)</td>
+<td><code>client_secret_jwt</code> landed; <code>private_key_jwt</code> status — verify</td>
+</tr>
+<tr>
+<td>7523 JWT-bearer grant</td>
+<td>Implemented</td>
+<td><code>apiauth/api_auth.go</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>7591 DCR</td>
+<td>Implemented</td>
+<td><code>admin/DCRHandler</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>7592 DCR mgmt</td>
+<td>Implemented</td>
+<td><code>admin/DCRManagementHandler</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>7636 PKCE</td>
+<td>Implemented</td>
+<td><code>client/browser_login.go</code> (client) · <code>apiauth/authorize.go</code>, <code>apiauth/authorize_granter.go</code> (server, via #297)</td>
+<td>Server-side rejects missing <code>code_challenge</code>; S256 by default (<code>plain</code> only via opt-in <code>AllowPlainPKCE</code>)</td>
+</tr>
+<tr>
+<td>7662 Introspection</td>
+<td>Implemented</td>
+<td><code>apiauth/IntrospectionHandler</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>8414 AS metadata</td>
+<td>Implemented</td>
+<td><code>apiauth.MountASMetadata</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>8628 Device</td>
+<td>Implemented</td>
+<td><code>apiauth.MountDeviceFlow</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>8693 Token Exchange</td>
+<td>Implemented</td>
+<td><code>apiauth/api_auth.go</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>8705 mTLS</td>
+<td>Gap</td>
+<td>—</td>
+<td>Candidate for FAPI track</td>
+</tr>
+<tr>
+<td>9068 JWT AT</td>
+<td>Implemented</td>
+<td><code>apiauth/</code>, <code>keys/</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>9101 JAR</td>
+<td>Gap</td>
+<td>—</td>
+<td>Candidate for #116 / FAPI track</td>
+</tr>
+<tr>
+<td>9126 PAR</td>
+<td>Gap</td>
+<td>—</td>
+<td>Candidate for #116 / FAPI track</td>
+</tr>
+<tr>
+<td>9207 iss param</td>
+<td>Implemented</td>
+<td><code>apiauth/authorize.go</code> (<code>EmitIssParameter</code> toggle, emitted on <code>/authorize</code> redirect — landed in #297)</td>
+<td>Opt-in per deployment via <code>AuthorizationHandlerConfig.EmitIssParameter</code></td>
+</tr>
+<tr>
+<td>9396 RAR</td>
+<td>Implemented</td>
+<td><code>core/authorization_details.go</code> + <code>apiauth/</code></td>
+<td>Token endpoint + introspection + middleware</td>
+</tr>
+<tr>
+<td>9449 DPoP</td>
+<td>Gap</td>
+<td>—</td>
+<td>Candidate for L5 work</td>
+</tr>
+<tr>
+<td>9700 Security BCP</td>
+<td>Adopted as baseline</td>
+<td>(cross-cutting)</td>
+<td>PR #296 baseline; gaps in <code>docs/OAUTH21_ALIGNMENT.md</code></td>
+</tr>
+<tr>
+<td>9728 PR metadata</td>
+<td>Implemented</td>
+<td><code>apiauth.NewProtectedResourceHandler</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>OIDC Core</td>
+<td>Partial</td>
+<td>—</td>
+<td><code>/authorize</code> pending #116; see <code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code></td>
+</tr>
+<tr>
+<td>OIDC Discovery</td>
+<td>Implemented</td>
+<td><code>apiauth.MountASMetadata</code> (combined with 8414)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>OIDC BCL</td>
+<td>Implemented</td>
+<td><code>apiauth/BCLDispatcher</code> + <code>LogoutTokenIssuer</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>FAPI 1.0 / 2.0</td>
+<td>Not claimed</td>
+<td>—</td>
+<td>Unlocks once L5 (DPoP/mTLS) + L6 (PAR/JAR) land</td>
+</tr>
+<tr>
+<td>GNAP</td>
+<td>N/A (future)</td>
+<td>—</td>
+<td>Watch-only</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Where the obvious frontier is.</strong> Looking at the matrix:</p>
+<ol>
+<li><strong>L5 sender constraint</strong> — DPoP (9449) first, then mTLS (8705). Both<br />
+slot-fillers behind a <code>TokenBindingValidator</code> interface.</li>
+<li><strong>L6 request integrity</strong> — PAR (9126) → JAR (9101). PAR is the lower-effort<br />
+precursor; JAR is needed for FAPI.</li>
+<li><strong>OIDC Core full</strong> — needs <code>/authorize</code> (#116) and refresh of consent UX.</li>
+</ol>
+<p>Those three unlock the L8 FAPI 2.0 conformance story.</p>
+<hr />
+<h2 id="7-worked-examples">7. Worked examples <a class="anchor" href="#7-worked-examples">¶</a></h2>
+<p>Each example walks through the L and T tiers on a scenario you&rsquo;ve actually<br />
+used. Useful as a sanity check on the abstractions in §1–§5.</p>
+<h3 id="example-a-sign-in-to-notion-with-google-the-everyday-case">Example A: &ldquo;Sign in to Notion with Google&rdquo; (the everyday case) <a class="anchor" href="#example-a-sign-in-to-notion-with-google-the-everyday-case">¶</a></h3>
+<ul>
+<li><strong>L0</strong> Auth-code grant + PKCE; bearer token over HTTPS.</li>
+<li><strong>L1</strong> Google issues a JWT-shaped ID token (OIDC); the access token to Google<br />
+APIs is opaque (Google chose introspection-style over RFC 9068).</li>
+<li><strong>L2</strong> Notion discovered Google via OIDC discovery (a sibling of RFC 8414).</li>
+<li><strong>L3</strong> Notion was registered with Google&rsquo;s developer console <em>out of band</em> —<br />
+not RFC 7591 DCR.</li>
+<li><strong>L4</strong> Just the built-in <code>authorization_code</code> grant — nothing exotic.</li>
+<li><strong>L5</strong> <code>client_secret_post</code>. Notion&rsquo;s backend holds the secret; the browser<br />
+half is a public client using PKCE.</li>
+<li><strong>L6</strong> Plain query-string <code>/authorize</code> request — no PAR, no JAR, no RAR.</li>
+<li><strong>L7</strong> <strong>This is the OIDC moment</strong> — the <code>id_token</code> is what tells Notion<br />
+<em>&ldquo;this is the same Sri who logged in last week.&rdquo;</em> Without OIDC, Notion would<br />
+only have an opaque token to Google&rsquo;s API, no identity.</li>
+</ul>
+<p><strong>T-trace:</strong></p>
+<ul>
+<li>T0: Notion already has client_id + client_secret. Google&rsquo;s discovery doc and<br />
+JWKS are stable URLs.</li>
+<li>T1: Notion server generates state + PKCE pair.</li>
+<li>T2: Browser redirects to <code>accounts.google.com/o/oauth2/v2/auth?...</code></li>
+<li>T3: User picks account, consents to scopes (<code>openid email profile</code>).</li>
+<li>T4: Google redirects to <code>notion.so/callback?code=...&amp;state=...&amp;iss=https://accounts.google.com</code>.</li>
+<li>T5: Notion server POSTs to <code>/token</code> with code + verifier + client creds; gets<br />
+back access_token + refresh_token + id_token.</li>
+<li>T6: Notion calls Google&rsquo;s userinfo / Gmail with the access token.</li>
+<li>T7: Google validates the token internally (no JWT exposed to Notion).</li>
+<li>T8: User clicks &ldquo;Disconnect&rdquo; → Notion calls revoke; refresh token rotates on<br />
+use.</li>
+</ul>
+<h3 id="example-b-github-actions-deploying-to-aws-without-static-creds">Example B: &ldquo;GitHub Actions deploying to AWS without static creds&rdquo; <a class="anchor" href="#example-b-github-actions-deploying-to-aws-without-static-creds">¶</a></h3>
+<ul>
+<li><strong>L4 + L5 are the whole point.</strong> The CI job has no AWS secret; it has a<br />
+short-lived OIDC token signed by GitHub.</li>
+<li><strong>L4</strong> <code>urn:ietf:params:oauth:grant-type:jwt-bearer</code> (RFC 7523 grant) — the<br />
+GitHub-issued JWT is exchanged for an AWS access token. (AWS calls this &ldquo;OIDC<br />
+federation&rdquo;; it&rsquo;s RFC 7523 under the hood.)</li>
+<li><strong>L1 / L2</strong> AWS verifies GitHub&rsquo;s JWT against GitHub&rsquo;s JWKS — RFC 7517 is<br />
+doing the heavy lifting here.</li>
+</ul>
+<p>This is the bread-and-butter case for OneAuth&rsquo;s <code>jwt-bearer</code> grant in <code>apiauth/</code>.</p>
+<h3 id="example-c-sign-in-to-disney-on-your-tv">Example C: &ldquo;Sign in to Disney+ on your TV&rdquo; <a class="anchor" href="#example-c-sign-in-to-disney-on-your-tv">¶</a></h3>
+<ul>
+<li><strong>L4 Device flow</strong> (RFC 8628). The TV displays a code and a URL; you go to<br />
+the URL on your phone, log in, type the code. The TV polls <code>/token</code> until<br />
+the AS says yes.</li>
+<li><strong>L7 OIDC</strong> layers in for the actual identity.</li>
+<li>This is the example that motivates <em>why</em> OAuth 2.1 keeps grant types<br />
+pluggable — the slot at T5 means &ldquo;if your client has no browser, plug in a<br />
+different grant.&rdquo;</li>
+</ul>
+<h3 id="example-d-eu-open-banking-transfer-500-from-a-to-b">Example D: &ldquo;EU open banking: transfer £500 from A to B&rdquo; <a class="anchor" href="#example-d-eu-open-banking-transfer-500-from-a-to-b">¶</a></h3>
+<ul>
+<li><strong>L6 RAR (RFC 9396)</strong> carries the structured detail of the transfer —<br />
+amount, source, destination. A scope name can&rsquo;t express &ldquo;£500 from acct A to<br />
+acct B.&rdquo;</li>
+<li><strong>L6 PAR (RFC 9126)</strong> pushes the request to the bank&rsquo;s AS first, so the<br />
+user&rsquo;s browser only carries an opaque <code>request_uri</code> — request is integrity<br />
+protected and not leaked into browser history.</li>
+<li><strong>L5 mTLS or DPoP</strong> binds the resulting access token so a stolen token can&rsquo;t<br />
+be replayed from another machine.</li>
+<li><strong>L8 FAPI 2.0</strong> is the <em>profile</em> that says &ldquo;you must use all of the above<br />
+together.&rdquo;</li>
+</ul>
+<p>This is the example that motivates <em>why</em> L5 + L6 exist as separate tiers — a<br />
+regulator can mandate each independently, and FAPI composes them.</p>
+<hr />
+<h2 id="8-template-for-per-rfc-docs">8. Template for per-RFC docs <a class="anchor" href="#8-template-for-per-rfc-docs">¶</a></h2>
+<p>Each <code>RFC_xxxx.md</code> (or <code>OIDC_*.md</code>, <code>FAPI.md</code>, <code>GNAP.md</code>) should follow this<br />
+shape — keep it terse, optimise for <em>scan</em>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#999"># RFC xxxx — &lt;Short Title&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#999"></span><span style="color:#000;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">&gt; </span><span style="color:#000;font-style:italic">**Status:** Standards Track / BCP / Informational / Draft
+</span></span></span><span style="display:flex;"><span><span style="color:#000;font-style:italic"></span><span style="color:#000;font-weight:bold">&gt; </span><span style="color:#000;font-style:italic">**Published:** YYYY-MM
+</span></span></span><span style="display:flex;"><span><span style="color:#000;font-style:italic"></span><span style="color:#000;font-weight:bold">&gt; </span><span style="color:#000;font-style:italic">**L-tier / T-tier:** L? · T?,T?
+</span></span></span><span style="display:flex;"><span><span style="color:#000;font-style:italic"></span><span style="color:#000;font-weight:bold">&gt; </span><span style="color:#000;font-style:italic">**OneAuth coverage:** Implemented / Partial / Gap — links to code
+</span></span></span><span style="display:flex;"><span><span style="color:#000;font-style:italic"></span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## In one sentence
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#000080">What</span> <span style="color:#008080">the</span> <span style="color:#008080">RFC</span> <span style="color:#008080">adds</span> <span style="color:#008080">to</span> <span style="color:#008080">OAuth</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">1</span><span style="color:#a61717;background-color:#e3d2d2">.</span> <span style="color:#008080">No</span> <span style="color:#008080">more</span> <span style="color:#008080">than</span> <span style="color:#008080">two</span> <span style="color:#008080">sentences</span><span style="color:#a61717;background-color:#e3d2d2">.</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## What problem does it solve?
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#000080">2</span><span style="color:#a61717;background-color:#e3d2d2">–</span><span style="color:#008080">4</span> <span style="color:#008080">bullets</span> <span style="color:#008080">contrasting</span> <span style="color:#a61717;background-color:#e3d2d2">&#34;</span><span style="color:#008080">world</span> <span style="color:#008080">without</span> <span style="color:#008080">this</span> <span style="color:#008080">RFC</span><span style="color:#a61717;background-color:#e3d2d2">&#34;</span> <span style="color:#008080">vs</span> <span style="color:#a61717;background-color:#e3d2d2">&#34;</span><span style="color:#008080">world</span> <span style="color:#008080">with</span> <span style="color:#008080">it</span><span style="color:#a61717;background-color:#e3d2d2">.&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## Relatable example
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#000080">A</span> <span style="color:#008080">concrete</span> <span style="color:#008080">scenario</span> <span style="color:#008080">a</span> <span style="color:#008080">reader</span> <span style="color:#008080">will</span> <span style="color:#008080">recognise</span><span style="color:#a61717;background-color:#e3d2d2">.</span> <span style="color:#008080">E</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">g</span><span style="color:#a61717;background-color:#e3d2d2">.,</span> <span style="color:#a61717;background-color:#e3d2d2">&#34;</span><span style="color:#008080">When</span> <span style="color:#008080">Stripe</span> <span style="color:#008080">Connect</span> <span style="color:#008080">lets</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">a</span> <span style="color:#008080">platform</span> <span style="color:#008080">request</span> <span style="color:#000;font-style:italic">*exactly*</span> <span style="color:#008080">the</span> <span style="color:#008080">permissions</span> <span style="color:#008080">to</span> <span style="color:#008080">refund</span> <span style="color:#008080">order</span> <span style="color:#800080">#42</span><span style="color:#a61717;background-color:#e3d2d2">…&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## Key concepts
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#000080">5</span> <span style="color:#008080">bullets</span> <span style="color:#008080">max</span> <span style="color:#a61717;background-color:#e3d2d2">—</span> <span style="color:#008080">the</span> <span style="color:#008080">vocabulary</span> <span style="color:#008080">you</span><span style="color:#a61717;background-color:#e3d2d2">&#39;</span><span style="color:#008080">d</span> <span style="color:#008080">need</span> <span style="color:#008080">to</span> <span style="color:#008080">read</span> <span style="color:#008080">the</span> <span style="color:#008080">spec</span><span style="color:#a61717;background-color:#e3d2d2">.</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## Wire example
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>```http
+</span></span><span style="display:flex;"><span>POST /token HTTP/1.1
+</span></span><span style="display:flex;"><span>Host: as.example.com
+</span></span><span style="display:flex;"><span>…
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">…</span>
+</span></span></code></pre><h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<p>&lt;Which §2 slot does this fill? What does it replace / supplement?&gt;</p>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>&lt;Under RFC 6749 / 2.0 baseline, what&rsquo;s this RFC&rsquo;s normative weight — MAY,<br />
+SHOULD, MUST? Was it part of 6749 itself or shipped later (and roughly<br />
+when did the major IdPs ship it)? Is it widely deployed in 2.0 ecosystems<br />
+today? If 2.0 leaves something optional that 2.1 mandates, name the gap.&gt;</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>&lt;Under OAuth 2.1 (still an active Internet-Draft), what changes? Promoted<br />
+from SHOULD to MUST? Tightened (e.g., S256-only instead of plain+S256)?<br />
+Removed entirely? If 2.0 and 2.1 disagree on this RFC, this is the section<br />
+that names the divergence and points at the §-citation in the 2.1 draft.&gt;</p>
+<h2 id="migration-path-when-21-supersedes-a-20-surface">Migration path (when 2.1 supersedes a 2.0 surface) <a class="anchor" href="#migration-path-when-21-supersedes-a-20-surface">¶</a></h2>
+<p>&lt;Only if 2.1 removes / tightens something 2.0 still permits. Honest<br />
+guidance for deployments still on 2.0: what&rsquo;s the on-ramp? What can you<br />
+ship today that&rsquo;s both 2.0-legal and 2.1-compatible (a &ldquo;single stack&rdquo;)?<br />
+What needs a deprecation window? Don&rsquo;t say &ldquo;do it now&rdquo; — most 2.0<br />
+deployments will live another decade. Say what specifically breaks and<br />
+under what conditions.&gt;</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<p>&lt;Honest tradeoffs. e.g., &ldquo;DPoP adds a per-request crypto op. If you control<br />
+the network path, mTLS is cheaper.&quot;&gt;</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<ul>
+<li><strong>Status:</strong> Implemented / Partial / Gap</li>
+<li><strong>Code:</strong> <code>apiauth/...</code>, <code>core/...</code></li>
+<li><strong>Tests:</strong> <code>apiauth/..._test.go</code></li>
+<li><strong>Related issues / PRs:</strong> issue NNN, PR NNN  <em>(plain text — see backlink hygiene rule)</em></li>
+<li><strong>Known gaps:</strong> <bullets></li>
+</ul>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_nnnn.md">RFC nnnn</a> — <how it relates></li>
+<li>…</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfcXXXX/">Datatracker</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=XXXX">Errata</a> (if any)</li>
+</ul>
+<pre><code>
+**Four rules for these docs:**
+
+1. **Relatable example up top, every time.** If you can't write a one-paragraph
+   &quot;this is when this RFC bites in real life,&quot; you don't understand it yet.
+2. **Pair the 2.0 and 2.1 status sections.** The world ships 2.0; OneAuth aims
+   for 2.1 posture. Every doc must say where the RFC stands under both — and
+   include a migration path if 2.1 tightens or removes something. Don't write
+   &quot;removed in 2.1&quot; without noting &quot;still legal under 2.0.&quot;
+3. **OneAuth section is verified-by-grep, not memory.** Before claiming
+   &quot;Implemented in `apiauth/foo.go`,&quot; grep for the symbol. Stale path
+   references in this folder will rot fast otherwise.
+4. **Cross-link liberally.** Each doc should link upstream to LANDSCAPE.md
+   (`§3` and `§5`) and sideways to closely related RFCs. The mermaid clicks
+   only work top-down; in-prose links make the back-and-forth navigation work.
+
+---
+
+## 9. Per-RFC docs index
+
+Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
+
+| Doc | Status | Tracking |
+|------|--------|---------|
+| [RFC_6749.md](RFC_6749.md) OAuth 2.0 framework | ✅ | #302 |
+| [RFC_6750.md](RFC_6750.md) Bearer | ✅ | #303 |
+| [RFC_7009.md](RFC_7009.md) Revocation | ✅ | #309 |
+| [RFC_7515.md](RFC_7515.md) JWS | ✅ | #306 |
+| [RFC_7516.md](RFC_7516.md) JWE | ✅ | #306 |
+| [RFC_7517.md](RFC_7517.md) JWK / JWKS | ✅ | #306 |
+| [RFC_7518.md](RFC_7518.md) JWA | ✅ | #306 |
+| [RFC_7519.md](RFC_7519.md) JWT | ✅ | #306 |
+| [RFC_7521.md](RFC_7521.md) Assertion framework | ✅ | #314 |
+| [RFC_7523.md](RFC_7523.md) JWT bearer | ✅ | #314 |
+| [RFC_7591.md](RFC_7591.md) DCR | ✅ | #313 |
+| [RFC_7592.md](RFC_7592.md) DCR mgmt | ✅ | #313 |
+| [RFC_7636.md](RFC_7636.md) PKCE | ✅ | #304 |
+| [RFC_7662.md](RFC_7662.md) Introspection | ✅ | #308 |
+| [RFC_8414.md](RFC_8414.md) AS metadata | ✅ | #310 |
+| [RFC_8628.md](RFC_8628.md) Device | ✅ | #316 |
+| [RFC_8693.md](RFC_8693.md) Token Exchange | ✅ | #317 |
+| [RFC_8705.md](RFC_8705.md) mTLS | ✅ | #315 |
+| [RFC_9068.md](RFC_9068.md) JWT AT profile | ✅ | #307 |
+| [RFC_9101.md](RFC_9101.md) JAR | ✅ | #320 |
+| [RFC_9126.md](RFC_9126.md) PAR | ✅ | #319 |
+| [RFC_9207.md](RFC_9207.md) Issuer ID | ✅ | #312 |
+| [RFC_9396.md](RFC_9396.md) RAR | ✅ | #321 |
+| [RFC_9449.md](RFC_9449.md) DPoP | ✅ | #316 |
+| [RFC_9700.md](RFC_9700.md) Security BCP | ✅ | #305 |
+| [RFC_9728.md](RFC_9728.md) PR metadata | ✅ | #311 |
+| [RFC_oauth21.md](RFC_oauth21.md) OAuth 2.1 draft | ✅ | #302 |
+| [OIDC_Core.md](OIDC_Core.md) | ✅ | #322 |
+| [OIDC_Discovery.md](OIDC_Discovery.md) | ✅ | #322 |
+| [OIDC_BCL.md](OIDC_BCL.md) | ✅ | #323 |
+| [OIDC_CIBA.md](OIDC_CIBA.md) | ✅ | #324 |
+| [FAPI.md](FAPI.md) | ✅ | #325 |
+| [GNAP.md](GNAP.md) | ✅ | #326 |
+
+---
+
+## 10. Updating this document
+
+- When a per-RFC doc moves status (📝 → 🟡 → ✅), bump §9.
+- When OneAuth coverage of an RFC changes (gap closes, partial → implemented),
+  update §6 *and* the per-RFC doc's OneAuth section.
+- When a new RFC enters scope, add nodes to both §3 and §4 diagrams + §5 cross-ref
+  table + §9 index.
+- When a relatable example in §7 is no longer current (e.g., a vendor switches
+  flow), replace it — the value of this doc is in the examples staying *live*.
+</code></pre>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>

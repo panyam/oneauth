@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented (header form); query-param fallback deprecated">
+    <title>RFC 6750 — OAuth 2.0 Bearer Token Usage · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>RFC 6750 — OAuth 2.0 Bearer Token Usage</h1>
+        
+        <p class="lead">Implemented (header form); query-param fallback deprecated</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/RFC_6750.md"><code>docs/oauth/RFC_6750.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="rfc-6750--oauth-20-bearer-token-usage">RFC 6750 — OAuth 2.0 Bearer Token Usage <a class="anchor" href="#rfc-6750--oauth-20-bearer-token-usage">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Standards Track<br />
+<strong>Published:</strong> 2012-10<br />
+<strong>L-tier / T-tier:</strong> L0 · T6<br />
+<strong>OneAuth coverage:</strong> Implemented (header form); query-param fallback deprecated<br />
+<strong>See also:</strong> <a href="RFC_6749.md"><code>RFC_6749.md</code></a> · <a href="RFC_oauth21.md"><code>RFC_oauth21.md</code></a> · <a href="RFC_9449.md"><code>RFC_9449.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>RFC 6750 defines the <em>contract between the client and the resource server</em> —<br />
+how the bearer token is presented and how the RS refuses it. It&rsquo;s the wire<br />
+spec for the <code>Authorization: Bearer &lt;token&gt;</code> line you&rsquo;ve typed a thousand times.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Without 6750</th>
+<th>With 6750</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Every API picks its own way to carry a token (custom headers, query strings, body fields)</td>
+<td>One standard: <code>Authorization: Bearer &lt;token&gt;</code></td>
+</tr>
+<tr>
+<td>401 responses don&rsquo;t say <em>why</em> — clients can&rsquo;t distinguish &ldquo;no token&rdquo; from &ldquo;expired token&rdquo; from &ldquo;missing scope&rdquo;</td>
+<td><code>WWW-Authenticate</code> carries <code>error=</code> and <code>error_description=</code> so the client can refresh, re-auth, or escalate scope intelligently</td>
+</tr>
+<tr>
+<td>Tools (proxies, gateways, clients) need to know N flavors of &ldquo;is there a token here?&rdquo;</td>
+<td>One header to inspect; one challenge format to render</td>
+</tr>
+</tbody>
+</table>
+<p>6750 is the smallest of the L0 RFCs but it&rsquo;s the one every resource-server<br />
+implementer touches.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>Every <code>curl</code> you&rsquo;ve run against a modern API speaks 6750:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic"># GitHub</span>
+</span></span><span style="display:flex;"><span>curl -H <span style="color:#d14">&#34;Authorization: Bearer ghp_...&#34;</span> https://api.github.com/user
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Stripe</span>
+</span></span><span style="display:flex;"><span>curl -u sk_test_...: https://api.stripe.com/v1/charges        <span style="color:#998;font-style:italic"># 6749 §2.3.1 Basic — also valid for confidential clients</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Slack</span>
+</span></span><span style="display:flex;"><span>curl -H <span style="color:#d14">&#34;Authorization: Bearer xoxb-...&#34;</span> https://slack.com/api/auth.test
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Your own OneAuth-backed API</span>
+</span></span><span style="display:flex;"><span>curl -H <span style="color:#d14">&#34;Authorization: Bearer eyJhbGciOi...&#34;</span> https://api.example.com/me
+</span></span></code></pre><p>The <code>Bearer</code> keyword and the response shape on a 401 are the parts 6750<br />
+contributes. Everything else is the surrounding spec stack.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ol>
+<li><strong>Three transport options, only one survives 2.1.</strong>
+<ul>
+<li><code>Authorization: Bearer &lt;token&gt;</code> header (§2.1) — the canonical form</li>
+<li><code>access_token</code> form parameter in a POST body (§2.2) — niche, allowed</li>
+<li><code>access_token</code> query string param (§2.3) — <strong>removed by OAuth 2.1 §5.4</strong><br />
+because tokens leak into logs, history, and <code>Referer</code> headers</li>
+</ul>
+</li>
+<li><strong><code>WWW-Authenticate</code> is a structured response.</strong> On a 401, the RS sends:
+<pre><code>WWW-Authenticate: Bearer realm=&quot;api&quot;, error=&quot;invalid_token&quot;,
+                  error_description=&quot;The access token expired&quot;
+</code></pre>
+The client parses these fields; the right code path is &ldquo;refresh&rdquo; not<br />
+&ldquo;make the user log in again.&rdquo;</li>
+<li><strong>Three normative error codes</strong> at the RS (these are different from<br />
+6749&rsquo;s error codes which apply at <code>/token</code>):
+<ul>
+<li><code>invalid_request</code> — malformed header / multiple methods used</li>
+<li><code>invalid_token</code> — expired, revoked, bad signature</li>
+<li><code>insufficient_scope</code> — token is valid but missing a needed scope</li>
+</ul>
+</li>
+<li><strong><code>scope=</code> on the challenge</strong> tells the client <em>what scope it needs</em> to<br />
+retry. This is how step-up scope escalation works without a back-channel.</li>
+<li><strong>Bearer = whoever holds it is them.</strong> This is the security property 6750<br />
+doesn&rsquo;t try to fix; sender-constrained tokens (DPoP RFC 9449, mTLS RFC<br />
+8705) layer on top to add binding.</li>
+</ol>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p><strong>Happy path:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#900;font-weight:bold">GET</span> <span style="color:#555">/api/me</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> api.example.com
+</span></span><span style="display:flex;"><span>Authorization<span style="color:#000;font-weight:bold">:</span> Bearer 2YotnFZFEjr1zCsicMWpAA
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span>Content-Type<span style="color:#000;font-weight:bold">:</span> application/json
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{ <span style="color:#000080">&#34;user&#34;</span>: <span style="color:#d14">&#34;sri&#34;</span>, <span style="color:#000080">&#34;scopes&#34;</span>: [<span style="color:#d14">&#34;read&#34;</span>] }
+</span></span></code></pre><p><strong>Expired token — RS refuses with reason:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">401</span> <span style="color:#900;font-weight:bold">Unauthorized</span>
+</span></span><span style="display:flex;"><span>WWW-Authenticate<span style="color:#000;font-weight:bold">:</span> Bearer realm=&#34;api&#34;,
+</span></span><span style="display:flex;"><span>                  error=&#34;invalid_token&#34;,
+</span></span><span style="display:flex;"><span>                  error_description=&#34;The access token expired&#34;
+</span></span></code></pre><p>Client reads <code>error=&quot;invalid_token&quot;</code> → tries refresh-token grant → retries<br />
+with new access token. No human prompt needed.</p>
+<p><strong>Insufficient scope — RS asks for step-up:</strong></p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">403</span> <span style="color:#900;font-weight:bold">Forbidden</span>
+</span></span><span style="display:flex;"><span>WWW-Authenticate<span style="color:#000;font-weight:bold">:</span> Bearer realm=&#34;api&#34;,
+</span></span><span style="display:flex;"><span>                  error=&#34;insufficient_scope&#34;,
+</span></span><span style="display:flex;"><span>                  error_description=&#34;Operation requires the &#39;write&#39; scope&#34;,
+</span></span><span style="display:flex;"><span>                  scope=&#34;read write&#34;
+</span></span></code></pre><p>Client reads <code>scope=&quot;read write&quot;</code> → restarts auth flow asking for <code>write</code> →<br />
+RS now accepts. This is how progressive consent works.</p>
+<h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L0 spine.</strong> Together with 6749 it&rsquo;s the minimum a real deployment ships.</li>
+<li><strong>T-tier: T6.</strong> Every request the client makes to the RS is governed by 6750.</li>
+<li>6750 is the slot at T6 that <strong>RFC 9449 (DPoP)</strong> and <strong>RFC 8705 (mTLS)</strong><br />
+later compete with by adding sender binding on top.</li>
+</ul>
+<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
+<p>6750 <em>is</em> OAuth 2.0&rsquo;s bearer-token contract, published the same day as 6749.<br />
+All three transport options are 2.0-legal:</p>
+<ul>
+<li>Header (§2.1) — canonical</li>
+<li>Form body (§2.2) — niche, legal</li>
+<li>Query string (§2.3) — <em>&ldquo;SHOULD NOT&rdquo;</em> since publication in 2012, but<br />
+permitted with caveats. RFC 9700 §4.3.2 reinforces this against. <strong>Still<br />
+shipped in the wild today</strong> — particularly in legacy WebSocket-auth flows,<br />
+asset-URL fetches in browsers without header control, and older mobile<br />
+SDKs.</li>
+</ul>
+<p>Note also that 6750&rsquo;s <code>WWW-Authenticate</code> error-code field set (§3.1) is<br />
+under-implemented in many 2.0 deployments — most just return bare<br />
+<code>Bearer realm=...</code> without the structured <code>error=</code> / <code>scope=</code> fields that<br />
+let clients refresh-vs-step-up intelligently. OneAuth currently has this<br />
+same gap (see status table below).</p>
+<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
+<p>OAuth 2.1 §5 re-exports 6750 with §2.3 (the query-string form) <strong>explicitly<br />
+forbidden</strong> rather than merely discouraged. The header and body forms are<br />
+unchanged. No new error codes; no changes to <code>WWW-Authenticate</code> syntax.</p>
+<p>The query-string carve-out is the only material 6750-surface delta between<br />
+2.0 and 2.1.</p>
+<h2 id="migration-path-query-string-bearer">Migration path (query-string bearer) <a class="anchor" href="#migration-path-query-string-bearer">¶</a></h2>
+<p>The deprecation is straightforward in principle, but real deployments have<br />
+legacy callers. A pragmatic on-ramp:</p>
+<ol>
+<li><strong>Detect.</strong> Log every query-param-bearer hit with caller IP and path so<br />
+you can quantify exposure. OneAuth does this via <code>sync.Once</code> to avoid<br />
+log spam (see <code>apiauth/middleware.go:274</code>).</li>
+<li><strong>Document the alternative for each carrier scenario:</strong>
+<ul>
+<li><strong>WebSocket auth at upgrade</strong> — use the <code>Sec-WebSocket-Protocol</code><br />
+subprotocol field to carry the token, or do an initial-frame auth<br />
+handshake post-upgrade</li>
+<li><strong>Asset URLs in browsers</strong> — exchange the bearer for a short-lived<br />
+URL-signing ticket; carry the ticket in the URL, never the bearer</li>
+<li><strong>Mobile SDKs that lack header control</strong> — escalate to vendor or wrap<br />
+the HTTP client</li>
+</ul>
+</li>
+<li><strong>Add a forced-failure mode</strong> behind a flag so callers can opt into 2.1<br />
+strictness ahead of full removal.</li>
+<li><strong>Remove</strong> once usage tail is zero or migration deadlines have passed.</li>
+</ol>
+<p>OneAuth&rsquo;s removal is tracked under issue 295 — gated on documenting the WS<br />
+alternative.</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>High-stakes APIs (banking, healthcare):</strong> bearer tokens replay from<br />
+anywhere they leak. Use DPoP (RFC 9449) or mTLS (RFC 8705) so the token is<br />
+bound to a sender. FAPI 2.0 mandates one of these.</li>
+<li><strong>WebSocket / long-lived connections:</strong> the canonical 6750 header<br />
+presentation doesn&rsquo;t fit naturally with WS upgrade. Use the WS subprotocol<br />
+field or an initial-frame auth message — <em>not</em> the discouraged (2.0)<br />
+/ forbidden (2.1) query-string form.</li>
+</ul>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>6750 surface</th>
+<th>Status</th>
+<th>Where (grep-verified)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Authorization: Bearer &lt;token&gt;</code> header (§2.1)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/middleware.go:289–290</code> parses <code>Bearer</code> (case-insensitive); empty-token rejected</td>
+<td>Default <code>AuthHeader</code> is <code>&quot;Authorization&quot;</code>; overridable via <code>APIMiddleware.AuthHeader</code></td>
+</tr>
+<tr>
+<td><code>WWW-Authenticate: Bearer realm=...</code> (§3)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/middleware.go:497</code> sends <code>Bearer realm=&quot;api&quot;</code> on auth failure</td>
+<td>Realm is hard-coded <code>&quot;api&quot;</code>; structured <code>error=</code> not currently emitted (gap below)</td>
+</tr>
+<tr>
+<td>Form-encoded body param (§2.2)</td>
+<td><strong>Not implemented</strong></td>
+<td>—</td>
+<td>Rare in practice; not on the roadmap</td>
+</tr>
+<tr>
+<td>Query-param fallback (§2.3)</td>
+<td><strong>Opt-in only; OAuth 2.0 escape hatch</strong></td>
+<td><code>apiauth/middleware.go</code> <code>LegacyQueryParamBearer</code> field with <code>sync.Once</code> warning</td>
+<td>Retained for OAuth 2.0 deployments under capability-gating umbrella #344. See <a href="../DEMOS.md#websocket-auth-alternatives">docs/DEMOS.md</a> for three header-clean WebSocket alternatives.</td>
+</tr>
+<tr>
+<td><code>error=&quot;invalid_token&quot;</code> on challenge</td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+<td>Currently emits bare <code>Bearer realm=&quot;api&quot;</code>. Should distinguish missing / malformed / expired → propose follow-up</td>
+</tr>
+<tr>
+<td><code>error=&quot;insufficient_scope&quot;</code> + <code>scope=</code></td>
+<td><strong>Gap</strong></td>
+<td>—</td>
+<td>Same; required for progressive consent UX</td>
+</tr>
+</tbody>
+</table>
+<p>The two gaps are the obvious quick wins on this RFC: structured<br />
+<code>WWW-Authenticate</code> lets clients refresh/escalate without prompting the user.<br />
+Worth filing once we have a concrete client demand.</p>
+<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
+<ul>
+<li><a href="RFC_6749.md">RFC 6749</a> — the framework that produces the token 6750 carries</li>
+<li><a href="RFC_oauth21.md">OAuth 2.1 draft</a> — §5 re-exports 6750 with §2.3 query-param removed</li>
+<li><a href="RFC_9449.md">RFC 9449</a> — DPoP; replaces <code>Bearer</code> with sender-constrained <code>DPoP &lt;token&gt;</code> + proof</li>
+<li><a href="RFC_8705.md">RFC 8705</a> — mTLS; binds the token to a TLS client cert</li>
+<li><a href="RFC_7662.md">RFC 7662</a> — Introspection; the RS-side companion when the token is opaque</li>
+<li><a href="RFC_9068.md">RFC 9068</a> — JWT AT profile; the shape the token has when it&rsquo;s a JWT</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/rfc6750/">Datatracker: rfc6750</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc6750.html">RFC editor copy</a></li>
+<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=6750">Errata search</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>
