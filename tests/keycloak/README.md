@@ -25,9 +25,16 @@ make downkcl    # Stop when done
 | Audience Array | Keycloak's `aud` claim (string or array) handled correctly (#52) |
 | Tampered Token Rejected | Modified Keycloak tokens fail signature verification |
 | Wrong Credentials Rejected | Keycloak rejects invalid client_secret |
+| DPoP interop (#371) | A Keycloak-issued DPoP-bound token is accepted by `APIMiddleware` with a matching proof, and refused when presented as Bearer (RFC 9449 §7.2), with another key's proof, or with a mismatched `ath`. `utils.ComputeKid` is checked against the `cnf.jkt` Keycloak itself computed, which is the assertion that tests our RFC 7638 implementation against a different one rather than against itself |
 | RFC 7592 lifecycle (#171) | `client.GetRegistration` / `UpdateRegistration` / `DeleteRegistration` SDK helpers round-trip against Keycloak's `clients-registrations/openid-connect/{client_id}` endpoint, including registration_access_token rotation on PUT and rejection of the rotated-out token |
 
 ## Keycloak Realm Config
+
+**DPoP is a Keycloak preview feature.** The `make` targets start the
+container with `--features=dpop`; without it the `test-dpop` client rejects
+the token request and the interop tests fail loudly rather than skipping,
+since a silently disabled feature would leave this suite reporting success
+while testing nothing.
 
 `realm.json` is imported on container startup. It contains:
 
@@ -37,6 +44,10 @@ make downkcl    # Stop when done
   - `test-confidential` — client_credentials + password grants (secret: `test-secret-for-confidential-client`)
   - `test-public` — PKCE-enabled public client
   - `test-audience` — for audience validation tests
+  - `test-dpop` — public client with **Require DPoP bound tokens** on
+    (`dpop.bound.access.tokens`, the attribute key from Keycloak's
+    `OIDCConfigAttributes`). Kept separate from `test-public` so the
+    bearer-path tests keep exercising the bearer path.
   - `test-pkjwt` — `client-jwt` (private_key_jwt) for #158 interop. Public key is checked into `realm.json`; matching private key lives in `testdata/client-jwt.private.pem`. **Test-only fixture — never use this key in production.** Secret-scanner false positive: allowlist this path.
 - **User**: `testuser` / `testpassword`
 - **Scopes**: `relay-connect`, `relay-publish`, `read`, `write`

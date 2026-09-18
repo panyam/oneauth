@@ -221,7 +221,7 @@ testall:
 	@docker run --rm -d --name $(KC_CONTAINER_NAME) -p $(KC_PORT):8080 \
 		-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
 		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-		$(KC_IMAGE) start-dev --import-realm >> $(REPORT_DIR)/run.log 2>&1
+		$(KC_IMAGE) start-dev --features=dpop --import-realm >> $(REPORT_DIR)/run.log 2>&1
 	@sleep 3
 	@PASS=0; FAIL=0; STAGES=""; \
 	$(call RUN_STAGE,[1/11] Lint (staticcheck),lint,lint); \
@@ -445,6 +445,10 @@ testrealDS:
 # =============================================================================
 # Keycloak interop test configuration
 # =============================================================================
+# Keycloak's DPoP support is a preview feature, so the RFC 9449 interop
+# tests need --features=dpop on the server command line. It goes in the
+# docker run invocations below rather than an env var, because Keycloak
+# reads features from the command.
 KC_CONTAINER_NAME := oneauth-test-keycloak
 KC_PORT := 8180
 KC_IMAGE := quay.io/keycloak/keycloak:26.6
@@ -458,7 +462,7 @@ upkcl:
 		-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
 		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
 		-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-		$(KC_IMAGE) start-dev --import-realm
+		$(KC_IMAGE) start-dev --features=dpop --import-realm
 	@echo "Waiting for Keycloak to be ready (~15s)..."
 	@until curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; do sleep 2; done
 	@echo ""
@@ -683,7 +687,7 @@ testkcl:
 			-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
 			-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
 			-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-			$(KC_IMAGE) start-dev --import-realm; \
+			$(KC_IMAGE) start-dev --features=dpop --import-realm; \
 		echo "Waiting for Keycloak to be ready (~15s)..."; \
 		until curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; do sleep 2; done; \
 		echo "Keycloak ready."; \
