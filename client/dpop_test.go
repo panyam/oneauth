@@ -333,3 +333,123 @@ func TestDPoPClient_PresentsTheTokenUnderTheDPoPScheme(t *testing.T) {
 	assert.Equal(t, base64.RawURLEncoding.EncodeToString(sum[:]), payload["ath"],
 		"the proof must be bound to the token it accompanies")
 }
+
+// --- RFC 9449 §8 / §9 nonce retry ---
+
+// The nonce protocol is a negotiation: the server answers the first request
+// with use_dpop_nonce and a value, and the client is expected to retry. A
+// client that does not retry simply cannot talk to such a server, so this is
+// the test that says the loop closes.
+func TestDPoPClient_RetriesTokenRequestWithNonce(t *testing.T) {
+	var attempts int
+	var sawNonce string
+	as := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		_, payload := claimsOf(t, r.Header.Get("DPoP"))
+		nonce, _ := payload["nonce"].(string)
+		if nonce == "" {
+			w.Header().Set("DPoP-Nonce", "server-issued-nonce")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"use_dpop_nonce","error_description":"nonce required"}`))
+			return
+		}
+		sawNonce = nonce
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"granted","token_type":"DPoP","expires_in":900}`))
+	}))
+	defer as.Close()
+
+	c := client.NewAuthClient(as.URL, nil,
+		client.WithDPoPKey(newKey(t)),
+		client.WithASMetadata(&client.ASMetadata{Issuer: "nonce-as", TokenEndpoint: as.URL + "/api/token"}))
+
+	cred, err := c.ClientCredentialsToken(dpopClientID, dpopClientSecret, []string{"read"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "granted", cred.AccessToken)
+	assert.Equal(t, 2, attempts, "one challenge, one retry")
+	assert.Equal(t, "server-issued-nonce", sawNonce, "the retry MUST carry the nonce the server issued")
+}
+
+// Once a nonce is known, later requests carry it without another challenge.
+// Re-challenging every request would double every round trip.
+func TestDPoPClient_ReusesAKnownNonce(t *testing.T) {
+	var challenges int
+	as := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, payload := claimsOf(t, r.Header.Get("DPoP"))
+		if nonce, _ := payload["nonce"].(string); nonce == "" {
+			challenges++
+			w.Header().Set("DPoP-Nonce", "sticky-nonce")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"use_dpop_nonce"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"granted","token_type":"DPoP","expires_in":900}`))
+	}))
+	defer as.Close()
+
+	c := client.NewAuthClient(as.URL, nil,
+		client.WithDPoPKey(newKey(t)),
+		client.WithASMetadata(&client.ASMetadata{Issuer: "nonce-as", TokenEndpoint: as.URL + "/api/token"}))
+
+	for range 3 {
+		_, err := c.ClientCredentialsToken(dpopClientID, dpopClientSecret, []string{"read"})
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, 1, challenges, "the nonce should be remembered after the first challenge")
+}
+
+// RFC 9449 §9 warns that an AS nonce and an RS nonce are different values,
+// accepted only by whoever issued them. Sending one to the other server
+// would be challenged forever, so the client keys them by origin.
+func TestDPoPClient_KeepsNoncesPerServer(t *testing.T) {
+	var rsNonceSeen string
+	rs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, payload := claimsOf(t, r.Header.Get("DPoP"))
+		nonce, _ := payload["nonce"].(string)
+		if nonce == "" {
+			w.Header().Set("WWW-Authenticate", `DPoP error="use_dpop_nonce", algs="ES256"`)
+			w.Header().Set("DPoP-Nonce", "rs-nonce")
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		rsNonceSeen = nonce
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer rs.Close()
+
+	as := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, payload := claimsOf(t, r.Header.Get("DPoP"))
+		if nonce, _ := payload["nonce"].(string); nonce == "" {
+			w.Header().Set("DPoP-Nonce", "as-nonce")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"use_dpop_nonce"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"granted","token_type":"DPoP","expires_in":900}`))
+	}))
+	defer as.Close()
+
+	store := newMemStore()
+	c := client.NewAuthClient(rs.URL, store,
+		client.WithDPoPKey(newKey(t)),
+		client.WithASMetadata(&client.ASMetadata{Issuer: "nonce-as", TokenEndpoint: as.URL + "/api/token"}))
+
+	cred, err := c.ClientCredentialsToken(dpopClientID, dpopClientSecret, []string{"read"})
+	require.NoError(t, err)
+	require.NoError(t, store.SetCredential(rs.URL, cred))
+
+	resp, err := c.HTTPClient().Get(rs.URL + "/data")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "rs-nonce", rsNonceSeen,
+		"the resource server must receive its own nonce, not the one the authorization server issued")
+}

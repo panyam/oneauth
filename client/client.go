@@ -28,6 +28,7 @@ type AuthClient struct {
 	tokenEndpoint string      // e.g., "/auth/cli/token"
 	cachedASMeta  *ASMetadata // cached AS discovery metadata for auth method negotiation
 	dpopKey       *DPoPKey    // RFC 9449 proof-of-possession key; nil keeps every request on the bearer path
+	dpopNonces    *nonceStore // server-issued DPoP nonces, keyed by origin (RFC 9449 §8 / §9)
 
 	// OnToken is an optional callback invoked after a successful token
 	// refresh (the refresh_token grant path through refreshTokenLocked).
@@ -159,6 +160,7 @@ func NewAuthClient(serverURL string, store CredentialStore, opts ...ClientOption
 		httpClient:    &http.Client{},
 		baseTransport: http.DefaultTransport,
 		tokenEndpoint: "/auth/cli/token", // default
+		dpopNonces:    newNonceStore(),
 	}
 
 	for _, opt := range opts {
@@ -654,25 +656,27 @@ func (c *AuthClient) requestTokenFormWithAssertion(ctx context.Context, tokenEnd
 // covers every grant the client drives without each one repeating the work.
 // No `ath` here: the request has no access token yet.
 func (c *AuthClient) executeTokenRequest(req *http.Request) (*ServerCredential, error) {
-	if c.dpopKey != nil {
-		proof, err := c.dpopKey.Proof(req.Method, req.URL.String(), "")
-		if err != nil {
-			return nil, fmt.Errorf("mint DPoP proof: %w", err)
+	resp, body, err := c.sendTokenRequest(req, "")
+	if err != nil {
+		return nil, err
+	}
+
+	// RFC 9449 §8: the server may answer a first request with
+	// use_dpop_nonce and a nonce to use. That is a handshake step rather
+	// than a failure, so the request is retried once with a proof
+	// carrying the nonce. Exactly once: a server that keeps challenging
+	// a correct nonce is misbehaving, and looping would turn that into a
+	// hot spin against it.
+	if c.dpopKey != nil && resp.StatusCode == http.StatusBadRequest && tokenErrorCode(body) == "use_dpop_nonce" {
+		nonce := resp.Header.Get("DPoP-Nonce")
+		if nonce != "" && req.GetBody != nil {
+			c.dpopNonces.set(req.URL.String(), nonce)
+			retried, retriedBody, retryErr := c.retryTokenRequest(req, nonce)
+			if retryErr != nil {
+				return nil, retryErr
+			}
+			resp, body = retried, retriedBody
 		}
-		req.Header.Set("DPoP", proof)
-	}
-
-	// Use base transport directly to avoid auth loop
-	httpClient := &http.Client{Transport: c.baseTransport}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to server: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	var tokenResp OAuth2TokenResponse
@@ -763,6 +767,63 @@ func (c *AuthClient) requestToken(ctx context.Context, req OAuth2TokenRequest) (
 	return cred, nil
 }
 
+// sendTokenRequest attaches a DPoP proof (with nonce, when one is known for
+// this server) and performs the request, returning the response and its body.
+// The body is read here because the caller needs it both to detect a nonce
+// challenge and to decode the token response.
+func (c *AuthClient) sendTokenRequest(req *http.Request, nonce string) (*http.Response, []byte, error) {
+	if c.dpopKey != nil {
+		if nonce == "" {
+			nonce = c.dpopNonces.get(req.URL.String())
+		}
+		proof, err := c.dpopKey.proofWithNonce(req.Method, req.URL.String(), "", nonce)
+		if err != nil {
+			return nil, nil, fmt.Errorf("mint DPoP proof: %w", err)
+		}
+		req.Header.Set("DPoP", proof)
+	}
+
+	// Use base transport directly to avoid auth loop
+	httpClient := &http.Client{Transport: c.baseTransport}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	return resp, body, nil
+}
+
+// retryTokenRequest replays a token request with a nonce-carrying proof.
+// The form body was consumed by the first attempt, so it is rebuilt from
+// GetBody, which http.NewRequest populates for the in-memory readers this
+// package uses.
+func (c *AuthClient) retryTokenRequest(original *http.Request, nonce string) (*http.Response, []byte, error) {
+	body, err := original.GetBody()
+	if err != nil {
+		return nil, nil, fmt.Errorf("replay token request body: %w", err)
+	}
+	retry := original.Clone(original.Context())
+	retry.Body = body
+	return c.sendTokenRequest(retry, nonce)
+}
+
+// tokenErrorCode reads the RFC 6749 §5.2 `error` field out of a response
+// body, returning "" when the body is not that shape.
+func tokenErrorCode(body []byte) string {
+	var parsed struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return ""
+	}
+	return parsed.Error
+}
+
 // refreshTransport is an http.RoundTripper that adds auth and handles refresh
 type refreshTransport struct {
 	client *AuthClient
@@ -788,6 +849,15 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
 		return nil, err
+	}
+
+	// RFC 9449 §9: the resource server can demand a nonce the same way
+	// the authorization server does, answering with 401 and the value to
+	// use. Retry once with a proof carrying it. This runs before the
+	// refresh branch because a nonce challenge says nothing about the
+	// token being stale.
+	if retried, handled := t.retryWithNonce(req, resp, token); handled {
+		return retried, nil
 	}
 
 	// If we get 401 and have a refresh token, try to refresh and retry once
@@ -823,6 +893,47 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	return resp, nil
 }
 
+// retryWithNonce answers an RFC 9449 §9 nonce challenge by replaying the
+// request with a proof that carries the nonce.
+//
+// It reports handled=false for anything that is not a nonce challenge, and
+// for a challenge it cannot act on: a request whose body cannot be replayed,
+// or a response with no nonce in it. The caller then falls through to its
+// normal handling, so a server that challenges without supplying a nonce
+// produces an ordinary 401 rather than a silent hang.
+func (t *refreshTransport) retryWithNonce(req *http.Request, resp *http.Response, token string) (*http.Response, bool) {
+	if t.client.dpopKey == nil || resp.StatusCode != http.StatusUnauthorized {
+		return nil, false
+	}
+	if !strings.Contains(resp.Header.Get("WWW-Authenticate"), "use_dpop_nonce") {
+		return nil, false
+	}
+	nonce := resp.Header.Get("DPoP-Nonce")
+	if nonce == "" {
+		return nil, false
+	}
+	t.client.dpopNonces.set(req.URL.String(), nonce)
+
+	retry := req.Clone(req.Context())
+	if req.GetBody != nil {
+		body, err := req.GetBody()
+		if err != nil {
+			return nil, false
+		}
+		retry.Body = body
+	}
+	if err := t.client.authorize(retry, token); err != nil {
+		return nil, false
+	}
+
+	resp.Body.Close()
+	retried, err := t.base.RoundTrip(retry)
+	if err != nil {
+		return nil, false
+	}
+	return retried, true
+}
+
 // authorize sets the Authorization header for a resource request, and the
 // DPoP proof when the client holds a key.
 //
@@ -838,7 +949,7 @@ func (c *AuthClient) authorize(req *http.Request, token string) error {
 		return nil
 	}
 
-	proof, err := c.dpopKey.Proof(req.Method, req.URL.String(), token)
+	proof, err := c.dpopKey.proofWithNonce(req.Method, req.URL.String(), token, c.dpopNonces.get(req.URL.String()))
 	if err != nil {
 		return fmt.Errorf("mint DPoP proof: %w", err)
 	}

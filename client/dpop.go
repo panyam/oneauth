@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -107,6 +108,52 @@ func (k *DPoPKey) SupportedBy(algs []string) error {
 	return nil
 }
 
+// nonceStore remembers the most recent DPoP nonce each server handed out.
+//
+// RFC 9449 §9 is explicit that an authorization server's nonce and a
+// resource server's nonce are different values, accepted only by whoever
+// issued them. Keying by origin is what keeps a client from replaying the
+// AS's nonce at the resource server and being challenged in a loop it
+// cannot escape.
+type nonceStore struct {
+	mu       sync.Mutex
+	byOrigin map[string]string
+}
+
+func newNonceStore() *nonceStore {
+	return &nonceStore{byOrigin: map[string]string{}}
+}
+
+func (s *nonceStore) get(target string) string {
+	origin := originOf(target)
+	if origin == "" {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.byOrigin[origin]
+}
+
+func (s *nonceStore) set(target, nonce string) {
+	origin := originOf(target)
+	if origin == "" || nonce == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.byOrigin[origin] = nonce
+}
+
+// originOf reduces a URL to scheme and host, which is the granularity a
+// nonce belongs to: one server, not one path.
+func originOf(target string) string {
+	u, err := url.Parse(target)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
 // Proof mints a DPoP proof JWT for one request (RFC 9449 §4.2).
 //
 // accessToken binds the proof to the token being presented, via the `ath`
@@ -119,6 +166,13 @@ func (k *DPoPKey) SupportedBy(algs []string) error {
 // on any retry path: a request retried after a token refresh needs a new
 // proof, not the one that was already sent.
 func (k *DPoPKey) Proof(method, targetURL, accessToken string) (string, error) {
+	return k.proofWithNonce(method, targetURL, accessToken, "")
+}
+
+// proofWithNonce is Proof plus the server-issued `nonce` claim (RFC 9449
+// §8). A nonce is opaque to the client: it is echoed back exactly as
+// received, and its meaning is the issuing server's business.
+func (k *DPoPKey) proofWithNonce(method, targetURL, accessToken, nonce string) (string, error) {
 	htu, err := canonicalHTU(targetURL)
 	if err != nil {
 		return "", err
@@ -138,6 +192,9 @@ func (k *DPoPKey) Proof(method, targetURL, accessToken string) (string, error) {
 	if accessToken != "" {
 		sum := sha256.Sum256([]byte(accessToken))
 		claims["ath"] = base64.RawURLEncoding.EncodeToString(sum[:])
+	}
+	if nonce != "" {
+		claims["nonce"] = nonce
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)

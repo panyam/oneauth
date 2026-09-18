@@ -59,6 +59,7 @@ type proofOpts struct {
 	jti        string
 	iat        time.Time
 	ath        string
+	nonce      string
 	omitJTI    bool
 	omitJWK    bool
 	privateJWK bool
@@ -101,6 +102,9 @@ func newProof(t *testing.T, key any, o proofOpts) string {
 	claims["iat"] = iat.Unix()
 	if o.ath != "" {
 		claims["ath"] = o.ath
+	}
+	if o.nonce != "" {
+		claims["nonce"] = o.nonce
 	}
 
 	token := jwt.NewWithClaims(method, claims)
