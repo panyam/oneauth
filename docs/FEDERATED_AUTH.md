@@ -10,22 +10,18 @@ Three projects collaborate in a federated deployment:
 2. **Resource server** (e.g., massrelay) — validates resource-scoped JWTs using KeyStore
 3. **App** (e.g., excaliframe) — registers as an App, authenticates users locally, mints resource tokens
 
-```
-┌───────────────┐     1. register         ┌───────────────────┐
-│     App       │ ──────────────────────→ │  OneAuth Server   │
-│ (excaliframe) │ ←─────────────────────  │  (AppRegistrar)   │
-│               │  client_id + secret     │                   │
-└───────┬───────┘                         └────────┬──────────┘
-        │                                          │
-        │ 2. authenticate user locally             │ shared KeyStore
-        │ 3. mint resource-scoped JWT              │ (GORM, FS, GAE)
-        │                                          │
-        ▼                                          ▼
-┌───────────────┐  4. connect with JWT    ┌───────────────────┐
-│   End User    │ ──────────────────────→ │ Resource Server   │
-│   (browser)   │                         │ (APIMiddleware +  │
-│               │                         │  KeyStore)        │
-└───────────────┘                         └───────────────────┘
+```mermaid
+flowchart LR
+    App["App<br/>(excaliframe)"]
+    AuthSrv["OneAuth Server<br/>(AppRegistrar)"]
+    EndUser["End User<br/>(browser)"]
+    ResSrv["Resource Server<br/>(APIMiddleware +<br/>KeyStore)"]
+
+    App -->|"1. register"| AuthSrv
+    AuthSrv -->|"client_id + secret"| App
+    App -->|"2. authenticate user locally<br/>3. mint resource-scoped JWT"| EndUser
+    AuthSrv -->|"shared KeyStore<br/>(GORM, FS, GAE)"| ResSrv
+    EndUser -->|"4. connect with JWT"| ResSrv
 ```
 
 ## End-to-End Flow

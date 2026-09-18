@@ -221,6 +221,36 @@ pre code {
     font-weight: 600;
 }
 
+.content-body tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--bg-soft) 45%, transparent);
+}
+
+/* Coverage markers on the spec-library index. The cell text already says
+   "Implemented" / "Gap", so colour is reinforcement rather than the only
+   signal, which keeps the table readable without colour. */
+.content-body td.cov-yes,
+.content-body td.cov-partial,
+.content-body td.cov-no {
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+.content-body td.cov-yes::before,
+.content-body td.cov-partial::before,
+.content-body td.cov-no::before {
+    content: "";
+    position: absolute;
+    left: 0.6rem;
+    top: 0.85em;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+}
+
+.content-body td.cov-yes::before     { background: #2f7d32; }
+.content-body td.cov-partial::before { background: var(--accent); }
+.content-body td.cov-no::before      { background: #9a9a97; }
+
 /* Landing page */
 .hero {
     padding: 3rem 0 2rem 0;
@@ -307,8 +337,30 @@ pre code {
 
 /* Responsive */
 @media (max-width: 800px) {
+    .content-body table {
+        display: block;
+        overflow-x: auto;
+        white-space: normal;
+    }
+
     .page { grid-template-columns: 1fr; }
     .sidebar { position: static; max-height: none; }
     .pillars { grid-template-columns: 1fr; }
     .top-nav { display: none; }
+}
+
+/* Mermaid diagrams. The script swaps the goldmark <pre><code> pair for a
+   single <pre class="mermaid">, so these rules apply after rendering. */
+.content-body pre.mermaid {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 1.25rem 0;
+    text-align: center;
+    overflow-x: auto;
+}
+
+.content-body pre.mermaid svg {
+    max-width: 100%;
+    height: auto;
 }

@@ -4,12 +4,15 @@ Form-based login/signup, OAuth integration, channel linking, email verification,
 
 ## How It Works
 
-```
-┌──────────┐                  ┌───────────┐                ┌──────────────┐
-│  Browser │ ── POST ──────→  │ LocalAuth │ ── callback ─→ │  HandleUser  │
-│          │    /auth/login   │           │                │  (app-owned) │
-│          │ ←─ cookie ────   │           │                │  set session │
-└──────────┘                  └───────────┘                └──────────────┘
+```mermaid
+flowchart LR
+    B["Browser"]
+    L["LocalAuth"]
+    H["HandleUser<br/>(app-owned)<br/>set session"]
+
+    B -->|"POST /auth/login"| L
+    L -->|"cookie"| B
+    L -->|"callback"| H
 ```
 
 OneAuth handles credential validation; your application controls session creation via the `HandleUser` callback.
@@ -119,58 +122,54 @@ oneAuth.AddAuth("/github", oa2.NewGithubOAuth2(clientID, clientSecret, callbackU
 
 ## Login Decision Tree
 
-```
-LOGIN ATTEMPT
-     │
-     ├─── OAuth (Google/GitHub) ──────────────────────────────────┐
-     │                                                            │
-     │    1. Provider authenticates user                          │
-     │    2. Callback receives: email, name, avatar               │
-     │    3. Look up Identity by email                            │
-     │         │                                                  │
-     │         ├── NOT found → Create User + Identity + Channel   │
-     │         └── FOUND → Get User, add/update OAuth Channel     │
-     │                                                            │
-     └─── Email/Username + Password ──────────────────────────────┤
-               │                                                  │
-          Contains "@"?                                           │
-               │                                                  │
-               ├── YES → Look up Identity by email                │
-               │         ├── NOT found → "Invalid credentials"    │
-               │         └── FOUND → Get local Channel            │
-               │                    ├── No local Channel → error  │
-               │                    └── Verify password           │
-               │                                                  │
-               └── NO → UsernameStore.GetUserByUsername()         │
-                        ├── NOT found → "Invalid credentials"     │
-                        └── FOUND → resolve to email, continue ───┘
-                                                                  │
-                                                          LOGIN SUCCESS
-                                                          Create Session
+```mermaid
+flowchart TD
+    START["LOGIN ATTEMPT"]
+    SUCCESS["LOGIN SUCCESS<br/>Create Session"]
+
+    START --> OAUTH["OAuth (Google/GitHub)"]
+    START --> LOCAL["Email/Username + Password"]
+
+    OAUTH --> O1["1. Provider authenticates user"]
+    O1 --> O2["2. Callback receives: email, name, avatar"]
+    O2 --> O3["3. Look up Identity by email"]
+    O3 -->|"NOT found"| O4["Create User + Identity + Channel"]
+    O3 -->|"FOUND"| O5["Get User, add/update OAuth Channel"]
+    O4 --> SUCCESS
+    O5 --> SUCCESS
+
+    LOCAL --> AT{"Contains '@'?"}
+
+    AT -->|"YES"| E1["Look up Identity by email"]
+    E1 -->|"NOT found"| E1X["'Invalid credentials'"]
+    E1 -->|"FOUND"| E2["Get local Channel"]
+    E2 -->|"No local Channel"| E2X["error"]
+    E2 --> E3["Verify password"]
+    E3 --> SUCCESS
+
+    AT -->|"NO"| U1["UsernameStore.GetUserByUsername()"]
+    U1 -->|"NOT found"| U1X["'Invalid credentials'"]
+    U1 -->|"FOUND"| U2["resolve to email, continue"]
+    U2 --> SUCCESS
 ```
 
 ## Signup Decision Tree
 
-```
-SIGNUP ATTEMPT (email + password)
-     │
-     ▼
-Validate SignupPolicy
-     │
-     ▼
-Check Identity exists for email?
-     │
-     ├── EXISTS → Error: "Email already registered"
-     │            → OnSignupError callback
-     │
-     └── NOT found
-              │
-              ├── Create User
-              ├── Create Identity (verified=false)
-              ├── Create Channel (local, password_hash)
-              ├── Reserve username (if UsernameStore + username provided)
-              ├── Send verification email (if EmailSender configured)
-              └── Auto-login → redirect
+```mermaid
+flowchart TD
+    S["SIGNUP ATTEMPT (email + password)"]
+    S --> V["Validate SignupPolicy"]
+    V --> C{"Check Identity exists for email?"}
+
+    C -->|"EXISTS"| X1["Error: 'Email already registered'"]
+    X1 --> X2["OnSignupError callback"]
+
+    C -->|"NOT found"| N1["Create User"]
+    N1 --> N2["Create Identity (verified=false)"]
+    N2 --> N3["Create Channel (local, password_hash)"]
+    N3 --> N4["Reserve username (if UsernameStore + username provided)"]
+    N4 --> N5["Send verification email (if EmailSender configured)"]
+    N5 --> N6["Auto-login → redirect"]
 ```
 
 ## OAuth Integration
@@ -221,34 +220,27 @@ See: [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636)
 
 A user can sign up with email/password and later link their Google account, or vice versa. Multiple channels share the same user via email Identity.
 
-```
-User (id: abc123)
-├── Identity: email → user@example.com (verified)
-├── Channel: local   → email:user@example.com (password_hash)
-├── Channel: google  → email:user@example.com (oauth profile)
-└── Channel: github  → email:user@example.com (oauth profile)
+```mermaid
+flowchart TD
+    U["User (id: abc123)"]
+    U --> I["Identity: email → user@example.com (verified)"]
+    U --> CL["Channel: local → email:user@example.com (password_hash)"]
+    U --> CG["Channel: google → email:user@example.com (oauth profile)"]
+    U --> CH["Channel: github → email:user@example.com (oauth profile)"]
 ```
 
 The user profile tracks linked providers: `profile["channels"] = ["local", "google", "github"]`
 
 ### Provider Linking Matrix
 
-```
-                          │         SECOND AUTH ATTEMPT                  │
-                          ├─────────────┬─────────────┬──────────────────┤
-                          │ Local Email │   Google    │  Different Email │
-                          │  + Password │   OAuth     │                  │
-┌─────────────────────────┼─────────────┼─────────────┼──────────────────┤
-│  No existing account    │ Create new  │ Create new  │ Create new       │
-├─────────────────────────┼─────────────┼─────────────┼──────────────────┤
-│  Has Local (same email) │ Login       │ Link OAuth  │ New account      │
-├─────────────────────────┼─────────────┼─────────────┼──────────────────┤
-│  Has Google (same email)│ Fails*      │ Login       │ New account      │
-└─────────────────────────┴─────────────┴─────────────┴──────────────────┘
+| Second auth attempt → | Local Email + Password | Google OAuth | Different Email |
+|-----------------------|------------------------|--------------|-----------------|
+| No existing account | Create new | Create new | Create new |
+| Has Local (same email) | Login | Link OAuth | New account |
+| Has Google (same email) | Fails\* | Login | New account |
 
-* "Fails" = Signup fails because Identity exists, but no local Channel.
-  User should login via OAuth, then set password via profile or password reset.
-```
+\* "Fails" = Signup fails because Identity exists, but no local Channel.
+User should login via OAuth, then set password via profile or password reset.
 
 **Key rule**: Same email = same account (via Identity), regardless of auth method.
 

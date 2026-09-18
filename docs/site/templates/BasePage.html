@@ -24,5 +24,43 @@
     </div>
 
     {{ template "Footer" . }}
+
+    <!-- Mermaid renders the ```mermaid fences the docs use for sequence and
+         flow diagrams. Without it every diagram shows as its own source text,
+         which is how this site shipped until now. Pinned to an exact version
+         because a floating tag would let the CDN change what executes here;
+         an ES module import cannot carry an integrity attribute, so the pin
+         is the whole mitigation.
+         startOnLoad is off so we can convert the <pre><code class="language-mermaid">
+         blocks goldmark emits into the <pre class="mermaid"> shape mermaid
+         expects, then run it once. -->
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        // A diagram with a syntax error throws; catching it leaves the other
+        // diagrams on the page rendered instead of blanking all of them.
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
 </body>
 </html>

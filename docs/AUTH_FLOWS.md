@@ -17,14 +17,25 @@ This document describes the authentication flows, data model, and patterns provi
 
 ### Data Model
 
+```mermaid
+flowchart TD
+    U["User (id: abc123)"]
+    P["Profile<br/>{email, username, nickname, avatar, ...}"]
+    I["Identity: email<br/>user@example.com (verified: true/false)"]
+    CL["Channel: local<br/>email:user@example.com (password_hash)"]
+    CG["Channel: google<br/>email:user@example.com (oauth_token)"]
+    CH["Channel: github<br/>email:user@example.com (oauth_token)"]
+    U --> P
+    U --> I
+    U --> CL
+    U --> CG
+    U --> CH
+    CL -.->|authenticates| I
+    CG -.->|authenticates| I
+    CH -.->|authenticates| I
 ```
-User (id: abc123)
-├── Profile: {email, username, nickname, avatar, ...}
-├── Identity: email → user@example.com (verified: true/false)
-├── Channel: local → email:user@example.com (password_hash)
-├── Channel: google → email:user@example.com (oauth_token)
-└── Channel: github → email:user@example.com (oauth_token)
-```
+
+Every channel points at the same identity, which is what makes "sign in with Google" and "sign in with a password" land on one account rather than three.
 
 **Key Concepts:**
 - **User**: The account entity with a profile map
@@ -487,6 +498,57 @@ Result: User can now login TWO ways:
 
 Diagrams for the OAuth 2.0 grant flows oneauth ships as an AS and (where applicable) consumes from the CLI / SDK. Distinct from the "Supported Flows" section above — those describe the user-identity-channel lifecycle this library brokers; the diagrams here describe the wire-level grant exchanges with external clients.
 
+### Two axes: journeys and modifiers
+
+It is tempting to read OAuth as one long list of specifications. It reads better as two axes.
+
+**Grants are journeys.** Each answers a different question about who is asking and what they have to work with: a user in front of a browser, a machine with no user at all, a television with no keyboard. RFC 6749 named most of them in 2012 and the set has barely moved since.
+
+**Extensions are modifiers.** They do not add journeys. They clip onto an existing one and change how a leg of it is carried or proven. PKCE, PAR, DPoP, RAR and JAR are all modifiers, and nearly every OAuth specification published since 2015 belongs on this axis, because the grants turned out to be roughly right and the attacks turned out to be in the delivery.
+
+Reading the two axes together explains why a profile like FAPI 2.0 looks like a checklist rather than a flow. It is one journey (authorization code) plus four modifiers (PKCE, PAR, DPoP or mTLS, and JAR).
+
+```mermaid
+flowchart LR
+    subgraph J["Journeys — how a client gets a token"]
+        AC["Authorization code<br/>user at a browser"]
+        CC["Client credentials<br/>machine, no user"]
+        DV["Device grant<br/>no keyboard"]
+        RF["Refresh<br/>already had a token"]
+        TE["Token exchange<br/>across trust domains"]
+    end
+    subgraph M["Modifiers — what they change about a journey"]
+        PKCE["PKCE<br/>ties redemption to the starter"]
+        PAR["PAR<br/>request goes back-channel"]
+        JAR["JAR<br/>request is a signed JWT"]
+        RAR["RAR<br/>scope becomes structured JSON"]
+        DPOP["DPoP / mTLS<br/>token bound to a key"]
+    end
+    PKCE --> AC
+    PAR --> AC
+    JAR --> AC
+    RAR --> AC
+    RAR --> CC
+    DPOP --> AC
+    DPOP --> CC
+    DPOP --> DV
+    DPOP --> RF
+    DPOP --> TE
+```
+
+Where OneAuth stands on each modifier:
+
+| Modifier | Spec | Attaches to | Status |
+|---|---|---|---|
+| PKCE | RFC 7636 | authorization code | Shipped, and required (S256; `plain` is opt-in for OAuth 2.0 fleets) |
+| PAR | RFC 9126 | authorization code | Shipped ([#337](https://github.com/panyam/oneauth/issues/337)) |
+| DPoP | RFC 9449 | every grant | Shipped except the nonce protocol ([#375](https://github.com/panyam/oneauth/issues/375)) |
+| RAR | RFC 9396 | token endpoint, introspection, middleware | Shipped |
+| mTLS | RFC 8705 | every grant | Tracked ([#335](https://github.com/panyam/oneauth/issues/335)) |
+| JAR | RFC 9101 | authorization code | Tracked ([#338](https://github.com/panyam/oneauth/issues/338)) |
+
+The rest of this section diagrams the journeys first, then the modifiers that attach to them.
+
 ### RFC 8628 Device Authorization Grant
 
 The device-flow case: a device with limited input (smart TV, CLI, IoT) gets a token while the user authorizes on a separate device (phone, laptop). What's distinctive about this grant is that the device asking for the token is *not* the device the user authorizes on — there is no redirect URL because the polling device has no browser to redirect *to*, so the AS bridges them via an out-of-band `user_code` that the user transcribes.
@@ -506,8 +568,8 @@ sequenceDiagram
     AS->>AS: mint device_code (256-bit hex)<br/>mint user_code (WDJB-MJHT)<br/>store as Status=Pending<br/>expires_at = now + 15min
     AS-->>D: 200 OK<br/>{ device_code, user_code,<br/>  verification_uri,<br/>  verification_uri_complete?,<br/>  expires_in: 900, interval: 5 }
 
-    Note over D,U: Phase 2 — Device shows the code; user transcribes
-    D->>U: Display "Visit https://as.example/device<br/>and enter WDJB-MJHT"
+    Note over D,U: Phase 2 — Device shows the code, user transcribes
+    D->>U: Display 'Visit https://as.example/device<br/>and enter WDJB-MJHT'
 
     Note over D,AS: Phase 3 — Device polls token endpoint while user authorizes
     par Device polls
@@ -657,7 +719,7 @@ sequenceDiagram
     AS->>RT: RevokeTokenFamily(F)
     RT->>RT: revoke EVERY token where family=F<br/>(RT-new and any descendants)
     AS-->>C: 400 invalid_grant<br/>"Token reuse detected, all sessions revoked"
-    Note over C: Both the attacker AND the legitimate<br/>holder now have to re-authenticate.<br/>Legitimate user notices and changes password;<br/>attacker is locked out.
+    Note over C: Both the attacker AND the legitimate<br/>holder now have to re-authenticate.<br/>Legitimate user notices and changes password,<br/>so the attacker is locked out.
 ```
 
 **Notes the diagram reveals:**
@@ -990,6 +1052,66 @@ sequenceDiagram
 - Refresh tokens: NOT issued for this grant — the client just gets a new access token directly each time (re-presenting credentials is cheap)
 
 See: [RFC 6749 §4.4](https://www.rfc-editor.org/rfc/rfc6749#section-4.4), [RFC 7521](https://www.rfc-editor.org/rfc/rfc7521), [RFC 7523](https://www.rfc-editor.org/rfc/rfc7523), `apiauth/auth.go` (`handleClientCredentialsGrant`), `apiauth/client_authenticator.go`, `client/client.go` (`ClientCredentials`), `cmd/oneauth/cmd/token_client_credentials.go`.
+
+### Modifier: RFC 9126 Pushed Authorization Requests (PAR)
+
+PAR changes one leg of the authorization-code journey: instead of the client sending the authorization request *through the browser* as query parameters, it sends it to the AS directly and hands the browser a reference. Same journey, different delivery.
+
+The point is what stops travelling through the user agent. Scope, `redirect_uri`, PKCE challenge and any RFC 9396 `authorization_details` payload stay server-side, so they never reach browser history, access logs or the `Referer` header of whatever page the user visits next. A payload too large for a URL also stops being a problem, which is the practical reason a deployment reaches for PAR.
+
+One subtlety worth naming: the reference is spent when a code is issued, not when it is first read. The consent screen reads it twice (once to render, once on approval) and a user who reloads the page in between has done nothing wrong. RFC 9126 §4 permits exactly this reading.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client app
+    participant B as Browser
+    participant AS as OneAuth AS
+
+    Note over C,AS: Back channel — the request never touches the browser
+    C->>AS: "POST /par (client auth, response_type, redirect_uri,<br/>scope, code_challenge, authorization_details)"
+    AS->>AS: Authenticate client<br/>Validate exactly as /authorize would<br/>Store payload, bind it to this client
+    AS-->>C: "201 { request_uri: urn:ietf:params:oauth:request_uri:...,<br/>expires_in: 60 }"
+
+    Note over C,B: Front channel — only a reference travels
+    C->>B: "Redirect to /authorize?client_id=...&request_uri=urn:..."
+    B->>AS: "GET /authorize (reference only)"
+    AS->>AS: Resolve reference<br/>Reject if unknown, expired, consumed,<br/>or pushed by a different client
+    AS-->>B: Consent screen, rendered from the stored payload
+    B->>AS: "POST /authorize (approve)"
+    AS->>AS: Issue code, consume the reference
+    AS-->>B: "302 to redirect_uri with code + state"
+    B->>C: Authorization code
+    C->>AS: "POST /api/token (code, code_verifier)"
+    AS-->>C: Access token
+```
+
+### Modifier: RFC 9449 DPoP
+
+DPoP attaches to every journey rather than one. It binds the issued token to a key the client holds, so a token that leaks is useless to whoever leaked it: presenting it requires signing a fresh proof per request.
+
+Two halves have to be in place for that to mean anything, and the order matters. An authorization server can issue bound tokens while the resource servers still accept them as ordinary bearer tokens, which RFC 9449 §7.2 both predicts and permits. Enforce at the resource servers first.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client<br/>holds a key pair
+    participant AS as OneAuth AS
+    participant RS as Resource server
+
+    C->>C: Mint proof<br/>"htm, htu, jti, iat, signed by the private key"
+    C->>AS: "POST /api/token + DPoP: proof"
+    AS->>AS: Validate proof<br/>"typ, alg, signature, htm, htu, iat window, jti replay"
+    AS->>AS: "Thumbprint the public key (RFC 7638)"
+    AS-->>C: "token_type: DPoP<br/>access token carries cnf.jkt<br/>refresh token bound to the same key"
+
+    C->>C: Mint a NEW proof for this request<br/>"adds ath = hash of the access token"
+    C->>RS: "GET /resource<br/>Authorization: DPoP token<br/>DPoP: proof"
+    RS->>RS: Validate proof, check ath<br/>Compare proof key against the token's cnf.jkt
+    RS-->>C: 200 OK
+
+    Note over C,RS: A thief holding only the token cannot mint a proof.<br/>Presenting it as Bearer is refused too, per section 7.2.
+```
 
 ## Edge Cases
 
