@@ -187,7 +187,7 @@
 <p><strong>Status:</strong> Standards Track<br />
 <strong>Published:</strong> 2023-09<br />
 <strong>L-tier / T-tier:</strong> L5 · T5 (issue) + T6 (present proof) + T7 (verify)<br />
-<strong>OneAuth coverage:</strong> Implemented — issuance (<code>cnf.jkt</code>, bound refresh tokens), resource-server enforcement, <code>dpop_jkt</code> at <code>/authorize</code> and on a pushed request, client SDK proof minting. Nonce protocol (§8/§9) outstanding<br />
+<strong>OneAuth coverage:</strong> Implemented — issuance (<code>cnf.jkt</code>, bound refresh tokens), resource-server enforcement, <code>dpop_jkt</code> at <code>/authorize</code> and on a pushed request, the §8/§9 nonce protocol, and client SDK proof minting with nonce retry<br />
 <strong>See also:</strong> <a href="RFC_8705.md"><code>RFC_8705.md</code></a> · <a href="RFC_9068.md"><code>RFC_9068.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
@@ -444,10 +444,10 @@ reliably sign proofs per request.</li>
 <td>Includes the §7.2 refusal of a bound token sent as Bearer</td>
 </tr>
 <tr>
-<td>Nonce protocol (<code>DPoP-Nonce</code> header)</td>
-<td><strong>Gap</strong></td>
-<td>—</td>
-<td>Not required for v1</td>
+<td>Nonce protocol (<code>DPoP-Nonce</code> header), §8 + §9</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/dpop_nonce.go</code> <code>NonceSource</code>; <code>DPoPConfig.NoncePolicy</code> decides which requests are challenged</td>
+<td>Off by default. Client retry in <code>client/</code> keys nonces per origin, since §9 warns AS and RS nonces are distinct</td>
 </tr>
 <tr>
 <td><code>Authorization: DPoP &lt;token&gt;</code> parsing</td>
@@ -525,12 +525,29 @@ URL:</p>
 bearer token, which RFC 9449 §7.2 both predicts and permits. Issuing bound<br />
 tokens is therefore not protection on its own; the binding starts constraining<br />
 anyone only once the resource servers check it.</p>
+<p><strong>Nonces are opt-in, and deliberately so.</strong> RFC 9449 §8 puts the decision of<br />
+<em>when</em> to demand one out of scope. Demanding one on every request costs every<br />
+client an extra round trip on first contact and breaks any client that has not<br />
+implemented the retry, which today is most of them. So OneAuth takes a policy<br />
+function rather than a flag:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>oa <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewOneAuth</span>(apiauth.OneAuthConfig{ <span style="color:#998;font-style:italic">/* ... */</span>
+</span></span><span style="display:flex;"><span>    DPoP: apiauth.<span style="color:#900;font-weight:bold">NewDPoPProofValidator</span>(apiauth.DPoPConfig{
+</span></span><span style="display:flex;"><span>        EndpointURL: <span style="color:#d14">&#34;https://as.example.com/api/token&#34;</span>,
+</span></span><span style="display:flex;"><span>        NonceSource: apiauth.<span style="color:#900;font-weight:bold">NewNonceSource</span>(apiauth.NonceConfig{
+</span></span><span style="display:flex;"><span>            <span style="color:#998;font-style:italic">// Share the secret across a fleet, or each node will
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>            <span style="color:#998;font-style:italic">// reject its neighbours&#39; nonces and clients will loop.
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>            Secret: sharedSecret,
+</span></span><span style="display:flex;"><span>        }),
+</span></span><span style="display:flex;"><span>        NoncePolicy: <span style="color:#000;font-weight:bold">func</span>(r <span style="color:#000;font-weight:bold">*</span>http.Request) <span style="color:#458;font-weight:bold">bool</span> {
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">return</span> strings.<span style="color:#900;font-weight:bold">HasPrefix</span>(r.URL.Path, <span style="color:#d14">&#34;/high-value&#34;</span>)
+</span></span><span style="display:flex;"><span>        },
+</span></span><span style="display:flex;"><span>    }),
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre><p>A <code>NonceSource</code> with no policy demands nothing, so wiring one is safe on its<br />
+own. The client SDK answers a challenge automatically when a <code>DPoPKey</code> is<br />
+configured.</p>
 <p><strong>What is left.</strong></p>
 <ol>
-<li>The nonce protocol (§8 for the authorization server, §9 for the<br />
-resource server), tracked under #375. It closes proof pre-generation,<br />
-which the <code>iat</code> window bounds but does not prevent, and the client<br />
-retry loop it needs now has a key to build on.</li>
 <li>A <code>TokenBindingValidator</code> interface (shared seam with mTLS) — deferred<br />
 on purpose until #335 makes the second shape visible, since an<br />
 interface with one implementation is a guess about the second.</li>
