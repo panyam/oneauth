@@ -498,6 +498,12 @@ reliably sign proofs per request.</li>
 <td>Token requests, resource requests (<code>ath</code>), and <code>dpop_jkt</code> on browser login</td>
 </tr>
 <tr>
+<td>Keycloak interop (issuance by a third party)</td>
+<td><strong>Implemented</strong></td>
+<td><code>tests/keycloak/dpop_interop_test.go</code> (#371)</td>
+<td>Runs under <code>make testkcl</code>; Keycloak needs <code>--features=dpop</code></td>
+</tr>
+<tr>
 <td>Crypto primitive: RFC 7638 thumbprint</td>
 <td><strong>Implemented</strong></td>
 <td><code>utils/jwk_thumbprint.go:19–82</code> — RSA + EC supported</td>
