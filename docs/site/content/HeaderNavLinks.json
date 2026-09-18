@@ -1,5 +1,24 @@
 [
   {
+    "name": "Guides",
+    "url": "guides/getting-started/",
+    "children": [
+      { "name": "Getting started", "url": "guides/getting-started/" },
+      { "name": "User guide", "url": "guides/user-guide/" },
+      { "name": "Developer guide", "url": "guides/developer-guide/" },
+      { "name": "Client SDK", "url": "guides/client-sdk/" },
+      { "name": "API auth", "url": "guides/api-auth/" },
+      { "name": "Browser auth", "url": "guides/browser-auth/" },
+      { "name": "Stores", "url": "guides/stores/" },
+      { "name": "gRPC", "url": "guides/grpc/" },
+      { "name": "Demos", "url": "guides/demos/" },
+      { "name": "Testing", "url": "guides/testing/" },
+      { "name": "Migration", "url": "guides/migration/" },
+      { "name": "OAuth 2.1 alignment", "url": "guides/oauth21-alignment/" },
+      { "name": "Release notes", "url": "guides/release-notes/" }
+    ]
+  },
+  {
     "name": "Conformance",
     "url": "conformance/",
     "children": [
@@ -11,6 +30,18 @@
     ]
   },
   {
+    "name": "Specs",
+    "url": "specs/",
+    "children": [
+      { "name": "Spec library",    "url": "specs/" },
+      { "name": "OAuth landscape", "url": "specs/landscape/" },
+      { "name": "OAuth 2.1",       "url": "specs/rfc-oauth21/" },
+      { "name": "FAPI 1.0 / 2.0",  "url": "specs/fapi/" },
+      { "name": "DPoP (RFC 9449)", "url": "specs/rfc-9449/" },
+      { "name": "PAR (RFC 9126)",  "url": "specs/rfc-9126/" }
+    ]
+  },
+  {
     "name": "Architecture",
     "url": "design/architecture/",
     "children": [
@@ -18,7 +49,8 @@
       { "name": "Roadmap",        "url": "design/roadmap/" },
       { "name": "Auth flows",     "url": "design/auth-flows/" },
       { "name": "Federated auth", "url": "design/federated-auth/" },
-      { "name": "JWT signing",    "url": "design/jwt-signing/" }
+      { "name": "JWT signing",    "url": "design/jwt-signing/" },
+      { "name": "Package summary", "url": "design/summary/" }
     ]
   },
   {

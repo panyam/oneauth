@@ -3,7 +3,7 @@
 > **Status:** OpenID Foundation Specifications (final)
 > **Published:** FAPI 1.0 (2021), FAPI 2.0 Security Profile (2024)
 > **L-tier / T-tier:** L8 · T0 (profile of all)
-> **OneAuth coverage:** Not conformant — L5 is half-landed (DPoP shipped under #336; mTLS tracked under #335), L6 (PAR #337 / JAR #338) outstanding
+> **OneAuth coverage:** Not conformant — L5 is half-landed (DPoP shipped under #336; mTLS tracked under #335), L6 is half-landed (PAR shipped under #337; JAR tracked under #338)
 > **See also:** [`RFC_9126.md`](RFC_9126.md) · [`RFC_9101.md`](RFC_9101.md) · [`RFC_9449.md`](RFC_9449.md) · [`RFC_8705.md`](RFC_8705.md) · [`LANDSCAPE.md`](LANDSCAPE.md)
 
 ## In one sentence

@@ -6,30 +6,18 @@ The `client/` package provides a Go SDK for CLI tools and programmatic clients c
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        AuthClient                           │
-│  - Login / Logout                                           │
-│  - GetToken() with automatic refresh                        │
-│  - HTTPClient() returns authenticated *http.Client          │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-         ┌─────────────────┼──────────────────────┐
-         │                 │                      │
-         ▼                 ▼                      ▼
-┌────────────────┐  ┌──────────────┐   ┌─────────────────┐
-│CredentialStore │  │refreshTranspt│   │  AuthTransport  │
-│  (interface)   │  │ (401 retry + │   │  (static Bearer │
-│                │  │  pre-expiry  │   │   header)       │
-│                │  │  refresh)    │   │                 │
-└────────┬───────┘  └──────────────┘   └─────────────────┘
-         │
-         ▼
-┌──────────────────┐
-│ client/stores/fs │
-│  JSON file       │
-│ ~/.config/<app>  │
-└──────────────────┘
+```mermaid
+flowchart TD
+    AC["AuthClient<br/>- Login / Logout<br/>- GetToken() with automatic refresh<br/>- HTTPClient() returns authenticated *http.Client"]
+    CS["CredentialStore<br/>(interface)"]
+    RT["refreshTransport<br/>(401 retry +<br/>pre-expiry refresh)"]
+    AT["AuthTransport<br/>(static Bearer header)"]
+    FS["client/stores/fs<br/>JSON file<br/>~/.config/&lt;app&gt;"]
+
+    AC --> CS
+    AC --> RT
+    AC --> AT
+    CS --> FS
 ```
 
 ## Quick Start
@@ -313,21 +301,24 @@ Security: credentials file is written with `0600` permissions (owner-only), dire
 
 ## Token Refresh Flow
 
-```
-User makes request via HTTPClient()
-  │
-  ▼
-refreshTransport.RoundTrip()
-  │
-  ├─ GetToken() checks if token expires within 5 min
-  │   └─ If yes + has refresh token → refresh proactively
-  │
-  ├─ Adds Authorization: Bearer <token> header
-  │
-  ├─ Sends request
-  │
-  └─ If 401 received + has refresh token:
-      └─ Refresh token, retry request once with new token
+```mermaid
+flowchart TD
+    U["User makes request via HTTPClient()"]
+    RT["refreshTransport.RoundTrip()"]
+    S1["GetToken() checks if token expires within 5 min"]
+    S1A["If yes + has refresh token → refresh proactively"]
+    S2["Adds Authorization: Bearer &lt;token&gt; header"]
+    S3["Sends request"]
+    S4["If 401 received + has refresh token:"]
+    S4A["Refresh token, retry request once with new token"]
+
+    U --> RT
+    RT --> S1
+    S1 --> S1A
+    S1 --> S2
+    S2 --> S3
+    S3 --> S4
+    S4 --> S4A
 ```
 
 The refresh uses a `grant_type=refresh_token` request to the token endpoint. The base transport is used for refresh requests to avoid infinite loops.

@@ -15,31 +15,17 @@ OneAuth is a Go authentication library that provides unified local and OAuth-bas
 
 ## Three-Layer Data Model
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                         User                            │
-│  - Unique account in the system                         │
-│  - Contains profile data                                │
-│  - Has multiple identities                              │
-└────────────────────────┬────────────────────────────────┘
-                         │
-           ┌─────────────┼──────────────┐
-           │             │              │
-           ▼             ▼              ▼
-┌──────────────┐ ┌──────────────┐  ┌──────────────┐
-│   Identity   │ │   Identity   │  │   Identity   │
-│  email:...   │ │  phone:...   │  │  email:...   │
-│  (verified)  │ │ (unverified) │  │  (verified)  │
-└──────┬───────┘ └──────────────┘  └──────┬───────┘
-       │                                  │
-       │         ┌────────────────────────┤
-       │         │                        │
-       ▼         ▼                        ▼
-┌──────────┐ ┌──────────┐          ┌──────────┐
-│ Channel  │ │ Channel  │          │ Channel  │
-│  local   │ │  google  │          │  github  │
-│(password)│ │ (oauth)  │          │ (oauth)  │
-└──────────┘ └──────────┘          └──────────┘
+```mermaid
+flowchart TD
+    User["User<br/>- Unique account in the system<br/>- Contains profile data<br/>- Has multiple identities"]
+
+    User --> Id1["Identity<br/>email:...<br/>(verified)"]
+    User --> Id2["Identity<br/>phone:...<br/>(unverified)"]
+    User --> Id3["Identity<br/>email:...<br/>(verified)"]
+
+    Id1 --> Ch1["Channel<br/>local<br/>(password)"]
+    Id3 --> Ch2["Channel<br/>google<br/>(oauth)"]
+    Id3 --> Ch3["Channel<br/>github<br/>(oauth)"]
 ```
 
 - **User**: Unique account identified by user ID. Contains profile information.
@@ -53,17 +39,11 @@ Multiple channels can point to the same user via shared email identity, enabling
 
 OneAuth supports three authentication modes, each targeting a different client type:
 
-```
-┌─────────────────────┬───────────────────────┬───────────────────────────┐
-│   Browser Auth      │   API Auth            │   Federated Auth          │
-│   (LocalAuth)       │   (APIAuth)           │   (AppRegistrar +         │
-│                     │                       │    MintResourceToken)     │
-│   Form login/signup │   JWT access tokens   │   App registers,          │
-│   Email verify      │   Refresh tokens      │   mints scoped JWTs,      │
-│   Password reset    │   API keys            │   resource server         │
-│   Session cookies   │   Scope enforcement   │   validates via KeyStore  │
-└─────────────────────┴───────────────────────┴───────────────────────────┘
-```
+| Mode | What it covers |
+|------|----------------|
+| **Browser Auth** (`LocalAuth`) | Form login/signup · Email verify · Password reset · Session cookies |
+| **API Auth** (`APIAuth`) | JWT access tokens · Refresh tokens · API keys · Scope enforcement |
+| **Federated Auth** (`AppRegistrar` + `MintResourceToken`) | App registers, mints scoped JWTs, resource server validates via KeyStore |
 
 Each mode has its own detailed documentation:
 
@@ -74,40 +54,39 @@ Each mode has its own detailed documentation:
 
 ## Package Organization
 
-```
-              core/          ← Foundation types, interfaces, zero internal deps
-            / | \  \
-           /  |  \  \
-        keys/ |  localauth/  ← Key mgmt, local auth
-        / \   |
-       /   \  |
-    admin/ apiauth/          ← Admin API, JWT auth
-              |
-           httpauth/         ← HTTP middleware, CSRF, session mux
+```mermaid
+flowchart TD
+    core["core/<br/>Foundation types, interfaces,<br/>zero internal deps"]
+    keys["keys/<br/>Key mgmt"]
+    localauth["localauth/<br/>Local auth"]
+    admin["admin/<br/>Admin API"]
+    apiauth["apiauth/<br/>JWT auth"]
+    httpauth["httpauth/<br/>HTTP middleware, CSRF, session mux"]
+
+    core --- keys
+    core --- apiauth
+    core --- localauth
+    keys --- admin
+    keys --- apiauth
+    apiauth --- httpauth
 ```
 
 Each subpackage has a `SUMMARY.md` for quick orientation.
 
 ## Store Architecture
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  core/ — Store Interfaces                                    │
-│  UserStore | IdentityStore | ChannelStore | TokenStore       │
-│  RefreshTokenStore | APIKeyStore | UsernameStore (opt)       │
-├──────────────────────────────────────────────────────────────┤
-│  keys/ — Key Interfaces                                      │
-│  KeyStorage | KeyLookup (multi-tenant JWT + kid lookup)      │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        │                  │                  │
-        ▼                  ▼                  ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│   stores/fs   │   │  stores/gorm  │   │  stores/gae   │
-│  File-based   │   │  SQL (GORM)   │   │  Datastore    │
-│  Development  │   │  Production   │   │  Google Cloud │
-└───────────────┘   └───────────────┘   └───────────────┘
+```mermaid
+flowchart TD
+    subgraph Interfaces["Interfaces"]
+        direction TB
+        CoreIf["core/ — Store Interfaces<br/>UserStore | IdentityStore | ChannelStore | TokenStore<br/>RefreshTokenStore | APIKeyStore | UsernameStore (opt)"]
+        KeysIf["keys/ — Key Interfaces<br/>KeyStorage | KeyLookup (multi-tenant JWT + kid lookup)"]
+        CoreIf ~~~ KeysIf
+    end
+
+    Interfaces --> FS["stores/fs<br/>File-based<br/>Development"]
+    Interfaces --> Gorm["stores/gorm<br/>SQL (GORM)<br/>Production"]
+    Interfaces --> Gae["stores/gae<br/>Datastore<br/>Google Cloud"]
 ```
 
 For store interfaces, implementations, and KeyStore details, see **[Stores](STORES.md)**.
@@ -120,9 +99,10 @@ See **[DEMOS.md](DEMOS.md)** for runnable demos that exercise key scenarios end-
 
 For CLI tools and programmatic clients consuming oneauth-protected APIs:
 
-```
-AuthClient → Login/Logout → CredentialStore (persists tokens)
-           → HTTPClient() → refreshTransport (auto-refresh on 401)
+```mermaid
+flowchart LR
+    AuthClient["AuthClient"] --> LoginLogout["Login/Logout"] --> CredentialStore["CredentialStore<br/>(persists tokens)"]
+    AuthClient --> HTTPClient["HTTPClient()"] --> RefreshTransport["refreshTransport<br/>(auto-refresh on 401)"]
 ```
 
 See **[Client SDK](CLIENT_SDK.md)** for full details.

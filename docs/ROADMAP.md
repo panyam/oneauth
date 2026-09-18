@@ -159,33 +159,37 @@ Closes #336 across four PRs: the authorization server binds tokens to a client k
 
 ## Execution Order
 
-```
-Bug Fixes
-    #52 Fix aud array (P0) ◄── blocks everything
+```mermaid
+flowchart TD
+    subgraph BUGS["Bug Fixes"]
+        I52["#52 Fix aud array (P0)"]
+    end
 
-                    ┌─────────────────────────┐
-                    │ Phase 1: Resource Server │
-                    │ Standards                │
-                    ├─────────────────────────┤
-                    │ #46 PRM (RFC 9728)      │◄── Smallest, do first
-                    │ #47 Introspection (7662)│◄── Already on roadmap
-                    └───────────┬─────────────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              ▼                                   ▼
-┌─────────────────────────┐         ┌─────────────────────────┐
-│ Phase 2: DCR Wrapper    │         │ Phase 3: Keycloak Tests │
-│ #48 (RFC 7591/7592)     │         │ #49                     │◄── Can start in parallel
-└─────────────────────────┘         └─────────────┬───────────┘
-                                                  │
-              ┌───────────────────────────────────┘
-              ▼
-OAuth Client Capabilities (parallel track)
-    #53 client_credentials ◄── foundational grant
-    #54 Headless OAuth + PKCE ◄── supersedes old Phase 3
-    #51 AS Discovery client ◄── enhances #54
-    #55 Introspection client ◄── requires #47 + #53
-    #50 OIDC Discovery server (optional)
+    subgraph PHASE1["Phase 1: Resource Server Standards"]
+        I46["#46 PRM (RFC 9728)<br/>Smallest, do first"]
+        I47["#47 Introspection (7662)<br/>Already on roadmap"]
+    end
+
+    subgraph PHASE2["Phase 2: DCR Wrapper"]
+        I48["#48 (RFC 7591/7592)"]
+    end
+
+    subgraph PHASE3["Phase 3: Keycloak Tests"]
+        I49["#49<br/>Can start in parallel"]
+    end
+
+    subgraph CLIENTCAPS["OAuth Client Capabilities (parallel track)"]
+        I53["#53 client_credentials<br/>foundational grant"]
+        I54["#54 Headless OAuth + PKCE<br/>supersedes old Phase 3"]
+        I51["#51 AS Discovery client<br/>enhances #54"]
+        I55["#55 Introspection client<br/>requires #47 + #53"]
+        I50["#50 OIDC Discovery server (optional)"]
+    end
+
+    BUGS -->|"blocks everything"| PHASE1
+    PHASE1 --> PHASE2
+    PHASE1 --> PHASE3
+    PHASE3 --> CLIENTCAPS
 ```
 
 **Recommended order:**
