@@ -113,6 +113,7 @@ func resourceProof(t *testing.T, sign func(proofOpts) string, token string, over
 		}
 		o.jti = override[0].jti
 		o.iat = override[0].iat
+		o.nonce = override[0].nonce
 	}
 	return sign(o)
 }

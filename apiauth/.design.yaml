@@ -260,6 +260,18 @@ entities:
     kind: method
     role: "Returns a copy of the accepted proof algorithms for the `dpop_signing_alg_values_supported` AS metadata field."
     why: "Advertising a list the validator does not honor makes clients send proofs the AS then rejects, so the metadata reads from the validator rather than being configured twice."
+  - name: NonceSource
+    kind: interface
+    role: "Issues and validates the server-provided DPoP nonces of RFC 9449 §8 and §9. The default implementation is stateless: a nonce carries its own issue time plus an HMAC over it."
+    why: "Stateless beats a stored window here because a fleet then needs a shared secret rather than shared storage, and the table cannot grow under load. What it gives up is revoking one outstanding nonce, which the protocol never asks for."
+  - name: NonceRequiredError
+    kind: struct
+    role: "Reports that a request must carry a nonce, and carries the fresh value to retry with."
+    why: "Distinct from a proof rejection because the two mean different things to a client: a bad proof is a bug, this is a handshake step. Handlers translate it into 400 at the token endpoint and 401 at a resource, both with the DPoP-Nonce header."
+  - name: DPoPConfig.NoncePolicy
+    kind: field
+    role: "Decides per request whether a nonce is demanded. Nil never demands one, so wiring a NonceSource alone changes nothing."
+    why: "RFC 9449 §8 puts this decision out of scope on purpose. A flag could not express 'only this endpoint', and always-on costs every client a round trip and breaks any that has not implemented the retry."
   - name: PARHandler
     kind: struct
     role: "RFC 9126 pushed authorization request endpoint. Authenticates the pushing client, validates the payload through `AuthorizationHandler.ValidateValues`, stores it, and returns an opaque `request_uri`."

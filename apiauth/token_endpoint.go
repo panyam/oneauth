@@ -2,6 +2,7 @@ package apiauth
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -71,9 +72,9 @@ func (h *TokenEndpointHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	// grant runs. A failed proof fails the request before any grant is
 	// attempted — a client that meant to get a sender-constrained token
 	// must never be handed a bearer token as a consolation prize.
-	cnf, gErr := h.dpopConfirmation(r)
+	cnf, gErr := h.dpopConfirmation(w, r)
 	if gErr != nil {
-		span.SetStatus(codes.Error, "invalid_dpop_proof")
+		span.SetStatus(codes.Error, gErr.Code)
 		h.writeError(w, gErr)
 		return
 	}
@@ -433,12 +434,21 @@ func (h *TokenEndpointHandler) dispatchTokenExchange(w http.ResponseWriter, r *h
 // still gets a working bearer token (RFC 9449 §5); a validator wired but
 // no proof sent returns (nil, nil) because DPoP is per-request opt-in; a
 // proof that fails any check returns an invalid_dpop_proof GrantError.
-func (h *TokenEndpointHandler) dpopConfirmation(r *http.Request) (*core.Confirmation, *GrantError) {
+func (h *TokenEndpointHandler) dpopConfirmation(w http.ResponseWriter, r *http.Request) (*core.Confirmation, *GrantError) {
 	if h.OneAuth == nil || h.OneAuth.DPoP == nil {
 		return nil, nil
 	}
 	cnf, err := h.OneAuth.DPoP.Confirm(r.Context(), r)
 	if err != nil {
+		// RFC 9449 §8: a missing or stale nonce is answered with
+		// use_dpop_nonce plus the value to retry with, not with a
+		// proof rejection. The client is expected to try again
+		// immediately, so this is part of the handshake.
+		var nonceErr *NonceRequiredError
+		if errors.As(err, &nonceErr) {
+			writeNonceHeader(w, nonceErr)
+			return nil, &GrantError{Code: ErrorUseDPoPNonce, Description: nonceErr.Error(), Status: http.StatusBadRequest}
+		}
 		if ge, ok := asGrantError(err); ok {
 			return nil, ge
 		}

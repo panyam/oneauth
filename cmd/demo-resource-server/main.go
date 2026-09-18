@@ -220,8 +220,13 @@ func (r *responseRecorder) WriteHeader(code int) {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, DPoP")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		// A browser client can only read a CORS-safelisted response
+		// header by default, and DPoP-Nonce is not one. Without this a
+		// single-page app is told to retry with a nonce it cannot see
+		// (RFC 9449 §8).
+		w.Header().Set("Access-Control-Expose-Headers", "DPoP-Nonce, WWW-Authenticate")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

@@ -104,6 +104,26 @@ type DPoPConfig struct {
 	// EndpointURL wins when both are set.
 	BaseURL string
 
+	// NonceSource issues and checks the server-provided nonces of
+	// RFC 9449 §8 (authorization server) and §9 (resource server). Nil
+	// disables the nonce protocol entirely, which is the default and
+	// leaves proofs judged on `iat` and `jti` alone.
+	NonceSource NonceSource
+
+	// NoncePolicy decides which requests must carry a nonce. Nil never
+	// demands one, so wiring a NonceSource without a policy changes
+	// nothing: a proof is then accepted with or without a nonce.
+	//
+	// The RFC puts this decision out of scope on purpose (§8, "The logic
+	// through which the server makes that determination is out of scope
+	// of this document"), so it is a hook rather than a flag. Demanding
+	// a nonce on every request costs every client an extra round trip on
+	// first contact and breaks any client that has not implemented the
+	// retry, so the useful policies are narrow: a high-value endpoint, a
+	// client that has just failed something, a request from an unusual
+	// address.
+	NoncePolicy func(r *http.Request) bool
+
 	// Now overrides the clock. Nil uses time.Now. Tests pin it to
 	// validate the RFC's own example proofs against their fixed `iat`.
 	Now func() time.Time
@@ -124,6 +144,8 @@ type DPoPProofValidator struct {
 	jtiStore    JTIStore
 	endpointURL string
 	baseURL     string
+	nonceSource NonceSource
+	noncePolicy func(r *http.Request) bool
 	now         func() time.Time
 }
 
@@ -138,6 +160,8 @@ func NewDPoPProofValidator(cfg DPoPConfig) *DPoPProofValidator {
 		jtiStore:    cfg.JTIStore,
 		endpointURL: cfg.EndpointURL,
 		baseURL:     strings.TrimSuffix(cfg.BaseURL, "/"),
+		nonceSource: cfg.NonceSource,
+		noncePolicy: cfg.NoncePolicy,
 		now:         cfg.Now,
 	}
 	if len(v.allowedAlgs) == 0 {
@@ -180,6 +204,12 @@ type DPoPProofRequest struct {
 	// the token endpoint leaves it empty because no access token exists
 	// yet at that point.
 	AccessToken string
+
+	// RequireNonce demands a valid server-issued `nonce` claim. Callers
+	// that go through Confirm or ConfirmResource get this from the
+	// configured NoncePolicy; a caller driving Validate directly decides
+	// for itself.
+	RequireNonce bool
 }
 
 // DPoPProofResponse is the output of DPoPProofValidator.Validate.
@@ -278,6 +308,13 @@ func (v *DPoPProofValidator) Validate(ctx context.Context, req *DPoPProofRequest
 		}
 	}
 
+	// The nonce is checked before replay is recorded, so a client that
+	// simply has not been told a nonce yet does not burn its `jti` on the
+	// challenge round trip and can retry with the same proof body.
+	if err := v.checkNonce(req.RequireNonce, claims); err != nil {
+		return nil, err
+	}
+
 	// Remembered for the full window in both directions: a proof dated
 	// maxAge in the future stays replayable until maxAge in the past, so
 	// anything shorter would let it through twice.
@@ -291,6 +328,39 @@ func (v *DPoPProofValidator) Validate(ctx context.Context, req *DPoPProofRequest
 	}
 
 	return &DPoPProofResponse{JKT: jkt, JWK: jwkHeader, Claims: claims}, nil
+}
+
+// checkNonce applies the §8 / §9 nonce rules.
+//
+// Three outcomes: not required, so anything passes; required and matching,
+// which passes; required and absent, unknown or expired, which returns a
+// NonceRequiredError carrying a fresh value for the client to retry with.
+// The last case is a handshake step rather than a rejection, which is why it
+// does not come back as invalid_dpop_proof.
+func (v *DPoPProofValidator) checkNonce(required bool, claims jwt.MapClaims) error {
+	if !required || v.nonceSource == nil {
+		return nil
+	}
+	nonce, _ := claims["nonce"].(string)
+	if nonce != "" && v.nonceSource.Valid(nonce) {
+		return nil
+	}
+
+	issued, err := v.nonceSource.Issue()
+	if err != nil {
+		return invalidDPoPProof("a DPoP nonce is required but one could not be issued")
+	}
+	description := "a DPoP nonce is required"
+	if nonce != "" {
+		description = "the DPoP nonce is unknown or has expired"
+	}
+	return &NonceRequiredError{Nonce: issued, Description: description}
+}
+
+// nonceRequired reports whether this request must carry a nonce, per the
+// configured policy. No source or no policy means never.
+func (v *DPoPProofValidator) nonceRequired(r *http.Request) bool {
+	return v.nonceSource != nil && v.noncePolicy != nil && v.noncePolicy(r)
 }
 
 // Confirm validates the DPoP proof on an inbound HTTP request and returns
@@ -314,9 +384,10 @@ func (v *DPoPProofValidator) Confirm(ctx context.Context, r *http.Request) (*cor
 	}
 
 	resp, err := v.Validate(ctx, &DPoPProofRequest{
-		Proof:  proofs[0],
-		Method: r.Method,
-		URL:    v.requestURL(r),
+		Proof:        proofs[0],
+		Method:       r.Method,
+		URL:          v.requestURL(r),
+		RequireNonce: v.nonceRequired(r),
 	})
 	if err != nil {
 		return nil, err
@@ -370,10 +441,11 @@ func (v *DPoPProofValidator) ConfirmResource(ctx context.Context, r *http.Reques
 	}
 
 	resp, err := v.Validate(ctx, &DPoPProofRequest{
-		Proof:       proofs[0],
-		Method:      r.Method,
-		URL:         v.requestURL(r),
-		AccessToken: accessToken,
+		Proof:        proofs[0],
+		Method:       r.Method,
+		URL:          v.requestURL(r),
+		AccessToken:  accessToken,
+		RequireNonce: v.nonceRequired(r),
 	})
 	if err != nil {
 		return nil, err

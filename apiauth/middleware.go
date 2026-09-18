@@ -450,6 +450,17 @@ func (m *APIMiddleware) enforceBinding(r *http.Request, scheme, token string, in
 
 	proven, err := m.DPoP.ConfirmResource(r.Context(), r, token)
 	if err != nil {
+		// §9 mirrors §8 at the resource server: the challenge rides a
+		// 401 with the DPoP scheme, and carries the nonce to use next.
+		var nonceErr *NonceRequiredError
+		if errors.As(err, &nonceErr) {
+			return &authError{
+				Scheme:      TokenTypeDPoP,
+				Code:        ErrorUseDPoPNonce,
+				Description: nonceErr.Error(),
+				nonce:       nonceErr.Nonce,
+			}
+		}
 		ge, _ := asGrantError(err)
 		description := "invalid DPoP proof"
 		if ge != nil {
@@ -659,7 +670,12 @@ type authError struct {
 	Scheme      string
 	Code        string
 	Description string
-	err         error
+
+	// nonce, when set, is handed back in the DPoP-Nonce header so the
+	// client can retry immediately (RFC 9449 §9).
+	nonce string
+
+	err error
 }
 
 // Error renders the message callers see in logs and in the JSON body. The
@@ -686,6 +702,10 @@ func (m *APIMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request, 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("WWW-Authenticate", m.challenge(err))
+	var nonceErr *authError
+	if errors.As(err, &nonceErr) && nonceErr.nonce != "" {
+		w.Header().Set(DPoPNonceHeader, nonceErr.nonce)
+	}
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error":             "unauthorized",
