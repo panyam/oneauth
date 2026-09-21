@@ -153,7 +153,26 @@ Closes #336 across four PRs: the authorization server binds tokens to a client k
 
 **One trap the client work surfaced.** A DPoP proof is single-use and its `ath` names one token, so any retry-after-refresh path has to mint a fresh proof rather than resend the one already sent. Against a single-node server with an in-memory `jti` store, reusing it looks fine, which is what makes it easy to ship.
 
-**Outstanding:** nonce protocol (§8/§9, #375), `dpop_jkt` carried on a pushed authorization request (§10.1, rides with PAR in #337), Keycloak interop (#371).
+| 384 | Nonce protocol (issue 375). `NonceSource` issues stateless HMAC nonces that carry their own issue time, so a fleet needs a shared secret rather than shared storage. Challenges at both ends: 400 with `use_dpop_nonce` at the token endpoint (§8), 401 with the DPoP scheme at a resource (§9). The client answers automatically and keys nonces per origin. | Merged |
+| 385 | Keycloak interop (issue 371). Keycloak mints a bound token; `APIMiddleware` accepts it with a matching proof and refuses the Bearer downgrade, a foreign key, and a mismatched `ath`. The thumbprint assertion is the one that matters: it checks our RFC 7638 implementation against Keycloak's rather than against itself. | Merged |
+
+**RFC 9449 is complete**, bar a `TokenBindingValidator` seam deliberately left unbuilt until mTLS (#335) shows the second shape.
+
+**Two things the nonce work pinned down.** Whether to demand a nonce is a policy function, not a flag: §8 puts that decision out of scope, always-on costs every client a round trip and breaks any that has not implemented the retry. And the nonce check runs before `jti` replay is recorded, or a client that has simply never been told a nonce burns its `jti` on the challenge and cannot retry.
+
+---
+
+## RFC 9126 — Pushed Authorization Requests ✅ COMPLETE
+
+Closes #337 (PR 381). A client POSTs the authorization request to `/par` and redirects with an opaque `request_uri`, so scope, `redirect_uri` and PKCE challenges stop travelling through the browser. RFC 9396 payloads too large for a URL get somewhere to live.
+
+**Single-use, defined precisely.** §4 wants a `request_uri` used once and tolerates a repeat from a browser reload. OneAuth consumes the reference when a code is issued, not when it is read, because the built-in consent screen reads it twice (render, then approve).
+
+**A side effect worth knowing.** Once a request arrives by reference the consent screen's hidden inputs stop mattering: the handler reads the stored payload and ignores what was posted. Tampering becomes impossible rather than merely detected.
+
+The store ships in-memory and GORM behind the shared `partest` contract suite. FS and GAE are tracked under #382. This also closed RFC 9449 §10.1, since a push may carry the DPoP key as `dpop_jkt` or as a proof header.
+
+**Unblocked #98:** PAR was FAPI 2.0's last outstanding prerequisite.
 
 ---
 
