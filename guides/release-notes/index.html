@@ -187,6 +187,30 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-0140">Version 0.1.40 <a class="anchor" href="#version-0140">¶</a></h2>
+<h3 id="typed-login-and-token-errors-issues-392-393-pr-394">Typed login and token errors (issues 392, 393, PR 394) <a class="anchor" href="#typed-login-and-token-errors-issues-392-393-pr-394">¶</a></h3>
+<p>A caller can now tell why a login failed without matching on text. That&rsquo;s<br />
+what mcpkit needs to re-register a client the server has forgotten, without<br />
+showing the consent page again to someone who clicked Deny.</p>
+<ul>
+<li><strong><code>LoginWithBrowser</code></strong> returns <code>*AuthorizeError</code> (the AS refused<br />
+<code>/authorize</code>), <code>*CallbackError</code> (<code>?error=</code> on the redirect, e.g.<br />
+<code>access_denied</code>), <code>*TokenError</code> (the code exchange failed),<br />
+<code>*BrowserOpenError</code> (the opener failed, unwrapping to its cause) and<br />
+<code>ErrLoginTimeout</code>. Use <code>errors.As</code> / <code>errors.Is</code>. The messages are the same<br />
+as before.</li>
+<li><strong><code>*TokenError</code> from every grant</strong>: <code>Login</code>, <code>ClientCredentials</code>,<br />
+<code>RefreshToken</code>, <code>JwtBearerGrant</code>, <code>TokenExchange</code>, <code>DeviceAuthorization</code>,<br />
+and <code>PollDeviceToken</code> for codes other than its four RFC 8628 sentinels.<br />
+A token endpoint that answers with a non-JSON error page now reports its<br />
+status instead of a JSON decode error.</li>
+<li><strong>JSON <code>/authorize</code> errors.</strong> oneauth&rsquo;s error page for an unknown client or<br />
+unregistered <code>redirect_uri</code> answers with the RFC 6749 §5.2 JSON object<br />
+when <code>Accept</code> lists <code>application/json</code>. <code>FollowRedirects</code> and<br />
+<code>ApproveConsent</code> send <code>Accept: text/html, application/json;q=0.9</code>, so they<br />
+get <code>AuthorizeError.Code</code> from oneauth and from Keycloak. For servers that<br />
+only send HTML, <code>AuthorizeError.Body</code> is the page&rsquo;s visible text.</li>
+</ul>
 <h2 id="version-0139">Version 0.1.39 <a class="anchor" href="#version-0139">¶</a></h2>
 <p>Documentation only; the code is the same as 0.1.38. The client SDK guide<br />
 covers the caller-owned listener, <code>RedirectURI</code>, <code>ApproveConsent</code> and the<br />
