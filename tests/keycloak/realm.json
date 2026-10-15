@@ -17,10 +17,20 @@
       "protocol": "openid-connect",
       "redirectUris": ["http://localhost:*", "http://127.0.0.1:*"],
       "webOrigins": ["*"],
-      "defaultClientScopes": ["openid", "email", "profile"],
+      "defaultClientScopes": ["basic", "openid", "email", "profile"],
       "optionalClientScopes": ["relay-connect", "relay-publish", "read", "write"],
       "attributes": {},
       "protocolMappers": [
+        {
+          "name": "self-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "test-confidential",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
         {
           "name": "subject",
           "protocol": "openid-connect",
@@ -50,7 +60,7 @@
       "publicClient": true,
       "directAccessGrantsEnabled": true,
       "protocol": "openid-connect",
-      "defaultClientScopes": ["openid", "email", "profile"],
+      "defaultClientScopes": ["basic", "openid", "email", "profile"],
       "optionalClientScopes": ["relay-connect", "relay-publish", "read", "write"],
       "attributes": {
         "pkce.code.challenge.method": "S256"
@@ -64,7 +74,7 @@
       "serviceAccountsEnabled": true,
       "publicClient": false,
       "protocol": "openid-connect",
-      "defaultClientScopes": ["openid"],
+      "defaultClientScopes": ["basic", "openid"],
       "attributes": {}
     },
     {
@@ -74,7 +84,7 @@
       "serviceAccountsEnabled": true,
       "publicClient": false,
       "protocol": "openid-connect",
-      "defaultClientScopes": ["openid"],
+      "defaultClientScopes": ["basic", "openid"],
       "attributes": {
         "use.jwks.url": "false",
         "jwt.credential.public.key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA23O2vHfACAsiRBabjf4nDcwUKf57K20uoforIeG26vTBdAeS7HFJaQnzQpEerzHry3r8mgXmnq7QZgIUmHBZzy8wdrfsHd3aZ7c4G+8pg3yGu/C4oGyj+khdfAcrqtGDecjWSvkbUxcbUrpayRE9M2GyYflPIm1JP6qP6i3Jf0Q+jvCeJN/m/pNBwbMGCCy/KnDBf8K+y2rE30FteEVmGa4diiUtpZ9WXKgUKtplFvzadCLZG0nDgD+lUvRBtK9WaLUxHxVMgLhQ9BdLKPIkqkPR3BIGRxSGpaKLH9kPAXp+F9P1NRB3udOTXHfN0W+QRwJIT9ObZAbHZZPuuhVLZwIDAQAB",
@@ -87,7 +97,7 @@
       "publicClient": true,
       "directAccessGrantsEnabled": true,
       "protocol": "openid-connect",
-      "defaultClientScopes": ["openid", "email", "profile"],
+      "defaultClientScopes": ["basic", "openid", "email", "profile"],
       "optionalClientScopes": ["read", "write"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
@@ -96,6 +106,38 @@
     }
   ],
   "clientScopes": [
+    {
+      "name": "basic",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "auth_time",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "config": {
+            "user.session.note": "AUTH_TIME",
+            "claim.name": "auth_time",
+            "jsonType.label": "long",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
     {
       "name": "relay-connect",
       "protocol": "openid-connect",

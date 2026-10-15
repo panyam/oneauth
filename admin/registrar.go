@@ -80,7 +80,8 @@ func validateBackchannelLogoutURI(raw string, allowPrivate bool) error {
 //
 //   - RFC 8252 §7.3 native-app loopback: http://127.0.0.1, http://[::1],
 //     http://localhost (any port). The port number is unconstrained
-//     because native apps bind ephemeral ports.
+//     because native apps bind ephemeral ports; /authorize ignores it
+//     when matching (apiauth.RedirectURIMatches).
 //   - RFC 8252 §7.1 native-app private-use URI schemes: reverse-DNS
 //     scheme like com.example.app:/cb. Detected by the presence of a
 //     "." in the scheme — standards-track schemes are alphanumeric only

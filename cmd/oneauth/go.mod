@@ -1,6 +1,6 @@
 module github.com/panyam/oneauth/cmd/oneauth
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/mdp/qrterminal/v3 v3.2.1

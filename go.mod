@@ -1,6 +1,6 @@
 module github.com/panyam/oneauth
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/alexedwards/scs/v2 v2.8.0
