@@ -14,6 +14,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,12 +92,16 @@ func TestLoginWithBrowser_AuthorizeRejected_ApproveConsent(t *testing.T) {
 	assert.Equal(t, "invalid_client", ae.Code)
 }
 
-// Keycloak's shape: an HTML error page, so there is no error code to report.
+// Keycloak's shape: an HTML error page whose message sits behind a long
+// <head>, so there is no error code and Body is the page's visible text.
 func TestLoginWithBrowser_AuthorizeRejected_HTMLPage(t *testing.T) {
 	page := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte("<html><body>\n  Invalid parameter: redirect_uri\n</body></html>"))
+		_, _ = w.Write([]byte("<!DOCTYPE html><html><head><title>Sign in</title>" +
+			"<style>" + strings.Repeat("body{color:red}", 100) + "</style>" +
+			"<script>var x = '<p>not text</p>';</script></head>\n" +
+			"<body><h1>We&#39;re sorry...</h1>\n  <p>Invalid parameter: redirect_uri</p></body></html>"))
 	}
 	err := login(t, loginStack(t, page, unreachable(t)))
 
@@ -104,7 +109,27 @@ func TestLoginWithBrowser_AuthorizeRejected_HTMLPage(t *testing.T) {
 	require.ErrorAs(t, err, &ae)
 	assert.Equal(t, http.StatusBadRequest, ae.Status)
 	assert.Empty(t, ae.Code)
-	assert.Equal(t, "<html><body> Invalid parameter: redirect_uri </body></html>", ae.Body)
+	assert.Equal(t, "Sign in We're sorry... Invalid parameter: redirect_uri", ae.Body)
+}
+
+// Both headless openers say they read JSON, after HTML, so an AS that
+// negotiates its error page (oneauth's does) can send a machine-readable
+// code while consent pages still come back as HTML.
+func TestHeadlessOpeners_AcceptJSONErrors(t *testing.T) {
+	for name, opener := range map[string]func(*http.Client) func(string) error{
+		"FollowRedirects": FollowRedirects, "ApproveConsent": ApproveConsent,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var accept string
+			req := loginStack(t, func(w http.ResponseWriter, r *http.Request) {
+				accept = r.Header.Get("Accept")
+				jsonError(http.StatusBadRequest, "invalid_client", "")(w, r)
+			}, unreachable(t))
+			req.OpenBrowser = opener(nil)
+			login(t, req)
+			assert.Equal(t, "text/html, application/json;q=0.9", accept)
+		})
+	}
 }
 
 func TestLoginWithBrowser_UserDenied_CallbackError(t *testing.T) {

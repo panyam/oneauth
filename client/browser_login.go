@@ -7,11 +7,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -668,7 +670,7 @@ func FollowRedirects(httpClient *http.Client) func(string) error {
 		httpClient = &http.Client{}
 	}
 	return func(authURL string) error {
-		resp, err := httpClient.Get(authURL)
+		resp, err := headlessDo(httpClient, http.MethodGet, authURL, nil)
 		if err != nil {
 			return fmt.Errorf("headless redirect failed: %w", err)
 		}
@@ -695,11 +697,48 @@ func reachedRedirect(resp *http.Response, redirect string) bool {
 	return redirect != "" && strings.HasPrefix(resp.Request.URL.String(), redirect)
 }
 
+// headlessAccept is what the headless openers send as Accept. HTML comes
+// first so consent and login pages render as they would in a browser; JSON
+// is listed after it so an AS that negotiates its error responses (oneauth
+// does) can answer an error with a machine-readable code.
+const headlessAccept = "text/html, application/json;q=0.9"
+
+// headlessDo sends a GET (form nil) or a form POST with headlessAccept.
+// Go's client carries the header across redirects.
+func headlessDo(hc *http.Client, method, target string, form url.Values) (*http.Response, error) {
+	var body io.Reader
+	if form != nil {
+		body = strings.NewReader(form.Encode())
+	}
+	req, err := http.NewRequest(method, target, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", headlessAccept)
+	if form != nil {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	return hc.Do(req)
+}
+
+// maxErrorBody bounds how much of an error page authorizeError reads. Real
+// pages put tens of KB of <head> before the message (Keycloak's does), so
+// a short prefix would hold nothing but markup.
+const maxErrorBody = 64 << 10
+
+// maxErrorText bounds AuthorizeError.Body.
+const maxErrorText = 300
+
+var (
+	pageHiddenRe = regexp.MustCompile(`(?is)<script\b.*?</script\s*>|<style\b.*?</style\s*>|<!--.*?-->`)
+	pageTagRe    = regexp.MustCompile(`(?s)<[^>]*>`)
+)
+
 // authorizeError builds an *AuthorizeError from an error response from the
 // authorization endpoint: the OAuth error and error_description when the
-// body is a JSON error object, else a short snippet of the body.
+// body is a JSON error object, else the visible text of the page.
 func authorizeError(resp *http.Response) error {
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
 	var oauthErr struct {
 		Error       string `json:"error"`
 		Description string `json:"error_description"`
@@ -707,7 +746,25 @@ func authorizeError(resp *http.Response) error {
 	if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
 		return &AuthorizeError{Status: resp.StatusCode, Code: oauthErr.Error, Description: oauthErr.Description}
 	}
-	return &AuthorizeError{Status: resp.StatusCode, Body: strings.Join(strings.Fields(string(body)), " ")}
+	return &AuthorizeError{Status: resp.StatusCode, Body: pageText(body)}
+}
+
+// pageText reduces an error body to the text a person would read: scripts,
+// styles and comments dropped, tags removed, entities decoded, whitespace
+// collapsed, and cut to maxErrorText runes. A body that isn't HTML passes
+// through with only the whitespace collapsed and the cut.
+func pageText(body []byte) string {
+	s := string(body)
+	if strings.HasPrefix(strings.TrimSpace(s), "<") {
+		s = pageHiddenRe.ReplaceAllString(s, " ")
+		s = pageTagRe.ReplaceAllString(s, " ")
+		s = html.UnescapeString(s)
+	}
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > maxErrorText {
+		s = string(r[:maxErrorText])
+	}
+	return s
 }
 
 // openBrowserDefault opens a URL in the user's default browser.

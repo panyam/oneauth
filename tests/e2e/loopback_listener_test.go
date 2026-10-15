@@ -148,5 +148,6 @@ func TestE2E_LoopbackListener_UnregisteredRedirectFailsFast(t *testing.T) {
 	var ae *client.AuthorizeError
 	require.ErrorAs(t, err, &ae)
 	assert.Equal(t, http.StatusBadRequest, ae.Status)
-	assert.Contains(t, ae.Body, "unknown client_id or redirect_uri", "oneauth answers with an HTML page, so the detail is in Body")
+	assert.Equal(t, "unauthorized_client", ae.Code, "FollowRedirects accepts JSON, so oneauth answers with the code")
+	assert.Equal(t, "unknown client_id or redirect_uri", ae.Description)
 }

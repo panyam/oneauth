@@ -24,9 +24,11 @@ var ErrLoginTimeout = errors.New("login timed out")
 // errors.As to find it.
 //
 // Code and Description are the OAuth error and error_description when the
-// body is a JSON error object. Many servers answer with an HTML page
-// instead (Keycloak does); then Code is empty and Body holds a short
-// whitespace-collapsed snippet of the page.
+// body is a JSON error object. The headless openers list application/json
+// in Accept, so an AS that negotiates its error responses (oneauth does)
+// sends one. Many servers answer with an HTML page regardless (Keycloak
+// does); then Code is empty and Body holds the page's visible text, up to
+// 300 characters.
 //
 // See: https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2.1
 type AuthorizeError struct {
@@ -75,7 +77,9 @@ func (e *CallbackError) Error() string {
 // TokenError is a failed response from a token endpoint, returned by every
 // grant this package drives: LoginWithBrowser's code exchange, Login,
 // ClientCredentials, RefreshToken, JwtBearerGrant, TokenExchange and
-// PollDeviceToken. It is usually wrapped, so match it with errors.As.
+// PollDeviceToken. DeviceAuthorization returns it too, since the RFC 8628
+// §3.2 device authorization endpoint answers with the same error object.
+// It is usually wrapped, so match it with errors.As.
 //
 // Code and Description are the RFC 6749 §5.2 error and error_description.
 // Code is empty when the body is not a JSON error object (a proxy's 502

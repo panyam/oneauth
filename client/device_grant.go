@@ -138,7 +138,9 @@ func (c *AuthClient) DeviceAuthorization(ctx context.Context, req *DeviceAuthori
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("DeviceAuthorization: %s returned %d: %s", endpoint, resp.StatusCode, string(body))
+		te := newTokenError(resp.StatusCode, body)
+		te.message = fmt.Sprintf("DeviceAuthorization: %s returned %d: %s", endpoint, resp.StatusCode, string(body))
+		return nil, te
 	}
 	var out DeviceAuthorizationResponse
 	if err := json.Unmarshal(body, &out); err != nil {

@@ -54,7 +54,7 @@ func ApproveConsent(httpClient *http.Client) func(string) error {
 		if redirect == "" {
 			return errors.New("authorization URL carries no redirect_uri")
 		}
-		resp, err := hc.Get(authURL)
+		resp, err := headlessDo(hc, http.MethodGet, authURL, nil)
 		if err != nil {
 			return fmt.Errorf("headless consent failed: %w", err)
 		}
@@ -71,7 +71,7 @@ func ApproveConsent(httpClient *http.Client) func(string) error {
 		if err != nil {
 			return fmt.Errorf("authorization page (%s): %w", resp.Status, err)
 		}
-		post, err := hc.PostForm(action.String(), values)
+		post, err := headlessDo(hc, http.MethodPost, action.String(), values)
 		if err != nil {
 			return fmt.Errorf("headless consent failed: %w", err)
 		}

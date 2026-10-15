@@ -173,7 +173,7 @@ cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
 })
 ```
 
-A 400-or-worse answer from `/authorize` (an unregistered `redirect_uri`, an unknown client) makes `FollowRedirects` return the AS's `error` / `error_description` straight away, instead of `LoginWithBrowser` waiting out its timeout for a callback that never comes (issue 387).
+A 400-or-worse answer from `/authorize` (an unregistered `redirect_uri`, an unknown client) makes `FollowRedirects` return the AS's `error` / `error_description` straight away, instead of `LoginWithBrowser` waiting out its timeout for a callback that never comes (issue 387). Both headless openers send `Accept: text/html, application/json;q=0.9`, so an AS that negotiates its error responses answers with JSON and the error code. oneauth's `/authorize` does, and so does Keycloak, which puts its message (`Invalid parameter: redirect_uri`) in `error` rather than a registered code.
 
 **Consent pages:** some demo authorization servers answer `/authorize` with a consent form instead of redirecting. `client.ApproveConsent(httpClient)` posts that form with its approve button, and refuses a form that has none, so it never submits a login page asking for a password. It's meant for test and demo servers.
 
@@ -221,7 +221,7 @@ Without `TokenEndpointAuthMethods`, explicit endpoints default to `client_secret
 
 | Failure | Type | What's in it |
 |---|---|---|
-| AS refused `/authorize` (unknown client, unregistered redirect) | `*client.AuthorizeError` | `Status`, `Code` + `Description` for a JSON error, `Body` snippet for an HTML page |
+| AS refused `/authorize` (unknown client, unregistered redirect) | `*client.AuthorizeError` | `Status`, `Code` + `Description` for a JSON error, `Body` (the page's visible text, up to 300 characters) for an HTML page |
 | User declined, or the AS redirected back with `?error=` | `*client.CallbackError` | `Code` (`access_denied` when the user said no), `Description` |
 | Token endpoint refused the code | `*client.TokenError` | `Status`, `Code` (`invalid_grant`, `invalid_client`, ...), `Description` |
 | No callback before `Timeout` | `client.ErrLoginTimeout` | cancelling `ctx` returns `ctx.Err()` instead |

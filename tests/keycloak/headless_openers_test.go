@@ -2,8 +2,9 @@ package keycloak_test
 
 // The headless OpenBrowser values against a real AS (issue 387). The unit
 // tests use mock pages; these check the two behaviors against what Keycloak
-// actually serves, which is an HTML error page for a bad redirect_uri and a
-// username/password form for /authorize.
+// actually serves, which is an error for a bad redirect_uri (an HTML page,
+// or JSON when Accept lists application/json) and a username/password form
+// for /authorize.
 //
 // References:
 //   - RFC 8252 §7.3 (https://www.rfc-editor.org/rfc/rfc8252#section-7.3)
@@ -40,8 +41,8 @@ func headlessLoginRequest(t *testing.T, clientID string, opener func(string) err
 }
 
 // test-public registers no redirect URIs, so Keycloak refuses /authorize
-// with a 400 HTML page ("Invalid parameter: redirect_uri"). FollowRedirects
-// has to turn that into an error at once.
+// with a 400 ("Invalid parameter: redirect_uri"). FollowRedirects has to
+// turn that into an error at once.
 func TestKeycloak_FollowRedirects_InvalidRedirectFailsFast(t *testing.T) {
 	skipIfKeycloakNotRunning(t)
 	req, _ := headlessLoginRequest(t, publicClientID, client.FollowRedirects(nil))
@@ -55,8 +56,11 @@ func TestKeycloak_FollowRedirects_InvalidRedirectFailsFast(t *testing.T) {
 	var ae *client.AuthorizeError
 	require.ErrorAs(t, err, &ae)
 	assert.Equal(t, http.StatusBadRequest, ae.Status)
-	assert.Empty(t, ae.Code, "Keycloak answers with an HTML page, not a JSON error")
-	assert.NotEmpty(t, ae.Body, "the first 512 bytes of Keycloak's page are <head> boilerplate, so only presence is checked")
+	// FollowRedirects lists application/json in Accept, and Keycloak then
+	// answers with JSON, putting its message in "error" rather than a
+	// registered RFC 6749 code.
+	// See: https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2.1
+	assert.Equal(t, "Invalid parameter: redirect_uri", ae.Code)
 }
 
 // Keycloak's /authorize answers with its login form. ApproveConsent must

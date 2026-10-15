@@ -106,3 +106,15 @@ func TestTokenError_PollDeviceToken(t *testing.T) {
 	err = poll(tokenEndpoint(t, jsonError(http.StatusBadRequest, "access_denied", "")))
 	assert.ErrorIs(t, err, ErrAccessDenied)
 }
+
+// The device authorization endpoint uses the same §5.2 error object.
+//
+// See: https://www.rfc-editor.org/rfc/rfc8628#section-3.2
+func TestTokenError_DeviceAuthorization(t *testing.T) {
+	srv := httptest.NewServer(jsonError(http.StatusUnauthorized, "invalid_client", "gone"))
+	defer srv.Close()
+	c := NewAuthClient(srv.URL, nil, WithASMetadata(&ASMetadata{DeviceAuthorizationEndpoint: srv.URL + "/device"}))
+	_, err := c.DeviceAuthorization(context.Background(), &DeviceAuthorizationRequest{ClientID: "a"})
+	requireTokenError(t, err, http.StatusUnauthorized, "invalid_client")
+	assert.Contains(t, err.Error(), "DeviceAuthorization: "+srv.URL+"/device returned 401: ")
+}
