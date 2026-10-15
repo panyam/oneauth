@@ -154,7 +154,7 @@ Use `WithHTTPClientForDiscovery(client)` to customize the HTTP client (TLS, time
 #### Browser Login (OAuth Authorization Code + PKCE)
 
 ```go
-cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
     ClientID: "my-cli-app",
     Scopes:   []string{"openid", "read", "write"},
 })
@@ -167,16 +167,35 @@ This is the same pattern used by `gh auth login`, `gcloud auth login`, and `kube
 **Headless mode (#71):** For CI, conformance testing, or headless CLI environments, use `FollowRedirects` instead of opening a browser:
 
 ```go
-cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
     ClientID:    "my-cli-app",
     OpenBrowser: client.FollowRedirects(nil),  // follows HTTP redirects
 })
 ```
 
+A 400-or-worse answer from `/authorize` (an unregistered `redirect_uri`, an unknown client) makes `FollowRedirects` return the AS's `error` / `error_description` straight away, instead of `LoginWithBrowser` waiting out its timeout for a callback that never comes (issue 387).
+
+**Consent pages:** some demo authorization servers answer `/authorize` with a consent form instead of redirecting. `client.ApproveConsent(httpClient)` posts that form with its approve button, and refuses a form that has none, so it never submits a login page asking for a password. It's meant for test and demo servers.
+
+**Registering the redirect first (DCR):** an AS that matches `redirect_uri` exactly needs the client to register the string the login will send. Bind the listener yourself, register `LoopbackRedirectURI(l.Addr())`, and hand the listener over, so there's no window where another process takes the port (issue 387):
+
+```go
+l, _ := net.Listen("tcp", "127.0.0.1:0")
+reg, _ := client.RegisterClient(dcrURL, client.ClientRegistrationRequest{
+    RedirectURIs: []string{client.LoopbackRedirectURI(l.Addr())},
+}, nil)
+cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
+    ClientID: reg.ClientID,
+    Listener: l, // closed by LoginWithBrowser on return
+})
+```
+
+`LoopbackRedirectURI` always produces `http://localhost:<port>/callback`. When the registration uses something else (an IP literal, another path), set `RedirectURI` to that exact string; it must be loopback `http` with an explicit port matching the listener, and is checked before the browser opens.
+
 **Confidential client (#72):** Set `ClientSecret` for confidential clients. The auth method (`client_secret_basic` vs `client_secret_post`) is negotiated from AS metadata:
 
 ```go
-cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
     ClientID:     "my-app",
     ClientSecret: "app-secret",
     OpenBrowser:  client.FollowRedirects(httpClient),
@@ -186,7 +205,7 @@ cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
 **Explicit endpoints with auth methods (#74):** When the caller provides explicit endpoints (skipping discovery), set `TokenEndpointAuthMethods` so the client negotiates the correct auth method. This is common when the caller performs its own PRM→AS discovery (e.g., MCPKit):
 
 ```go
-cred, err := authClient.LoginWithBrowser(client.BrowserLoginConfig{
+cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
     ClientID:                 "my-app",
     ClientSecret:             "app-secret",
     AuthorizationEndpoint:    meta.AuthorizationEndpoint,

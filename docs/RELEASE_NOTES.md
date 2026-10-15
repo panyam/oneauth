@@ -3,6 +3,83 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.39
+
+Documentation only; the code is the same as 0.1.38. The client SDK guide
+covers the caller-owned listener, `RedirectURI`, `ApproveConsent` and the
+fail-fast `FollowRedirects`, and its browser-login snippets use the current
+`LoginWithBrowser(ctx, &BrowserLoginRequest{...})` signature.
+`CAPABILITIES.md`, the roadmap and the Keycloak test README are brought up to
+date, and these notes now cover 0.1.38.
+
+## Version 0.1.38
+
+### DPoP, the rest of RFC 9449
+
+0.1.37 shipped DPoP-bound tokens on both sides. This release finishes the
+spec and gives the client SDK the means to use it.
+
+- **`dpop_jkt` on `/authorize` (PR 378).** The authorization code is bound to
+  the client's DPoP key, so an intercepted code can't be redeemed with a
+  different one (§10). A missing proof against a bound code is
+  `invalid_grant`.
+- **Client SDK proofs (PR 379).** `client.DPoPKey` (ES256) mints a proof per
+  request, and `WithDPoPKey` attaches proofs to token requests, presents
+  tokens under the `DPoP` scheme with `ath`, and sends `dpop_jkt` on browser
+  login.
+- **The nonce protocol (PR 384).** `DPoPConfig.NoncePolicy` with a stateless
+  HMAC `NonceSource` lets the AS (§8) and the resource server (§9) demand a
+  server-supplied nonce; the SDK retries `use_dpop_nonce` automatically. Off
+  by default.
+- **Keycloak interop (PR 385).** OneAuth's middleware accepts a
+  Keycloak-issued bound token and refuses it presented as Bearer.
+
+### Pushed authorization requests (RFC 9126, PR 381)
+
+`POST /par` stores the authorization request and returns a `request_uri`, and
+`/authorize` accepts a request carrying only `client_id` + `request_uri`.
+Mounted by `MountAuthorize` when `AuthorizeMountConfig.PushedStore` is set,
+with in-memory and GORM stores. A push may carry a DPoP key in its header or
+as `dpop_jkt` (RFC 9449 §10.1).
+
+### Loopback redirects for native clients (PR 388)
+
+- **Caller-owned listener (issue 387).** `BrowserLoginRequest.Listener` takes
+  a loopback listener the caller already bound, and
+  `LoopbackRedirectURI(addr)` names the redirect the login will send. A
+  client that registers via DCR first registers exactly that string, so an AS
+  that matches `redirect_uri` byte-for-byte accepts it, and nothing can take
+  the port between registration and login. `LoginWithBrowser` closes the
+  listener when it returns.
+- **`RedirectURI`** sends a registered redirect verbatim (an IP literal, a
+  path other than `/callback`). It must be loopback `http` with an explicit
+  port matching the listener, checked before the browser opens.
+- **`FollowRedirects` fails fast.** A 400-or-worse from `/authorize` now
+  returns the AS's `error` / `error_description`. Before, `LoginWithBrowser`
+  sat out its timeout (five minutes by default) waiting for a callback that
+  was never coming.
+- **`ApproveConsent`** is a headless opener for demo servers that answer
+  `/authorize` with a consent form. It posts the approve button and refuses a
+  form without one.
+- **Behavior change on the AS (issue 389).** `/authorize` now ignores the port
+  when matching an `http` redirect on 127.0.0.1, [::1] or localhost, as
+  RFC 8252 §7.3 requires; scheme, host, path and query still match exactly.
+  Deployments relying on the old exact port match for loopback clients will
+  now accept any port. `apiauth.RedirectURIMatches` is exported for custom
+  `RedirectURIValidator`s.
+
+### Tooling and CI
+
+- The Go directive is 1.26.9 across all modules (GO-2026-6617, an HTTP/2
+  HPACK race in `net/http`), with `golang.org/x/net` v0.60.0 where it's
+  pulled in (PR 388). `go.opentelemetry.io/otel/sdk` 1.45.0 (PR 376).
+- The Keycloak interop workflow runs `make testkcl` and triggers on relevant
+  PRs (PR 390). It had never got past starting Keycloak before. The test
+  realm defines Keycloak's `basic` scope so tokens carry `sub` on 25+, and
+  `test-confidential` names itself in `aud` so 26.x lets it introspect.
+- The docs site renders mermaid diagrams and publishes the spec library and
+  guides (PR 383).
+
 ## Version 0.1.37
 
 ### DPoP — sender-constrained access and refresh tokens (RFC 9449)

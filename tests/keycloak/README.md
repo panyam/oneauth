@@ -68,9 +68,7 @@ Admin console: http://localhost:8180/admin (admin/admin)
 
 ## CI
 
-The Keycloak interop tests run as a **manual-trigger** GitHub Actions workflow (`workflow_dispatch`). They are not part of the regular CI pipeline to avoid slow builds.
-
-To run in CI: Actions → "Keycloak Interop Tests" → "Run workflow"
+`.github/workflows/keycloak-interop.yml` runs `make testkcl`, the same target used locally, so CI starts Keycloak with the Makefile's pinned image, `--features=dpop` and the realm import, plus the RAR test issuer. It runs on PRs and pushes to main that touch `apiauth/`, `client/`, `keys/`, `core/`, `cmd/oneauth-server/`, `tests/keycloak/`, the Makefile or the workflow, and by hand from Actions → "Keycloak Interop Tests" → "Run workflow". A run takes about two minutes. Before PR 390 it declared Keycloak as a `services:` container and never got past starting it.
 
 ## Architecture
 
