@@ -101,6 +101,8 @@
                 
                 <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
                 
+                <li><a href="/oneauth/conformance/security-audit/">Security audit</a></li>
+                
             </ul>
             
         </div>
@@ -411,7 +413,7 @@ reliably sign proofs per request.</li>
 <td>DPoP proof JWT validation at <code>/token</code></td>
 <td><strong>Implemented</strong></td>
 <td><code>apiauth/dpop.go</code> — <code>DPoPProofValidator</code></td>
-<td><code>typ</code>, <code>alg</code> allow-list, embedded <code>jwk</code>, signature, <code>htm</code>, <code>htu</code>, <code>iat</code> window, <code>jti</code> replay</td>
+<td><code>typ</code>, <code>alg</code> allow-list, embedded <code>jwk</code> (RSA keys of at least 2048 bits), signature, <code>htm</code>, <code>htu</code> (compared after RFC 3986 §6.2 normalization), <code>iat</code> window, <code>jti</code> replay (<code>jti</code> capped at 256 bytes)</td>
 </tr>
 <tr>
 <td><code>cnf.jkt</code> claim emission on issued tokens</td>
@@ -428,8 +430,8 @@ reliably sign proofs per request.</li>
 <tr>
 <td>Refresh-token binding (§5)</td>
 <td><strong>Implemented</strong></td>
-<td><code>core.RefreshToken.Confirmation</code>; FS / GORM / GAE stores</td>
-<td>Rotation carries the binding forward; a bound token is unredeemable without its key</td>
+<td><code>core.RefreshToken.Confirmation</code>; FS / GORM / GAE stores, each with a round-trip test</td>
+<td>Rotation carries the binding forward; a bound token is unredeemable without its key. Confidential clients&rsquo; refresh tokens are bound too, which is stricter than §5 asks (it only requires binding for public clients) and means a confidential client can&rsquo;t switch DPoP keys mid-session</td>
 </tr>
 <tr>
 <td>RS-side proof validation (every request: <code>htm</code>, <code>htu</code>, <code>ath</code>, <code>jti</code>)</td>
@@ -465,7 +467,13 @@ reliably sign proofs per request.</li>
 <td><code>dpop_jkt</code> or a DPoP header on a pushed request (§10.1)</td>
 <td><strong>Implemented</strong></td>
 <td><code>PARHandler.resolveDPoPBinding</code> (#337)</td>
-<td>Both forms accepted; a mismatch between them is rejected</td>
+<td>Both forms accepted; a mismatch between them is rejected. The proof&rsquo;s <code>htu</code> is checked against <code>/par</code> on <code>EndpointURL</code>&rsquo;s origin, so <code>MountAuthorize</code> can share the token endpoint&rsquo;s validator, and a nonce challenge gets <code>use_dpop_nonce</code> plus <code>DPoP-Nonce</code></td>
+</tr>
+<tr>
+<td>Requiring DPoP at the AS (FAPI 2.0 §5.3.2.1; §5.2 <code>dpop_bound_access_tokens</code>)</td>
+<td><strong>Implemented</strong></td>
+<td><code>OneAuthConfig.RequireDPoP</code> (every client); <code>core.AppRegistration.DPoPBoundAccessTokens</code>, settable through DCR (one client)</td>
+<td>A request with no proof gets 400 <code>invalid_dpop_proof</code>, never a bearer token</td>
 </tr>
 <tr>
 <td><code>dpop_signing_alg_values_supported</code> AS metadata</td>
@@ -495,7 +503,7 @@ reliably sign proofs per request.</li>
 <td>Client-side proof minting</td>
 <td><strong>Implemented</strong></td>
 <td><code>client.DPoPKey</code> + <code>client.WithDPoPKey</code></td>
-<td>Token requests, resource requests (<code>ath</code>), and <code>dpop_jkt</code> on browser login</td>
+<td>Token requests (including the automatic refresh), resource requests (<code>ath</code>), and <code>dpop_jkt</code> on browser login. A <code>DPoP-Nonce</code> on any response, not only a challenge, is used for the next request (§8.2)</td>
 </tr>
 <tr>
 <td>Keycloak interop (issuance by a third party)</td>
@@ -506,7 +514,7 @@ reliably sign proofs per request.</li>
 <tr>
 <td>Crypto primitive: RFC 7638 thumbprint</td>
 <td><strong>Implemented</strong></td>
-<td><code>utils/jwk_thumbprint.go:19–82</code> — RSA + EC supported</td>
+<td><code>utils/jwk_thumbprint.go:19–82</code> — RSA and EC P-256. No OKP, so no EdDSA proofs yet</td>
 <td>Validated against the RFC 9449 Figure 2 / Figure 9 vector in <code>apiauth/dpop_proof_test.go</code></td>
 </tr>
 </tbody>
@@ -552,8 +560,25 @@ function rather than a flag:</p>
 </span></span></code></pre><p>A <code>NonceSource</code> with no policy demands nothing, so wiring one is safe on its<br />
 own. The client SDK answers a challenge automatically when a <code>DPoPKey</code> is<br />
 configured.</p>
+<p><strong>Requiring DPoP.</strong> A FAPI deployment sets <code>RequireDPoP</code> on both sides and<br />
+restricts the algorithms:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>validator <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewDPoPProofValidator</span>(apiauth.DPoPConfig{
+</span></span><span style="display:flex;"><span>    EndpointURL: <span style="color:#d14">&#34;https://as.example.com/api/token&#34;</span>,
+</span></span><span style="display:flex;"><span>    AllowedAlgs: apiauth.<span style="color:#900;font-weight:bold">FAPIDPoPAlgs</span>(), <span style="color:#998;font-style:italic">// ES256 + PS256; RS256 is refused
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>})
+</span></span><span style="display:flex;"><span>oa <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewOneAuth</span>(apiauth.OneAuthConfig{ <span style="color:#998;font-style:italic">/* ... */</span> DPoP: validator, RequireDPoP: <span style="color:#000;font-weight:bold">true</span> })
+</span></span></code></pre><p>To require it of some clients only, register them with<br />
+<code>dpop_bound_access_tokens: true</code> (DCR) or set<br />
+<code>AppRegistration.DPoPBoundAccessTokens</code>; the token endpoint looks the client<br />
+up in <code>AppStore</code>.</p>
+<p><code>MountAuthorize</code> hands the same validator to <code>/par</code>. That&rsquo;s safe: the pushed<br />
+endpoint checks <code>htu</code> against its own path on <code>EndpointURL</code>&rsquo;s origin.</p>
+<p>The full requirement-by-requirement matrix is in<br />
+<a href="../SECURITY_AUDIT.md"><code>docs/SECURITY_AUDIT.md</code></a>.</p>
 <p><strong>What is left.</strong></p>
 <ol>
+<li>EdDSA proofs, which FAPI 2.0 allows. They need OKP JWKs and Ed25519<br />
+thumbprints.</li>
 <li>A <code>TokenBindingValidator</code> interface (shared seam with mTLS) — deferred<br />
 on purpose until #335 makes the second shape visible, since an<br />
 interface with one implementation is a guess about the second.</li>

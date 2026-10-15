@@ -101,6 +101,8 @@
                 
                 <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
                 
+                <li><a href="/oneauth/conformance/security-audit/">Security audit</a></li>
+                
             </ul>
             
         </div>
@@ -419,8 +421,8 @@ the finished car.</p>
 <tr>
 <td><code>refresh_token</code> grant (§6)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go:214</code> (<code>handleRefresh</code>); rotates + family-revokes on reuse in <code>apiauth/token_validator.go:536,539</code></td>
-<td>RFC 9700 §4.14 defense built-in</td>
+<td><code>apiauth/token_endpoint.go</code> (<code>handleRefresh</code>, <code>refreshingClient</code>); rotates + family-revokes on reuse in <code>apiauth/token_validator.go</code> (<code>RefreshGrant</code>)</td>
+<td>RFC 9700 §4.14 defense built-in. A confidential owner must authenticate, and the token must belong to the presenting <code>client_id</code> (issue 395)</td>
 </tr>
 <tr>
 <td><code>password</code> / ROPC grant (§4.3)</td>

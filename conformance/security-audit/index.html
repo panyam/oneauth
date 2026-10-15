@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Requirement-by-requirement compliance matrix from issue 88, starting with DPoP (RFC 9449, FAPI 2.0).">
+    <title>Security audit · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+                <li><a href="/oneauth/conformance/security-audit/">Security audit</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Security audit</h1>
+        
+        <p class="lead">Requirement-by-requirement compliance matrix from issue 88, starting with DPoP (RFC 9449, FAPI 2.0).</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/SECURITY_AUDIT.md"><code>docs/SECURITY_AUDIT.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="security--rfc-compliance-audit">Security &amp; RFC compliance audit <a class="anchor" href="#security--rfc-compliance-audit">¶</a></h1>
+<p>This is the compliance matrix asked for in <a href="https://github.com/panyam/oneauth/issues/88">issue 88</a>.<br />
+Issue 88 covers a lot of ground (RFC 6749 through RFC 9728, the security checklist, FAPI 2.0),<br />
+so we&rsquo;re doing it one area at a time, and each area gets a section here once it&rsquo;s been walked<br />
+requirement by requirement. So far that&rsquo;s DPoP.</p>
+<p>How to read the tables:</p>
+<ul>
+<li><strong>Status</strong> is what the code does today, checked by reading it, not by trusting the docs.<br />
+<em>Pass</em> means the requirement holds. <em>Partial</em> means it holds for some inputs and not others.<br />
+<em>Open</em> means it doesn&rsquo;t hold yet and has an issue.</li>
+<li><strong>Test</strong> names the test that fails if the behavior is removed. For the rows marked with an<br />
+asterisk we checked that by deleting the behavior and watching the test go red, since a test<br />
+that stays green without the feature isn&rsquo;t covering it.</li>
+<li>Code references are <code>file:line</code> on the commit that added the section, so they drift. The<br />
+function names don&rsquo;t.</li>
+</ul>
+<h2 id="dpop-rfc-9449-and-the-dpop-parts-of-fapi-20">DPoP (RFC 9449, and the DPoP parts of FAPI 2.0) <a class="anchor" href="#dpop-rfc-9449-and-the-dpop-parts-of-fapi-20">¶</a></h2>
+<p>Audited October 2026. DPoP had already shipped across issues 336, 374, 375 and 377. Most of<br />
+RFC 9449 held up, but the walk turned up three real bugs and a FAPI requirement nothing<br />
+implemented. They&rsquo;re fixed in the same PR as this section, and the leftovers are in<br />
+<a href="https://github.com/panyam/oneauth/issues/395">issue 395</a>.</p>
+<h3 id="rfc-9449">RFC 9449 <a class="anchor" href="#rfc-9449">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>§</th>
+<th>Requirement</th>
+<th>Level</th>
+<th>Role</th>
+<th>Status</th>
+<th>Code</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4.2</td>
+<td>Proof has <code>typ</code>, a public <code>jwk</code>, a fresh <code>jti</code>, <code>htm</code>, <code>htu</code>, <code>iat</code>, and <code>ath</code> with a token</td>
+<td>MUST</td>
+<td>client</td>
+<td>Pass</td>
+<td><code>client/dpop.go:175</code> <code>proofWithNonce</code></td>
+<td><code>client/dpop_test.go</code> ProofShape, EveryProofHasAFreshJTI, ProofBindsToTheAccessToken</td>
+</tr>
+<tr>
+<td>4.2</td>
+<td>Client <code>htu</code> has no query or fragment</td>
+<td>MUST</td>
+<td>client</td>
+<td>Pass</td>
+<td><code>client/dpop.go:235</code> <code>canonicalHTU</code></td>
+<td>HTUDropsQueryAndFragment</td>
+</tr>
+<tr>
+<td>4.3(2)</td>
+<td>Exactly one <code>DPoP</code> header</td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>apiauth/dpop.go:402</code> <code>Confirm</code>, <code>:490</code> <code>ConfirmResource</code></td>
+<td>ConfirmRejectsMultipleHeaders, ConfirmResourceRejectsMultipleHeaders*</td>
+</tr>
+<tr>
+<td>4.3(4)</td>
+<td><code>jti</code>, <code>htm</code>, <code>htu</code>, <code>iat</code> all present</td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>apiauth/dpop.go:274</code> <code>Validate</code></td>
+<td>RejectsMissingJTI, RejectsMissingRequiredClaims</td>
+</tr>
+<tr>
+<td>4.3(5)</td>
+<td><code>typ</code> is <code>dpop+jwt</code></td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>Validate</code></td>
+<td>RejectsWrongTyp</td>
+</tr>
+<tr>
+<td>4.3(6)</td>
+<td>Asymmetric <code>alg</code> only, never <code>none</code> or HS*</td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>Validate</code> (<code>jwt.WithValidMethods</code>)</td>
+<td>RejectsSymmetricAlg, RejectsAlgNone</td>
+</tr>
+<tr>
+<td>4.3(7)</td>
+<td>Signature verifies under the embedded <code>jwk</code></td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>Validate</code></td>
+<td>RejectsTamperedSignature</td>
+</tr>
+<tr>
+<td>4.3(8)</td>
+<td><code>jwk</code> carries no private key</td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>apiauth/dpop.go:522</code> <code>publicKeyFromProofHeader</code></td>
+<td>RejectsPrivateKeyInJWKHeader</td>
+</tr>
+<tr>
+<td>4.3(9)</td>
+<td><code>htm</code> matches the method</td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>Validate</code></td>
+<td>RejectsMethodAndURIMismatch</td>
+</tr>
+<tr>
+<td>4.3(9)</td>
+<td><code>htu</code> matches, ignoring query and fragment</td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>apiauth/dpop.go:561</code> <code>sameHTU</code></td>
+<td>IgnoresQueryAndFragmentInHTU</td>
+</tr>
+<tr>
+<td>4.3, 11.8</td>
+<td><code>htu</code> compared after RFC 3986 §6.2.2 / §6.2.3 normalization</td>
+<td>SHOULD</td>
+<td>AS, RS</td>
+<td>Pass (was Partial)</td>
+<td><code>apiauth/dpop.go:578</code> <code>normalizeHTU</code></td>
+<td><code>dpop_htu_test.go</code> HTUNormalization*, ResourceHTUKeepsEncodedPath*</td>
+</tr>
+<tr>
+<td>4.3(10)</td>
+<td><code>nonce</code> matches when the server demanded one</td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>apiauth/dpop.go:366</code> <code>checkNonce</code></td>
+<td><code>dpop_nonce_test.go</code></td>
+</tr>
+<tr>
+<td>4.3(11)</td>
+<td><code>iat</code> inside a window in both directions</td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass (±30s)</td>
+<td><code>Validate</code>, <code>defaultDPoPMaxAge</code></td>
+<td>RejectsStaleAndFutureIAT, FAPIFutureIATEdges*</td>
+</tr>
+<tr>
+<td>4.3(12), 7.1</td>
+<td><code>ath</code> matches the presented token</td>
+<td>MUST</td>
+<td>RS</td>
+<td>Pass</td>
+<td><code>ConfirmResource</code></td>
+<td>ChecksAccessTokenHash</td>
+</tr>
+<tr>
+<td>7.1</td>
+<td>Token&rsquo;s <code>cnf.jkt</code> equals the proof key</td>
+<td>MUST</td>
+<td>RS</td>
+<td>Pass</td>
+<td><code>apiauth/middleware.go:428</code> <code>enforceBinding</code></td>
+<td>RejectsProofFromAnotherKey; Keycloak interop</td>
+</tr>
+<tr>
+<td>11.1</td>
+<td><code>jti</code> remembered for the whole window; bounded in size</td>
+<td>SHOULD</td>
+<td>AS, RS</td>
+<td>Pass (size cap added)</td>
+<td><code>Validate</code>, <code>maxDPoPJTILength</code></td>
+<td>RejectsReplayedJTI, RejectsOversizedJTI*</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>token_type: DPoP</code> on a bound token</td>
+<td>MUST</td>
+<td>AS</td>
+<td>Pass</td>
+<td><code>apiauth/dpop.go:693</code> <code>tokenTypeFor</code></td>
+<td>ClientCredentialsBindsAccessToken</td>
+</tr>
+<tr>
+<td>5</td>
+<td>A bad proof fails the request, never falls back to Bearer</td>
+<td>MUST</td>
+<td>AS</td>
+<td>Pass</td>
+<td><code>apiauth/token_endpoint.go:442</code> <code>dpopConfirmation</code></td>
+<td>InvalidProofRejectsTheRequest</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Public client&rsquo;s refresh token bound to its key, checked on use</td>
+<td>MUST</td>
+<td>AS</td>
+<td>Pass</td>
+<td><code>token_validator.go</code> refresh grant</td>
+<td>BoundRefreshTokenRequiresItsOwnKey</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Binding survives FS / GORM / GAE stores</td>
+<td>—</td>
+<td>AS</td>
+<td>Pass</td>
+<td><code>stores/*</code></td>
+<td>e2e (FS), <code>stores/gorm/refreshtoken_binding_test.go</code>, <code>stores/gae/refreshtoken_binding_test.go</code> (<code>make testds</code>)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Client&rsquo;s automatic refresh carries a proof</td>
+<td>MUST</td>
+<td>client</td>
+<td>Pass (was Fail)</td>
+<td><code>client/client.go</code> <code>requestToken</code> → <code>executeTokenRequest</code></td>
+<td>RefreshThenRetryMintsAFreshProof*</td>
+</tr>
+<tr>
+<td>5.1</td>
+<td><code>dpop_signing_alg_values_supported</code> in AS metadata</td>
+<td>SHOULD</td>
+<td>AS</td>
+<td>Pass</td>
+<td><code>apiauth/as_metadata.go:79</code></td>
+<td>e2e MetadataAdvertisesSigningAlgs</td>
+</tr>
+<tr>
+<td>5.2</td>
+<td><code>dpop_bound_access_tokens</code> client metadata, enforced</td>
+<td>MUST if supported</td>
+<td>AS</td>
+<td>Pass (was not implemented)</td>
+<td><code>apiauth/token_endpoint.go:478</code> <code>requireDPoP</code>; <code>core.AppRegistration</code>; DCR; all app stores</td>
+<td><code>dpop_require_test.go</code>*, <code>admin/dcr_dpop_test.go</code>*, <code>appstoretest</code> AllFieldsRoundTrip*</td>
+</tr>
+<tr>
+<td>6.1</td>
+<td><code>cnf.jkt</code> in the JWT, not forgeable through custom claims</td>
+<td>MUST</td>
+<td>AS</td>
+<td>Pass</td>
+<td><code>token_validator.go:432</code></td>
+<td>CustomClaimsCannotForgeCnf</td>
+</tr>
+<tr>
+<td>6.2</td>
+<td><code>cnf</code> in introspection, enforced by an RS that introspects</td>
+<td>MUST</td>
+<td>AS, RS</td>
+<td>Pass</td>
+<td><code>token_introspector.go</code>, <code>introspection_client.go</code></td>
+<td>IntrospectionReportsConfirmation, EnforcesCnfFromIntrospection*</td>
+</tr>
+<tr>
+<td>7.1</td>
+<td><code>Authorization: DPoP</code>; 401 with <code>WWW-Authenticate: DPoP</code> and <code>algs</code></td>
+<td>MUST</td>
+<td>RS</td>
+<td>Pass</td>
+<td><code>apiauth/middleware.go:728</code> <code>challenge</code></td>
+<td>ChallengeAdvertisesBothSchemes, ChallengeParamsAreCommaSeparated</td>
+</tr>
+<tr>
+<td>7.2</td>
+<td>Bound token refused under the Bearer scheme</td>
+<td>MUST</td>
+<td>RS</td>
+<td>Pass</td>
+<td><code>enforceBinding</code></td>
+<td>RejectsBoundTokenPresentedAsBearer; Keycloak interop</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>use_dpop_nonce</code> + <code>DPoP-Nonce</code> at the token endpoint</td>
+<td>MUST</td>
+<td>AS</td>
+<td>Pass</td>
+<td><code>dpopConfirmation</code></td>
+<td>TestNonce_TokenEndpointChallenge</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Same at the PAR endpoint</td>
+<td>MUST</td>
+<td>AS</td>
+<td>Pass (was Fail)</td>
+<td><code>apiauth/par.go:221</code> <code>resolveDPoPBinding</code></td>
+<td><code>par_dpop_shared_test.go</code> NonceChallenge*</td>
+</tr>
+<tr>
+<td>8.2, 9</td>
+<td>Client uses a <code>DPoP-Nonce</code> from any response</td>
+<td>expected</td>
+<td>client</td>
+<td>Pass (was Partial)</td>
+<td><code>client/client.go:760</code> <code>rememberNonce</code></td>
+<td>UsesANonceFromASuccessful{Token,Resource}Response*</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>use_dpop_nonce</code> at the RS (401)</td>
+<td>MUST</td>
+<td>RS</td>
+<td>Pass</td>
+<td><code>enforceBinding</code></td>
+<td>TestNonce_ResourceServerChallenge</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Code bound by <code>dpop_jkt</code> refuses another key or no proof</td>
+<td>MUST</td>
+<td>AS</td>
+<td>Pass</td>
+<td><code>authorize_granter.go:113</code></td>
+<td><code>dpop_jkt_test.go</code></td>
+</tr>
+<tr>
+<td>10.1</td>
+<td>PAR takes <code>dpop_jkt</code> or a proof, rejects a mismatch, checks its own <code>htu</code></td>
+<td>MUST</td>
+<td>AS</td>
+<td>Pass (was Fail with a shared validator)</td>
+<td><code>resolveDPoPBinding</code></td>
+<td><code>TestPARDPoP_*</code>, MountAuthorize_PARSharesTheTokenEndpointValidator*</td>
+</tr>
+<tr>
+<td>RFC 9728</td>
+<td><code>dpop_bound_access_tokens_required</code> advertised and enforced</td>
+<td>—</td>
+<td>RS</td>
+<td>Pass</td>
+<td><code>protected_resource.go:56</code>, <code>APIMiddleware.RequireDPoP</code></td>
+<td>RequireDPoPRefusesBearer</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fapi-20-security-profile-final-dpop-requirements">FAPI 2.0 Security Profile (final), DPoP requirements <a class="anchor" href="#fapi-20-security-profile-final-dpop-requirements">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>§</th>
+<th>Requirement</th>
+<th>Status</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5.3.2.1 #4</td>
+<td>AS shall only issue sender-constrained access tokens</td>
+<td>Pass (was not possible)</td>
+<td><code>OneAuthConfig.RequireDPoP</code></td>
+</tr>
+<tr>
+<td>5.3.2.1 #12</td>
+<td>AS supports binding the authorization code to the DPoP key</td>
+<td>Pass</td>
+<td><code>dpop_jkt</code> (RFC 9449 §10)</td>
+</tr>
+<tr>
+<td>5.3.2.1 #13</td>
+<td>Accept <code>iat</code> up to 10s ahead, reject more than 60s ahead</td>
+<td>Pass</td>
+<td>±30s window; FAPIFutureIATEdges</td>
+</tr>
+<tr>
+<td>5.3.4 #5</td>
+<td>RS shall only accept sender-constrained tokens</td>
+<td>Pass</td>
+<td><code>APIMiddleware.RequireDPoP</code></td>
+</tr>
+<tr>
+<td>5.4.1</td>
+<td>Proof algs limited to PS256 / ES256 / EdDSA</td>
+<td>Partial</td>
+<td><code>apiauth.FAPIDPoPAlgs()</code> gives ES256 + PS256; EdDSA is <a href="https://github.com/panyam/oneauth/issues/395">issue 395</a> item 1</td>
+</tr>
+<tr>
+<td>5.4.1</td>
+<td>RSA keys at least 2048 bits</td>
+<td>Pass (was Fail)</td>
+<td><code>minDPoPRSABits</code>; RejectsShortRSAKey*</td>
+</tr>
+<tr>
+<td>5.3.2.1 #9</td>
+<td>No refresh-token rotation</td>
+<td>Open</td>
+<td>OneAuth always rotates; <a href="https://github.com/panyam/oneauth/issues/395">issue 395</a> item 2</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-the-walk-found">What the walk found <a class="anchor" href="#what-the-walk-found">¶</a></h3>
+<p>Fixed alongside this section:</p>
+<ul>
+<li><strong>The AS couldn&rsquo;t be made to require DPoP.</strong> A client that left the proof off always got a<br />
+bearer token. <code>RequireDPoP</code> covers every client and §5.2 <code>dpop_bound_access_tokens</code> covers<br />
+one, and both refuse with 400 <code>invalid_dpop_proof</code>.</li>
+<li><strong><code>MountAuthorize</code> broke PAR behind a proxy.</strong> It gives <code>/par</code> the token endpoint&rsquo;s validator,<br />
+whose <code>EndpointURL</code> names <code>/api/token</code>, so every PAR proof failed and a proof made for the<br />
+token endpoint was accepted at <code>/par</code>. PAR also turned a nonce challenge into a plain<br />
+rejection with no <code>DPoP-Nonce</code>, which a client can&rsquo;t recover from.</li>
+<li><strong>The SDK&rsquo;s automatic refresh sent no proof.</strong> It used the legacy JSON path, which skipped<br />
+the DPoP code entirely, so a DPoP client couldn&rsquo;t refresh its own bound token.</li>
+<li><strong><code>htu</code> comparison only lowercased scheme and host.</strong> <code>:443</code>, <code>https://h</code> vs <code>https://h/</code>,<br />
+<code>%2f</code> vs <code>%2F</code> and dot segments were all wrong rejections, and the RS built the expected<br />
+URL from the decoded path, so <code>/a%2Fb</code> was checked as <code>/a/b</code>.</li>
+<li>No RSA key-size floor, no <code>jti</code> length bound, a client that ignored a <code>DPoP-Nonce</code> unless it<br />
+came with a challenge, and a FAPI alg preset that didn&rsquo;t exist.</li>
+<li><strong>GORM and GAE app stores dropped back-channel logout settings.</strong> Not DPoP, but the same<br />
+code we had to touch for §5.2: <code>backchannel_logout_uri</code> and<br />
+<code>backchannel_logout_session_required</code> weren&rsquo;t persisted, so logout dispatch stopped working<br />
+after a restart on those backends.</li>
+</ul>
+<p>Still open, all in <a href="https://github.com/panyam/oneauth/issues/395">issue 395</a>: EdDSA proofs,<br />
+an option to turn off refresh rotation for FAPI, DPoP config in <code>cmd/oneauth-server</code>, and two<br />
+SDK refresh-path issues that aren&rsquo;t DPoP-specific.</p>
+<p>The walk also turned up a gap bigger than DPoP, fixed separately: the refresh grant didn&rsquo;t<br />
+authenticate the client or check the token belonged to the <code>client_id</code> sent with it<br />
+(RFC 6749 §6). It does both now (<code>refreshingClient</code> in <code>token_endpoint.go</code>, and the<br />
+<code>ClientID</code> match in <code>RefreshGrant</code>). The <code>dpop_bound_access_tokens</code> check still follows the<br />
+refresh token&rsquo;s owner rather than the request, which is the same client whenever the grant<br />
+would succeed.</p>
+<p>Things that are deliberate rather than gaps:</p>
+<ul>
+<li><strong>Confidential clients&rsquo; refresh tokens are key-bound too.</strong> §5 only requires it for public<br />
+clients, since a confidential client&rsquo;s refresh token is already bound by client<br />
+authentication. Binding them anyway is stricter. The cost is that a confidential client<br />
+can&rsquo;t switch DPoP keys halfway through a session.</li>
+<li><strong>The default <code>JTIStore</code> is in-memory.</strong> That&rsquo;s right for one node and wrong for a fleet,<br />
+where a proof replayed against a different node isn&rsquo;t seen. <code>DPoPConfig.JTIStore</code> takes a<br />
+shared store.</li>
+<li><strong>Nonces are off by default.</strong> §8 leaves the policy to the server, and demanding one on every<br />
+request breaks clients that haven&rsquo;t implemented the retry. See <code>DPoPConfig.NoncePolicy</code>.</li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>
