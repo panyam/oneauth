@@ -101,6 +101,8 @@ Server: `handleClientCredentialsGrant` in `APIAuth` with `ClientKeyStore` field.
 
 `LoginWithBrowser()` on `AuthClient`. Loopback redirect server, PKCE, state validation, auto-discovery via DiscoverAS (#51). 6 unit tests + Keycloak interop test. Supersedes old Phase 3.
 
+Issue 387 (PR 388, pushed down from mcpkit) added a caller-owned `Listener`, an exact `RedirectURI` override and the exported `LoopbackRedirectURI`, so a client that registers via DCR first can match an AS that compares `redirect_uri` byte-for-byte. `FollowRedirects` fails fast on an AS error, and `ApproveConsent` handles demo consent pages. Issue 389 (same PR) made oneauth's own `/authorize` ignore the port on loopback `http` redirects, per RFC 8252 §7.3.
+
 #### `oneauth` token-acquisition CLI — issue 255 (P1) ✅ COMPLETE
 
 Cobra-based binary at `cmd/oneauth/`. `oneauth token {browser,client-credentials,password,refresh} <issuer> --client-id ID …` wraps the SDK's four grant entry points. Library-side addition: `AuthClient.RefreshToken` (RFC 6749 §6 form-encoded against any AS, distinct from the legacy `refreshTokenLocked` path). Output formats: `json` / `bash` (sourceable `export OAUTH_*=…`) / `access-token-only` (bare token for `$(oneauth token …)` shell capture). 17 unit tests + 4 Keycloak integration tests.
