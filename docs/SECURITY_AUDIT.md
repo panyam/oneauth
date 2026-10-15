@@ -98,8 +98,11 @@ Fixed alongside this section:
   after a restart on those backends.
 
 Still open, all in [issue 395](https://github.com/panyam/oneauth/issues/395): EdDSA proofs,
-an option to turn off refresh rotation for FAPI, DPoP config in `cmd/oneauth-server`, and two
-SDK refresh-path issues that aren't DPoP-specific.
+an option to turn off refresh rotation for FAPI, DPoP config in `cmd/oneauth-server`, two
+SDK refresh-path issues that aren't DPoP-specific, and one that's bigger than DPoP: the
+refresh grant doesn't authenticate the client or check the token belongs to the `client_id`
+sent with it (RFC 6749 §6). The DPoP check works around that by following the refresh
+token's owner, but the grant itself still needs fixing.
 
 Things that are deliberate rather than gaps:
 

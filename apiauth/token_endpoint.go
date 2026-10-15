@@ -468,10 +468,13 @@ func (h *TokenEndpointHandler) dpopConfirmation(w http.ResponseWriter, r *http.R
 // grant can hand out a bearer token in place of a bound one.
 //
 // The client is identified the way client authentication will identify it:
-// Basic auth, client_id, or a client assertion's sub. The registration
-// lookup happens before authentication, which means an unauthenticated
-// caller can learn that a client_id requires DPoP. It learns nothing else,
-// and the alternative is a check in every grant.
+// Basic auth, client_id, or a client assertion's sub. The refresh grant is
+// the exception: it doesn't authenticate the client, so the request's
+// client_id could be left out or name another client, and the refresh
+// token's own owner is used instead. The registration lookup happens before
+// authentication, which means an unauthenticated caller can learn that a
+// client_id requires DPoP. It learns nothing else, and the alternative is a
+// check in every grant.
 //
 // A store error other than not-found fails closed with server_error, since
 // treating it as "not bound" would issue a bearer token to a bound client.
@@ -484,7 +487,10 @@ func (h *TokenEndpointHandler) requireDPoP(r *http.Request, req *core.TokenReque
 		if oa.AppStore == nil {
 			return nil
 		}
-		clientID := requestingClientID(r, req)
+		clientID := refreshTokenOwner(r, oa, req)
+		if clientID == "" {
+			clientID = requestingClientID(r, req)
+		}
 		if clientID == "" {
 			return nil
 		}
@@ -501,6 +507,19 @@ func (h *TokenEndpointHandler) requireDPoP(r *http.Request, req *core.TokenReque
 		return serverError("DPoP is required but no DPoP validator is configured")
 	}
 	return invalidDPoPProof("a DPoP proof is required")
+}
+
+// refreshTokenOwner returns the client a refresh_token request's token was
+// issued to, or "" for any other grant, an unknown token, or no store.
+func refreshTokenOwner(r *http.Request, oa *OneAuth, req *core.TokenRequest) string {
+	if req == nil || req.GrantType != "refresh_token" || req.RefreshToken == "" || oa.RefreshStore == nil {
+		return ""
+	}
+	resp, err := oa.RefreshStore.GetRefreshToken(r.Context(), &core.GetRefreshTokenRequest{Token: req.RefreshToken})
+	if err != nil || resp == nil || resp.Token == nil {
+		return ""
+	}
+	return resp.Token.ClientID
 }
 
 // requestingClientID names the client a token request comes from, without

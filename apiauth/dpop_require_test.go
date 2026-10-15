@@ -155,3 +155,26 @@ func serve(fx *dpopFixture, req *http.Request) *httptest.ResponseRecorder {
 	fx.TokenEndpoint.ServeHTTP(rr, req)
 	return rr
 }
+
+// The refresh grant doesn't authenticate the client, so the request's
+// client_id can be left out or name someone else. The policy has to follow
+// the client the refresh token was issued to, or a DPoP-only client's
+// unbound refresh token (issued before it registered) redeems as Bearer.
+func TestRequireDPoP_PerClientFollowsTheRefreshTokenOwner(t *testing.T) {
+	fx := newRequireDPoPFixture(t, false, true)
+	created, err := fx.refreshStore.CreateRefreshToken(context.Background(), &core.CreateRefreshTokenRequest{
+		Subject: "user-1", ClientID: "bound-client", Scopes: []string{"read"},
+	})
+	require.NoError(t, err)
+
+	for name, clientID := range map[string]string{"no client_id": "", "another client's id": "dpop-client"} {
+		t.Run(name, func(t *testing.T) {
+			form := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {created.Token.Token}}
+			if clientID != "" {
+				form.Set("client_id", clientID)
+			}
+			rr := postWithProof(t, fx, form, "")
+			assertProofRequired(t, rr, decodeJSON(t, rr))
+		})
+	}
+}
