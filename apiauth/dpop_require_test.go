@@ -156,10 +156,11 @@ func serve(fx *dpopFixture, req *http.Request) *httptest.ResponseRecorder {
 	return rr
 }
 
-// The refresh grant doesn't authenticate the client, so the request's
-// client_id can be left out or name someone else. The policy has to follow
-// the client the refresh token was issued to, or a DPoP-only client's
-// unbound refresh token (issued before it registered) redeems as Bearer.
+// The policy follows the client the refresh token was issued to, not the
+// request's client_id, so a DPoP-only client's unbound refresh token (issued
+// before it registered) can't redeem as Bearer under a missing or borrowed
+// client_id. The grant refuses those requests anyway; this check answers
+// first and says why.
 func TestRequireDPoP_PerClientFollowsTheRefreshTokenOwner(t *testing.T) {
 	fx := newRequireDPoPFixture(t, false, true)
 	created, err := fx.refreshStore.CreateRefreshToken(context.Background(), &core.CreateRefreshTokenRequest{

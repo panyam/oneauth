@@ -233,7 +233,10 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// handleRefresh delegates the full grant flow to TokenIssuer.RefreshGrant.
+// handleRefresh authenticates the client the refresh token was issued to,
+// when that client is registered as confidential, and delegates the rest of
+// the grant to TokenIssuer.RefreshGrant, which checks that the token belongs
+// to the presenting client (RFC 6749 §6).
 func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Request, req *core.TokenRequest, cnf *core.Confirmation) {
 	if h.OneAuth == nil || h.OneAuth.Issuer == nil {
 		h.writeError(w, serverError("token endpoint not configured"))
@@ -243,8 +246,14 @@ func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Requ
 		h.writeError(w, invalidRequest("refresh_token is required"))
 		return
 	}
+	clientID, gErr := h.refreshingClient(r, req)
+	if gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
 	resp, err := h.OneAuth.Issuer.RefreshGrant(r.Context(), &RefreshGrantRequest{
 		RefreshToken: req.RefreshToken,
+		ClientID:     clientID,
 		Confirmation: cnf,
 	})
 	if err != nil {
@@ -259,6 +268,37 @@ func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	h.writeTokens(w, resp.Tokens)
+}
+
+// refreshingClient returns the client a refresh request comes from. The
+// registration consulted is the token owner's, not the requester's, so a
+// caller can't dodge authentication by naming a public client: if the owner
+// is confidential, the presented credentials must authenticate, and the
+// authenticated client_id is returned. Otherwise (a public or unregistered
+// owner, an unknown token, no AppStore) the request's own client_id is
+// returned unverified, and RefreshGrant's match against the owner is the
+// check. The owner lookup is fail-open on an unregistered client because
+// the SDK's Login issues tokens to "cli", which nothing registers.
+func (h *TokenEndpointHandler) refreshingClient(r *http.Request, req *core.TokenRequest) (string, *GrantError) {
+	clientID, clientSecret, assertionType, assertion := dispatchClientCredentials(r, req)
+	owner := refreshTokenOwner(r, h.OneAuth, req)
+	authedID, err := authenticateConfidentialClient(r.Context(), h.OneAuth.AppStore, h.OneAuth.Authenticator, owner, clientCredentials{
+		ClientID:            clientID,
+		ClientSecret:        clientSecret,
+		ClientAssertionType: assertionType,
+		ClientAssertion:     assertion,
+		Audiences:           h.acceptedAudiences(r),
+	})
+	if err != nil {
+		if ge, ok := asGrantError(err); ok {
+			return "", ge
+		}
+		return "", invalidClient("client authentication failed")
+	}
+	if authedID != "" {
+		return authedID, nil
+	}
+	return clientID, nil
 }
 
 // handleClientCredentials authenticates the client and mints a
@@ -469,9 +509,8 @@ func (h *TokenEndpointHandler) dpopConfirmation(w http.ResponseWriter, r *http.R
 //
 // The client is identified the way client authentication will identify it:
 // Basic auth, client_id, or a client assertion's sub. The refresh grant is
-// the exception: it doesn't authenticate the client, so the request's
-// client_id could be left out or name another client, and the refresh
-// token's own owner is used instead. The registration lookup happens before
+// the exception: it uses the refresh token's own owner, so the policy is
+// settled by the token before the grant gets to check the client. The registration lookup happens before
 // authentication, which means an unauthenticated caller can learn that a
 // client_id requires DPoP. It learns nothing else, and the alternative is a
 // check in every grant.
