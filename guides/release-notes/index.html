@@ -187,6 +187,77 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-0139">Version 0.1.39 <a class="anchor" href="#version-0139">¶</a></h2>
+<p>Documentation only; the code is the same as 0.1.38. The client SDK guide<br />
+covers the caller-owned listener, <code>RedirectURI</code>, <code>ApproveConsent</code> and the<br />
+fail-fast <code>FollowRedirects</code>, and its browser-login snippets use the current<br />
+<code>LoginWithBrowser(ctx, &amp;BrowserLoginRequest{...})</code> signature.<br />
+<code>CAPABILITIES.md</code>, the roadmap and the Keycloak test README are brought up to<br />
+date, and these notes now cover 0.1.38.</p>
+<h2 id="version-0138">Version 0.1.38 <a class="anchor" href="#version-0138">¶</a></h2>
+<h3 id="dpop-the-rest-of-rfc-9449">DPoP, the rest of RFC 9449 <a class="anchor" href="#dpop-the-rest-of-rfc-9449">¶</a></h3>
+<p>0.1.37 shipped DPoP-bound tokens on both sides. This release finishes the<br />
+spec and gives the client SDK the means to use it.</p>
+<ul>
+<li><strong><code>dpop_jkt</code> on <code>/authorize</code> (PR 378).</strong> The authorization code is bound to<br />
+the client&rsquo;s DPoP key, so an intercepted code can&rsquo;t be redeemed with a<br />
+different one (§10). A missing proof against a bound code is<br />
+<code>invalid_grant</code>.</li>
+<li><strong>Client SDK proofs (PR 379).</strong> <code>client.DPoPKey</code> (ES256) mints a proof per<br />
+request, and <code>WithDPoPKey</code> attaches proofs to token requests, presents<br />
+tokens under the <code>DPoP</code> scheme with <code>ath</code>, and sends <code>dpop_jkt</code> on browser<br />
+login.</li>
+<li><strong>The nonce protocol (PR 384).</strong> <code>DPoPConfig.NoncePolicy</code> with a stateless<br />
+HMAC <code>NonceSource</code> lets the AS (§8) and the resource server (§9) demand a<br />
+server-supplied nonce; the SDK retries <code>use_dpop_nonce</code> automatically. Off<br />
+by default.</li>
+<li><strong>Keycloak interop (PR 385).</strong> OneAuth&rsquo;s middleware accepts a<br />
+Keycloak-issued bound token and refuses it presented as Bearer.</li>
+</ul>
+<h3 id="pushed-authorization-requests-rfc-9126-pr-381">Pushed authorization requests (RFC 9126, PR 381) <a class="anchor" href="#pushed-authorization-requests-rfc-9126-pr-381">¶</a></h3>
+<p><code>POST /par</code> stores the authorization request and returns a <code>request_uri</code>, and<br />
+<code>/authorize</code> accepts a request carrying only <code>client_id</code> + <code>request_uri</code>.<br />
+Mounted by <code>MountAuthorize</code> when <code>AuthorizeMountConfig.PushedStore</code> is set,<br />
+with in-memory and GORM stores. A push may carry a DPoP key in its header or<br />
+as <code>dpop_jkt</code> (RFC 9449 §10.1).</p>
+<h3 id="loopback-redirects-for-native-clients-pr-388">Loopback redirects for native clients (PR 388) <a class="anchor" href="#loopback-redirects-for-native-clients-pr-388">¶</a></h3>
+<ul>
+<li><strong>Caller-owned listener (issue 387).</strong> <code>BrowserLoginRequest.Listener</code> takes<br />
+a loopback listener the caller already bound, and<br />
+<code>LoopbackRedirectURI(addr)</code> names the redirect the login will send. A<br />
+client that registers via DCR first registers exactly that string, so an AS<br />
+that matches <code>redirect_uri</code> byte-for-byte accepts it, and nothing can take<br />
+the port between registration and login. <code>LoginWithBrowser</code> closes the<br />
+listener when it returns.</li>
+<li><strong><code>RedirectURI</code></strong> sends a registered redirect verbatim (an IP literal, a<br />
+path other than <code>/callback</code>). It must be loopback <code>http</code> with an explicit<br />
+port matching the listener, checked before the browser opens.</li>
+<li><strong><code>FollowRedirects</code> fails fast.</strong> A 400-or-worse from <code>/authorize</code> now<br />
+returns the AS&rsquo;s <code>error</code> / <code>error_description</code>. Before, <code>LoginWithBrowser</code><br />
+sat out its timeout (five minutes by default) waiting for a callback that<br />
+was never coming.</li>
+<li><strong><code>ApproveConsent</code></strong> is a headless opener for demo servers that answer<br />
+<code>/authorize</code> with a consent form. It posts the approve button and refuses a<br />
+form without one.</li>
+<li><strong>Behavior change on the AS (issue 389).</strong> <code>/authorize</code> now ignores the port<br />
+when matching an <code>http</code> redirect on 127.0.0.1, [::1] or localhost, as<br />
+RFC 8252 §7.3 requires; scheme, host, path and query still match exactly.<br />
+Deployments relying on the old exact port match for loopback clients will<br />
+now accept any port. <code>apiauth.RedirectURIMatches</code> is exported for custom<br />
+<code>RedirectURIValidator</code>s.</li>
+</ul>
+<h3 id="tooling-and-ci">Tooling and CI <a class="anchor" href="#tooling-and-ci">¶</a></h3>
+<ul>
+<li>The Go directive is 1.26.9 across all modules (GO-2026-6617, an HTTP/2<br />
+HPACK race in <code>net/http</code>), with <code>golang.org/x/net</code> v0.60.0 where it&rsquo;s<br />
+pulled in (PR 388). <code>go.opentelemetry.io/otel/sdk</code> 1.45.0 (PR 376).</li>
+<li>The Keycloak interop workflow runs <code>make testkcl</code> and triggers on relevant<br />
+PRs (PR 390). It had never got past starting Keycloak before. The test<br />
+realm defines Keycloak&rsquo;s <code>basic</code> scope so tokens carry <code>sub</code> on 25+, and<br />
+<code>test-confidential</code> names itself in <code>aud</code> so 26.x lets it introspect.</li>
+<li>The docs site renders mermaid diagrams and publishes the spec library and<br />
+guides (PR 383).</li>
+</ul>
 <h2 id="version-0137">Version 0.1.37 <a class="anchor" href="#version-0137">¶</a></h2>
 <h3 id="dpop--sender-constrained-access-and-refresh-tokens-rfc-9449">DPoP — sender-constrained access and refresh tokens (RFC 9449) <a class="anchor" href="#dpop--sender-constrained-access-and-refresh-tokens-rfc-9449">¶</a></h3>
 <p>A token can now be bound to a key the client holds, so a leaked token is<br />
