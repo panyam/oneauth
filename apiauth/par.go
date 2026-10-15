@@ -59,7 +59,9 @@ type PARHandler struct {
 	AppStore core.AppRegistrationStore
 
 	// DPoP validates a proof sent on the push itself (RFC 9449 §10.1).
-	// Nil accepts only the `dpop_jkt` parameter form.
+	// Nil accepts only the `dpop_jkt` parameter form. It may be the token
+	// endpoint's validator: the proof's htu is checked against this
+	// endpoint's path on EndpointURL's origin, so sharing one is safe.
 	DPoP *DPoPProofValidator
 
 	// Expiry overrides DefaultPushedRequestExpiry.
@@ -108,7 +110,7 @@ func (h *PARHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	payload := pushedPayload(r.PostForm)
 	payload.Set("client_id", clientID)
 
-	confirmation, gErr := h.resolveDPoPBinding(r, payload)
+	confirmation, gErr := h.resolveDPoPBinding(w, r, payload)
 	if gErr != nil {
 		h.writeError(w, gErr)
 		return
@@ -211,14 +213,24 @@ func (h *PARHandler) authenticate(r *http.Request) (string, *GrantError) {
 // Both may appear, and §10.1 requires rejecting the request when they
 // disagree. Returning the thumbprint to store means the rest of the flow
 // treats a header-bound push exactly like a `dpop_jkt` one.
-func (h *PARHandler) resolveDPoPBinding(r *http.Request, payload url.Values) (string, *GrantError) {
+//
+// The proof's htu is checked against this endpoint's own URL, not the
+// validator's EndpointURL: MountAuthorize shares OneAuth.DPoP, whose
+// EndpointURL names the token endpoint. A nonce challenge is answered with
+// use_dpop_nonce and a DPoP-Nonce header, as at the token endpoint (§8).
+func (h *PARHandler) resolveDPoPBinding(w http.ResponseWriter, r *http.Request, payload url.Values) (string, *GrantError) {
 	pushedJKT := payload.Get("dpop_jkt")
 	if h.DPoP == nil || r.Header.Get(DPoPHeader) == "" {
 		return pushedJKT, nil
 	}
 
-	confirmation, err := h.DPoP.Confirm(r.Context(), r)
+	confirmation, err := h.DPoP.confirmAtOwnPath(r.Context(), r)
 	if err != nil {
+		var nonceErr *NonceRequiredError
+		if errors.As(err, &nonceErr) {
+			writeNonceHeader(w, nonceErr)
+			return "", &GrantError{Code: ErrorUseDPoPNonce, Description: nonceErr.Error(), Status: http.StatusBadRequest}
+		}
 		if ge, ok := asGrantError(err); ok {
 			return "", ge
 		}
