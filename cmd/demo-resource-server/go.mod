@@ -1,6 +1,6 @@
 module github.com/panyam/oneauth/cmd/demo-resource-server
 
-go 1.26.4
+go 1.26.9
 
 require (
 	github.com/panyam/oneauth v0.1.37
