@@ -223,7 +223,7 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		q := r.URL.Query()
 		if errParam := q.Get("error"); errParam != "" {
 			desc := q.Get("error_description")
-			resultCh <- callbackResult{Err: fmt.Errorf("authorization error: %s: %s", errParam, desc)}
+			resultCh <- callbackResult{Err: &CallbackError{Code: errParam, Description: desc}}
 			w.Header().Set("Content-Type", "text/html")
 			// Use static HTML — don't embed untrusted error params in response (G705/CWE-79)
 			fmt.Fprint(w, "<html><body><h1>Authorization Failed</h1><p>Check the terminal for details.</p><p>You can close this tab.</p></body></html>")
@@ -320,7 +320,7 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		openFn = openBrowserDefault
 	}
 	if err := openFn(authURL); err != nil {
-		return nil, fmt.Errorf("failed to open browser (URL: %s): %w", authURL, err)
+		return nil, &BrowserOpenError{URL: authURL, Err: err}
 	}
 
 	// Wait for callback or timeout — derive from the caller's ctx so
@@ -335,7 +335,7 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, fmt.Errorf("login timed out after %s", timeout)
+		return nil, fmt.Errorf("%w after %s", ErrLoginTimeout, timeout)
 	}
 
 	if result.Err != nil {
@@ -468,15 +468,19 @@ func (c *AuthClient) exchangeCode(ctx context.Context, p exchangeCodeParams) (*S
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read token response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, newTokenError(resp.StatusCode, body)
+	}
 	var tokenResp OAuth2TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
 	if tokenResp.Error != "" {
-		return nil, fmt.Errorf("%s: %s", tokenResp.Error, tokenResp.ErrorDesc)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token endpoint returned %d", resp.StatusCode)
+		return nil, &TokenError{Status: resp.StatusCode, Code: tokenResp.Error, Description: tokenResp.ErrorDesc}
 	}
 
 	return &ServerCredential{
@@ -691,8 +695,8 @@ func reachedRedirect(resp *http.Response, redirect string) bool {
 	return redirect != "" && strings.HasPrefix(resp.Request.URL.String(), redirect)
 }
 
-// authorizeError describes an error response from the authorization
-// endpoint: the status plus the OAuth error and error_description when the
+// authorizeError builds an *AuthorizeError from an error response from the
+// authorization endpoint: the OAuth error and error_description when the
 // body is a JSON error object, else a short snippet of the body.
 func authorizeError(resp *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
@@ -700,17 +704,10 @@ func authorizeError(resp *http.Response) error {
 		Error       string `json:"error"`
 		Description string `json:"error_description"`
 	}
-	detail := strings.Join(strings.Fields(string(body)), " ")
 	if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
-		detail = oauthErr.Error
-		if oauthErr.Description != "" {
-			detail += ": " + oauthErr.Description
-		}
+		return &AuthorizeError{Status: resp.StatusCode, Code: oauthErr.Error, Description: oauthErr.Description}
 	}
-	if detail == "" {
-		return fmt.Errorf("authorization endpoint answered %s", resp.Status)
-	}
-	return fmt.Errorf("authorization endpoint answered %s: %s", resp.Status, detail)
+	return &AuthorizeError{Status: resp.StatusCode, Body: strings.Join(strings.Fields(string(body)), " ")}
 }
 
 // openBrowserDefault opens a URL in the user's default browser.

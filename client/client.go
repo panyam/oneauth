@@ -679,19 +679,12 @@ func (c *AuthClient) executeTokenRequest(req *http.Request) (*ServerCredential, 
 		}
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, authenticationFailed(resp.StatusCode, body)
+	}
 	var tokenResp OAuth2TokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, fmt.Errorf("invalid response from server: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		if tokenResp.ErrorDesc != "" {
-			return nil, fmt.Errorf("authentication failed: %s", tokenResp.ErrorDesc)
-		}
-		if tokenResp.Error != "" {
-			return nil, fmt.Errorf("authentication failed: %s", tokenResp.Error)
-		}
-		return nil, fmt.Errorf("authentication failed: HTTP %d", resp.StatusCode)
 	}
 
 	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
@@ -738,19 +731,12 @@ func (c *AuthClient) requestToken(ctx context.Context, req OAuth2TokenRequest) (
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, authenticationFailed(resp.StatusCode, body)
+	}
 	var tokenResp OAuth2TokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, fmt.Errorf("invalid response from server: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		if tokenResp.ErrorDesc != "" {
-			return nil, fmt.Errorf("authentication failed: %s", tokenResp.ErrorDesc)
-		}
-		if tokenResp.Error != "" {
-			return nil, fmt.Errorf("authentication failed: %s", tokenResp.Error)
-		}
-		return nil, fmt.Errorf("authentication failed: HTTP %d", resp.StatusCode)
 	}
 
 	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)

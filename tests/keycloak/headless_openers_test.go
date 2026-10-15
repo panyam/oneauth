@@ -52,6 +52,11 @@ func TestKeycloak_FollowRedirects_InvalidRedirectFailsFast(t *testing.T) {
 	assert.Less(t, time.Since(start), 10*time.Second, "should fail fast, not wait for the timeout")
 	assert.Contains(t, err.Error(), "authorization endpoint answered 400")
 	assert.Contains(t, err.Error(), "redirect_uri")
+	var ae *client.AuthorizeError
+	require.ErrorAs(t, err, &ae)
+	assert.Equal(t, http.StatusBadRequest, ae.Status)
+	assert.Empty(t, ae.Code, "Keycloak answers with an HTML page, not a JSON error")
+	assert.NotEmpty(t, ae.Body, "the first 512 bytes of Keycloak's page are <head> boilerplate, so only presence is checked")
 }
 
 // Keycloak's /authorize answers with its login form. ApproveConsent must
@@ -74,6 +79,8 @@ func TestKeycloak_ApproveConsent_RefusesLoginForm(t *testing.T) {
 	require.Error(t, err)
 	assert.Less(t, time.Since(start), 10*time.Second)
 	assert.Contains(t, err.Error(), "no approve button")
+	var oe *client.BrowserOpenError
+	assert.ErrorAs(t, err, &oe)
 	assert.Zero(t, posts, "the login form must not be submitted")
 }
 

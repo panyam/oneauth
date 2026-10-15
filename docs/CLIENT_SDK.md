@@ -217,6 +217,31 @@ cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
 
 Without `TokenEndpointAuthMethods`, explicit endpoints default to `client_secret_basic` per RFC 6749 §2.3.1.
 
+**Handling login failures (issue 392):** each way a login can fail has its own type, so a caller can act on the cause with `errors.As` / `errors.Is` instead of matching text. The messages are the same as before.
+
+| Failure | Type | What's in it |
+|---|---|---|
+| AS refused `/authorize` (unknown client, unregistered redirect) | `*client.AuthorizeError` | `Status`, `Code` + `Description` for a JSON error, `Body` snippet for an HTML page |
+| User declined, or the AS redirected back with `?error=` | `*client.CallbackError` | `Code` (`access_denied` when the user said no), `Description` |
+| Token endpoint refused the code | `*client.TokenError` | `Status`, `Code` (`invalid_grant`, `invalid_client`, ...), `Description` |
+| No callback before `Timeout` | `client.ErrLoginTimeout` | cancelling `ctx` returns `ctx.Err()` instead |
+| `OpenBrowser` failed | `*client.BrowserOpenError` | wraps the opener's error, so an `*AuthorizeError` from `FollowRedirects` / `ApproveConsent` is found through it |
+
+```go
+cred, err := authClient.LoginWithBrowser(ctx, req)
+var ae *client.AuthorizeError
+var te *client.TokenError
+switch {
+case errors.As(err, &ae) && ae.Code == "invalid_client",
+    errors.As(err, &te) && te.Code == "invalid_client":
+    // The AS has forgotten this client (e.g. a DCR registration lost on restart): register again.
+case err != nil:
+    return err // includes *client.CallbackError{Code: "access_denied"}: don't reopen the consent page
+}
+```
+
+`*client.TokenError` comes back from every grant, not just this one: `Login`, `ClientCredentials`, `RefreshToken`, `JwtBearerGrant`, `TokenExchange`, and `PollDeviceToken` for codes other than its four RFC 8628 polling sentinels.
+
 #### Logout
 
 ```go
