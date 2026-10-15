@@ -82,6 +82,10 @@ type DCRRequest struct {
 	// Empty disables BCL dispatch for this client.
 	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
 	BackchannelLogoutSessionRequired bool   `json:"backchannel_logout_session_required,omitempty"`
+
+	// RFC 9449 §5.2: true asks the AS to refuse this client's token
+	// requests that carry no DPoP proof. Absent means false.
+	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
 }
 
 // DCRResponse is the RFC 7591 client registration response, extended with the
@@ -111,6 +115,10 @@ type DCRResponse struct {
 	// metadata so clients can confirm what the AS persisted.
 	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
 	BackchannelLogoutSessionRequired bool   `json:"backchannel_logout_session_required,omitempty"`
+
+	// RFC 9449 §5.2 echo, so the client can confirm the AS will hold it
+	// to DPoP.
+	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
 }
 
 // ServeHTTP is the HTTP wrapper for ClientRegistrar.Register (RFC 7591 DCR).

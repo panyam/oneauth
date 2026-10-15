@@ -294,6 +294,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		RegistrationClientURI:            regClientURI,
 		BackchannelLogoutURI:             md.BackchannelLogoutURI,
 		BackchannelLogoutSessionRequired: md.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:            md.DPoPBoundAccessTokens,
 	}
 
 	if utils.IsAsymmetricAlg(signingAlg) {
@@ -347,6 +348,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		RegistrationClientURI:            regClientURI,
 		BackchannelLogoutURI:             md.BackchannelLogoutURI,
 		BackchannelLogoutSessionRequired: md.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:            md.DPoPBoundAccessTokens,
 	}
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, fmt.Errorf("persist registration: %w", err)
@@ -573,6 +575,7 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 			RegistrationClientURI:            reg.RegistrationClientURI,
 			BackchannelLogoutURI:             reg.BackchannelLogoutURI,
 			BackchannelLogoutSessionRequired: reg.BackchannelLogoutSessionRequired,
+			DPoPBoundAccessTokens:            reg.DPoPBoundAccessTokens,
 		},
 	}, nil
 }
@@ -652,6 +655,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	reg.RegistrationAccessToken = newToken
 	reg.BackchannelLogoutURI = md.BackchannelLogoutURI
 	reg.BackchannelLogoutSessionRequired = md.BackchannelLogoutSessionRequired
+	reg.DPoPBoundAccessTokens = md.DPoPBoundAccessTokens
 
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, err
@@ -672,6 +676,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 			RegistrationClientURI:            reg.RegistrationClientURI,
 			BackchannelLogoutURI:             reg.BackchannelLogoutURI,
 			BackchannelLogoutSessionRequired: reg.BackchannelLogoutSessionRequired,
+			DPoPBoundAccessTokens:            reg.DPoPBoundAccessTokens,
 		},
 	}, nil
 }

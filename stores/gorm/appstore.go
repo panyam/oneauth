@@ -36,6 +36,14 @@ type AppRegistrationModel struct {
 	// management endpoints can authenticate subsequent requests after restart.
 	RegistrationAccessToken string `gorm:"size:256"`
 	RegistrationClientURI   string `gorm:"size:512"`
+
+	// OIDC Back-Channel Logout 1.0 receiver (issue 261). Before issue 88
+	// these were not persisted, so dispatch stopped after a restart.
+	BackchannelLogoutURI             string `gorm:"size:512"`
+	BackchannelLogoutSessionRequired bool   `gorm:"not null;default:false"`
+
+	// RFC 9449 §5.2 dpop_bound_access_tokens (issue 88).
+	DPoPBoundAccessTokens bool `gorm:"not null;default:false"`
 }
 
 func (AppRegistrationModel) TableName() string {
@@ -140,6 +148,10 @@ func appRegistrationToModel(app *core.AppRegistration) *AppRegistrationModel {
 		TokenEndpointAuthMethod:   app.TokenEndpointAuthMethod,
 		RegistrationAccessToken:   app.RegistrationAccessToken,
 		RegistrationClientURI:     app.RegistrationClientURI,
+
+		BackchannelLogoutURI:             app.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired: app.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:            app.DPoPBoundAccessTokens,
 	}
 }
 
@@ -159,6 +171,10 @@ func modelToAppRegistration(m *AppRegistrationModel) *core.AppRegistration {
 		TokenEndpointAuthMethod:   m.TokenEndpointAuthMethod,
 		RegistrationAccessToken:   m.RegistrationAccessToken,
 		RegistrationClientURI:     m.RegistrationClientURI,
+
+		BackchannelLogoutURI:             m.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired: m.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:            m.DPoPBoundAccessTokens,
 	}
 }
 

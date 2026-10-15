@@ -217,6 +217,10 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 		TokenEndpointAuthMethod:   "private_key_jwt",
 		RegistrationAccessToken:   "reg-tok-abc",
 		RegistrationClientURI:     "https://issuer.example/apps/dcr/app_full",
+
+		BackchannelLogoutURI:             "https://full.example/bcl",
+		BackchannelLogoutSessionRequired: true,
+		DPoPBoundAccessTokens:            true,
 	}
 
 	saveApp(t, s, app)
@@ -252,5 +256,17 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	}
 	if len(got.AuthorizationDetailsTypes) != 2 || got.AuthorizationDetailsTypes[0] != "payment_initiation" {
 		t.Errorf("AuthorizationDetailsTypes=%v", got.AuthorizationDetailsTypes)
+	}
+	// Losing these turns features off silently after a restart: no
+	// back-channel logout, and bearer tokens for a client registered as
+	// DPoP-only (RFC 9449 §5.2).
+	if got.BackchannelLogoutURI != "https://full.example/bcl" {
+		t.Errorf("BackchannelLogoutURI=%q", got.BackchannelLogoutURI)
+	}
+	if !got.BackchannelLogoutSessionRequired {
+		t.Errorf("BackchannelLogoutSessionRequired=false, want true")
+	}
+	if !got.DPoPBoundAccessTokens {
+		t.Errorf("DPoPBoundAccessTokens=false, want true")
 	}
 }

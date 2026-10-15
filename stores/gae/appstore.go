@@ -38,6 +38,14 @@ type AppRegistrationEntity struct {
 
 	RegistrationAccessToken string `datastore:"registration_access_token,noindex"`
 	RegistrationClientURI   string `datastore:"registration_client_uri,noindex"`
+
+	// OIDC Back-Channel Logout 1.0 receiver (issue 261). Before issue 88
+	// these were not persisted, so dispatch stopped after a restart.
+	BackchannelLogoutURI             string `datastore:"backchannel_logout_uri,noindex"`
+	BackchannelLogoutSessionRequired bool   `datastore:"backchannel_logout_session_required,noindex"`
+
+	// RFC 9449 §5.2 dpop_bound_access_tokens (issue 88).
+	DPoPBoundAccessTokens bool `datastore:"dpop_bound_access_tokens,noindex"`
 }
 
 // GAEAppStore implements core.AppRegistrationStore using Google Cloud Datastore.
@@ -161,6 +169,10 @@ func appRegToEntity(key *datastore.Key, app *core.AppRegistration) *AppRegistrat
 		TokenEndpointAuthMethod:   app.TokenEndpointAuthMethod,
 		RegistrationAccessToken:   app.RegistrationAccessToken,
 		RegistrationClientURI:     app.RegistrationClientURI,
+
+		BackchannelLogoutURI:             app.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired: app.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:            app.DPoPBoundAccessTokens,
 	}
 }
 
@@ -180,6 +192,10 @@ func entityToAppReg(e *AppRegistrationEntity) *core.AppRegistration {
 		TokenEndpointAuthMethod:   e.TokenEndpointAuthMethod,
 		RegistrationAccessToken:   e.RegistrationAccessToken,
 		RegistrationClientURI:     e.RegistrationClientURI,
+
+		BackchannelLogoutURI:             e.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired: e.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:            e.DPoPBoundAccessTokens,
 	}
 }
 

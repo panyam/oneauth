@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -80,6 +81,10 @@ func (h *TokenEndpointHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 	if cnf != nil {
 		span.SetAttributes(attribute.String("oauth.token_type", TokenTypeDPoP))
+	} else if gErr := h.requireDPoP(r, req); gErr != nil {
+		span.SetStatus(codes.Error, gErr.Code)
+		h.writeError(w, gErr)
+		return
 	}
 
 	switch req.GrantType {
@@ -455,6 +460,69 @@ func (h *TokenEndpointHandler) dpopConfirmation(w http.ResponseWriter, r *http.R
 		return nil, invalidDPoPProof(err.Error())
 	}
 	return cnf, nil
+}
+
+// requireDPoP refuses a request that carries no DPoP proof when the AS
+// (OneAuth.RequireDPoP) or the requesting client (RFC 9449 §5.2
+// dpop_bound_access_tokens) demands one. It runs before any grant, so no
+// grant can hand out a bearer token in place of a bound one.
+//
+// The client is identified the way client authentication will identify it:
+// Basic auth, client_id, or a client assertion's sub. The registration
+// lookup happens before authentication, which means an unauthenticated
+// caller can learn that a client_id requires DPoP. It learns nothing else,
+// and the alternative is a check in every grant.
+//
+// A store error other than not-found fails closed with server_error, since
+// treating it as "not bound" would issue a bearer token to a bound client.
+func (h *TokenEndpointHandler) requireDPoP(r *http.Request, req *core.TokenRequest) *GrantError {
+	oa := h.OneAuth
+	if oa == nil {
+		return nil
+	}
+	if !oa.RequireDPoP {
+		if oa.AppStore == nil {
+			return nil
+		}
+		clientID := requestingClientID(r, req)
+		if clientID == "" {
+			return nil
+		}
+		resp, err := oa.AppStore.GetApp(r.Context(), &core.GetAppRequest{ClientID: clientID})
+		if err != nil && !errors.Is(err, core.ErrAppNotFound) {
+			log.Printf("token endpoint: look up client %q for dpop_bound_access_tokens: %v", clientID, err)
+			return serverError("could not load the client registration")
+		}
+		if err != nil || resp == nil || resp.App == nil || !resp.App.DPoPBoundAccessTokens {
+			return nil
+		}
+	}
+	if oa.DPoP == nil {
+		return serverError("DPoP is required but no DPoP validator is configured")
+	}
+	return invalidDPoPProof("a DPoP proof is required")
+}
+
+// requestingClientID names the client a token request comes from, without
+// authenticating it.
+func requestingClientID(r *http.Request, req *core.TokenRequest) string {
+	if creds, ok := extractClientCredentials(r, req); ok {
+		if creds.ClientID != "" {
+			return creds.ClientID
+		}
+		if creds.ClientAssertion != "" {
+			claims := jwt.MapClaims{}
+			if _, _, err := jwt.NewParser().ParseUnverified(creds.ClientAssertion, claims); err == nil {
+				if sub, _ := claims["sub"].(string); sub != "" {
+					return sub
+				}
+			}
+		}
+	}
+	if req != nil && req.ClientID != "" {
+		return req.ClientID
+	}
+	return r.FormValue("client_id")
 }
 
 // authenticateClient runs whichever auth method the request carries

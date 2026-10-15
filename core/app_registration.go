@@ -47,6 +47,13 @@ type AppRegistration struct {
 	// Empty BackchannelLogoutURI disables dispatch for this client.
 	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
 	BackchannelLogoutSessionRequired bool   `json:"backchannel_logout_session_required,omitempty"`
+
+	// DPoPBoundAccessTokens is the RFC 9449 §5.2 client metadata: when
+	// true, the token endpoint refuses this client's token requests that
+	// carry no DPoP proof, so every token it receives is sender-constrained.
+	// False leaves DPoP per-request opt-in for this client, unless
+	// OneAuthConfig.RequireDPoP demands it of every client.
+	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
 }
 
 // SaveAppRequest carries the registration to persist.
