@@ -189,7 +189,7 @@ func TestDPoPIssuance_BoundRefreshTokenRequiresItsOwnKey(t *testing.T) {
 		Confirmation: &core.Confirmation{JKT: jkt},
 	})
 	require.NoError(t, err)
-	form := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {created.Token.Token}}
+	form := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {created.Token.Token}, "client_id": {"dpop-client"}}
 
 	t.Run("matching key rotates", func(t *testing.T) {
 		rr := postWithProof(t, fx, form, proof(proofOpts{url: dpopTokenEndpointURL}))
@@ -231,6 +231,7 @@ func TestDPoPIssuance_UnboundRefreshTokenAcceptsAProof(t *testing.T) {
 	rr := postWithProof(t, fx, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {created.Token.Token},
+		"client_id":     {"dpop-client"},
 	}, proof(proofOpts{url: dpopTokenEndpointURL}))
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

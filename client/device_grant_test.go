@@ -202,6 +202,7 @@ func TestPollDeviceToken_Success(t *testing.T) {
 	assert.Equal(t, "RT-test", cred.RefreshToken)
 	assert.Equal(t, "Bearer", cred.TokenType)
 	assert.Equal(t, "read write", cred.Scope)
+	assert.Equal(t, "demo", cred.ClientID)
 	assert.True(t, cred.ExpiresAt.After(cred.ExpiresAt.Add(-2000*1e9)),
 		"ExpiresAt should be set from expires_in")
 }

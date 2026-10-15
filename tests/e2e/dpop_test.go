@@ -261,6 +261,7 @@ func TestDPoP_E2E_RefreshTokenBindingSurvivesTheStore(t *testing.T) {
 	status, body := env.postToken(url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {created.Token.Token},
+		"client_id":     {dpopE2EClientID},
 	}, true)
 	require.Equal(t, http.StatusOK, status, body)
 	assert.Equal(t, "DPoP", body["token_type"])
@@ -277,6 +278,7 @@ func TestDPoP_E2E_RefreshTokenBindingSurvivesTheStore(t *testing.T) {
 	status, body = env.postToken(url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {rotated.Token.Token},
+		"client_id":     {dpopE2EClientID},
 	}, false)
 	assert.Equal(t, http.StatusUnauthorized, status)
 	assert.Equal(t, "invalid_grant", body["error"])

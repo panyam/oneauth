@@ -2,6 +2,8 @@ package apiauth
 
 import (
 	"context"
+	"errors"
+	"log"
 
 	"github.com/panyam/oneauth/core"
 )
@@ -69,12 +71,20 @@ func authenticateRegisteredConfidentialClient(ctx context.Context, appStore core
 // authenticateClientByRegistration is the shared implementation behind the
 // fail-open and fail-closed gates. failClosedOnMiss selects what an
 // unresolvable (registered-but-not-found) client_id means: an error
-// (device/authcode) or the public path (jwt-bearer/token-exchange).
+// (device/authcode) or the public path (jwt-bearer/token-exchange/refresh).
+//
+// Only core.ErrAppNotFound counts as a miss. Any other store error is a
+// server_error in both modes, since reading it as "unregistered" would let
+// a confidential client through the fail-open gate unauthenticated.
 func authenticateClientByRegistration(ctx context.Context, appStore core.AppRegistrationStore, authenticator ClientAuthenticator, lookupClientID string, creds clientCredentials, failClosedOnMiss bool) (string, error) {
 	if appStore == nil || lookupClientID == "" {
 		return "", nil
 	}
 	appResp, err := appStore.GetApp(ctx, &core.GetAppRequest{ClientID: lookupClientID})
+	if err != nil && !errors.Is(err, core.ErrAppNotFound) {
+		log.Printf("client authentication: look up client %q: %v", lookupClientID, err)
+		return "", serverError("could not load the client registration")
+	}
 	if err != nil || appResp == nil || appResp.App == nil {
 		if failClosedOnMiss {
 			return "", invalidClient("unable to resolve client registration")

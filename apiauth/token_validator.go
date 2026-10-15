@@ -559,6 +559,15 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		return nil, fmt.Errorf("invalid_grant: token has expired")
 	}
 
+	// RFC 6749 §6: the token must have been issued to the client
+	// presenting it. A token stored with no client has nothing to match.
+	// Checked after the revocation check so a replayed token still trips
+	// family revocation, and before rotation so a refused attempt does
+	// not burn the owner's token.
+	if rt.ClientID != "" && rt.ClientID != req.ClientID {
+		return nil, fmt.Errorf("invalid_grant: refresh token was not issued to this client")
+	}
+
 	// A bound refresh token is only redeemable by the key it was issued
 	// to (RFC 9449 §5), which is what leaves a stolen one useless. The
 	// check runs before rotation so a failed attempt does not burn the

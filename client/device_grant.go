@@ -231,6 +231,7 @@ func (c *AuthClient) PollDeviceToken(ctx context.Context, req *PollDeviceTokenRe
 			RefreshToken: raw.RefreshToken,
 			TokenType:    raw.TokenType,
 			Scope:        raw.Scope,
+			ClientID:     req.ClientID,
 		}
 		if raw.ExpiresIn > 0 {
 			cred.ExpiresAt = time.Now().Add(time.Duration(raw.ExpiresIn) * time.Second)

@@ -38,7 +38,7 @@ func TestOneAuth_RefreshGrant(t *testing.T) {
 	require.NoError(t, err)
 	rt := rtResp.Token
 
-	resp, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: rt.Token})
+	resp, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: rt.Token, ClientID: "test-client"})
 	require.NoError(t, err)
 	require.NotNil(t, resp.Tokens)
 	tp := resp.Tokens
@@ -218,7 +218,7 @@ func TestOneAuth_PasswordGrant_CallerCreatesRefreshToken(t *testing.T) {
 	assert.NotEmpty(t, rt.Token)
 
 	// Step 3: Later, refresh the token via core
-	refreshResult, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: rt.Token})
+	refreshResult, err := oa.Issuer.RefreshGrant(context.Background(), &apiauth.RefreshGrantRequest{RefreshToken: rt.Token, ClientID: "my-app"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, refreshResult.Tokens.AccessToken)
 }

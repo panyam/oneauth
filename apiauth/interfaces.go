@@ -108,6 +108,16 @@ type ClientCredentialsResponse struct {
 type RefreshGrantRequest struct {
 	RefreshToken string
 
+	// ClientID is the client presenting the refresh token: the
+	// authenticated client_id for a confidential client, or the request's
+	// client_id for a public one. It must equal the client the token was
+	// issued to (RFC 6749 §6), or the grant fails with invalid_grant
+	// before the token is rotated. A token stored with no client (the
+	// password grant run without a client_id) matches any ClientID.
+	// RefreshGrant does not authenticate the
+	// client itself; the token endpoint does that before calling it.
+	ClientID string
+
 	// Confirmation is the proof-of-possession key the client proved on
 	// this request, or nil when it sent no proof.
 	//
