@@ -7,11 +7,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -223,7 +225,7 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		q := r.URL.Query()
 		if errParam := q.Get("error"); errParam != "" {
 			desc := q.Get("error_description")
-			resultCh <- callbackResult{Err: fmt.Errorf("authorization error: %s: %s", errParam, desc)}
+			resultCh <- callbackResult{Err: &CallbackError{Code: errParam, Description: desc}}
 			w.Header().Set("Content-Type", "text/html")
 			// Use static HTML — don't embed untrusted error params in response (G705/CWE-79)
 			fmt.Fprint(w, "<html><body><h1>Authorization Failed</h1><p>Check the terminal for details.</p><p>You can close this tab.</p></body></html>")
@@ -320,7 +322,7 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		openFn = openBrowserDefault
 	}
 	if err := openFn(authURL); err != nil {
-		return nil, fmt.Errorf("failed to open browser (URL: %s): %w", authURL, err)
+		return nil, &BrowserOpenError{URL: authURL, Err: err}
 	}
 
 	// Wait for callback or timeout — derive from the caller's ctx so
@@ -335,7 +337,7 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, fmt.Errorf("login timed out after %s", timeout)
+		return nil, fmt.Errorf("%w after %s", ErrLoginTimeout, timeout)
 	}
 
 	if result.Err != nil {
@@ -468,15 +470,19 @@ func (c *AuthClient) exchangeCode(ctx context.Context, p exchangeCodeParams) (*S
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read token response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, newTokenError(resp.StatusCode, body)
+	}
 	var tokenResp OAuth2TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
 	if tokenResp.Error != "" {
-		return nil, fmt.Errorf("%s: %s", tokenResp.Error, tokenResp.ErrorDesc)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token endpoint returned %d", resp.StatusCode)
+		return nil, &TokenError{Status: resp.StatusCode, Code: tokenResp.Error, Description: tokenResp.ErrorDesc}
 	}
 
 	return &ServerCredential{
@@ -664,7 +670,7 @@ func FollowRedirects(httpClient *http.Client) func(string) error {
 		httpClient = &http.Client{}
 	}
 	return func(authURL string) error {
-		resp, err := httpClient.Get(authURL)
+		resp, err := headlessDo(httpClient, http.MethodGet, authURL, nil)
 		if err != nil {
 			return fmt.Errorf("headless redirect failed: %w", err)
 		}
@@ -691,26 +697,74 @@ func reachedRedirect(resp *http.Response, redirect string) bool {
 	return redirect != "" && strings.HasPrefix(resp.Request.URL.String(), redirect)
 }
 
-// authorizeError describes an error response from the authorization
-// endpoint: the status plus the OAuth error and error_description when the
-// body is a JSON error object, else a short snippet of the body.
+// headlessAccept is what the headless openers send as Accept. HTML comes
+// first so consent and login pages render as they would in a browser; JSON
+// is listed after it so an AS that negotiates its error responses (oneauth
+// does) can answer an error with a machine-readable code.
+const headlessAccept = "text/html, application/json;q=0.9"
+
+// headlessDo sends a GET (form nil) or a form POST with headlessAccept.
+// Go's client carries the header across redirects.
+func headlessDo(hc *http.Client, method, target string, form url.Values) (*http.Response, error) {
+	var body io.Reader
+	if form != nil {
+		body = strings.NewReader(form.Encode())
+	}
+	req, err := http.NewRequest(method, target, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", headlessAccept)
+	if form != nil {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	return hc.Do(req)
+}
+
+// maxErrorBody bounds how much of an error page authorizeError reads. Real
+// pages put tens of KB of <head> before the message (Keycloak's does), so
+// a short prefix would hold nothing but markup.
+const maxErrorBody = 64 << 10
+
+// maxErrorText bounds AuthorizeError.Body.
+const maxErrorText = 300
+
+var (
+	pageHiddenRe = regexp.MustCompile(`(?is)<script\b.*?</script\s*>|<style\b.*?</style\s*>|<!--.*?-->`)
+	pageTagRe    = regexp.MustCompile(`(?s)<[^>]*>`)
+)
+
+// authorizeError builds an *AuthorizeError from an error response from the
+// authorization endpoint: the OAuth error and error_description when the
+// body is a JSON error object, else the visible text of the page.
 func authorizeError(resp *http.Response) error {
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
 	var oauthErr struct {
 		Error       string `json:"error"`
 		Description string `json:"error_description"`
 	}
-	detail := strings.Join(strings.Fields(string(body)), " ")
 	if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
-		detail = oauthErr.Error
-		if oauthErr.Description != "" {
-			detail += ": " + oauthErr.Description
-		}
+		return &AuthorizeError{Status: resp.StatusCode, Code: oauthErr.Error, Description: oauthErr.Description}
 	}
-	if detail == "" {
-		return fmt.Errorf("authorization endpoint answered %s", resp.Status)
+	return &AuthorizeError{Status: resp.StatusCode, Body: pageText(body)}
+}
+
+// pageText reduces an error body to the text a person would read: scripts,
+// styles and comments dropped, tags removed, entities decoded, whitespace
+// collapsed, and cut to maxErrorText runes. A body that isn't HTML passes
+// through with only the whitespace collapsed and the cut.
+func pageText(body []byte) string {
+	s := string(body)
+	if strings.HasPrefix(strings.TrimSpace(s), "<") {
+		s = pageHiddenRe.ReplaceAllString(s, " ")
+		s = pageTagRe.ReplaceAllString(s, " ")
+		s = html.UnescapeString(s)
 	}
-	return fmt.Errorf("authorization endpoint answered %s: %s", resp.Status, detail)
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > maxErrorText {
+		s = string(r[:maxErrorText])
+	}
+	return s
 }
 
 // openBrowserDefault opens a URL in the user's default browser.
@@ -726,4 +780,3 @@ func openBrowserDefault(url string) error {
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
 }
-

@@ -3,6 +3,8 @@ package apiauth
 import (
 	"html/template"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/panyam/oneauth/core"
 )
@@ -112,7 +114,7 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 	req, displayErr, errCode, errDescription := h.Authorization.ParseAndValidate(r)
 	if errCode != "" {
 		if displayErr {
-			h.renderError(w, errCode, errDescription)
+			h.renderError(w, r, errCode, errDescription)
 			return
 		}
 		h.redirectError(w, r, req, errCode, errDescription)
@@ -163,7 +165,7 @@ func (h *AuthorizeVerificationHandler) Decide(w http.ResponseWriter, r *http.Req
 	req, displayErr, errCode, errDescription := h.Authorization.ParseAndValidate(r)
 	if errCode != "" {
 		if displayErr {
-			h.renderError(w, errCode, errDescription)
+			h.renderError(w, r, errCode, errDescription)
 			return
 		}
 		h.redirectError(w, r, req, errCode, errDescription)
@@ -203,7 +205,7 @@ func (h *AuthorizeVerificationHandler) issueAndRedirect(w http.ResponseWriter, r
 	}
 	redirect, err := h.Authorization.SuccessRedirect(req, code)
 	if err != nil {
-		h.renderError(w, "server_error", "could not build redirect")
+		h.renderError(w, r, "server_error", "could not build redirect")
 		return
 	}
 	http.Redirect(w, r, redirect, http.StatusFound)
@@ -211,24 +213,56 @@ func (h *AuthorizeVerificationHandler) issueAndRedirect(w http.ResponseWriter, r
 
 func (h *AuthorizeVerificationHandler) redirectError(w http.ResponseWriter, r *http.Request, req *AuthorizationRequest, errCode, errDescription string) {
 	if req == nil || req.RedirectURI == "" {
-		h.renderError(w, errCode, errDescription)
+		h.renderError(w, r, errCode, errDescription)
 		return
 	}
 	redirect, err := h.Authorization.ErrorRedirect(req, errCode, errDescription)
 	if err != nil {
-		h.renderError(w, errCode, errDescription)
+		h.renderError(w, r, errCode, errDescription)
 		return
 	}
 	http.Redirect(w, r, redirect, http.StatusFound)
 }
 
-func (h *AuthorizeVerificationHandler) renderError(w http.ResponseWriter, errCode, errDescription string) {
+// renderError shows a §4.1.2.1 "display, do not redirect" error. A client
+// that lists application/json in Accept gets the RFC 6749 §5.2 JSON object
+// instead of the page, so a headless client can read the error code.
+// Browsers never list application/json, and a custom Error template only
+// applies to the HTML response.
+func (h *AuthorizeVerificationHandler) renderError(w http.ResponseWriter, r *http.Request, errCode, errDescription string) {
+	if acceptsJSON(r) {
+		writeOAuthError(w, http.StatusBadRequest, errCode, errDescription)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusBadRequest)
 	_ = h.errorTemplate().Execute(w, authorizeErrorData{
 		ErrorCode:        errCode,
 		ErrorDescription: errDescription,
 	})
+}
+
+// acceptsJSON reports whether Accept lists application/json with a
+// nonzero q. It is a deliberately looser test than full negotiation:
+// headless clients list JSON after text/html so that consent pages still
+// come back as HTML, and on an error the JSON is what they want.
+func acceptsJSON(r *http.Request) bool {
+	for _, part := range strings.Split(r.Header.Get("Accept"), ",") {
+		fields := strings.Split(part, ";")
+		if !strings.EqualFold(strings.TrimSpace(fields[0]), "application/json") {
+			continue
+		}
+		for _, param := range fields[1:] {
+			k, v, _ := strings.Cut(strings.TrimSpace(param), "=")
+			if strings.EqualFold(k, "q") {
+				if q, err := strconv.ParseFloat(v, 64); err == nil && q == 0 {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func (h *AuthorizeVerificationHandler) subject(r *http.Request) string {

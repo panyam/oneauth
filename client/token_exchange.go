@@ -145,7 +145,9 @@ func (c *AuthClient) TokenExchange(ctx context.Context, req *TokenExchangeReques
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token exchange failed: status=%d body=%s", resp.StatusCode, string(body))
+		te := newTokenError(resp.StatusCode, body)
+		te.message = fmt.Sprintf("token exchange failed: status=%d body=%s", resp.StatusCode, string(body))
+		return nil, te
 	}
 
 	var raw rawTokenExchangeResponse
@@ -204,4 +206,3 @@ func (c *AuthClient) buildTokenRequest(ctx context.Context, tokenEndpoint string
 	tracing.Inject(ctx, httpReq)
 	return httpReq, nil
 }
-

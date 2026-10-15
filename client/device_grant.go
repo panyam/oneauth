@@ -138,7 +138,9 @@ func (c *AuthClient) DeviceAuthorization(ctx context.Context, req *DeviceAuthori
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("DeviceAuthorization: %s returned %d: %s", endpoint, resp.StatusCode, string(body))
+		te := newTokenError(resp.StatusCode, body)
+		te.message = fmt.Sprintf("DeviceAuthorization: %s returned %d: %s", endpoint, resp.StatusCode, string(body))
+		return nil, te
 	}
 	var out DeviceAuthorizationResponse
 	if err := json.Unmarshal(body, &out); err != nil {
@@ -166,9 +168,9 @@ type PollDeviceTokenRequest struct {
 // PollDeviceToken executes one poll attempt against the AS's token
 // endpoint. Maps the four RFC 8628 §3.5 polling errors to typed
 // sentinels (ErrAuthorizationPending, ErrSlowDown, ErrAccessDenied,
-// ErrExpiredToken) so callers can branch via errors.Is. Other failures
-// (invalid_grant, invalid_client, network errors) bubble up as a
-// generic error.
+// ErrExpiredToken) so callers can branch via errors.Is. Any other error
+// response from the token endpoint (invalid_grant, invalid_client, ...)
+// is a *TokenError; network errors bubble up as they are.
 //
 // On success returns the issued credential. The caller is responsible
 // for the polling loop, interval enforcement, and timeout.
@@ -252,8 +254,11 @@ func (c *AuthClient) PollDeviceToken(ctx context.Context, req *PollDeviceTokenRe
 	case "expired_token":
 		return nil, ErrExpiredToken
 	}
+	te := &TokenError{Status: resp.StatusCode, Code: oauthErr.Error, Description: oauthErr.ErrorDescription}
 	if oauthErr.Error != "" {
-		return nil, fmt.Errorf("PollDeviceToken: %s: %s", oauthErr.Error, oauthErr.ErrorDescription)
+		te.message = fmt.Sprintf("PollDeviceToken: %s: %s", oauthErr.Error, oauthErr.ErrorDescription)
+	} else {
+		te.message = fmt.Sprintf("PollDeviceToken: %s returned %d: %s", tokenEndpoint, resp.StatusCode, string(body))
 	}
-	return nil, fmt.Errorf("PollDeviceToken: %s returned %d: %s", tokenEndpoint, resp.StatusCode, string(body))
+	return nil, te
 }

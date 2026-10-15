@@ -173,7 +173,7 @@ cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
 })
 ```
 
-A 400-or-worse answer from `/authorize` (an unregistered `redirect_uri`, an unknown client) makes `FollowRedirects` return the AS's `error` / `error_description` straight away, instead of `LoginWithBrowser` waiting out its timeout for a callback that never comes (issue 387).
+A 400-or-worse answer from `/authorize` (an unregistered `redirect_uri`, an unknown client) makes `FollowRedirects` return the AS's `error` / `error_description` straight away, instead of `LoginWithBrowser` waiting out its timeout for a callback that never comes (issue 387). Both headless openers send `Accept: text/html, application/json;q=0.9`, so an AS that negotiates its error responses answers with JSON and the error code. oneauth's `/authorize` does, and so does Keycloak, which puts its message (`Invalid parameter: redirect_uri`) in `error` rather than a registered code.
 
 **Consent pages:** some demo authorization servers answer `/authorize` with a consent form instead of redirecting. `client.ApproveConsent(httpClient)` posts that form with its approve button, and refuses a form that has none, so it never submits a login page asking for a password. It's meant for test and demo servers.
 
@@ -216,6 +216,31 @@ cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
 ```
 
 Without `TokenEndpointAuthMethods`, explicit endpoints default to `client_secret_basic` per RFC 6749 §2.3.1.
+
+**Handling login failures (issue 392):** each way a login can fail has its own type, so a caller can act on the cause with `errors.As` / `errors.Is` instead of matching text. The messages are the same as before.
+
+| Failure | Type | What's in it |
+|---|---|---|
+| AS refused `/authorize` (unknown client, unregistered redirect) | `*client.AuthorizeError` | `Status`, `Code` + `Description` for a JSON error, `Body` (the page's visible text, up to 300 characters) for an HTML page |
+| User declined, or the AS redirected back with `?error=` | `*client.CallbackError` | `Code` (`access_denied` when the user said no), `Description` |
+| Token endpoint refused the code | `*client.TokenError` | `Status`, `Code` (`invalid_grant`, `invalid_client`, ...), `Description` |
+| No callback before `Timeout` | `client.ErrLoginTimeout` | cancelling `ctx` returns `ctx.Err()` instead |
+| `OpenBrowser` failed | `*client.BrowserOpenError` | wraps the opener's error, so an `*AuthorizeError` from `FollowRedirects` / `ApproveConsent` is found through it |
+
+```go
+cred, err := authClient.LoginWithBrowser(ctx, req)
+var ae *client.AuthorizeError
+var te *client.TokenError
+switch {
+case errors.As(err, &ae) && ae.Code == "invalid_client",
+    errors.As(err, &te) && te.Code == "invalid_client":
+    // The AS has forgotten this client (e.g. a DCR registration lost on restart): register again.
+case err != nil:
+    return err // includes *client.CallbackError{Code: "access_denied"}: don't reopen the consent page
+}
+```
+
+`*client.TokenError` comes back from every grant, not just this one: `Login`, `ClientCredentials`, `RefreshToken`, `JwtBearerGrant`, `TokenExchange`, and `PollDeviceToken` for codes other than its four RFC 8628 polling sentinels.
 
 #### Logout
 
