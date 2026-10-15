@@ -3,6 +3,32 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.40
+
+### Typed login and token errors (issues 392, 393, PR 394)
+
+A caller can now tell why a login failed without matching on text. That's
+what mcpkit needs to re-register a client the server has forgotten, without
+showing the consent page again to someone who clicked Deny.
+
+- **`LoginWithBrowser`** returns `*AuthorizeError` (the AS refused
+  `/authorize`), `*CallbackError` (`?error=` on the redirect, e.g.
+  `access_denied`), `*TokenError` (the code exchange failed),
+  `*BrowserOpenError` (the opener failed, unwrapping to its cause) and
+  `ErrLoginTimeout`. Use `errors.As` / `errors.Is`. The messages are the same
+  as before.
+- **`*TokenError` from every grant**: `Login`, `ClientCredentials`,
+  `RefreshToken`, `JwtBearerGrant`, `TokenExchange`, `DeviceAuthorization`,
+  and `PollDeviceToken` for codes other than its four RFC 8628 sentinels.
+  A token endpoint that answers with a non-JSON error page now reports its
+  status instead of a JSON decode error.
+- **JSON `/authorize` errors.** oneauth's error page for an unknown client or
+  unregistered `redirect_uri` answers with the RFC 6749 §5.2 JSON object
+  when `Accept` lists `application/json`. `FollowRedirects` and
+  `ApproveConsent` send `Accept: text/html, application/json;q=0.9`, so they
+  get `AuthorizeError.Code` from oneauth and from Keycloak. For servers that
+  only send HTML, `AuthorizeError.Body` is the page's visible text.
+
 ## Version 0.1.39
 
 Documentation only; the code is the same as 0.1.38. The client SDK guide

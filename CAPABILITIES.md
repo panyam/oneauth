@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-v0.1.39
+v0.1.40
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
@@ -27,7 +27,7 @@ v0.1.39
 - as-discovery-client: Client-side AS metadata discovery with fallback chain. `client.ASMetadata.AuthorizationResponseIssParameterSupported` surfaces the RFC 9207 advertisement (pointer-typed for absent / explicit-false / explicit-true tristate, issue 239). `client/as_metadata_interop_test.go` pins the apiauth↔client wire contract.
 - rfc-9207-iss-enforcement: Mix-up-attack defence end-to-end. `BrowserLoginRequest.OnCallback` surfaces the RFC 9207 `iss` query parameter via `CallbackParams.Iss` (issue 235). `client.ValidateIss(iss, expectedIssuer, asAdvertisedSupport, strict)` implements the §2.4 truth table with `errors.Is`-safe `ErrIssMismatch` / `ErrIssMissing` sentinels (issue 238). Comparison is **byte-equal** per RFC 9068 §2.1.1 inheritance — no URL normalization (issue 246, MCP `auth/iss-normalized` conformance). Strict-mode flag enforces iss regardless of AS advertisement for FAPI 2.0 / Open Banking / mixed-IdP environments.
 - protected-resource-metadata: RFC 9728 resource server capability advertisement
-- browser-login: OAuth authorization code + PKCE for CLI/headless clients (RFC 8252). `BrowserLoginRequest.Listener` takes a caller-owned loopback listener and `LoopbackRedirectURI(addr)` names the redirect it will send, so a DCR caller registers the exact string with no port race; `RedirectURI` overrides it for IP-literal or custom-path registrations. `FollowRedirects` returns the AS error on a 4xx/5xx from `/authorize`; `ApproveConsent` submits demo consent forms and refuses login forms (issue 387).
+- browser-login: OAuth authorization code + PKCE for CLI/headless clients (RFC 8252). `BrowserLoginRequest.Listener` takes a caller-owned loopback listener and `LoopbackRedirectURI(addr)` names the redirect it will send, so a DCR caller registers the exact string with no port race; `RedirectURI` overrides it for IP-literal or custom-path registrations. `FollowRedirects` returns the AS error on a 4xx/5xx from `/authorize`; `ApproveConsent` submits demo consent forms and refuses login forms (issue 387). Failures are typed for `errors.As` / `errors.Is`: `AuthorizeError`, `CallbackError`, `TokenError` (also returned by every other grant), `BrowserOpenError`, `ErrLoginTimeout`. The headless openers ask for JSON errors after HTML, and oneauth's `/authorize` error page answers with JSON when asked (issues 392, 393).
 - loopback-redirect-matching: `/authorize` matches `redirect_uri` exactly except the port on an `http` loopback redirect (127.0.0.1, [::1], localhost), per RFC 8252 §7.3. `apiauth.RedirectURIMatches` is exported for deployments with their own `RedirectURIValidator` (issue 389).
 - dynamic-client-registration: RFC 7591 DCR endpoint alongside AppRegistrar
 - introspection-client: Remote token validation via RFC 7662 with caching

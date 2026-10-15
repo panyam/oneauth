@@ -14,6 +14,7 @@ When a change emits a serialized wire format (an HTTP header, a JSON body, a JWT
 - Treat the PR's **before/after capture as a verification step**, not documentation. Run the thing, paste the bytes, read them. It exercises a different sense than the assertions do.
 - For any header or encoded field, assert at least one test on the **separator and ordering**, e.g. `assert.Regexp(t, 'error_description="[^"]*", algs="', challenge)`, so the grammar is pinned and not just the vocabulary.
 - Capture the "before" column by actually running the parent commit (a throwaway `git worktree add /tmp/x HEAD~1` plus a scratch test), rather than describing it from reading the old code. Twice this session the captured output differed in detail from what the code read like.
+- Check *which part* of a message a substring matched. Issue 392: `assert.Contains(err.Error(), "redirect_uri")` against Keycloak passed because the wrapper message embeds the authorize URL, while the server's own text had been truncated away. Running the real Keycloak suite after switching to typed fields exposed it.
 - The same trap shows up wherever the encoding layer is more forgiving than the spec: see [[feedback_encoding_layer_normalization]] for the base64 variant.
 
 See also: [[feedback_pr_docs]] for keeping the PR body part of the work rather than an afterthought.
