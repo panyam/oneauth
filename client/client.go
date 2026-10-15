@@ -703,7 +703,9 @@ func (c *AuthClient) executeTokenRequest(req *http.Request) (*ServerCredential, 
 
 // requestToken makes a token request to the server using JSON encoding.
 // This is the legacy path used by Login and refreshTokenLocked for the
-// oneauth-specific /auth/cli/token endpoint.
+// oneauth-specific /auth/cli/token endpoint. It goes through
+// executeTokenRequest like the form path, so a DPoP client's refresh
+// carries a proof: a bound refresh token is refused without one.
 func (c *AuthClient) requestToken(ctx context.Context, req OAuth2TokenRequest) (*ServerCredential, error) {
 	tokenURL := c.serverURL + c.tokenEndpoint
 
@@ -717,40 +719,7 @@ func (c *AuthClient) requestToken(ctx context.Context, req OAuth2TokenRequest) (
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-
-	// Use base transport directly to avoid auth loop
-	httpClient := &http.Client{Transport: c.baseTransport}
-	resp, err := httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to server: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, authenticationFailed(resp.StatusCode, body)
-	}
-	var tokenResp OAuth2TokenResponse
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, fmt.Errorf("invalid response from server: %w", err)
-	}
-
-	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
-
-	cred := &ServerCredential{
-		AccessToken:  tokenResp.AccessToken,
-		RefreshToken: tokenResp.RefreshToken,
-		TokenType:    tokenResp.TokenType,
-		Scope:        tokenResp.Scope,
-		ExpiresAt:    expiresAt,
-		CreatedAt:    time.Now(),
-	}
-	cred.AuthorizationDetails = parseAuthzDetailsFromRaw(tokenResp.AuthorizationDetails)
-	return cred, nil
+	return c.executeTokenRequest(httpReq)
 }
 
 // sendTokenRequest attaches a DPoP proof (with nonce, when one is known for
@@ -781,7 +750,17 @@ func (c *AuthClient) sendTokenRequest(req *http.Request, nonce string) (*http.Re
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read response: %w", err)
 	}
+	c.rememberNonce(req, resp)
 	return resp, body, nil
+}
+
+// rememberNonce keeps a DPoP-Nonce the server sent, on any response. RFC
+// 9449 §8.2 lets a server hand out a fresh nonce outside a challenge, and
+// using it saves the next request a challenge round trip.
+func (c *AuthClient) rememberNonce(req *http.Request, resp *http.Response) {
+	if c.dpopKey != nil && resp != nil {
+		c.dpopNonces.set(req.URL.String(), resp.Header.Get("DPoP-Nonce"))
+	}
 }
 
 // retryTokenRequest replays a token request with a nonce-carrying proof.
@@ -832,7 +811,7 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	// Make the request using base transport
-	resp, err := t.base.RoundTrip(req)
+	resp, err := t.send(req)
 	if err != nil {
 		return nil, err
 	}
@@ -866,7 +845,7 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 					if err := t.client.authorize(req, newToken); err != nil {
 						return nil, err
 					}
-					return t.base.RoundTrip(req)
+					return t.send(req)
 				}
 			} else {
 				t.client.mu.Unlock()
@@ -877,6 +856,16 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	return resp, nil
+}
+
+// send is the base round trip plus remembering any DPoP-Nonce the resource
+// server returns (RFC 9449 §9).
+func (t *refreshTransport) send(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err == nil {
+		t.client.rememberNonce(req, resp)
+	}
+	return resp, err
 }
 
 // retryWithNonce answers an RFC 9449 §9 nonce challenge by replaying the
@@ -913,7 +902,7 @@ func (t *refreshTransport) retryWithNonce(req *http.Request, resp *http.Response
 	}
 
 	resp.Body.Close()
-	retried, err := t.base.RoundTrip(retry)
+	retried, err := t.send(retry)
 	if err != nil {
 		return nil, false
 	}

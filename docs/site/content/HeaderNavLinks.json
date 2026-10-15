@@ -26,7 +26,8 @@
       { "name": "OIDF scorecard",    "url": "conformance/oidf/" },
       { "name": "Go-native ratchet", "url": "conformance/native/" },
       { "name": "Keycloak interop",  "url": "conformance/keycloak/" },
-      { "name": "Authlete interop",  "url": "conformance/authlete/" }
+      { "name": "Authlete interop",  "url": "conformance/authlete/" },
+      { "name": "Security audit",    "url": "conformance/security-audit/" }
     ]
   },
   {

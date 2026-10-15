@@ -61,6 +61,9 @@ type proofOpts struct {
 	ath        string
 	nonce      string
 	omitJTI    bool
+	omitHTM    bool
+	omitHTU    bool
+	omitIAT    bool
 	omitJWK    bool
 	privateJWK bool
 	signMethod jwt.SigningMethod
@@ -92,6 +95,12 @@ func newProof(t *testing.T, key any, o proofOpts) string {
 		"htm": firstNonEmpty(o.method, testProofMethod),
 		"htu": firstNonEmpty(o.url, testProofURL),
 	}
+	if o.omitHTM {
+		delete(claims, "htm")
+	}
+	if o.omitHTU {
+		delete(claims, "htu")
+	}
 	if !o.omitJTI {
 		claims["jti"] = firstNonEmpty(o.jti, "jti-"+time.Now().Format(time.RFC3339Nano))
 	}
@@ -99,7 +108,9 @@ func newProof(t *testing.T, key any, o proofOpts) string {
 	if iat.IsZero() {
 		iat = time.Now()
 	}
-	claims["iat"] = iat.Unix()
+	if !o.omitIAT {
+		claims["iat"] = iat.Unix()
+	}
 	if o.ath != "" {
 		claims["ath"] = o.ath
 	}

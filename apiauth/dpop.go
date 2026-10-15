@@ -2,6 +2,7 @@ package apiauth
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -59,6 +60,28 @@ const defaultDPoPMaxAge = 30 * time.Second
 //
 // See: https://www.rfc-editor.org/rfc/rfc9449#section-4.2
 var defaultDPoPAlgs = []string{"ES256", "RS256", "PS256"}
+
+// FAPIDPoPAlgs returns the proof algorithms the FAPI 2.0 Security Profile
+// §5.4.1 permits that this validator supports: ES256 and PS256. FAPI also
+// allows EdDSA, which is not supported yet. Pass it as
+// DPoPConfig.AllowedAlgs to refuse RS256, which FAPI forbids and the
+// default list accepts. Returns a fresh slice on every call.
+//
+// See: https://openid.net/specs/fapi-security-profile-2_0-final.html#section-5.4.1
+func FAPIDPoPAlgs() []string {
+	return []string{"ES256", "PS256"}
+}
+
+// minDPoPRSABits is the smallest RSA modulus accepted in a proof's `jwk`.
+// FAPI 2.0 §5.4.1 sets 2048, and nothing shorter is safe outside FAPI
+// either.
+const minDPoPRSABits = 2048
+
+// maxDPoPJTILength bounds the `jti` claim. The replay store keeps every jti
+// for the whole acceptance window, so an unbounded value lets a client make
+// it hold arbitrarily large keys. 256 is several times what any random
+// identifier needs.
+const maxDPoPJTILength = 256
 
 // DPoPConfig configures a DPoPProofValidator.
 type DPoPConfig struct {
@@ -285,6 +308,9 @@ func (v *DPoPProofValidator) Validate(ctx context.Context, req *DPoPProofRequest
 	if jti == "" {
 		return nil, invalidDPoPProof("proof is missing jti")
 	}
+	if len(jti) > maxDPoPJTILength {
+		return nil, invalidDPoPProof("proof jti is too long")
+	}
 	if htm, _ := claims["htm"].(string); htm != req.Method {
 		return nil, invalidDPoPProof("proof htm does not match the request method")
 	}
@@ -383,16 +409,45 @@ func (v *DPoPProofValidator) Confirm(ctx context.Context, r *http.Request) (*cor
 		return nil, invalidDPoPProof("request carries more than one DPoP header")
 	}
 
+	return v.confirmAt(ctx, r, proofs[0], v.requestURL(r))
+}
+
+// confirmAt validates one proof against an explicit expected htu. Confirm
+// passes the validator's own URL; the PAR handler passes the pushed
+// endpoint's, so one validator can serve both.
+func (v *DPoPProofValidator) confirmAt(ctx context.Context, r *http.Request, proof, htu string) (*core.Confirmation, error) {
 	resp, err := v.Validate(ctx, &DPoPProofRequest{
-		Proof:        proofs[0],
+		Proof:        proof,
 		Method:       r.Method,
-		URL:          v.requestURL(r),
+		URL:          htu,
 		RequireNonce: v.nonceRequired(r),
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &core.Confirmation{JKT: resp.JKT}, nil
+}
+
+// confirmAtOwnPath is Confirm for an endpoint other than the one EndpointURL
+// pins. The expected htu keeps EndpointURL's scheme and host, which is the
+// externally-visible origin a proxied deployment configured, and takes this
+// request's path. Without EndpointURL it is the same as Confirm.
+func (v *DPoPProofValidator) confirmAtOwnPath(ctx context.Context, r *http.Request) (*core.Confirmation, error) {
+	proofs := r.Header.Values(DPoPHeader)
+	switch len(proofs) {
+	case 0:
+		return nil, nil
+	case 1:
+	default:
+		return nil, invalidDPoPProof("request carries more than one DPoP header")
+	}
+	htu := v.requestURL(r)
+	if v.endpointURL != "" {
+		if u, err := url.Parse(v.endpointURL); err == nil && u.Scheme != "" && u.Host != "" {
+			htu = u.Scheme + "://" + u.Host + r.URL.EscapedPath()
+		}
+	}
+	return v.confirmAt(ctx, r, proofs[0], htu)
 }
 
 // requestURL returns the URL a proof's `htu` is compared against: the pinned
@@ -405,14 +460,16 @@ func (v *DPoPProofValidator) requestURL(r *http.Request) string {
 	if v.endpointURL != "" {
 		return v.endpointURL
 	}
+	// EscapedPath, not Path: a request for /a%2Fb must be checked as the
+	// client named it, not as /a/b, which is a different resource.
 	if v.baseURL != "" {
-		return v.baseURL + r.URL.Path
+		return v.baseURL + r.URL.EscapedPath()
 	}
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
 	}
-	return scheme + "://" + r.Host + r.URL.Path
+	return scheme + "://" + r.Host + r.URL.EscapedPath()
 }
 
 // ConfirmResource validates the DPoP proof on a request to a protected
@@ -459,6 +516,8 @@ func (v *DPoPProofValidator) ConfirmResource(ctx context.Context, r *http.Reques
 // own secret or an attacker trying to have the server verify with material it
 // chose, and neither should mint a token.
 //
+// RSA keys shorter than minDPoPRSABits are refused too (FAPI 2.0 §5.4.1).
+//
 // See: https://www.rfc-editor.org/rfc/rfc9449#section-4.3 (item 5)
 func publicKeyFromProofHeader(raw any) (any, utils.JWK, error) {
 	if raw == nil {
@@ -489,27 +548,119 @@ func publicKeyFromProofHeader(raw any) (any, utils.JWK, error) {
 	if err != nil {
 		return nil, utils.JWK{}, fmt.Errorf("proof jwk header is not a usable public key: %w", err)
 	}
+	if rsaKey, ok := pub.(*rsa.PublicKey); ok && rsaKey.N.BitLen() < minDPoPRSABits {
+		return nil, utils.JWK{}, fmt.Errorf("proof jwk RSA key is shorter than %d bits", minDPoPRSABits)
+	}
 	return pub, jwk, nil
 }
 
 // sameHTU compares a proof's `htu` against the request URL, ignoring query
-// and fragment (RFC 9449 §4.3 item 9) and normalizing scheme and host case.
-// The path is compared exactly: /token and /Token are different resources.
+// and fragment (RFC 9449 §4.3 item 9), after the syntax- and scheme-based
+// normalization of RFC 3986 §6.2.2 and §6.2.3 that §4.3 asks for. Two
+// spellings of one URI match; /token and /Token, or /a%2Fb and /a/b, do not.
 func sameHTU(htu, want string) bool {
-	if htu == "" || want == "" {
+	got, ok := normalizeHTU(htu)
+	if !ok {
 		return false
 	}
-	got, err := url.Parse(htu)
-	if err != nil {
-		return false
+	expected, ok := normalizeHTU(want)
+	return ok && got == expected
+}
+
+// normalizeHTU reduces an absolute http(s) URI to scheme, host and path in
+// RFC 3986 normal form: scheme and host lowercased, the scheme's default
+// port dropped, an empty path made "/", percent-encodings of unreserved
+// characters decoded and the rest uppercased, and dot segments removed.
+// Query and fragment are discarded.
+//
+// See: https://www.rfc-editor.org/rfc/rfc3986#section-6.2.2
+// See: https://www.rfc-editor.org/rfc/rfc3986#section-6.2.3
+func normalizeHTU(raw string) (string, bool) {
+	if raw == "" {
+		return "", false
 	}
-	expected, err := url.Parse(want)
-	if err != nil {
-		return false
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "", false
 	}
-	return strings.EqualFold(got.Scheme, expected.Scheme) &&
-		strings.EqualFold(got.Host, expected.Host) &&
-		got.EscapedPath() == expected.EscapedPath()
+	scheme := strings.ToLower(u.Scheme)
+	host := strings.ToLower(u.Hostname())
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	if port := u.Port(); port != "" && !(scheme == "http" && port == "80") && !(scheme == "https" && port == "443") {
+		host += ":" + port
+	}
+	path := removeDotSegments(normalizePercentEncoding(u.EscapedPath()))
+	if path == "" {
+		path = "/"
+	}
+	return scheme + "://" + host + path, true
+}
+
+// normalizePercentEncoding decodes percent-encoded unreserved characters
+// (ALPHA, DIGIT, "-", ".", "_", "~") and uppercases the hex digits of every
+// other percent-encoding, per RFC 3986 §6.2.2.1 and §6.2.2.2.
+func normalizePercentEncoding(p string) string {
+	var b strings.Builder
+	for i := 0; i < len(p); i++ {
+		if p[i] != '%' || i+2 >= len(p) || !isHex(p[i+1]) || !isHex(p[i+2]) {
+			b.WriteByte(p[i])
+			continue
+		}
+		c := unhex(p[i+1])<<4 | unhex(p[i+2])
+		if isUnreserved(c) {
+			b.WriteByte(c)
+		} else {
+			b.WriteString(strings.ToUpper(p[i : i+3]))
+		}
+		i += 2
+	}
+	return b.String()
+}
+
+// removeDotSegments is the RFC 3986 §5.2.4 algorithm.
+func removeDotSegments(in string) string {
+	var out []string
+	segments := strings.Split(in, "/")
+	for i, seg := range segments {
+		switch seg {
+		case ".":
+			if i == len(segments)-1 {
+				out = append(out, "")
+			}
+		case "..":
+			if len(out) > 1 {
+				out = out[:len(out)-1]
+			}
+			if i == len(segments)-1 {
+				out = append(out, "")
+			}
+		default:
+			out = append(out, seg)
+		}
+	}
+	return strings.Join(out, "/")
+}
+
+func isHex(c byte) bool {
+	return '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F'
+}
+
+func unhex(c byte) byte {
+	switch {
+	case '0' <= c && c <= '9':
+		return c - '0'
+	case 'a' <= c && c <= 'f':
+		return c - 'a' + 10
+	default:
+		return c - 'A' + 10
+	}
+}
+
+func isUnreserved(c byte) bool {
+	return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' ||
+		c == '-' || c == '.' || c == '_' || c == '~'
 }
 
 // accessTokenHash computes the `ath` claim value: base64url, unpadded,

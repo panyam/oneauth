@@ -1,7 +1,7 @@
 # FAPI 1.0 / 2.0 — Financial-grade API Security Profiles
 
 > **Status:** OpenID Foundation Specifications (final)
-> **Published:** FAPI 1.0 (2021), FAPI 2.0 Security Profile (2024)
+> **Published:** FAPI 1.0 (2021), FAPI 2.0 Security Profile (final, 2025)
 > **L-tier / T-tier:** L8 · T0 (profile of all)
 > **OneAuth coverage:** Not conformant — L5 is half-landed (DPoP shipped under #336; mTLS tracked under #335), L6 is half-landed (PAR shipped under #337; JAR tracked under #338)
 > **See also:** [`RFC_9126.md`](RFC_9126.md) · [`RFC_9101.md`](RFC_9101.md) · [`RFC_9449.md`](RFC_9449.md) · [`RFC_8705.md`](RFC_8705.md) · [`LANDSCAPE.md`](LANDSCAPE.md)
@@ -56,7 +56,7 @@ consent-driven access.
 |---|---|---|---|
 | **FAPI 1.0 Baseline** | 2021 | Read-only APIs (e.g., account info) | PKCE, JAR optional, mTLS-bound or DPoP-bound tokens, PS256 |
 | **FAPI 1.0 Advanced** | 2021 | Read-write APIs (e.g., payment initiation) | PAR + JAR + RAR all mandatory, PS256, signed responses (JARM), mTLS or private_key_jwt |
-| **FAPI 2.0 Security Profile** | 2024 | Successor to both | Simpler, modernized; PAR + DPoP/mTLS mandatory; deprecates JARM in favor of JAR-everywhere |
+| **FAPI 2.0 Security Profile** | 2025 (final) | Successor to both | Simpler, modernized; PAR + DPoP/mTLS mandatory; deprecates JARM in favor of JAR-everywhere |
 
 Most new builds in 2025+ target FAPI 2.0. The 1.0 profiles persist because
 regulators move slowly — they wrote 1.0 conformance into rules and have
@@ -73,8 +73,8 @@ not yet rolled forward.
 3. **Request integrity is mandatory.** JAR for the signature; PAR for the
    transport. Even at FAPI 2.0 with everything modernized, JAR/PAR
    remain the request-side baseline.
-4. **Strict alg choices.** PS256 / ES256 only — `RS256` and `HS256` are
-   forbidden. The "alg=none" footgun is closed by the spec, not just by
+4. **Strict alg choices.** PS256, ES256 or EdDSA (FAPI 2.0 §5.4.1), with
+   RSA keys of at least 2048 bits. `RS256` and `HS256` are forbidden. The "alg=none" footgun is closed by the spec, not just by
    the implementer.
 5. **Public + open client model has gone.** All clients are confidential
    in FAPI; SPAs and mobile-only deployments either run an authorized
@@ -88,7 +88,7 @@ not yet rolled forward.
 ```
 Setup time (T0):
   ✓ AS publishes OIDC Discovery with strict capability advertisement
-  ✓ JWKS published; only PS256 / ES256 signing keys
+  ✓ JWKS published; only PS256 / ES256 / EdDSA signing keys
   ✓ DPoP / mTLS endpoint segregation if needed
 
 Each request (T1):
@@ -109,12 +109,13 @@ Token endpoint (T5):
   ✓ authorization_details (RAR) echoed back
 
 Resource access (T6, T7):
-  ✓ Bearer token + DPoP proof OR mTLS connection
+  ✓ DPoP-bound token + DPoP proof, OR mTLS-bound token over the same TLS connection
   ✓ RS verifies cnf claim matches actual sender binding
   ✓ RS validates authorization_details matches the operation requested
 
 Lifecycle (T8):
-  ✓ Refresh rotation with reuse detection
+  ✓ No refresh-token rotation (FAPI 2.0 §5.3.2.1 forbids it outside
+    extraordinary circumstances; the sender constraint protects the token)
   ✓ Revocation on user-initiated logout
 ```
 
@@ -154,8 +155,8 @@ ordered path is:
    because PKI is harder.
 3. **Ship the L6 request integrity.** PAR + JAR. PAR is the easier
    precursor; JAR builds on existing JWS plumbing.
-4. **Restrict alg choices.** Lock down to PS256 / ES256 in AS metadata
-   and JWKS; reject HS256 and RS256.
+4. **Restrict alg choices.** Lock down to PS256 / ES256 / EdDSA in AS
+   metadata and JWKS; reject HS256 and RS256.
 5. **Run the OpenID FAPI conformance suite** against your AS in
    `dryrun` mode. It surfaces gaps mercilessly.
 6. **Submit for self-certification** if a regulator requires it.
@@ -181,22 +182,23 @@ then alg lockdown. With those landed, FAPI 2.0 conformance is in reach.
 
 | FAPI requirement | OneAuth status | Doc |
 |---|---|---|
-| PAR | Gap | [`RFC_9126.md`](RFC_9126.md) |
+| PAR | **Implemented** (repo issue 337) | [`RFC_9126.md`](RFC_9126.md) |
 | JAR | Gap (repo issue 150) | [`RFC_9101.md`](RFC_9101.md) |
 | RAR | **Implemented** | [`RFC_9396.md`](RFC_9396.md) |
-| DPoP (sender constraint, public clients) | Gap | [`RFC_9449.md`](RFC_9449.md) |
+| DPoP (sender constraint) | **Implemented**. `OneAuthConfig.RequireDPoP` makes the AS issue only bound tokens (§5.3.2.1), `APIMiddleware.RequireDPoP` makes the RS accept only bound tokens (§5.3.4), and `apiauth.FAPIDPoPAlgs()` limits proofs to ES256 / PS256. EdDSA proofs are not supported yet | [`RFC_9449.md`](RFC_9449.md), [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
 | mTLS (sender constraint, PKI clients) | Gap | [`RFC_8705.md`](RFC_8705.md) |
-| PS256 algorithm | Gap (logged) | [`RFC_7518.md`](RFC_7518.md) + `_PENDING_GAPS.md` entry 4 |
+| PS256 algorithm | Gap for AS token signing (logged). DPoP proofs already accept PS256 | [`RFC_7518.md`](RFC_7518.md) + `_PENDING_GAPS.md` entry 4 |
 | OIDC Core (id_token issuance) | Gap (largest open item) | [`OIDC_Core.md`](OIDC_Core.md) |
 | JARM (signed authz responses, FAPI 1.0 only) | Gap (tracked under repo issue 151) | — |
 | 2.1 spine alignment (PKCE everywhere, no implicit, etc.) | Mostly compliant | [`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md) |
-| Refresh rotation + reuse detect | Implemented | [`RFC_9700.md`](RFC_9700.md) |
+| Refresh tokens | **Conflict.** OneAuth rotates on every use with reuse detection (RFC 9700); FAPI 2.0 §5.3.2.1 forbids rotation outside extraordinary circumstances. Needs an option to turn rotation off | [`RFC_9700.md`](RFC_9700.md) |
 | `iss` on redirect | Implemented | [`RFC_9207.md`](RFC_9207.md) |
 | Strict redirect URI matching + HTTPS | Implemented (DCR + `/authorize`) | [`RFC_9700.md`](RFC_9700.md) |
 
-The "what's needed" reduces to: **L5 (DPoP + mTLS) + L6 (PAR + JAR) +
-OIDC Core id_token + PS256.** That's a substantial body of work but the
-shape of each piece is well-defined.
+The "what's needed" reduces to: **JAR + OIDC Core id_token + PS256 token
+signing + EdDSA + a no-rotation refresh mode**, with mTLS as the optional
+second sender constraint. DPoP and PAR are done. That's still a fair amount
+of work, but the shape of each piece is well-defined.
 
 **The strategic question** for OneAuth isn't *whether* FAPI is reachable
 (it is), but *whether the user base needs it.* If demand exists for

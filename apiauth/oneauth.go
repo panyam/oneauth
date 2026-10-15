@@ -74,6 +74,9 @@ type OneAuth struct {
 	// SigningAlgValuesSupported.
 	DPoP *DPoPProofValidator
 
+	// RequireDPoP mirrors OneAuthConfig.RequireDPoP.
+	RequireDPoP bool
+
 	// Hooks — lifecycle callbacks grouped by concern.
 	Hooks Hooks
 }
@@ -215,8 +218,20 @@ type OneAuthConfig struct {
 	// NewDPoPProofValidator.
 	//
 	// Issuance only. Enforcing the binding on resource requests is the
-	// middleware's half of RFC 9449 and lands with #336's second phase.
+	// middleware's half (APIMiddleware.DPoP).
 	DPoP *DPoPProofValidator
+
+	// RequireDPoP makes the token endpoint refuse every token request that
+	// carries no DPoP proof, with 400 invalid_dpop_proof, so the AS only
+	// ever issues sender-constrained access tokens (FAPI 2.0 §5.3.2.1).
+	// False keeps DPoP per-request opt-in, except for clients registered
+	// with core.AppRegistration.DPoPBoundAccessTokens (RFC 9449 §5.2),
+	// which are held to it individually whenever AppStore is set.
+	//
+	// Requires DPoP. With no validator to check proofs the token endpoint
+	// can issue nothing, so it answers server_error rather than falling
+	// back to bearer tokens.
+	RequireDPoP bool
 
 	// TracerProvider opts the validator's signature-verify hot path
 	// into SEP-414 tracing. Nil keeps it on the no-op fast path.
@@ -356,6 +371,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		AllowPlainPKCE:           cfg.AllowPlainPKCE,
 		AcceptedAudiences:        cfg.AcceptedAudiences,
 		DPoP:                     cfg.DPoP,
+		RequireDPoP:              cfg.RequireDPoP,
 		Hooks:                    cfg.Hooks,
 	}
 	return oa
