@@ -1,27 +1,42 @@
 name: Keycloak Interop Tests
 
-# Manual trigger only — Keycloak tests are expensive (~30s startup + test time).
-# Run via: Actions → Keycloak Interop Tests → Run workflow
+# Runs `make testkcl`, the same target used locally, so CI and a laptop start
+# Keycloak the same way: `docker run` with `--features=dpop` (a `services:`
+# block cannot pass arguments to the container's command), the realm imported
+# at boot, the image pinned by KC_IMAGE in the Makefile, and the RAR test
+# issuer on 8181.
+#
+# Runs on PRs that touch the code these tests exercise, on pushes to main,
+# and by hand from Actions → Keycloak Interop Tests → Run workflow.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apiauth/**"
+      - "client/**"
+      - "keys/**"
+      - "core/**"
+      - "cmd/oneauth-server/**"
+      - "tests/keycloak/**"
+      - "Makefile"
+      - ".github/workflows/keycloak-interop.yml"
+  pull_request:
+    paths:
+      - "apiauth/**"
+      - "client/**"
+      - "keys/**"
+      - "core/**"
+      - "cmd/oneauth-server/**"
+      - "tests/keycloak/**"
+      - "Makefile"
+      - ".github/workflows/keycloak-interop.yml"
 
 jobs:
   keycloak-interop:
     runs-on: ubuntu-latest
-    services:
-      keycloak:
-        image: quay.io/keycloak/keycloak:26.0
-        env:
-          KC_BOOTSTRAP_ADMIN_USERNAME: admin
-          KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-        ports:
-          - 8180:8080
-        options: >-
-          --health-cmd "curl -f http://localhost:8080/health/ready || exit 1"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
-
+    # The Makefile's readiness loops have no timeout of their own.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -29,29 +44,13 @@ jobs:
         with:
           go-version: '1.26'
 
-      # Import the test realm into Keycloak via Admin REST API
-      - name: Import realm
-        run: |
-          # Wait for Keycloak to be fully ready
-          until curl -sf http://localhost:8180/health/ready > /dev/null 2>&1; do sleep 2; done
-
-          # Get admin token
-          ADMIN_TOKEN=$(curl -s -X POST http://localhost:8180/realms/master/protocol/openid-connect/token \
-            -d "username=admin&password=admin&grant_type=password&client_id=admin-cli" \
-            | jq -r '.access_token')
-
-          # Import realm
-          curl -sf -X POST http://localhost:8180/admin/realms \
-            -H "Authorization: Bearer $ADMIN_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d @tests/keycloak/realm.json
-
-          # Wait for realm to be available
-          until curl -sf http://localhost:8180/realms/oneauth-test > /dev/null 2>&1; do sleep 1; done
-          echo "Realm imported successfully"
-
       - name: Run Keycloak interop tests
-        env:
-          KEYCLOAK_URL: http://localhost:8180
-          GOWORK: "off"
-        run: go test -v -race -count=1 ./tests/keycloak/...
+        run: make testkcl
+
+      - name: Keycloak logs
+        if: failure()
+        run: docker logs oneauth-test-keycloak 2>&1 | tail -200
+
+      - name: Stop Keycloak
+        if: always()
+        run: make downkcl
