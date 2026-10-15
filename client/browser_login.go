@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -38,8 +39,34 @@ type BrowserLoginRequest struct {
 	Scopes []string
 
 	// CallbackPort is the port for the loopback redirect server.
-	// If 0, a random available port is chosen.
+	// If 0, a random available port is chosen. Ignored when Listener or
+	// RedirectURI is set.
 	CallbackPort int
+
+	// Listener, when set, is the loopback listener the callback is served
+	// on, in place of one LoginWithBrowser binds itself. A caller doing DCR
+	// binds it first, registers LoopbackRedirectURI(l.Addr()) (or its own
+	// RedirectURI), and hands it over, so the port registered is the port
+	// served with no release-and-rebind window in between.
+	//
+	// LoginWithBrowser takes ownership: it closes the listener before
+	// returning, on every path including early validation errors. A
+	// listener serves one login.
+	Listener net.Listener
+
+	// RedirectURI, when set, is sent byte-for-byte as redirect_uri on the
+	// authorization request and the code exchange, and the callback is
+	// served on its path. Use it when the registered redirect differs from
+	// LoopbackRedirectURI's default, e.g. an IP literal (which RFC 8252 §8.3
+	// prefers over "localhost") or a path other than /callback.
+	//
+	// It must be an http URI on a loopback host (localhost, 127.0.0.1 or
+	// [::1]) with an explicit port. With Listener set the port must equal
+	// the listener's; without one, LoginWithBrowser binds the URI's host
+	// and port. Anything else fails before the browser opens.
+	//
+	// See: https://www.rfc-editor.org/rfc/rfc8252#section-7.3
+	RedirectURI string
 
 	// Timeout for the entire flow (waiting for user to complete browser login).
 	// Defaults to 5 minutes.
@@ -155,6 +182,9 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 	if req == nil {
 		return nil, fmt.Errorf("LoginWithBrowser: req is required")
 	}
+	if req.Listener != nil {
+		defer req.Listener.Close()
+	}
 	cfg := *req
 	if cfg.ClientID == "" {
 		return nil, fmt.Errorf("ClientID is required")
@@ -178,22 +208,18 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		return nil, fmt.Errorf("failed to generate state: %w", err)
 	}
 
-	// Start loopback server
-	listener, err := startLoopbackListener(cfg.CallbackPort)
+	listener, redirectURI, callbackPath, err := loopbackEndpoint(&cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start callback server: %w", err)
+		return nil, err
 	}
 	defer listener.Close()
-
-	port := listener.Addr().(*net.TCPAddr).Port
-	redirectURI := fmt.Sprintf("http://localhost:%d/callback", port)
 
 	// Channel to receive the callback result
 	resultCh := make(chan callbackResult, 1)
 
 	// Serve the callback
 	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(callbackPath, func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		if errParam := q.Get("error"); errParam != "" {
 			desc := q.Get("error_description")
@@ -490,10 +516,80 @@ func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state str
 	return u.String()
 }
 
-// startLoopbackListener starts a TCP listener on localhost.
-// If port is 0, a random available port is chosen.
-func startLoopbackListener(port int) (net.Listener, error) {
-	return net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+// LoopbackRedirectURI is the redirect URI LoginWithBrowser sends for a
+// listener at addr when BrowserLoginRequest.RedirectURI is empty:
+// http://localhost:<port>/callback. Only the port is taken from addr, so a
+// listener on 127.0.0.1 or [::1] yields the same string. A caller that
+// registers a client via DCR before the login registers exactly this string,
+// which is what an AS matching redirect URIs byte-for-byte requires.
+func LoopbackRedirectURI(addr net.Addr) string {
+	_, port, _ := net.SplitHostPort(addr.String())
+	return "http://localhost:" + port + "/callback"
+}
+
+// loopbackEndpoint picks the listener, redirect URI and callback path for a
+// login. A listener it binds itself is returned for the caller to close; a
+// caller-supplied one is closed by LoginWithBrowser's own defer.
+func loopbackEndpoint(cfg *BrowserLoginRequest) (net.Listener, string, string, error) {
+	var u *url.URL
+	if cfg.RedirectURI != "" {
+		var err error
+		if u, err = parseLoopbackRedirect(cfg.RedirectURI); err != nil {
+			return nil, "", "", err
+		}
+	}
+
+	l := cfg.Listener
+	if l == nil {
+		addr := fmt.Sprintf("localhost:%d", cfg.CallbackPort)
+		if u != nil {
+			addr = u.Host
+		}
+		var err error
+		if l, err = net.Listen("tcp", addr); err != nil {
+			return nil, "", "", fmt.Errorf("failed to start callback server: %w", err)
+		}
+	}
+
+	if u == nil {
+		return l, LoopbackRedirectURI(l.Addr()), "/callback", nil
+	}
+	if _, port, _ := net.SplitHostPort(l.Addr().String()); port != u.Port() {
+		if cfg.Listener == nil {
+			l.Close()
+		}
+		return nil, "", "", fmt.Errorf("RedirectURI port %s does not match the listener's port %s", u.Port(), port)
+	}
+	path := u.Path
+	if path == "" {
+		path = "/"
+	}
+	return l, cfg.RedirectURI, path, nil
+}
+
+// parseLoopbackRedirect checks that a caller-supplied RedirectURI can reach
+// the loopback server: http (RFC 8252 §7.3 loopback redirects are plain
+// http), a loopback host, and an explicit port.
+func parseLoopbackRedirect(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("RedirectURI: %w", err)
+	}
+	if u.Scheme != "http" {
+		return nil, fmt.Errorf("RedirectURI %q: scheme must be http for a loopback redirect", raw)
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+	default:
+		return nil, fmt.Errorf("RedirectURI %q: host must be localhost, 127.0.0.1 or [::1]", raw)
+	}
+	if u.Port() == "" || u.Port() == "0" {
+		return nil, fmt.Errorf("RedirectURI %q: needs an explicit port", raw)
+	}
+	if u.Fragment != "" {
+		return nil, fmt.Errorf("RedirectURI %q: must not carry a fragment", raw)
+	}
+	return u, nil
 }
 
 // generateState creates a random state parameter for CSRF protection.
@@ -551,9 +647,18 @@ func containsString(slice []string, val string) bool {
 // a default client is used. For authorization servers that require form-based
 // login (e.g., Keycloak), the httpClient must handle cookie/session management
 // and form POST — FollowRedirects is designed for AS endpoints that auto-approve
-// (test/mock servers) or for pre-authenticated sessions.
+// (test/mock servers) or for pre-authenticated sessions. ApproveConsent covers
+// servers that answer with a consent form.
+//
+// If the GET ends anywhere other than the authorization URL's redirect_uri
+// with a status of 400 or above, the returned error carries the status and
+// the AS's error/error_description (or a snippet of the body), so
+// LoginWithBrowser fails at once instead of waiting out its timeout for a
+// callback that will never arrive. Any other non-callback ending, such as a
+// 200 login page, still returns nil.
 //
 // See: https://github.com/panyam/oneauth/issues/71
+// See: https://github.com/panyam/oneauth/issues/387
 func FollowRedirects(httpClient *http.Client) func(string) error {
 	if httpClient == nil {
 		httpClient = &http.Client{}
@@ -563,9 +668,49 @@ func FollowRedirects(httpClient *http.Client) func(string) error {
 		if err != nil {
 			return fmt.Errorf("headless redirect failed: %w", err)
 		}
-		resp.Body.Close()
-		return nil
+		defer resp.Body.Close()
+		if reachedRedirect(resp, redirectOf(authURL)) || resp.StatusCode < 400 {
+			return nil
+		}
+		return authorizeError(resp)
 	}
+}
+
+// redirectOf returns the redirect_uri carried by an authorization URL, or ""
+// when it has none.
+func redirectOf(authURL string) string {
+	u, err := url.Parse(authURL)
+	if err != nil {
+		return ""
+	}
+	return u.Query().Get("redirect_uri")
+}
+
+// reachedRedirect reports whether a followed request ended at redirect.
+func reachedRedirect(resp *http.Response, redirect string) bool {
+	return redirect != "" && strings.HasPrefix(resp.Request.URL.String(), redirect)
+}
+
+// authorizeError describes an error response from the authorization
+// endpoint: the status plus the OAuth error and error_description when the
+// body is a JSON error object, else a short snippet of the body.
+func authorizeError(resp *http.Response) error {
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	var oauthErr struct {
+		Error       string `json:"error"`
+		Description string `json:"error_description"`
+	}
+	detail := strings.Join(strings.Fields(string(body)), " ")
+	if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
+		detail = oauthErr.Error
+		if oauthErr.Description != "" {
+			detail += ": " + oauthErr.Description
+		}
+	}
+	if detail == "" {
+		return fmt.Errorf("authorization endpoint answered %s", resp.Status)
+	}
+	return fmt.Errorf("authorization endpoint answered %s: %s", resp.Status, detail)
 }
 
 // openBrowserDefault opens a URL in the user's default browser.
