@@ -43,9 +43,9 @@ type ASMetadata struct {
 	DeviceAuthorizationEndpoint string `json:"device_authorization_endpoint,omitempty"` // RFC 8628 §4
 
 	// Supported features
-	ScopesSupported               []string `json:"scopes_supported,omitempty"`
-	ResponseTypesSupported        []string `json:"response_types_supported,omitempty"`
-	GrantTypesSupported           []string `json:"grant_types_supported,omitempty"`
+	ScopesSupported                            []string `json:"scopes_supported,omitempty"`
+	ResponseTypesSupported                     []string `json:"response_types_supported,omitempty"`
+	GrantTypesSupported                        []string `json:"grant_types_supported,omitempty"`
 	CodeChallengeMethodsSupported              []string `json:"code_challenge_methods_supported,omitempty"`
 	TokenEndpointAuthMethods                   []string `json:"token_endpoint_auth_methods_supported,omitempty"`
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
@@ -244,7 +244,7 @@ func splitOriginPath(rawURL string) (origin, path string) {
 		return rawURL, ""
 	}
 	origin = rawURL[:schemeEnd+3+slashIdx] // "https://auth.example.com"
-	path = rest[slashIdx:]                  // "/tenant1"
+	path = rest[slashIdx:]                 // "/tenant1"
 	return origin, path
 }
 

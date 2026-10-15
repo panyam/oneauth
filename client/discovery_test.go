@@ -71,16 +71,16 @@ func newDiscoveryServer(t *testing.T, path string, meta map[string]any) *httptes
 // See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
 func TestDiscoverAS_OIDCEndpoint(t *testing.T) {
 	meta := map[string]any{
-		"issuer":                 "https://auth.example.com",
-		"token_endpoint":         "https://auth.example.com/token",
-		"authorization_endpoint": "https://auth.example.com/authorize",
-		"jwks_uri":               "https://auth.example.com/.well-known/jwks.json",
-		"introspection_endpoint": "https://auth.example.com/introspect",
-		"scopes_supported":       []string{"openid", "read", "write"},
-		"grant_types_supported":  []string{"authorization_code", "client_credentials"},
+		"issuer":                                "https://auth.example.com",
+		"token_endpoint":                        "https://auth.example.com/token",
+		"authorization_endpoint":                "https://auth.example.com/authorize",
+		"jwks_uri":                              "https://auth.example.com/.well-known/jwks.json",
+		"introspection_endpoint":                "https://auth.example.com/introspect",
+		"scopes_supported":                      []string{"openid", "read", "write"},
+		"grant_types_supported":                 []string{"authorization_code", "client_credentials"},
 		"response_types_supported":              []string{"code"},
-		"code_challenge_methods_supported":       []string{"S256"},
-		"token_endpoint_auth_methods_supported":  []string{"client_secret_basic", "client_secret_post"},
+		"code_challenge_methods_supported":      []string{"S256"},
+		"token_endpoint_auth_methods_supported": []string{"client_secret_basic", "client_secret_post"},
 	}
 	srv := newDiscoveryServer(t, "/.well-known/openid-configuration", meta)
 
@@ -285,8 +285,8 @@ func TestDiscoverAS_MetadataIssuerMismatch_Rejected(t *testing.T) {
 // URL-based client_id over DCR exactly when the AS accepts one.
 func TestDiscoverAS_ClientIdMetadataDocumentSupported(t *testing.T) {
 	meta := map[string]any{
-		"issuer":         "https://auth.example.com",
-		"token_endpoint": "https://auth.example.com/token",
+		"issuer":                                "https://auth.example.com",
+		"token_endpoint":                        "https://auth.example.com/token",
 		"client_id_metadata_document_supported": true,
 	}
 	srv := newDiscoveryServer(t, "/.well-known/openid-configuration", meta)

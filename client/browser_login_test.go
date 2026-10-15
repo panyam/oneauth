@@ -104,11 +104,11 @@ func mockAuthServer(t *testing.T) *httptest.Server {
 		srv := r.Host // will be localhost:PORT
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"issuer":                                "http://" + srv,
-			"authorization_endpoint":                "http://" + srv + "/authorize",
-			"token_endpoint":                        "http://" + srv + "/token",
-			"jwks_uri":                              "http://" + srv + "/.well-known/jwks.json",
-			"code_challenge_methods_supported":       []string{"S256"},
+			"issuer":                           "http://" + srv,
+			"authorization_endpoint":           "http://" + srv + "/authorize",
+			"token_endpoint":                   "http://" + srv + "/token",
+			"jwks_uri":                         "http://" + srv + "/.well-known/jwks.json",
+			"code_challenge_methods_supported": []string{"S256"},
 		})
 	})
 
@@ -214,10 +214,10 @@ func TestLoginWithBrowser_StateMismatch(t *testing.T) {
 	})
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
-			"issuer":                                "http://" + r.Host,
-			"authorization_endpoint":                "http://" + r.Host + "/authorize",
-			"token_endpoint":                        "http://" + r.Host + "/token",
-			"code_challenge_methods_supported":       []string{"S256"},
+			"issuer":                           "http://" + r.Host,
+			"authorization_endpoint":           "http://" + r.Host + "/authorize",
+			"token_endpoint":                   "http://" + r.Host + "/token",
+			"code_challenge_methods_supported": []string{"S256"},
 		})
 	})
 	srv := httptest.NewServer(mux)
@@ -261,10 +261,10 @@ func TestLoginWithBrowser_AuthorizationError(t *testing.T) {
 	})
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
-			"issuer":                                "http://" + r.Host,
-			"authorization_endpoint":                "http://" + r.Host + "/authorize",
-			"token_endpoint":                        "http://" + r.Host + "/token",
-			"code_challenge_methods_supported":       []string{"S256"},
+			"issuer":                           "http://" + r.Host,
+			"authorization_endpoint":           "http://" + r.Host + "/authorize",
+			"token_endpoint":                   "http://" + r.Host + "/token",
+			"code_challenge_methods_supported": []string{"S256"},
 		})
 	})
 	srv := httptest.NewServer(mux)

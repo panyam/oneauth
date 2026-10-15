@@ -206,4 +206,3 @@ func (c *AuthClient) buildTokenRequest(ctx context.Context, tokenEndpoint string
 	tracing.Inject(ctx, httpReq)
 	return httpReq, nil
 }
-

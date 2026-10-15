@@ -780,4 +780,3 @@ func openBrowserDefault(url string) error {
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
 }
-

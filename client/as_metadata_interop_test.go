@@ -50,8 +50,8 @@ func TestASMetadata_Interop_IssParamSupported(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			mux.Handle("/.well-known/openid-configuration", apiauth.NewASMetadataHandler(&apiauth.ASServerMetadata{
-				Issuer:                                     srv.URL,
-				TokenEndpoint:                              srv.URL + "/oauth/token",
+				Issuer:        srv.URL,
+				TokenEndpoint: srv.URL + "/oauth/token",
 				AuthorizationResponseIssParameterSupported: tc.serverIn,
 			}))
 
