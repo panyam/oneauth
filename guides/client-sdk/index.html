@@ -302,7 +302,7 @@ authorization request, so generate one per login if that is the goal.</li>
 </span></span><span style="display:flex;"><span>    ClientID:    <span style="color:#d14">&#34;my-cli-app&#34;</span>,
 </span></span><span style="display:flex;"><span>    OpenBrowser: client.<span style="color:#900;font-weight:bold">FollowRedirects</span>(<span style="color:#000;font-weight:bold">nil</span>),  <span style="color:#998;font-style:italic">// follows HTTP redirects
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>})
-</span></span></code></pre><p>A 400-or-worse answer from <code>/authorize</code> (an unregistered <code>redirect_uri</code>, an unknown client) makes <code>FollowRedirects</code> return the AS&rsquo;s <code>error</code> / <code>error_description</code> straight away, instead of <code>LoginWithBrowser</code> waiting out its timeout for a callback that never comes (issue 387).</p>
+</span></span></code></pre><p>A 400-or-worse answer from <code>/authorize</code> (an unregistered <code>redirect_uri</code>, an unknown client) makes <code>FollowRedirects</code> return the AS&rsquo;s <code>error</code> / <code>error_description</code> straight away, instead of <code>LoginWithBrowser</code> waiting out its timeout for a callback that never comes (issue 387). Both headless openers send <code>Accept: text/html, application/json;q=0.9</code>, so an AS that negotiates its error responses answers with JSON and the error code. oneauth&rsquo;s <code>/authorize</code> does, and so does Keycloak, which puts its message (<code>Invalid parameter: redirect_uri</code>) in <code>error</code> rather than a registered code.</p>
 <p><strong>Consent pages:</strong> some demo authorization servers answer <code>/authorize</code> with a consent form instead of redirecting. <code>client.ApproveConsent(httpClient)</code> posts that form with its approve button, and refuses a form that has none, so it never submits a login page asking for a password. It&rsquo;s meant for test and demo servers.</p>
 <p><strong>Registering the redirect first (DCR):</strong> an AS that matches <code>redirect_uri</code> exactly needs the client to register the string the login will send. Bind the listener yourself, register <code>LoopbackRedirectURI(l.Addr())</code>, and hand the listener over, so there&rsquo;s no window where another process takes the port (issue 387):</p>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>l, _ <span style="color:#000;font-weight:bold">:=</span> net.<span style="color:#900;font-weight:bold">Listen</span>(<span style="color:#d14">&#34;tcp&#34;</span>, <span style="color:#d14">&#34;127.0.0.1:0&#34;</span>)
@@ -330,6 +330,54 @@ authorization request, so generate one per login if that is the goal.</li>
 </span></span><span style="display:flex;"><span>    OpenBrowser:              client.<span style="color:#900;font-weight:bold">FollowRedirects</span>(<span style="color:#000;font-weight:bold">nil</span>),
 </span></span><span style="display:flex;"><span>})
 </span></span></code></pre><p>Without <code>TokenEndpointAuthMethods</code>, explicit endpoints default to <code>client_secret_basic</code> per RFC 6749 §2.3.1.</p>
+<p><strong>Handling login failures (issue 392):</strong> each way a login can fail has its own type, so a caller can act on the cause with <code>errors.As</code> / <code>errors.Is</code> instead of matching text. The messages are the same as before.</p>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Type</th>
+<th>What&rsquo;s in it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AS refused <code>/authorize</code> (unknown client, unregistered redirect)</td>
+<td><code>*client.AuthorizeError</code></td>
+<td><code>Status</code>, <code>Code</code> + <code>Description</code> for a JSON error, <code>Body</code> (the page&rsquo;s visible text, up to 300 characters) for an HTML page</td>
+</tr>
+<tr>
+<td>User declined, or the AS redirected back with <code>?error=</code></td>
+<td><code>*client.CallbackError</code></td>
+<td><code>Code</code> (<code>access_denied</code> when the user said no), <code>Description</code></td>
+</tr>
+<tr>
+<td>Token endpoint refused the code</td>
+<td><code>*client.TokenError</code></td>
+<td><code>Status</code>, <code>Code</code> (<code>invalid_grant</code>, <code>invalid_client</code>, &hellip;), <code>Description</code></td>
+</tr>
+<tr>
+<td>No callback before <code>Timeout</code></td>
+<td><code>client.ErrLoginTimeout</code></td>
+<td>cancelling <code>ctx</code> returns <code>ctx.Err()</code> instead</td>
+</tr>
+<tr>
+<td><code>OpenBrowser</code> failed</td>
+<td><code>*client.BrowserOpenError</code></td>
+<td>wraps the opener&rsquo;s error, so an <code>*AuthorizeError</code> from <code>FollowRedirects</code> / <code>ApproveConsent</code> is found through it</td>
+</tr>
+</tbody>
+</table>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">LoginWithBrowser</span>(ctx, req)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">var</span> ae <span style="color:#000;font-weight:bold">*</span>client.AuthorizeError
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">var</span> te <span style="color:#000;font-weight:bold">*</span>client.TokenError
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">switch</span> {
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">case</span> errors.<span style="color:#900;font-weight:bold">As</span>(err, <span style="color:#000;font-weight:bold">&amp;</span>ae) <span style="color:#000;font-weight:bold">&amp;&amp;</span> ae.Code <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;invalid_client&#34;</span>,
+</span></span><span style="display:flex;"><span>    errors.<span style="color:#900;font-weight:bold">As</span>(err, <span style="color:#000;font-weight:bold">&amp;</span>te) <span style="color:#000;font-weight:bold">&amp;&amp;</span> te.Code <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;invalid_client&#34;</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// The AS has forgotten this client (e.g. a DCR registration lost on restart): register again.
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">case</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> err <span style="color:#998;font-style:italic">// includes *client.CallbackError{Code: &#34;access_denied&#34;}: don&#39;t reopen the consent page
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><p><code>*client.TokenError</code> comes back from every grant, not just this one: <code>Login</code>, <code>ClientCredentials</code>, <code>RefreshToken</code>, <code>JwtBearerGrant</code>, <code>TokenExchange</code>, and <code>PollDeviceToken</code> for codes other than its four RFC 8628 polling sentinels.</p>
 <h4 id="logout">Logout <a class="anchor" href="#logout">¶</a></h4>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">Logout</span>()
 </span></span></code></pre><p>Removes the stored credential for this server.</p>
