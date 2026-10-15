@@ -489,6 +489,7 @@ func (c *AuthClient) exchangeCode(ctx context.Context, p exchangeCodeParams) (*S
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+		ClientID:     p.ClientID,
 	}, nil
 }
 

@@ -17,6 +17,12 @@ type ServerCredential struct {
 	AuthorizationDetails []core.AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
 	ExpiresAt            time.Time                  `json:"expires_at"`
 	CreatedAt            time.Time                  `json:"created_at"`
+
+	// ClientID is the client the token was issued to. Automatic refresh
+	// presents it, since the AS only redeems a refresh token for the
+	// client it was issued to (RFC 6749 §6). Empty in credentials stored
+	// by older SDK versions, where refresh falls back to "cli".
+	ClientID string `json:"client_id,omitempty"`
 }
 
 // IsExpired returns true if the access token has expired

@@ -79,5 +79,5 @@ func (c *AuthClient) JwtBearerGrant(ctx context.Context, req *JwtBearerGrantRequ
 	if err != nil {
 		return nil, err
 	}
-	return c.executeTokenRequest(httpReq)
+	return issuedTo(req.ClientID)(c.executeTokenRequest(httpReq))
 }

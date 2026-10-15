@@ -562,10 +562,17 @@ func (c *AuthClient) IsLoggedIn() bool {
 // under the caller's lock — callers must not re-enter AuthClient methods
 // from within OnToken (see the OnToken doc for the full contract).
 func (c *AuthClient) refreshTokenLocked(cred *ServerCredential) error {
+	// The AS redeems a refresh token only for the client it was issued
+	// to. Credentials stored before ServerCredential.ClientID existed came
+	// from Login, whose default client is "cli".
+	clientID := cred.ClientID
+	if clientID == "" {
+		clientID = "cli"
+	}
 	req := OAuth2TokenRequest{
 		GrantType:    "refresh_token",
 		RefreshToken: cred.RefreshToken,
-		ClientID:     "cli",
+		ClientID:     clientID,
 	}
 
 	newCred, err := c.requestToken(context.Background(), req)
@@ -626,7 +633,7 @@ func (c *AuthClient) requestTokenForm(ctx context.Context, tokenEndpoint string,
 	if authMethod == AuthMethodClientSecretBasic {
 		req.SetBasicAuth(clientID, clientSecret)
 	}
-	return c.executeTokenRequest(req)
+	return issuedTo(clientID)(c.executeTokenRequest(req))
 }
 
 // requestTokenFormWithAssertion is the private_key_jwt counterpart of
@@ -645,7 +652,7 @@ func (c *AuthClient) requestTokenFormWithAssertion(ctx context.Context, tokenEnd
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	return c.executeTokenRequest(req)
+	return issuedTo(clientID)(c.executeTokenRequest(req))
 }
 
 // executeTokenRequest dispatches a fully-prepared token request and
@@ -719,7 +726,18 @@ func (c *AuthClient) requestToken(ctx context.Context, req OAuth2TokenRequest) (
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	return c.executeTokenRequest(httpReq)
+	return issuedTo(req.ClientID)(c.executeTokenRequest(httpReq))
+}
+
+// issuedTo records on a returned credential which client it was issued to,
+// so automatic refresh can present the same client later.
+func issuedTo(clientID string) func(*ServerCredential, error) (*ServerCredential, error) {
+	return func(cred *ServerCredential, err error) (*ServerCredential, error) {
+		if cred != nil {
+			cred.ClientID = clientID
+		}
+		return cred, err
+	}
 }
 
 // sendTokenRequest attaches a DPoP proof (with nonce, when one is known for

@@ -161,6 +161,7 @@ func TestLoginWithBrowser_FullFlow(t *testing.T) {
 	require.NotNil(t, cred)
 	assert.Equal(t, "mock-access-token", cred.AccessToken)
 	assert.Equal(t, "mock-refresh-token", cred.RefreshToken)
+	assert.Equal(t, "test-cli", cred.ClientID, "auto-refresh presents the client the token was issued to")
 
 	// Verify the auth URL had PKCE params
 	u, _ := url.Parse(capturedAuthURL)
