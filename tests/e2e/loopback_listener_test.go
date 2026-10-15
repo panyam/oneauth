@@ -4,7 +4,8 @@ package e2e_test
 // AS, with redirect_uri validation turned on. The shared e2e fixture mounts
 // /authorize without an AppStore, so it accepts any redirect; this one wires
 // OneAuth.AppStore that DCR writes into, which makes /authorize match the
-// registered redirect_uri byte-for-byte.
+// registered redirect_uri exactly, except for the port on a loopback http
+// redirect (RFC 8252 §7.3, issue 389).
 //
 // Flow: bind a listener → DCR with LoopbackRedirectURI(l.Addr()) →
 // LoginWithBrowser{Listener: l} → /authorize → loopback → /api/token.
@@ -13,6 +14,7 @@ package e2e_test
 //   - RFC 8252 §7.3 (https://www.rfc-editor.org/rfc/rfc8252#section-7.3)
 //   - RFC 7591 (https://www.rfc-editor.org/rfc/rfc7591)
 //   - See: https://github.com/panyam/oneauth/issues/387
+//   - See: https://github.com/panyam/oneauth/issues/389
 
 import (
 	"context"
@@ -117,9 +119,21 @@ func TestE2E_LoopbackListener_RedirectURIOverride(t *testing.T) {
 	assert.NotEmpty(t, cred.AccessToken)
 }
 
-// A redirect that differs from the registration is refused by oneauth's
-// /authorize, and FollowRedirects surfaces that at once rather than letting
-// the login wait out its timeout.
+// A client that registered a loopback redirect once can log in on whatever
+// port the OS hands it, without a caller-owned listener (RFC 8252 §7.3).
+func TestE2E_LoopbackListener_EphemeralPortMatchesRegistration(t *testing.T) {
+	as := newStrictRedirectAS(t)
+	clientID := registerLoopbackClient(t, as, "http://localhost:1/callback")
+
+	cred, err := client.NewAuthClient(as.URL, nil).LoginWithBrowser(context.Background(), loopbackLoginRequest(as, clientID))
+	require.NoError(t, err)
+	assert.NotEmpty(t, cred.AccessToken)
+}
+
+// A redirect on a different loopback host than the registration (localhost
+// vs 127.0.0.1) is refused by oneauth's /authorize, since only the port is
+// relaxed, and FollowRedirects surfaces that at once rather than letting the
+// login wait out its timeout.
 func TestE2E_LoopbackListener_UnregisteredRedirectFailsFast(t *testing.T) {
 	as := newStrictRedirectAS(t)
 	clientID := registerLoopbackClient(t, as, "http://127.0.0.1:1/callback")

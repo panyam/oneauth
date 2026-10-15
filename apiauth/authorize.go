@@ -429,11 +429,60 @@ func (h *AuthorizationHandler) validateRedirectURI(ctx context.Context, clientID
 		return errInvalidClientOrRedirect
 	}
 	for _, allowed := range resp.App.RedirectURIs {
-		if allowed == redirectURI {
+		if RedirectURIMatches(allowed, redirectURI) {
 			return nil
 		}
 	}
 	return errInvalidClientOrRedirect
+}
+
+// RedirectURIMatches reports whether a redirect_uri sent on an
+// authorization request matches one the client registered. Matching is
+// exact string comparison (RFC 6749 §3.1.2.2), with one exception from
+// RFC 8252 §7.3: for an http redirect on a loopback host the port is
+// ignored, because a native app binds an ephemeral port per login and
+// cannot know it at registration. Scheme, host, path and query must
+// still match exactly, and the requested URI must carry no userinfo or
+// fragment.
+//
+// The loopback hosts are 127.0.0.1, [::1] and localhost. §7.3 requires
+// the relaxation for the IP literals; localhost is included because
+// §8.3 only discourages it and common native clients (oneauth's own
+// LoginWithBrowser among them) send it. The host itself is never
+// relaxed, so a client registered on 127.0.0.1 cannot be redirected to
+// localhost or the reverse.
+//
+// Exported so deployments supplying AuthorizationHandler.RedirectURIValidator
+// can apply the same rule to their own registry.
+func RedirectURIMatches(registered, requested string) bool {
+	if registered == requested {
+		return true
+	}
+	reg, err := url.Parse(registered)
+	if err != nil {
+		return false
+	}
+	req, err := url.Parse(requested)
+	if err != nil {
+		return false
+	}
+	if reg.Scheme != "http" || req.Scheme != "http" || !isLoopbackHost(req.Hostname()) {
+		return false
+	}
+	if req.User != nil || reg.User != nil || req.Fragment != "" || req.Opaque != "" {
+		return false
+	}
+	return strings.EqualFold(reg.Hostname(), req.Hostname()) &&
+		reg.EscapedPath() == req.EscapedPath() &&
+		reg.RawQuery == req.RawQuery
+}
+
+func isLoopbackHost(host string) bool {
+	switch strings.ToLower(host) {
+	case "127.0.0.1", "::1", "localhost":
+		return true
+	}
+	return false
 }
 
 // generateAuthorizationCode returns a 256-bit hex-encoded code.
