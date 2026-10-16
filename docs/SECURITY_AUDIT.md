@@ -226,10 +226,19 @@ several PRs, and rows still Open name the part of issue 88 they're waiting on.
 | Custom claims can't set authorization claims | RFC 9068 §2.2 | Pass (was Partial) | `issuanceReservedClaims` adds `nbf`, `scope`, `azp`, `sid`, `act`, `may_act`; `client_id` only when the grant had none | CustomClaimsCannotOverrideAuthorizationClaims\* |
 | `WWW-Authenticate` per RFC 6750 | RFC 6750 §3, §3.1 | Pass (was Partial) | no `error` without a token, `invalid_token` for a refused one, 403 `insufficient_scope` with `scope`, and `resource_metadata` (RFC 9728 §5.1) | BearerChallenges\* |
 | Session cookies aren't accepted as access tokens, and access tokens aren't accepted as sessions | RFC 8725 §3.11 | Pass (was Fail) | `httpauth` `verifyJWT` and the reference server's `parseJWTCookie` require `type: session` (and `exp`, HS256 in the server) | `session_type_test.go`\*, AccessTokenIsNotASessionCookie\* |
-| Revocation checks the token is the caller's, and verifies it first | RFC 7009 §2.1 | Open | blacklists an unverified `jti` from any client | revocation PR |
-| jwt-bearer and token-exchange assertions single-use | RFC 7523 §3 | Open | no `jti` replay check outside ID-JAG | revocation PR |
-| Refresh rotation atomic in GORM | RFC 9700 §4.14 | Open | read-then-write race | revocation PR |
-| Refresh families have an absolute lifetime | RFC 9700 §4.14.2 | Open | sliding only | revocation PR |
+| A token the AS signed verifies with the AS's key | — | Pass (was Fail) | `resolveKey` uses the validator's own key for its own `kid`; it used to fall back to the `client_id` claim and check against that client's key | ASTokenNamingARegisteredClientVerifies\* |
+| Revocation only for the client the token was issued to | RFC 7009 §2.1, CWE-639 | Pass (was Fail) | `RevokeRequest.ClientID`, `ErrRevokeNotOwner` → 400 `invalid_request` (as Keycloak answers) | AccessTokenOfAnotherClientIsRefused\*, RefreshTokenOfAnotherClientIsRefused\* |
+| Revocation verifies an access token before blacklisting its `jti` | CWE-347 | Pass (was Fail) | `TokenRevokerConfig.Validator` | UnverifiedTokenNeverReachesTheBlacklist\* |
+| Revocation needs `token`, and searches every type whatever the hint | RFC 7009 §2.1 | Pass (was Fail) | missing `token` is 400 `invalid_request` (as Keycloak answers); a `refresh_token` hint no longer stops the access-token search | MissingTokenIsInvalidRequest\*, `revocation_test.go` EmptyToken |
+| Introspection `token_type` is the access-token type | RFC 7662 §2.2 | Pass (was Fail) | `Bearer` / `DPoP`, was the literal `access_token` | TokenTypeIsTheAccessTokenType\* |
+| Introspection covers refresh tokens | RFC 7662 §2.1 | Pass (was not implemented) | `NewTokenIntrospectorWithRefreshStore`; `token_type_hint` orders the search | Introspection_RefreshTokens\* |
+| jwt-bearer assertions need `exp` and a configured audience | RFC 7523 §3 | Pass (was Fail) | `ValidateAssertion` requires `exp` and refuses when it has no audience to compare (it used to accept any `aud`) | ExpIsRequired\*, NoAudienceConfiguredRefuses\* |
+| A jwt-bearer assertion with a `jti` is single-use | RFC 7523 §3, CWE-294 | Pass (was Fail) | keyed by `iss` + `jti` in the granter's `ReplayStore` | AssertionWithJTIIsSingleUse\* |
+| An authorization code redeemed twice at once yields tokens once | RFC 6749 §4.1.2, CWE-367 | Pass (was Partial) | the store's delete is the gate, and the loser now gets `invalid_grant` instead of 500 | RacingRedemptionIsInvalidGrant\* |
+| Tokens from a redeemed code name their client | RFC 9068 §2.2 | Pass (was Fail) | `client_id` was missing, so revocation ownership and tenant checks couldn't see it | AccessTokenNamesTheClient\* |
+| Tokens from a code redeemed twice are revoked | RFC 6749 §4.1.2 (SHOULD) | Open | needs a record of used codes; the second redemption is refused, but tokens from the first stay valid | — |
+| Refresh rotation has one winner in GORM | RFC 9700 §4.14.2, CWE-367 | Pass (was Fail) | the revoke is a compare-and-set on `revoked` | RotationRaceHasOneWinner\* |
+| Refresh families have an absolute lifetime | RFC 9700 §4.14.2 | Pass (was Fail) | rotation keeps the family's `ExpiresAt` in FS, GORM and GAE, so a family lasts at most `TokenExpiryRefreshToken` (7 days) | RotationKeepsTheFamilyExpiry\* (all three stores; GAE under `make testds`) |
 
 ### Keys
 

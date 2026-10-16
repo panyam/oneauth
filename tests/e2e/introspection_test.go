@@ -74,7 +74,7 @@ func TestIntrospection_E2E_ActiveToken(t *testing.T) {
 
 	assert.Equal(t, true, result["active"])
 	assert.NotEmpty(t, result["sub"], "sub should contain the user ID")
-	assert.Equal(t, "access_token", result["token_type"])
+	assert.Equal(t, "Bearer", result["token_type"], "RFC 7662 §2.2: the RFC 6749 §7.1 type")
 }
 
 // TestIntrospection_E2E_RevokedToken verifies that a blacklisted token

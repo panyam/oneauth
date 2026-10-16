@@ -114,7 +114,12 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		return nil, invalidGrant("authorization code is bound to a different DPoP key")
 	}
 
+	// The delete is the single-use gate: of two requests that both read
+	// the code, only the one whose delete succeeds gets tokens.
 	if _, err := r.Store.DeleteAuthorizationCode(ctx, &core.DeleteAuthorizationCodeRequest{Code: entry.Code}); err != nil {
+		if errors.Is(err, core.ErrAuthorizationCodeNotFound) {
+			return nil, invalidGrant("authorization code already used")
+		}
 		return nil, serverError("consume authorization code: " + err.Error())
 	}
 
@@ -124,6 +129,7 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 
 	tok, err := r.Issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{
 		Subject:              entry.Subject,
+		ClientID:             entry.ClientID,
 		Scopes:               entry.Scopes,
 		AuthorizationDetails: entry.AuthorizationDetails,
 		Confirmation:         req.Confirmation,

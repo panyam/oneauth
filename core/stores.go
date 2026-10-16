@@ -84,7 +84,11 @@ type RefreshTokenStore interface {
 	GetRefreshToken(ctx context.Context, req *GetRefreshTokenRequest) (*GetRefreshTokenResponse, error)
 
 	// RotateRefreshToken invalidates old token and creates new one in same family.
-	// Returns ErrTokenReused if the old token was already revoked (theft detection).
+	// Returns ErrTokenReused if the old token was already revoked (theft detection),
+	// including when a concurrent call rotated it first: only one caller may
+	// get a new token. The new token keeps the old one's ExpiresAt, so a family
+	// lives at most TokenExpiryRefreshToken from its first issue however often
+	// it is refreshed (RFC 9700 §4.14.2).
 	RotateRefreshToken(ctx context.Context, req *RotateRefreshTokenRequest) (*RotateRefreshTokenResponse, error)
 
 	// RevokeRefreshToken marks a token as revoked.

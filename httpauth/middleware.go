@@ -88,7 +88,9 @@ func (a *Middleware) GetLoggedInSubject(r *http.Request) string {
 		if err == nil && loggedInSubject != "" {
 			return loggedInSubject
 		} else if err != nil {
-			slog.Warn("Error verifying token: ", "token", token[:min(len(token), 20)]+"...", "error", err)
+			// The token itself stays out of the log: even a prefix of a
+			// credential is not log material (CWE-312).
+			slog.Warn("Error verifying token", "error", err)
 		}
 	}
 

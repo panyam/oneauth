@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -145,7 +144,8 @@ func ValidateAssertion(
 		}
 	}
 
-	parserOpts := []jwt.ParserOption{}
+	// RFC 7523 §3: exp is mandatory.
+	parserOpts := []jwt.ParserOption{jwt.WithExpirationRequired()}
 	if len(issuer.AcceptedAlgorithms) > 0 {
 		parserOpts = append(parserOpts, jwt.WithValidMethods(issuer.AcceptedAlgorithms))
 	}
@@ -172,19 +172,20 @@ func ValidateAssertion(
 			expectedAudiences = []string{defaultIssuerURL}
 		}
 	}
+	// RFC 7523 §3: the AS must reject an assertion that doesn't name it,
+	// which it can't check without knowing its own name.
 	if len(expectedAudiences) == 0 {
-		log.Printf("apiauth: jwt-bearer/token-exchange — no audience configured for issuer %q; accepting any aud claim. Set TrustedAssertionIssuer.Audiences or the AS audience for production.", issStr)
-	} else {
-		matched := false
-		for _, aud := range expectedAudiences {
-			if matchesAudience(verifiedClaims, aud) {
-				matched = true
-				break
-			}
+		return nil, nil, fmt.Errorf("no audience configured for assertion issuer %q; set TrustedAssertionIssuer.Audiences or the AS issuer URL", issStr)
+	}
+	matched := false
+	for _, aud := range expectedAudiences {
+		if matchesAudience(verifiedClaims, aud) {
+			matched = true
+			break
 		}
-		if !matched {
-			return nil, nil, fmt.Errorf("assertion audience does not match expected: %v", expectedAudiences)
-		}
+	}
+	if !matched {
+		return nil, nil, fmt.Errorf("assertion audience does not match expected: %v", expectedAudiences)
 	}
 
 	if sub, _ := verifiedClaims["sub"].(string); sub == "" {

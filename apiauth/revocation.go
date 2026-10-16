@@ -2,6 +2,7 @@ package apiauth
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"go.opentelemetry.io/otel/codes"
@@ -53,9 +54,8 @@ func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse form body
 	if err := r.ParseForm(); err != nil {
-		h.okResponse(w)
+		h.errorResponse(w, "invalid_request", "malformed request body", http.StatusBadRequest)
 		return
 	}
 
@@ -69,24 +69,30 @@ func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(creds.Audiences) == 0 {
 		creds.Audiences = []string{derivedAudience(r)}
 	}
-	if _, err := h.Authenticator.AuthenticateClient(r.Context(), creds); err != nil {
+	authed, err := h.Authenticator.AuthenticateClient(r.Context(), creds)
+	if err != nil {
 		w.Header().Set("WWW-Authenticate", `Basic realm="revocation"`)
 		h.errorResponse(w, "invalid_client", "Invalid client credentials", http.StatusUnauthorized)
 		return
 	}
 
-	// Extract token and hint
+	// RFC 7009 §2.1: token is REQUIRED.
 	token := r.FormValue("token")
 	if token == "" {
-		h.okResponse(w)
+		h.errorResponse(w, "invalid_request", "token parameter is required", http.StatusBadRequest)
 		return
 	}
 	hint := r.FormValue("token_type_hint")
 
-	// Delegate to transport-independent revoker
-	h.Revoker.Revoke(r.Context(), &RevokeRequest{Token: token, TokenTypeHint: hint})
+	_, err = h.Revoker.Revoke(r.Context(), &RevokeRequest{Token: token, TokenTypeHint: hint, ClientID: authed.ClientID})
+	if errors.Is(err, ErrRevokeNotOwner) {
+		// RFC 7009 §2.1: refuse, and tell the client.
+		span.SetStatus(codes.Error, "token not owned by client")
+		h.errorResponse(w, "invalid_request", "the token was not issued to this client", http.StatusBadRequest)
+		return
+	}
 
-	// RFC 7009 §2.2: always 200 OK
+	// RFC 7009 §2.2: 200 OK, including for tokens that were invalid
 	h.okResponse(w)
 }
 
