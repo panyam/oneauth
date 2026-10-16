@@ -189,6 +189,34 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-0142">Version 0.1.42 <a class="anchor" href="#version-0142">¶</a></h2>
+<h3 id="fixes-found-by-comparing-with-keycloak-issue-88-pr-398">Fixes found by comparing with Keycloak (issue 88, PR 398) <a class="anchor" href="#fixes-found-by-comparing-with-keycloak-issue-88-pr-398">¶</a></h3>
+<p>New full-stack e2e tests and a suite that sends the same requests to Keycloak<br />
+and to oneauth turned up three bugs.</p>
+<ul>
+<li><strong><code>LoginWithBrowser</code> with a DPoP key can log in.</strong> It sent <code>dpop_jkt</code>, which<br />
+binds the code to the key, then exchanged the code without a proof, so<br />
+oneauth and Keycloak both refused every DPoP browser login. The exchange now<br />
+carries a proof and answers nonce challenges, still through the caller&rsquo;s<br />
+<code>HTTPClient</code>.</li>
+<li><strong>Refresh <code>invalid_grant</code> is 400</strong>, as RFC 6749 §5.2 has it. It was 401.</li>
+<li><strong>A refresh naming no client</strong> for a token that has one gets 401<br />
+<code>invalid_client</code>, and one naming a different client gets <code>invalid_grant</code><br />
+before any credentials are asked for. Both match Keycloak.</li>
+<li><strong>SDK DCR</strong> carries <code>DPoPBoundAccessTokens</code> on <code>ClientRegistrationRequest</code><br />
+and <code>ClientRegistrationResponse</code> (RFC 9449 §5.2).</li>
+</ul>
+<p>Where oneauth and Keycloak still answer differently, <code>docs/SECURITY_AUDIT.md</code><br />
+says which and why.</p>
+<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<ul>
+<li><strong>Code that branches on the refresh grant&rsquo;s status</strong> sees 400 instead of<br />
+401 for a refused token. Only <code>invalid_client</code> is 401.</li>
+</ul>
+<h3 id="ci">CI <a class="anchor" href="#ci">¶</a></h3>
+<p>The ZAP baseline scan runs again. Its pinned action version didn&rsquo;t exist, so<br />
+the job had failed at setup on every push to main. It now reports to the run&rsquo;s<br />
+<code>zap_scan</code> artifact rather than opening issues.</p>
 <h2 id="version-0141">Version 0.1.41 <a class="anchor" href="#version-0141">¶</a></h2>
 <h3 id="dpop-audit-and-requiring-dpop-issue-88-pr-396">DPoP audit and requiring DPoP (issue 88, PR 396) <a class="anchor" href="#dpop-audit-and-requiring-dpop-issue-88-pr-396">¶</a></h3>
 <p>We walked RFC 9449 and the DPoP parts of FAPI 2.0 against the code, one<br />
@@ -234,7 +262,7 @@ reaches jwt-bearer, token-exchange and PAR.</li>
 <li><strong>SDK.</strong> <code>ServerCredential.ClientID</code> records which client a credential was<br />
 issued to, and the automatic refresh sends it instead of <code>&quot;cli&quot;</code>.</li>
 </ul>
-<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
 <ul>
 <li><strong>GORM deployments need <code>AutoMigrate</code></strong> for the new app-registration columns<br />
 (<code>dpop_bound_access_tokens</code> and the two back-channel logout fields).</li>
