@@ -64,6 +64,9 @@ func ParsePublicKeyPEM(pemBytes []byte) (crypto.PublicKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse public key: %w", err)
 	}
+	if err := CheckRSAKeySize(pub); err != nil {
+		return nil, err
+	}
 	return pub, nil
 }
 
@@ -77,7 +80,35 @@ func ParsePrivateKeyPEM(pemBytes []byte) (crypto.PrivateKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
+	if err := CheckRSAKeySize(key); err != nil {
+		return nil, err
+	}
 	return key, nil
+}
+
+// MinRSAKeyBits is the smallest RSA modulus oneauth accepts for signing or
+// verification. RFC 7518 §3.3 requires 2048 for RS256, and FAPI 2.0 §5.4.1
+// does too.
+const MinRSAKeyBits = 2048
+
+// CheckRSAKeySize returns an error when key is an RSA key (public or
+// private) with a modulus under MinRSAKeyBits, and nil for anything else.
+// The PEM and JWK parsers call it, so a short key fails when it's loaded
+// rather than when a token is verified with it.
+func CheckRSAKeySize(key any) error {
+	var n int
+	switch k := key.(type) {
+	case *rsa.PublicKey:
+		n = k.N.BitLen()
+	case *rsa.PrivateKey:
+		n = k.N.BitLen()
+	default:
+		return nil
+	}
+	if n < MinRSAKeyBits {
+		return fmt.Errorf("RSA key is %d bits; at least %d are required (RFC 7518 §3.3)", n, MinRSAKeyBits)
+	}
+	return nil
 }
 
 // EncodePublicKeyPEM encodes a crypto.PublicKey to PEM format.

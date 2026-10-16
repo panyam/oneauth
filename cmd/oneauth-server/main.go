@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -98,6 +99,15 @@ func main() {
 		log.Fatalf("Failed to create AppStore: %v", err)
 	}
 	registrar := admin.NewAppRegistrarWithStore(keyStore, adminAuth, appStore)
+	// Rotated keys stay valid for their grace period: the registrar moves
+	// them here, the validator looks here after keyStore, and a sweeper
+	// drops them once expired.
+	kidStore, err := buildKidStore(cfg, db)
+	if err != nil {
+		log.Fatalf("Failed to create KidStore: %v", err)
+	}
+	registrar.KidStore = kidStore
+	sweepKidStore(kidStore, 10*time.Minute)
 	// DCR builds registration_client_uri from this, never from a request's
 	// Host header.
 	registrar.IssuerBaseURL = publicBaseURL(cfg)
@@ -158,6 +168,7 @@ func main() {
 	// Build OneAuth (the transport-independent core) + handlers.
 	oaCfg := apiauth.OneAuthConfig{
 		KeyStore:            keyStore,
+		KidStore:            kidStore,
 		SigningKey:          []byte(cfg.JWT.SecretKey),
 		SigningAlg:          "HS256",
 		Issuer:              cfg.JWT.Issuer,
@@ -600,6 +611,53 @@ func buildKeyStore(cfg *Config) (keys.KeyStorage, *gorm.DB, error) {
 	}
 
 	return store, db, nil
+}
+
+// buildKidStore builds the KidStorage that keeps rotated keys for their
+// grace period, on the same backend as the key store (FS under a "kids"
+// subdirectory) and encrypted under the same master key. A key retired
+// into an unencrypted store would undo the key store's encryption.
+func buildKidStore(cfg *Config, db *gorm.DB) (keys.KidStorage, error) {
+	var store keys.KidStorage
+	switch cfg.KeyStore.Type {
+	case "memory":
+		store = keys.NewKidStore()
+	case "fs":
+		store = fsstore.NewFSKidStore(filepath.Join(cfg.KeyStore.FS.Path, "kids"))
+	case "gorm":
+		store = gormstore.NewKidStore(db)
+	case "gae":
+		client, err := datastore.NewClient(context.Background(), cfg.KeyStore.GAE.Project)
+		if err != nil {
+			return nil, err
+		}
+		store = gaestore.NewKidStore(client, cfg.KeyStore.GAE.Namespace)
+	default:
+		return nil, fmt.Errorf("unknown keystore type: %s", cfg.KeyStore.Type)
+	}
+	if cfg.KeyStore.MasterKey == "" {
+		return store, nil
+	}
+	enc, err := keys.NewEncryptedKidStorage(store, cfg.KeyStore.MasterKey)
+	if err != nil {
+		return nil, err
+	}
+	return enc, nil
+}
+
+// sweepKidStore drops expired grace-period keys every interval. Lookups
+// already ignore them; this keeps the store from growing with every
+// rotation.
+func sweepKidStore(store keys.KidStorage, interval time.Duration) {
+	go func() {
+		for range time.Tick(interval) {
+			if resp, err := store.CleanExpired(context.Background(), &keys.CleanExpiredRequest{}); err != nil {
+				log.Printf("KidStore sweep: %v", err)
+			} else if resp.Removed > 0 {
+				log.Printf("KidStore sweep: removed %d expired key(s)", resp.Removed)
+			}
+		}
+	}()
 }
 
 // buildAppStore builds the admin.AppRegistrationStore that AppRegistrar uses

@@ -1,6 +1,6 @@
 package gae
 
-// EncryptedKeyStorage binds each ciphertext to its record's client, alg
+// EncryptedKeyStorage and EncryptedKidStorage bind each ciphertext to its record's client, alg
 // and kid, so the backend underneath has to return those exactly as
 // written. The shared contract suite, run through the wrapper, checks
 // that this backend does. Runs under `make testds`.
@@ -18,6 +18,7 @@ import (
 
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/keystoretest"
+	"github.com/panyam/oneauth/kidstoretest"
 )
 
 func TestGAEKeyStore_ThroughEncryptedKeyStorage(t *testing.T) {
@@ -45,6 +46,36 @@ func TestGAEKeyStore_ThroughEncryptedKeyStorage(t *testing.T) {
 	keystoretest.RunAll(t, func(t *testing.T) keys.KeyStorage {
 		clear()
 		enc, err := keys.NewEncryptedKeyStorage(NewKeyStore(client, namespace), "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+		require.NoError(t, err)
+		return enc
+	})
+}
+
+func TestGAEKidStore_ThroughEncryptedKidStorage(t *testing.T) {
+	projectID := os.Getenv("DATASTORE_PROJECT_ID")
+	if projectID == "" {
+		t.Skip("DATASTORE_PROJECT_ID not set, skipping GAE KidStore tests")
+	}
+	var opts []option.ClientOption
+	if credsFile := os.Getenv("DATASTORE_CREDENTIALS_FILE"); credsFile != "" {
+		opts = append(opts, option.WithCredentialsFile(credsFile))
+	}
+	ctx := context.Background()
+	client, err := datastore.NewClient(ctx, projectID, opts...)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	const namespace = "oneauth-encrypted-kidstore-test"
+	clear := func() {
+		ks, _ := client.GetAll(ctx, datastore.NewQuery(KindKidKey).KeysOnly().Namespace(namespace), nil)
+		if len(ks) > 0 {
+			_ = client.DeleteMulti(ctx, ks)
+		}
+	}
+	t.Cleanup(clear)
+
+	kidstoretest.RunAll(t, func(t *testing.T) keys.KidStorage {
+		clear()
+		enc, err := keys.NewEncryptedKidStorage(NewKidStore(client, namespace), "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 		require.NoError(t, err)
 		return enc
 	})

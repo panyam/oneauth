@@ -1,6 +1,6 @@
 package fs
 
-// EncryptedKeyStorage binds each ciphertext to its record's client, alg
+// EncryptedKeyStorage and EncryptedKidStorage bind each ciphertext to its record's client, alg
 // and kid, so the backend underneath has to return those exactly as
 // written. The shared contract suite, run through the wrapper, checks
 // that this backend does.
@@ -12,6 +12,7 @@ import (
 
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/keystoretest"
+	"github.com/panyam/oneauth/kidstoretest"
 )
 
 const encryptedContractMasterKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -19,6 +20,16 @@ const encryptedContractMasterKey = "0123456789abcdef0123456789abcdef0123456789ab
 func TestFSKeyStore_ThroughEncryptedKeyStorage(t *testing.T) {
 	keystoretest.RunAll(t, func(t *testing.T) keys.KeyStorage {
 		enc, err := keys.NewEncryptedKeyStorage(NewFSKeyStore(t.TempDir()), encryptedContractMasterKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return enc
+	})
+}
+
+func TestFSKidStore_ThroughEncryptedKidStorage(t *testing.T) {
+	kidstoretest.RunAll(t, func(t *testing.T) keys.KidStorage {
+		enc, err := keys.NewEncryptedKidStorage(NewFSKidStore(t.TempDir()), encryptedContractMasterKey)
 		if err != nil {
 			t.Fatal(err)
 		}

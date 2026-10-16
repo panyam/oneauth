@@ -20,7 +20,8 @@ user_stores:
 
 jwt:
   secret_key: ${JWT_SECRET_KEY:-dev-secret-change-in-production!!}
-  issuer: ${JWT_ISSUER:-http://localhost:8080}
+  # Empty means the public URL, which keeps token iss and discovery in step.
+  issuer: ${JWT_ISSUER}
   # RFC 9396 — advertise supported authorization_details types in discovery
   # authorization_details_types:
   #   - payment_initiation

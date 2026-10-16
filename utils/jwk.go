@@ -141,6 +141,9 @@ func rsaJWKToPublicKey(jwk JWK) (crypto.PublicKey, string, error) {
 		N: n,
 		E: int(e.Int64()),
 	}
+	if err := CheckRSAKeySize(pub); err != nil {
+		return nil, "", err
+	}
 	return pub, jwk.Alg, nil
 }
 

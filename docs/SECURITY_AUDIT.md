@@ -245,18 +245,26 @@ several PRs, and rows still Open name the part of issue 88 they're waiting on.
 
 | Requirement | Ref | Status | Notes |
 |---|---|---|---|
-| Thumbprint kid per RFC 7638 | RFC 7638 §3.1 | Pass | computed correctly; no test pins the RFC's example vector yet (keys PR) |
+| Thumbprint kid per RFC 7638 | RFC 7638 §3.1 | Pass | pinned to the RFC's example (`NzbLsXh8…`) by `utils/jwk_rfc7638_test.go` |
 | `EncryptedKeyStorage` fails closed | CWE-311, CWE-354 | Pass (was Fail) | `ErrKeyDecrypt` for a wrong master key, tampering, or plaintext without `AllowLegacyPlaintext`; it used to return the stored bytes as the key. `encrypted_failclosed_test.go`\* |
 | A stored ciphertext opens only for its own record | NIST SP 800-38D §5.2.1.1 | Pass (was Fail) | `oaenc1:` records carry AAD over client, alg and kid. CiphertextOnlyOpensForItsRecord\* |
-| Retired keys encrypted at rest | CWE-312 | Open | `KidStore` keeps them in plaintext (keys PR) |
-| RSA signing keys at least 2048 bits | RFC 7518 §3.3 | Open | not checked when a key is loaded (keys PR) |
+| Retired keys encrypted at rest | CWE-312 | Pass (was Fail) | `EncryptedKidStorage`, the same format and failure rules as `EncryptedKeyStorage`; the reference server wraps its kid store under the key store's master key. `encrypted_kid_test.go`\*, `cmd/oneauth-server/kidstore_test.go` |
+| A rotation's grace period keeps the old key verifying | RFC 7517 §4.5 | Pass (was Fail in the reference server) | `OneAuthConfig.KidStore` sits behind `KeyStore` in the validator's lookup; the reference server builds one and gives it to `AppRegistrar`, which used to have none, so `grace_period` was accepted and ignored. RetiredKeyVerifiesDuringItsGracePeriod\* |
+| Expired grace-period keys are swept | — | Pass (was Fail) | the reference server calls `CleanExpired` every 10 minutes; lookups already skip expired kids |
+| RSA signing keys at least 2048 bits | RFC 7518 §3.3, FAPI 2.0 §5.4.1 | Pass (was Fail) | `utils.CheckRSAKeySize` in `ParsePublicKeyPEM`, `ParsePrivateKeyPEM` and the JWK parser, so a short key fails when it's loaded, remote JWKS included. ShortKeysAreRefusedOnLoad\* |
+| JWKS 304 carries ETag and Cache-Control | RFC 9110 §15.4.5 | Pass (was Fail) | and `If-None-Match` takes lists, `*` and weak tags (§13.1.2). NotModifiedKeepsCacheHeaders\* |
+| JWKS `use` and `key_ops` | RFC 7517 §4.3 | Pass | both are sent (`sig`, `["verify"]`); §4.3 discourages that but allows it when they agree, which they do, and existing tests pin `key_ops` |
 
 ### Scans
 
-- `govulncheck ./...`: no reachable vulnerabilities.
-- gitleaks v8.21.2 over 487 commits: no leaks.
+- `govulncheck ./...` (v1.9.0): no reachable vulnerabilities.
+- gitleaks v8.21.2 over 498 commits: no leaks.
 - gosec: v2.21.4 and v2.22.4 don't build under Go 1.27, and v2.29.0 only runs its AST rules
   (type checking fails on export data version 5). Those report 23 G101 "hardcoded credentials"
-  hits, all on constants such as grant-type URNs and header names. `make audit` expects both
-  tools on the PATH, which is fixed in the keys PR.
+  hits, all on constants such as grant-type URNs and header names.
+- `make audit` runs all three at those pinned versions through `go run`, so it needs nothing
+  installed. CI's govulncheck uses the same pin.
+- CodeQL: no open alerts. Two are dismissed with a reason: the OIDF harness's
+  `InsecureSkipVerify` (test code), and SHA-256 over an HMAC secret to derive its kid (not
+  password storage; the HS256 signature is already an equal offline oracle).
 

@@ -169,14 +169,23 @@ authlete:
 	fi
 
 # Secret scanning via gitleaks
+# Scanners run at pinned versions through `go run`, so `make audit` works
+# without installing anything and everyone gets the same results. Override
+# with an installed binary, e.g. `make audit GITLEAKS=gitleaks`.
+GITLEAKS ?= go run github.com/zricethezav/gitleaks/v8@v8.21.2
+GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.9.0
+# gosec v2.29.0 is the first release that builds under Go 1.27. Its type
+# checker can't read Go 1.27 export data yet, so only the AST rules run.
+GOSEC ?= go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+
 secrets:
 	@echo "[secrets] Scanning for leaked secrets..."
-	@gitleaks detect --source . --config .gitleaks.toml
+	@$(GITLEAKS) detect --source . --config .gitleaks.toml
 
 # Vulnerability check via govulncheck
 vulncheck:
 	@echo "[vulncheck] Checking for known vulnerabilities..."
-	@govulncheck ./...
+	@$(GOVULNCHECK) ./...
 
 # ZAP baseline security scan (starts temp server, runs ZAP Docker)
 zap:
@@ -917,7 +926,7 @@ seccheck:
 audit: vulncheck secrets
 	@echo ""
 	@echo "=== gosec (informational) ==="
-	@gosec -quiet -severity=high ./... || true
+	@$(GOSEC) -quiet -severity=high ./... || true
 	@echo ""
 	@echo "=== Race detection (e2e) ==="
 	go test -buildvcs=false -race -count=1 ./tests/e2e/
