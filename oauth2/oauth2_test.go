@@ -252,7 +252,7 @@ func TestGoogleOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=test_code&state=wrong_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "correct_state"})
-req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
+		req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		googleAuth.Handler().ServeHTTP(rr, req)
@@ -281,7 +281,7 @@ req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=valid_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
-req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
+		req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		googleAuth.Handler().ServeHTTP(rr, req)
@@ -304,7 +304,7 @@ req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=bad_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
-req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
+		req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		googleAuth.Handler().ServeHTTP(rr, req)
@@ -324,7 +324,7 @@ req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=valid_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
-req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
+		req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		googleAuth.Handler().ServeHTTP(rr, req)
@@ -390,7 +390,7 @@ func TestGithubOAuth2Callback(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=test_code&state=wrong_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "correct_state"})
-req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
+		req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		githubAuth.Handler().ServeHTTP(rr, req)
@@ -420,7 +420,7 @@ req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=valid_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
-req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
+		req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		githubAuth.Handler().ServeHTTP(rr, req)
@@ -443,7 +443,7 @@ req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=bad_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
-req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
+		req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		githubAuth.Handler().ServeHTTP(rr, req)
@@ -463,7 +463,7 @@ req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit
 
 		req := httptest.NewRequest(http.MethodGet, "/callback/?code=valid_code&state=valid_state", nil)
 		req.AddCookie(&http.Cookie{Name: "oauthstate", Value: "valid_state"})
-req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
+		req.AddCookie(&http.Cookie{Name: "pkce_verifier", Value: "test-verifier-for-unit-tests"})
 		rr := httptest.NewRecorder()
 
 		githubAuth.Handler().ServeHTTP(rr, req)

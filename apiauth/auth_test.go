@@ -574,7 +574,9 @@ func TestAPIKeyManagement(t *testing.T) {
 	// Validate token to get user ID
 	vresp, _ := apiAuth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: loginResponse.AccessToken})
 	var userID string
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+	}
 
 	var createdKeyID string
 

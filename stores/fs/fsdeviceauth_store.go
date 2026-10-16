@@ -307,4 +307,3 @@ func readJSON(path string, v any) error {
 	}
 	return json.Unmarshal(b, v)
 }
-

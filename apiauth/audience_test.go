@@ -87,7 +87,10 @@ func TestAudience_WrongAud_Rejected(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	if assert.Error(t, err, "ValidateAccessToken should reject token with wrong audience") {
 		assert.Contains(t, err.Error(), "audience")
@@ -112,7 +115,11 @@ func TestAudience_WrongAud_Rejected_Full(t *testing.T) {
 
 	var _ map[string]any
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes; _ = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+		_ = vresp.Info.CustomClaims
+	}
 
 	if assert.Error(t, err, "ValidateAccessTokenFull should reject token with wrong audience") {
 		assert.Contains(t, err.Error(), "audience")
@@ -137,7 +144,10 @@ func TestAudience_MissingAud_Rejected(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	if assert.Error(t, err, "ValidateAccessToken should reject token missing audience when JWTAudience is configured") {
 		assert.Contains(t, err.Error(), "audience")
@@ -162,7 +172,10 @@ func TestAudience_CorrectAud_Accepted(t *testing.T) {
 
 	var scopes []string
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		scopes = vresp.Info.Scopes
+	}
 
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
@@ -181,7 +194,10 @@ func TestAudience_NoAudienceConfigured_AcceptsAll(t *testing.T) {
 	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	var userID string
 	var _ []string
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
@@ -190,7 +206,9 @@ func TestAudience_NoAudienceConfigured_AcceptsAll(t *testing.T) {
 	token2 := mintToken(t, secret, baseClaims(""))
 	vresp, err = auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token2})
 	var userID2 string
-	if vresp != nil && vresp.Info != nil { userID2 = vresp.Info.Subject }
+	if vresp != nil && vresp.Info != nil {
+		userID2 = vresp.Info.Subject
+	}
 
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID2)
@@ -214,7 +232,11 @@ func TestAudience_CorrectAud_Full(t *testing.T) {
 
 	var customClaims map[string]any
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+		customClaims = vresp.Info.CustomClaims
+	}
 
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
@@ -260,7 +282,10 @@ func TestAudience_ArrayAud_Matching_Accepted(t *testing.T) {
 
 	var scopes []string
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		scopes = vresp.Info.Scopes
+	}
 
 	assert.NoError(t, err, "ValidateAccessToken should accept token with matching audience in array")
 	assert.Equal(t, "user1", userID)
@@ -285,7 +310,10 @@ func TestAudience_ArrayAud_NotMatching_Rejected(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	if assert.Error(t, err, "ValidateAccessToken should reject token when expected audience not in array") {
 		assert.Contains(t, err.Error(), "audience")
@@ -313,7 +341,11 @@ func TestAudience_ArrayAud_Full_Accepted(t *testing.T) {
 
 	var customClaims map[string]any
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+		customClaims = vresp.Info.CustomClaims
+	}
 
 	assert.NoError(t, err, "ValidateAccessTokenFull should accept token with matching audience in array")
 	assert.Equal(t, "user1", userID)
@@ -339,7 +371,11 @@ func TestAudience_ArrayAud_Full_Rejected(t *testing.T) {
 
 	var _ map[string]any
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes; _ = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+		_ = vresp.Info.CustomClaims
+	}
 
 	if assert.Error(t, err, "ValidateAccessTokenFull should reject token when expected audience not in array") {
 		assert.Contains(t, err.Error(), "audience")
@@ -420,7 +456,10 @@ func TestAudience_EmptyArray_Rejected(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	if assert.Error(t, err, "ValidateAccessToken should reject token with empty audience array") {
 		assert.Contains(t, err.Error(), "audience")
@@ -445,7 +484,10 @@ func TestAudience_SingleElementArray_Accepted(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.NoError(t, err, "ValidateAccessToken should accept single-element array with matching audience")
 	assert.Equal(t, "user1", userID)

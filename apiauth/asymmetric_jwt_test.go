@@ -6,11 +6,11 @@ package apiauth_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/keys"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -147,7 +147,10 @@ func TestAPIAuth_RS256_Signing(t *testing.T) {
 
 	var _ int64
 
-	if tokenStrResp != nil { tokenStr = tokenStrResp.Token; _ = tokenStrResp.ExpiresIn }
+	if tokenStrResp != nil {
+		tokenStr = tokenStrResp.Token
+		_ = tokenStrResp.ExpiresIn
+	}
 
 	if err != nil {
 		t.Fatalf("CreateAccessToken: %v", err)
@@ -159,7 +162,10 @@ func TestAPIAuth_RS256_Signing(t *testing.T) {
 
 	var scopes []string
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		scopes = vresp.Info.Scopes
+	}
 
 	if err != nil {
 		t.Fatalf("ValidateAccessToken: %v", err)
@@ -187,7 +193,10 @@ func TestAPIAuth_ES256_Signing(t *testing.T) {
 
 	var _ int64
 
-	if tokenStrResp != nil { tokenStr = tokenStrResp.Token; _ = tokenStrResp.ExpiresIn }
+	if tokenStrResp != nil {
+		tokenStr = tokenStrResp.Token
+		_ = tokenStrResp.ExpiresIn
+	}
 
 	if err != nil {
 		t.Fatalf("CreateAccessToken: %v", err)
@@ -199,7 +208,10 @@ func TestAPIAuth_ES256_Signing(t *testing.T) {
 
 	var scopes []string
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		scopes = vresp.Info.Scopes
+	}
 
 	if err != nil {
 		t.Fatalf("ValidateAccessToken: %v", err)
@@ -226,13 +238,18 @@ func TestAPIAuth_RS256_RejectsHMAC(t *testing.T) {
 
 	tokenStr := ""
 
-	if tokenStrResp != nil { tokenStr = tokenStrResp.Token }
+	if tokenStrResp != nil {
+		tokenStr = tokenStrResp.Token
+	}
 
 	hmacAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("some-secret"), SigningAlg: "HS256"}, nil)
 	vresp, err := hmacAuth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
 	var _ string
 	var _ []string
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	if err == nil {
 		t.Fatal("Expected HMAC auth to reject RS256 token")
@@ -257,16 +274,20 @@ func TestAPIAuth_ValidateAccessTokenFull_RS256(t *testing.T) {
 
 	tokenStrResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
-
 	tokenStr := ""
 
-
-	if tokenStrResp != nil { tokenStr = tokenStrResp.Token }
+	if tokenStrResp != nil {
+		tokenStr = tokenStrResp.Token
+	}
 	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: tokenStr})
 	var userID string
 	var _ []string
 	var custom map[string]any
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes; custom = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+		custom = vresp.Info.CustomClaims
+	}
 
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull: %v", err)

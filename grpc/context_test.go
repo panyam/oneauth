@@ -185,7 +185,7 @@ func TestIsAuthenticatedWithConfig(t *testing.T) {
 // TestCustomMetadataKeys verifies that SubjectFromContextWithConfig reads from custom metadata key names.
 func TestCustomMetadataKeys(t *testing.T) {
 	config := &Config{
-		MetadataKeySubject:     "x-custom-user",
+		MetadataKeySubject:    "x-custom-user",
 		MetadataKeySwitchUser: "x-custom-switch",
 	}
 

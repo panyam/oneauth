@@ -3,17 +3,17 @@
 package localauth_test
 
 import (
-	"github.com/panyam/oneauth/localauth"
 	"encoding/json"
+	"github.com/panyam/oneauth/accounts"
+	"github.com/panyam/oneauth/localauth"
+	"github.com/panyam/oneauth/stores/fs"
+	"golang.org/x/oauth2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
-	"github.com/panyam/oneauth/stores/fs"
-	"golang.org/x/oauth2"
-	"github.com/panyam/oneauth/accounts"
 )
 
 // =============================================================================

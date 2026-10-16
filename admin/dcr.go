@@ -63,11 +63,11 @@ type DCRRequest struct {
 	ClientID string `json:"client_id,omitempty"`
 
 	// Client metadata
-	ClientName              string   `json:"client_name,omitempty"`
-	ClientURI               string   `json:"client_uri,omitempty"`
-	RedirectURIs            []string `json:"redirect_uris,omitempty"`
-	GrantTypes              []string `json:"grant_types,omitempty"`
-	Scope                   string   `json:"scope,omitempty"`
+	ClientName   string   `json:"client_name,omitempty"`
+	ClientURI    string   `json:"client_uri,omitempty"`
+	RedirectURIs []string `json:"redirect_uris,omitempty"`
+	GrantTypes   []string `json:"grant_types,omitempty"`
+	Scope        string   `json:"scope,omitempty"`
 
 	// Authentication method
 	TokenEndpointAuthMethod string `json:"token_endpoint_auth_method,omitempty"`
@@ -217,4 +217,3 @@ func generateRegistrationAccessToken() (string, error) {
 	}
 	return hex.EncodeToString(b), nil
 }
-

@@ -3,8 +3,8 @@ package keys_test
 
 import (
 	"github.com/panyam/oneauth/keys"
-	"testing"
 	"github.com/panyam/oneauth/keystoretest"
+	"testing"
 )
 
 // TestInMemoryKeyStore runs the shared WritableKeyStore test suite against the in-memory implementation.

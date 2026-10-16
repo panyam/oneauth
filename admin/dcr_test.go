@@ -52,7 +52,11 @@ func TestDCR_SymmetricRegistration(t *testing.T) {
 
 	// Verify the key was stored
 	clientID := resp["client_id"].(string)
-	recResp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var rec *keys.KeyRecord; if recResp_ != nil { rec = recResp_.Record }
+	recResp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
+	var rec *keys.KeyRecord
+	if recResp_ != nil {
+		rec = recResp_.Record
+	}
 	require.NoError(t, err)
 	assert.Equal(t, "HS256", rec.Algorithm)
 }

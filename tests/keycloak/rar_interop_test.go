@@ -92,8 +92,8 @@ func TestRAR_TokenRequest_WithDetails(t *testing.T) {
 		"client_secret": rarClientSecret,
 		"authorization_details": []map[string]any{
 			{
-				"type":    "payment_initiation",
-				"actions": []string{"initiate"},
+				"type":      "payment_initiation",
+				"actions":   []string{"initiate"},
 				"locations": []string{"https://bank.example.com/payments"},
 				"instructedAmount": map[string]any{
 					"currency": "EUR",

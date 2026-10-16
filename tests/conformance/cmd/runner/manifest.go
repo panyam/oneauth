@@ -13,13 +13,13 @@ import (
 // Two shapes are accepted, discriminated by which fields are set:
 //
 //   - Go-native (Suite + ID):
-//       suite: as_metadata
-//       id:    TestDualPathParity/rfc8414_path_parity
+//     suite: as_metadata
+//     id:    TestDualPathParity/rfc8414_path_parity
 //
 //   - External suite (Suite + Plan + Test), e.g., OIDF, MCP:
-//       suite: oidf
-//       plan:  dynamic-op-basic
-//       test:  dcr-rejects-non-https-redirect-uri
+//     suite: oidf
+//     plan:  dynamic-op-basic
+//     test:  dcr-rejects-non-https-redirect-uri
 //
 // Status is the expected outcome. Today the only legal value is "expected-fail";
 // a passing test should not be in the manifest at all.

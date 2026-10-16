@@ -2,18 +2,18 @@ package localauth_test
 
 import (
 	"context"
-	"github.com/panyam/oneauth/localauth"
 	"encoding/json"
+	"github.com/panyam/oneauth/accounts"
+	"github.com/panyam/oneauth/federatedauth"
+	"github.com/panyam/oneauth/localauth"
+	"github.com/panyam/oneauth/stores/fs"
+	"golang.org/x/oauth2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
-	"github.com/panyam/oneauth/stores/fs"
-	"golang.org/x/oauth2"
-	"github.com/panyam/oneauth/accounts"
-	"github.com/panyam/oneauth/federatedauth"
 )
 
 // =============================================================================
@@ -98,7 +98,9 @@ func TestJourney1_MultipleOAuthSameEmail(t *testing.T) {
 	identityKey := accounts.IdentityKey("email", email)
 	googleChannelResp_, err := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "google", IdentityKey: identityKey, CreateIfMissing: false})
 	var googleChannel *accounts.Channel
-	if googleChannelResp_ != nil { googleChannel = googleChannelResp_.Channel }
+	if googleChannelResp_ != nil {
+		googleChannel = googleChannelResp_.Channel
+	}
 	if err != nil || googleChannel == nil {
 		t.Error("Google channel should exist")
 	}
@@ -122,7 +124,9 @@ func TestJourney1_MultipleOAuthSameEmail(t *testing.T) {
 	// Verify both channels exist for the same identity
 	githubChannelResp_, err := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "github", IdentityKey: identityKey, CreateIfMissing: false})
 	var githubChannel *accounts.Channel
-	if githubChannelResp_ != nil { githubChannel = githubChannelResp_.Channel }
+	if githubChannelResp_ != nil {
+		githubChannel = githubChannelResp_.Channel
+	}
 	if err != nil || githubChannel == nil {
 		t.Error("GitHub channel should exist")
 	}
@@ -171,7 +175,9 @@ func TestJourney2_OAuthUserAddsCredentials(t *testing.T) {
 	identityKey := accounts.IdentityKey("email", email)
 	localChannelResp_, _ := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "local", IdentityKey: identityKey, CreateIfMissing: false})
 	var localChannel *accounts.Channel
-	if localChannelResp_ != nil { localChannel = localChannelResp_.Channel }
+	if localChannelResp_ != nil {
+		localChannel = localChannelResp_.Channel
+	}
 	if localChannel != nil {
 		t.Error("Local channel should NOT exist yet for OAuth-only user")
 	}
@@ -193,7 +199,9 @@ func TestJourney2_OAuthUserAddsCredentials(t *testing.T) {
 	// Verify username lookup works
 	lookupUserIDResp_, err := j.UsernameStore.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: newUsername})
 	var lookupUserID string
-	if lookupUserIDResp_ != nil { lookupUserID = lookupUserIDResp_.UserID }
+	if lookupUserIDResp_ != nil {
+		lookupUserID = lookupUserIDResp_.UserID
+	}
 	if err != nil {
 		t.Fatalf("Username lookup failed: %v", err)
 	}
@@ -210,7 +218,9 @@ func TestJourney2_OAuthUserAddsCredentials(t *testing.T) {
 	// Verify local channel NOW exists
 	localChannelResp2_, _ := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "local", IdentityKey: identityKey, CreateIfMissing: false})
 	localChannel = nil
-	if localChannelResp2_ != nil { localChannel = localChannelResp2_.Channel }
+	if localChannelResp2_ != nil {
+		localChannel = localChannelResp2_.Channel
+	}
 	if localChannel == nil {
 		t.Error("Local channel should exist after linking credentials")
 	}
@@ -291,7 +301,9 @@ func TestJourney3_EmailSignupThenLinkOAuth(t *testing.T) {
 	// Get the user ID from the identity
 	identityResp_, _ := j.IdentityStore.GetIdentity(context.Background(), &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: email, CreateIfMissing: false})
 	var identity *accounts.Identity
-	if identityResp_ != nil { identity = identityResp_.Identity }
+	if identityResp_ != nil {
+		identity = identityResp_.Identity
+	}
 	user1ID := identity.UserID
 	t.Logf("Created local user: %s", user1ID)
 
@@ -299,7 +311,9 @@ func TestJourney3_EmailSignupThenLinkOAuth(t *testing.T) {
 	identityKey := accounts.IdentityKey("email", email)
 	localChannelResp_, _ := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "local", IdentityKey: identityKey, CreateIfMissing: false})
 	var localChannel *accounts.Channel
-	if localChannelResp_ != nil { localChannel = localChannelResp_.Channel }
+	if localChannelResp_ != nil {
+		localChannel = localChannelResp_.Channel
+	}
 	if localChannel == nil {
 		t.Error("Local channel should exist")
 	}
@@ -322,7 +336,9 @@ func TestJourney3_EmailSignupThenLinkOAuth(t *testing.T) {
 	// Verify both channels exist
 	googleChannelResp_, _ := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "google", IdentityKey: identityKey, CreateIfMissing: false})
 	var googleChannel *accounts.Channel
-	if googleChannelResp_ != nil { googleChannel = googleChannelResp_.Channel }
+	if googleChannelResp_ != nil {
+		googleChannel = googleChannelResp_.Channel
+	}
 	if googleChannel == nil {
 		t.Error("Google channel should exist after linking")
 	}
@@ -376,7 +392,9 @@ func TestJourney4_UsernameAsPrimaryLogin(t *testing.T) {
 
 	identityResp_, _ := j.IdentityStore.GetIdentity(context.Background(), &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: email, CreateIfMissing: false})
 	var identity *accounts.Identity
-	if identityResp_ != nil { identity = identityResp_.Identity }
+	if identityResp_ != nil {
+		identity = identityResp_.Identity
+	}
 	userID := identity.UserID
 
 	// Reserve username
@@ -607,7 +625,9 @@ func TestJourney8_OAuthUserPasswordReset(t *testing.T) {
 	identityKey := accounts.IdentityKey("email", email)
 	localChannelResp_, _ := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "local", IdentityKey: identityKey, CreateIfMissing: false})
 	var localChannel *accounts.Channel
-	if localChannelResp_ != nil { localChannel = localChannelResp_.Channel }
+	if localChannelResp_ != nil {
+		localChannel = localChannelResp_.Channel
+	}
 	if localChannel != nil {
 		t.Fatal("Local channel should NOT exist for OAuth-only user")
 	}
@@ -623,7 +643,9 @@ func TestJourney8_OAuthUserPasswordReset(t *testing.T) {
 	// Verify local channel NOW exists
 	localChannelResp2_, err := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "local", IdentityKey: identityKey, CreateIfMissing: false})
 	localChannel = nil
-	if localChannelResp2_ != nil { localChannel = localChannelResp2_.Channel }
+	if localChannelResp2_ != nil {
+		localChannel = localChannelResp2_.Channel
+	}
 	if err != nil || localChannel == nil {
 		t.Fatal("Local channel should exist after password reset")
 	}
@@ -729,7 +751,9 @@ func TestEdgeCase_OAuthReturnsExistingEmail(t *testing.T) {
 
 	identityResp_, _ := j.IdentityStore.GetIdentity(context.Background(), &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: email, CreateIfMissing: false})
 	var identity *accounts.Identity
-	if identityResp_ != nil { identity = identityResp_.Identity }
+	if identityResp_ != nil {
+		identity = identityResp_.Identity
+	}
 	localUserID := identity.UserID
 
 	// OAuth login with same email should link to existing user
@@ -751,10 +775,14 @@ func TestEdgeCase_OAuthReturnsExistingEmail(t *testing.T) {
 	identityKey := accounts.IdentityKey("email", email)
 	localChannelResp_, _ := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "local", IdentityKey: identityKey, CreateIfMissing: false})
 	var localChannel *accounts.Channel
-	if localChannelResp_ != nil { localChannel = localChannelResp_.Channel }
+	if localChannelResp_ != nil {
+		localChannel = localChannelResp_.Channel
+	}
 	googleChannelResp_, _ := j.ChannelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "google", IdentityKey: identityKey, CreateIfMissing: false})
 	var googleChannel *accounts.Channel
-	if googleChannelResp_ != nil { googleChannel = googleChannelResp_.Channel }
+	if googleChannelResp_ != nil {
+		googleChannel = googleChannelResp_.Channel
+	}
 
 	if localChannel == nil {
 		t.Error("Local channel should still exist")
@@ -845,7 +873,9 @@ func TestEdgeCase_AutoDetectEmailVsUsername(t *testing.T) {
 
 	identityResp_, _ := j.IdentityStore.GetIdentity(context.Background(), &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: email, CreateIfMissing: false})
 	var identity *accounts.Identity
-	if identityResp_ != nil { identity = identityResp_.Identity }
+	if identityResp_ != nil {
+		identity = identityResp_.Identity
+	}
 	userID := identity.UserID
 
 	// Reserve username

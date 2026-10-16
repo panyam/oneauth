@@ -21,10 +21,10 @@ import (
 )
 
 type syntheticDeviceAS struct {
-	srv          *httptest.Server
-	deviceCalls  atomic.Int32
-	tokenCalls   atomic.Int32
-	tokenForm    chan map[string][]string
+	srv           *httptest.Server
+	deviceCalls   atomic.Int32
+	tokenCalls    atomic.Int32
+	tokenForm     chan map[string][]string
 	tokenStrategy func(call int32, form map[string][]string) (status int, body any)
 }
 
@@ -50,9 +50,9 @@ func newSyntheticDeviceAS(t *testing.T) *syntheticDeviceAS {
 	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"issuer":                        as.srv.URL,
-			"token_endpoint":                as.srv.URL + "/token",
-			"device_authorization_endpoint": as.srv.URL + "/device/authorize",
+			"issuer":                                as.srv.URL,
+			"token_endpoint":                        as.srv.URL + "/token",
+			"device_authorization_endpoint":         as.srv.URL + "/device/authorize",
 			"token_endpoint_auth_methods_supported": []string{"client_secret_post", "client_secret_basic", "none"},
 		})
 	})

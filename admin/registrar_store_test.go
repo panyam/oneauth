@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -161,11 +161,11 @@ func TestDCR_PersistsViaRegistrar(t *testing.T) {
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
 
 	body, _ := json.Marshal(map[string]any{
-		"client_name":  "DCR Test App",
-		"client_uri":   "https://dcr.example",
+		"client_name":   "DCR Test App",
+		"client_uri":    "https://dcr.example",
 		"redirect_uris": []string{"https://dcr.example/cb"},
-		"grant_types":  []string{"authorization_code"},
-		"scope":        "read",
+		"grant_types":   []string{"authorization_code"},
+		"scope":         "read",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 	rr := httptest.NewRecorder()

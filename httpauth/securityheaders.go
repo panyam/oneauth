@@ -48,11 +48,11 @@ type SecurityHeadersConfig struct {
 // DefaultSecurityHeadersConfig returns secure defaults.
 func DefaultSecurityHeadersConfig() SecurityHeadersConfig {
 	return SecurityHeadersConfig{
-		HSTSMaxAge:            31536000,
-		HSTSIncludeSubDomains: true,
-		FrameOptions:          "DENY",
-		ContentSecurityPolicy: "default-src 'self'",
-		ReferrerPolicy:        "strict-origin-when-cross-origin",
+		HSTSMaxAge:                31536000,
+		HSTSIncludeSubDomains:     true,
+		FrameOptions:              "DENY",
+		ContentSecurityPolicy:     "default-src 'self'",
+		ReferrerPolicy:            "strict-origin-when-cross-origin",
 		PermissionsPolicy:         "camera=(), microphone=(), geolocation=()",
 		CrossOriginEmbedderPolicy: "credentialless",
 		CrossOriginOpenerPolicy:   "same-origin",

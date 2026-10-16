@@ -9,8 +9,8 @@ package gorm
 import (
 	"testing"
 
-	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/appstoretest"
+	"github.com/panyam/oneauth/core"
 )
 
 // TestGORMAppStore runs the shared AppRegistrationStore contract suite

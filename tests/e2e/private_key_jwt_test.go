@@ -41,7 +41,8 @@ func TestPrivateKeyJWT_E2E_FullFlow(t *testing.T) {
 		ClientID:  clientID,
 		Key:       pubPEM,
 		Algorithm: "RS256",
-	}}); require.NoError(t, errPutKey)
+	}})
+	require.NoError(t, errPutKey)
 
 	priv, err := utils.ParsePrivateKeyPEM(privPEM)
 	require.NoError(t, err)
@@ -104,7 +105,8 @@ func TestPrivateKeyJWT_E2E_SDKHelper(t *testing.T) {
 		ClientID:  clientID,
 		Key:       pubPEM,
 		Algorithm: "RS256",
-	}}); require.NoError(t, errPutKey)
+	}})
+	require.NoError(t, errPutKey)
 	priv, err := utils.ParsePrivateKeyPEM(privPEM)
 	require.NoError(t, err)
 
@@ -144,7 +146,8 @@ func TestPrivateKeyJWT_E2E_ClientCredentialsSource(t *testing.T) {
 		ClientID:  clientID,
 		Key:       pubPEM,
 		Algorithm: "RS256",
-	}}); require.NoError(t, errPutKey)
+	}})
+	require.NoError(t, errPutKey)
 	priv, err := utils.ParsePrivateKeyPEM(privPEM)
 	require.NoError(t, err)
 

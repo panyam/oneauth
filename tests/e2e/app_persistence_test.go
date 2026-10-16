@@ -10,8 +10,8 @@ package e2e_test
 // needs to reuse the same Store/KeyStore across two AppRegistrar instances.
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"

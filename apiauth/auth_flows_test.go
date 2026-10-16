@@ -4,8 +4,11 @@ package apiauth_test
 
 import (
 	"context"
-	"github.com/panyam/oneauth/localauth"
 	"encoding/json"
+	"github.com/panyam/oneauth/accounts"
+	"github.com/panyam/oneauth/localauth"
+	"github.com/panyam/oneauth/stores/fs"
+	"golang.org/x/oauth2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,9 +17,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"github.com/panyam/oneauth/stores/fs"
-	"golang.org/x/oauth2"
-	"github.com/panyam/oneauth/accounts"
 )
 
 // setupTestAuthComplete creates a fully configured LocalAuth for testing all flows
@@ -136,8 +136,10 @@ func TestCompleteSignupFlow(t *testing.T) {
 	// Verify user was created in storage
 	t.Run("verify user in storage", func(t *testing.T) {
 		identityResp_, err := identityStore.GetIdentity(context.Background(), &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: "test@example.com", CreateIfMissing: false})
-	var identity *accounts.Identity
-	if identityResp_ != nil { identity = identityResp_.Identity }
+		var identity *accounts.Identity
+		if identityResp_ != nil {
+			identity = identityResp_.Identity
+		}
 		if err != nil {
 			t.Fatalf("Failed to get identity: %v", err)
 		}
@@ -156,8 +158,10 @@ func TestCompleteSignupFlow(t *testing.T) {
 		// Verify channel exists
 		identityKey := accounts.IdentityKey("email", "test@example.com")
 		channelResp_, err := channelStore.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: "local", IdentityKey: identityKey, CreateIfMissing: false})
-	var channel *accounts.Channel
-	if channelResp_ != nil { channel = channelResp_.Channel }
+		var channel *accounts.Channel
+		if channelResp_ != nil {
+			channel = channelResp_.Channel
+		}
 		if err != nil {
 			t.Fatalf("Failed to get channel: %v", err)
 		}
@@ -254,7 +258,7 @@ func TestEmailVerificationFlow(t *testing.T) {
 	testEmail := "verify@example.com"
 
 	// Create a verification token
-	tokenResp, err := tokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "testuser123", Email: testEmail, Type: localauth.VerificationTypeEmail, ExpiryDuration: 24*time.Hour})
+	tokenResp, err := tokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "testuser123", Email: testEmail, Type: localauth.VerificationTypeEmail, ExpiryDuration: 24 * time.Hour})
 	if err != nil {
 		t.Fatalf("Failed to create token: %v", err)
 	}
@@ -322,8 +326,10 @@ func TestEmailVerificationFlow(t *testing.T) {
 
 				// Verify identity is marked as verified
 				verifiedIdentityResp_, err := identityStore.GetIdentity(context.Background(), &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: testEmail, CreateIfMissing: false})
-	var verifiedIdentity *accounts.Identity
-	if verifiedIdentityResp_ != nil { verifiedIdentity = verifiedIdentityResp_.Identity }
+				var verifiedIdentity *accounts.Identity
+				if verifiedIdentityResp_ != nil {
+					verifiedIdentity = verifiedIdentityResp_.Identity
+				}
 				if err != nil {
 					t.Fatalf("Failed to get identity: %v", err)
 				}
@@ -379,7 +385,7 @@ func TestPasswordResetFlow(t *testing.T) {
 	})
 
 	// Create a reset token manually for testing
-	resetTokenResp, err := tokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: testEmail, Type: localauth.VerificationTypePasswordReset, ExpiryDuration: 1*time.Hour})
+	resetTokenResp, err := tokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: testEmail, Type: localauth.VerificationTypePasswordReset, ExpiryDuration: 1 * time.Hour})
 	if err != nil {
 		t.Fatalf("Failed to create reset token: %v", err)
 	}
@@ -432,7 +438,7 @@ func TestPasswordResetFlow(t *testing.T) {
 
 	t.Run("reset password with weak password", func(t *testing.T) {
 		// Create new token for this test
-		newTokenResp, err := tokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: testEmail, Type: localauth.VerificationTypePasswordReset, ExpiryDuration: 1*time.Hour})
+		newTokenResp, err := tokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: testEmail, Type: localauth.VerificationTypePasswordReset, ExpiryDuration: 1 * time.Hour})
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}

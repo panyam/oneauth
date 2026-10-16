@@ -87,7 +87,10 @@ func TestRevocation_AccessToken(t *testing.T) {
 	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 	token := ""
 	var _ int64
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -143,7 +146,10 @@ func TestRevocation_NoHint(t *testing.T) {
 	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-2", Scopes: []string{"write"}, AuthorizationDetails: nil})
 	token := ""
 	var _ int64
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -164,11 +170,11 @@ func TestRevocation_AlreadyRevoked(t *testing.T) {
 
 	tokenResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-3", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
-
 	token := ""
 
-
-	if tokenResp != nil { token = tokenResp.Token }
+	if tokenResp != nil {
+		token = tokenResp.Token
+	}
 
 	// Revoke twice — both should succeed
 	rr := postRevoke(t, revHandler, token, "access_token", "revoke-client", "revoke-client-secret")

@@ -45,10 +45,10 @@ const (
 	// because Authlete's service-managed discovery is only populated when the
 	// operator has filled in endpoint URIs in the service config — which is
 	// optional and orthogonal to interop testing.
-	pathToken          = "/api/token"
-	pathIntrospection  = "/api/introspection"
-	pathJWKS           = "/api/jwks"
-	pathAuthorization  = "/api/authorization"
+	pathToken         = "/api/token"
+	pathIntrospection = "/api/introspection"
+	pathJWKS          = "/api/jwks"
+	pathAuthorization = "/api/authorization"
 )
 
 // tokenEndpoint returns the full token endpoint URL for the running

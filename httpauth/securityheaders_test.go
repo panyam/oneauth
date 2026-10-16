@@ -66,8 +66,8 @@ func TestSecurityHeaders_CustomConfig(t *testing.T) {
 		HSTSMaxAge:            0, // disabled
 		FrameOptions:          "SAMEORIGIN",
 		ContentSecurityPolicy: "default-src 'self'; script-src 'self' cdn.example.com",
-		ReferrerPolicy:        "",  // disabled
-		PermissionsPolicy:     "",  // disabled
+		ReferrerPolicy:        "", // disabled
+		PermissionsPolicy:     "", // disabled
 	}
 	handler := httpauth.SecurityHeadersWithConfig(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

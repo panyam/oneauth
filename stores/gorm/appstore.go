@@ -16,13 +16,13 @@ import (
 // works identically across SQLite, MySQL, Postgres without DB-specific JSONB
 // quirks. Auto-migrated alongside the other oneauth tables.
 type AppRegistrationModel struct {
-	ClientID                  string                     `gorm:"primaryKey;size:128"`
-	ClientDomain              string                     `gorm:"size:256"`
-	SigningAlg                string                     `gorm:"size:16;not null"`
-	AuthorizationDetailsTypes []string                   `gorm:"serializer:json"` // RFC 9396
-	CreatedAt                 time.Time                  `gorm:"autoCreateTime"`
-	UpdatedAt                 time.Time                  `gorm:"autoUpdateTime"`
-	Revoked                   bool                       `gorm:"not null;default:false"`
+	ClientID                  string    `gorm:"primaryKey;size:128"`
+	ClientDomain              string    `gorm:"size:256"`
+	SigningAlg                string    `gorm:"size:16;not null"`
+	AuthorizationDetailsTypes []string  `gorm:"serializer:json"` // RFC 9396
+	CreatedAt                 time.Time `gorm:"autoCreateTime"`
+	UpdatedAt                 time.Time `gorm:"autoUpdateTime"`
+	Revoked                   bool      `gorm:"not null;default:false"`
 
 	// RFC 7591 / 7592 client metadata (issue 168 / 169 / 172).
 	ClientName              string   `gorm:"size:256"`

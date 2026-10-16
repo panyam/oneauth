@@ -43,9 +43,9 @@ func newFakeAuthlete(serviceID string) *fakeAuthlete {
 		// types to the service.
 		clients: []map[string]any{
 			{
-				"clientId":       1506059443,
-				"clientIdAlias":  "TestClientId",
-				"clientType":     "CONFIDENTIAL",
+				"clientId":      1506059443,
+				"clientIdAlias": "TestClientId",
+				"clientType":    "CONFIDENTIAL",
 			},
 		},
 	}

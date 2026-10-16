@@ -109,11 +109,11 @@ func TestMintTokenWithClaims_CustomClaims(t *testing.T) {
 	srv := testutil.NewTestAuthServer(t)
 
 	token, err := srv.MintTokenWithClaims(jwt.MapClaims{
-		"sub":       "custom-user",
-		"iss":       "custom-issuer",
-		"exp":       float64(9999999999),
-		"my_claim":  "my_value",
-		"room_id":   "room-42",
+		"sub":      "custom-user",
+		"iss":      "custom-issuer",
+		"exp":      float64(9999999999),
+		"my_claim": "my_value",
+		"room_id":  "room-42",
 	})
 	require.NoError(t, err)
 
@@ -394,7 +394,7 @@ func registerTestApp(t *testing.T, srv *testutil.TestAuthServer, domain string) 
 	t.Helper()
 	body, _ := json.Marshal(map[string]any{
 		"client_name": domain,
-		"signing_alg":   "HS256",
+		"signing_alg": "HS256",
 	})
 	req, err := http.NewRequest("POST", srv.URL()+"/apps/dcr", strings.NewReader(string(body)))
 	require.NoError(t, err)
@@ -410,7 +410,6 @@ func registerTestApp(t *testing.T, srv *testutil.TestAuthServer, domain string) 
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
 	return result["client_id"].(string), result["client_secret"].(string)
 }
-
 
 // TestWithGrantTypesSupported_Override verifies that the Option replaces
 // the default grant_types_supported in AS metadata.

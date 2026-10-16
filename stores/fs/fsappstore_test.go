@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/appstoretest"
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/stores/fs"
 )
 

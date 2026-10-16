@@ -35,13 +35,13 @@ func GenerateSecureToken() (string, error) {
 
 // RefreshToken represents a long-lived refresh token for API access.
 type RefreshToken struct {
-	Token                string                `json:"token"`       // 64-char hex token value
-	TokenHash            string                `json:"token_hash"`  // SHA256 hash for storage (optional)
-	Subject              string                `json:"subject"`     // Principal the token represents (RFC 7519 sub) — user ID for user-bound tokens, client_id for client_credentials
-	ClientID             string                `json:"client_id"`   // Optional client/app identifier
-	DeviceInfo           map[string]any        `json:"device_info"` // User agent, IP, etc.
-	Family               string                `json:"family"`      // Token family for rotation tracking
-	Generation           int                   `json:"generation"`  // Increments on rotation
+	Token                string                `json:"token"`                           // 64-char hex token value
+	TokenHash            string                `json:"token_hash"`                      // SHA256 hash for storage (optional)
+	Subject              string                `json:"subject"`                         // Principal the token represents (RFC 7519 sub) — user ID for user-bound tokens, client_id for client_credentials
+	ClientID             string                `json:"client_id"`                       // Optional client/app identifier
+	DeviceInfo           map[string]any        `json:"device_info"`                     // User agent, IP, etc.
+	Family               string                `json:"family"`                          // Token family for rotation tracking
+	Generation           int                   `json:"generation"`                      // Increments on rotation
 	Scopes               []string              `json:"scopes"`                          // Granted scopes
 	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
 	Confirmation         *Confirmation         `json:"confirmation,omitempty"`          // RFC 9449 §5 sender-constraint; nil = plain bearer
@@ -64,11 +64,11 @@ func (t *RefreshToken) IsValid() bool {
 
 // APIKey represents a long-lived API key for programmatic access.
 type APIKey struct {
-	KeyID      string     `json:"key_id"`      // Public identifier (e.g., "oa_abc123...")
-	KeyHash    string     `json:"key_hash"`    // bcrypt hash of the secret portion
-	Subject    string     `json:"subject"`     // Principal the key represents (RFC 7519 sub) — user ID for user-bound keys, client_id for service accounts
-	Name       string     `json:"name"`        // User-defined label
-	Scopes     []string   `json:"scopes"`      // Allowed scopes
+	KeyID      string     `json:"key_id"`   // Public identifier (e.g., "oa_abc123...")
+	KeyHash    string     `json:"key_hash"` // bcrypt hash of the secret portion
+	Subject    string     `json:"subject"`  // Principal the key represents (RFC 7519 sub) — user ID for user-bound keys, client_id for service accounts
+	Name       string     `json:"name"`     // User-defined label
+	Scopes     []string   `json:"scopes"`   // Allowed scopes
 	CreatedAt  time.Time  `json:"created_at"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"` // Optional expiry
 	LastUsedAt time.Time  `json:"last_used_at"`
@@ -92,8 +92,8 @@ func (k *APIKey) IsValid() bool {
 // TokenPair represents the response from a successful authentication.
 type TokenPair struct {
 	AccessToken          string                `json:"access_token"`
-	TokenType            string                `json:"token_type"`                        // "Bearer", or "DPoP" when the token is sender-constrained (RFC 9449 §5)
-	ExpiresIn            int64                 `json:"expires_in"`                        // Seconds until access token expires
+	TokenType            string                `json:"token_type"` // "Bearer", or "DPoP" when the token is sender-constrained (RFC 9449 §5)
+	ExpiresIn            int64                 `json:"expires_in"` // Seconds until access token expires
 	RefreshToken         string                `json:"refresh_token,omitempty"`
 	Scope                string                `json:"scope,omitempty"`
 	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
@@ -109,14 +109,14 @@ type TokenPair struct {
 
 // TokenRequest represents a request to the token endpoint.
 type TokenRequest struct {
-	GrantType            string                `json:"grant_type"`                                  // "password", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:jwt-bearer", "urn:ietf:params:oauth:grant-type:token-exchange"
-	Username             string                `json:"username,omitempty"`                          // For password grant
-	Password             string                `json:"password,omitempty"`                          // For password grant
-	RefreshToken         string                `json:"refresh_token,omitempty"`                     // For refresh_token grant
-	Scope                string                `json:"scope,omitempty"`                             // Requested scopes
-	ClientID             string                `json:"client_id,omitempty"`                         // Client identifier (for client_credentials, optional for others)
-	ClientSecret         string                `json:"client_secret,omitempty"`                     // Client secret (for client_credentials via client_secret_post)
-	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"`             // RFC 9396
+	GrantType            string                `json:"grant_type"`                      // "password", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:jwt-bearer", "urn:ietf:params:oauth:grant-type:token-exchange"
+	Username             string                `json:"username,omitempty"`              // For password grant
+	Password             string                `json:"password,omitempty"`              // For password grant
+	RefreshToken         string                `json:"refresh_token,omitempty"`         // For refresh_token grant
+	Scope                string                `json:"scope,omitempty"`                 // Requested scopes
+	ClientID             string                `json:"client_id,omitempty"`             // Client identifier (for client_credentials, optional for others)
+	ClientSecret         string                `json:"client_secret,omitempty"`         // Client secret (for client_credentials via client_secret_post)
+	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
 
 	// Assertion is the signed JWT for grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer
 	// (RFC 7523 §2.1). The AS validates the assertion against a configured

@@ -175,8 +175,8 @@ func ensureRARClients(t *testing.T) {
 func dcrRegister(t *testing.T, baseURL, clientName string) map[string]any {
 	t.Helper()
 	body, _ := json.Marshal(map[string]any{
-		"client_name": clientName,
-		"grant_types": []string{"client_credentials"},
+		"client_name":                clientName,
+		"grant_types":                []string{"client_credentials"},
 		"token_endpoint_auth_method": "client_secret_post",
 	})
 	resp, err := http.Post(baseURL+"/apps/dcr", "application/json", bytes.NewReader(body))

@@ -83,4 +83,3 @@ func runPassword(ctx context.Context, stdout, stderr io.Writer, issuer string, t
 func joinScopes(s string) string {
 	return strings.Join(splitScopes(s), " ")
 }
-

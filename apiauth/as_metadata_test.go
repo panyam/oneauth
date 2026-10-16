@@ -33,13 +33,13 @@ import (
 // See: https://www.rfc-editor.org/rfc/rfc8414#section-2
 func TestASMetadata_FullResponse(t *testing.T) {
 	meta := &apiauth.ASServerMetadata{
-		Issuer:                "https://auth.example.com",
-		TokenEndpoint:         "https://auth.example.com/api/token",
-		JWKSURI:               "https://auth.example.com/.well-known/jwks.json",
-		IntrospectionEndpoint: "https://auth.example.com/oauth/introspect",
-		RegistrationEndpoint:  "https://auth.example.com/apps/dcr",
-		ScopesSupported:       []string{"read", "write", "admin"},
-		GrantTypesSupported:   []string{"password", "refresh_token", "client_credentials"},
+		Issuer:                        "https://auth.example.com",
+		TokenEndpoint:                 "https://auth.example.com/api/token",
+		JWKSURI:                       "https://auth.example.com/.well-known/jwks.json",
+		IntrospectionEndpoint:         "https://auth.example.com/oauth/introspect",
+		RegistrationEndpoint:          "https://auth.example.com/apps/dcr",
+		ScopesSupported:               []string{"read", "write", "admin"},
+		GrantTypesSupported:           []string{"password", "refresh_token", "client_credentials"},
 		ResponseTypesSupported:        []string{"token"},
 		TokenEndpointAuthMethods:      []string{"client_secret_post", "client_secret_basic"},
 		CodeChallengeMethodsSupported: []string{"S256"},
@@ -269,8 +269,8 @@ func TestMountASMetadata_MethodNotAllowed(t *testing.T) {
 // is included when set. Required by OIDC Discovery.
 func TestASMetadata_SubjectTypesSupported(t *testing.T) {
 	meta := &apiauth.ASServerMetadata{
-		Issuer:               "https://auth.example.com",
-		TokenEndpoint:        "https://auth.example.com/api/token",
+		Issuer:                "https://auth.example.com",
+		TokenEndpoint:         "https://auth.example.com/api/token",
 		SubjectTypesSupported: []string{"public"},
 	}
 

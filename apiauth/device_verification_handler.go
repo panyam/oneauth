@@ -86,10 +86,10 @@ type DeviceTemplates struct {
 
 // deviceFormData drives the Form template.
 type deviceFormData struct {
-	UserCode   string // pre-filled when the user arrived via verification_uri_complete
-	CSRFToken  string
-	ErrorMsg   string // non-empty when the previous submission failed (unknown code, etc.)
-	ActionURL  string // the POST target — defaults to the current path
+	UserCode  string // pre-filled when the user arrived via verification_uri_complete
+	CSRFToken string
+	ErrorMsg  string // non-empty when the previous submission failed (unknown code, etc.)
+	ActionURL string // the POST target — defaults to the current path
 }
 
 // deviceConsentData drives the Consent template.
@@ -342,4 +342,3 @@ var defaultDeviceDoneTmpl = template.Must(template.New("device_done").Parse(`<!d
   <p>The authorization was denied. You may close this window.</p>
   {{end}}
 </body></html>`))
-

@@ -3,14 +3,14 @@
 package localauth_test
 
 import (
-	"time"
-	"github.com/panyam/oneauth/accounts"
 	"context"
+	"github.com/panyam/oneauth/accounts"
+	"github.com/panyam/oneauth/federatedauth"
 	"github.com/panyam/oneauth/localauth"
+	"github.com/panyam/oneauth/stores/fs"
 	"os"
 	"testing"
-	"github.com/panyam/oneauth/stores/fs"
-	"github.com/panyam/oneauth/federatedauth"
+	"time"
 )
 
 // =============================================================================
@@ -39,7 +39,9 @@ func TestUsernameStoreReserve(t *testing.T) {
 	// Lookup should work (case-insensitive)
 	userIDResp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "johndoe"})
 	var userID string
-	if userIDResp_ != nil { userID = userIDResp_.UserID }
+	if userIDResp_ != nil {
+		userID = userIDResp_.UserID
+	}
 	if err != nil {
 		t.Fatalf("Failed to lookup username: %v", err)
 	}
@@ -50,7 +52,9 @@ func TestUsernameStoreReserve(t *testing.T) {
 	// Lookup with original case should also work
 	userIDResp2, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "JohnDoe"})
 	userID = ""
-	if userIDResp2 != nil { userID = userIDResp2.UserID }
+	if userIDResp2 != nil {
+		userID = userIDResp2.UserID
+	}
 	if err != nil {
 		t.Fatalf("Failed to lookup username with original case: %v", err)
 	}
@@ -145,7 +149,9 @@ func TestUsernameStoreChange(t *testing.T) {
 	// Old username should be available
 	_Resp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "oldname"})
 	_ = ""
-	if _Resp_ != nil { _ = _Resp_.UserID }
+	if _Resp_ != nil {
+		_ = _Resp_.UserID
+	}
 	if err == nil {
 		t.Error("Old username should not exist after change")
 	}
@@ -153,7 +159,9 @@ func TestUsernameStoreChange(t *testing.T) {
 	// New username should work
 	userIDResp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "newname"})
 	var userID string
-	if userIDResp_ != nil { userID = userIDResp_.UserID }
+	if userIDResp_ != nil {
+		userID = userIDResp_.UserID
+	}
 	if err != nil {
 		t.Fatalf("New username lookup failed: %v", err)
 	}
@@ -178,7 +186,9 @@ func TestUsernameStoreChangeCaseOnly(t *testing.T) {
 	// Should still work
 	userIDResp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "myname"})
 	var userID string
-	if userIDResp_ != nil { userID = userIDResp_.UserID }
+	if userIDResp_ != nil {
+		userID = userIDResp_.UserID
+	}
 	if err != nil {
 		t.Fatalf("Username lookup failed: %v", err)
 	}
@@ -209,7 +219,9 @@ func TestUsernameStoreNotFound(t *testing.T) {
 
 	_Resp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "nonexistent"})
 	var _ string
-	if _Resp_ != nil { _ = _Resp_.UserID }
+	if _Resp_ != nil {
+		_ = _Resp_.UserID
+	}
 	if err == nil {
 		t.Error("Expected error for non-existent username")
 	}
@@ -377,7 +389,9 @@ func TestLinkLocalCredentials(t *testing.T) {
 	// Verify username was reserved
 	userIDResp_, err := config.UsernameStore.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: "newusername"})
 	var userID string
-	if userIDResp_ != nil { userID = userIDResp_.UserID }
+	if userIDResp_ != nil {
+		userID = userIDResp_.UserID
+	}
 	if err != nil {
 		t.Fatalf("Failed to lookup username: %v", err)
 	}

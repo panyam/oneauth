@@ -205,8 +205,8 @@ type GAEConfig struct {
 }
 
 type AdminAuthConfig struct {
-	Type   string        `yaml:"type"` // none, api-key, oidc
-	APIKey APIKeyConfig  `yaml:"api_key"`
+	Type   string       `yaml:"type"` // none, api-key, oidc
+	APIKey APIKeyConfig `yaml:"api_key"`
 }
 
 type APIKeyConfig struct {
@@ -365,4 +365,3 @@ func configFromEnv() Config {
 		},
 	}
 }
-

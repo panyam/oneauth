@@ -140,7 +140,10 @@ func TestSecurity_ExpiredToken_Rejected(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -148,7 +151,10 @@ func TestSecurity_ExpiredToken_Rejected(t *testing.T) {
 	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	var userID string
 	var _ []string
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
@@ -169,7 +175,10 @@ func TestSecurity_ExpiredToken_Rejected(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.Error(t, err, "expired tokens must be rejected")
 }
@@ -198,7 +207,10 @@ func TestSecurity_RefreshTokenType_RejectedAsAccess(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.Error(t, err, "refresh-type tokens must be rejected by access token validator")
 	assert.Contains(t, err.Error(), "invalid token type")
@@ -226,7 +238,10 @@ func TestSecurity_MissingSub_Rejected(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.Error(t, err, "tokens without sub claim must be rejected")
 	assert.Contains(t, err.Error(), "missing subject")
@@ -257,7 +272,10 @@ func TestSecurity_WrongIssuer_Rejected(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.Error(t, err, "tokens with wrong issuer must be rejected")
 	assert.Contains(t, err.Error(), "invalid issuer")
@@ -278,7 +296,10 @@ func TestSecurity_EmptySigningKey_Errors(t *testing.T) {
 	tokenResp, err := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 	token := ""
 	var _ int64
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	if err != nil {
 		// If it errors on creation, that's fine — fail-safe
@@ -289,7 +310,10 @@ func TestSecurity_EmptySigningKey_Errors(t *testing.T) {
 	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	var userID string
 	var _ []string
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
@@ -299,7 +323,10 @@ func TestSecurity_EmptySigningKey_Errors(t *testing.T) {
 	vresp, err = auth2.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	var _ string
 	var _ []string
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.Error(t, err, "token signed with empty key must not validate with different key")
 }

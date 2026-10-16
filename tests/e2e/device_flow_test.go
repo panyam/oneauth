@@ -55,15 +55,15 @@ const (
 // with /device/authorize, the four /device + /device/approve verification
 // routes, and /api/token. Stores are in-memory and dedicated per test.
 type deviceFlowEnv struct {
-	t              *testing.T
-	server         *httptest.Server
-	oa             *apiauth.OneAuth
-	tokenEndpoint  *apiauth.TokenEndpointHandler
-	appRegistrar   *admin.AppRegistrar
-	deviceStore    core.DeviceAuthorizationStore
-	appStore       core.AppRegistrationStore
-	keyStore       *keys.InMemoryKeyStore
-	expiry         time.Duration // applied to DeviceAuthorizationHandler.Expiry
+	t             *testing.T
+	server        *httptest.Server
+	oa            *apiauth.OneAuth
+	tokenEndpoint *apiauth.TokenEndpointHandler
+	appRegistrar  *admin.AppRegistrar
+	deviceStore   core.DeviceAuthorizationStore
+	appStore      core.AppRegistrationStore
+	keyStore      *keys.InMemoryKeyStore
+	expiry        time.Duration // applied to DeviceAuthorizationHandler.Expiry
 }
 
 func newDeviceFlowEnv(t *testing.T, expiry time.Duration) *deviceFlowEnv {
@@ -373,4 +373,3 @@ func TestDeviceFlow_PublicClient_NoAuthRequired(t *testing.T) {
 	require.Equal(t, http.StatusOK, status, "public client poll MUST mint a token without credentials; body=%v", body)
 	assert.NotEmpty(t, body["access_token"], "access_token issued")
 }
-

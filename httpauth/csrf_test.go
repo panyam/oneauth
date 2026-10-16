@@ -2,13 +2,13 @@ package httpauth_test
 
 import (
 	"github.com/panyam/oneauth/httpauth"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // okHandler is a simple handler that always returns 200 OK.

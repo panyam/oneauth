@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/httpauth"
 	"github.com/panyam/oneauth/localauth"
 	fsstore "github.com/panyam/oneauth/stores/fs"
 	"golang.org/x/oauth2"
-	"github.com/panyam/oneauth/accounts"
 )
 
 //go:embed templates/*.html
