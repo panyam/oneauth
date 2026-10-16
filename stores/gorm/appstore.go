@@ -44,6 +44,9 @@ type AppRegistrationModel struct {
 
 	// RFC 9449 §5.2 dpop_bound_access_tokens (issue 88).
 	DPoPBoundAccessTokens bool `gorm:"not null;default:false"`
+
+	// RFC 9126 §6 require_pushed_authorization_requests (issue 88).
+	RequirePushedAuthorizationRequests bool `gorm:"not null;default:false"`
 }
 
 func (AppRegistrationModel) TableName() string {
@@ -149,9 +152,10 @@ func appRegistrationToModel(app *core.AppRegistration) *AppRegistrationModel {
 		RegistrationAccessToken:   app.RegistrationAccessToken,
 		RegistrationClientURI:     app.RegistrationClientURI,
 
-		BackchannelLogoutURI:             app.BackchannelLogoutURI,
-		BackchannelLogoutSessionRequired: app.BackchannelLogoutSessionRequired,
-		DPoPBoundAccessTokens:            app.DPoPBoundAccessTokens,
+		BackchannelLogoutURI:               app.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired:   app.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:              app.DPoPBoundAccessTokens,
+		RequirePushedAuthorizationRequests: app.RequirePushedAuthorizationRequests,
 	}
 }
 
@@ -172,9 +176,10 @@ func modelToAppRegistration(m *AppRegistrationModel) *core.AppRegistration {
 		RegistrationAccessToken:   m.RegistrationAccessToken,
 		RegistrationClientURI:     m.RegistrationClientURI,
 
-		BackchannelLogoutURI:             m.BackchannelLogoutURI,
-		BackchannelLogoutSessionRequired: m.BackchannelLogoutSessionRequired,
-		DPoPBoundAccessTokens:            m.DPoPBoundAccessTokens,
+		BackchannelLogoutURI:               m.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired:   m.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:              m.DPoPBoundAccessTokens,
+		RequirePushedAuthorizationRequests: m.RequirePushedAuthorizationRequests,
 	}
 }
 

@@ -46,6 +46,9 @@ type AppRegistrationEntity struct {
 
 	// RFC 9449 §5.2 dpop_bound_access_tokens (issue 88).
 	DPoPBoundAccessTokens bool `datastore:"dpop_bound_access_tokens,noindex"`
+
+	// RFC 9126 §6 require_pushed_authorization_requests (issue 88).
+	RequirePushedAuthorizationRequests bool `datastore:"require_pushed_authorization_requests,noindex"`
 }
 
 // GAEAppStore implements core.AppRegistrationStore using Google Cloud Datastore.
@@ -170,9 +173,10 @@ func appRegToEntity(key *datastore.Key, app *core.AppRegistration) *AppRegistrat
 		RegistrationAccessToken:   app.RegistrationAccessToken,
 		RegistrationClientURI:     app.RegistrationClientURI,
 
-		BackchannelLogoutURI:             app.BackchannelLogoutURI,
-		BackchannelLogoutSessionRequired: app.BackchannelLogoutSessionRequired,
-		DPoPBoundAccessTokens:            app.DPoPBoundAccessTokens,
+		BackchannelLogoutURI:               app.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired:   app.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:              app.DPoPBoundAccessTokens,
+		RequirePushedAuthorizationRequests: app.RequirePushedAuthorizationRequests,
 	}
 }
 
@@ -193,9 +197,10 @@ func entityToAppReg(e *AppRegistrationEntity) *core.AppRegistration {
 		RegistrationAccessToken:   e.RegistrationAccessToken,
 		RegistrationClientURI:     e.RegistrationClientURI,
 
-		BackchannelLogoutURI:             e.BackchannelLogoutURI,
-		BackchannelLogoutSessionRequired: e.BackchannelLogoutSessionRequired,
-		DPoPBoundAccessTokens:            e.DPoPBoundAccessTokens,
+		BackchannelLogoutURI:               e.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired:   e.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:              e.DPoPBoundAccessTokens,
+		RequirePushedAuthorizationRequests: e.RequirePushedAuthorizationRequests,
 	}
 }
 

@@ -49,7 +49,7 @@ func TestDCR_SymmetricRegistration(t *testing.T) {
 	assert.NotNil(t, resp["client_id_issued_at"], "should include issued_at timestamp")
 	assert.Equal(t, "My CLI App", resp["client_name"])
 	assert.Equal(t, "https://myapp.com", resp["client_uri"])
-	assert.Equal(t, "client_secret_post", resp["token_endpoint_auth_method"])
+	assert.Equal(t, "client_secret_basic", resp["token_endpoint_auth_method"], "RFC 7591 §2 default; post still authenticates (same family)")
 
 	// Verify the key was stored
 	clientID := resp["client_id"].(string)

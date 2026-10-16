@@ -237,7 +237,17 @@ device flow; DCR and metadata follow.
 | PKCE challenge and verifier have the RFC shape | RFC 7636 §4.1, §4.2 | Pass (was Fail) | S256 challenge: 43 base64url characters; plain challenge and every verifier: 43 to 128 unreserved. A short verifier verified against its own challenge. CodeChallengeShape\*, CodeVerifierShape\* |
 | The registered scope bounds `/authorize` and device authorization | RFC 6749 §3.3 | Pass (was Fail) | `invalid_scope` on the redirect (or 400 at the device endpoint); the registered default when none is asked for. RegisteredScopeIsEnforced\*, DeviceAuthorizationHonorsTheRegisteredScope\* |
 | `/authorize` without a client registry fails closed | RFC 6749 §3.1.2, CWE-601 | Pass (was Fail) | with neither `AppStore` nor `RedirectURIValidator` it sent codes to any `redirect_uri`; now it refuses unless `AllowAnyRedirectURI` (test fixtures). NoRegistryFailsClosed\* |
-| A client can be required to use PAR | RFC 9126 §6 | Open | `require_pushed_authorization_requests` per client needs a registration field across the app stores; `RequirePushedRequests` is server-wide today |
+| A client can be required to use PAR | RFC 9126 §6 | Pass (was not implemented) | `require_pushed_authorization_requests` in DCR, `core.AppRegistration` and every app store; `/authorize` refuses that client's direct requests. RegisteredRequirementIsEnforced\*, `appstoretest` AllFieldsRoundTrip |
+
+### Dynamic client registration
+
+| Requirement | Ref | Status | Notes |
+|---|---|---|---|
+| Redirect URIs are real URLs, refused as `invalid_redirect_uri` | RFC 7591 §3.2.2, RFC 6749 §3.1.2 | Pass (was Partial) | userinfo and an empty https host are refused too, and every redirect problem answers `invalid_redirect_uri` (was `invalid_client_metadata`). BadRedirectURIs\* |
+| Only supported auth methods and grant types | RFC 7591 §2 | Pass (was Fail) | an unknown method or grant is `invalid_client_metadata`; a public client can't take `client_credentials`; `authorization_code` needs a `redirect_uri`. UnknownAuthMethodAndGrantType\* |
+| The stored auth method is the echoed one | RFC 7591 §2 | Pass (was Fail) | the response said `client_secret_post` while `""` was stored, so a client reading its registration back (RFC 7592) saw a different method from the one it was told. Both are now `client_secret_basic`, the RFC default. EchoedAuthMethodIsTheStoredOne\* |
+| A public client gets no secret | RFC 7591 §2 | Pass (was Fail) | `none` used to be issued (and stored) a secret. PublicClientGetsNoSecret\* |
+| DCR server errors say nothing internal | CWE-209 | Pass (was Fail) | logged, with "internal server error" in the response |
 
 ## Tokens and keys
 

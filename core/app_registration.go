@@ -54,6 +54,12 @@ type AppRegistration struct {
 	// False leaves DPoP per-request opt-in for this client, unless
 	// OneAuthConfig.RequireDPoP demands it of every client.
 	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
+
+	// RequirePushedAuthorizationRequests is the RFC 9126 §6 client
+	// metadata: when true, /authorize refuses this client's requests that
+	// don't arrive through PAR, the per-client form of
+	// AuthorizationHandler.RequirePushedRequests.
+	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
 }
 
 // SaveAppRequest carries the registration to persist.

@@ -218,9 +218,10 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 		RegistrationAccessToken:   "reg-tok-abc",
 		RegistrationClientURI:     "https://issuer.example/apps/dcr/app_full",
 
-		BackchannelLogoutURI:             "https://full.example/bcl",
-		BackchannelLogoutSessionRequired: true,
-		DPoPBoundAccessTokens:            true,
+		BackchannelLogoutURI:               "https://full.example/bcl",
+		BackchannelLogoutSessionRequired:   true,
+		DPoPBoundAccessTokens:              true,
+		RequirePushedAuthorizationRequests: true,
 	}
 
 	saveApp(t, s, app)
@@ -268,5 +269,8 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	}
 	if !got.DPoPBoundAccessTokens {
 		t.Errorf("DPoPBoundAccessTokens=false, want true")
+	}
+	if !got.RequirePushedAuthorizationRequests {
+		t.Errorf("RequirePushedAuthorizationRequests=false, want true")
 	}
 }

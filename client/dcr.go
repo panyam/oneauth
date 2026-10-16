@@ -46,6 +46,10 @@ type ClientRegistrationRequest struct {
 	// DPoP-bound access tokens and to refuse its token requests that
 	// carry no proof (RFC 9449 §5.2).
 	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
+
+	// RequirePushedAuthorizationRequests asks the AS to accept this
+	// client's authorization requests only through PAR (RFC 9126 §6).
+	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
 }
 
 // ClientRegistrationResponse is the parsed response from a DCR endpoint,
@@ -70,6 +74,10 @@ type ClientRegistrationResponse struct {
 	// DPoPBoundAccessTokens is the AS's record of the RFC 9449 §5.2
 	// setting. An AS that ignores the field leaves it false.
 	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
+
+	// RequirePushedAuthorizationRequests is the AS's record of RFC 9126 §6
+	// require_pushed_authorization_requests for this client.
+	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
 
 	// RFC 7592 §3 — management credentials. RegistrationClientURI is the
 	// management endpoint for this specific registration; RegistrationAccessToken

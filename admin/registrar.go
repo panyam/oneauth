@@ -104,31 +104,39 @@ func validateRedirectURIs(uris []string) error {
 
 func validateRedirectURI(raw string) error {
 	if raw == "" {
-		return fmt.Errorf("%w: redirect_uri must not be empty", ErrInvalidClientMetadata)
+		return fmt.Errorf("%w: redirect_uri must not be empty", ErrInvalidRedirectURI)
 	}
 	if strings.Contains(raw, "#") {
-		return fmt.Errorf("%w: redirect_uri %q MUST NOT contain a fragment (RFC 6749 §3.1.2)", ErrInvalidClientMetadata, raw)
+		return fmt.Errorf("%w: redirect_uri %q MUST NOT contain a fragment (RFC 6749 §3.1.2)", ErrInvalidRedirectURI, raw)
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("%w: redirect_uri %q is not a valid URL: %v", ErrInvalidClientMetadata, raw, err)
+		return fmt.Errorf("%w: redirect_uri %q is not a valid URL: %v", ErrInvalidRedirectURI, raw, err)
 	}
 	if !u.IsAbs() {
-		return fmt.Errorf("%w: redirect_uri %q must be an absolute URL", ErrInvalidClientMetadata, raw)
+		return fmt.Errorf("%w: redirect_uri %q must be an absolute URL", ErrInvalidRedirectURI, raw)
+	}
+	// Userinfo would make the URL say one thing and mean another
+	// ("https://good.example@evil.example/"), and RFC 6749 §3.1.2 leaves
+	// no room for it.
+	if u.User != nil {
+		return fmt.Errorf("%w: redirect_uri %q must not contain userinfo", ErrInvalidRedirectURI, raw)
 	}
 	scheme := strings.ToLower(u.Scheme)
 	switch {
 	case scheme == "https":
-		// always allowed
+		if u.Hostname() == "" {
+			return fmt.Errorf("%w: redirect_uri %q has no host", ErrInvalidRedirectURI, raw)
+		}
 	case scheme == "http":
 		// RFC 8252 §7.3 loopback exemption only.
 		if !isLoopbackHost(u.Hostname()) {
-			return fmt.Errorf("%w: redirect_uri %q must use https (RFC 8252 §7.3 permits http only for loopback: 127.0.0.1, ::1, localhost)", ErrInvalidClientMetadata, raw)
+			return fmt.Errorf("%w: redirect_uri %q must use https (RFC 8252 §7.3 permits http only for loopback: 127.0.0.1, ::1, localhost)", ErrInvalidRedirectURI, raw)
 		}
 	case strings.Contains(scheme, "."):
 		// RFC 8252 §7.1 native-app private-use URI scheme (reverse-DNS).
 	default:
-		return fmt.Errorf("%w: redirect_uri %q scheme %q not allowed (use https, http://localhost, or a reverse-DNS private-use scheme per RFC 8252)", ErrInvalidClientMetadata, raw, scheme)
+		return fmt.Errorf("%w: redirect_uri %q scheme %q not allowed (use https, http://localhost, or a reverse-DNS private-use scheme per RFC 8252)", ErrInvalidRedirectURI, raw, scheme)
 	}
 	return nil
 }
@@ -140,6 +148,52 @@ func validateRedirectURI(raw string) error {
 func isLoopbackHost(host string) bool {
 	host = strings.ToLower(host)
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+// supportedAuthMethods are the token_endpoint_auth_method values the
+// token endpoint can verify; anything else would register a client that can
+// never authenticate.
+var supportedAuthMethods = map[string]bool{
+	"client_secret_basic": true, "client_secret_post": true, "client_secret_jwt": true,
+	"private_key_jwt": true, "none": true,
+}
+
+// supportedGrantTypes are the grant_type values the token endpoint serves.
+var supportedGrantTypes = map[string]bool{
+	"authorization_code": true, "refresh_token": true, "client_credentials": true, "password": true,
+	"urn:ietf:params:oauth:grant-type:device_code":    true,
+	"urn:ietf:params:oauth:grant-type:jwt-bearer":     true,
+	"urn:ietf:params:oauth:grant-type:token-exchange": true,
+}
+
+// effectiveAuthMethod is the method stored and echoed for a registration:
+// the requested one, or RFC 7591 §2's default, client_secret_basic, so the
+// response and the stored registration always agree.
+func effectiveAuthMethod(requested string) string {
+	if requested == "" {
+		return "client_secret_basic"
+	}
+	return requested
+}
+
+// validateClientMetadata checks the auth method and grant types against
+// what this AS supports and against each other (RFC 7591 §2).
+func validateClientMetadata(method string, grantTypes, redirectURIs []string) error {
+	if !supportedAuthMethods[method] {
+		return fmt.Errorf("%w: token_endpoint_auth_method %q is not supported", ErrInvalidClientMetadata, method)
+	}
+	for _, g := range grantTypes {
+		if !supportedGrantTypes[g] {
+			return fmt.Errorf("%w: grant_type %q is not supported", ErrInvalidClientMetadata, g)
+		}
+		if g == "client_credentials" && method == "none" {
+			return fmt.Errorf("%w: a public client (token_endpoint_auth_method none) can't use client_credentials", ErrInvalidClientMetadata)
+		}
+		if g == "authorization_code" && len(redirectURIs) == 0 {
+			return fmt.Errorf("%w: authorization_code needs at least one redirect_uri", ErrInvalidRedirectURI)
+		}
+	}
+	return nil
 }
 
 // isPrivateOrSpecialIP reports whether ip is in any address range that an
@@ -266,6 +320,10 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	if err := validateRedirectURIs(md.RedirectURIs); err != nil {
 		return nil, err
 	}
+	authMethod := effectiveAuthMethod(md.TokenEndpointAuthMethod)
+	if err := validateClientMetadata(authMethod, md.GrantTypes, md.RedirectURIs); err != nil {
+		return nil, err
+	}
 
 	// Determine signing algorithm from the requested auth method. Default
 	// HS256 (symmetric) when the client doesn't ask for private_key_jwt.
@@ -295,21 +353,22 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	regClientURI := req.IssuerBaseURL + "/apps/dcr/" + clientID
 
 	resp := &DCRResponse{
-		ClientID:                         clientID,
-		ClientIDIssuedAt:                 time.Now().Unix(),
-		ClientSecretExpiresAt:            0, // never expires
-		ClientName:                       md.ClientName,
-		ClientURI:                        md.ClientURI,
-		RedirectURIs:                     md.RedirectURIs,
-		GrantTypes:                       md.GrantTypes,
-		TokenEndpointAuthMethod:          md.TokenEndpointAuthMethod,
-		Scope:                            md.Scope,
-		AuthorizationDetailsTypes:        md.AuthorizationDetailsTypes,
-		RegistrationAccessToken:          regAccessToken,
-		RegistrationClientURI:            regClientURI,
-		BackchannelLogoutURI:             md.BackchannelLogoutURI,
-		BackchannelLogoutSessionRequired: md.BackchannelLogoutSessionRequired,
-		DPoPBoundAccessTokens:            md.DPoPBoundAccessTokens,
+		ClientID:                           clientID,
+		ClientIDIssuedAt:                   time.Now().Unix(),
+		ClientSecretExpiresAt:              0, // never expires
+		ClientName:                         md.ClientName,
+		ClientURI:                          md.ClientURI,
+		RedirectURIs:                       md.RedirectURIs,
+		GrantTypes:                         md.GrantTypes,
+		TokenEndpointAuthMethod:            authMethod,
+		Scope:                              md.Scope,
+		AuthorizationDetailsTypes:          md.AuthorizationDetailsTypes,
+		RegistrationAccessToken:            regAccessToken,
+		RegistrationClientURI:              regClientURI,
+		BackchannelLogoutURI:               md.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired:   md.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:              md.DPoPBoundAccessTokens,
+		RequirePushedAuthorizationRequests: md.RequirePushedAuthorizationRequests,
 	}
 
 	if utils.IsAsymmetricAlg(signingAlg) {
@@ -327,7 +386,9 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 			return nil, fmt.Errorf("store key: %w", err)
 		}
 		// No client_secret in response for asymmetric.
-	} else {
+	} else if authMethod != "none" {
+		// A public client ("none") has nothing to keep secret, so it gets
+		// no secret and no key.
 		secret, err := generateDCRSecret()
 		if err != nil {
 			return nil, fmt.Errorf("generate secret: %w", err)
@@ -336,9 +397,6 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 			return nil, fmt.Errorf("store key: %w", err)
 		}
 		resp.ClientSecret = secret
-		if resp.TokenEndpointAuthMethod == "" {
-			resp.TokenEndpointAuthMethod = "client_secret_post"
-		}
 	}
 
 	// Persist registration metadata. ClientDomain mirrors DCRHandler's
@@ -348,22 +406,23 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		domain = md.ClientName
 	}
 	reg := &core.AppRegistration{
-		ClientID:                         clientID,
-		ClientDomain:                     domain,
-		SigningAlg:                       signingAlg,
-		AuthorizationDetailsTypes:        md.AuthorizationDetailsTypes,
-		CreatedAt:                        time.Now(),
-		ClientName:                       md.ClientName,
-		ClientURI:                        md.ClientURI,
-		RedirectURIs:                     md.RedirectURIs,
-		GrantTypes:                       md.GrantTypes,
-		Scope:                            md.Scope,
-		TokenEndpointAuthMethod:          md.TokenEndpointAuthMethod,
-		RegistrationAccessToken:          regAccessToken,
-		RegistrationClientURI:            regClientURI,
-		BackchannelLogoutURI:             md.BackchannelLogoutURI,
-		BackchannelLogoutSessionRequired: md.BackchannelLogoutSessionRequired,
-		DPoPBoundAccessTokens:            md.DPoPBoundAccessTokens,
+		ClientID:                           clientID,
+		ClientDomain:                       domain,
+		SigningAlg:                         signingAlg,
+		AuthorizationDetailsTypes:          md.AuthorizationDetailsTypes,
+		CreatedAt:                          time.Now(),
+		ClientName:                         md.ClientName,
+		ClientURI:                          md.ClientURI,
+		RedirectURIs:                       md.RedirectURIs,
+		GrantTypes:                         md.GrantTypes,
+		Scope:                              md.Scope,
+		TokenEndpointAuthMethod:            authMethod,
+		RegistrationAccessToken:            regAccessToken,
+		RegistrationClientURI:              regClientURI,
+		BackchannelLogoutURI:               md.BackchannelLogoutURI,
+		BackchannelLogoutSessionRequired:   md.BackchannelLogoutSessionRequired,
+		DPoPBoundAccessTokens:              md.DPoPBoundAccessTokens,
+		RequirePushedAuthorizationRequests: md.RequirePushedAuthorizationRequests,
 	}
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, fmt.Errorf("persist registration: %w", err)
@@ -580,21 +639,22 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 	}
 	return &GetRegistrationResponse{
 		Registration: &DCRResponse{
-			ClientID:                         reg.ClientID,
-			ClientIDIssuedAt:                 reg.CreatedAt.Unix(),
-			ClientSecretExpiresAt:            0,
-			ClientName:                       reg.ClientName,
-			ClientURI:                        reg.ClientURI,
-			RedirectURIs:                     reg.RedirectURIs,
-			GrantTypes:                       reg.GrantTypes,
-			TokenEndpointAuthMethod:          reg.TokenEndpointAuthMethod,
-			Scope:                            reg.Scope,
-			AuthorizationDetailsTypes:        reg.AuthorizationDetailsTypes,
-			RegistrationAccessToken:          reg.RegistrationAccessToken,
-			RegistrationClientURI:            reg.RegistrationClientURI,
-			BackchannelLogoutURI:             reg.BackchannelLogoutURI,
-			BackchannelLogoutSessionRequired: reg.BackchannelLogoutSessionRequired,
-			DPoPBoundAccessTokens:            reg.DPoPBoundAccessTokens,
+			ClientID:                           reg.ClientID,
+			ClientIDIssuedAt:                   reg.CreatedAt.Unix(),
+			ClientSecretExpiresAt:              0,
+			ClientName:                         reg.ClientName,
+			ClientURI:                          reg.ClientURI,
+			RedirectURIs:                       reg.RedirectURIs,
+			GrantTypes:                         reg.GrantTypes,
+			TokenEndpointAuthMethod:            reg.TokenEndpointAuthMethod,
+			Scope:                              reg.Scope,
+			AuthorizationDetailsTypes:          reg.AuthorizationDetailsTypes,
+			RegistrationAccessToken:            reg.RegistrationAccessToken,
+			RegistrationClientURI:              reg.RegistrationClientURI,
+			BackchannelLogoutURI:               reg.BackchannelLogoutURI,
+			BackchannelLogoutSessionRequired:   reg.BackchannelLogoutSessionRequired,
+			DPoPBoundAccessTokens:              reg.DPoPBoundAccessTokens,
+			RequirePushedAuthorizationRequests: reg.RequirePushedAuthorizationRequests,
 		},
 	}, nil
 }
@@ -652,6 +712,9 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if err := validateRedirectURIs(md.RedirectURIs); err != nil {
 		return nil, err
 	}
+	if err := validateClientMetadata(effectiveAuthMethod(reg.TokenEndpointAuthMethod), md.GrantTypes, md.RedirectURIs); err != nil {
+		return nil, err
+	}
 
 	newToken, err := generateRegistrationAccessToken()
 	if err != nil {
@@ -676,27 +739,29 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	reg.BackchannelLogoutURI = md.BackchannelLogoutURI
 	reg.BackchannelLogoutSessionRequired = md.BackchannelLogoutSessionRequired
 	reg.DPoPBoundAccessTokens = md.DPoPBoundAccessTokens
+	reg.RequirePushedAuthorizationRequests = md.RequirePushedAuthorizationRequests
 
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, err
 	}
 	return &UpdateRegistrationResponse{
 		Registration: &DCRResponse{
-			ClientID:                         reg.ClientID,
-			ClientIDIssuedAt:                 reg.CreatedAt.Unix(),
-			ClientSecretExpiresAt:            0,
-			ClientName:                       reg.ClientName,
-			ClientURI:                        reg.ClientURI,
-			RedirectURIs:                     reg.RedirectURIs,
-			GrantTypes:                       reg.GrantTypes,
-			TokenEndpointAuthMethod:          reg.TokenEndpointAuthMethod,
-			Scope:                            reg.Scope,
-			AuthorizationDetailsTypes:        reg.AuthorizationDetailsTypes,
-			RegistrationAccessToken:          reg.RegistrationAccessToken,
-			RegistrationClientURI:            reg.RegistrationClientURI,
-			BackchannelLogoutURI:             reg.BackchannelLogoutURI,
-			BackchannelLogoutSessionRequired: reg.BackchannelLogoutSessionRequired,
-			DPoPBoundAccessTokens:            reg.DPoPBoundAccessTokens,
+			ClientID:                           reg.ClientID,
+			ClientIDIssuedAt:                   reg.CreatedAt.Unix(),
+			ClientSecretExpiresAt:              0,
+			ClientName:                         reg.ClientName,
+			ClientURI:                          reg.ClientURI,
+			RedirectURIs:                       reg.RedirectURIs,
+			GrantTypes:                         reg.GrantTypes,
+			TokenEndpointAuthMethod:            reg.TokenEndpointAuthMethod,
+			Scope:                              reg.Scope,
+			AuthorizationDetailsTypes:          reg.AuthorizationDetailsTypes,
+			RegistrationAccessToken:            reg.RegistrationAccessToken,
+			RegistrationClientURI:              reg.RegistrationClientURI,
+			BackchannelLogoutURI:               reg.BackchannelLogoutURI,
+			BackchannelLogoutSessionRequired:   reg.BackchannelLogoutSessionRequired,
+			DPoPBoundAccessTokens:              reg.DPoPBoundAccessTokens,
+			RequirePushedAuthorizationRequests: reg.RequirePushedAuthorizationRequests,
 		},
 	}, nil
 }
