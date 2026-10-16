@@ -117,6 +117,10 @@ func TestHardening_OtherJWTKindsAreNotAccessTokens(t *testing.T) {
 		"logout token (typ logout+jwt)":  {map[string]any{"typ": "logout+jwt"}, func(c jwt.MapClaims) { delete(c, "type") }},
 		"ID-JAG (typ oauth-id-jag+jwt)":  {map[string]any{"typ": apiauth.IDJAGTypeHeader}, func(c jwt.MapClaims) { delete(c, "type") }},
 		"browser session (type session)": {nil, func(c jwt.MapClaims) { c["type"] = "session" }},
+		"OIDC ID token (Keycloak typ claim ID)": {map[string]any{"typ": "JWT"}, func(c jwt.MapClaims) {
+			delete(c, "type")
+			c["typ"] = "ID"
+		}},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -134,6 +138,13 @@ func TestHardening_OtherJWTKindsAreNotAccessTokens(t *testing.T) {
 	for _, typ := range []string{"JWT", "at+jwt", "application/at+jwt"} {
 		tok := signHS256(t, []byte(hardenSecret), accessClaims(), map[string]any{"typ": typ})
 		assert.NoError(t, validate(hardenValidator(), tok), typ)
+	}
+	// So do Keycloak's, whose typ claim names the token type.
+	for _, typClaim := range []string{"Bearer", "DPoP"} {
+		claims := accessClaims()
+		delete(claims, "type")
+		claims["typ"] = typClaim
+		assert.NoError(t, validate(hardenValidator(), signHS256(t, []byte(hardenSecret), claims, nil)), "typ claim %s", typClaim)
 	}
 }
 
