@@ -77,6 +77,22 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 | 5.3.2.1 #9 | No refresh-token rotation | Pass (was Open) | `OneAuthConfig.DisableRefreshTokenRotation`, opt-in; the default still rotates (RFC 9700 §4.14). RefreshRotationOff\* |
 | — | Reference server can be configured for all of the above | Pass (was not possible) | `cmd/oneauth-server` `dpop:` block and `jwt.disable_refresh_token_rotation`; `deploy-examples/fapi-dpop.yaml`; `cmd/oneauth-server/dpop_test.go` |
 
+### FAPI 2.0 Security Profile (final), the rest of §5.3.2
+
+`OneAuthConfig.FAPI2` turns the profile on as one switch instead of several (issue 88).
+
+| § | Requirement | Status | How |
+|---|---|---|---|
+| 5.3.2.1 #2 | Reject the resource owner password grant | Pass (was opt-in) | `FAPI2` answers `unsupported_grant_type` even when a `PasswordGranter` is wired. DPoPRequiredAndNoPasswordGrant\* |
+| 5.3.2.1 #3 | Confidential clients only | Pass (was not possible) | the confidential-client gate refuses public and unregistered clients under `FAPI2` |
+| 5.3.2.1 #6 | Client authentication by `private_key_jwt` (or MTLS) | Pass (was not possible) | `fapiClientAuthenticator` refuses client secrets; MTLS isn't implemented. ClientAuthentication\* |
+| 5.3.2.1 #8 | Accept only the issuer, as a string, as the client assertion's `aud` | Pass (was not possible) | `AcceptedAudiences` pinned to the issuer and `RequireStringAudience`. ClientAuthentication\* |
+| — | A caller can't choose the audience its assertion is checked against | Pass (was Fail, every deployment) | `derivedAudience` read `X-Forwarded-Host` / `-Proto` from anyone, so an assertion minted for another server passed. It now uses `r.TLS` and `r.Host` only, and the token endpoint also accepts the issuer by default (RFC 7523 §3). ForwardedHeadersDontChooseTheAudience\* |
+| 5.3.2.1 #4, #9 | Sender-constrained tokens, no rotation | Pass | `FAPI2` sets `RequireDPoP` and `DisableRefreshTokenRotation` |
+| 5.3.2.2 #1 | PAR only | Pass | `MountAuthorize` sets `RequirePushedRequests` under `FAPI2`, and panics without a `PushedStore` |
+| 5.3.2.2 | Codes at most 60s, `request_uri` under 600s | Pass | defaults already were; `FAPI2` caps longer configured values. LifetimeCaps |
+| — | Reference server can run the whole profile | Open | it has no PAR endpoint yet; next PR |
+
 ### What the walk found
 
 Fixed alongside this section:

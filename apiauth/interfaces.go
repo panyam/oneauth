@@ -536,6 +536,13 @@ type AuthenticateClientRequest struct {
 	// MUST match at least one entry. Required when ClientAssertion is
 	// set.
 	Audiences []string
+
+	// RequireStringAudience, when true, refuses an assertion whose aud is
+	// an array, even one containing an accepted value. FAPI 2.0 §5.3.2.1
+	// asks for the issuer "as a string", which closes off audience
+	// injection through multi-valued aud. Authenticators other than
+	// oneauth's own may ignore it.
+	RequireStringAudience bool
 }
 
 // AuthenticateClientResponse reports the authenticated client and the

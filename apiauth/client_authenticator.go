@@ -270,6 +270,9 @@ func (a *clientAuthenticator) authenticateAssertion(req *AuthenticateClientReque
 		return nil, fmt.Errorf("%w: verified claims unparseable", errInvalidClient)
 	}
 
+	if _, isString := verifiedClaims["aud"].(string); req.RequireStringAudience && !isString {
+		return nil, fmt.Errorf("%w: assertion aud must be a single string", errInvalidClient)
+	}
 	matched := false
 	for _, aud := range req.Audiences {
 		if matchesAudience(verifiedClaims, aud) {

@@ -142,6 +142,15 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 	if cfg.IssuerURL == "" {
 		panic("apiauth: MountAuthorize: cfg.IssuerURL is required (RFC 9207 needs the issuer URL even when EmitIssParameter is off, for future hardening)")
 	}
+	if cfg.OneAuth.FAPI2 {
+		// FAPI 2.0 §5.3.2.2: PAR only, short-lived codes and request_uris.
+		if cfg.PushedStore == nil {
+			panic("apiauth: MountAuthorize: OneAuth.FAPI2 needs cfg.PushedStore, since FAPI 2.0 accepts authorization requests only through PAR")
+		}
+		cfg.RequirePushedRequests = true
+		cfg.Expiry = capLifetime(cfg.Expiry, fapi2MaxCodeLifetime)
+		cfg.PushedRequestExpiry = capLifetime(cfg.PushedRequestExpiry, fapi2MaxRequestURILifetime)
+	}
 	if cfg.SubjectFromRequest == nil {
 		panic("apiauth: MountAuthorize: cfg.SubjectFromRequest is required")
 	}

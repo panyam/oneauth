@@ -85,16 +85,13 @@ func extractClientCredentials(r *http.Request, req *core.TokenRequest) (*Authent
 // Scheme detection prefers X-Forwarded-Proto (set by reverse proxies)
 // and falls back to https when r.TLS is set, http otherwise.
 func derivedAudience(r *http.Request) string {
+	// X-Forwarded-Proto / X-Forwarded-Host are not read: anyone can send
+	// them, and letting a caller choose the audience its own assertion is
+	// checked against would accept an assertion minted for another server
+	// (CWE-346). Behind a proxy, set AcceptedAudiences.
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
 	}
-	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	}
-	host := r.Host
-	if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
-		host = fwdHost
-	}
-	return scheme + "://" + host + r.URL.Path
+	return scheme + "://" + r.Host + r.URL.Path
 }

@@ -68,6 +68,14 @@ type OneAuth struct {
 	// can validate confidential-client assertions.
 	AcceptedAudiences []string
 
+	// IssuerURL is OneAuthConfig.Issuer. With no AcceptedAudiences the
+	// token endpoint accepts it as a client-assertion aud (RFC 7523 §3).
+	IssuerURL string
+
+	// FAPI2 is OneAuthConfig.FAPI2: the FAPI 2.0 Security Profile is in
+	// force. MountAuthorize reads it to require PAR and cap lifetimes.
+	FAPI2 bool
+
 	// DPoP mirrors OneAuthConfig.DPoP. Exposed so transport bindings
 	// read the AS-wide policy without re-plumbing it: the token endpoint
 	// validates proofs through it, and AS metadata derivation reads its
@@ -85,6 +93,15 @@ type OneAuth struct {
 type OneAuthConfig struct {
 	// Key management
 	KeyStore keys.KeyStorage // required — stores client keys
+
+	// FAPI2 holds the server to the FAPI 2.0 Security Profile (§5.3.2):
+	// DPoP-bound tokens only (RequireDPoP), no refresh-token rotation,
+	// client authentication by private_key_jwt only with the issuer as the
+	// assertion's sole aud (a string), no password grant, and no public
+	// clients at the token endpoint. MountAuthorize adds PAR-only requests
+	// and code / request_uri lifetimes of at most 60 seconds. DPoP must be
+	// set too, or every token request is refused.
+	FAPI2 bool
 
 	// KidStore holds keys retired by a rotation for their grace period
 	// (AppRegistrar.KidStore writes them). The validator looks a token's
@@ -265,6 +282,14 @@ type OneAuthConfig struct {
 // NewOneAuth creates a fully wired OneAuth instance.
 // All implementations receive only the interfaces they need.
 func NewOneAuth(cfg OneAuthConfig) *OneAuth {
+	if cfg.FAPI2 {
+		// FAPI 2.0 Security Profile §5.3.2.1: sender-constrained tokens
+		// only, no refresh-token rotation, and the issuer as the sole
+		// client-assertion audience.
+		cfg.RequireDPoP = true
+		cfg.DisableRefreshTokenRotation = true
+		cfg.AcceptedAudiences = []string{cfg.Issuer}
+	}
 	signingAlg := cfg.SigningAlg
 	if signingAlg == "" {
 		signingAlg = "HS256"
@@ -340,6 +365,9 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		// token_endpoint_auth_method when an AppStore is wired (issue 360).
 		authenticator = NewClientAuthenticatorWithAppStore(cfg.KeyStore, cfg.AppStore)
 	}
+	if cfg.FAPI2 {
+		authenticator = &fapiClientAuthenticator{inner: authenticator}
+	}
 
 	// Per-grant Granters. Nil when the corresponding store / config is
 	// not wired; TokenEndpointHandler maps a nil Granter to
@@ -388,6 +416,8 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	}
 
 	oa := &OneAuth{
+		IssuerURL:                cfg.Issuer,
+		FAPI2:                    cfg.FAPI2,
 		Issuer:                   issuer,
 		Validator:                validator,
 		Introspector:             introspector,
@@ -434,16 +464,18 @@ func (oa *OneAuth) APIKeysHTTPHandler(store core.APIKeyStore, getSubjectScopes c
 // IntrospectionHTTPHandler returns an http.Handler for POST /oauth/introspect.
 func (oa *OneAuth) IntrospectionHTTPHandler() *IntrospectionHandler {
 	return &IntrospectionHandler{
-		Introspector:  oa.Introspector,
-		Authenticator: oa.Authenticator,
+		Introspector:      oa.Introspector,
+		Authenticator:     oa.Authenticator,
+		AcceptedAudiences: oa.AcceptedAudiences,
 	}
 }
 
 // RevocationHTTPHandler returns an http.Handler for POST /oauth/revoke.
 func (oa *OneAuth) RevocationHTTPHandler() *RevocationHandler {
 	return &RevocationHandler{
-		Revoker:       oa.Revoker,
-		Authenticator: oa.Authenticator,
+		Revoker:           oa.Revoker,
+		Authenticator:     oa.Authenticator,
+		AcceptedAudiences: oa.AcceptedAudiences,
 	}
 }
 
