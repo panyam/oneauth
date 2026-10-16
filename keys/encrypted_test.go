@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"testing"
 
 	"github.com/panyam/oneauth/keys"
@@ -126,17 +127,19 @@ func TestWrongMasterKeyFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewEncryptedKeyStorage (B) failed: %v", err)
 	}
-	got := getKeyBytes(t, encB, "app-1")
-	if bytes.Equal(got, secret) {
-		t.Error("wrong master key returned the original plaintext — encryption is broken")
+	// Under the wrong master key the read fails; it used to hand back the
+	// ciphertext as though it were the key.
+	if _, err := encB.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: "app-1"}); !errors.Is(err, keys.ErrKeyDecrypt) {
+		t.Errorf("wrong master key: got %v, want ErrKeyDecrypt", err)
 	}
 }
 
 // TestPlaintextMigration verifies backward compatibility: a key stored directly
 // in the inner store (without encryption) is still readable through the
-// encrypted wrapper.
+// encrypted wrapper when AllowLegacyPlaintext is on.
 func TestPlaintextMigration(t *testing.T) {
 	enc, inner := newTestEncryptedKeyStore(t)
+	enc.AllowLegacyPlaintext = true
 	secret := []byte("legacy-unencrypted-secret")
 
 	putKey(t, inner, &keys.KeyRecord{ClientID: "legacy-app", Key: secret, Algorithm: "HS256"})

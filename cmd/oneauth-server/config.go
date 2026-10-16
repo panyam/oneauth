@@ -206,6 +206,13 @@ type KeyStoreConfig struct {
 	FS        FSConfig   `yaml:"fs"`
 	GAE       GAEConfig  `yaml:"gae"`
 	MasterKey string     `yaml:"master_key"` // 64-char hex key for AES-256-GCM encryption of HS256 secrets at rest
+
+	// MigrateLegacy encrypts, at startup, secrets stored before master_key
+	// was set (or by an older oneauth). Without it those records fail to
+	// resolve, since a plaintext secret in an encrypted store could have
+	// been planted. Set it for the first start after turning encryption
+	// on, then remove it.
+	MigrateLegacy bool `yaml:"migrate_legacy"`
 }
 
 type GORMConfig struct {
@@ -348,8 +355,9 @@ func configFromEnv() Config {
 			AllowInsecureHTTP: os.Getenv("ALLOW_INSECURE_HTTP") == "true",
 		},
 		KeyStore: KeyStoreConfig{
-			Type:      os.Getenv("KEYSTORE_TYPE"),
-			MasterKey: os.Getenv("ONEAUTH_MASTER_KEY"),
+			Type:          os.Getenv("KEYSTORE_TYPE"),
+			MasterKey:     os.Getenv("ONEAUTH_MASTER_KEY"),
+			MigrateLegacy: os.Getenv("KEYSTORE_MIGRATE_LEGACY") == "true",
 			GORM: GORMConfig{
 				Driver: os.Getenv("GORM_DRIVER"),
 				DSN:    os.Getenv("DATABASE_URL"),

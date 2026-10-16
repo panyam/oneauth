@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -39,6 +40,61 @@ import (
 type EncryptedKeyStorage struct {
 	inner KeyStorage
 	aead  cipher.AEAD
+
+	// AllowLegacyPlaintext accepts encrypt-eligible records (HMAC secrets,
+	// private PEMs) that are stored in plaintext, as they were before
+	// encryption was turned on. Off by default: with it off, a plaintext
+	// secret in the store is ErrKeyDecrypt, so someone who can write the
+	// store can't swap in a key of their choosing. Turn it on only to read
+	// or MigrateLegacy such records.
+	AllowLegacyPlaintext bool
+}
+
+// ErrKeyDecrypt is returned by GetKey and GetKeyByKid when a record that
+// should be encrypted can't be opened: the master key is wrong, the bytes
+// were altered, the ciphertext belongs to a different record, or it is
+// plaintext and AllowLegacyPlaintext is off. The key is never returned in
+// any of those cases.
+var ErrKeyDecrypt = errors.New("keys: stored key could not be decrypted")
+
+// encV1Prefix marks the current record format: AES-256-GCM with AAD that
+// binds the ciphertext to its record (see recordAAD). Records without it
+// are legacy: unbound ciphertext from before the prefix, or plaintext.
+var encV1Prefix = []byte("oaenc1:")
+
+// MigrateLegacy rewrites every legacy record in the current format and
+// returns how many it rewrote. Unbound ciphertext from earlier versions is
+// always migrated; plaintext records only when AllowLegacyPlaintext is on.
+// Records already current, and public PEMs, are left alone. It stops at
+// the first record it can't read or write.
+func (e *EncryptedKeyStorage) MigrateLegacy(ctx context.Context) (int, error) {
+	ids, err := e.inner.ListKeyIDs(ctx, &ListKeyIDsRequest{})
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, id := range ids.ClientIDs {
+		resp, err := e.inner.GetKey(ctx, &GetKeyRequest{ClientID: id})
+		if err != nil {
+			return n, fmt.Errorf("migrate %q: %w", id, err)
+		}
+		raw, ok := resp.Record.Key.([]byte)
+		if !ok || bytes.HasPrefix(raw, encV1Prefix) {
+			continue
+		}
+		rec, err := e.decryptRecord(resp.Record)
+		if err != nil {
+			return n, fmt.Errorf("migrate %q: %w", id, err)
+		}
+		if !shouldEncrypt(rec) {
+			continue
+		}
+		if _, err := e.PutKey(ctx, &PutKeyRequest{Record: rec}); err != nil {
+			return n, fmt.Errorf("migrate %q: %w", id, err)
+		}
+		n++
+	}
+	return n, nil
 }
 
 // NewEncryptedKeyStorage creates an EncryptedKeyStorage wrapping inner.
@@ -91,7 +147,7 @@ func (e *EncryptedKeyStorage) PutKey(ctx context.Context, req *PutKeyRequest) (*
 		if !ok {
 			return nil, fmt.Errorf("encrypt-eligible key must be []byte, got %T", rec.Key)
 		}
-		encrypted, err := e.encrypt(keyBytes)
+		encrypted, err := e.encrypt(keyBytes, recordAAD(rec))
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt key for %s: %w", rec.ClientID, err)
 		}
@@ -112,7 +168,11 @@ func (e *EncryptedKeyStorage) GetKey(ctx context.Context, req *GetKeyRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	return &GetKeyResponse{Record: e.maybeDecryptRecord(resp.Record)}, nil
+	rec, err := e.decryptRecord(resp.Record)
+	if err != nil {
+		return nil, err
+	}
+	return &GetKeyResponse{Record: rec}, nil
 }
 
 // GetKeyByKid retrieves and decrypts the key matching the given kid.
@@ -121,7 +181,11 @@ func (e *EncryptedKeyStorage) GetKeyByKid(ctx context.Context, req *GetKeyByKidR
 	if err != nil {
 		return nil, err
 	}
-	return &GetKeyByKidResponse{Record: e.maybeDecryptRecord(resp.Record)}, nil
+	rec, err := e.decryptRecord(resp.Record)
+	if err != nil {
+		return nil, err
+	}
+	return &GetKeyByKidResponse{Record: rec}, nil
 }
 
 // DeleteKey delegates to the inner store.
@@ -134,37 +198,53 @@ func (e *EncryptedKeyStorage) ListKeyIDs(ctx context.Context, req *ListKeyIDsReq
 	return e.inner.ListKeyIDs(ctx, req)
 }
 
-// maybeDecryptRecord decrypts the Key field when the stored bytes look like
-// AES-GCM ciphertext. Falls through to plaintext on either of two paths:
+// decryptRecord returns rec with its key decrypted, or ErrKeyDecrypt.
 //
-//   - The stored bytes start with "-----BEGIN", i.e., a PEM block — public
-//     PEMs (always stored plaintext) and pre-encryption private/migration
-//     PEMs both surface this way without an unnecessary decrypt attempt.
-//   - The bytes are non-PEM and AES-GCM tag verification fails — assumed
-//     to be a pre-encryption legacy HMAC secret and returned as-is. Logged
-//     so accidental corruption isn't fully silent.
+//   - Current records carry encV1Prefix and open only with their own AAD.
+//   - A PEM block passes through when it's public. A private one is legacy
+//     plaintext.
+//   - Other bytes are tried as unbound ciphertext from before the prefix,
+//     which is still accepted since only the master key could have written
+//     it. Failing that they are legacy plaintext.
 //
-// AES-GCM output cannot itself start with "-----BEGIN" (the prepended nonce
-// is random bytes), so the PEM-prefix check is a safe fast path.
-func (e *EncryptedKeyStorage) maybeDecryptRecord(rec *KeyRecord) *KeyRecord {
+// Legacy plaintext is accepted only with AllowLegacyPlaintext, and only for
+// records that PutKey would have encrypted; anything else (public keys,
+// unknown algorithms) was never encrypted and passes through.
+func (e *EncryptedKeyStorage) decryptRecord(rec *KeyRecord) (*KeyRecord, error) {
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
-		return rec
+		return rec, nil
 	}
-	if bytes.HasPrefix(keyBytes, pemPrefix) {
-		return rec
+	withKey := func(k []byte) *KeyRecord {
+		return &KeyRecord{ClientID: rec.ClientID, Key: k, Algorithm: rec.Algorithm, Kid: rec.Kid}
 	}
-	decrypted, err := e.decrypt(keyBytes)
-	if err != nil {
-		log.Printf("EncryptedKeyStorage: GCM decryption failed for client %q, returning as plaintext (pre-encryption migration)", rec.ClientID)
-		return rec
+	if bytes.HasPrefix(keyBytes, encV1Prefix) {
+		plain, err := e.decrypt(keyBytes[len(encV1Prefix):], recordAAD(rec))
+		if err != nil {
+			return nil, fmt.Errorf("%w (client %q)", ErrKeyDecrypt, rec.ClientID)
+		}
+		return withKey(plain), nil
 	}
-	return &KeyRecord{
-		ClientID:  rec.ClientID,
-		Key:       decrypted,
-		Algorithm: rec.Algorithm,
-		Kid:       rec.Kid,
+	if !bytes.HasPrefix(keyBytes, pemPrefix) {
+		if plain, err := e.decrypt(keyBytes, nil); err == nil {
+			return withKey(plain), nil
+		}
 	}
+	if !shouldEncrypt(rec) {
+		return rec, nil
+	}
+	if !e.AllowLegacyPlaintext {
+		return nil, fmt.Errorf("%w (client %q): not encrypted, and AllowLegacyPlaintext is off", ErrKeyDecrypt, rec.ClientID)
+	}
+	log.Printf("EncryptedKeyStorage: client %q is stored in plaintext; run MigrateLegacy to encrypt it", rec.ClientID)
+	return rec, nil
+}
+
+// recordAAD binds a ciphertext to the record it was written for, so it
+// doesn't open when copied into another client's record or one with a
+// different algorithm or kid.
+func recordAAD(rec *KeyRecord) []byte {
+	return []byte("oneauth-key\x00" + rec.ClientID + "\x00" + rec.Algorithm + "\x00" + rec.Kid)
 }
 
 var pemPrefix = []byte("-----BEGIN")
@@ -196,23 +276,27 @@ func isPrivatePEM(b []byte) bool {
 	return strings.Contains(block.Type, "PRIVATE")
 }
 
-// encrypt produces AES-256-GCM ciphertext with a random 12-byte nonce prepended.
-func (e *EncryptedKeyStorage) encrypt(plaintext []byte) ([]byte, error) {
+// encrypt produces encV1Prefix, a random 12-byte nonce, then the
+// AES-256-GCM ciphertext of plaintext under aad.
+func (e *EncryptedKeyStorage) encrypt(plaintext, aad []byte) ([]byte, error) {
 	nonce := make([]byte, e.aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, fmt.Errorf("failed to generate nonce: %w", err)
 	}
-	return e.aead.Seal(nonce, nonce, plaintext, nil), nil
+	out := append([]byte(nil), encV1Prefix...)
+	out = append(out, nonce...)
+	return e.aead.Seal(out, nonce, plaintext, aad), nil
 }
 
-// decrypt extracts the prepended nonce and decrypts AES-256-GCM ciphertext.
-func (e *EncryptedKeyStorage) decrypt(ciphertext []byte) ([]byte, error) {
+// decrypt splits off the nonce and opens the AES-256-GCM ciphertext under
+// aad. The caller strips any format prefix first.
+func (e *EncryptedKeyStorage) decrypt(ciphertext, aad []byte) ([]byte, error) {
 	nonceSize := e.aead.NonceSize()
 	if len(ciphertext) < nonceSize {
 		return nil, fmt.Errorf("ciphertext too short: %d bytes, need at least %d", len(ciphertext), nonceSize)
 	}
 	nonce, ct := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	return e.aead.Open(nil, nonce, ct, nil)
+	return e.aead.Open(nil, nonce, ct, aad)
 }
 
 // isHMACAlgorithm reports whether alg is an HMAC-based JWT signing algorithm.
