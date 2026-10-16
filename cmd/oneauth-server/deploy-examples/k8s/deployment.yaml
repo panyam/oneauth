@@ -44,6 +44,9 @@ spec:
                   key: database-url
             - name: ADMIN_AUTH_TYPE
               value: "api-key"
+            # The https URL clients use (TLS at the ingress is fine).
+            - name: PUBLIC_URL
+              value: "https://auth.example.com"
             - name: ADMIN_API_KEY
               valueFrom:
                 secretKeyRef:

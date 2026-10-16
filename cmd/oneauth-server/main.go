@@ -67,6 +67,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+	if err := checkTransport(cfg); err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
 
 	// Build KeyStore (optionally wrapped with encryption)
 	keyStore, db, err := buildKeyStore(cfg)
@@ -102,6 +105,12 @@ func main() {
 		log.Fatalf("Invalid rate limit config: %v", err)
 	}
 	bf.sweep()
+	// The admin and DCR routes get their own per-address budget, checked
+	// before the admin key, so the key can't be guessed online.
+	registrar.TrustedProxies = bf.trustedProxies
+	if bf.limiter != nil {
+		registrar.AuthRateLimiter = core.NewInMemoryRateLimiter(1, 60)
+	}
 
 	// Build LocalAuth
 	localAuth := &localauth.LocalAuth{
@@ -213,6 +222,8 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Health check
+	mux.Handle("GET /static/", staticHandler())
+
 	mux.HandleFunc("GET /_ah/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
@@ -277,17 +288,9 @@ func main() {
 		userID := getUserIDFromCookie(r, cfg.JWT.SecretKey)
 		email := getUserEmailFromCookie(r, cfg.JWT.SecretKey)
 
-		// Get registered apps from registrar
-		var apps []*core.AppRegistration
-		registrar.RLockApps(func(a map[string]*core.AppRegistration) {
-			for _, reg := range a {
-				apps = append(apps, reg)
-			}
-		})
-
 		renderTemplate(w, "dashboard.html", map[string]any{
 			"Title": "Dashboard", "User": user, "UserID": userID,
-			"UserEmail": email, "Apps": apps, "CSRFField": httpauth.CSRFTemplateField(r),
+			"UserEmail": email, "CSRFField": httpauth.CSRFTemplateField(r),
 		})
 	})))
 
@@ -464,7 +467,7 @@ func main() {
 		HSTSMaxAge:                31536000,
 		HSTSIncludeSubDomains:     true,
 		FrameOptions:              "DENY",
-		ContentSecurityPolicy:     "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'",
+		ContentSecurityPolicy:     serverCSP,
 		ReferrerPolicy:            "strict-origin-when-cross-origin",
 		PermissionsPolicy:         "camera=(), microphone=(), geolocation=()",
 		CrossOriginEmbedderPolicy: "credentialless",
@@ -802,25 +805,31 @@ func openGORM(cfg GORMConfig) (*gorm.DB, error) {
 func buildAdminAuth(cfg *Config) (admin.AdminAuth, error) {
 	switch cfg.AdminAuth.Type {
 	case "none":
-		log.Println("WARNING: Admin auth disabled (type=none). Do not use in production!")
+		// An open admin API lets anyone rotate a client's secret and read
+		// the new one back, so it has to be asked for in so many words.
+		if !cfg.AdminAuth.AllowOpen {
+			return nil, fmt.Errorf("admin_auth.type none leaves the admin API and registration open to anyone; set admin_auth.allow_open: true to mean it, or use type api-key")
+		}
+		log.Println("WARNING: admin auth is off (admin_auth.type none, allow_open). Anyone who can reach this server can register clients and rotate their secrets.")
 		return admin.NewNoAuth(), nil
 
 	case "api-key":
 		key := cfg.AdminAuth.APIKey.Key
 		if key == "" {
-			// Try fetching from Secret Manager
 			var err error
 			key, err = fetchSecretManagerKey(cfg)
 			if err != nil {
-				log.Fatalf("admin_auth.api_key.key is required. Set ADMIN_API_KEY env var, create a Secret Manager secret, or generate one:\n  export ADMIN_API_KEY=\"$(openssl rand -hex 32)\"\nSecret Manager error: %v", err)
+				return nil, fmt.Errorf("admin_auth.api_key.key is required. Set ADMIN_API_KEY, create a Secret Manager secret, or generate one:\n  export ADMIN_API_KEY=\"$(openssl rand -hex 32)\"\nSecret Manager error: %w", err)
 			}
 			log.Println("Admin API key loaded from Secret Manager")
 		}
 		return admin.NewAPIKeyAuth(key), nil
 
+	case "":
+		return nil, fmt.Errorf("admin_auth.type is required: api-key (recommended), or none with admin_auth.allow_open: true")
+
 	default:
-		log.Fatalf("Unknown admin_auth type: %s", cfg.AdminAuth.Type)
-		return nil, nil
+		return nil, fmt.Errorf("unknown admin_auth.type %q (api-key or none)", cfg.AdminAuth.Type)
 	}
 }
 

@@ -39,6 +39,7 @@ rules:
           - "**/*_test.go"
     env:
       PORT: "9999"
+      PUBLIC_URL: "http://localhost:9999"
       KEYSTORE_TYPE: "gorm"
       GORM_DRIVER: "postgres"
       DATABASE_URL: "host=localhost user=oneauth password=oneauth-demo-pass dbname=oneauth port=5432 sslmode=disable"

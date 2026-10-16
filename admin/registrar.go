@@ -164,6 +164,15 @@ type AppRegistrar struct {
 	// deployment reached by any other host must set it.
 	IssuerBaseURL string
 
+	// AuthRateLimiter limits requests to the admin and DCR routes per
+	// client address, checked before the credential, so an admin key
+	// can't be guessed online (CWE-307). Nil disables it.
+	AuthRateLimiter core.RateLimiter
+
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is
+	// believed when keying AuthRateLimiter.
+	TrustedProxies core.TrustedProxies
+
 	KeyStore keys.KeyStorage
 	Auth     AdminAuth
 
@@ -457,6 +466,9 @@ func (h *AppRegistrar) RotateSecret(ctx context.Context, req *RotateSecretReques
 		return nil, core.ErrAppNotFound
 	}
 
+	if req.GracePeriod < 0 || req.GracePeriod > MaxRotationGracePeriod {
+		return nil, ErrGracePeriodTooLong
+	}
 	gracePeriod := req.GracePeriod
 	if gracePeriod == 0 {
 		gracePeriod = h.DefaultGracePeriod
@@ -788,6 +800,7 @@ func (h *AppRegistrar) Handler() http.Handler {
 		Auth:          h.Auth,
 		Registrar:     h,
 		IssuerBaseURL: h.IssuerBaseURL,
+		admit:         h.allowAuthAttempt,
 	}
 	dcrMgmt := &DCRManagementHandler{Manager: h}
 
@@ -801,19 +814,41 @@ func (h *AppRegistrar) Handler() http.Handler {
 
 func (h *AppRegistrar) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if h.Auth != nil {
-			if err := h.Auth.Authenticate(r); err != nil {
-				if err == ErrAdminUnauthorized {
-					h.jsonError(w, "unauthorized", err.Error(), http.StatusUnauthorized)
-				} else {
-					h.jsonError(w, "forbidden", err.Error(), http.StatusForbidden)
-				}
-				return
+		if !h.allowAuthAttempt(w, r) {
+			return
+		}
+		// No AdminAuth is a misconfiguration, not open access: callers
+		// who want the routes open pass NewNoAuth() (CWE-306).
+		if h.Auth == nil {
+			h.jsonError(w, "unauthorized", "admin authentication is not configured", http.StatusUnauthorized)
+			return
+		}
+		if err := h.Auth.Authenticate(r); err != nil {
+			if err == ErrAdminUnauthorized {
+				h.jsonError(w, "unauthorized", err.Error(), http.StatusUnauthorized)
+			} else {
+				h.jsonError(w, "forbidden", err.Error(), http.StatusForbidden)
 			}
+			return
 		}
 		next(w, r)
 	}
 }
+
+// allowAuthAttempt applies AuthRateLimiter before any credential is
+// checked, answering 429 when the caller's address is out of budget.
+func (h *AppRegistrar) allowAuthAttempt(w http.ResponseWriter, r *http.Request) bool {
+	if h.AuthRateLimiter == nil || h.AuthRateLimiter.Allow("admin:"+core.ClientIP(r, h.TrustedProxies)) {
+		return true
+	}
+	w.Header().Set("Retry-After", "60")
+	h.jsonError(w, "too_many_requests", "too many requests", http.StatusTooManyRequests)
+	return false
+}
+
+// maxAdminBody bounds admin and registration request bodies. Client
+// metadata and a PEM public key fit in a few KiB.
+const maxAdminBody = 64 << 10
 
 // handleListApps is the HTTP wrapper for ClientRegistrar.ListClients.
 func (h *AppRegistrar) handleListApps(w http.ResponseWriter, r *http.Request) {
@@ -903,13 +938,23 @@ func (h *AppRegistrar) handleRotateSecret(w http.ResponseWriter, r *http.Request
 		GracePeriod string `json:"grace_period"` // e.g. "24h", "1h30m"
 	}
 	// Body is optional; symmetric rotations may omit it entirely.
-	json.NewDecoder(r.Body).Decode(&body)
+	r.Body = http.MaxBytesReader(w, r.Body, maxAdminBody)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			h.jsonError(w, "invalid_request", "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+	}
 
 	var grace time.Duration
 	if body.GracePeriod != "" {
-		if parsed, err := time.ParseDuration(body.GracePeriod); err == nil {
-			grace = parsed
+		parsed, err := time.ParseDuration(body.GracePeriod)
+		if err != nil {
+			h.jsonError(w, "invalid_request", "grace_period is not a duration", http.StatusBadRequest)
+			return
 		}
+		grace = parsed
 	}
 
 	resp, err := h.RotateSecret(r.Context(), &RotateSecretRequest{
@@ -921,7 +966,7 @@ func (h *AppRegistrar) handleRotateSecret(w http.ResponseWriter, r *http.Request
 		switch {
 		case errors.Is(err, core.ErrAppNotFound):
 			h.jsonError(w, "not_found", "App not found", http.StatusNotFound)
-		case errors.Is(err, ErrPublicKeyRequired), errors.Is(err, ErrInvalidPublicKey):
+		case errors.Is(err, ErrPublicKeyRequired), errors.Is(err, ErrInvalidPublicKey), errors.Is(err, ErrGracePeriodTooLong):
 			h.jsonError(w, "invalid_request", err.Error(), http.StatusBadRequest)
 		default:
 			h.jsonError(w, "server_error", err.Error(), http.StatusInternalServerError)

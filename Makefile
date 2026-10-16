@@ -40,6 +40,12 @@ REPORT_DIR := test-reports
 # These are the building blocks that testall orchestrates.
 
 # Static analysis via staticcheck
+# Rebuild the reference server's stylesheet from its templates. The output
+# is committed and embedded, so the server loads no third-party script; run
+# this after changing classes in cmd/oneauth-server/templates.
+server-css:
+	@cd cmd/oneauth-server && npx -y tailwindcss@3.4.17 -c tailwind.config.js -i static/app.src.css -o static/app.css --minify
+
 # gofmt every tracked Go file, across all modules. CI fails on any drift
 # (the gofmt step in .github/workflows/ci.yml); fmtcheck runs the same check.
 fmt:
@@ -178,7 +184,7 @@ zap:
 	@echo "[zap] Building server..."
 	@go build -buildvcs=false -o $(BUILD_DIR)/oneauth-server ./cmd/oneauth-server/
 	@echo "[zap] Starting server on :19876..."
-	@PORT=19876 ADMIN_AUTH_TYPE=api-key ADMIN_API_KEY=test-all-key KEYSTORE_TYPE=memory \
+	@PORT=19876 PUBLIC_URL=http://localhost:19876 ADMIN_AUTH_TYPE=api-key ADMIN_API_KEY=test-all-key KEYSTORE_TYPE=memory \
 		USER_STORES_TYPE=fs USER_STORES_PATH=/tmp/oneauth-zap-test-all \
 		JWT_SECRET_KEY=test-all-jwt-secret JWT_ISSUER=oneauth-test-all \
 		$(BUILD_DIR)/oneauth-server & ZAP_PID=$$!; \
@@ -922,7 +928,7 @@ audit: vulncheck secrets
 .PHONY: test test-hard testall test-report e2e audit \
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
-	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck \
+	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
 	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
 	deps tag pushtag seccheck verify-submodule-deps \

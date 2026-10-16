@@ -56,6 +56,7 @@ configs:
     content: |
       server:
         port: "8080"
+        public_url: "${PUBLIC_URL:-http://localhost:8080}"
       keystore:
         type: "${KEYSTORE_TYPE:-gorm}"
         gorm:

@@ -29,6 +29,8 @@ env_variables:
   GCP_PROJECT: "oneauthsvc"
   GAE_NAMESPACE: "prod"
   ADMIN_AUTH_TYPE: "api-key"
+  # The URL clients use; App Engine serves it over https.
+  PUBLIC_URL: "https://oneauthsvc.appspot.com"
   # Admin API key is fetched from Secret Manager at startup.
   # The secret "oneauth-admin-key" must exist in the project.
   # Set ADMIN_API_KEY_SECRET to the full resource name, or it defaults to:

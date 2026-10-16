@@ -14,6 +14,11 @@
 server:
   port: "${PORT:-8080}"
   host: "0.0.0.0"
+  # The URL clients use. Behind a TLS-terminating proxy, the https one.
+  # A plain-http public_url on a non-loopback host refuses to start unless
+  # ALLOW_INSECURE_HTTP=true.
+  public_url: "${PUBLIC_URL:-http://localhost:8080}"
+  allow_insecure_http: ${ALLOW_INSECURE_HTTP:-false}
 
 # Where signing keys are stored.
 # Options: memory, fs, gorm, gae

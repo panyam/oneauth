@@ -164,8 +164,9 @@ The fixes land across several PRs; the Status column says which rows are done.
 | `registration_client_uri` not built from the request's `Host` | CWE-644 | Pass (was Fail) | `AppRegistrar.IssuerBaseURL`; loopback-only fallback in `DCRHandler.issuerBase` | RegistrationURIIgnoresForeignHost\* |
 | Admin view doesn't return clients' `registration_access_token` | RFC 7592 §3 | Pass (was Fail) | `ListClients` / `GetClient` clear it | AdminViewOmitsRegistrationAccessToken\* |
 | Anti-framing on consent, device and password pages | RFC 6749 §10.13 | Pass (was Fail) | `httpauth.DenyFraming` in the authorize, device and localauth page handlers; keeps a deployment's own CSP | `framing_test.go`\*, `authorize_framing_test.go`\* |
-| CSP without third-party script or `unsafe-inline` | — | Open | reference server loads the Tailwind Play CDN | server hardening PR |
-| HTTPS enforcement for a non-loopback deployment | OAuth 2.1 §1.5 | Open | nothing refuses plain HTTP | server hardening PR |
+| CSP without third-party script or `unsafe-inline` | CWE-829 | Pass (was Fail) | reference server serves a prebuilt, embedded `static/app.css` (`make server-css`); `serverCSP` allows only `'self'` | `hardening_test.go` PagesLoadNoThirdPartyScript\* |
+| HTTPS enforcement for a non-loopback deployment | OAuth 2.1 §1.5, CWE-319 | Pass (was Fail) | reference server refuses a plain-http `public_url` on a non-loopback host unless `allow_insecure_http` | PlainHTTPOnAPublicHostRefused\* |
+| Token `iss` matches the metadata issuer | RFC 8414 §3.3 | Pass (was Fail) | `jwt.issuer` defaults to the public URL instead of `"oneauth"` | IssuerDefaultsToThePublicURL\* |
 | CORS | — | Pass | no CORS on the token endpoint; no `Allow-Credentials` anywhere | — |
 
 ### Authentication and sessions
@@ -196,8 +197,10 @@ The fixes land across several PRs; the Status column says which rows are done.
 | RFC 7592 token scoped to its own client | Pass | constant-time compare against that client's stored token |
 | Admin API key compared in constant time | Pass | `admin/auth.go` |
 | JWKS exposes only public keys | Pass | symmetric keys skipped |
-| A nil `AdminAuth` fails closed | Open | nil skips the check |
-| Reference server refuses `admin_auth: none` | Open | it logs a warning and serves an open admin API |
-| Body limits and rate limiting on admin routes | Open | body limits only in the reference server's wrapper |
+| A nil `AdminAuth` fails closed | Pass (was Fail) | nil now answers 401; open access is `NewNoAuth()` on purpose (CWE-306) |
+| Reference server refuses `admin_auth: none` | Pass (was Fail) | `none` needs `allow_open: true`, and an unset type is an error |
+| Body limits and rate limiting on admin routes | Pass (was Fail) | 64 KiB on DCR and rotate; `AuthRateLimiter` per address, before the key is checked |
+| Rotation grace period bounded | Pass (was Fail) | at most `MaxRotationGracePeriod` (7 days); an unparseable value is a 400 |
+| Dashboard doesn't list every client to any user | Pass (was Fail) | the list is admin-API only |
 | Bulk eviction endpoint | Not applicable | no such endpoint exists |
 

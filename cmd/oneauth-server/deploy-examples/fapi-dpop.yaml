@@ -28,6 +28,7 @@ jwt:
 
 admin_auth:
   type: none    # open registration, for dev only
+  allow_open: true
 
 dpop:
   enabled: true
