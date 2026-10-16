@@ -1,12 +1,12 @@
 # OneAuth
 
 ## Version
-v0.1.46
+v0.1.47
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout. Reset tokens are stored hashed and are single-use; a reset ends other sessions (`AfterPasswordReset`); signup and forgot-password are rate limited; `TrustedProxies` gates X-Forwarded-For (issue 88).
 - oauth-integration: OAuth providers (Google, GitHub, etc.) with PKCE. Every state, callback and verifier cookie is Secure + HttpOnly.
-- jwt-management: Multi-tenant JWT with KeyStore, kid rotation, JWKS discovery, algorithm confusion prevention. Access tokens need `exp`; logout tokens, ID-JAGs, sessions and OIDC ID tokens (Keycloak `typ` claim) are refused as access tokens; a client's key signs only for that client; RFC 6750 challenges with `resource_metadata` (issue 88).
+- jwt-management: Multi-tenant JWT with KeyStore, kid rotation (grace periods via `OneAuthConfig.KidStore`, retired keys encrypted with `EncryptedKidStorage`), RSA keys of at least 2048 bits, JWKS discovery, algorithm confusion prevention. Access tokens need `exp`; logout tokens, ID-JAGs, sessions and OIDC ID tokens (Keycloak `typ` claim) are refused as access tokens; a client's key signs only for that client; RFC 6750 challenges with `resource_metadata` (issue 88).
 - federated-auth: App registration, resource token minting, multi-service JWT validation
 - session-management: Callback-driven session management
 - email-verification: Email verification and password reset flows

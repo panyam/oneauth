@@ -3,6 +3,39 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.47
+
+### Key management, part two (issue 88, PR 420)
+
+- **Rotation grace periods work.** `OneAuthConfig.KidStore` sits behind
+  `KeyStore` in the validator's lookup, so a token signed with a rotated
+  key verifies until its grace period ends. The reference server builds a
+  kid store on the key store's backend (FS under `<path>/kids`), gives it to
+  `AppRegistrar` and `OneAuth`, and sweeps expired keys every 10 minutes.
+  Before, it had none, and `grace_period` was accepted and ignored.
+- **Retired keys are encrypted.** `EncryptedKidStorage` applies
+  `EncryptedKeyStorage`'s format and rules to `KidStorage`; the reference
+  server wraps its kid store under the same master key.
+- **RSA keys under 2048 bits are refused at load** (`utils.CheckRSAKeySize`
+  in the PEM and JWK parsers), remote JWKS included.
+- **JWKS 304s** keep `ETag` and `Cache-Control`, and `If-None-Match` takes
+  lists, `*` and weak tags.
+- **`make audit`** runs gitleaks, govulncheck and gosec at pinned versions
+  via `go run`; CI pins govulncheck too.
+- **Deploy examples** `memory.yaml` and `fapi-dpop.yaml` let `jwt.issuer`
+  follow `public_url`.
+
+### Upgrading
+
+- **Short RSA keys** (under 2048 bits) fail when loaded, including keys a
+  remote JWKS publishes.
+- **Reference server with `fs` keys** writes retired keys under
+  `<path>/kids`.
+- **`memory.yaml` / `fapi-dpop.yaml`** issue tokens with the public URL as
+  `iss` unless `JWT_ISSUER` is set.
+- Retired asymmetric keys aren't yet published in JWKS during their grace
+  period (#421).
+
 ## Version 0.1.46
 
 ### Keys, ID tokens and CodeQL (issue 88, PRs 417 to 419)
