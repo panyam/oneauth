@@ -189,6 +189,47 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-0143">Version 0.1.43 <a class="anchor" href="#version-0143">¶</a></h2>
+<h3 id="dpop-and-fapi-follow-ups-issue-395-prs-400-to-402">DPoP and FAPI follow-ups (issue 395, PRs 400 to 402) <a class="anchor" href="#dpop-and-fapi-follow-ups-issue-395-prs-400-to-402">¶</a></h3>
+<ul>
+<li><strong>The SDK&rsquo;s automatic refresh works against any RFC 8414 server.</strong> With AS<br />
+metadata (<code>WithASMetadata</code>) it posts the standard refresh form to the<br />
+discovered token endpoint instead of oneauth&rsquo;s own <code>/auth/cli/token</code>, which<br />
+Keycloak and others don&rsquo;t serve.</li>
+<li><strong><code>client.WithClientSecret(secret)</code></strong> lets the automatic refresh<br />
+authenticate a confidential client, which the refresh grant has required<br />
+since 0.1.41. The secret stays in memory and never reaches the credential<br />
+store.</li>
+<li><strong>A request retried after a refresh keeps its body.</strong> One whose body can&rsquo;t<br />
+be rewound gets the 401 back instead of being resent empty.</li>
+<li><strong>EdDSA (Ed25519) DPoP proofs</strong> are accepted by default and by<br />
+<code>FAPIDPoPAlgs()</code>, now ES256, EdDSA and PS256. <code>utils</code> handles RFC 8037 OKP<br />
+keys, and the SDK has <code>NewEd25519DPoPKey</code> / <code>NewDPoPKeyFromEd25519</code>.<br />
+Keycloak computes the same thumbprint.</li>
+<li><strong><code>OneAuthConfig.DisableRefreshTokenRotation</code></strong> keeps a refresh token in use<br />
+across refreshes, as FAPI 2.0 §5.3.2.1 asks. The response then carries no<br />
+<code>refresh_token</code>. The default still rotates.</li>
+<li><strong><code>cmd/oneauth-server</code> can turn DPoP on</strong>, with a <code>dpop:</code> block (profile or<br />
+algs, require at the token endpoint and at the API, nonces with a shared<br />
+secret) and <code>jwt.disable_refresh_token_rotation</code>.<br />
+<code>deploy-examples/fapi-dpop.yaml</code> turns all of it on.</li>
+</ul>
+<h3 id="repo">Repo <a class="anchor" href="#repo">¶</a></h3>
+<ul>
+<li>The GAE store tests are deterministic. The Datastore emulator now starts<br />
+with <code>--consistency=1.0</code>; at its default of 0.9, 9 of 10 <code>make testds</code> runs<br />
+failed.</li>
+<li>Every Go file is gofmt-clean and CI checks it. <code>make fmt</code> fixes;<br />
+<code>.git-blame-ignore-revs</code> keeps the cleanup commit out of blame.</li>
+</ul>
+<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<ul>
+<li><strong><code>DPoPKey</code> callers:</strong> no exported API changed, but a validator using the<br />
+default algorithm list now also accepts Ed25519 proofs. Set<br />
+<code>DPoPConfig.AllowedAlgs</code> to refuse them.</li>
+<li><strong>SDK clients with AS metadata</strong> now auto-refresh against the discovered<br />
+endpoint. A confidential client needs <code>WithClientSecret</code> to do so.</li>
+</ul>
 <h2 id="version-0142">Version 0.1.42 <a class="anchor" href="#version-0142">¶</a></h2>
 <h3 id="fixes-found-by-comparing-with-keycloak-issue-88-pr-398">Fixes found by comparing with Keycloak (issue 88, PR 398) <a class="anchor" href="#fixes-found-by-comparing-with-keycloak-issue-88-pr-398">¶</a></h3>
 <p>New full-stack e2e tests and a suite that sends the same requests to Keycloak<br />
@@ -208,7 +249,7 @@ and <code>ClientRegistrationResponse</code> (RFC 9449 §5.2).</li>
 </ul>
 <p>Where oneauth and Keycloak still answer differently, <code>docs/SECURITY_AUDIT.md</code><br />
 says which and why.</p>
-<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
 <ul>
 <li><strong>Code that branches on the refresh grant&rsquo;s status</strong> sees 400 instead of<br />
 401 for a refused token. Only <code>invalid_client</code> is 401.</li>
@@ -262,7 +303,7 @@ reaches jwt-bearer, token-exchange and PAR.</li>
 <li><strong>SDK.</strong> <code>ServerCredential.ClientID</code> records which client a credential was<br />
 issued to, and the automatic refresh sends it instead of <code>&quot;cli&quot;</code>.</li>
 </ul>
-<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
+<h3 id="upgrading-2">Upgrading <a class="anchor" href="#upgrading-2">¶</a></h3>
 <ul>
 <li><strong>GORM deployments need <code>AutoMigrate</code></strong> for the new app-registration columns<br />
 (<code>dpop_bound_access_tokens</code> and the two back-channel logout fields).</li>
