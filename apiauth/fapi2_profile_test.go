@@ -46,6 +46,13 @@ type fapiFixture struct {
 // client ("secret-client"), both registered as confidential.
 func newFAPIFixture(t *testing.T, fapi2 bool) *fapiFixture {
 	t.Helper()
+	return newFAPIFixtureWith(t, fapi2, nil)
+}
+
+// newFAPIFixtureWith is newFAPIFixture with a hook to adjust the config,
+// e.g. to add trusted assertion issuers.
+func newFAPIFixtureWith(t *testing.T, fapi2 bool, adjust func(*apiauth.OneAuthConfig)) *fapiFixture {
+	t.Helper()
 	ctx := context.Background()
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
@@ -67,11 +74,15 @@ func newFAPIFixture(t *testing.T, fapi2 bool) *fapiFixture {
 		_, err := apps.SaveApp(ctx, &core.SaveAppRequest{App: &core.AppRegistration{ClientID: id, TokenEndpointAuthMethod: m}})
 		require.NoError(t, err)
 	}
-	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+	cfg := apiauth.OneAuthConfig{
 		KeyStore: ks, AppStore: apps, FAPI2: fapi2,
 		SigningKey: []byte("fapi-as-signing-key-that-is-32-b"), SigningAlg: "HS256", Issuer: fapiIssuer,
 		DPoP: apiauth.NewDPoPProofValidator(apiauth.DPoPConfig{EndpointURL: testProofURL}),
-	})
+	}
+	if adjust != nil {
+		adjust(&cfg)
+	}
+	oa := apiauth.NewOneAuth(cfg)
 	_, sign := newProofSigner(t)
 	return &fapiFixture{endpoint: apiauth.NewTokenEndpointHandler(oa), key: priv, rsaKey: rsaKey, sign: sign}
 }
