@@ -204,9 +204,9 @@ function names don&rsquo;t.</li>
 </ul>
 <h2 id="summary-october-2026">Summary (October 2026) <a class="anchor" href="#summary-october-2026">¶</a></h2>
 <p>Every area issue 88 asked for has been walked: DPoP, the HTTP surface, tokens and keys, input<br />
-validation, and FAPI 2.0. The fixes shipped in v0.1.40 through v0.1.55 (PRs #394 to #428). One<br />
-row in the tables below is still Open (revoking tokens from a reused authorization code), and<br />
-everything else is Pass, with the caveats each row gives.</p>
+validation, and FAPI 2.0. The fixes shipped in v0.1.40 through v0.1.55 (PRs #394 to #428). The<br />
+last Open row, revoking tokens from a reused authorization code, was closed afterwards by #429,<br />
+so every row in the tables below is Pass, with the caveats each row gives.</p>
 <h3 id="fapi-20-readiness">FAPI 2.0 readiness <a class="anchor" href="#fapi-20-readiness">¶</a></h3>
 <p>oneauth meets the FAPI 2.0 Security Profile&rsquo;s authorization-server and resource-server<br />
 requirements (§5.3.2, §5.3.4) through <code>OneAuthConfig.FAPI2</code>, and the reference server runs the<br />
@@ -340,11 +340,6 @@ says shouldn&rsquo;t pass.</p>
 </thead>
 <tbody>
 <tr>
-<td>Revoke tokens issued from a reused authorization code (RFC 6749 §4.1.2 SHOULD)</td>
-<td>#429</td>
-<td>S</td>
-</tr>
-<tr>
 <td>Retired asymmetric keys published in JWKS during their grace period</td>
 <td>#421</td>
 <td>M</td>
@@ -385,11 +380,6 @@ says shouldn&rsquo;t pass.</p>
 <td>M</td>
 </tr>
 <tr>
-<td>GAE store tests in CI (they need a Datastore emulator service)</td>
-<td>#429</td>
-<td>S</td>
-</tr>
-<tr>
 <td>Signup enumeration with email verification off: a fresh signup logs in and a taken one can&rsquo;t, so it stays visible</td>
 <td>— (by design)</td>
 <td>—</td>
@@ -414,7 +404,7 @@ says shouldn&rsquo;t pass.</p>
 <tr>
 <td>Store contracts</td>
 <td><code>appstoretest</code>, <code>authcodetest</code>, <code>deviceauthtest</code>, <code>keystoretest</code>, <code>kidstoretest</code>, <code>partest</code> over memory, FS, GORM (SQLite) and GAE, also through <code>EncryptedKeyStorage</code> / <code>EncryptedKidStorage</code></td>
-<td>CI, except GAE, which runs under <code>make testds</code> locally</td>
+<td>CI; GAE in the <code>gae</code> job, against the Datastore emulator (<code>make testds</code>)</td>
 </tr>
 <tr>
 <td>End to end</td>
@@ -1663,10 +1653,10 @@ several PRs, and rows still Open name the part of issue 88 they&rsquo;re waiting
 </tr>
 <tr>
 <td>Tokens from a code redeemed twice are revoked</td>
-<td>RFC 6749 §4.1.2 (SHOULD)</td>
-<td>Open (#429)</td>
-<td>needs a record of used codes; the second redemption is refused, but tokens from the first stay valid</td>
-<td>—</td>
+<td>RFC 6749 §4.1.2 (SHOULD), RFC 9700 §4.5</td>
+<td>Pass (was Open, #429)</td>
+<td>a redeemed code is marked used and kept until its access token expires; a second presentation blacklists that token&rsquo;s <code>jti</code> and revokes the refresh family, and a reuse racing the first redemption makes that one refuse too</td>
+<td>AuthCodeReuse*, ConsumeOnce / ReuseBeforeRecord (<code>authcodetest</code>)</td>
 </tr>
 <tr>
 <td>Refresh rotation has one winner in GORM</td>
