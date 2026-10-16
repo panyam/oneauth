@@ -14,6 +14,7 @@ and [`localauth/`](../localauth/SUMMARY.md) (username/password) and
 - **authorization_details.go** — `AuthorizationDetail` struct (RFC 9396), custom JSON marshal/unmarshal with extension flattening, `ValidateAll()`, `FilterByType()`, `ErrInvalidAuthorizationDetails`
 - **blacklist.go** — `TokenBlacklist` interface and `InMemoryBlacklist` for jti-based JWT revocation
 - **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket); also `AccountLockout` for tracking failed login attempts and temporary account lockouts
+- **client_ip.go** — `ClientIP(r, TrustedProxies)` is the address rate limits key on: the TCP peer, or the forwarded client when the peer is a configured proxy (X-Forwarded-For walked right to left). `ParseTrustedProxies` takes CIDRs or addresses. Issue 88.
 - **device_authorization.go** — `DeviceAuthorization`, `DeviceAuthorizationStore` interface + `InMemoryDeviceAuthorizationStore`, `UpperUserCode` normalization helper (RFC 8628)
 - **authorization_code.go** — `AuthorizationCode`, `AuthorizationCodeStore` interface + `InMemoryAuthorizationCodeStore`, `ErrAuthorizationCodeNotFound` sentinel (RFC 6749 §4.1)
 

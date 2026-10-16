@@ -87,6 +87,7 @@ HTTP handlers (`IntrospectionHandler`, `RevocationHandler`) delegate to core int
 - **Audience validation** — `ValidateAccessToken` checks `aud` claim against expected audiences; handles both string and array formats (RFC 7519 §4.1.3, #52)
 - **Token blacklist** — `APIAuth.Blacklist` and `APIMiddleware.Blacklist` fields enable jti-based token revocation via `core.TokenBlacklist`. All tokens now include a `jti` claim.
 - **RateLimiter moved to core** — the `RateLimiter` interface was extracted from `apiauth` to `core/` so it can be shared across packages (e.g., `localauth`)
+- **Brute-force limits (issue 88)** — `TokenEndpointHandler.Lockout` locks a username after consecutive password-grant failures; `TrustedProxies` gates X-Forwarded-For through `core.ClientIP`. `MountDeviceFlow` always limits user-code entry (`UserCodeRateLimiter`, default `DefaultUserCodeRateLimiter`, RFC 8628 §5.1).
 
 ## Dependencies
 `core/` for store interfaces, token types, scopes, rate limiting. `keys/` for `KeyLookup`. `utils/` for JWT helpers.

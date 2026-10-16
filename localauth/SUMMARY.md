@@ -9,6 +9,7 @@ Local (form-based) authentication: signup, login, email verification, password r
 
 ## Recent Additions
 - **LocalAuth.RateLimiter** — optional `core.RateLimiter` field for per-IP/per-user login rate limiting
+- **TrustedProxies + signup / forgot-password limits (issue 88)** — `LocalAuth.TrustedProxies` decides whether X-Forwarded-For is believed; `RateLimiter` also covers signup (per address) and forgot-password (per address and per email).
 - **LocalAuth.Lockout** — optional `core.AccountLockout` field for locking accounts after repeated failed attempts
 - **Timing oracle fix** — login always performs a bcrypt compare (even for non-existent users) to prevent user enumeration via response timing
 
