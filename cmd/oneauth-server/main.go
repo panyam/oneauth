@@ -353,6 +353,9 @@ func main() {
 	introspectionHandler := oa.IntrospectionHTTPHandler()
 	mux.Handle("POST /oauth/introspect", introspectionHandler)
 
+	// Token Revocation (RFC 7009), advertised as revocation_endpoint.
+	mux.Handle("POST /oauth/revoke", oa.RevocationHTTPHandler())
+
 	// JWKS endpoint (public — no auth required)
 	jwksHandler := &keys.JWKSHandler{KeyStore: keyStore}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
@@ -368,22 +371,7 @@ func main() {
 	baseURL := publicBaseURL(cfg)
 
 	grantTypes := []string{"password", "refresh_token", "client_credentials"}
-	asMeta := &apiauth.ASServerMetadata{
-		Issuer:                   baseURL,
-		TokenEndpoint:            baseURL + "/api/token",
-		JWKSURI:                  baseURL + "/.well-known/jwks.json",
-		IntrospectionEndpoint:    baseURL + "/oauth/introspect",
-		RevocationEndpoint:       baseURL + "/oauth/revoke",
-		RegistrationEndpoint:     baseURL + "/apps/dcr",
-		ResponseTypesSupported:   []string{"token"},
-		TokenEndpointAuthMethods: []string{"client_secret_post", "client_secret_basic", "private_key_jwt", "client_secret_jwt"},
-		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256", "HS256", "HS384", "HS512"},
-		CodeChallengeMethodsSupported:              []string{"S256"},
-		SubjectTypesSupported:                      []string{"public"},
-		ScopesSupported:                            cfg.JWT.ScopesSupported,
-		ClaimsSupported:                            cfg.JWT.ClaimsSupported,
-		AuthorizationDetailsTypesSupported:         cfg.JWT.AuthorizationDetailsTypes,
-	}
+	asMeta := serverASMetadata(cfg, baseURL, cfg.CodeFlow.Enabled)
 	if dpop.tokenEndpoint != nil {
 		asMeta.DPoPSigningAlgValuesSupported = dpop.tokenEndpoint.SigningAlgValuesSupported()
 	}
@@ -436,14 +424,10 @@ func main() {
 		oa.AuthorizationCodeStore = codeStore
 		oa.AppStore = appStore
 
-		issParam := false
-		if asMeta.AuthorizationResponseIssParameterSupported != nil {
-			issParam = *asMeta.AuthorizationResponseIssParameterSupported
-		}
 		apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
 			OneAuth:          oa,
 			IssuerURL:        baseURL,
-			EmitIssParameter: issParam,
+			EmitIssParameter: true, // RFC 9207, advertised in serverASMetadata
 			Expiry:           cfg.CodeFlow.Expiry,
 			SubjectFromRequest: func(r *http.Request) string {
 				return getUserIDFromCookie(r, cfg.JWT.SecretKey)
@@ -453,9 +437,7 @@ func main() {
 			BrowserMiddleware:    csrf.Protect,
 		})
 
-		asMeta.AuthorizationEndpoint = baseURL + "/authorize"
 		grantTypes = append(grantTypes, apiauth.AuthorizationCodeGrantType)
-		asMeta.ResponseTypesSupported = appendIfMissing(asMeta.ResponseTypesSupported, "code")
 		log.Println("RFC 6749 §4.1 code flow enabled (/authorize + authorization_code grant)")
 	}
 	asMeta.GrantTypesSupported = grantTypes
@@ -836,19 +818,6 @@ func buildAuthorizationCodeStore(cfg *Config, sharedDB *gorm.DB) (core.Authoriza
 	default:
 		return nil, fmt.Errorf("unknown code_flow.store type: %s (memory and gorm are supported; fs/gae backends are tracked as follow-ups)", sc.Type)
 	}
-}
-
-// appendIfMissing appends value to slice if it is not already present.
-// Used to extend AS-metadata advertisement lists when opt-in flow
-// blocks (device_flow / code_flow) toggle on, without duplicating
-// values an operator may have pinned explicitly.
-func appendIfMissing(slice []string, value string) []string {
-	for _, v := range slice {
-		if v == value {
-			return slice
-		}
-	}
-	return append(slice, value)
 }
 
 func openGORM(cfg GORMConfig) (*gorm.DB, error) {
