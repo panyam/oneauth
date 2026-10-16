@@ -205,6 +205,19 @@ func (k *DPoPKey) Proof(method, targetURL, accessToken string) (string, error) {
 	return k.proofWithNonce(method, targetURL, accessToken, "")
 }
 
+// ProofWithNonce is Proof plus a server-issued `nonce` claim (RFC 9449 §8 /
+// §9). An empty nonce is the same as Proof.
+//
+// AuthClient's own transport answers nonce challenges for itself. This is
+// for a caller that presents tokens through a transport of its own, such as
+// an MCP client: on a 401 whose WWW-Authenticate carries use_dpop_nonce, it
+// takes the value from the DPoP-Nonce response header and mints the retry's
+// proof with it. Nonces belong to the server that issued them, so keep them
+// per origin and never send one server's nonce to another.
+func (k *DPoPKey) ProofWithNonce(method, targetURL, accessToken, nonce string) (string, error) {
+	return k.proofWithNonce(method, targetURL, accessToken, nonce)
+}
+
 // proofWithNonce is Proof plus the server-issued `nonce` claim (RFC 9449
 // §8). A nonce is opaque to the client: it is echoed back exactly as
 // received, and its meaning is the issuing server's business.

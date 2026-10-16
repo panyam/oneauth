@@ -138,6 +138,23 @@ func TestDPoPKey_ProofBindsToTheAccessToken(t *testing.T) {
 	assert.Equal(t, base64.RawURLEncoding.EncodeToString(sum[:]), payload["ath"])
 }
 
+// A caller answering a resource server's use_dpop_nonce challenge itself
+// echoes the nonce back verbatim, and an empty nonce adds no claim at all.
+func TestDPoPKey_ProofWithNonceEchoesTheNonce(t *testing.T) {
+	key := newKey(t)
+
+	proof, err := key.ProofWithNonce(http.MethodPost, "https://rs.example.com/mcp", "tok", "rs-nonce-1")
+	require.NoError(t, err)
+	_, payload := claimsOf(t, proof)
+	assert.Equal(t, "rs-nonce-1", payload["nonce"])
+	assert.NotEmpty(t, payload["ath"], "the nonce does not replace the token binding")
+
+	proof, err = key.ProofWithNonce(http.MethodPost, "https://rs.example.com/mcp", "tok", "")
+	require.NoError(t, err)
+	_, payload = claimsOf(t, proof)
+	assert.NotContains(t, payload, "nonce")
+}
+
 // Each proof is good for one request. Repeating a jti is a replay and every
 // conforming server rejects the second use.
 func TestDPoPKey_EveryProofHasAFreshJTI(t *testing.T) {
