@@ -189,6 +189,60 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-0144">Version 0.1.44 <a class="anchor" href="#version-0144">¶</a></h2>
+<h3 id="http-surface-audit-issue-88-prs-403-to-407">HTTP-surface audit (issue 88, PRs 403 to 407) <a class="anchor" href="#http-surface-audit-issue-88-prs-403-to-407">¶</a></h3>
+<p>Issue 88&rsquo;s second slice walked transport and headers, sessions and the admin<br />
+interface after the first ZAP scan. The matrix is in <code>docs/SECURITY_AUDIT.md</code>.</p>
+<ul>
+<li><strong>Credentials on the wire.</strong> <code>Cache-Control: no-store</code> on every response<br />
+that carries a secret: DCR, admin read / list / rotate, API-key creation,<br />
+token and device errors, the authorize redirect, the reset form. The admin<br />
+view no longer returns clients&rsquo; <code>registration_access_token</code>. DCR builds<br />
+<code>registration_client_uri</code> from <code>AppRegistrar.IssuerBaseURL</code>, never a<br />
+non-loopback <code>Host</code> header.</li>
+<li><strong>Sessions.</strong> <code>httpauth</code> login cookies are Secure (opt-out<br />
+<code>InsecureCookies</code>), SameSite=Lax and, for the JWT, HttpOnly. The session<br />
+is renewed at login and logout, every cookie domain is served, and session<br />
+JWTs carry <code>type: session</code> so APIs refuse them as Bearer tokens. A missing<br />
+secret now means a random per-process one, where it used to be a fixed<br />
+public string. Logout is POST, and logout / post-login redirects only go<br />
+to local paths. <code>httpauth.DenyFraming</code> keeps the consent, device and<br />
+password pages out of other sites&rsquo; frames.</li>
+<li><strong>Brute force.</strong> <code>core.ClientIP</code> believes <code>X-Forwarded-For</code> only from<br />
+configured <code>TrustedProxies</code>. The password grant has a lockout<br />
+(<code>TokenEndpointHandler.Lockout</code>), signup and forgot-password are limited,<br />
+and <code>MountDeviceFlow</code> always limits user-code entry.</li>
+<li><strong>Fail-closed defaults.</strong> A nil <code>AdminAuth</code> answers 401. Admin bodies are<br />
+capped at 64 KiB, admin requests are rate limited before the key is<br />
+checked, and a rotation grace period is at most 7 days.</li>
+<li><strong>Password reset.</strong> Every store keeps verification tokens as SHA-256<br />
+hashes, a link works once even when two requests race, a reset applies<br />
+the signup password policy, and <code>AfterPasswordReset</code><br />
+(<code>NewRevokeSessionsOnReset</code>) ends the account&rsquo;s other sessions.</li>
+<li><strong>Reference server.</strong> Rate limiting is on by default (<code>rate_limit</code>,<br />
+<code>server.trusted_proxies</code>). The server won&rsquo;t start with an unset<br />
+<code>admin_auth.type</code>, with <code>none</code> unless <code>allow_open: true</code>, or with a<br />
+plain-http public URL on a non-loopback host unless <code>allow_insecure_http</code>.<br />
+<code>jwt.issuer</code> defaults to the public URL. Pages load a prebuilt stylesheet<br />
+(<code>make server-css</code>), and the CSP allows only <code>'self'</code>.</li>
+</ul>
+<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<ul>
+<li><strong><code>AdminAuth</code>:</strong> pass <code>NewNoAuth()</code> for open admin routes; nil now refuses.</li>
+<li><strong>DCR behind a real host:</strong> set <code>AppRegistrar.IssuerBaseURL</code>, or registration<br />
+answers 500.</li>
+<li><strong><code>httpauth</code>:</strong> set <code>ONEAUTH_JWT_SECRET_KEY</code> (or <code>JWTSecretKey</code>), or<br />
+sessions end on restart. Use <code>InsecureCookies</code> for plain-http development<br />
+away from localhost. Link to <code>/logout</code> with a POST form.</li>
+<li><strong>Reference server:</strong> set <code>admin_auth.type</code>, and an https <code>public_url</code> (or<br />
+<code>allow_insecure_http</code> on a private network). List your proxies in<br />
+<code>server.trusted_proxies</code>.</li>
+<li><strong>Custom <code>VerificationTokenStore</code>s</strong> must set<br />
+<code>DeleteVerificationTokenResponse.Deleted</code>. Reset links issued before the<br />
+upgrade stop working.</li>
+<li><strong><code>iss</code>:</strong> tokens from the reference server carry the public URL unless<br />
+<code>jwt.issuer</code> is set.</li>
+</ul>
 <h2 id="version-0143">Version 0.1.43 <a class="anchor" href="#version-0143">¶</a></h2>
 <h3 id="dpop-and-fapi-follow-ups-issue-395-prs-400-to-402">DPoP and FAPI follow-ups (issue 395, PRs 400 to 402) <a class="anchor" href="#dpop-and-fapi-follow-ups-issue-395-prs-400-to-402">¶</a></h3>
 <ul>
@@ -222,7 +276,7 @@ failed.</li>
 <li>Every Go file is gofmt-clean and CI checks it. <code>make fmt</code> fixes;<br />
 <code>.git-blame-ignore-revs</code> keeps the cleanup commit out of blame.</li>
 </ul>
-<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
 <ul>
 <li><strong><code>DPoPKey</code> callers:</strong> no exported API changed, but a validator using the<br />
 default algorithm list now also accepts Ed25519 proofs. Set<br />
@@ -249,7 +303,7 @@ and <code>ClientRegistrationResponse</code> (RFC 9449 §5.2).</li>
 </ul>
 <p>Where oneauth and Keycloak still answer differently, <code>docs/SECURITY_AUDIT.md</code><br />
 says which and why.</p>
-<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
+<h3 id="upgrading-2">Upgrading <a class="anchor" href="#upgrading-2">¶</a></h3>
 <ul>
 <li><strong>Code that branches on the refresh grant&rsquo;s status</strong> sees 400 instead of<br />
 401 for a refused token. Only <code>invalid_client</code> is 401.</li>
@@ -303,7 +357,7 @@ reaches jwt-bearer, token-exchange and PAR.</li>
 <li><strong>SDK.</strong> <code>ServerCredential.ClientID</code> records which client a credential was<br />
 issued to, and the automatic refresh sends it instead of <code>&quot;cli&quot;</code>.</li>
 </ul>
-<h3 id="upgrading-2">Upgrading <a class="anchor" href="#upgrading-2">¶</a></h3>
+<h3 id="upgrading-3">Upgrading <a class="anchor" href="#upgrading-3">¶</a></h3>
 <ul>
 <li><strong>GORM deployments need <code>AutoMigrate</code></strong> for the new app-registration columns<br />
 (<code>dpop_bound_access_tokens</code> and the two back-channel logout fields).</li>
