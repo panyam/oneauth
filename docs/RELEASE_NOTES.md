@@ -3,6 +3,16 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.56
+
+### Security audit closed (issue 88, PR 430)
+
+- Docs only; code is identical to 0.1.55.
+- `docs/SECURITY_AUDIT.md` opens with a summary: FAPI 2.0 Security Profile
+  readiness and its caveats, every finding by severity with the PR that
+  fixed it, the remaining gaps sized and linked to issues, and which test
+  layers run where.
+
 ## Version 0.1.55
 
 ### HTTP-surface follow-ups (issue 408, PR 428)

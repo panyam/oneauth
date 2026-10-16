@@ -5,11 +5,10 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- No open threads. No active mission (`queue.sh`: 1 open, 0 active; JARM #409 is parked).
-- This run: dropped fix/408-http-followups (PR #428 merged, #408 closed); tagged v0.1.55.
+- No open threads. No active mission (`queue.sh`: JARM #409 is parked).
+- This run: dropped docs/88-closing (PR #430 merged; #88 and #327 closed); tagged v0.1.56.
 
 ## Across threads
 
-- #88 is worked one audit area at a time; DPoP, the HTTP surface and token security are done, and so is key management (`docs/SECURITY_AUDIT.md`). Input validation at the token endpoint is done too. `/authorize`, PAR, PKCE and the device flow are done too. Input validation is finished (token endpoint, authorize/PAR/PKCE/device, DCR, metadata, FS key collisions). FAPI 2.0 and #408 are done. Next on #88: the closing write-up in SECURITY_AUDIT.md (FAPI readiness summary, gap list with estimates, test-coverage table), then close #88. Retired-key JWKS publishing is #421.
-- Token-slice follow-ups not filed, still candidates: real logout tokens / ID-JAGs at the middleware (e2e), revocation parity with Keycloak, GORM rotation under real Postgres concurrency, a test on the server's own `/api/revoke`, the SDK on 403.
-- GAE store tests are deterministic now but still don't run in CI (they need an emulator service); no issue filed yet.
+- The issue 88 audit is closed; `docs/SECURITY_AUDIT.md` opens with its summary. Open follow-ups are #421 (retired keys in JWKS) and #429 (revoke tokens from a reused code, GAE store tests in CI), both waiting.
+- Token-slice candidates not filed: real logout tokens / ID-JAGs at the middleware (e2e), GORM rotation under real Postgres concurrency, a test on the server's own `/api/revoke`, the SDK on 403.
