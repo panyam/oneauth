@@ -1,10 +1,10 @@
-# OneAuth — OAuth 2.1 Alignment Baseline
+# OneAuth: OAuth 2.1 Alignment Baseline
 
-Baseline audit of OneAuth's current state against the [OAuth 2.1 draft](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/), filed under issue 140. This document captures *where we stand today* and *what's left to do* — it is the load-bearing reference for OAuth 2.1 alignment decisions.
+Audit of OneAuth against the [OAuth 2.1 draft](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/), first filed under issue 140 and brought up to date for 0.2.1. It records where OneAuth stands and what is left, and the per-RFC docs under `docs/oauth/` defer to it for the 2.1 verdict.
 
-**Headline:** OneAuth is **5/8 compliant** with the requirements OAuth 2.1 lays out, with 3 real gaps (ROPC, DCR redirect URI HTTPS validation, query-param bearer fallback). Half of the 5 compliant items are compliant **by absence** — i.e., the feature OAuth 2.1 removes doesn't exist in OneAuth at all because the AS-side flows that would carry it (`/authorize`, implicit grant) aren't built. Those items will need affirmative enforcement once `/authorize` ships (#116).
+**Headline:** OneAuth is compliant by default on all 9 rows below. Two OAuth 2.0 paths that 2.1 removes stay available as opt-ins: the password grant (ROPC) and bearer tokens in the query string. Both are off unless a deployment wires them, and `OneAuthConfig.FAPI2` refuses the password grant outright. The reference server (`cmd/oneauth-server`) still wires the password grant unless `fapi2: true` is set.
 
-The strategic story is good: OneAuth's "embeddable library, not full IdP" positioning naturally aligns with OAuth 2.1 because the things 2.1 removes (implicit, `/authorize` ambiguity around exact-redirect-matching, query-param tokens in browsers) are largely things OneAuth never built.
+The library has a full authorization endpoint (`apiauth.MountAuthorize`, PR 297), so the PKCE, redirect and implicit rows are enforced by code rather than satisfied by the endpoint's absence.
 
 ---
 
@@ -12,102 +12,106 @@ The strategic story is good: OneAuth's "embeddable library, not full IdP" positi
 
 | # | OAuth 2.1 requirement | OneAuth state | Verdict | Action |
 |---|---|---|---|---|
-| 1 | PKCE required for all authorization code flows | Client SDK enforces S256 client-side; no server `/authorize` exists yet (gated on #116). | Compliant by absence; full enforcement waits on #116. | Document expectation; enforce on `/authorize` when it ships. |
-| 2 | Implicit grant removed | No `/authorize` endpoint at all — OneAuth has never had OAuth 2.0 implicit. `ResponseTypesSupported=["token"]` in AS metadata refers to the resource-token shape, not OAuth 2.0 implicit. | Compliant by absence. | None. |
-| 3 | ROPC removed (no `grant_type=password`) | `password` grant handler still present and active. | **Non-compliant.** | Filed as a follow-up — removal needs migration-path analysis (`localauth/` HTTP login + cookie session is the documented alternative). |
-| 4 | Exact redirect URI matching (no wildcards, no substring) | No `/authorize` to enforce on, but DCR (`/apps/dcr`) doesn't validate registered redirect URI format either. | Compliant by absence on the auth flow; DCR has a separate gap. | DCR-side validation shipped under this PR. Full enforcement on `/authorize` waits on #116. |
-| 5 | PKCE method MUST be S256 (reject `plain`) | Client uses S256 only; no server-side enforcement needed yet. | Compliant by absence. | Enforce on `/authorize` when it ships; AS metadata already advertises `S256` only. |
-| 6 | HTTPS for redirect URIs (loopback exception) | DCR previously accepted any URI; client SDK has `client.ValidateHTTPS` but for AS endpoints, not registered redirects. | **Non-compliant (DCR)** — fixed under this PR. | DCR now rejects `http://` registered redirect URIs except for loopback (`127.0.0.1`, `::1`, `localhost`). |
-| 7 | Bearer tokens NOT in query string | `APIMiddleware.LegacyQueryParamBearer` opt-in fallback accepts `?token=…`. Default-off; deprecation warning fires once at first use. | **Compliant by default (when `LegacyQueryParamBearer` is nil).** | Field renamed under #295. Path retained for OAuth 2.0 deployments that genuinely need it (e.g., WebSocket upgrade where token can't ride Authorization header); see `docs/DEMOS.md` for three header-clean alternatives. Per capability-gating umbrella #344. |
-| 8 | Refresh token rotation | Implemented with reuse detection and family-revoke-on-reuse. | **Compliant.** | None. |
+| 1 | PKCE required for all authorization code flows | `/authorize` refuses a request without `code_challenge` and checks its shape; the token endpoint requires `code_verifier`, checks its shape and verifies it. The client SDK sends S256 and refuses an AS that doesn't advertise it. | **Compliant.** | None. |
+| 2 | Implicit grant removed | `/authorize` accepts only `response_type=code`. The reference server advertises `response_types_supported: ["code"]`, and only with `code_flow` on. | **Compliant.** | None. |
+| 3 | ROPC removed (no `grant_type=password`) | The token endpoint answers `unsupported_grant_type` while `OneAuthConfig.PasswordGranter` is nil, and always under `FAPI2`. | **Compliant by default.** Opt-in retained for OAuth 2.0 deployments. | The reference server wires the granter outside `fapi2`; it has no config switch for it yet. |
+| 4 | Exact redirect URI matching (no wildcards, no substring) | `/authorize` compares against the client's registered URIs with `RedirectURIMatches`. A loopback `http` redirect matches on any port (RFC 8252 §7.3). With no client registry, `/authorize` refuses every request unless `AllowAnyRedirectURI` is set. | **Compliant.** | None. |
+| 5 | PKCE method MUST be S256 (reject `plain`) | `/authorize` refuses `plain`, and a missing method, unless `OneAuthConfig.AllowPlainPKCE` is set. AS metadata advertises `S256` only. | **Compliant by default.** Opt-in retained (issue 345). | None. |
+| 6 | HTTPS for redirect URIs (loopback exception) | DCR refuses non-loopback `http`, userinfo, fragments, relative URIs and an https URI with no host, answering `invalid_redirect_uri`. | **Compliant.** | None. |
+| 7 | Bearer tokens NOT in query string | `APIMiddleware.LegacyQueryParamBearer` is empty by default. When set, the named query parameter is accepted and a log line warns at first use. | **Compliant by default.** Opt-in retained (issue 295). | None. Per capability-gating umbrella #344. |
+| 8 | Refresh token rotation | Rotation with reuse detection and family revocation in every store. The grant checks the presenting client. Rotation can be turned off for FAPI 2.0. | **Compliant.** | None. |
+| 9 | Authorization codes single use | A redeemed code is kept, marked used, until its access token expires. A second redemption is refused and revokes what the first one issued. | **Compliant.** | None. |
 
 ## Per-row analysis
 
-### 1. PKCE — compliant by absence
+### 1. PKCE: compliant
 
-The OAuth 2.1 escalation is that **all** clients (public AND confidential) must use PKCE on the authorization code flow. OneAuth ships PKCE today only on the client side:
+OAuth 2.1 requires PKCE from every client, public and confidential, on the authorization code flow.
 
-- `client/browser_login.go:255-260` rejects any AS whose discovery metadata doesn't advertise `S256` in `code_challenge_methods_supported`.
-- `client/browser_login.go:468` hardcodes `code_challenge_method=S256` on outgoing authorization requests.
+On the server, `AuthorizationHandler.ValidateValues` (`apiauth/authorize.go`) refuses a request without `code_challenge` with `invalid_request`. Since 0.1.49 it also checks the RFC 7636 shape: an S256 challenge is exactly 43 base64url characters, and a plain challenge 43 to 128 unreserved characters. At the token endpoint, `authorizationCodeGranter.AuthorizationCodeGrant` (`apiauth/authorize_granter.go`) requires `code_verifier`, refuses one outside the 43 to 128 character shape, and compares it with `core.VerifyPKCE`.
 
-The server side has no `/authorize` endpoint to enforce against — issue 116 (full OIDC Provider) covers that. When 116 ships, the new authorization endpoint MUST:
+On the client, `AuthClient.LoginWithBrowser` (`client/browser_login.go`) refuses an AS whose metadata lacks `S256` in `code_challenge_methods_supported`, and `buildAuthorizationURL` always sends `code_challenge_method=S256`.
 
-1. Reject any request lacking `code_challenge`.
-2. Reject `code_challenge_method=plain`.
-3. Validate the verifier→challenge match at the token endpoint.
+### 2. Implicit grant: compliant
 
-### 2. Implicit grant — compliant by absence
+`AuthorizationHandler.ValidateValues` answers any `response_type` other than `code` with `unsupported_response_type`. Since 0.1.51 the reference server's metadata (`serverASMetadata` in `cmd/oneauth-server/metadata.go`) lists `code` and RFC 9207 `iss` only when `code_flow` is enabled, and no longer advertises the `token` response type it used to list for its resource-token shape.
 
-OneAuth has no `/authorize` endpoint and therefore no implicit grant. The `ResponseTypesSupported=["token"]` field in `cmd/oneauth-server`'s AS metadata refers to the OneAuth resource-token shape (the JWT minted by `MintResourceToken`), not OAuth 2.0's implicit `response_type=token`. When 116 ships, the new `/authorize` endpoint MUST NOT accept `response_type=token`.
+### 3. ROPC: compliant by default, opt-in retained
 
-### 3. ROPC — non-compliant, follow-up filed
+`TokenEndpointHandler.handlePassword` (`apiauth/token_endpoint.go`) answers `unsupported_grant_type` when `OneAuthConfig.PasswordGranter` is nil or `FAPI2` is set. A deployment that still needs the grant for OAuth 2.0 clients sets `PasswordGranter` to `NewPasswordGranter(...)`, which logs a warning that this is the legacy path (issue 294). The documented alternative is `localauth/` HTTP login with a cookie session.
 
-`apiauth/auth.go:251` has the `case "password":` branch in the token endpoint, dispatched to `handlePasswordGrant`. OAuth 2.1 §7.6 removes this grant entirely.
+The reference server wires `NewPasswordGranter` in `cmd/oneauth-server/main.go`, so it serves the grant unless `fapi2: true`. Under `fapi2` the token endpoint refuses it and `baseGrantTypes` leaves `password` out of metadata.
 
-**Why it's not removed in this PR:** the demo ecosystem (`cmd/demo-hostapp`, e2e tests, examples) needs auditing for password-grant callers. The documented alternative is `localauth/` HTTP login + cookie session (which is what every browser-based OneAuth deployment already uses), but identifying the migration scope cleanly deserves its own focused PR. Tracked under a new follow-up issue.
+### 4. Exact redirect URI matching: compliant
 
-### 4. Exact redirect URI matching — DCR gap fixed; enforcement waits on /authorize
+OAuth 2.1 requires exact string matching of redirect URIs at the authorization endpoint. `AuthorizationHandler.validateRedirectURI` checks the requested URI against the client's registration (or a `RedirectURIValidator`) with `apiauth.RedirectURIMatches`. Scheme, host, path and query match exactly. The one relaxation is the port of an `http` redirect on `127.0.0.1`, `[::1]` or `localhost`, which RFC 8252 §7.3 requires so native apps can bind any free port (0.1.38).
 
-OAuth 2.1 §3.1.2.2 mandates exact string matching of redirect URIs at the authorization endpoint — no wildcard, no substring, no port-only swap. OneAuth's `/authorize` doesn't exist yet, so there's nothing to match against today. But DCR (`/apps/dcr`) does accept registered redirect URIs without format validation — and that's where wildcard/garbage URIs would land first.
+With neither an `AppStore` nor a `RedirectURIValidator`, `/authorize` refuses every request unless `AllowAnyRedirectURI` is set on `AuthorizationHandler` or `AuthorizeMountConfig` (0.1.49). Tests set it; production mounts should not.
 
-Under this PR, `admin/registrar.go` (`Register` and `UpdateRegistration`) now validates each registered redirect URI is a parseable absolute URL with `https://` scheme, with a single carve-out for loopback (`127.0.0.1`, `::1`, `localhost`) which RFC 8252 §7.3 permits on `http://` for native apps. Future `/authorize` enforcement (under #116) gets a smaller surface to defend.
+Registration is the other half; see row 6.
 
-### 5. PKCE S256-only — compliant by absence
+### 5. PKCE S256-only: compliant by default
 
-The current `cmd/oneauth-server` AS metadata advertises `CodeChallengeMethodsSupported=["S256"]` — no `plain`. The client SDK enforces this on the AS side. When `/authorize` ships, the endpoint MUST reject `code_challenge_method=plain` even if a client sends it.
+`AuthorizationHandler.ValidateValues` refuses a missing `code_challenge_method` and refuses `plain` unless `OneAuthConfig.AllowPlainPKCE` is set (issue 345). With the flag on, the first plain challenge logs a warning. The reference server's metadata advertises `code_challenge_methods_supported: ["S256"]`.
 
-### 6. HTTPS redirect URIs — non-compliant (fixed in this PR)
+### 6. HTTPS redirect URIs: compliant
 
-OAuth 2.1 §3.1.2.1 requires all redirect URIs to use `https://`. The only exemption is RFC 8252 §7.3 loopback (`127.0.0.1`, `::1`, `localhost`) for native-app clients.
+OAuth 2.1 requires `https` redirect URIs, with the RFC 8252 §7.3 loopback exemption for native apps.
 
-Before this PR: `admin/registrar.go` accepted any string in the `redirect_uris` array. After: each URI is parsed; non-loopback URIs must use `https://`; non-parseable URIs are rejected; loopback exemption is explicit. Returns `ErrInvalidClientMetadata` per RFC 7591 §3.2.2.
+`validateRedirectURIs` in `admin/registrar.go`, called from `Register` and `UpdateRegistration`, refuses an empty, relative or unparseable URI, a fragment, userinfo, an https URI with no host, and `http` on anything but `127.0.0.1`, `::1` or `localhost`. A reverse-DNS private-use scheme (RFC 8252 §7.1) is allowed. Since 0.1.50 every redirect problem answers `invalid_redirect_uri` (`admin.ErrInvalidRedirectURI`, which wraps `ErrInvalidClientMetadata`), and DCR refuses an `authorization_code` registration with no redirect URI.
 
-### 7. Bearer in query string — compliant by default; OAuth 2.0 opt-in path retained
+### 7. Bearer in query string: compliant by default, opt-in retained
 
-OAuth 2.1 §5.4 retired bearer tokens in query strings (RFC 6750 §2.3 had deprecated this in 2012). The query-string carry attacks:
+OAuth 2.1 retired bearer tokens in query strings (RFC 6750 §2.3 had deprecated this in 2012). The query-string carry attacks:
 
 - Tokens land in browser history and server access logs.
 - `Referer` headers leak them across origins.
 - Caches and CDNs persist them.
 
-`apiauth/middleware.go` consults `APIMiddleware.LegacyQueryParamBearer`. The field is unset by default (compliant); when an operator sets it, a sync.Once log warns at first use that this is the legacy OAuth 2.0 path and points at `docs/DEMOS.md` for three header-clean alternatives.
+`APIMiddleware` (`apiauth/middleware.go`) consults `LegacyQueryParamBearer` only when no `Authorization` header is present. The field is empty by default. When an operator sets it, a log line at first use says this is the legacy OAuth 2.0 path and points at `docs/DEMOS.md` for three header-clean alternatives.
 
-The original audit (#140) filed this as "non-compliant (opt-in)" planning full removal. The capability-gating umbrella #344 rescoped that: OAuth 2.0 is still ~95% of real-world deployments; removal would break the WebSocket upgrade use case (where the initial GET can't carry an Authorization header) without a one-size-fits-all replacement. The path is retained as a deliberate OAuth 2.0 escape hatch.
+The original audit planned to remove the path. The capability-gating umbrella #344 kept it as an opt-in instead, because the WebSocket upgrade case (where the initial GET can't carry an `Authorization` header) has no single replacement. Issue 295 renamed the field and documented the alternatives.
 
-#295 ships the rename + sharpened deprecation log + docs/DEMOS.md alternatives. Future deployments that don't set the field get OAuth 2.1 §5.4 compliance for free.
+### 8. Refresh token rotation: compliant
 
-### 8. Refresh token rotation — compliant
+OAuth 2.1 asks for sender-constrained refresh tokens or rotation for public clients. OneAuth rotates by default: every store implements `RotateRefreshToken` (in-memory, FS, GORM, GAE), and the refresh path in `apiauth/token_validator.go` treats `core.ErrTokenReused` as reuse and calls `RevokeTokenFamily`. `apiauth/auth_test.go` covers the reuse path.
 
-OAuth 2.1 §6.1 requires refresh token rotation: each refresh-token exchange produces a new refresh token, and reuse of an old token triggers revocation of the entire token family.
+Since then:
 
-OneAuth ships this via `RotateRefreshToken` (in every backend: in-memory, FS, GORM, GAE) and `apiauth/auth.go:383-389` detects reuse via the `core.ErrTokenReused` sentinel, then revokes the family via `RevokeTokenFamily`. The reuse-detection path is exercised by the existing `apiauth/auth_test.go` reuse subtest.
+- **Client binding (0.1.41).** The token must belong to the `client_id` that presents it, or the grant answers `invalid_grant` before rotating. A confidential owner must authenticate, or the request gets 401 `invalid_client`.
+- **Rotation can be turned off (0.1.43).** `OneAuthConfig.DisableRefreshTokenRotation` keeps one refresh token in use, as FAPI 2.0 §5.3.2.1 asks. `FAPI2` sets it. The default still rotates.
+- **Atomic rotation (0.1.45).** GORM's `RotateRefreshToken` is a compare-and-set on the unrevoked row, so two concurrent refreshes can't both succeed, and rotation keeps the family's original expiry in every store.
 
-No work needed; this row is the cleanest in the table.
+DPoP-bound refresh tokens (RFC 9449) are carried forward on rotation and refused without their key.
+
+### 9. Authorization codes single use: compliant
+
+OAuth 2.1 says a code is used once, and RFC 6749 §4.1.2 adds that the AS should revoke tokens issued from a reused code. Since 0.1.57 (issue 429), `AuthorizationCodeStore.ConsumeAuthorizationCode` marks a code used instead of deleting it, and the record stays until its access token expires. `authorizationCodeGranter.refuseReuse` answers a second redemption with `invalid_grant`, revokes the refresh family, and blacklists the access token's `jti` when `OneAuthConfig.Blacklist` is set. A reuse racing the first redemption makes that one refuse too.
 
 ---
 
 ## Filed follow-ups
 
-The original audit framed #294 and #295 as removals. The capability-gating umbrella **#344** rescoped them into per-deployment opt-in mechanisms (nil-handler for grants; flags for policies; per-client DCR `grant_types`). See #344 for the framing.
+The original audit framed issues 294 and 295 as removals. The capability-gating umbrella **#344** rescoped them into per-deployment opt-ins: a nil handler for grants, flags for policies, and per-client DCR `grant_types`.
 
 | Issue | Scope | Status |
 |---|---|---|
-| #344 (umbrella) | OAuth 2.0/2.1 capability gating — nil-handler for grants, flags for policies | Open |
-| #294 | Extract `PasswordGranter` peer interface; default-disable ROPC via nil-handler | Open |
-| #295 | Rename `TokenQueryParam` → `LegacyQueryParamBearer`; sharpen deprecation; WebSocket alternatives in docs/DEMOS.md | Open |
-| #345 | `AllowPlainPKCE` flag — opt-in OAuth 2.0 plain PKCE on `/authorize` | Open |
+| #344 (umbrella) | OAuth 2.0/2.1 capability gating: nil handler for grants, flags for policies | Open |
+| issue 294 | `PasswordGranter` peer interface; ROPC off by default through a nil handler | Closed |
+| issue 295 | Rename `TokenQueryParam` to `LegacyQueryParamBearer`; deprecation log; WebSocket alternatives in `docs/DEMOS.md` | Closed |
+| issue 345 | `AllowPlainPKCE` flag for OAuth 2.0 plain PKCE on `/authorize` | Closed |
 | #346 | Enforce per-client DCR `grant_types` at token endpoint dispatch | Open |
 
 ## What this audit does NOT cover
 
-- **OAuth 2.1 §4** (Refresh Token Constraints): rotation is covered (row 8); sender-constrained refresh tokens (DPoP / mTLS) is a separate spec surface tracked under FAPI 2.0 work (issue 152).
-- **OAuth 2.1 §5.3** (Access Token Privilege Restriction): not part of the alignment baseline; resource indicators (RFC 8707) is a separate enhancement.
-- **DPoP / sender-constrained tokens**: tracked under issue 163 (Authlete-superset meta).
-- **`/authorize`-specific requirements** (state parameter handling, error redirects per RFC 6749 §4.1.2.1): all gated on issue 116 and tracked there.
+- **Sender-constrained tokens.** DPoP (RFC 9449) ships end to end; see [`docs/oauth/RFC_9449.md`](oauth/RFC_9449.md) and [`docs/SECURITY_AUDIT.md`](SECURITY_AUDIT.md). mTLS (RFC 8705) is #335.
+- **FAPI 2.0.** `OneAuthConfig.FAPI2` applies the Security Profile on top of this baseline; [`docs/SECURITY_AUDIT.md`](SECURITY_AUDIT.md) walks it.
+- **OAuth 2.1 §5.3** (Access Token Privilege Restriction): resource indicators (RFC 8707) are a separate enhancement.
+- **OIDC.** ID tokens, `nonce` and userinfo are #339.
 
 ## Related work
 
-- Issue 116 — Full OIDC Provider (`/authorize` + ID tokens + userinfo). Unblocks rows 1, 2, 4, 5.
-- Issue 163 — Authlete-superset spec coverage meta.
-- Issue 197 / 202 (closed) — OIDF conformance harness wiring.
-- Issue 140 — this audit's home.
+- Issue 116 (closed as a duplicate of #339). `/authorize` shipped in PR 297; ID tokens and userinfo are #339.
+- #163: Authlete-superset spec coverage meta.
+- Issues 197 and 202 (closed): OIDF conformance harness wiring. A first run is mission #98.
+- Issue 140: this audit's home.

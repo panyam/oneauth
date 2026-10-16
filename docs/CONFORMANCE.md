@@ -1,6 +1,6 @@
 # OneAuth Conformance, Load & Adversarial Testing
 
-> **Status:** Draft strategy, not yet implemented. Tracks the plan; per-suite implementation lives behind tracking issues.
+> **Status:** Strategy, partly implemented. The ratchet runner and its first fixtures live in `tests/conformance/` (`make testconformance`), and the OIDF discovery plan in `tests/oidf-conformance/` (`make testoidf`). Load testing, fuzzing, semgrep and nuclei are not built yet; per-suite work lives behind tracking issues.
 
 This document covers three forms of external testing OneAuth will run continuously:
 
@@ -92,9 +92,11 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 
 | Suite | Location | Specs covered |
 |---|---|---|
-| Keycloak interop | `tests/keycloak/` | RFC 6749/7517/7662/7009/8414, OIDC Discovery, RFC 9396 (RAR) — as a resource server validating Keycloak tokens |
+| Keycloak interop | `tests/keycloak/` | RFC 6749/7517/7662/7009/8414, OIDC Discovery, RFC 9396 (RAR), as a resource server validating Keycloak tokens. Also DPoP-bound tokens, accepted under `DPoP` and refused as Bearer (0.1.38); refresh requests sent to both servers and compared, and `LoginWithBrowser` against Keycloak (0.1.42); Keycloak ID tokens refused as access tokens (0.1.46); revocation parity for cross-client and missing-token requests (0.1.54). Runs in CI through `keycloak-interop.yml` on PRs touching `apiauth/`, `client/`, `keys/`, `core/`, `cmd/oneauth-server/` or `tests/keycloak/`, and on pushes to main (PR 390). |
 | RAR conformance | `tests/keycloak/rar_interop_test.go` | RFC 9396 round-trip — currently the most thorough public RAR interop test we know of |
 | In-process e2e | `tests/e2e/` | All endpoints end-to-end against `cmd/oneauth-server` |
+| Conformance ratchet | `tests/conformance/` | RFC 8414 dual-path (`as_metadata/`), RFC 7662 (`introspection/`), `private_key_jwt` (`client_auth/`); expected failures in `known-gaps.yaml`, run by `make testconformance` |
+| OIDF discovery plan | `tests/oidf-conformance/` | `oidcc-config-certification-test-plan` through `make testoidf`. The OIDF workflow is `workflow_dispatch` only and has not run in CI yet. |
 
 ### 2.2 Suites to adopt (Tier 1)
 
@@ -102,11 +104,11 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 
 - **Repo:** [gitlab.com/openid/conformance-suite](https://gitlab.com/openid/conformance-suite) (Apache 2.0; GitHub mirror at `openid-certification/conformance-suite` is read-only)
 - **Runs as:** Docker Compose stack (Java + Spring Boot + MongoDB + httpd). Uses `localhost.emobix.co.uk:8443` (resolves to 127.0.0.1, ships a real cert chain) so callbacks can be HTTPS.
-- **Drives in CI** via the suite's published Python wrapper (headless). Test plan IDs and configs are checked into our repo at `tests/oidf/plans/`.
+- **Drives in CI** via the suite's published Python wrapper (headless). The harness, server config and baselines are checked into our repo at `tests/oidf-conformance/`.
 - **Plans we run:**
   - **Config OP** — validates `/.well-known/openid-configuration` required fields (RFC 8414 + OIDC Discovery)
   - **Dynamic OP** — exercises `POST /apps/dcr` (RFC 7591), required response fields, error envelopes
-  - **Basic OP** — RFC 6749 token endpoint (partial fit; many assertions assume `authorization_code` + ID token, which OneAuth does not currently issue — those will be expected-fail in `known-gaps.yaml` until issue 115 lands)
+  - **Basic OP**, the RFC 6749 token endpoint (partial fit; many assertions assume `authorization_code` + ID token. OneAuth issues `authorization_code` but not ID tokens yet (#339), so the ID-token assertions will be expected-fail in `known-gaps.yaml`.)
   - **Connect_RP** plans (Basic/Hybrid/Form Post) — exercise the `client/AuthClient` SDK against a fake OP. Real fit.
 
 OIDF cert (the paid logo) is **not** a goal. We run the tests; we do not submit results.
@@ -119,7 +121,7 @@ OIDF cert (the paid logo) is **not** a goal. We run the tests; we do not submit 
   - `auth/basic-dcr` — RFC 7591 from a fresh client's perspective
   - `auth/basic-metadata-var1` — RFC 9728 PRM discovery (currently the only public conformance test for RFC 9728)
 
-This is also the suite that surfaced bug #74 (`TokenEndpointAuthMethods` negotiation with explicit endpoints), per `docs/ROADMAP.md:116`. Worth running on every PR.
+This is also the suite that surfaced bug 74 (`TokenEndpointAuthMethods` negotiation with explicit endpoints), per the "Fix auth method negotiation with explicit endpoints" entry in `docs/ROADMAP.md`. Worth running on every PR.
 
 ### 2.3 Self-written suites (filling public gaps)
 
@@ -135,7 +137,9 @@ These RFCs have no public conformance tooling. We write them as transport-agnost
 
 ### 2.4 Explicitly out of scope
 
-FAPI 1/2, FAPI-CIBA, JARM, mTLS cert-bound tokens, OpenID Federation, OID4VCI, EUDI Wallet, regional Open Banking profiles. The OIDF suite has plans for all of these; we will not run them. See [`docs/gaps/AUTHLETE_GAP_ANALYSIS.md`](gaps/AUTHLETE_GAP_ANALYSIS.md) for the rationale.
+FAPI 1.0, FAPI-CIBA, OpenID Federation, OID4VCI, EUDI Wallet, regional Open Banking profiles. The OIDF suite has plans for all of these; we will not run them.
+
+FAPI 2.0 is no longer on this list. oneauth implements the FAPI 2.0 Security Profile (`OneAuthConfig.FAPI2`, 0.1.52 and 0.1.54), and the first OIDF run of its plan is mission #98 (see [`docs/SECURITY_AUDIT.md`](SECURITY_AUDIT.md) for the caveats). JARM is mission #409 and mTLS certificate-bound tokens are #335. See [`docs/gaps/AUTHLETE_GAP_ANALYSIS.md`](gaps/AUTHLETE_GAP_ANALYSIS.md) for the rationale.
 
 ---
 
@@ -189,13 +193,18 @@ Six scenarios, all driven from `tests/load/k6/`. Budgets are order-of-magnitude 
 | **gosec** | Go SAST: weak crypto (G401/G501), TLS InsecureSkipVerify (G402), `math/rand` for security (G404) — critical for state/nonce/PKCE generators | `gosec ./...`; suppressions in `tests/security/suppressions.yaml` |
 | **semgrep** | OAuth/JWT-aware ruleset (`p/golang`, `p/jwt`, `p/owasp-top-ten`, `p/secrets`); flags `jwt.Parse` without explicit `Method` check | `semgrep --baseline-ref=origin/main` |
 | **nuclei** | Black-box pattern scan; `http/misconfiguration/ssrf-via-oauth-misconfig.yaml`, JWT-leak templates, OIDC/OAuth detection | `nuclei -t http/misconfiguration/ -t http/miscellaneous/oauth* -u $TARGET` |
-| **CodeQL** | `Security/CWE/CWE-347` (improper signature verification) catches `jwt.Parse` callbacks accepting any algorithm | GitHub Default Setup; weekly + on push to main |
+| **CodeQL** | `Security/CWE/CWE-347` (improper signature verification) catches `jwt.Parse` callbacks accepting any algorithm | GitHub Default Setup; reports as a check on every PR and on push to main |
+| **`make audit`** | gitleaks (secrets), govulncheck (known vulnerabilities) and gosec (high severity, informational), at pinned versions via `go run`, plus the e2e suite under the race detector (0.1.47) | `make audit` locally. CI runs govulncheck and gitleaks as their own jobs in `ci.yml`. |
 
-### Tier 1b — black-box dynamic scan (weekly on main)
+Of this table, CodeQL, govulncheck and gitleaks run in CI today, and gosec runs only through `make audit`. semgrep and nuclei are not wired yet, and `tests/security/suppressions.yaml` does not exist.
+
+### Tier 1b — black-box dynamic scan (on push to main)
 
 | Tool | Purpose | Run as |
 |---|---|---|
-| **OWASP ZAP** | Authenticated active scan of running `cmd/oneauth-server`. AuthHelper add-on understands OIDC discovery + auth-code flow | `zap.sh -cmd -autorun tests/security/zap-plan.yaml` |
+| **OWASP ZAP** | Baseline (passive) scan of a running `cmd/oneauth-server`, with the AJAX spider. It is unauthenticated and does not fail the build; findings go to the run's `zap_scan` artifact (0.1.42). | `zaproxy/action-baseline` in the `zap` job of `ci.yml`, on every push to main, with rules in `.zap-rules.tsv` |
+
+An authenticated active scan (ZAP's AuthHelper add-on driving OIDC discovery and the code flow, from a `tests/security/zap-plan.yaml`) is still the plan, not built.
 
 ### Tier 2 — fuzzing (PR + nightly)
 
@@ -275,7 +284,7 @@ Order of work, lowest-friction first:
 6. **k6 mixed-workload baseline** as `make testload`. PR gate. Other five scenarios nightly.
 7. **OIDF Basic OP + Connect_RP** — these will surface a long known-gaps list (no `authorization_code` flow yet); accept that and ratchet.
 8. **Self-written RFC 7662 / 7009 / 9728-deep / 9396 fixtures** as transport-agnostic Go modules (importable by Keycloak suite + OneAuth e2e).
-9. **OWASP ZAP weekly main scan.**
+9. **OWASP ZAP authenticated scan on main.** The baseline scan already runs on every push to main.
 
 Each item is a tracking issue; sub-issues per test plan. Issues opened only after this doc is reviewed.
 
@@ -300,14 +309,13 @@ Existing:
 - `tests/e2e/` — in-process e2e
 - `cmd/oneauth-server/` — reference server, target for ZAP/nuclei
 - [`docs/TESTING.md`](TESTING.md) — unit + integration testing patterns
-- [`docs/gaps/AUTHLETE_GAP_ANALYSIS.md`](gaps/AUTHLETE_GAP_ANALYSIS.md) — rationale for FAPI/CIBA out-of-scope
+- [`docs/gaps/AUTHLETE_GAP_ANALYSIS.md`](gaps/AUTHLETE_GAP_ANALYSIS.md) — rationale for the out-of-scope profiles
+- `tests/conformance/` holds the ratchet runner (`cmd/runner`), `known-gaps.yaml`, and the `as_metadata`, `introspection` and `client_auth` fixtures
+- `tests/oidf-conformance/` holds the OIDF suite docker harness, server config and baselines
 
 To be created (per adoption sequence above):
-- `tests/conformance/known-gaps.yaml`
-- `tests/conformance/{introspection,revocation,prm,as_metadata}/`
-- `tests/oidf/` — OIDF suite docker harness + plan configs
+- `tests/conformance/{revocation,prm}/`
 - `tests/mcp/` — MCP conformance harness
 - `tests/load/k6/` — six k6 scenarios + `baseline.json`
 - `tests/security/suppressions.yaml`
 - `tests/security/zap-plan.yaml`
-- `cmd/conformance-runner/` — manifest-diff runner (pending decision in §6)

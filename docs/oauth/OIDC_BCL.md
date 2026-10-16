@@ -3,7 +3,7 @@
 > **Status:** OpenID Foundation Specification
 > **Published:** 2019 (final)
 > **L-tier / T-tier:** L7 · T8 (lifecycle / logout)
-> **OneAuth coverage:** Implemented (`apiauth/BCLDispatcher` + `LogoutTokenIssuer`)
+> **OneAuth coverage:** Implemented on the OP side (`apiauth.BCLDispatcher` + `LogoutTokenIssuer`); no RP-side validator
 > **See also:** [`OIDC_Core.md`](OIDC_Core.md) · [`RFC_7009.md`](RFC_7009.md) · [`LANDSCAPE.md`](LANDSCAPE.md)
 
 ## In one sentence
@@ -135,15 +135,17 @@ deployments standardize on.
 
 | BCL surface | Status | Where (grep-verified) | Notes |
 |---|---|---|---|
-| `BCLDispatcher` — fans out logout to all subscribed RPs | **Implemented** | `apiauth/bcl_dispatcher.go:46` (struct) + `Dispatch` method at line 126 | Per-RP failure doesn't block other RPs |
-| `LogoutTokenIssuer` — mints the signed `logout_token` JWT | **Implemented** | `apiauth/logout_token.go` | All required claims plus `events`; `nonce` deliberately omitted per §2.4 ¶6 (line 115) |
-| `backchannel_logout_uri` DCR field | **Implemented** | `admin/dcr.go:112` echoed back per OIDC BCL §3.1 | RP registers via 7591 metadata |
-| `backchannel_logout_session_required` DCR field | **Implemented** | `admin/dcr.go:113` | Controls whether `sid` MUST appear in the dispatched token |
-| Per-RP `aud` enforcement | **Implemented** | `bcl_dispatcher.go:77` comment: "(mis-configured or malicious) `backchannel_logout_uri` cannot be" — RP receives only its own audience |
-| `OnSubjectRevoked` / `OnTokenRevoked` hooks for orchestration | **Implemented** | `bcl_integration_test.go:72,126` exercises both | Composes with refresh-token family revoke (RFC 7009 + RFC 9700 §4.14) |
-| AS metadata: `backchannel_logout_supported`, `backchannel_logout_session_supported` | **Implemented** | `apiauth/as_metadata.go:86,93` | Discovery advertised |
-| `logout_token` JWT signature validation (RP side) | **Implemented** (in OneAuth's own client SDK) | Helps clients consuming OneAuth-issued logout_tokens | — |
-| Test coverage | **Implemented** | `apiauth/bcl_dispatcher_test.go`, `bcl_integration_test.go`, `bcl_integration_test.go:122–145` end-to-end with `OnTokenRevoked` | — |
+| `BCLDispatcher` — fans out logout to all subscribed RPs | **Implemented** | `apiauth/bcl_dispatcher.go` (`BCLDispatcher` struct + `BCLDispatcher.Dispatch`) | Per-RP failure doesn't block other RPs |
+| `LogoutTokenIssuer` — mints the signed `logout_token` JWT | **Implemented** | `apiauth/logout_token.go` | All required claims plus `events`; `nonce` deliberately omitted per §2.4 ¶6 (`jwtLogoutTokenIssuer.CreateLogoutToken`) |
+| `backchannel_logout_uri` DCR field | **Implemented** | `DCRRequest.BackchannelLogoutURI` in `admin/dcr.go`, echoed back per OIDC BCL §3.1 | RP registers via 7591 metadata |
+| `backchannel_logout_session_required` DCR field | **Implemented** | `DCRRequest.BackchannelLogoutSessionRequired` in `admin/dcr.go` | Controls whether `sid` MUST appear in the dispatched token |
+| BCL settings persist in every app store | **Implemented** | `stores/gorm/appstore.go`, `stores/gae/appstore.go` | Before 0.1.41 the GORM and GAE app stores dropped `backchannel_logout_uri` and `backchannel_logout_session_required`, so back-channel logout switched off after a restart. GORM deployments need `AutoMigrate` for the two columns |
+| Per-RP `aud` enforcement | **Implemented** | `BCLDispatcher.Dispatch` mints one `logout_token` per client with `CreateLogoutTokenRequest.Audience` set to that client | RP receives only its own audience. Delivery refuses private and loopback receiver addresses unless `BCLDispatcher.AllowPrivateHosts` is set |
+| `OnSubjectRevoked` / `OnTokenRevoked` hooks for orchestration | **Implemented** | `TestBCL_HandleLogoutAll_FiresDispatchesToRegisteredReceivers` and `TestBCL_HandleLogout_FiresOnTokenRevokedWithCapturedSubject` in `bcl_integration_test.go` exercise both | Composes with refresh-token family revoke (RFC 7009 + RFC 9700 §4.14) |
+| AS metadata: `backchannel_logout_supported`, `backchannel_logout_session_supported` | **Implemented** | `ASServerMetadata.BackchannelLogoutSupported` / `BackchannelLogoutSessionSupported` in `apiauth/as_metadata.go` | Discovery advertised |
+| `logout_token` JWT signature validation (RP side) | **Not implemented** | `client/` has no `logout_token` receiver or validator | An RP consuming oneauth's logout tokens validates them with its own JWT library |
+| Logout tokens refused as access tokens | **Implemented** | `checkAccessTokenKind` in `apiauth/jwt_helpers.go` | A logout token is signed with the AS key. Since 0.1.45 the validator refuses one presented as an access token by its `typ: logout+jwt` header |
+| Test coverage | **Implemented** | `apiauth/bcl_dispatcher_test.go`, `bcl_integration_test.go` (`TestBCL_HandleLogout_FiresOnTokenRevokedWithCapturedSubject` runs end-to-end with `OnTokenRevoked`) | — |
 
 OneAuth's BCL implementation is one of the cleanest L7 surfaces in the
 codebase. The dispatcher / issuer split, the explicit `sid` semantics, and

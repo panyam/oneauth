@@ -149,19 +149,19 @@ changes to Discovery.
 
 | Discovery surface | Status | Where (grep-verified) | Notes |
 |---|---|---|---|
-| `/.well-known/openid-configuration` endpoint | **Implemented** | `apiauth/as_metadata.go:153` `MountASMetadata` registers it | Same handler serves both paths |
+| `/.well-known/openid-configuration` endpoint | **Implemented** | `apiauth/as_metadata.go` `MountASMetadata` registers it | Same handler serves both paths |
 | `/.well-known/oauth-authorization-server` co-serving | **Implemented** | Same | One JSON, two URLs |
-| `issuer` field | **Implemented** | `ASServerMetadata.Issuer` (`apiauth/as_metadata.go:22`) | — |
-| `authorization_endpoint` | **Implemented** | `as_metadata.go:29` | — |
-| `userinfo_endpoint` | **Implemented (advertised)** | `as_metadata.go:33` | Field present; underlying handler is a gap (see [`OIDC_Core.md`](OIDC_Core.md)) |
-| `id_token_signing_alg_values_supported` | **Field present**, partial wiring | `as_metadata.go` carries the field | — |
-| `subject_types_supported` | **Implemented** | `as_metadata.go:64` | Typically `["public"]` |
-| `claims_supported` | **Implemented** | `as_metadata.go:48` | Per-deployment config |
-| `authorization_response_iss_parameter_supported` (RFC 9207) | **Implemented** | `as_metadata.go:78` | — |
-| `backchannel_logout_supported` | **Implemented** | `as_metadata.go:86` | — |
+| `issuer` field | **Implemented** | `ASServerMetadata.Issuer` (`apiauth/as_metadata.go`) | — |
+| `authorization_endpoint` | **Implemented** | `ASServerMetadata.AuthorizationEndpoint` | — |
+| `userinfo_endpoint` | **Implemented (advertised)** | `ASServerMetadata.UserinfoEndpoint` | Field present; underlying handler is a gap (see [`OIDC_Core.md`](OIDC_Core.md)) |
+| `id_token_signing_alg_values_supported` | **Gap** | — | `ASServerMetadata` has no such field, and OneAuth issues no ID tokens. Tracked in [#339](https://github.com/panyam/oneauth/issues/339) |
+| `subject_types_supported` | **Implemented** | `ASServerMetadata.SubjectTypesSupported` | Typically `["public"]` |
+| `claims_supported` | **Implemented** | `ASServerMetadata.ClaimsSupported` | Per-deployment config |
+| `authorization_response_iss_parameter_supported` (RFC 9207) | **Implemented** | `ASServerMetadata.AuthorizationResponseIssParameterSupported` | — |
+| `backchannel_logout_supported` | **Implemented** | `ASServerMetadata.BackchannelLogoutSupported` | — |
 | `request_parameter_supported`, `request_uri_parameter_supported` | **Gap** | — | Tracked under [`RFC_9101.md`](RFC_9101.md) JAR |
-| `pushed_authorization_request_endpoint` | **Gap** | — | Tracked under [`RFC_9126.md`](RFC_9126.md) PAR |
-| `dpop_signing_alg_values_supported` | **Gap** | — | Tracked under [`RFC_9449.md`](RFC_9449.md) DPoP |
+| `pushed_authorization_request_endpoint` | **Implemented** | `ASServerMetadata.PushedAuthorizationRequestEndpoint`, with `RequirePushedAuthorizationRequests` | Since 0.1.38; the reference server advertises both with `code_flow.par.enabled` (0.1.54). See [`RFC_9126.md`](RFC_9126.md) |
+| `dpop_signing_alg_values_supported` | **Implemented** | `ASServerMetadata.DPoPSigningAlgValuesSupported` | Since 0.1.37. See [`RFC_9449.md`](RFC_9449.md) |
 
 ## Related specs
 

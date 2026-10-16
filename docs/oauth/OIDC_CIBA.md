@@ -3,7 +3,7 @@
 > **Status:** OpenID Foundation Specification
 > **Published:** 2021 (final)
 > **L-tier / T-tier:** L4 (grant) + L7 (identity) · T5
-> **OneAuth coverage:** Gap
+> **OneAuth coverage:** Gap (#341)
 > **See also:** [`RFC_8628.md`](RFC_8628.md) · [`OIDC_Core.md`](OIDC_Core.md) · [`LANDSCAPE.md`](LANDSCAPE.md)
 
 ## In one sentence
@@ -185,14 +185,14 @@ add a new grant_type, plumb auth_req_id through the same token-mint path.
 | CIBA surface | Status | Notes |
 |---|---|---|
 | `POST /bc-authorize` endpoint | **Gap** | — |
-| `urn:openid:params:grant-type:ciba` grant dispatch | **Gap** | Would slot alongside other grant types in the `apiauth/token_endpoint.go:69` switch |
+| `urn:openid:params:grant-type:ciba` grant dispatch | **Gap** | Would slot alongside other grant types in the `grant_type` switch in `TokenEndpointHandler.ServeHTTP` (`apiauth/token_endpoint.go`) |
 | Poll / ping / push notification mode handling | **Gap** | Poll mode is the simplest first target |
 | `login_hint` / `id_token_hint` resolution to user | **Gap** | Per-deployment user lookup integration |
 | Push notification to authenticator device | **Gap** | Out-of-scope for an OAuth library — needs platform integration |
 | `binding_message` propagation through to user-side prompt | **Gap** | Display-side concern |
 | `auth_req_id` store with TTL | **Gap** | Analogous to `DeviceAuthorizationStore` |
 | AS metadata: `backchannel_authentication_endpoint`, `backchannel_token_delivery_modes_supported`, etc. | **Gap** | Discovery advertisement |
-| `id_token` issuance | **Gap** | Foundational — see [`OIDC_Core.md`](OIDC_Core.md) |
+| `id_token` issuance | **Gap** | Foundational; see [`OIDC_Core.md`](OIDC_Core.md) (#339) |
 
 CIBA gates on two prerequisites in OneAuth: (1) OIDC Core id_token
 issuance (currently a gap), and (2) authenticator-device integration
