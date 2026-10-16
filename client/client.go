@@ -29,6 +29,7 @@ type AuthClient struct {
 	cachedASMeta  *ASMetadata // cached AS discovery metadata for auth method negotiation
 	dpopKey       *DPoPKey    // RFC 9449 proof-of-possession key; nil keeps every request on the bearer path
 	dpopNonces    *nonceStore // server-issued DPoP nonces, keyed by origin (RFC 9449 §8 / §9)
+	clientSecret  string      // confidential client's secret for the automatic refresh; never stored
 
 	// OnToken is an optional callback invoked after a successful token
 	// refresh (the refresh_token grant path through refreshTokenLocked).
@@ -119,6 +120,24 @@ func WithTransport(transport http.RoundTripper) ClientOption {
 func WithASMetadata(meta *ASMetadata) ClientOption {
 	return func(c *AuthClient) {
 		c.cachedASMeta = meta
+	}
+}
+
+// WithClientSecret gives the automatic refresh a confidential client's
+// secret, so it can authenticate the refresh_token grant as RFC 6749 §6
+// requires. The secret is held in memory only and never written to the
+// CredentialStore; a process that loads a credential from disk passes it
+// again here.
+//
+// It authenticates as the client the credential was issued to
+// (ServerCredential.ClientID), so one AuthClient serves one confidential
+// client. With AS metadata the method follows its advertised
+// token_endpoint_auth_methods_supported, as RefreshToken does; on the legacy
+// JSON path the secret goes in the body. Explicit calls such as RefreshToken
+// take their own ClientSecret and ignore this one.
+func WithClientSecret(secret string) ClientOption {
+	return func(c *AuthClient) {
+		c.clientSecret = secret
 	}
 }
 
@@ -569,13 +588,28 @@ func (c *AuthClient) refreshTokenLocked(cred *ServerCredential) error {
 	if clientID == "" {
 		clientID = "cli"
 	}
-	req := OAuth2TokenRequest{
-		GrantType:    "refresh_token",
-		RefreshToken: cred.RefreshToken,
-		ClientID:     clientID,
-	}
 
-	newCred, err := c.requestToken(context.Background(), req)
+	// A discovered token endpoint gets the standard RFC 6749 §6 form, with
+	// the client authenticated the way the AS advertises. Without one the
+	// oneauth-native JSON endpoint is kept, which is what Login without
+	// discovery used.
+	var newCred *ServerCredential
+	var err error
+	if c.cachedASMeta != nil && c.cachedASMeta.TokenEndpoint != "" {
+		data := url.Values{
+			"grant_type":    {"refresh_token"},
+			"refresh_token": {cred.RefreshToken},
+		}
+		method := SelectAuthMethod(c.clientSecret, c.cachedASMeta.TokenEndpointAuthMethods)
+		newCred, err = c.requestTokenForm(context.Background(), c.cachedASMeta.TokenEndpoint, data, method, clientID, c.clientSecret)
+	} else {
+		newCred, err = c.requestToken(context.Background(), OAuth2TokenRequest{
+			GrantType:    "refresh_token",
+			RefreshToken: cred.RefreshToken,
+			ClientID:     clientID,
+			ClientSecret: c.clientSecret,
+		})
+	}
 	if err != nil {
 		return err
 	}
@@ -859,13 +893,25 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 			if refreshErr := t.client.refreshTokenLocked(cred); refreshErr == nil {
 				t.client.mu.Unlock()
 
-				// Close original response body
+				// The first attempt consumed the body. One that can't be
+				// rewound isn't resent empty: the caller gets the 401, and
+				// the refreshed token serves its next request.
+				if !replayable(req) {
+					return resp, nil
+				}
 				resp.Body.Close()
 
 				// Get new token and retry
 				newToken, _ := t.client.GetToken()
 				if newToken != "" {
 					req = req.Clone(req.Context())
+					if req.GetBody != nil {
+						body, err := req.GetBody()
+						if err != nil {
+							return nil, err
+						}
+						req.Body = body
+					}
 					// A fresh proof, not the one already sent: a proof is
 					// single-use, and its `ath` names the old token.
 					if err := t.client.authorize(req, newToken); err != nil {
@@ -882,6 +928,12 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	return resp, nil
+}
+
+// replayable reports whether a request can be sent again: it has no body,
+// or one GetBody can produce afresh.
+func replayable(req *http.Request) bool {
+	return req.Body == nil || req.Body == http.NoBody || req.GetBody != nil
 }
 
 // send is the base round trip plus remembering any DPoP-Nonce the resource
