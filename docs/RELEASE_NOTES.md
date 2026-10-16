@@ -3,6 +3,65 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.41
+
+### DPoP audit and requiring DPoP (issue 88, PR 396)
+
+We walked RFC 9449 and the DPoP parts of FAPI 2.0 against the code, one
+requirement at a time. The matrix is in `docs/SECURITY_AUDIT.md`, also on the
+site under Conformance. The walk turned up a few bugs and one missing feature.
+
+- **Requiring DPoP.** `OneAuthConfig.RequireDPoP` makes the token endpoint
+  refuse any request without a proof (FAPI 2.0 §5.3.2.1). A client registered
+  with `dpop_bound_access_tokens` (RFC 9449 §5.2) is held to it on its own.
+  The field is on `core.AppRegistration` and DCR. Either way a missing proof
+  gets 400 `invalid_dpop_proof`, never a bearer token.
+- **PAR with a shared validator.** `/par` checks a proof's `htu` against its
+  own URL, so `MountAuthorize` giving it the token endpoint's validator works.
+  Before, every correct PAR proof failed behind a proxy, and a proof made for
+  the token endpoint was accepted at `/par`. PAR also answers a nonce
+  challenge with `use_dpop_nonce` and `DPoP-Nonce`.
+- **`htu` comparison** follows RFC 3986 §6.2 normalization (case, default
+  ports, percent-encoding, dot segments).
+- RSA proof keys under 2048 bits are refused, `jti` is capped at 256 bytes, and
+  `apiauth.FAPIDPoPAlgs()` returns ES256 and PS256.
+- **SDK.** The automatic refresh now carries a proof, so a DPoP client can
+  redeem its own bound refresh token. A `DPoP-Nonce` on any response is kept
+  for the next request.
+- **GORM and GAE app stores** now persist `dpop_bound_access_tokens`, and the
+  `backchannel_logout_uri` / `backchannel_logout_session_required` settings
+  they used to drop, which switched off back-channel logout after a restart.
+
+### The refresh grant checks the client (issue 395, PR 397)
+
+The refresh grant used to check only the token, so a leaked refresh token
+redeemed under any `client_id`, or none, and a confidential client's token
+redeemed without its secret (RFC 6749 §6).
+
+- If the token's owner is registered confidential, the request has to
+  authenticate as a client, or it gets 401 `invalid_client`.
+- The token must belong to the presenting `client_id`, or the grant answers
+  `invalid_grant` before rotating, so a refused attempt doesn't use up the
+  owner's token. A token stored with no client still redeems.
+- `RefreshGrantRequest.ClientID` carries the presenting client for library
+  callers of `TokenIssuer.RefreshGrant`.
+- The shared confidential-client check treats an AppStore error other than
+  not-found as a 500, where it used to treat the client as public. This also
+  reaches jwt-bearer, token-exchange and PAR.
+- **SDK.** `ServerCredential.ClientID` records which client a credential was
+  issued to, and the automatic refresh sends it instead of `"cli"`.
+
+### Upgrading
+
+- **GORM deployments need `AutoMigrate`** for the new app-registration columns
+  (`dpop_bound_access_tokens` and the two back-channel logout fields).
+- **Refresh callers must send their `client_id`**, and confidential clients
+  their credentials. Callers that left `client_id` off, or sent another one,
+  are now refused.
+- **The SDK's automatic refresh sends no client secret**, so a confidential
+  client logged in with `LoginWithBrowser` and a `ClientSecret` can't
+  auto-refresh. Call `RefreshToken` with the secret (issue 395 item 4).
+
 ## Version 0.1.40
 
 ### Typed login and token errors (issues 392, 393, PR 394)

@@ -17,3 +17,4 @@ The same session produced the sharper version of this: a flaky base64 tamper tes
 - A test that survives is usually asserting a precondition or a weaker property than its name claims. Strengthen it by asserting the thing that distinguishes the new path, not just its outcome.
 - Watch for this shape specifically: a new stricter path layered over a permissive one that still works. The permissive fallback keeps the test green and hides the gap.
 - A test that fails during a red-check of something unrelated is reporting a bug in itself. Investigate rather than re-running.
+- Commit before mutating. Restoring a mutated file with `git checkout <file>` also throws away any uncommitted work in that file, which cost a client refactor once (issue 88 interop PR).
