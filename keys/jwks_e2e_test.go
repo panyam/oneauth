@@ -30,6 +30,7 @@ import (
 func TestFederated_EndToEnd_HS256(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	regHandler := registrar.Handler()
 
 	// --- Step 1: Register app via HTTP ---
@@ -91,6 +92,7 @@ func TestFederated_EndToEnd_HS256(t *testing.T) {
 func TestFederated_EndToEnd_HS256_WrongSecret(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	regHandler := registrar.Handler()
 
 	body, _ := json.Marshal(map[string]any{"client_name": "wrong-secret.com"})
@@ -126,6 +128,7 @@ func TestFederated_EndToEnd_HS256_WrongSecret(t *testing.T) {
 func TestFederated_EndToEnd_HS256_CrossAppRejection(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	regHandler := registrar.Handler()
 
 	// Register two apps
@@ -166,6 +169,7 @@ func TestFederated_EndToEnd_HS256_CrossAppRejection(t *testing.T) {
 func TestFederated_EndToEnd_HS256_SecretRotation(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	regHandler := registrar.Handler()
 
 	// Register

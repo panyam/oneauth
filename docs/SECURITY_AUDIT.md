@@ -3,7 +3,8 @@
 This is the compliance matrix asked for in [issue 88](https://github.com/panyam/oneauth/issues/88).
 Issue 88 covers a lot of ground (RFC 6749 through RFC 9728, the security checklist, FAPI 2.0),
 so we're doing it one area at a time, and each area gets a section here once it's been walked
-requirement by requirement. So far that's DPoP.
+requirement by requirement. So far that's DPoP and the HTTP surface (transport and headers,
+authentication and sessions, the admin interface).
 
 How to read the tables:
 
@@ -144,3 +145,52 @@ Things that are deliberate rather than gaps:
   shared store.
 - **Nonces are off by default.** §8 leaves the policy to the server, and demanding one on every
   request breaks clients that haven't implemented the retry. See `DPoPConfig.NoncePolicy`.
+
+## HTTP surface (transport, sessions, admin)
+
+Audited October 2026, after the first ZAP baseline scan of the reference server. The checklist
+is issue 88's "Transport & Headers", "Authentication & Session" and "Admin Interface" sections.
+The fixes land across several PRs; the Status column says which rows are done.
+
+### Transport and headers
+
+| Requirement | Ref | Status | Code | Test |
+|---|---|---|---|---|
+| `redirect_uri` is https except on loopback | RFC 6749 §3.1.2.1, RFC 8252 §7.3 | Pass | `admin/registrar.go` `validateRedirectURI` | `admin/redirect_uri_validation_test.go` |
+| `Cache-Control: no-store` on token responses | RFC 6749 §5.1 | Pass | `apiauth/token_endpoint.go` `writeTokens` | existing |
+| ... and on token and device errors | OAuth 2.1 §3.2.4 | Pass (was Fail) | `writeError`, `writeOAuthError` | `credential_no_store_test.go`\* |
+| ... and on DCR, admin read / list / rotate, API key creation | RFC 7591 §3.2.1 → RFC 6749 §5.1 | Pass (was Fail) | `admin/no_store.go`, `apiauth/apikeys.go` | `admin/credential_responses_test.go`\*, `credential_no_store_test.go`\* |
+| ... on the authorize redirect carrying a code, and the reset-password form | RFC 6749 §10.5 | Pass (was Fail) | `issueAndRedirect`, `HandleResetPasswordForm` | `authorize_no_store_test.go`\*, `reset_no_store_test.go`\* |
+| `registration_client_uri` not built from the request's `Host` | CWE-644 | Pass (was Fail) | `AppRegistrar.IssuerBaseURL`; loopback-only fallback in `DCRHandler.issuerBase` | RegistrationURIIgnoresForeignHost\* |
+| Admin view doesn't return clients' `registration_access_token` | RFC 7592 §3 | Pass (was Fail) | `ListClients` / `GetClient` clear it | AdminViewOmitsRegistrationAccessToken\* |
+| Anti-framing on consent, device and login pages | RFC 6749 §10.13 | Open | only the reference server's `SecurityHeaders` wrapper | sessions PR |
+| CSP without third-party script or `unsafe-inline` | — | Open | reference server loads the Tailwind Play CDN | server hardening PR |
+| HTTPS enforcement for a non-loopback deployment | OAuth 2.1 §1.5 | Open | nothing refuses plain HTTP | server hardening PR |
+| CORS | — | Pass | no CORS on the token endpoint; no `Allow-Credentials` anywhere | — |
+
+### Authentication and sessions
+
+| Requirement | Status | Notes |
+|---|---|---|
+| Constant-time compares for secrets | Pass | client secrets, admin key, CSRF, PKCE, RFC 7592 token, DPoP nonce MAC |
+| Password hashing | Pass | bcrypt cost 10, over-72-byte passwords refused, dummy hash for unknown users |
+| API keys, refresh tokens, device codes stored hashed | Pass | bcrypt / SHA-256 |
+| Password-reset tokens stored hashed, single use | Open | stored and looked up in plaintext; reset PR |
+| Cookie flags (`HttpOnly`, `Secure`, `SameSite`) | Open | `httpauth` session JWT cookie has none; `oa_token` lacks `Secure` |
+| Session ID renewed on login | Open | `httpauth` never calls `RenewToken` |
+| Session JWTs not usable as API access tokens | Open | tokens with no `type` claim pass `APIMiddleware` |
+| CSRF | Partial | double-submit with `SameSite=Strict`; `GET /auth/logout` is CSRF-able |
+| Brute-force limits on login, password grant, user-code entry | Open | limiters exist but nothing wires them by default; `X-Forwarded-For` is trusted unconditionally |
+
+### Admin interface
+
+| Requirement | Status | Notes |
+|---|---|---|
+| RFC 7592 token scoped to its own client | Pass | constant-time compare against that client's stored token |
+| Admin API key compared in constant time | Pass | `admin/auth.go` |
+| JWKS exposes only public keys | Pass | symmetric keys skipped |
+| A nil `AdminAuth` fails closed | Open | nil skips the check |
+| Reference server refuses `admin_auth: none` | Open | it logs a warning and serves an open admin API |
+| Body limits and rate limiting on admin routes | Open | body limits only in the reference server's wrapper |
+| Bulk eviction endpoint | Not applicable | no such endpoint exists |
+
