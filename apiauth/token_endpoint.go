@@ -260,7 +260,7 @@ func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Requ
 		msg := err.Error()
 		switch {
 		case strings.Contains(msg, "invalid_grant"), strings.Contains(msg, "expired"), strings.Contains(msg, "revoked"), strings.Contains(msg, "reuse"):
-			h.writeError(w, &GrantError{Code: "invalid_grant", Description: msg, Status: http.StatusUnauthorized})
+			h.writeError(w, &GrantError{Code: "invalid_grant", Description: msg, Status: http.StatusBadRequest})
 		default:
 			log.Printf("refresh grant: %v", err)
 			h.writeError(w, serverError("refresh grant failed"))
@@ -270,18 +270,25 @@ func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Requ
 	h.writeTokens(w, resp.Tokens)
 }
 
-// refreshingClient returns the client a refresh request comes from. The
-// registration consulted is the token owner's, not the requester's, so a
-// caller can't dodge authentication by naming a public client: if the owner
-// is confidential, the presented credentials must authenticate, and the
-// authenticated client_id is returned. Otherwise (a public or unregistered
+// refreshingClient returns the client a refresh request comes from. A
+// request naming a client other than the token's owner is returned as is,
+// for RefreshGrant to refuse as invalid_grant. Otherwise the registration
+// consulted is the owner's, so if the owner is confidential the presented
+// credentials must authenticate, and the authenticated client_id is
+// returned. Otherwise (a public or unregistered
 // owner, an unknown token, no AppStore) the request's own client_id is
 // returned unverified, and RefreshGrant's match against the owner is the
-// check. The owner lookup is fail-open on an unregistered client because
+// check. A request naming no client for a token that has one is
+// invalid_client. The owner lookup is fail-open on an unregistered client because
 // the SDK's Login issues tokens to "cli", which nothing registers.
 func (h *TokenEndpointHandler) refreshingClient(r *http.Request, req *core.TokenRequest) (string, *GrantError) {
 	clientID, clientSecret, assertionType, assertion := dispatchClientCredentials(r, req)
 	owner := refreshTokenOwner(r, h.OneAuth, req)
+	if owner != "" && clientID != "" && clientID != owner {
+		// Naming another client can't succeed, so RefreshGrant's match
+		// refuses it as invalid_grant without asking for credentials.
+		return clientID, nil
+	}
 	authedID, err := authenticateConfidentialClient(r.Context(), h.OneAuth.AppStore, h.OneAuth.Authenticator, owner, clientCredentials{
 		ClientID:            clientID,
 		ClientSecret:        clientSecret,
@@ -297,6 +304,12 @@ func (h *TokenEndpointHandler) refreshingClient(r *http.Request, req *core.Token
 	}
 	if authedID != "" {
 		return authedID, nil
+	}
+	// A request that names no client for a token that has one included no
+	// client authentication at all, which RFC 6749 §5.2 calls
+	// invalid_client. Keycloak answers the same way.
+	if clientID == "" && owner != "" {
+		return "", invalidClient("client_id is required to refresh this token")
 	}
 	return clientID, nil
 }

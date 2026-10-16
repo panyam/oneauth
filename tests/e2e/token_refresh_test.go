@@ -64,7 +64,7 @@ func TestTokenRefresh_OldRefreshTokenRejected(t *testing.T) {
 		"grant_type":    "refresh_token",
 		"refresh_token": oldRefresh,
 	})
-	assert.Equal(t, 401, resp.StatusCode)
+	assert.Equal(t, 400, resp.StatusCode)
 }
 
 // TestTokenRefresh_ReuseRevokesFamily verifies that reusing an old refresh
@@ -91,14 +91,14 @@ func TestTokenRefresh_ReuseRevokesFamily(t *testing.T) {
 		"grant_type":    "refresh_token",
 		"refresh_token": oldRefresh,
 	})
-	assert.Equal(t, 401, resp.StatusCode)
+	assert.Equal(t, 400, resp.StatusCode)
 
 	// New token should ALSO be revoked (family compromise)
 	resp = c.PostJSON("/api/token", map[string]any{
 		"grant_type":    "refresh_token",
 		"refresh_token": newRefresh,
 	})
-	assert.Equal(t, 401, resp.StatusCode,
+	assert.Equal(t, 400, resp.StatusCode,
 		"new refresh token should be revoked after family compromise")
 }
 
@@ -118,5 +118,5 @@ func TestTokenRefresh_Logout(t *testing.T) {
 		"grant_type":    "refresh_token",
 		"refresh_token": refresh,
 	})
-	assert.Equal(t, 401, resp.StatusCode)
+	assert.Equal(t, 400, resp.StatusCode)
 }

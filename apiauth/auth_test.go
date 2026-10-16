@@ -247,8 +247,8 @@ func TestRefreshTokenGrant(t *testing.T) {
 
 		apiAuth.ServeHTTP(rr, req)
 
-		if rr.Code != http.StatusUnauthorized {
-			t.Errorf("Expected status 401 for reused token, got %d", rr.Code)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400 (RFC 6749 §5.2 invalid_grant) for reused token, got %d", rr.Code)
 		}
 	})
 
@@ -264,8 +264,8 @@ func TestRefreshTokenGrant(t *testing.T) {
 
 		apiAuth.ServeHTTP(rr, req)
 
-		if rr.Code != http.StatusUnauthorized {
-			t.Errorf("Expected status 401, got %d", rr.Code)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400 (RFC 6749 §5.2 invalid_grant), got %d", rr.Code)
 		}
 	})
 }
@@ -316,8 +316,8 @@ func TestLogout(t *testing.T) {
 		rr = httptest.NewRecorder()
 		apiAuth.ServeHTTP(rr, req)
 
-		if rr.Code != http.StatusUnauthorized {
-			t.Errorf("Expected 401 for revoked token, got %d", rr.Code)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("Expected 400 (RFC 6749 §5.2 invalid_grant) for revoked token, got %d", rr.Code)
 		}
 	})
 }

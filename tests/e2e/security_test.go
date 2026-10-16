@@ -117,7 +117,7 @@ func TestSecurity_AccessTokenNotUsableAsRefresh(t *testing.T) {
 		"grant_type":    "refresh_token",
 		"refresh_token": access, // wrong token type
 	})
-	assert.Equal(t, 401, resp.StatusCode)
+	assert.Equal(t, 400, resp.StatusCode)
 }
 
 // =============================================================================

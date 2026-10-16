@@ -179,11 +179,15 @@ func TestRefreshClientAuth_TokenOfAnotherConfidentialClient(t *testing.T) {
 func TestRefreshClientAuth_PublicClientMustNameItself(t *testing.T) {
 	fx := newRefreshAuthFixture(t, nil)
 
-	for name, form := range map[string]url.Values{
-		"no client_id":        nil,
-		"another client's id": {"client_id": {"other-client"}},
-		"Basic as another":    nil,
+	for name, tc := range map[string]struct {
+		form    url.Values
+		wantErr string
+	}{
+		"no client_id":        {nil, "invalid_client"},
+		"another client's id": {url.Values{"client_id": {"other-client"}}, "invalid_grant"},
+		"Basic as another":    {nil, "invalid_grant"},
 	} {
+		form := tc.form
 		t.Run(name, func(t *testing.T) {
 			token := fx.issue(t, "public-client")
 			var code int
@@ -193,7 +197,7 @@ func TestRefreshClientAuth_PublicClientMustNameItself(t *testing.T) {
 			} else {
 				code, body = fx.refresh(t, token, form)
 			}
-			assert.Equal(t, "invalid_grant", body["error"])
+			assert.Equal(t, tc.wantErr, body["error"])
 			assert.NotEqual(t, http.StatusOK, code)
 			assert.Nil(t, body["access_token"])
 			fx.assertStillRedeemable(t, token, url.Values{"client_id": {"public-client"}})
