@@ -418,7 +418,7 @@ services may not want the overhead.</li>
 </tr>
 <tr>
 <td>DPoP (sender constraint)</td>
-<td><strong>Implemented</strong>. <code>OneAuthConfig.RequireDPoP</code> makes the AS issue only bound tokens (§5.3.2.1), <code>APIMiddleware.RequireDPoP</code> makes the RS accept only bound tokens (§5.3.4), and <code>apiauth.FAPIDPoPAlgs()</code> limits proofs to ES256 / PS256. EdDSA proofs are not supported yet</td>
+<td><strong>Implemented</strong>. <code>OneAuthConfig.RequireDPoP</code> makes the AS issue only bound tokens (§5.3.2.1), <code>APIMiddleware.RequireDPoP</code> makes the RS accept only bound tokens (§5.3.4), and <code>apiauth.FAPIDPoPAlgs()</code> limits proofs to ES256 / EdDSA / PS256. The reference server turns all of it on with <code>deploy-examples/fapi-dpop.yaml</code></td>
 <td><a href="RFC_9449.md"><code>RFC_9449.md</code></a>, <a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a></td>
 </tr>
 <tr>
@@ -448,7 +448,7 @@ services may not want the overhead.</li>
 </tr>
 <tr>
 <td>Refresh tokens</td>
-<td><strong>Conflict.</strong> OneAuth rotates on every use with reuse detection (RFC 9700); FAPI 2.0 §5.3.2.1 forbids rotation outside extraordinary circumstances. Needs an option to turn rotation off</td>
+<td><strong>Implemented as an option.</strong> OneAuth rotates on every use with reuse detection by default (RFC 9700). <code>OneAuthConfig.DisableRefreshTokenRotation</code> (server: <code>jwt.disable_refresh_token_rotation</code>) turns it off, as FAPI 2.0 §5.3.2.1 asks</td>
 <td><a href="RFC_9700.md"><code>RFC_9700.md</code></a></td>
 </tr>
 <tr>
@@ -464,7 +464,7 @@ services may not want the overhead.</li>
 </tbody>
 </table>
 <p>The &ldquo;what&rsquo;s needed&rdquo; reduces to: <strong>JAR + OIDC Core id_token + PS256 token<br />
-signing + EdDSA + a no-rotation refresh mode</strong>, with mTLS as the optional<br />
+signing</strong>, with mTLS as the optional<br />
 second sender constraint. DPoP and PAR are done. That&rsquo;s still a fair amount<br />
 of work, but the shape of each piece is well-defined.</p>
 <p><strong>The strategic question</strong> for OneAuth isn&rsquo;t <em>whether</em> FAPI is reachable<br />

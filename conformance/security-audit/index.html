@@ -574,8 +574,8 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 <tr>
 <td>5.4.1</td>
 <td>Proof algs limited to PS256 / ES256 / EdDSA</td>
-<td>Partial</td>
-<td><code>apiauth.FAPIDPoPAlgs()</code> gives ES256 + PS256; EdDSA is <a href="https://github.com/panyam/oneauth/issues/395">issue 395</a> item 1</td>
+<td>Pass (was Partial)</td>
+<td><code>apiauth.FAPIDPoPAlgs()</code> gives ES256, EdDSA (Ed25519, RFC 8037) and PS256; <code>client.NewEd25519DPoPKey</code>; DPoPEdDSA*, Ed25519MatchesRFC8037; Keycloak Ed25519KeyAgreesOnTheThumbprint</td>
 </tr>
 <tr>
 <td>5.4.1</td>
@@ -586,8 +586,14 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 <tr>
 <td>5.3.2.1 #9</td>
 <td>No refresh-token rotation</td>
-<td>Open</td>
-<td>OneAuth always rotates; <a href="https://github.com/panyam/oneauth/issues/395">issue 395</a> item 2</td>
+<td>Pass (was Open)</td>
+<td><code>OneAuthConfig.DisableRefreshTokenRotation</code>, opt-in; the default still rotates (RFC 9700 §4.14). RefreshRotationOff*</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Reference server can be configured for all of the above</td>
+<td>Pass (was not possible)</td>
+<td><code>cmd/oneauth-server</code> <code>dpop:</code> block and <code>jwt.disable_refresh_token_rotation</code>; <code>deploy-examples/fapi-dpop.yaml</code>; <code>cmd/oneauth-server/dpop_test.go</code></td>
 </tr>
 </tbody>
 </table>
@@ -613,9 +619,7 @@ code we had to touch for §5.2: <code>backchannel_logout_uri</code> and<br />
 <code>backchannel_logout_session_required</code> weren&rsquo;t persisted, so logout dispatch stopped working<br />
 after a restart on those backends.</li>
 </ul>
-<p>Still open, all in <a href="https://github.com/panyam/oneauth/issues/395">issue 395</a>: EdDSA proofs,<br />
-an option to turn off refresh rotation for FAPI, and DPoP config in <code>cmd/oneauth-server</code>. The<br />
-two SDK refresh-path issues are fixed (issue 395 items 4 and 5).</p>
+<p>Items 1 to 5 of <a href="https://github.com/panyam/oneauth/issues/395">issue 395</a> are done: EdDSA proofs, the no-rotation option, the reference server&rsquo;s DPoP config, and the two SDK refresh-path fixes.</p>
 <p>The walk also turned up a gap bigger than DPoP, fixed separately: the refresh grant didn&rsquo;t<br />
 authenticate the client or check the token belonged to the <code>client_id</code> sent with it<br />
 (RFC 6749 §6). It does both now (<code>refreshingClient</code> in <code>token_endpoint.go</code>, and the<br />

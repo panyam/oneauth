@@ -514,7 +514,7 @@ reliably sign proofs per request.</li>
 <tr>
 <td>Crypto primitive: RFC 7638 thumbprint</td>
 <td><strong>Implemented</strong></td>
-<td><code>utils/jwk_thumbprint.go:19–82</code> — RSA and EC P-256. No OKP, so no EdDSA proofs yet</td>
+<td><code>utils/jwk_thumbprint.go</code> — RSA, EC P-256 and Ed25519 (RFC 8037 OKP)</td>
 <td>Validated against the RFC 9449 Figure 2 / Figure 9 vector in <code>apiauth/dpop_proof_test.go</code></td>
 </tr>
 </tbody>
@@ -577,8 +577,6 @@ endpoint checks <code>htu</code> against its own path on <code>EndpointURL</code
 <a href="../SECURITY_AUDIT.md"><code>docs/SECURITY_AUDIT.md</code></a>.</p>
 <p><strong>What is left.</strong></p>
 <ol>
-<li>EdDSA proofs, which FAPI 2.0 allows. They need OKP JWKs and Ed25519<br />
-thumbprints.</li>
 <li>A <code>TokenBindingValidator</code> interface (shared seam with mTLS) — deferred<br />
 on purpose until #335 makes the second shape visible, since an<br />
 interface with one implementation is a guess about the second.</li>
