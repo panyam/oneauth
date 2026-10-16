@@ -22,6 +22,11 @@ func accessTokenParserOptions() []jwt.ParserOption {
 // ID-JAGs are told apart by their JWS typ header, browser sessions by a
 // type claim other than "access" (RFC 8725 §3.11). Tokens with no typ, typ
 // "JWT" (Keycloak's) or the RFC 9068 "at+jwt" pass.
+//
+// Keycloak marks its tokens with a typ *claim* instead, and signs ID tokens
+// with the same key, header and aud as access tokens, so that claim is the
+// only difference: "Bearer" or "DPoP" is an access token, and anything else
+// ("ID", "Refresh", "Logout") is refused.
 func checkAccessTokenKind(token *jwt.Token, claims jwt.MapClaims) error {
 	typ, _ := token.Header["typ"].(string)
 	switch strings.ToLower(typ) {
@@ -31,6 +36,13 @@ func checkAccessTokenKind(token *jwt.Token, claims jwt.MapClaims) error {
 	}
 	if t, ok := claims["type"].(string); ok && t != "access" {
 		return fmt.Errorf("invalid token type")
+	}
+	if t, ok := claims["typ"].(string); ok {
+		switch strings.ToLower(t) {
+		case "bearer", "dpop":
+		default:
+			return fmt.Errorf("not an access token (typ claim %q)", t)
+		}
 	}
 	return nil
 }

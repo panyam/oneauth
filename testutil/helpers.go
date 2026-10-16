@@ -33,6 +33,7 @@ type TokenResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 	Scope        string `json:"scope"`
 	RefreshToken string `json:"refresh_token,omitempty"`
+	IDToken      string `json:"id_token,omitempty"` // OIDC, when scope has openid
 }
 
 // DiscoverOIDC fetches and parses the OpenID Connect / OAuth Authorization
