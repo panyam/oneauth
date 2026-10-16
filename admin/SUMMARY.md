@@ -14,3 +14,5 @@ Admin authentication, app registration API, and resource token minting for the f
 
 ## Dependencies
 `keys/` for `KeyStorage`, `KeyRecord`, `KidStore`. `utils/` for crypto.
+
+- **Initial access tokens (issue 408):** `InitialAccessTokenAuth` checks RFC 7591 §3 Bearer registration tokens; set it as `AppRegistrar.RegistrationAuth` to admit `POST /apps/dcr` alongside the admin credential without opening any other route.

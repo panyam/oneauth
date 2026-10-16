@@ -257,6 +257,12 @@ type AdminAuthConfig struct {
 	// and the admin API open to anyone who can reach the server. Without
 	// it, type: none refuses to start.
 	AllowOpen bool `yaml:"allow_open"`
+
+	// DCRInitialAccessTokens, when set, also admit RFC 7591 registration
+	// (POST /apps/dcr) to clients that send one as a Bearer token (RFC 7591
+	// §3), without the admin key. Each must be at least 32 bytes. List the
+	// new token beside the old one to rotate.
+	DCRInitialAccessTokens []string `yaml:"dcr_initial_access_tokens"`
 }
 
 type APIKeyConfig struct {
@@ -401,8 +407,9 @@ func configFromEnv() Config {
 			},
 		},
 		AdminAuth: AdminAuthConfig{
-			Type:      os.Getenv("ADMIN_AUTH_TYPE"),
-			AllowOpen: os.Getenv("ADMIN_AUTH_ALLOW_OPEN") == "true",
+			Type:                   os.Getenv("ADMIN_AUTH_TYPE"),
+			AllowOpen:              os.Getenv("ADMIN_AUTH_ALLOW_OPEN") == "true",
+			DCRInitialAccessTokens: splitList(os.Getenv("DCR_INITIAL_ACCESS_TOKENS")),
 			APIKey: APIKeyConfig{
 				Key: os.Getenv("ADMIN_API_KEY"),
 			},

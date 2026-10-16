@@ -16,3 +16,5 @@ HTTP-layer auth: session-based middleware, CSRF protection, and the OneAuth sess
 
 ## Dependencies
 `core/` for user/store types. `scs/v2` for sessions. `golang-jwt/jwt/v5` for JWT verification.
+
+- **CSRF (issue 408):** `CSRFMiddleware` refuses unsafe requests whose `Sec-Fetch-Site` is same-site / cross-site or whose `Origin` isn't this host or a `TrustedOrigins` entry; with `SessionID` set, tokens are `nonce.HMAC(Secret, session|nonce)`, so a tossed cookie or another session's token fails.

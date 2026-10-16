@@ -56,6 +56,15 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		// Try to detect specific error types
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "already registered") || strings.Contains(errMsg, "already exists") {
+			// With verification on, nobody is logged in by signing up, so a
+			// taken email can get the same answer as a fresh one and the
+			// owner is told instead (CWE-204). Without verification a fresh
+			// signup logs in, which a taken one can't, so it can't be hidden.
+			if a.RequireEmailVerification && a.EmailSender != nil && creds.Email != nil {
+				a.notifyExistingOwner(*creds.Email)
+				writeCheckYourEmail(w)
+				return
+			}
 			authErr := accounts.NewAuthError(accounts.ErrCodeEmailExists, errMsg, "email")
 			a.handleSignupError(authErr, w, r)
 		} else {
@@ -111,9 +120,32 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		}
 		a.HandleUser("local", a.getProvider(), nil, userInfo, w, r)
 	} else {
-		// User created but needs to verify email
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"message": "User created. Please check your email to verify your account.", "user_id": "%s"}`, user.Id())
+		// User created but needs to verify email. The answer is the one a
+		// taken email gets too, so no user_id.
+		writeCheckYourEmail(w)
+	}
+}
+
+// writeCheckYourEmail is the signup answer when email verification is
+// required, for a new account and an existing one alike.
+func writeCheckYourEmail(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, `{"message": "Check your email to finish signing up."}`)
+}
+
+// notifyExistingOwner tells the owner of an email that someone tried to
+// sign up with it, when the EmailSender supports AccountExistsEmailSender.
+func (a *LocalAuth) notifyExistingOwner(email string) {
+	n, ok := a.EmailSender.(AccountExistsEmailSender)
+	if !ok {
+		return
+	}
+	link := a.BaseURL + "/auth/forgot-password"
+	if a.ForgotPasswordURL != "" {
+		link = a.ForgotPasswordURL
+	}
+	if err := n.SendAccountExistsEmail(email, link); err != nil {
+		log.Printf("signup: account-exists notice: %v", err)
 	}
 }
 
