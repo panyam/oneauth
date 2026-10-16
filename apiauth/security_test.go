@@ -439,6 +439,6 @@ func TestSecurity_ScopeEscalation_Prevented(t *testing.T) {
 	req = httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	writeHandler.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code,
-		"token with only 'admin' scope must be rejected when 'write' is required")
+	assert.Equal(t, http.StatusForbidden, rr.Code,
+		"token with only 'admin' scope must be rejected (403 insufficient_scope, RFC 6750 §3.1) when 'write' is required")
 }

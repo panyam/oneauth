@@ -58,3 +58,17 @@ func isLoopbackHost(host string) bool {
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
 }
+
+// minHMACSecret is the shortest jwt.secret_key accepted: RFC 7518 §3.2 has
+// an HS256 key be at least the hash size.
+const minHMACSecret = 32
+
+// checkSigningSecret refuses a jwt.secret_key shorter than 32 bytes. It
+// signs browser sessions in every mode and access tokens under HS256, and
+// an empty one would let anyone mint both.
+func checkSigningSecret(cfg *Config) error {
+	if n := len(cfg.JWT.SecretKey); n < minHMACSecret {
+		return fmt.Errorf("jwt.secret_key (JWT_SECRET_KEY) must be at least %d bytes, got %d; generate one with: openssl rand -hex 32", minHMACSecret, n)
+	}
+	return nil
+}

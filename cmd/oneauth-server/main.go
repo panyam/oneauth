@@ -70,6 +70,9 @@ func main() {
 	if err := checkTransport(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
+	if err := checkSigningSecret(cfg); err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
 
 	// Build KeyStore (optionally wrapped with encryption)
 	keyStore, db, err := buildKeyStore(cfg)
@@ -941,16 +944,19 @@ func parseJWTCookie(tokenString, secretKey string) jwt.MapClaims {
 		return nil
 	}
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method")
-		}
 		return []byte(secretKey), nil
-	})
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
 	if err != nil || !token.Valid {
 		return nil
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
+		return nil
+	}
+	// Only a browser session signs a user in here. Access tokens are signed
+	// with the same secret under HS256, and one pasted into this cookie
+	// must not become a login (RFC 8725 §3.11).
+	if t, _ := claims["type"].(string); t != "session" {
 		return nil
 	}
 	return claims

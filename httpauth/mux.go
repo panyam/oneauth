@@ -162,6 +162,11 @@ func (a *OneAuth) verifyJWT(tokenString string) (loggedInSubject string, t any, 
 	if !ok || claims == nil {
 		return "", nil, fmt.Errorf("claims is not a map")
 	}
+	// A login cookie is a session JWT. An access token signed with the
+	// same secret is not a login (RFC 8725 §3.11).
+	if t, _ := claims["type"].(string); t != "session" {
+		return "", nil, fmt.Errorf("not a session token")
+	}
 	// Return the verified token
 	sub, err := claims.GetSubject()
 	if sub == "" {

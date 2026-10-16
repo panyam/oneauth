@@ -34,6 +34,7 @@ type jwtValidator struct {
 	audienceFunc   func() string
 	hooks          SecurityHooks
 	tracerProvider trace.TracerProvider
+	ownKid         string // kid of signingKey; tokens it signed skip the tenant check
 }
 
 // resolveAudience returns the currently-expected audience: AudienceFunc's
@@ -86,6 +87,7 @@ func NewJWTValidator(cfg JWTValidatorConfig) TokenValidator {
 		audienceFunc:   cfg.AudienceFunc,
 		hooks:          cfg.Hooks,
 		tracerProvider: cfg.TracerProvider,
+		ownKid:         kidOf(cfg.SigningKey, cfg.SigningAlg),
 	}
 }
 
@@ -109,7 +111,7 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 			span.SetAttributes(attribute.String("jwt.kid", kid))
 		}
 		return v.resolveKey(token)
-	})
+	}, accessTokenParserOptions()...)
 	if err != nil {
 		span.SetStatus(codes.Error, "parse error")
 		span.RecordError(err)
@@ -127,10 +129,11 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 		return nil, fmt.Errorf("invalid claims")
 	}
 
-	// Verify token type
-	if tokenType, ok := claims["type"].(string); ok && tokenType != "access" {
+	// Only access tokens: not logout tokens, ID-JAGs or sessions signed
+	// with the same key.
+	if err := checkAccessTokenKind(token, claims); err != nil {
 		v.hooks.fireOnTokenRejected("invalid token type")
-		return nil, fmt.Errorf("invalid token type")
+		return nil, err
 	}
 
 	// Verify issuer
@@ -270,13 +273,8 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 					v.hooks.fireOnAlgorithmMismatch(rec.Algorithm, fmt.Sprintf("%v", token.Header["alg"]))
 					return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
 				}
-				// Cross-check kid owner vs client_id claim
-				if rec.ClientID != "" {
-					if claims, ok := token.Claims.(jwt.MapClaims); ok {
-						if claimClientID, _ := claims["client_id"].(string); claimClientID != "" && claimClientID != rec.ClientID {
-							return nil, fmt.Errorf("kid owner %q does not match client_id claim %q", rec.ClientID, claimClientID)
-						}
-					}
+				if err := checkTenantKey(rec, v.ownKid, token); err != nil {
+					return nil, err
 				}
 				return utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 			}
@@ -305,6 +303,11 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 		case []byte:
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			// An empty HMAC key verifies any token signed with the empty
+			// key (RFC 7518 §3.2 wants at least the hash size).
+			if len(k) == 0 {
+				return nil, fmt.Errorf("no HMAC key configured")
 			}
 			return k, nil
 		default:
@@ -409,6 +412,10 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	if req == nil {
 		return nil, fmt.Errorf("CreateAccessTokenRequest is required")
 	}
+	// An empty HMAC key would mint tokens anyone can forge (RFC 7518 §3.2).
+	if b, ok := i.signingKey.([]byte); ok && len(b) == 0 {
+		return nil, fmt.Errorf("no signing key configured")
+	}
 	subject := req.Subject
 	scopes := req.Scopes
 	details := req.AuthorizationDetails
@@ -450,7 +457,8 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 			return nil, fmt.Errorf("custom claims func failed: %w", err)
 		}
 		for k, v := range custom {
-			if standardClaims[k] {
+			_, asSetClientID := claims["client_id"]
+			if standardClaims[k] || issuanceReservedClaims[k] || (k == "client_id" && asSetClientID) {
 				log.Printf("Warning: CustomClaimsFunc attempted to override standard claim %q (ignored)", k)
 				continue
 			}

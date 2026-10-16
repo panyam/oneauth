@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -339,6 +340,7 @@ func TestMultiTenantValidation_FallbackToSingleKey(t *testing.T) {
 		"sub":    "user-1",
 		"type":   "access",
 		"scopes": []string{"read"},
+		"exp":    time.Now().Add(time.Hour).Unix(),
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := tok.SignedString([]byte(secret))
@@ -434,6 +436,7 @@ func mintTestToken(t *testing.T, userID, clientID, secret string) string {
 		"type":      "access",
 		"client_id": clientID,
 		"scopes":    []string{"read", "write"},
+		"exp":       time.Now().Add(time.Hour).Unix(),
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := tok.SignedString([]byte(secret))

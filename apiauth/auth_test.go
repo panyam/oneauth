@@ -466,7 +466,7 @@ func TestScopeEnforcement(t *testing.T) {
 		{
 			name:           "missing required scope",
 			requiredScopes: []string{"admin"},
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: http.StatusForbidden, // RFC 6750 §3.1 insufficient_scope
 		},
 	}
 

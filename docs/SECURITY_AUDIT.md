@@ -3,8 +3,8 @@
 This is the compliance matrix asked for in [issue 88](https://github.com/panyam/oneauth/issues/88).
 Issue 88 covers a lot of ground (RFC 6749 through RFC 9728, the security checklist, FAPI 2.0),
 so we're doing it one area at a time, and each area gets a section here once it's been walked
-requirement by requirement. So far that's DPoP and the HTTP surface (transport and headers,
-authentication and sessions, the admin interface).
+requirement by requirement. So far that's DPoP, the HTTP surface (transport and headers,
+authentication and sessions, the admin interface), and tokens and keys.
 
 How to read the tables:
 
@@ -207,4 +207,45 @@ The fixes land across several PRs; the Status column says which rows are done.
 | Rotation grace period bounded | Pass (was Fail) | at most `MaxRotationGracePeriod` (7 days); an unparseable value is a 400 |
 | Dashboard doesn't list every client to any user | Pass (was Fail) | the list is admin-API only |
 | Bulk eviction endpoint | Not applicable | no such endpoint exists |
+
+## Tokens and keys
+
+Audited October 2026, against issue 88's "Token Security" and "Key Management" sections, RFC
+8725 (JWT best practices), RFC 6750 and RFC 7009. Like the HTTP surface, the fixes land across
+several PRs, and rows still Open name the part of issue 88 they're waiting on.
+
+### Access tokens
+
+| Requirement | Ref | Status | Code | Test |
+|---|---|---|---|---|
+| Algorithm pinned per key, `none` refused | RFC 8725 §3.1, CVE-2015-9235 | Pass | `jwtValidator` / `APIMiddleware` check the method against the key's alg | `security_test.go` AlgNone, AlgConfusion |
+| An empty HMAC key never verifies or signs | RFC 7518 §3.2, CWE-347 | Pass (was Fail) | `jwtValidator`, the middleware's inline path and `CreateAccessToken` refuse a zero-length key; the reference server refuses a `jwt.secret_key` under 32 bytes (`checkSigningSecret`) | EmptyHMACKeyNeverVerifies\*, HS256SecretMustBeLongEnough\* |
+| `exp` required | RFC 8725 §3.10, RFC 9068 §2.2 | Pass (was Fail) | `accessTokenParserOptions` (`jwt.WithExpirationRequired`) | ExpIsRequired\* |
+| Other JWTs from the same key aren't access tokens | RFC 8725 §3.11, §3.12 | Pass (was Fail) | `checkAccessTokenKind` refuses a `typ` other than `JWT` / `at+jwt` and a `type` claim other than `access`, so logout tokens, ID-JAGs and sessions fail | OtherJWTKindsAreNotAccessTokens\* |
+| A tenant's key signs only for that tenant | CWE-347 | Pass (was Fail) | `checkTenantKey`: a key registered to a client needs a matching `client_id` claim | TenantKeySignsOnlyForItsTenant\* |
+| Custom claims can't set authorization claims | RFC 9068 §2.2 | Pass (was Partial) | `issuanceReservedClaims` adds `nbf`, `scope`, `azp`, `sid`, `act`, `may_act`; `client_id` only when the grant had none | CustomClaimsCannotOverrideAuthorizationClaims\* |
+| `WWW-Authenticate` per RFC 6750 | RFC 6750 §3, §3.1 | Pass (was Partial) | no `error` without a token, `invalid_token` for a refused one, 403 `insufficient_scope` with `scope`, and `resource_metadata` (RFC 9728 §5.1) | BearerChallenges\* |
+| Session cookies aren't accepted as access tokens, and access tokens aren't accepted as sessions | RFC 8725 §3.11 | Pass (was Fail) | `httpauth` `verifyJWT` and the reference server's `parseJWTCookie` require `type: session` (and `exp`, HS256 in the server) | `session_type_test.go`\*, AccessTokenIsNotASessionCookie\* |
+| Revocation checks the token is the caller's, and verifies it first | RFC 7009 §2.1 | Open | blacklists an unverified `jti` from any client | revocation PR |
+| jwt-bearer and token-exchange assertions single-use | RFC 7523 §3 | Open | no `jti` replay check outside ID-JAG | revocation PR |
+| Refresh rotation atomic in GORM | RFC 9700 §4.14 | Open | read-then-write race | revocation PR |
+| Refresh families have an absolute lifetime | RFC 9700 §4.14.2 | Open | sliding only | revocation PR |
+
+### Keys
+
+| Requirement | Ref | Status | Notes |
+|---|---|---|---|
+| Thumbprint kid per RFC 7638 | RFC 7638 §3.1 | Pass | computed correctly; no test pins the RFC's example vector yet (keys PR) |
+| `EncryptedKeyStorage` fails closed | CWE-311 | Open | a failed decrypt returns the ciphertext as the key; no AAD binds a record to its kid (keys PR) |
+| Retired keys encrypted at rest | CWE-312 | Open | `KidStore` keeps them in plaintext (keys PR) |
+| RSA signing keys at least 2048 bits | RFC 7518 §3.3 | Open | not checked when a key is loaded (keys PR) |
+
+### Scans
+
+- `govulncheck ./...`: no reachable vulnerabilities.
+- gitleaks v8.21.2 over 487 commits: no leaks.
+- gosec: v2.21.4 and v2.22.4 don't build under Go 1.27, and v2.29.0 only runs its AST rules
+  (type checking fails on export data version 5). Those report 23 G101 "hardcoded credentials"
+  hits, all on constants such as grant-type URNs and header names. `make audit` expects both
+  tools on the PATH, which is fixed in the keys PR.
 
