@@ -1130,6 +1130,55 @@ device flow; DCR and metadata follow.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="metadata-resource-metadata-fs-stores">Metadata, resource metadata, FS stores <a class="anchor" href="#metadata-resource-metadata-fs-stores">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Ref</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Metadata advertises only supported response types</td>
+<td>RFC 8414 §2</td>
+<td>Pass (was Fail)</td>
+<td>the reference server listed <code>token</code> (implicit); now <code>code</code> only, and only with <code>code_flow</code> on. <code>serverASMetadata</code>, <code>cmd/oneauth-server/metadata_test.go</code>*</td>
+</tr>
+<tr>
+<td>The advertised revocation endpoint is served</td>
+<td>RFC 8414 §2, RFC 7009</td>
+<td>Pass (was Fail)</td>
+<td>the server advertised <code>/oauth/revoke</code> and answered 404; it now mounts <code>oa.RevocationHTTPHandler()</code></td>
+</tr>
+<tr>
+<td>RFC 9207 <code>iss</code> on the authorization response</td>
+<td>RFC 9207 §2, FAPI 2.0 §5.3.2.1</td>
+<td>Pass (was Fail)</td>
+<td>the server never turned it on; with <code>code_flow</code> it now emits and advertises it</td>
+</tr>
+<tr>
+<td><code>none</code> advertised when public clients exist</td>
+<td>RFC 8414 §2</td>
+<td>Pass (was Fail)</td>
+<td>listed with <code>code_flow</code> on, where DCR can register public clients</td>
+</tr>
+<tr>
+<td>Resource metadata with several authorization servers</td>
+<td>RFC 9728 §2</td>
+<td>Pass (was Fail)</td>
+<td><code>MountProtectedResource</code> registered the same pattern twice and panicked; each pattern is now mounted once. SeveralAuthorizationServers*</td>
+</tr>
+<tr>
+<td>FS identity and channel files never serve another key</td>
+<td>CWE-706</td>
+<td>Pass (was Fail)</td>
+<td>file names are lossy (<code>filepath.Base</code>, <code>safeName</code>), so <code>x/email:victim@example.com</code> read and overwrote the victim&rsquo;s identity, and <code>a:b@</code> read <code>a_b@</code>&rsquo;s password hash. Both stores now check the record&rsquo;s own key and return <code>fs.ErrKeyCollision</code>. <code>key_collision_test.go</code>*</td>
+</tr>
+</tbody>
+</table>
 <h2 id="tokens-and-keys">Tokens and keys <a class="anchor" href="#tokens-and-keys">¶</a></h2>
 <p>Audited October 2026, against issue 88&rsquo;s &ldquo;Token Security&rdquo; and &ldquo;Key Management&rdquo; sections, RFC<br />
 8725 (JWT best practices), RFC 6750 and RFC 7009. Like the HTTP surface, the fixes land across<br />
