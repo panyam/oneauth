@@ -3,6 +3,30 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.48
+
+### Input validation at the token endpoint (issue 88, PR 422)
+
+- **Registered scope and RAR types are enforced.** With an `AppStore`,
+  `client_credentials` and the password grant answer 400 `invalid_scope`
+  for a scope outside `AppRegistration.Scope` (and grant the registered
+  scope when none is asked for), and 400 `invalid_authorization_details`
+  for an unregistered type. A registration without either places no limit;
+  a store error fails closed.
+- **`client_credentials` tokens carry `client_id`.**
+- **RFC 6749 §5.2 errors.** Wrong credentials are 400 `invalid_grant`;
+  malformed `authorization_details` on the password grant is 400, not 500;
+  an `invalid_client` 401 carries `WWW-Authenticate: Basic`; a
+  `server_error` logs its detail and sends "internal server error".
+- **Bodies are bounded at 64 KiB** on the token endpoint (413) and, via
+  `httpauth.CapRequestBody`, on every other handler that reads one.
+
+### Upgrading
+
+- Clients registered with a `scope` that ask for something else get 400.
+- A wrong password on the password grant is 400, not 401.
+- Request bodies over 64 KiB are refused.
+
 ## Version 0.1.47
 
 ### Key management, part two (issue 88, PR 420)
