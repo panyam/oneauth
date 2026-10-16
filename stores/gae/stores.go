@@ -590,7 +590,7 @@ func (s *TokenStore) CreateToken(ctx context.Context, req *localauth.CreateVerif
 		return nil, err
 	}
 
-	key := s.namespacedKey(KindAuthToken, token)
+	key := s.namespacedKey(KindAuthToken, localauth.HashVerificationToken(token))
 	now := time.Now()
 	entity := &VerificationTokenEntity{
 		Key:       key,
@@ -625,7 +625,7 @@ func (s *TokenStore) GetToken(ctx context.Context, req *localauth.GetVerificatio
 	if req == nil {
 		return nil, fmt.Errorf("GetToken: req is required")
 	}
-	key := s.namespacedKey(KindAuthToken, req.Token)
+	key := s.namespacedKey(KindAuthToken, localauth.HashVerificationToken(req.Token))
 	var entity VerificationTokenEntity
 	if err := s.client.Get(ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
@@ -640,21 +640,35 @@ func (s *TokenStore) GetToken(ctx context.Context, req *localauth.GetVerificatio
 		return nil, fmt.Errorf("token expired")
 	}
 
+	authToken.Token = req.Token
 	return &localauth.GetVerificationTokenResponse{Token: authToken}, nil
 }
 
-// DeleteToken is idempotent — Datastore's Delete silently succeeds on
-// missing keys, and verification tokens are single-use by design (delete
-// after the action they unlock fires). No "not found" error.
+// DeleteToken is idempotent: a missing key is no error. It runs the read
+// and the delete in one transaction so Deleted is true for exactly one of
+// two concurrent callers, which is what makes a token single-use.
 func (s *TokenStore) DeleteToken(ctx context.Context, req *localauth.DeleteVerificationTokenRequest) (*localauth.DeleteVerificationTokenResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("DeleteToken: req is required")
 	}
-	key := s.namespacedKey(KindAuthToken, req.Token)
-	if err := s.client.Delete(ctx, key); err != nil {
+	key := s.namespacedKey(KindAuthToken, localauth.HashVerificationToken(req.Token))
+	deleted := false
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		deleted = false
+		var entity VerificationTokenEntity
+		if err := tx.Get(key, &entity); err != nil {
+			if err == datastore.ErrNoSuchEntity {
+				return nil
+			}
+			return err
+		}
+		deleted = true
+		return tx.Delete(key)
+	})
+	if err != nil {
 		return nil, err
 	}
-	return &localauth.DeleteVerificationTokenResponse{}, nil
+	return &localauth.DeleteVerificationTokenResponse{Deleted: deleted}, nil
 }
 
 // DeleteSubjectTokens removes every verification token of req.Type for

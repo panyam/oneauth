@@ -287,7 +287,7 @@ func (s *TokenStore) CreateToken(ctx context.Context, req *localauth.CreateVerif
 	}
 
 	model := &VerificationTokenModel{
-		Token:     token,
+		Token:     localauth.HashVerificationToken(token),
 		Type:      req.Type,
 		Subject:   req.Subject,
 		Email:     req.Email,
@@ -298,7 +298,10 @@ func (s *TokenStore) CreateToken(ctx context.Context, req *localauth.CreateVerif
 		return nil, err
 	}
 
-	return &localauth.CreateVerificationTokenResponse{Token: model.ToVerificationToken()}, nil
+	// The caller gets the raw token for the link; the row keeps the hash.
+	out := model.ToVerificationToken()
+	out.Token = token
+	return &localauth.CreateVerificationTokenResponse{Token: out}, nil
 }
 
 func (s *TokenStore) GetToken(ctx context.Context, req *localauth.GetVerificationTokenRequest) (*localauth.GetVerificationTokenResponse, error) {
@@ -306,7 +309,7 @@ func (s *TokenStore) GetToken(ctx context.Context, req *localauth.GetVerificatio
 		return nil, fmt.Errorf("GetToken: req is required")
 	}
 	var model VerificationTokenModel
-	if err := s.db.WithContext(ctx).First(&model, "token = ?", req.Token).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "token = ?", localauth.HashVerificationToken(req.Token)).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("token not found")
 		}
@@ -319,6 +322,7 @@ func (s *TokenStore) GetToken(ctx context.Context, req *localauth.GetVerificatio
 		return nil, fmt.Errorf("token expired")
 	}
 
+	verToken.Token = req.Token
 	return &localauth.GetVerificationTokenResponse{Token: verToken}, nil
 }
 
@@ -326,10 +330,13 @@ func (s *TokenStore) DeleteToken(ctx context.Context, req *localauth.DeleteVerif
 	if req == nil {
 		return nil, fmt.Errorf("DeleteToken: req is required")
 	}
-	if err := s.db.WithContext(ctx).Delete(&VerificationTokenModel{}, "token = ?", req.Token).Error; err != nil {
-		return nil, err
+	// One DELETE wins the row; RowsAffected tells this caller whether it
+	// was the one, which is what makes the token single-use.
+	res := s.db.WithContext(ctx).Delete(&VerificationTokenModel{}, "token = ?", localauth.HashVerificationToken(req.Token))
+	if res.Error != nil {
+		return nil, res.Error
 	}
-	return &localauth.DeleteVerificationTokenResponse{}, nil
+	return &localauth.DeleteVerificationTokenResponse{Deleted: res.RowsAffected > 0}, nil
 }
 
 func (s *TokenStore) DeleteSubjectTokens(ctx context.Context, req *localauth.DeleteSubjectVerificationTokensRequest) (*localauth.DeleteSubjectVerificationTokensResponse, error) {

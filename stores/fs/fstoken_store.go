@@ -22,8 +22,9 @@ func NewFSTokenStore(storagePath string) *FSTokenStore {
 	return &FSTokenStore{StoragePath: storagePath}
 }
 
+// getTokenPath locates a token by its hash, never its raw value.
 func (s *FSTokenStore) getTokenPath(token string) (string, error) {
-	safeToken, err := safeName(token)
+	safeToken, err := safeName(localauth.HashVerificationToken(token))
 	if err != nil {
 		return "", fmt.Errorf("invalid token: %w", err)
 	}
@@ -40,7 +41,7 @@ func (s *FSTokenStore) CreateToken(ctx context.Context, req *localauth.CreateVer
 	}
 
 	verToken := &localauth.VerificationToken{
-		Token:     token,
+		Token:     localauth.HashVerificationToken(token),
 		Type:      req.Type,
 		Subject:   req.Subject,
 		Email:     req.Email,
@@ -65,7 +66,10 @@ func (s *FSTokenStore) CreateToken(ctx context.Context, req *localauth.CreateVer
 		return nil, err
 	}
 
-	return &localauth.CreateVerificationTokenResponse{Token: verToken}, nil
+	// The caller gets the raw token for the link; the file keeps the hash.
+	out := *verToken
+	out.Token = token
+	return &localauth.CreateVerificationTokenResponse{Token: &out}, nil
 }
 
 func (s *FSTokenStore) GetToken(ctx context.Context, req *localauth.GetVerificationTokenRequest) (*localauth.GetVerificationTokenResponse, error) {
@@ -94,6 +98,7 @@ func (s *FSTokenStore) GetToken(ctx context.Context, req *localauth.GetVerificat
 		return nil, fmt.Errorf("token expired")
 	}
 
+	verToken.Token = req.Token
 	return &localauth.GetVerificationTokenResponse{Token: &verToken}, nil
 }
 
@@ -105,6 +110,8 @@ func (s *FSTokenStore) DeleteToken(ctx context.Context, req *localauth.DeleteVer
 	if err != nil {
 		return nil, err
 	}
+	// os.Remove succeeds for exactly one caller, so Deleted is the
+	// single-use signal.
 	err = os.Remove(path)
 	if os.IsNotExist(err) {
 		return &localauth.DeleteVerificationTokenResponse{}, nil
@@ -112,7 +119,7 @@ func (s *FSTokenStore) DeleteToken(ctx context.Context, req *localauth.DeleteVer
 	if err != nil {
 		return nil, err
 	}
-	return &localauth.DeleteVerificationTokenResponse{}, nil
+	return &localauth.DeleteVerificationTokenResponse{Deleted: true}, nil
 }
 
 func (s *FSTokenStore) DeleteSubjectTokens(ctx context.Context, req *localauth.DeleteSubjectVerificationTokensRequest) (*localauth.DeleteSubjectVerificationTokensResponse, error) {

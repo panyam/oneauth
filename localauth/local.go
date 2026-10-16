@@ -1,6 +1,7 @@
 package localauth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -56,6 +57,12 @@ type LocalAuth struct {
 
 	// Callback to update password
 	UpdatePassword UpdatePasswordFunc
+
+	// AfterPasswordReset runs after a reset succeeds, with the account's
+	// email. Use it to end the account's other sessions (revoke its
+	// refresh tokens): whoever had the old password may still hold one
+	// (CWE-613). An error is logged; the password is already changed.
+	AfterPasswordReset func(ctx context.Context, email string) error
 
 	// SignupPolicy defines what is required for signup (overrides ValidateSignup if set)
 	SignupPolicy *SignupPolicy
@@ -462,21 +469,32 @@ func (a *LocalAuth) HandleResetPassword(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Password validation
-	if len(password) < 8 {
-		a.resetPasswordError(w, r, token, "Password must be at least 8 characters")
+	// The same minimum as signup, so a reset can't set a password signup
+	// would refuse.
+	if minLen := a.getSignupPolicy().MinPasswordLength; len(password) < minLen {
+		a.resetPasswordError(w, r, token, fmt.Sprintf("Password must be at least %d characters", minLen))
 		return
 	}
 
-	// Update the password via callback
+	// Consume the token before changing anything. Only one request gets
+	// Deleted, so two requests racing with the same link can't both reset
+	// the password (CWE-367). If the update then fails, the user asks for
+	// a new link.
+	del, err := a.TokenStore.DeleteToken(r.Context(), &DeleteVerificationTokenRequest{Token: token})
+	if err != nil || del == nil || !del.Deleted {
+		a.resetPasswordError(w, r, token, "Invalid or expired reset link")
+		return
+	}
+
 	if err := a.UpdatePassword(authToken.Email, password); err != nil {
 		a.resetPasswordError(w, r, token, err.Error())
 		return
 	}
 
-	// Delete the token (one-time use)
-	if _, err := a.TokenStore.DeleteToken(r.Context(), &DeleteVerificationTokenRequest{Token: token}); err != nil {
-		log.Printf("Warning: failed to delete token: %v", err)
+	if a.AfterPasswordReset != nil {
+		if err := a.AfterPasswordReset(r.Context(), authToken.Email); err != nil {
+			log.Printf("password reset for %s: ending other sessions failed: %v", authToken.Email, err)
+		}
 	}
 
 	// Redirect mode
