@@ -1,7 +1,9 @@
 package client
 
 import (
+	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
@@ -38,7 +40,8 @@ import (
 //
 // See: https://www.rfc-editor.org/rfc/rfc9449
 type DPoPKey struct {
-	signer *ecdsa.PrivateKey
+	signer crypto.Signer
+	method jwt.SigningMethod
 	alg    string
 	jwk    utils.JWK
 	jkt    string
@@ -76,7 +79,40 @@ func NewDPoPKeyFromECDSA(key *ecdsa.PrivateKey) (*DPoPKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compute DPoP key thumbprint: %w", err)
 	}
-	return &DPoPKey{signer: key, alg: "ES256", jwk: jwk, jkt: jkt}, nil
+	return &DPoPKey{signer: key, method: jwt.SigningMethodES256, alg: "ES256", jwk: jwk, jkt: jkt}, nil
+}
+
+// NewEd25519DPoPKey generates a fresh Ed25519 key, which signs proofs as
+// EdDSA (RFC 8037). FAPI 2.0 §5.4.1 allows EdDSA alongside ES256 and PS256,
+// and Ed25519 signing is cheaper again than P-256. Check the server accepts
+// it first with SupportedBy: a server that only advertises ES256 refuses
+// every proof this key signs.
+func NewEd25519DPoPKey() (*DPoPKey, error) {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generate DPoP key: %w", err)
+	}
+	return NewDPoPKeyFromEd25519(priv)
+}
+
+// NewDPoPKeyFromEd25519 wraps an existing Ed25519 private key, for a client
+// that persists its key across restarts.
+func NewDPoPKeyFromEd25519(key ed25519.PrivateKey) (*DPoPKey, error) {
+	if len(key) != ed25519.PrivateKeySize {
+		return nil, fmt.Errorf("DPoP key must be an Ed25519 private key")
+	}
+	pub := key.Public().(ed25519.PublicKey)
+	jkt, err := utils.ComputeKid(pub, "EdDSA")
+	if err != nil {
+		return nil, fmt.Errorf("compute DPoP key thumbprint: %w", err)
+	}
+	return &DPoPKey{
+		signer: key,
+		method: jwt.SigningMethodEdDSA,
+		alg:    "EdDSA",
+		jwk:    utils.Ed25519PublicKeyToJWK("", "EdDSA", pub),
+		jkt:    jkt,
+	}, nil
 }
 
 // Thumbprint returns the RFC 7638 thumbprint of the public key: the value
@@ -197,7 +233,7 @@ func (k *DPoPKey) proofWithNonce(method, targetURL, accessToken, nonce string) (
 		claims["nonce"] = nonce
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	token := jwt.NewWithClaims(k.method, claims)
 	token.Header["typ"] = "dpop+jwt"
 	token.Header["jwk"] = k.jwkHeader()
 

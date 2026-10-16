@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
@@ -18,6 +19,7 @@ import (
 //   - []byte: SHA-256 of raw bytes (HS256/HS384/HS512)
 //   - *rsa.PublicKey or *rsa.PrivateKey: RFC 7638 thumbprint with {"e","kty","n"}
 //   - *ecdsa.PublicKey or *ecdsa.PrivateKey: RFC 7638 thumbprint with {"crv","kty","x","y"}
+//   - ed25519.PublicKey or ed25519.PrivateKey: RFC 8037 §2 thumbprint with {"crv","kty","x"}
 func ComputeKid(key any, alg string) (string, error) {
 	switch k := key.(type) {
 	case []byte:
@@ -36,6 +38,10 @@ func ComputeKid(key any, alg string) (string, error) {
 		return ecdsaThumbprint(k)
 	case *ecdsa.PrivateKey:
 		return ecdsaThumbprint(&k.PublicKey)
+	case ed25519.PublicKey:
+		return ed25519Thumbprint(k)
+	case ed25519.PrivateKey:
+		return ed25519Thumbprint(k.Public().(ed25519.PublicKey))
 	default:
 		return "", fmt.Errorf("unsupported key type for kid computation: %T", key)
 	}
@@ -79,5 +85,16 @@ func ecdsaThumbprint(pub *ecdsa.PublicKey) (string, error) {
 	y := base64.RawURLEncoding.EncodeToString(yPadded)
 	// RFC 7638: members in lexicographic order
 	canonical := fmt.Sprintf(`{"crv":"%s","kty":"EC","x":"%s","y":"%s"}`, crv, x, y)
+	return hashToKid([]byte(canonical)), nil
+}
+
+// ed25519Thumbprint computes the RFC 7638 thumbprint of an Ed25519 key in
+// its RFC 8037 OKP form. Canonical JSON: {"crv":"Ed25519","kty":"OKP","x":"..."}
+func ed25519Thumbprint(pub ed25519.PublicKey) (string, error) {
+	if len(pub) != ed25519.PublicKeySize {
+		return "", fmt.Errorf("Ed25519 public key must be %d bytes, got %d", ed25519.PublicKeySize, len(pub))
+	}
+	x := base64.RawURLEncoding.EncodeToString(pub)
+	canonical := fmt.Sprintf(`{"crv":"Ed25519","kty":"OKP","x":"%s"}`, x)
 	return hashToKid([]byte(canonical)), nil
 }
