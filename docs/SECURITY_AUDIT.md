@@ -245,7 +245,8 @@ several PRs, and rows still Open name the part of issue 88 they're waiting on.
 | Requirement | Ref | Status | Notes |
 |---|---|---|---|
 | Thumbprint kid per RFC 7638 | RFC 7638 §3.1 | Pass | computed correctly; no test pins the RFC's example vector yet (keys PR) |
-| `EncryptedKeyStorage` fails closed | CWE-311 | Open | a failed decrypt returns the ciphertext as the key; no AAD binds a record to its kid (keys PR) |
+| `EncryptedKeyStorage` fails closed | CWE-311, CWE-354 | Pass (was Fail) | `ErrKeyDecrypt` for a wrong master key, tampering, or plaintext without `AllowLegacyPlaintext`; it used to return the stored bytes as the key. `encrypted_failclosed_test.go`\* |
+| A stored ciphertext opens only for its own record | NIST SP 800-38D §5.2.1.1 | Pass (was Fail) | `oaenc1:` records carry AAD over client, alg and kid. CiphertextOnlyOpensForItsRecord\* |
 | Retired keys encrypted at rest | CWE-312 | Open | `KidStore` keeps them in plaintext (keys PR) |
 | RSA signing keys at least 2048 bits | RFC 7518 §3.3 | Open | not checked when a key is loaded (keys PR) |
 

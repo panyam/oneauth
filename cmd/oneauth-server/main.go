@@ -585,6 +585,15 @@ func buildKeyStore(cfg *Config) (keys.KeyStorage, *gorm.DB, error) {
 			return nil, nil, fmt.Errorf("failed to create EncryptedKeyStore: %w", err)
 		}
 		log.Println("KeyStore encryption enabled (AES-256-GCM)")
+		if cfg.KeyStore.MigrateLegacy {
+			encrypted.AllowLegacyPlaintext = true
+			n, err := encrypted.MigrateLegacy(context.Background())
+			encrypted.AllowLegacyPlaintext = false
+			if err != nil {
+				return nil, nil, fmt.Errorf("key_store.migrate_legacy: %w", err)
+			}
+			log.Printf("KeyStore: encrypted %d legacy record(s); remove key_store.migrate_legacy", n)
+		}
 		store = encrypted
 	} else {
 		log.Println("WARNING: ONEAUTH_MASTER_KEY not set — HS256 secrets stored in plaintext")
