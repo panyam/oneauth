@@ -3,6 +3,39 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.46
+
+### Keys, ID tokens and CodeQL (issue 88, PRs 417 to 419)
+
+- **Encrypted key storage fails closed.** `EncryptedKeyStorage` returns
+  `keys.ErrKeyDecrypt` for a record it can't open, where it used to return
+  the stored bytes as the key. Records are written as `oaenc1:` + nonce +
+  AES-256-GCM with AAD over client, alg and kid, so a ciphertext copied into
+  another record won't open. Plaintext secrets need `AllowLegacyPlaintext`,
+  and `MigrateLegacy` rewrites old records. The reference server runs it
+  once with `key_store.migrate_legacy` (`KEYSTORE_MIGRATE_LEGACY=true`).
+- **OIDC ID tokens aren't access tokens.** Keycloak signs ID tokens with
+  the same key, header and `aud` as access tokens; a `typ` claim other than
+  `Bearer` / `DPoP` is now refused.
+- **Cookies.** Every cookie in `oauth2`, `federatedauth` and the demo app,
+  deletes included, is Secure + HttpOnly + SameSite=Lax, and `httpauth`'s
+  `loggedInSubject` is HttpOnly. `LocalRedirect` rebuilds its target from
+  the parsed path, query and fragment.
+- **Workflows** run with a read-only `GITHUB_TOKEN`.
+
+### Upgrading
+
+- **Encrypted key stores holding plaintext secrets:** start once with
+  `key_store.migrate_legacy: true`, or set `AllowLegacyPlaintext` and call
+  `MigrateLegacy`. Until then those clients fail with `ErrKeyDecrypt`.
+  Records written now can't be read by older versions.
+- **`oauth2`:** drop `BaseOAuth2.SecureCookies` and the `secure` argument to
+  `OauthRedirectorWithPKCE` / `SetPKCECookie`. Social login over plain http
+  works only on localhost.
+- **Pages reading `loggedInSubject` from script** no longer can.
+- **Non-oneauth issuers** whose access tokens carry a `typ` claim other than
+  `Bearer` / `DPoP` are refused.
+
 ## Version 0.1.45
 
 ### Token audit (issue 88, PRs 414 to 416)
