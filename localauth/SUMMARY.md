@@ -4,6 +4,7 @@ Local (form-based) authentication: signup, login, email verification, password r
 
 ## Contents
 - **local.go** — `LocalAuth` struct (login, email verify, forgot/reset password, credential linking handler)
+- **Password reset (issue 88)** — tokens are stored as `HashVerificationToken` (SHA-256), consumed via `DeleteToken`→`Deleted` before the password changes, checked against the signup password policy, and followed by `AfterPasswordReset` (`NewRevokeSessionsOnReset` revokes the account's refresh tokens).
 - **signup.go** — `HandleSignup`, form parsing, policy-based validation
 - **helpers.go** — `NewCreateUserFunc`, `NewCredentialsValidator`, `NewVerifyEmailFunc`, `NewUpdatePasswordFunc`, `NewEnsureAuthUserFunc`, `LinkLocalCredentials`, `EnsureAuthUserConfig`
 

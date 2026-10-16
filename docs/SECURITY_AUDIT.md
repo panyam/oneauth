@@ -176,7 +176,11 @@ The fixes land across several PRs; the Status column says which rows are done.
 | Constant-time compares for secrets | Pass | client secrets, admin key, CSRF, PKCE, RFC 7592 token, DPoP nonce MAC |
 | Password hashing | Pass | bcrypt cost 10, over-72-byte passwords refused, dummy hash for unknown users |
 | API keys, refresh tokens, device codes stored hashed | Pass | bcrypt / SHA-256 |
-| Password-reset tokens stored hashed, single use | Open | stored and looked up in plaintext; reset PR |
+| Password-reset and verification tokens stored hashed | Pass (was Fail) | every store keys them by `localauth.HashVerificationToken` (SHA-256) and never writes the raw value (CWE-256) |
+| A reset link works once, even under a race | Pass (was Fail) | the token is consumed (`DeleteToken` → `Deleted`) before the password changes (CWE-367) |
+| A reset applies the signup password policy | Pass (was Fail) | it used a hard-coded 8 |
+| A reset ends the account's other sessions | Pass (was Fail) | `AfterPasswordReset`; `NewRevokeSessionsOnReset` revokes its refresh tokens, wired in the reference server (CWE-613) |
+| Signup doesn't reveal which emails have accounts | Open | "email already registered" lets anyone enumerate accounts; fixing it means a changed signup flow (mail the existing owner), not filed yet |
 | Cookie flags (`HttpOnly`, `Secure`, `SameSite`) | Pass (was Fail) | `httpauth` login cookies are Secure (opt-out `InsecureCookies`) and Lax, the token one HttpOnly; `oa_token` is Secure behind https; `oauthstate` / `oauthCallbackURL` HttpOnly + Lax |
 | Session ID renewed on login and logout | Pass (was Fail) | `SetLoggedInSubject` calls `RenewToken` (CWE-384) |
 | Session JWTs not usable as API access tokens | Pass (was Fail) | session JWTs carry `type: session`, which `APIMiddleware` refuses; `iat` no longer an hour in the future |
