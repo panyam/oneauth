@@ -189,6 +189,56 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-0145">Version 0.1.45 <a class="anchor" href="#version-0145">¶</a></h2>
+<h3 id="token-audit-issue-88-prs-414-to-416">Token audit (issue 88, PRs 414 to 416) <a class="anchor" href="#token-audit-issue-88-prs-414-to-416">¶</a></h3>
+<p>Issue 88&rsquo;s third slice walked token validation, revocation and<br />
+introspection. The matrix is the &ldquo;Tokens and keys&rdquo; section of<br />
+<code>docs/SECURITY_AUDIT.md</code>.</p>
+<ul>
+<li><strong>Validation.</strong> <code>exp</code> is required. An empty HMAC key never signs or<br />
+verifies. Logout tokens, ID-JAGs and sessions are refused as access tokens<br />
+by <code>typ</code> header and <code>type</code> claim. A key registered to a client verifies<br />
+only tokens carrying that <code>client_id</code>, and a token with the validator&rsquo;s own<br />
+<code>kid</code> is checked with its own key (it used to be checked against the<br />
+named client&rsquo;s key and fail). <code>CustomClaims</code> can&rsquo;t set <code>nbf</code>, <code>scope</code>,<br />
+<code>azp</code>, <code>sid</code>, <code>act</code> or <code>may_act</code>.</li>
+<li><strong>Challenges.</strong> <code>invalid_token</code> only when a token was presented, 403<br />
+<code>insufficient_scope</code> with <code>scope</code> for a missing scope, and<br />
+<code>resource_metadata</code> from <code>APIMiddleware.ResourceMetadataURL</code>.</li>
+<li><strong>Revocation.</strong> A client revokes only its own tokens (<code>ErrRevokeNotOwner</code>,<br />
+400 <code>invalid_request</code>, as Keycloak answers). Access tokens are verified<br />
+before their <code>jti</code> is blacklisted, a missing <code>token</code> is 400, and every<br />
+token type is searched whatever the hint.</li>
+<li><strong>Introspection.</strong> <code>token_type</code> is <code>Bearer</code> / <code>DPoP</code>, and refresh tokens<br />
+can be introspected (<code>NewTokenIntrospectorWithRefreshStore</code>, wired by<br />
+<code>OneAuth</code>).</li>
+<li><strong>Grants.</strong> jwt-bearer assertions need <code>exp</code> and a configured audience,<br />
+and one with a <code>jti</code> is single-use. A code redeemed by two requests at<br />
+once gives the loser <code>invalid_grant</code>, and tokens from a code carry<br />
+<code>client_id</code>.</li>
+<li><strong>Refresh tokens.</strong> GORM rotation is a compare-and-set, and rotation keeps<br />
+the family&rsquo;s expiry in every store.</li>
+<li><strong>Sessions.</strong> <code>httpauth</code> and the reference server accept only<br />
+<code>type: session</code> JWTs as logins. The reference server refuses a<br />
+<code>jwt.secret_key</code> under 32 bytes.</li>
+<li><strong>CodeQL.</strong> The three error-level alerts are fixed: no token prefix in<br />
+<code>httpauth</code>&rsquo;s log, and no unverified JWT parse in the revoker or the<br />
+server&rsquo;s <code>/api/revoke</code>.</li>
+</ul>
+<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<ul>
+<li><strong>Tokens without <code>exp</code></strong> no longer validate. oneauth always set it.</li>
+<li><strong>Missing scope</strong> is 403, not 401.</li>
+<li><strong>Reference server:</strong> <code>jwt.secret_key</code> (<code>JWT_SECRET_KEY</code>) must be at least<br />
+32 bytes, in every signing mode.</li>
+<li><strong>Tenant-minted tokens</strong> must carry their own <code>client_id</code>.</li>
+<li><strong>Refresh sessions</strong> end <code>TokenExpiryRefreshToken</code> (7 days) after login,<br />
+however often they&rsquo;re refreshed.</li>
+<li><strong>jwt-bearer / token-exchange:</strong> set <code>TrustedAssertionIssuer.Audiences</code> or<br />
+the AS issuer URL, or every assertion is refused.</li>
+<li><strong>Introspection consumers</strong> reading <code>token_type</code> see <code>Bearer</code> / <code>DPoP</code>.</li>
+<li><strong>Revocation</strong> without <code>token</code> is 400.</li>
+</ul>
 <h2 id="version-0144">Version 0.1.44 <a class="anchor" href="#version-0144">¶</a></h2>
 <h3 id="http-surface-audit-issue-88-prs-403-to-407">HTTP-surface audit (issue 88, PRs 403 to 407) <a class="anchor" href="#http-surface-audit-issue-88-prs-403-to-407">¶</a></h3>
 <p>Issue 88&rsquo;s second slice walked transport and headers, sessions and the admin<br />
@@ -226,7 +276,7 @@ plain-http public URL on a non-loopback host unless <code>allow_insecure_http</c
 <code>jwt.issuer</code> defaults to the public URL. Pages load a prebuilt stylesheet<br />
 (<code>make server-css</code>), and the CSP allows only <code>'self'</code>.</li>
 </ul>
-<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
 <ul>
 <li><strong><code>AdminAuth</code>:</strong> pass <code>NewNoAuth()</code> for open admin routes; nil now refuses.</li>
 <li><strong>DCR behind a real host:</strong> set <code>AppRegistrar.IssuerBaseURL</code>, or registration<br />
@@ -276,7 +326,7 @@ failed.</li>
 <li>Every Go file is gofmt-clean and CI checks it. <code>make fmt</code> fixes;<br />
 <code>.git-blame-ignore-revs</code> keeps the cleanup commit out of blame.</li>
 </ul>
-<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
+<h3 id="upgrading-2">Upgrading <a class="anchor" href="#upgrading-2">¶</a></h3>
 <ul>
 <li><strong><code>DPoPKey</code> callers:</strong> no exported API changed, but a validator using the<br />
 default algorithm list now also accepts Ed25519 proofs. Set<br />
@@ -303,7 +353,7 @@ and <code>ClientRegistrationResponse</code> (RFC 9449 §5.2).</li>
 </ul>
 <p>Where oneauth and Keycloak still answer differently, <code>docs/SECURITY_AUDIT.md</code><br />
 says which and why.</p>
-<h3 id="upgrading-2">Upgrading <a class="anchor" href="#upgrading-2">¶</a></h3>
+<h3 id="upgrading-3">Upgrading <a class="anchor" href="#upgrading-3">¶</a></h3>
 <ul>
 <li><strong>Code that branches on the refresh grant&rsquo;s status</strong> sees 400 instead of<br />
 401 for a refused token. Only <code>invalid_client</code> is 401.</li>
@@ -357,7 +407,7 @@ reaches jwt-bearer, token-exchange and PAR.</li>
 <li><strong>SDK.</strong> <code>ServerCredential.ClientID</code> records which client a credential was<br />
 issued to, and the automatic refresh sends it instead of <code>&quot;cli&quot;</code>.</li>
 </ul>
-<h3 id="upgrading-3">Upgrading <a class="anchor" href="#upgrading-3">¶</a></h3>
+<h3 id="upgrading-4">Upgrading <a class="anchor" href="#upgrading-4">¶</a></h3>
 <ul>
 <li><strong>GORM deployments need <code>AutoMigrate</code></strong> for the new app-registration columns<br />
 (<code>dpop_bound_access_tokens</code> and the two back-channel logout fields).</li>
