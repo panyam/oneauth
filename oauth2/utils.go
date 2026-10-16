@@ -19,7 +19,10 @@ func generateStateOauthCookie(w http.ResponseWriter) string {
 		log.Println("Error generating rand: ", err)
 	}
 	state := base64.URLEncoding.EncodeToString(b)
-	cookie := http.Cookie{Name: "oauthstate", Value: state, Path: "/", Expires: expiration}
+	// HttpOnly: script has no use for the state, and reading it would let
+	// an XSS forge a callback. Lax still sends it on the IdP's top-level
+	// redirect back.
+	cookie := http.Cookie{Name: "oauthstate", Value: state, Path: "/", Expires: expiration, HttpOnly: true, SameSite: http.SameSiteLaxMode}
 	http.SetCookie(w, &cookie)
 	return state
 }
@@ -36,11 +39,13 @@ func OauthRedirectorNoPKCE(oauthConfig *oauth2.Config) func(w http.ResponseWrite
 		callbackURL := r.URL.Query().Get("callbackURL")
 		if callbackURL != "" {
 			http.SetCookie(w, &http.Cookie{
-				Name:    "oauthCallbackURL",
-				Value:   callbackURL,
-				Path:    "/",
-				Expires: time.Now().Add(24 * time.Hour),
-				MaxAge:  120,
+				Name:     "oauthCallbackURL",
+				Value:    callbackURL,
+				Path:     "/",
+				Expires:  time.Now().Add(24 * time.Hour),
+				MaxAge:   120,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
 			})
 		}
 		oauthState := generateStateOauthCookie(w)
@@ -57,11 +62,13 @@ func OauthRedirectorWithPKCE(oauthConfig *oauth2.Config, secure bool) func(w htt
 		callbackURL := r.URL.Query().Get("callbackURL")
 		if callbackURL != "" {
 			http.SetCookie(w, &http.Cookie{
-				Name:    "oauthCallbackURL",
-				Value:   callbackURL,
-				Path:    "/",
-				Expires: time.Now().Add(24 * time.Hour),
-				MaxAge:  120, // keep this short
+				Name:     "oauthCallbackURL",
+				Value:    callbackURL,
+				Path:     "/",
+				Expires:  time.Now().Add(24 * time.Hour),
+				MaxAge:   120, // keep this short
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
 			})
 		}
 		oauthState := generateStateOauthCookie(w)

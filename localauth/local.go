@@ -10,6 +10,7 @@ import (
 
 	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 type VerifyEmailFunc func(token string) error
@@ -291,6 +292,7 @@ func (a *LocalAuth) HandleForgotPasswordForm(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Default: render a basic HTML form
+	httpauth.DenyFraming(w)
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html>
@@ -394,6 +396,7 @@ func (a *LocalAuth) HandleResetPasswordForm(w http.ResponseWriter, r *http.Reque
 
 	// Default: render a basic HTML form
 	// Use html/template for safe token embedding (prevents XSS / G705)
+	httpauth.DenyFraming(w)
 	w.Header().Set("Content-Type", "text/html")
 	safeToken := template.HTMLEscapeString(token)
 	fmt.Fprintf(w, `<!DOCTYPE html>

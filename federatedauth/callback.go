@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -67,18 +66,13 @@ func (b *OAuthBridge) SaveUserAndRedirect(authtype, provider string, token *oaut
 	b.OneAuth.SetLoggedInSubject(user.Id(), w, r)
 
 	// Auth done — go back to where we need to be
+	// The callback URL came from the request that started the login, so
+	// only a path on this site is honored (CWE-601).
 	callbackURL := "/"
-	callbackURLCookie, _ := r.Cookie("oauthCallbackURL")
-	if callbackURLCookie != nil {
-		callbackURL = callbackURLCookie.Value
+	if callbackURLCookie, _ := r.Cookie("oauthCallbackURL"); callbackURLCookie != nil {
+		callbackURL = httpauth.LocalRedirect(callbackURLCookie.Value, "/")
 	}
-	if callbackURL == "" {
-		callbackURL = "/"
-	}
-	u, _ := url.Parse(callbackURL)
-	if u != nil && u.Scheme == "" {
-		callbackURL = os.Getenv("OAUTH2_BASE_URL") + callbackURL
-	}
+	callbackURL = os.Getenv("OAUTH2_BASE_URL") + callbackURL
 	log.Println("Redirecting to CallbackURL: ", callbackURL)
 	// then delete the cookie too so it won't be used for subsequent redirects
 	http.SetCookie(w, &http.Cookie{
@@ -209,8 +203,8 @@ func (b *OAuthBridge) HandleLinkOAuthCallback(linkingUserID, provider string, us
 	log.Printf("Linked %s account to user %s", provider, linkingUserID)
 
 	callbackURL := "/"
-	if callbackCookie, _ := r.Cookie("oauthCallbackURL"); callbackCookie != nil && callbackCookie.Value != "" {
-		callbackURL = callbackCookie.Value
+	if callbackCookie, _ := r.Cookie("oauthCallbackURL"); callbackCookie != nil {
+		callbackURL = httpauth.LocalRedirect(callbackCookie.Value, "/")
 	}
 
 	http.SetCookie(w, &http.Cookie{

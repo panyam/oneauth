@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/datastore"
@@ -201,7 +202,7 @@ func main() {
 	})
 
 	// Landing page
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /{$}", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := getUserFromCookie(r, cfg.JWT.SecretKey)
 		services := []map[string]string{
 			{"Name": "DrawApp", "Description": "Drawing collaboration app", "URL": "http://localhost:3001"},
@@ -209,8 +210,8 @@ func main() {
 			{"Name": "Resource Server A", "Description": "JWT-validating resource server", "URL": "http://localhost:4001"},
 			{"Name": "Resource Server B", "Description": "JWT-validating resource server", "URL": "http://localhost:4002"},
 		}
-		renderTemplate(w, "index.html", map[string]any{"Title": "Home", "User": user, "Services": services})
-	})
+		renderTemplate(w, "index.html", map[string]any{"Title": "Home", "User": user, "Services": services, "CSRFField": httpauth.CSRFTemplateField(r)})
+	})))
 
 	// Auth pages (browser) — wrapped with CSRF protection
 	mux.Handle("GET /auth/login", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -242,13 +243,15 @@ func main() {
 
 	mux.HandleFunc("GET /auth/verify-email", localAuth.HandleVerifyEmail)
 
-	mux.HandleFunc("GET /auth/logout", func(w http.ResponseWriter, r *http.Request) {
-		http.SetCookie(w, &http.Cookie{Name: "oa_token", MaxAge: -1, Path: "/"})
+	// POST with a CSRF token: a GET logout can be triggered by any page
+	// the user visits (CWE-352).
+	mux.Handle("POST /auth/logout", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, sessionCookie(cfg, "", -1))
 		http.Redirect(w, r, "/", http.StatusSeeOther)
-	})
+	})))
 
 	// Dashboard (requires auth cookie)
-	mux.HandleFunc("GET /dashboard", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /dashboard", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := getUserFromCookie(r, cfg.JWT.SecretKey)
 		if user == "" {
 			http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
@@ -267,9 +270,9 @@ func main() {
 
 		renderTemplate(w, "dashboard.html", map[string]any{
 			"Title": "Dashboard", "User": user, "UserID": userID,
-			"UserEmail": email, "Apps": apps,
+			"UserEmail": email, "Apps": apps, "CSRFField": httpauth.CSRFTemplateField(r),
 		})
-	})
+	})))
 
 	// API token endpoint
 	mux.Handle("POST /api/token", tokenEndpoint)
@@ -827,6 +830,9 @@ func makeHandleUser(cfg *Config) accounts.HandleUserFunc {
 				"name":  displayName,
 				"iat":   time.Now().Unix(),
 				"exp":   time.Now().Add(24 * time.Hour).Unix(),
+				// A browser session, not an API access token: APIMiddleware
+				// refuses any type other than "access".
+				"type": "session",
 			}
 			if cfg.JWT.Issuer != "" {
 				claims["iss"] = cfg.JWT.Issuer
@@ -838,14 +844,7 @@ func makeHandleUser(cfg *Config) accounts.HandleUserFunc {
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
 				return
 			}
-			http.SetCookie(w, &http.Cookie{
-				Name:     "oa_token",
-				Value:    tokenString,
-				Path:     "/",
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-				MaxAge:   86400,
-			})
+			http.SetCookie(w, sessionCookie(cfg, tokenString, 86400))
 		}
 
 		// Check if this is an API request (Accept: application/json)
@@ -983,4 +982,19 @@ func publicBaseURL(cfg *Config) string {
 		scheme = "https"
 	}
 	return fmt.Sprintf("%s://%s:%s", scheme, cfg.Server.Host, cfg.Server.Port)
+}
+
+// sessionCookie is the browser session cookie: HttpOnly, SameSite=Lax, and
+// Secure whenever the server is reached over https (its own TLS, or an
+// https public_url behind a proxy). maxAge < 0 deletes it.
+func sessionCookie(cfg *Config, value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name:     "oa_token",
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   cfg.TLS.Enabled || strings.HasPrefix(publicBaseURL(cfg), "https://"),
+		SameSite: http.SameSiteLaxMode,
+	}
 }
