@@ -230,7 +230,10 @@ func TestCreateAccessToken_StandardClaimsGuard_RAR(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -280,7 +283,10 @@ func TestIntrospection_WithRAR(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -329,7 +335,10 @@ func TestIntrospection_WithoutRAR(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 

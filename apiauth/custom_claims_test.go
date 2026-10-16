@@ -4,10 +4,10 @@ package apiauth_test
 
 import (
 	"context"
-	"github.com/panyam/oneauth/core"
-	"github.com/panyam/oneauth/apiauth"
-	"github.com/panyam/oneauth/keys"
 	"encoding/json"
+	"github.com/panyam/oneauth/apiauth"
+	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/keys"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,20 +19,23 @@ import (
 // and can be extracted after validation.
 func TestCustomClaimsFunc_RoundTrip(t *testing.T) {
 	apiAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret-key"), SigningAlg: "HS256", Issuer: "test-issuer", CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
-			return map[string]any{
-				"client_id":     "host-excaliframe",
-				"client_domain": "excaliframe.com",
-				"max_rooms":     float64(10),
-				"max_msg_rate":  float64(30.0),
-			}, nil
-		},
+		return map[string]any{
+			"client_id":     "host-excaliframe",
+			"client_domain": "excaliframe.com",
+			"max_rooms":     float64(10),
+			"max_msg_rate":  float64(30.0),
+		}, nil
+	},
 	}, nil)
 
 	// Mint a token using the exported method
 	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-123", Scopes: []string{"read", "write"}, AuthorizationDetails: nil})
 	token := ""
 	var _ int64
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
@@ -43,7 +46,11 @@ func TestCustomClaimsFunc_RoundTrip(t *testing.T) {
 	var userID string
 	var scopes []string
 	var customClaims map[string]any
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		scopes = vresp.Info.Scopes
+		customClaims = vresp.Info.CustomClaims
+	}
 
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull failed: %v", err)
@@ -81,7 +88,10 @@ func TestCustomClaimsFunc_Nil(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
@@ -95,7 +105,11 @@ func TestCustomClaimsFunc_Nil(t *testing.T) {
 
 	var customClaims map[string]any
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; scopes = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		scopes = vresp.Info.Scopes
+		customClaims = vresp.Info.CustomClaims
+	}
 
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull failed: %v", err)
@@ -116,8 +130,8 @@ func TestCustomClaimsFunc_Nil(t *testing.T) {
 // TestCustomClaimsFunc_Error tests that callback error propagates
 func TestCustomClaimsFunc_Error(t *testing.T) {
 	apiAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret-key"), SigningAlg: "HS256", CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
-			return nil, core.ErrInvalidGrant
-		},
+		return nil, core.ErrInvalidGrant
+	},
 	}, nil)
 
 	_, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-123", Scopes: []string{"read"}, AuthorizationDetails: nil})
@@ -130,13 +144,13 @@ func TestCustomClaimsFunc_Error(t *testing.T) {
 // TestCustomClaimsFunc_NoOverrideStandard tests that custom claims cannot override standard claims
 func TestCustomClaimsFunc_NoOverrideStandard(t *testing.T) {
 	apiAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret-key"), SigningAlg: "HS256", Issuer: "real-issuer", CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
-			return map[string]any{
-				"sub":       "evil-user",       // should NOT override
-				"iss":       "evil-issuer",     // should NOT override
-				"type":      "refresh",         // should NOT override
-				"client_id": "legit-host",      // custom claim, should be kept
-			}, nil
-		},
+		return map[string]any{
+			"sub":       "evil-user",   // should NOT override
+			"iss":       "evil-issuer", // should NOT override
+			"type":      "refresh",     // should NOT override
+			"client_id": "legit-host",  // custom claim, should be kept
+		}, nil
+	},
 	}, nil)
 
 	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "real-user", Scopes: []string{"read"}, AuthorizationDetails: nil})
@@ -145,7 +159,10 @@ func TestCustomClaimsFunc_NoOverrideStandard(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
@@ -159,7 +176,11 @@ func TestCustomClaimsFunc_NoOverrideStandard(t *testing.T) {
 
 	var customClaims map[string]any
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+		customClaims = vresp.Info.CustomClaims
+	}
 
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull failed: %v", err)
@@ -349,11 +370,11 @@ func TestMultiTenantValidation_FallbackToSingleKey(t *testing.T) {
 // are not included in the customClaims return value
 func TestValidateAccessTokenFull_StandardClaimsExcluded(t *testing.T) {
 	apiAuth := newAPIAuthFixture(apiauth.OneAuthConfig{SigningKey: []byte("test-secret"), SigningAlg: "HS256", Issuer: "test-issuer", CustomClaims: func(userID string, scopes []string) (map[string]any, error) {
-			return map[string]any{
-				"client_id": "my-host",
-				"max_rooms": float64(5),
-			}, nil
-		},
+		return map[string]any{
+			"client_id": "my-host",
+			"max_rooms": float64(5),
+		}, nil
+	},
 	}, nil)
 
 	tokenResp, err := apiAuth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user-1", Scopes: []string{"read"}, AuthorizationDetails: nil})
@@ -362,7 +383,10 @@ func TestValidateAccessTokenFull_StandardClaimsExcluded(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	if err != nil {
 		t.Fatalf("CreateAccessToken failed: %v", err)
@@ -376,7 +400,11 @@ func TestValidateAccessTokenFull_StandardClaimsExcluded(t *testing.T) {
 
 	var customClaims map[string]any
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes; customClaims = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+		customClaims = vresp.Info.CustomClaims
+	}
 
 	if err != nil {
 		t.Fatalf("ValidateAccessTokenFull failed: %v", err)

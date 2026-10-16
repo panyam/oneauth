@@ -190,8 +190,8 @@ type AuthorizationCodeStore interface {
 // tests, single-process dev, and the in-memory mode of the reference
 // server. Production deployments use a persistent backend.
 type InMemoryAuthorizationCodeStore struct {
-	mu      sync.RWMutex
-	byCode  map[string]*AuthorizationCode
+	mu     sync.RWMutex
+	byCode map[string]*AuthorizationCode
 }
 
 // NewInMemoryAuthorizationCodeStore returns an empty store.

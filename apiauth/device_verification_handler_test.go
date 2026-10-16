@@ -24,9 +24,9 @@ import (
 // pluggable session "subject" function so each test can choose whether
 // the caller is logged in.
 type deviceVerifyFixture struct {
-	deviceStore  *core.InMemoryDeviceAuthorizationStore
-	appStore     *core.InMemoryAppStore
-	handler      *apiauth.DeviceVerificationHandler
+	deviceStore    *core.InMemoryDeviceAuthorizationStore
+	appStore       *core.InMemoryAppStore
+	handler        *apiauth.DeviceVerificationHandler
 	sessionSubject string
 }
 

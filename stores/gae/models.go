@@ -85,12 +85,12 @@ type ChannelEntity struct {
 
 // VerificationTokenEntity is the Datastore entity for localauth verification tokens.
 type VerificationTokenEntity struct {
-	Key       *datastore.Key            `datastore:"__key__"`
+	Key       *datastore.Key             `datastore:"__key__"`
 	Type      localauth.VerificationType `datastore:"type"`
-	Subject   string                    `datastore:"subject"`
-	Email     string                    `datastore:"email"`
-	CreatedAt time.Time                 `datastore:"created_at"`
-	ExpiresAt time.Time                 `datastore:"expires_at"`
+	Subject   string                     `datastore:"subject"`
+	Email     string                     `datastore:"email"`
+	CreatedAt time.Time                  `datastore:"created_at"`
+	ExpiresAt time.Time                  `datastore:"expires_at"`
 }
 
 // ToVerificationToken reconstructs the plaintext Token from e.Key.Name.
@@ -132,7 +132,7 @@ type RefreshTokenEntity struct {
 	Key                  *datastore.Key `datastore:"__key__"` // Key is the token hash
 	Subject              string         `datastore:"subject"`
 	ClientID             string         `datastore:"client_id,omitempty"`
-	DeviceInfo           []byte         `datastore:"device_info,noindex"`           // JSON encoded
+	DeviceInfo           []byte         `datastore:"device_info,noindex"` // JSON encoded
 	Family               string         `datastore:"family"`
 	Generation           int            `datastore:"generation"`
 	Scopes               []byte         `datastore:"scopes,noindex"`                // JSON encoded
@@ -164,7 +164,7 @@ type APIKeyEntity struct {
 // Key is the username (lowercased for case-insensitive lookup)
 type UsernameEntity struct {
 	Key       *datastore.Key `datastore:"__key__"`
-	Username  string         `datastore:"username"`  // Original case-preserved username
+	Username  string         `datastore:"username"` // Original case-preserved username
 	UserID    string         `datastore:"user_id"`
 	CreatedAt time.Time      `datastore:"created_at"`
 }

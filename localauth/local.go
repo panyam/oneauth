@@ -505,9 +505,9 @@ func (a *LocalAuth) handleLoginError(err *accounts.AuthError, w http.ResponseWri
 	}
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(map[string]any{
-		"error":   err.Message,
-		"code":    err.Code,
-		"field":   err.Field,
+		"error": err.Message,
+		"code":  err.Code,
+		"field": err.Field,
 	})
 }
 
@@ -520,9 +520,9 @@ func (a *LocalAuth) handleSignupError(err *accounts.AuthError, w http.ResponseWr
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(map[string]any{
-		"error":   err.Message,
-		"code":    err.Code,
-		"field":   err.Field,
+		"error": err.Message,
+		"code":  err.Code,
+		"field": err.Field,
 	})
 }
 

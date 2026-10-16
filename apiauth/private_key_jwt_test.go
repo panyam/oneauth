@@ -151,11 +151,11 @@ func TestPrivateKeyJWT_Success(t *testing.T) {
 
 	vresp, err := f.auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: resp["access_token"].(string)})
 
-
 	var sub string
 
-
-	if vresp != nil && vresp.Info != nil { sub = vresp.Info.Subject }
+	if vresp != nil && vresp.Info != nil {
+		sub = vresp.Info.Subject
+	}
 	require.NoError(t, err)
 	assert.Equal(t, f.clientID, sub, "minted token sub MUST equal client_id")
 }
@@ -354,7 +354,7 @@ func TestPrivateKeyJWT_RejectsUnknownClient(t *testing.T) {
 func TestPrivateKeyJWT_AcceptsMultipleAudiences(t *testing.T) {
 	f := newPKJWTFixture(t)
 	f.auth.OneAuth.AcceptedAudiences = []string{
-		"https://oneauth.example.com",         // issuer
+		"https://oneauth.example.com",           // issuer
 		"https://oneauth.example.com/api/token", // endpoint URL
 	}
 	assertion := f.signAssertion(func(c jwt.MapClaims, _ map[string]any) {

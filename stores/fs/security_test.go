@@ -46,7 +46,7 @@ var sanitizedInputs = []struct {
 	name  string
 	input string
 }{
-	{"slash_in_name", "foo/bar/baz"},     // "/" replaced with "_"
+	{"slash_in_name", "foo/bar/baz"},      // "/" replaced with "_"
 	{"hidden_file", ".hidden"},            // valid filename, not ".."
 	{"colon_in_name", "email:user@a.com"}, // ":" replaced with "_"
 }
@@ -138,8 +138,10 @@ func TestSecurity_PathTraversal_ChannelStore_Provider(t *testing.T) {
 
 		t.Run("GetChannel_provider_"+tc.name, func(t *testing.T) {
 			_Resp_, err := store.GetChannel(context.Background(), &accounts.GetChannelRequest{Provider: tc.input, IdentityKey: "email:test@example.com", CreateIfMissing: false})
-	var _ *accounts.Channel
-	if _Resp_ != nil { _ = _Resp_.Channel }
+			var _ *accounts.Channel
+			if _Resp_ != nil {
+				_ = _Resp_.Channel
+			}
 			assert.Error(t, err, "GetChannel should reject malicious provider %q", tc.input)
 		})
 	}
@@ -216,8 +218,10 @@ func TestSecurity_PathTraversal_UsernameStore(t *testing.T) {
 
 		t.Run("GetUserByUsername_"+tc.name, func(t *testing.T) {
 			_Resp_, err := store.GetUserByUsername(context.Background(), &accounts.GetUserByUsernameRequest{Username: tc.input})
-	var _ string
-	if _Resp_ != nil { _ = _Resp_.UserID }
+			var _ string
+			if _Resp_ != nil {
+				_ = _Resp_.UserID
+			}
 			assert.Error(t, err, "GetUserByUsername should reject malicious username %q", tc.input)
 		})
 	}

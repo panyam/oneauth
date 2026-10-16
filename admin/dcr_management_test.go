@@ -129,8 +129,8 @@ func TestGetRegistration_EmptyInputsReturnUnauthorized(t *testing.T) {
 	registrar := admin.NewAppRegistrar(keys.NewInMemoryKeyStore(), admin.NewNoAuth())
 
 	for _, tc := range []struct {
-		name              string
-		clientID, token   string
+		name            string
+		clientID, token string
 	}{
 		{"empty clientID", "", "some-token"},
 		{"empty token", "app_x", ""},

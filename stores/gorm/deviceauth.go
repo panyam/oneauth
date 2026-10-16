@@ -302,4 +302,3 @@ func modelToDeviceAuth(m *DeviceAuthorizationModel) *core.DeviceAuthorization {
 	}
 	return out
 }
-

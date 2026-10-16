@@ -16,8 +16,6 @@ import (
 	"github.com/panyam/oneauth/utils"
 )
 
-
-
 // JWKSHandler serves a JWKS (JSON Web Key Set) endpoint at /.well-known/jwks.json.
 // Only asymmetric keys (RS256/ES256) are included — HS256 secrets are never exposed.
 type JWKSHandler struct {

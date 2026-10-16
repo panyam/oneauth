@@ -371,7 +371,8 @@ func TestKeycloak_ValidateToken_AudienceArray(t *testing.T) {
 // programmatically submitting Keycloak's login form.
 //
 // Flow: DiscoverAS → build auth URL with PKCE → GET login page →
-//       POST credentials → follow redirect to loopback → exchange code
+//
+//	POST credentials → follow redirect to loopback → exchange code
 //
 // See: https://www.rfc-editor.org/rfc/rfc8252 (OAuth for Native Apps)
 // See: https://www.rfc-editor.org/rfc/rfc7636 (PKCE)

@@ -53,7 +53,10 @@ func TestGAEKeyStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create Datastore client: %v", err)
 	}
-	defer client.Close()
+	// Close is registered first so it runs last: t.Cleanup runs in reverse
+	// order, after every deferred call, so a deferred Close would shut the
+	// client before the sweep below could use it.
+	t.Cleanup(func() { _ = client.Close() })
 
 	// Cleanup: delete all SigningKey entities in this namespace after tests
 	t.Cleanup(func() {

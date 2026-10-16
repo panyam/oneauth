@@ -13,7 +13,7 @@ import (
 
 // jwksFlags carries the options for `oneauth jwks`.
 type jwksFlags struct {
-	format string
+	format  string
 	sigOnly bool
 	kid     string
 }

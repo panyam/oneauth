@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/panyam/oneauth/accounts"
 )
 
 // =============================================================================

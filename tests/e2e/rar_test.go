@@ -39,8 +39,8 @@ func TestRAR_ClientCredentials_FullFlow(t *testing.T) {
 	// Step 1: Request token with authorization_details (JSON body)
 	details := []map[string]any{
 		{
-			"type":    "payment_initiation",
-			"actions": []string{"initiate"},
+			"type":      "payment_initiation",
+			"actions":   []string{"initiate"},
 			"locations": []string{"https://bank.example.com/payments"},
 			"instructedAmount": map[string]any{
 				"currency": "EUR",

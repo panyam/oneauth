@@ -19,6 +19,16 @@ jobs:
         with:
           go-version: '1.26'
 
+      # Every tracked Go file, across all modules, must be gofmt-clean.
+      - name: gofmt
+        run: |
+          unformatted=$(git ls-files '*.go' | xargs gofmt -l)
+          if [ -n "$unformatted" ]; then
+            echo "Run 'make fmt' and commit. These files aren't gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
       # Build all modules
       - name: Build (core)
         run: go build ./...

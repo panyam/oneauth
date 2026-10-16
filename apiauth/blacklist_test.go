@@ -87,7 +87,10 @@ func TestBlacklist_JTIInAccessToken(t *testing.T) {
 
 	var _ int64
 
-	if token1Resp != nil { token1 = token1Resp.Token; _ = token1Resp.ExpiresIn }
+	if token1Resp != nil {
+		token1 = token1Resp.Token
+		_ = token1Resp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -97,7 +100,10 @@ func TestBlacklist_JTIInAccessToken(t *testing.T) {
 
 	var _ int64
 
-	if token2Resp != nil { token2 = token2Resp.Token; _ = token2Resp.ExpiresIn }
+	if token2Resp != nil {
+		token2 = token2Resp.Token
+		_ = token2Resp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -134,7 +140,10 @@ func TestBlacklist_RevokedTokenRejected(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -142,7 +151,10 @@ func TestBlacklist_RevokedTokenRejected(t *testing.T) {
 	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	var userID string
 	var _ []string
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
@@ -157,7 +169,10 @@ func TestBlacklist_RevokedTokenRejected(t *testing.T) {
 	vresp, err = auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	var _ string
 	var _ []string
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.Error(t, err, "revoked token should be rejected")
 	assert.Contains(t, err.Error(), "revoked")
@@ -175,7 +190,10 @@ func TestBlacklist_NonRevokedTokenAccepted(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -186,7 +204,10 @@ func TestBlacklist_NonRevokedTokenAccepted(t *testing.T) {
 	vresp, err := auth.Validator().ValidateToken(context.Background(), &apiauth.ValidateTokenRequest{Token: token})
 	var userID string
 	var _ []string
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
@@ -204,7 +225,10 @@ func TestBlacklist_NoBlacklistConfigured(t *testing.T) {
 
 	var _ int64
 
-	if tokenResp != nil { token = tokenResp.Token; _ = tokenResp.ExpiresIn }
+	if tokenResp != nil {
+		token = tokenResp.Token
+		_ = tokenResp.ExpiresIn
+	}
 
 	require.NoError(t, err)
 
@@ -214,7 +238,10 @@ func TestBlacklist_NoBlacklistConfigured(t *testing.T) {
 
 	var _ []string
 
-	if vresp != nil && vresp.Info != nil { userID = vresp.Info.Subject; _ = vresp.Info.Scopes }
+	if vresp != nil && vresp.Info != nil {
+		userID = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+	}
 
 	assert.NoError(t, err)
 	assert.Equal(t, "user1", userID)
@@ -244,11 +271,11 @@ func TestBlacklist_MiddlewareChecksBlacklist(t *testing.T) {
 
 	tokenResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
-
 	token := ""
 
-
-	if tokenResp != nil { token = tokenResp.Token }
+	if tokenResp != nil {
+		token = tokenResp.Token
+	}
 
 	// Should work before revocation
 	rr := httptest.NewRecorder()
@@ -280,11 +307,11 @@ func TestBlacklist_ValidateAccessTokenFull_ChecksBlacklist(t *testing.T) {
 
 	tokenResp, _ := auth.Issuer().CreateAccessToken(context.Background(), &apiauth.CreateAccessTokenRequest{Subject: "user1", Scopes: []string{"read"}, AuthorizationDetails: nil})
 
-
 	token := ""
 
-
-	if tokenResp != nil { token = tokenResp.Token }
+	if tokenResp != nil {
+		token = tokenResp.Token
+	}
 
 	// Extract and revoke
 	parser := jwt.NewParser()
@@ -300,7 +327,11 @@ func TestBlacklist_ValidateAccessTokenFull_ChecksBlacklist(t *testing.T) {
 
 	var _ map[string]any
 
-	if vresp != nil && vresp.Info != nil { _ = vresp.Info.Subject; _ = vresp.Info.Scopes; _ = vresp.Info.CustomClaims }
+	if vresp != nil && vresp.Info != nil {
+		_ = vresp.Info.Subject
+		_ = vresp.Info.Scopes
+		_ = vresp.Info.CustomClaims
+	}
 
 	assert.Error(t, err, "ValidateAccessTokenFull should also check blacklist")
 }

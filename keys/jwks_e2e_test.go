@@ -35,7 +35,7 @@ func TestFederated_EndToEnd_HS256(t *testing.T) {
 	// --- Step 1: Register app via HTTP ---
 	body, _ := json.Marshal(map[string]any{
 		"client_name": "e2e-symmetric.com",
-		"signing_alg":   "HS256",
+		"signing_alg": "HS256",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

@@ -96,7 +96,7 @@ func emit(w io.Writer, format string, cred *client.ServerCredential, issuer stri
 
 // shellSingleQuote single-quotes a string for safe embedding in a bash
 // `export X=...` statement. The only character that can't appear inside
-// a single-quoted literal is `'` itself — replace `'` with `'\''` (close
+// a single-quoted literal is `'` itself — replace `'` with `'\”` (close
 // quote, escaped quote, reopen quote) per the standard shell idiom.
 func shellSingleQuote(s string) string {
 	const escape = `'\''`

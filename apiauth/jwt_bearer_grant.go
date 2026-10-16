@@ -193,4 +193,3 @@ func ValidateAssertion(
 
 	return verifiedClaims, issuer, nil
 }
-

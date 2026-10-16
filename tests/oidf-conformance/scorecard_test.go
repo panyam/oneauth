@@ -25,10 +25,10 @@ import (
 
 // scorecardCheck is one row of the per-check status table.
 type scorecardCheck struct {
-	Src     string
-	Status  string // "PASS" | "KNOWN-FAIL" | "KNOWN-WARN" | "REGRESSION" | "RATCHET-UP"
-	Issue   int    // gating issue (0 when none — e.g., PASS rows)
-	Note    string // one-line summary (trimmed Reason from manifest, or harness msg)
+	Src    string
+	Status string // "PASS" | "KNOWN-FAIL" | "KNOWN-WARN" | "REGRESSION" | "RATCHET-UP"
+	Issue  int    // gating issue (0 when none — e.g., PASS rows)
+	Note   string // one-line summary (trimmed Reason from manifest, or harness msg)
 }
 
 // writeScorecard generates SCORECARD.md for the supplied plan. Called

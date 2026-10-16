@@ -72,7 +72,7 @@ func TestEmit_Bash_Sourceable(t *testing.T) {
 }
 
 // TestEmit_Bash_QuoteEscaped — the bash formatter survives single
-// quotes inside the secret: the shell idiom `'\''` (close, escaped,
+// quotes inside the secret: the shell idiom `'\”` (close, escaped,
 // reopen) is the only safe way to embed a `'` in a single-quoted shell
 // literal.
 func TestEmit_Bash_QuoteEscaped(t *testing.T) {

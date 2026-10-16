@@ -171,12 +171,12 @@ type mockServerStream struct {
 	ctx context.Context
 }
 
-func (m *mockServerStream) Context() context.Context         { return m.ctx }
-func (m *mockServerStream) SetHeader(metadata.MD) error      { return nil }
-func (m *mockServerStream) SendHeader(metadata.MD) error     { return nil }
-func (m *mockServerStream) SetTrailer(metadata.MD)           {}
-func (m *mockServerStream) SendMsg(interface{}) error        { return nil }
-func (m *mockServerStream) RecvMsg(interface{}) error        { return nil }
+func (m *mockServerStream) Context() context.Context     { return m.ctx }
+func (m *mockServerStream) SetHeader(metadata.MD) error  { return nil }
+func (m *mockServerStream) SendHeader(metadata.MD) error { return nil }
+func (m *mockServerStream) SetTrailer(metadata.MD)       {}
+func (m *mockServerStream) SendMsg(interface{}) error    { return nil }
+func (m *mockServerStream) RecvMsg(interface{}) error    { return nil }
 
 // TestStreamAuthInterceptor_RequireAuth_NoUser verifies that unauthenticated streaming requests are rejected with codes.Unauthenticated.
 func TestStreamAuthInterceptor_RequireAuth_NoUser(t *testing.T) {

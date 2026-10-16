@@ -1,9 +1,9 @@
 package admin
 
 import (
-	"github.com/panyam/oneauth/core"
 	"context"
 	"errors"
+	"github.com/panyam/oneauth/core"
 	"time"
 )
 
@@ -15,14 +15,14 @@ import (
 // (#168/#169/#170) for self-service management and the same convention
 // apiauth/ adopts under #175.
 //
-// Auth boundary
+// # Auth boundary
 //
 // Methods on this interface are post-auth: the wrapper enforces AdminAuth
 // (X-Admin-Key, etc.) before invoking the manager. ClientRegistrar itself
 // is unauthenticated by design — it expresses *what* admin operations
 // exist, not *who* may invoke them.
 //
-// Distinction from ClientRegistrationManager
+// # Distinction from ClientRegistrationManager
 //
 // ClientRegistrationManager is the SELF-SERVICE management surface
 // (RFC 7592, authed by registration_access_token) — only the registered

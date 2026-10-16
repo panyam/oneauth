@@ -402,4 +402,3 @@ func entityToDeviceAuth(e *DeviceAuthorizationEntity) *core.DeviceAuthorization 
 		IntervalSeconds:   e.IntervalSeconds,
 	}
 }
-

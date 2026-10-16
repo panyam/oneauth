@@ -19,9 +19,9 @@ import (
 	"testing"
 
 	"github.com/panyam/oneauth/oauth2"
-	oauth2lib "golang.org/x/oauth2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	oauth2lib "golang.org/x/oauth2"
 )
 
 // =============================================================================

@@ -5,10 +5,10 @@ package examples_test
 // Run with: go test -run Example -v ./examples/
 
 import (
-	"context"
 	"bytes"
-	"crypto/rsa"
+	"context"
 	cryptorand "crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"io"

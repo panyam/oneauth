@@ -239,7 +239,7 @@ func TestTokenExpiry(t *testing.T) {
 	defer cleanup(t, tmpDir)
 
 	// Create an expired token
-	tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "testuser", Email: "test@example.com", Type: localauth.VerificationTypeEmail, ExpiryDuration: -1*time.Hour})
+	tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "testuser", Email: "test@example.com", Type: localauth.VerificationTypeEmail, ExpiryDuration: -1 * time.Hour})
 	if err != nil {
 		t.Fatalf("Failed to create token: %v", err)
 	}
@@ -787,7 +787,7 @@ func TestResetPassword(t *testing.T) {
 		defer cleanup(t, tmpDir)
 
 		// Create an expired token
-		tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: "reset@example.com", Type: localauth.VerificationTypePasswordReset, ExpiryDuration: -1*time.Hour})
+		tokenResp, err := service.TokenStore.CreateToken(context.Background(), &localauth.CreateVerificationTokenRequest{Subject: "", Email: "reset@example.com", Type: localauth.VerificationTypePasswordReset, ExpiryDuration: -1 * time.Hour})
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}

@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"github.com/panyam/oneauth/core"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -9,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/panyam/oneauth/core"
 	"net"
 	"net/http"
 	"net/url"
@@ -357,7 +357,6 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	return &RegisterResponse{Registration: resp}, nil
 }
 
-
 // ListClients implements ClientRegistrar — admin read of every registered
 // app. Reads from the in-memory cache hydrated from core.AppRegistrationStore on
 // construction. Returned entries are clones; callers cannot mutate the
@@ -592,6 +591,7 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 //
 // Locked fields (return ErrInvalidClientMetadata on attempted change):
 //   - TokenEndpointAuthMethod — would require re-keying; out of scope for #169.
+//
 // Locked fields (silently retained):
 //   - SigningAlg, ClientID, CreatedAt, RegistrationClientURI, the key material
 //     in KeyStore.

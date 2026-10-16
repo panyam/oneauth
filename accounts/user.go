@@ -39,10 +39,10 @@ func (b *BasicUser) Profile() map[string]any { return b.ProfileData }
 
 // Identity represents a contact method (email, phone) that can be verified.
 type Identity struct {
-	Type      string    `json:"type"`       // "email", "phone"
-	Value     string    `json:"value"`      // "john@example.com", "+1-555-1234"
-	UserID    string    `json:"user_id"`    // which user owns this identity
-	Verified  bool      `json:"verified"`   // has any channel verified this identity?
+	Type      string    `json:"type"`     // "email", "phone"
+	Value     string    `json:"value"`    // "john@example.com", "+1-555-1234"
+	UserID    string    `json:"user_id"`  // which user owns this identity
+	Verified  bool      `json:"verified"` // has any channel verified this identity?
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Version   int       `json:"version"` // optimistic locking version

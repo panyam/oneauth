@@ -36,9 +36,9 @@ type ASMetadataProxy struct {
 	issuerURL string
 	cacheTTL  time.Duration
 
-	mu        sync.RWMutex
-	cached    []byte
-	cachedAt  time.Time
+	mu       sync.RWMutex
+	cached   []byte
+	cachedAt time.Time
 }
 
 // NewASMetadataProxy creates a proxy that fetches AS metadata from the given

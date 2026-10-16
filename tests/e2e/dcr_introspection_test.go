@@ -38,10 +38,10 @@ func TestDCR_E2E_RegisterAndUse(t *testing.T) {
 	// Step 1: Register via DCR
 	c := NewTestClient(env)
 	dcrResp := c.PostJSON("/apps/dcr", map[string]any{
-		"client_name":                  "E2E DCR App",
-		"client_uri":                   "https://e2e-dcr.example.com",
-		"grant_types":                  []string{"client_credentials"},
-		"token_endpoint_auth_method":   "client_secret_post",
+		"client_name":                "E2E DCR App",
+		"client_uri":                 "https://e2e-dcr.example.com",
+		"grant_types":                []string{"client_credentials"},
+		"token_endpoint_auth_method": "client_secret_post",
 	})
 	require.Equal(t, 201, dcrResp.StatusCode)
 

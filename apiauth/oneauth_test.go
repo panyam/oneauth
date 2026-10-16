@@ -46,8 +46,8 @@ func newTestOneAuth(t *testing.T) *apiauth.OneAuth {
 
 	return apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		KeyStore:     ks,
-		SigningKey:    signingSecret,
-		SigningAlg:    "HS256",
+		SigningKey:   signingSecret,
+		SigningAlg:   "HS256",
 		Issuer:       "test-issuer",
 		Blacklist:    core.NewInMemoryBlacklist(),
 		RefreshStore: newInMemoryRefreshStore(),
@@ -277,7 +277,7 @@ func TestOneAuth_Hooks_OnIssued(t *testing.T) {
 	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "test", Key: secret, Algorithm: "HS256"}})
 	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		KeyStore:   ks,
-		SigningKey:  secret,
+		SigningKey: secret,
 		Issuer:     "test",
 		Blacklist:  core.NewInMemoryBlacklist(),
 		Hooks: apiauth.Hooks{
@@ -304,7 +304,7 @@ func TestOneAuth_Hooks_OnRevoked(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		KeyStore:   ks,
-		SigningKey:  []byte("hooks-test-secret-32chars-min!!!"),
+		SigningKey: []byte("hooks-test-secret-32chars-min!!!"),
 		Issuer:     "test",
 		Blacklist:  core.NewInMemoryBlacklist(),
 		Hooks: apiauth.Hooks{
@@ -332,7 +332,7 @@ func TestOneAuth_Hooks_OnBlacklistHit(t *testing.T) {
 	_, _ = ks.PutKey(context.Background(), &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "test", Key: secret, Algorithm: "HS256"}})
 	oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
 		KeyStore:   ks,
-		SigningKey:  secret,
+		SigningKey: secret,
 		Issuer:     "test",
 		Blacklist:  core.NewInMemoryBlacklist(),
 		Hooks: apiauth.Hooks{

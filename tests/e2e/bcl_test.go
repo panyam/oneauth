@@ -308,4 +308,3 @@ func TestBCL_E2E_NoBCLClientReceivesNothing(t *testing.T) {
 	// none when no client registered a BCL URI. The lack of crash + the
 	// 204 is the success signal.
 }
-

@@ -4,11 +4,11 @@ package admin_test
 // deletion, secret/key rotation, admin auth enforcement, and input validation.
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/keys"
-	"bytes"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,7 +29,7 @@ func TestAppRegistrar_Register(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]any{
 		"client_name": "excaliframe.com",
-		"signing_alg":   "HS256",
+		"signing_alg": "HS256",
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
@@ -54,7 +54,11 @@ func TestAppRegistrar_Register(t *testing.T) {
 	}
 
 	// Verify key was stored
-	keyResp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var key any; if keyResp_ != nil { key = keyResp_.Record.Key }
+	keyResp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
+	var key any
+	if keyResp_ != nil {
+		key = keyResp_.Record.Key
+	}
 	if err != nil {
 		t.Fatalf("Key should be stored: %v", err)
 	}
@@ -62,12 +66,15 @@ func TestAppRegistrar_Register(t *testing.T) {
 		t.Error("Stored key should match returned secret")
 	}
 
-	algResp_, _ := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var alg string; if algResp_ != nil { alg = algResp_.Record.Algorithm }
+	algResp_, _ := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
+	var alg string
+	if algResp_ != nil {
+		alg = algResp_.Record.Algorithm
+	}
 	if alg != "HS256" {
 		t.Errorf("Expected alg HS256, got %s", alg)
 	}
 }
-
 
 // TestAppRegistrar_ListApps verifies that GET /apps returns all registered apps.
 func TestAppRegistrar_ListApps(t *testing.T) {
@@ -186,7 +193,11 @@ func TestAppRegistrar_DeleteApp(t *testing.T) {
 	}
 
 	// Should be gone from KeyStore
-	_Resp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var _ any; if _Resp_ != nil { _ = _Resp_.Record.Key }
+	_Resp_, err := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
+	var _ any
+	if _Resp_ != nil {
+		_ = _Resp_.Record.Key
+	}
 	if err != keys.ErrKeyNotFound {
 		t.Errorf("Expected ErrKeyNotFound after delete, got %v", err)
 	}
@@ -244,7 +255,11 @@ func TestAppRegistrar_RotateSecret(t *testing.T) {
 	}
 
 	// KeyStore should have the new secret
-	keyResp_, _ := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID}); var key any; if keyResp_ != nil { key = keyResp_.Record.Key }
+	keyResp_, _ := ks.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
+	var key any
+	if keyResp_ != nil {
+		key = keyResp_.Record.Key
+	}
 	if string(key.([]byte)) != newSecret {
 		t.Error("KeyStore should have the rotated secret")
 	}

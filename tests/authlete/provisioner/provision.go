@@ -58,13 +58,13 @@ func Defaults(snapshotDir string) Options {
 // restore is a precise rollback rather than a wholesale overwrite that
 // could wipe out concurrent operator changes.
 type Snapshot struct {
-	HadJWKS              bool     `json:"had_jwks"`
-	JWKS                 string   `json:"jwks,omitempty"`
-	PriorRARTypes        []string `json:"prior_rar_types"`
-	HadRARTypes          bool     `json:"had_rar_types"`
-	TestClientID         int64    `json:"test_client_id,omitempty"`
-	PriorClientRARTypes  []string `json:"prior_client_rar_types"`
-	HadClientRARTypes    bool     `json:"had_client_rar_types"`
+	HadJWKS             bool     `json:"had_jwks"`
+	JWKS                string   `json:"jwks,omitempty"`
+	PriorRARTypes       []string `json:"prior_rar_types"`
+	HadRARTypes         bool     `json:"had_rar_types"`
+	TestClientID        int64    `json:"test_client_id,omitempty"`
+	PriorClientRARTypes []string `json:"prior_client_rar_types"`
+	HadClientRARTypes   bool     `json:"had_client_rar_types"`
 }
 
 // ProvisionReport summarizes what the provisioner did. Status is one of
@@ -242,7 +242,6 @@ func (p *Provisioner) updateTestClientRARTypes(ctx context.Context, snapshot *Sn
 	return added, nil
 }
 
-
 // stringsField extracts a []string from a JSON-decoded map. Authlete
 // returns array fields as []any (decoded from JSON arrays); we coerce
 // per-element back to string, skipping non-strings (which shouldn't
@@ -326,4 +325,3 @@ func readSnapshot(path string) (*Snapshot, error) {
 	}
 	return &snap, nil
 }
-

@@ -17,20 +17,20 @@ import (
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/admin"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/httpauth"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/localauth"
-	"github.com/panyam/oneauth/utils"
-	"golang.org/x/oauth2"
 	fsstore "github.com/panyam/oneauth/stores/fs"
 	gaestore "github.com/panyam/oneauth/stores/gae"
 	gormstore "github.com/panyam/oneauth/stores/gorm"
+	"github.com/panyam/oneauth/utils"
+	"golang.org/x/oauth2"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"github.com/panyam/oneauth/accounts"
 )
 
 // issuerClientID is the keystore client_id under which the asymmetric issuer
@@ -340,20 +340,20 @@ func main() {
 
 	grantTypes := []string{"password", "refresh_token", "client_credentials"}
 	asMeta := &apiauth.ASServerMetadata{
-		Issuer:                             baseURL,
-		TokenEndpoint:                      baseURL + "/api/token",
-		JWKSURI:                            baseURL + "/.well-known/jwks.json",
-		IntrospectionEndpoint:              baseURL + "/oauth/introspect",
-		RevocationEndpoint:                 baseURL + "/oauth/revoke",
-		RegistrationEndpoint:               baseURL + "/apps/dcr",
-		ResponseTypesSupported:                     []string{"token"},
-		TokenEndpointAuthMethods:                   []string{"client_secret_post", "client_secret_basic", "private_key_jwt", "client_secret_jwt"},
+		Issuer:                   baseURL,
+		TokenEndpoint:            baseURL + "/api/token",
+		JWKSURI:                  baseURL + "/.well-known/jwks.json",
+		IntrospectionEndpoint:    baseURL + "/oauth/introspect",
+		RevocationEndpoint:       baseURL + "/oauth/revoke",
+		RegistrationEndpoint:     baseURL + "/apps/dcr",
+		ResponseTypesSupported:   []string{"token"},
+		TokenEndpointAuthMethods: []string{"client_secret_post", "client_secret_basic", "private_key_jwt", "client_secret_jwt"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256", "HS256", "HS384", "HS512"},
 		CodeChallengeMethodsSupported:              []string{"S256"},
-		SubjectTypesSupported:              []string{"public"},
-		ScopesSupported:                    cfg.JWT.ScopesSupported,
-		ClaimsSupported:                    cfg.JWT.ClaimsSupported,
-		AuthorizationDetailsTypesSupported: cfg.JWT.AuthorizationDetailsTypes,
+		SubjectTypesSupported:                      []string{"public"},
+		ScopesSupported:                            cfg.JWT.ScopesSupported,
+		ClaimsSupported:                            cfg.JWT.ClaimsSupported,
+		AuthorizationDetailsTypesSupported:         cfg.JWT.AuthorizationDetailsTypes,
 	}
 	if dpop.tokenEndpoint != nil {
 		asMeta.DPoPSigningAlgValuesSupported = dpop.tokenEndpoint.SigningAlgValuesSupported()
@@ -437,12 +437,12 @@ func main() {
 		addr, cfg.KeyStore.Type, cfg.UserStores.Type, cfg.AdminAuth.Type)
 
 	secHeaders := httpauth.SecurityHeadersWithConfig(httpauth.SecurityHeadersConfig{
-		HSTSMaxAge:            31536000,
-		HSTSIncludeSubDomains: true,
-		FrameOptions:          "DENY",
-		ContentSecurityPolicy: "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'",
-		ReferrerPolicy:        "strict-origin-when-cross-origin",
-		PermissionsPolicy:     "camera=(), microphone=(), geolocation=()",
+		HSTSMaxAge:                31536000,
+		HSTSIncludeSubDomains:     true,
+		FrameOptions:              "DENY",
+		ContentSecurityPolicy:     "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'",
+		ReferrerPolicy:            "strict-origin-when-cross-origin",
+		PermissionsPolicy:         "camera=(), microphone=(), geolocation=()",
 		CrossOriginEmbedderPolicy: "credentialless",
 		CrossOriginOpenerPolicy:   "same-origin",
 		CrossOriginResourcePolicy: "same-origin",

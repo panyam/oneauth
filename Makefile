@@ -40,6 +40,15 @@ REPORT_DIR := test-reports
 # These are the building blocks that testall orchestrates.
 
 # Static analysis via staticcheck
+# gofmt every tracked Go file, across all modules. CI fails on any drift
+# (the gofmt step in .github/workflows/ci.yml); fmtcheck runs the same check.
+fmt:
+	@git ls-files '*.go' | xargs gofmt -w
+
+fmtcheck:
+	@unformatted=$$(git ls-files '*.go' | xargs gofmt -l); \
+	if [ -n "$$unformatted" ]; then echo "Not gofmt-clean (run make fmt):"; echo "$$unformatted"; exit 1; fi
+
 lint:
 	@echo "[lint] Running staticcheck..."
 	@GOFLAGS=-buildvcs=false staticcheck ./...
@@ -371,6 +380,10 @@ DS_PORT := 8081
 DS_PROJECT := test-project
 
 # Start a Datastore emulator using Docker for testing
+# --consistency=1.0 because the emulator defaults to 0.9, where a query
+# misses a recent write about one time in ten and the GAE list / contract
+# tests fail at random. Firestore in Datastore mode is strongly consistent,
+# so 1.0 is also what production does.
 upds:
 	@echo "Starting Datastore emulator container..."
 	@docker run --rm -d \
@@ -380,7 +393,8 @@ upds:
 		gcloud beta emulators datastore start \
 			--host-port=0.0.0.0:8081 \
 			--project=$(DS_PROJECT) \
-			--no-store-on-disk
+			--no-store-on-disk \
+			--consistency=1.0
 	@echo "Waiting for Datastore emulator to be ready..."
 	@sleep 3
 	@echo ""
@@ -408,7 +422,8 @@ testds:
 			gcloud beta emulators datastore start \
 				--host-port=0.0.0.0:8081 \
 				--project=$(DS_PROJECT) \
-				--no-store-on-disk; \
+				--no-store-on-disk \
+				--consistency=1.0; \
 		sleep 5; \
 	fi
 	DATASTORE_EMULATOR_HOST=localhost:$(DS_PORT) \
@@ -907,7 +922,7 @@ audit: vulncheck secrets
 .PHONY: test test-hard testall test-report e2e audit \
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
-	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
+	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck \
 	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
 	deps tag pushtag seccheck verify-submodule-deps \

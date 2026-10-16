@@ -1,0 +1,5 @@
+# Formatting-only commits, skipped by `git blame` (git config
+# blame.ignoreRevsFile .git-blame-ignore-revs) and by GitHub's blame view.
+
+# gofmt the files that had drifted (issue 395 item 7)
+177b893501eb34a45e0c818862113f23976b7f46
