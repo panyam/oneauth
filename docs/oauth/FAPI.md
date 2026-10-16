@@ -185,18 +185,18 @@ then alg lockdown. With those landed, FAPI 2.0 conformance is in reach.
 | PAR | **Implemented** (repo issue 337) | [`RFC_9126.md`](RFC_9126.md) |
 | JAR | Gap (repo issue 150) | [`RFC_9101.md`](RFC_9101.md) |
 | RAR | **Implemented** | [`RFC_9396.md`](RFC_9396.md) |
-| DPoP (sender constraint) | **Implemented**. `OneAuthConfig.RequireDPoP` makes the AS issue only bound tokens (§5.3.2.1), `APIMiddleware.RequireDPoP` makes the RS accept only bound tokens (§5.3.4), and `apiauth.FAPIDPoPAlgs()` limits proofs to ES256 / PS256. EdDSA proofs are not supported yet | [`RFC_9449.md`](RFC_9449.md), [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
+| DPoP (sender constraint) | **Implemented**. `OneAuthConfig.RequireDPoP` makes the AS issue only bound tokens (§5.3.2.1), `APIMiddleware.RequireDPoP` makes the RS accept only bound tokens (§5.3.4), and `apiauth.FAPIDPoPAlgs()` limits proofs to ES256 / EdDSA / PS256. The reference server turns all of it on with `deploy-examples/fapi-dpop.yaml` | [`RFC_9449.md`](RFC_9449.md), [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
 | mTLS (sender constraint, PKI clients) | Gap | [`RFC_8705.md`](RFC_8705.md) |
 | PS256 algorithm | Gap for AS token signing (logged). DPoP proofs already accept PS256 | [`RFC_7518.md`](RFC_7518.md) + `_PENDING_GAPS.md` entry 4 |
 | OIDC Core (id_token issuance) | Gap (largest open item) | [`OIDC_Core.md`](OIDC_Core.md) |
 | JARM (signed authz responses, FAPI 1.0 only) | Gap (tracked under repo issue 151) | — |
 | 2.1 spine alignment (PKCE everywhere, no implicit, etc.) | Mostly compliant | [`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md) |
-| Refresh tokens | **Conflict.** OneAuth rotates on every use with reuse detection (RFC 9700); FAPI 2.0 §5.3.2.1 forbids rotation outside extraordinary circumstances. Needs an option to turn rotation off | [`RFC_9700.md`](RFC_9700.md) |
+| Refresh tokens | **Implemented as an option.** OneAuth rotates on every use with reuse detection by default (RFC 9700). `OneAuthConfig.DisableRefreshTokenRotation` (server: `jwt.disable_refresh_token_rotation`) turns it off, as FAPI 2.0 §5.3.2.1 asks | [`RFC_9700.md`](RFC_9700.md) |
 | `iss` on redirect | Implemented | [`RFC_9207.md`](RFC_9207.md) |
 | Strict redirect URI matching + HTTPS | Implemented (DCR + `/authorize`) | [`RFC_9700.md`](RFC_9700.md) |
 
 The "what's needed" reduces to: **JAR + OIDC Core id_token + PS256 token
-signing + EdDSA + a no-rotation refresh mode**, with mTLS as the optional
+signing**, with mTLS as the optional
 second sender constraint. DPoP and PAR are done. That's still a fair amount
 of work, but the shape of each piece is well-defined.
 

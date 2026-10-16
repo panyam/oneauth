@@ -1,0 +1,40 @@
+# In-memory configuration with DPoP turned on the way FAPI 2.0 asks: every
+# access token sender-constrained, FAPI's proof algorithms, server nonces,
+# and refresh tokens that aren't rotated (FAPI 2.0 §5.3.2.1).
+# All data is lost on restart.
+#
+# Usage:
+#   oneauth-server --config deploy-examples/fapi-dpop.yaml
+#
+# Behind a TLS-terminating proxy, set PUBLIC_URL to the URL clients use:
+# DPoP proofs are checked against public_url + /api/token, and with the
+# wrong value every proof fails.
+
+server:
+  port: ${PORT:-8080}
+  host: 0.0.0.0
+  public_url: ${PUBLIC_URL:-http://localhost:8080}
+
+keystore:
+  type: memory
+
+user_stores:
+  type: memory
+
+jwt:
+  secret_key: ${JWT_SECRET_KEY:-dev-secret-change-in-production!!}
+  issuer: ${JWT_ISSUER:-http://localhost:8080}
+  disable_refresh_token_rotation: true
+
+admin_auth:
+  type: none    # open registration, for dev only
+
+dpop:
+  enabled: true
+  profile: fapi              # ES256, EdDSA, PS256
+  require: true              # no proof, no token
+  require_at_resource: true  # /api/* refuses bearer tokens
+  nonce:
+    required: true
+    # Shared by every instance behind one URL. Empty keys nonces per process.
+    secret: ${DPOP_NONCE_SECRET:-}
