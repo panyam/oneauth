@@ -406,7 +406,7 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 <td>client</td>
 <td>Pass (was Fail)</td>
 <td><code>client/client.go</code> <code>requestToken</code> → <code>executeTokenRequest</code></td>
-<td>RefreshThenRetryMintsAFreshProof*</td>
+<td>RefreshThenRetryMintsAFreshProof*, e2e SDKAutoRefreshKeepsTheBinding*; Keycloak SDKRefreshKeepsTheBinding</td>
 </tr>
 <tr>
 <td>5.1</td>
@@ -424,7 +424,7 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 <td>AS</td>
 <td>Pass (was not implemented)</td>
 <td><code>apiauth/token_endpoint.go:478</code> <code>requireDPoP</code>; <code>core.AppRegistration</code>; DCR; all app stores</td>
-<td><code>dpop_require_test.go</code>*, <code>admin/dcr_dpop_test.go</code>*, <code>appstoretest</code> AllFieldsRoundTrip*</td>
+<td><code>dpop_require_test.go</code>*, <code>admin/dcr_dpop_test.go</code>*, <code>appstoretest</code> AllFieldsRoundTrip*, e2e DCRRegisteredDPoPBoundClient*</td>
 </tr>
 <tr>
 <td>6.1</td>
@@ -487,7 +487,7 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 <td>client</td>
 <td>Pass (was Partial)</td>
 <td><code>client/client.go:760</code> <code>rememberNonce</code></td>
-<td>UsesANonceFromASuccessful{Token,Resource}Response*</td>
+<td>UsesANonceFromASuccessful{Token,Resource}Response*, e2e SDKFollowsTheNonceProtocol*</td>
 </tr>
 <tr>
 <td>9</td>
@@ -508,13 +508,22 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 <td><code>dpop_jkt_test.go</code></td>
 </tr>
 <tr>
+<td>10</td>
+<td>Client that sent <code>dpop_jkt</code> proves the key on the code exchange</td>
+<td>MUST</td>
+<td>client</td>
+<td>Pass (was Fail)</td>
+<td><code>client/browser_login.go</code> <code>exchangeCode</code> → <code>doTokenRequest</code></td>
+<td>e2e BrowserLoginWithDPoP*; Keycloak SDKBrowserLogin*</td>
+</tr>
+<tr>
 <td>10.1</td>
 <td>PAR takes <code>dpop_jkt</code> or a proof, rejects a mismatch, checks its own <code>htu</code></td>
 <td>MUST</td>
 <td>AS</td>
 <td>Pass (was Fail with a shared validator)</td>
 <td><code>resolveDPoPBinding</code></td>
-<td><code>TestPARDPoP_*</code>, MountAuthorize_PARSharesTheTokenEndpointValidator*</td>
+<td><code>TestPARDPoP_*</code>, MountAuthorize_PARSharesTheTokenEndpointValidator*, e2e PARWithDPoP*</td>
 </tr>
 <tr>
 <td>RFC 9728</td>
@@ -613,6 +622,58 @@ authenticate the client or check the token belonged to the <code>client_id</code
 <code>ClientID</code> match in <code>RefreshGrant</code>). The <code>dpop_bound_access_tokens</code> check still follows the<br />
 refresh token&rsquo;s owner rather than the request, which is the same client whenever the grant<br />
 would succeed.</p>
+<p>The e2e and Keycloak tests added after the walk found three more, also fixed:</p>
+<ul>
+<li><strong><code>LoginWithBrowser</code> with a DPoP key couldn&rsquo;t log in.</strong> It sent <code>dpop_jkt</code>, which binds the<br />
+code, and then exchanged the code without a proof, so both oneauth and Keycloak refused it.</li>
+<li><strong>The refresh grant answered <code>invalid_grant</code> with 401.</strong> RFC 6749 §5.2 sends every error<br />
+with 400 except <code>invalid_client</code>. Keycloak uses 400.</li>
+<li><strong>A refresh naming no client, for a token that has one, got <code>invalid_grant</code>.</strong> It now gets<br />
+401 <code>invalid_client</code> (&ldquo;no client authentication included&rdquo;, §5.2), and a request naming<br />
+another client gets <code>invalid_grant</code> before any credentials are asked for. Both match<br />
+Keycloak.</li>
+</ul>
+<h3 id="compared-with-keycloak">Compared with Keycloak <a class="anchor" href="#compared-with-keycloak">¶</a></h3>
+<p><code>tests/keycloak/refresh_dpop_interop_test.go</code> sends the same requests to Keycloak and to a<br />
+oneauth AS registered with the same clients, and asserts on both answers. They agree on every<br />
+status. Where the codes or verdicts differ, the test pins both, and we keep ours for the<br />
+reasons below.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Keycloak</th>
+<th>oneauth</th>
+<th>Why we keep ours</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Confidential client, missing or wrong secret, on refresh</td>
+<td>401 <code>unauthorized_client</code></td>
+<td>401 <code>invalid_client</code></td>
+<td>§5.2 names <code>invalid_client</code> for failed client authentication.</td>
+</tr>
+<tr>
+<td>DPoP-bound client sends no proof</td>
+<td>400 <code>invalid_request</code></td>
+<td>400 <code>invalid_dpop_proof</code></td>
+<td>RFC 9449 names no code for this. Keycloak also uses <code>invalid_request</code> for a wrong <code>htu</code>, where §5 does name <code>invalid_dpop_proof</code>, and the SDK keys its retry advice on that code.</td>
+</tr>
+<tr>
+<td><code>htu</code> with a fragment</td>
+<td>refused</td>
+<td>accepted</td>
+<td>§4.3 says to ignore the fragment.</td>
+</tr>
+<tr>
+<td><code>htu</code> with <code>%2D</code> for <code>-</code>, or a <code>/./</code> segment</td>
+<td>refused</td>
+<td>accepted</td>
+<td>§4.3 compares after RFC 3986 §6.2.2 normalization, under which these name the same URL.</td>
+</tr>
+</tbody>
+</table>
 <p>Things that are deliberate rather than gaps:</p>
 <ul>
 <li><strong>Confidential clients&rsquo; refresh tokens are key-bound too.</strong> §5 only requires it for public<br />
