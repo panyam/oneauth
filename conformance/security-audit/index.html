@@ -187,9 +187,10 @@
 <h1 id="security--rfc-compliance-audit">Security &amp; RFC compliance audit <a class="anchor" href="#security--rfc-compliance-audit">¶</a></h1>
 <p>This is the compliance matrix asked for in <a href="https://github.com/panyam/oneauth/issues/88">issue 88</a>.<br />
 Issue 88 covers a lot of ground (RFC 6749 through RFC 9728, the security checklist, FAPI 2.0),<br />
-so we&rsquo;re doing it one area at a time, and each area gets a section here once it&rsquo;s been walked<br />
-requirement by requirement. So far that&rsquo;s DPoP, the HTTP surface (transport and headers,<br />
-authentication and sessions, the admin interface), and tokens and keys.</p>
+so we did it one area at a time, and each area got a section here once it had been walked<br />
+requirement by requirement: DPoP, the HTTP surface (transport and headers, authentication and<br />
+sessions, the admin interface), input validation, and tokens and keys, with FAPI 2.0 alongside<br />
+DPoP. The summary below pulls the results together.</p>
 <p>How to read the tables:</p>
 <ul>
 <li><strong>Status</strong> is what the code does today, checked by reading it, not by trusting the docs.<br />
@@ -201,6 +202,247 @@ that stays green without the feature isn&rsquo;t covering it.</li>
 <li>Code references are <code>file:line</code> on the commit that added the section, so they drift. The<br />
 function names don&rsquo;t.</li>
 </ul>
+<h2 id="summary-october-2026">Summary (October 2026) <a class="anchor" href="#summary-october-2026">¶</a></h2>
+<p>Every area issue 88 asked for has been walked: DPoP, the HTTP surface, tokens and keys, input<br />
+validation, and FAPI 2.0. The fixes shipped in v0.1.40 through v0.1.55 (PRs #394 to #428). One<br />
+row in the tables below is still Open (revoking tokens from a reused authorization code), and<br />
+everything else is Pass, with the caveats each row gives.</p>
+<h3 id="fapi-20-readiness">FAPI 2.0 readiness <a class="anchor" href="#fapi-20-readiness">¶</a></h3>
+<p>oneauth meets the FAPI 2.0 Security Profile&rsquo;s authorization-server and resource-server<br />
+requirements (§5.3.2, §5.3.4) through <code>OneAuthConfig.FAPI2</code>, and the reference server runs the<br />
+profile with <code>deploy-examples/fapi-dpop.yaml</code>. Three caveats:</p>
+<ul>
+<li><strong>Sender constraint is DPoP only.</strong> FAPI allows MTLS or DPoP, and oneauth implements DPoP<br />
+(RFC 9449 end to end). MTLS is #335.</li>
+<li><strong>Client assertions are ES256.</strong> FAPI allows PS256, ES256 and EdDSA; oneauth can register<br />
+ES256 client keys today. PS256 is #330 and EdDSA client keys #331 (EdDSA DPoP proofs already<br />
+work).</li>
+<li><strong>Not run against the OpenID conformance suite.</strong> The OIDF workflow exists but has never run<br />
+(#201, #290). Everything here is checked by our own tests and, where Keycloak supports the<br />
+feature, side by side with Keycloak 26.</li>
+</ul>
+<p>What FAPI 2.0 <em>Message Signing</em> adds (JARM, signed introspection, HTTP message signatures) is not<br />
+supported, and neither is FAPI 1.0&rsquo;s <code>s_hash</code>, which rides on OIDC ID tokens oneauth doesn&rsquo;t<br />
+issue. Those are below.</p>
+<h3 id="what-the-audit-found-by-severity">What the audit found, by severity <a class="anchor" href="#what-the-audit-found-by-severity">¶</a></h3>
+<p>The bugs, not the hardening: each of these let something through that the spec or common sense<br />
+says shouldn&rsquo;t pass.</p>
+<table>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Finding</th>
+<th>Fixed in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Critical</td>
+<td><code>httpauth</code> signed sessions with a fixed public secret when none was configured, so anyone could mint a session for any user</td>
+<td>#404</td>
+</tr>
+<tr>
+<td>High</td>
+<td>FS identity store: a crafted email read and overwrote another account&rsquo;s identity; channel keys read another key&rsquo;s password hash</td>
+<td>#425</td>
+</tr>
+<tr>
+<td>High</td>
+<td>Client-assertion audience taken from <code>X-Forwarded-Host</code>, so an assertion minted for another server was accepted</td>
+<td>#426</td>
+</tr>
+<tr>
+<td>High</td>
+<td>An empty HMAC key verified tokens signed with the empty key (middleware with no secret)</td>
+<td>#414</td>
+</tr>
+<tr>
+<td>High</td>
+<td>A tenant&rsquo;s registered key could sign tokens for any subject, with no <code>client_id</code></td>
+<td>#414</td>
+</tr>
+<tr>
+<td>High</td>
+<td><code>EncryptedKeyStorage</code> returned ciphertext, or a planted plaintext secret, as the key</td>
+<td>#419</td>
+</tr>
+<tr>
+<td>High</td>
+<td>A nil <code>AdminAuth</code> and the server default <code>admin_auth: none</code> left the admin API open</td>
+<td>#406</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Any client could revoke any other client&rsquo;s tokens, and an unsigned token naming a <code>jti</code> revoked it</td>
+<td>#416</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Keycloak ID tokens (and oneauth&rsquo;s own logout tokens, ID-JAGs, sessions) passed as access tokens</td>
+<td>#414, #418</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td><code>X-Forwarded-For</code> from anyone reset rate-limit buckets</td>
+<td>#405</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Open redirects on logout and the federated callback</td>
+<td>#404</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Reset tokens stored in plaintext, and one link could reset twice under a race</td>
+<td>#407</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>PAR broke at the consent screen; a pushed request could issue several codes</td>
+<td>#423</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Registered scope and RAR types were never enforced</td>
+<td>#422, #423</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Signup and CSRF: account enumeration, and same-site posts passing double-submit</td>
+<td>#428</td>
+</tr>
+<tr>
+<td>Low</td>
+<td>Store errors (hosts, database users) in <code>error_description</code></td>
+<td>#422, #424</td>
+</tr>
+<tr>
+<td>Low</td>
+<td>GORM refresh rotation could hand out two tokens under a race</td>
+<td>#416</td>
+</tr>
+<tr>
+<td>Low</td>
+<td>Rotation grace periods were accepted and ignored in the reference server</td>
+<td>#420</td>
+</tr>
+</tbody>
+</table>
+<h3 id="gaps-with-rough-size">Gaps, with rough size <a class="anchor" href="#gaps-with-rough-size">¶</a></h3>
+<p>S is a day or two, M a week, L more.</p>
+<table>
+<thead>
+<tr>
+<th>Gap</th>
+<th>Issue</th>
+<th>Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Revoke tokens issued from a reused authorization code (RFC 6749 §4.1.2 SHOULD)</td>
+<td>#429</td>
+<td>S</td>
+</tr>
+<tr>
+<td>Retired asymmetric keys published in JWKS during their grace period</td>
+<td>#421</td>
+<td>M</td>
+</tr>
+<tr>
+<td>PS256 and EdDSA client keys</td>
+<td>#330, #331</td>
+<td>S each</td>
+</tr>
+<tr>
+<td><code>typ: at+jwt</code> on mint and required on verify (RFC 9068)</td>
+<td>#328, #329</td>
+<td>S</td>
+</tr>
+<tr>
+<td>MTLS client authentication and certificate-bound tokens (RFC 8705)</td>
+<td>#335</td>
+<td>L</td>
+</tr>
+<tr>
+<td>OIDC ID tokens, which <code>s_hash</code> (FAPI 1.0) needs</td>
+<td>#339</td>
+<td>L</td>
+</tr>
+<tr>
+<td>JARM (FAPI 2.0 Message Signing)</td>
+<td>#151, mission #409</td>
+<td>M</td>
+</tr>
+<tr>
+<td>HTTP Message Signatures (RFC 9421)</td>
+<td>#152</td>
+<td>L</td>
+</tr>
+<tr>
+<td>A first run of the OIDF conformance suite</td>
+<td>#201, #290</td>
+<td>M</td>
+</tr>
+<tr>
+<td>GAE store tests in CI (they need a Datastore emulator service)</td>
+<td>#429</td>
+<td>S</td>
+</tr>
+<tr>
+<td>Signup enumeration with email verification off: a fresh signup logs in and a taken one can&rsquo;t, so it stays visible</td>
+<td>— (by design)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="test-coverage">Test coverage <a class="anchor" href="#test-coverage">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>What runs</th>
+<th>Where it runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unit</td>
+<td><code>apiauth</code>, <code>admin</code>, <code>keys</code>, <code>httpauth</code>, <code>localauth</code>, <code>core</code>, <code>utils</code>, every store; the <code>*_hardening_test.go</code> and <code>*_test.go</code> files named in the tables above</td>
+<td>CI (<code>go test -race ./...</code> in every module)</td>
+</tr>
+<tr>
+<td>Store contracts</td>
+<td><code>appstoretest</code>, <code>authcodetest</code>, <code>deviceauthtest</code>, <code>keystoretest</code>, <code>kidstoretest</code>, <code>partest</code> over memory, FS, GORM (SQLite) and GAE, also through <code>EncryptedKeyStorage</code> / <code>EncryptedKidStorage</code></td>
+<td>CI, except GAE, which runs under <code>make testds</code> locally</td>
+</tr>
+<tr>
+<td>End to end</td>
+<td><code>tests/e2e</code>: the full stack in process, including DCR, PAR, DPoP, device flow, revocation</td>
+<td>CI (<code>make e2e</code> locally, with the race detector)</td>
+</tr>
+<tr>
+<td>Keycloak interop</td>
+<td><code>tests/keycloak</code>: JWKS validation, DPoP, refresh comparisons, revocation parity, ID tokens refused as access tokens</td>
+<td>the Keycloak workflow on PRs touching <code>apiauth/</code>, <code>client/</code>, <code>keys/</code>, <code>core/</code>, <code>cmd/oneauth-server/</code></td>
+</tr>
+<tr>
+<td>Reference server</td>
+<td><code>cmd/oneauth-server</code> tests, plus probes against the built binary recorded in each PR</td>
+<td>CI</td>
+</tr>
+<tr>
+<td>Scans</td>
+<td>CodeQL on every PR (0 open alerts, two dismissed with a reason); govulncheck, gitleaks, gosec (<code>make audit</code>); ZAP baseline on main</td>
+<td>CI and <code>make audit</code></td>
+</tr>
+<tr>
+<td>OIDF conformance</td>
+<td><code>tests/oidf-conformance</code></td>
+<td>never run (#201, #290)</td>
+</tr>
+</tbody>
+</table>
 <h2 id="dpop-rfc-9449-and-the-dpop-parts-of-fapi-20">DPoP (RFC 9449, and the DPoP parts of FAPI 2.0) <a class="anchor" href="#dpop-rfc-9449-and-the-dpop-parts-of-fapi-20">¶</a></h2>
 <p>Audited October 2026. DPoP had already shipped across issues 336, 374, 375 and 377. Most of<br />
 RFC 9449 held up, but the walk turned up three real bugs and a FAPI requirement nothing<br />
@@ -1422,7 +1664,7 @@ several PRs, and rows still Open name the part of issue 88 they&rsquo;re waiting
 <tr>
 <td>Tokens from a code redeemed twice are revoked</td>
 <td>RFC 6749 §4.1.2 (SHOULD)</td>
-<td>Open</td>
+<td>Open (#429)</td>
 <td>needs a record of used codes; the second redemption is refused, but tokens from the first stay valid</td>
 <td>—</td>
 </tr>
