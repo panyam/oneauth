@@ -188,8 +188,8 @@
 <p>This is the compliance matrix asked for in <a href="https://github.com/panyam/oneauth/issues/88">issue 88</a>.<br />
 Issue 88 covers a lot of ground (RFC 6749 through RFC 9728, the security checklist, FAPI 2.0),<br />
 so we&rsquo;re doing it one area at a time, and each area gets a section here once it&rsquo;s been walked<br />
-requirement by requirement. So far that&rsquo;s DPoP and the HTTP surface (transport and headers,<br />
-authentication and sessions, the admin interface).</p>
+requirement by requirement. So far that&rsquo;s DPoP, the HTTP surface (transport and headers,<br />
+authentication and sessions, the admin interface), and tokens and keys.</p>
 <p>How to read the tables:</p>
 <ul>
 <li><strong>Status</strong> is what the code does today, checked by reading it, not by trusting the docs.<br />
@@ -962,6 +962,154 @@ The fixes land across several PRs; the Status column says which rows are done.</
 </tr>
 </tbody>
 </table>
+<h2 id="tokens-and-keys">Tokens and keys <a class="anchor" href="#tokens-and-keys">¶</a></h2>
+<p>Audited October 2026, against issue 88&rsquo;s &ldquo;Token Security&rdquo; and &ldquo;Key Management&rdquo; sections, RFC<br />
+8725 (JWT best practices), RFC 6750 and RFC 7009. Like the HTTP surface, the fixes land across<br />
+several PRs, and rows still Open name the part of issue 88 they&rsquo;re waiting on.</p>
+<h3 id="access-tokens">Access tokens <a class="anchor" href="#access-tokens">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Ref</th>
+<th>Status</th>
+<th>Code</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Algorithm pinned per key, <code>none</code> refused</td>
+<td>RFC 8725 §3.1, CVE-2015-9235</td>
+<td>Pass</td>
+<td><code>jwtValidator</code> / <code>APIMiddleware</code> check the method against the key&rsquo;s alg</td>
+<td><code>security_test.go</code> AlgNone, AlgConfusion</td>
+</tr>
+<tr>
+<td>An empty HMAC key never verifies or signs</td>
+<td>RFC 7518 §3.2, CWE-347</td>
+<td>Pass (was Fail)</td>
+<td><code>jwtValidator</code>, the middleware&rsquo;s inline path and <code>CreateAccessToken</code> refuse a zero-length key; the reference server refuses a <code>jwt.secret_key</code> under 32 bytes (<code>checkSigningSecret</code>)</td>
+<td>EmptyHMACKeyNeverVerifies*, HS256SecretMustBeLongEnough*</td>
+</tr>
+<tr>
+<td><code>exp</code> required</td>
+<td>RFC 8725 §3.10, RFC 9068 §2.2</td>
+<td>Pass (was Fail)</td>
+<td><code>accessTokenParserOptions</code> (<code>jwt.WithExpirationRequired</code>)</td>
+<td>ExpIsRequired*</td>
+</tr>
+<tr>
+<td>Other JWTs from the same key aren&rsquo;t access tokens</td>
+<td>RFC 8725 §3.11, §3.12</td>
+<td>Pass (was Fail)</td>
+<td><code>checkAccessTokenKind</code> refuses a <code>typ</code> other than <code>JWT</code> / <code>at+jwt</code> and a <code>type</code> claim other than <code>access</code>, so logout tokens, ID-JAGs and sessions fail</td>
+<td>OtherJWTKindsAreNotAccessTokens*</td>
+</tr>
+<tr>
+<td>A tenant&rsquo;s key signs only for that tenant</td>
+<td>CWE-347</td>
+<td>Pass (was Fail)</td>
+<td><code>checkTenantKey</code>: a key registered to a client needs a matching <code>client_id</code> claim</td>
+<td>TenantKeySignsOnlyForItsTenant*</td>
+</tr>
+<tr>
+<td>Custom claims can&rsquo;t set authorization claims</td>
+<td>RFC 9068 §2.2</td>
+<td>Pass (was Partial)</td>
+<td><code>issuanceReservedClaims</code> adds <code>nbf</code>, <code>scope</code>, <code>azp</code>, <code>sid</code>, <code>act</code>, <code>may_act</code>; <code>client_id</code> only when the grant had none</td>
+<td>CustomClaimsCannotOverrideAuthorizationClaims*</td>
+</tr>
+<tr>
+<td><code>WWW-Authenticate</code> per RFC 6750</td>
+<td>RFC 6750 §3, §3.1</td>
+<td>Pass (was Partial)</td>
+<td>no <code>error</code> without a token, <code>invalid_token</code> for a refused one, 403 <code>insufficient_scope</code> with <code>scope</code>, and <code>resource_metadata</code> (RFC 9728 §5.1)</td>
+<td>BearerChallenges*</td>
+</tr>
+<tr>
+<td>Session cookies aren&rsquo;t accepted as access tokens, and access tokens aren&rsquo;t accepted as sessions</td>
+<td>RFC 8725 §3.11</td>
+<td>Pass (was Fail)</td>
+<td><code>httpauth</code> <code>verifyJWT</code> and the reference server&rsquo;s <code>parseJWTCookie</code> require <code>type: session</code> (and <code>exp</code>, HS256 in the server)</td>
+<td><code>session_type_test.go</code>*, AccessTokenIsNotASessionCookie*</td>
+</tr>
+<tr>
+<td>Revocation checks the token is the caller&rsquo;s, and verifies it first</td>
+<td>RFC 7009 §2.1</td>
+<td>Open</td>
+<td>blacklists an unverified <code>jti</code> from any client</td>
+<td>revocation PR</td>
+</tr>
+<tr>
+<td>jwt-bearer and token-exchange assertions single-use</td>
+<td>RFC 7523 §3</td>
+<td>Open</td>
+<td>no <code>jti</code> replay check outside ID-JAG</td>
+<td>revocation PR</td>
+</tr>
+<tr>
+<td>Refresh rotation atomic in GORM</td>
+<td>RFC 9700 §4.14</td>
+<td>Open</td>
+<td>read-then-write race</td>
+<td>revocation PR</td>
+</tr>
+<tr>
+<td>Refresh families have an absolute lifetime</td>
+<td>RFC 9700 §4.14.2</td>
+<td>Open</td>
+<td>sliding only</td>
+<td>revocation PR</td>
+</tr>
+</tbody>
+</table>
+<h3 id="keys">Keys <a class="anchor" href="#keys">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Ref</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Thumbprint kid per RFC 7638</td>
+<td>RFC 7638 §3.1</td>
+<td>Pass</td>
+<td>computed correctly; no test pins the RFC&rsquo;s example vector yet (keys PR)</td>
+</tr>
+<tr>
+<td><code>EncryptedKeyStorage</code> fails closed</td>
+<td>CWE-311</td>
+<td>Open</td>
+<td>a failed decrypt returns the ciphertext as the key; no AAD binds a record to its kid (keys PR)</td>
+</tr>
+<tr>
+<td>Retired keys encrypted at rest</td>
+<td>CWE-312</td>
+<td>Open</td>
+<td><code>KidStore</code> keeps them in plaintext (keys PR)</td>
+</tr>
+<tr>
+<td>RSA signing keys at least 2048 bits</td>
+<td>RFC 7518 §3.3</td>
+<td>Open</td>
+<td>not checked when a key is loaded (keys PR)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="scans">Scans <a class="anchor" href="#scans">¶</a></h3>
+<ul>
+<li><code>govulncheck ./...</code>: no reachable vulnerabilities.</li>
+<li>gitleaks v8.21.2 over 487 commits: no leaks.</li>
+<li>gosec: v2.21.4 and v2.22.4 don&rsquo;t build under Go 1.27, and v2.29.0 only runs its AST rules<br />
+(type checking fails on export data version 5). Those report 23 G101 &ldquo;hardcoded credentials&rdquo;<br />
+hits, all on constants such as grant-type URNs and header names. <code>make audit</code> expects both<br />
+tools on the PATH, which is fixed in the keys PR.</li>
+</ul>
 
 
     </div>
