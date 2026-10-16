@@ -322,26 +322,14 @@ func main() {
 	mux.Handle("GET /api/sessions", apiMiddleware.ValidateToken(http.HandlerFunc(sessions.HandleListSessions)))
 	mux.Handle("POST /api/logout-all", apiMiddleware.ValidateToken(http.HandlerFunc(sessions.HandleLogoutAll)))
 
-	// Token revocation endpoint — revokes the caller's access token via blacklist
+	// Token revocation endpoint — revokes the caller's own access token.
+	// The middleware has verified it; the revoker verifies it again before
+	// blacklisting its jti, so nothing here reads an unverified JWT.
 	mux.Handle("POST /api/revoke", apiMiddleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract jti from the validated token (already in context after middleware)
-		auth := r.Header.Get("Authorization")
-		if len(auth) > 7 {
-			tokenStr := auth[7:] // strip "Bearer "
-			parser := jwt.NewParser()
-			parsed, _, _ := parser.ParseUnverified(tokenStr, jwt.MapClaims{})
-			if parsed != nil {
-				if claims, ok := parsed.Claims.(jwt.MapClaims); ok {
-					if jti, ok := claims["jti"].(string); ok && jti != "" {
-						exp, _ := claims.GetExpirationTime()
-						if exp != nil {
-							blacklist.Revoke(jti, exp.Time)
-						} else {
-							blacklist.Revoke(jti, time.Now().Add(core.TokenExpiryAccessToken))
-						}
-					}
-				}
-			}
+		_, token, _ := strings.Cut(r.Header.Get("Authorization"), " ") // Bearer or DPoP
+		if _, err := oa.Revoker.Revoke(r.Context(), &apiauth.RevokeRequest{Token: token, TokenTypeHint: "access_token"}); err != nil {
+			http.Error(w, "revocation failed", http.StatusInternalServerError)
+			return
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})))
