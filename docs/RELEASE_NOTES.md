@@ -3,6 +3,34 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.49
+
+### Authorize, PAR, PKCE and the device flow (issue 88, PR 423)
+
+- **PAR works through the consent screen.** The consent form round-trips
+  `request_uri`, so Approve resolves the pushed payload; before, it re-read
+  the hidden inputs as a fresh request, never spent the reference, and
+  failed outright with `RequirePushedRequests`.
+- **One code per pushed request.** `IssueCode` spends the reference before
+  minting; `ConsumePushedAuthorizationRequestResponse.Consumed` is true for
+  exactly one caller.
+- **`request_uri` requires `client_id`** (RFC 9126 §4).
+- **PKCE shape** (RFC 7636): an S256 challenge is 43 base64url characters;
+  a plain challenge and every verifier 43 to 128 unreserved characters.
+- **Registered scope** applies at `/authorize` (`invalid_scope` on the
+  redirect) and device authorization (400).
+- **`/authorize` without a client registry refuses** unless
+  `AllowAnyRedirectURI` (on `AuthorizationHandler` or
+  `AuthorizeMountConfig`).
+
+### Upgrading
+
+- Custom consent templates must post `request_uri` back.
+- Mounts with neither `AppStore` nor `RedirectURIValidator` need one, or
+  `AllowAnyRedirectURI` in tests.
+- Custom `PushedAuthorizationRequestStore`s must set `Consumed`.
+- Malformed PKCE values are refused.
+
 ## Version 0.1.48
 
 ### Input validation at the token endpoint (issue 88, PR 422)
