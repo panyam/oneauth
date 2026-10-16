@@ -3,6 +3,33 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.2.2
+
+### Introspection `cnf`; FAPI2 assertion grants (issue 434, PR 437)
+
+- **Security: HTTP introspection omitted `cnf`.** `IntrospectionHandler`
+  never copied the token's confirmation into its JSON, so a resource server
+  validating through `POST /oauth/introspect` accepted a DPoP-bound token
+  presented as Bearer (RFC 9449 §6.2, §7.2). Bound tokens now carry `cnf`;
+  unbound ones carry none. Every version since 0.1.37 is affected.
+- **Security: `FAPI2` let assertion grants skip client authentication.** A
+  jwt-bearer or token-exchange request with no `client_id` returned from the
+  confidential-client gate before its FAPI checks and got a token. Under
+  `FAPI2` such a request now authenticates the client its credentials name
+  (private_key_jwt's `iss`), which must be registered as confidential.
+- **Docs.** Every guide under `docs/oauth/`, plus `CONFORMANCE.md` and
+  `OAUTH21_ALIGNMENT.md`, is checked against the code and cites symbols
+  rather than line numbers (PR 435).
+
+### Upgrading
+
+- Resource servers that introspect now enforce DPoP binding: a bound token
+  sent as Bearer gets 401.
+- `FAPI2` deployments: jwt-bearer and token-exchange requests without client
+  authentication get 401 `invalid_client`.
+- Revoking a refresh token still leaves its access tokens valid until they
+  expire (#436).
+
 ## Version 0.2.1
 
 ### `DPoPKey.ProofWithNonce` (PR 432)
