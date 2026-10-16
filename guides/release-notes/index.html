@@ -189,6 +189,28 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-0150">Version 0.1.50 <a class="anchor" href="#version-0150">¶</a></h2>
+<h3 id="dcr-validation-and-per-client-par-issue-88-pr-424">DCR validation and per-client PAR (issue 88, PR 424) <a class="anchor" href="#dcr-validation-and-per-client-par-issue-88-pr-424">¶</a></h3>
+<ul>
+<li><strong>Redirect URIs</strong> with userinfo or no https host are refused, and every<br />
+redirect problem answers <code>invalid_redirect_uri</code> (<code>ErrInvalidRedirectURI</code>,<br />
+which wraps <code>ErrInvalidClientMetadata</code>).</li>
+<li><strong>Auth methods and grant types</strong> are checked against what the token<br />
+endpoint supports and against each other, on register and update.</li>
+<li><strong>Default auth method</strong> is <code>client_secret_basic</code> (RFC 7591 §2), stored<br />
+and echoed alike; a <code>none</code> client gets no secret.</li>
+<li><strong>DCR server errors</strong> are logged, not returned.</li>
+<li><strong><code>require_pushed_authorization_requests</code></strong> (RFC 9126 §6) through DCR,<br />
+<code>core.AppRegistration</code>, the FS / GORM / GAE app stores and the client<br />
+SDK; <code>/authorize</code> enforces it.</li>
+</ul>
+<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<ul>
+<li>Registrations with bad redirect URIs, unknown methods or grants, or<br />
+<code>authorization_code</code> without a redirect URI are refused.</li>
+<li>The echoed default method is <code>client_secret_basic</code>.</li>
+<li>GORM adds a <code>require_pushed_authorization_requests</code> column on migrate.</li>
+</ul>
 <h2 id="version-0149">Version 0.1.49 <a class="anchor" href="#version-0149">¶</a></h2>
 <h3 id="authorize-par-pkce-and-the-device-flow-issue-88-pr-423">Authorize, PAR, PKCE and the device flow (issue 88, PR 423) <a class="anchor" href="#authorize-par-pkce-and-the-device-flow-issue-88-pr-423">¶</a></h3>
 <ul>
@@ -208,7 +230,7 @@ redirect) and device authorization (400).</li>
 <code>AllowAnyRedirectURI</code> (on <code>AuthorizationHandler</code> or<br />
 <code>AuthorizeMountConfig</code>).</li>
 </ul>
-<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
 <ul>
 <li>Custom consent templates must post <code>request_uri</code> back.</li>
 <li>Mounts with neither <code>AppStore</code> nor <code>RedirectURIValidator</code> need one, or<br />
@@ -233,7 +255,7 @@ an <code>invalid_client</code> 401 carries <code>WWW-Authenticate: Basic</code>;
 <li><strong>Bodies are bounded at 64 KiB</strong> on the token endpoint (413) and, via<br />
 <code>httpauth.CapRequestBody</code>, on every other handler that reads one.</li>
 </ul>
-<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
+<h3 id="upgrading-2">Upgrading <a class="anchor" href="#upgrading-2">¶</a></h3>
 <ul>
 <li>Clients registered with a <code>scope</code> that ask for something else get 400.</li>
 <li>A wrong password on the password grant is 400, not 401.</li>
@@ -260,7 +282,7 @@ via <code>go run</code>; CI pins govulncheck too.</li>
 <li><strong>Deploy examples</strong> <code>memory.yaml</code> and <code>fapi-dpop.yaml</code> let <code>jwt.issuer</code><br />
 follow <code>public_url</code>.</li>
 </ul>
-<h3 id="upgrading-2">Upgrading <a class="anchor" href="#upgrading-2">¶</a></h3>
+<h3 id="upgrading-3">Upgrading <a class="anchor" href="#upgrading-3">¶</a></h3>
 <ul>
 <li><strong>Short RSA keys</strong> (under 2048 bits) fail when loaded, including keys a<br />
 remote JWKS publishes.</li>
@@ -290,7 +312,7 @@ deletes included, is Secure + HttpOnly + SameSite=Lax, and <code>httpauth</code>
 the parsed path, query and fragment.</li>
 <li><strong>Workflows</strong> run with a read-only <code>GITHUB_TOKEN</code>.</li>
 </ul>
-<h3 id="upgrading-3">Upgrading <a class="anchor" href="#upgrading-3">¶</a></h3>
+<h3 id="upgrading-4">Upgrading <a class="anchor" href="#upgrading-4">¶</a></h3>
 <ul>
 <li><strong>Encrypted key stores holding plaintext secrets:</strong> start once with<br />
 <code>key_store.migrate_legacy: true</code>, or set <code>AllowLegacyPlaintext</code> and call<br />
@@ -339,7 +361,7 @@ the family&rsquo;s expiry in every store.</li>
 <code>httpauth</code>&rsquo;s log, and no unverified JWT parse in the revoker or the<br />
 server&rsquo;s <code>/api/revoke</code>.</li>
 </ul>
-<h3 id="upgrading-4">Upgrading <a class="anchor" href="#upgrading-4">¶</a></h3>
+<h3 id="upgrading-5">Upgrading <a class="anchor" href="#upgrading-5">¶</a></h3>
 <ul>
 <li><strong>Tokens without <code>exp</code></strong> no longer validate. oneauth always set it.</li>
 <li><strong>Missing scope</strong> is 403, not 401.</li>
@@ -390,7 +412,7 @@ plain-http public URL on a non-loopback host unless <code>allow_insecure_http</c
 <code>jwt.issuer</code> defaults to the public URL. Pages load a prebuilt stylesheet<br />
 (<code>make server-css</code>), and the CSP allows only <code>'self'</code>.</li>
 </ul>
-<h3 id="upgrading-5">Upgrading <a class="anchor" href="#upgrading-5">¶</a></h3>
+<h3 id="upgrading-6">Upgrading <a class="anchor" href="#upgrading-6">¶</a></h3>
 <ul>
 <li><strong><code>AdminAuth</code>:</strong> pass <code>NewNoAuth()</code> for open admin routes; nil now refuses.</li>
 <li><strong>DCR behind a real host:</strong> set <code>AppRegistrar.IssuerBaseURL</code>, or registration<br />
@@ -440,7 +462,7 @@ failed.</li>
 <li>Every Go file is gofmt-clean and CI checks it. <code>make fmt</code> fixes;<br />
 <code>.git-blame-ignore-revs</code> keeps the cleanup commit out of blame.</li>
 </ul>
-<h3 id="upgrading-6">Upgrading <a class="anchor" href="#upgrading-6">¶</a></h3>
+<h3 id="upgrading-7">Upgrading <a class="anchor" href="#upgrading-7">¶</a></h3>
 <ul>
 <li><strong><code>DPoPKey</code> callers:</strong> no exported API changed, but a validator using the<br />
 default algorithm list now also accepts Ed25519 proofs. Set<br />
@@ -467,7 +489,7 @@ and <code>ClientRegistrationResponse</code> (RFC 9449 §5.2).</li>
 </ul>
 <p>Where oneauth and Keycloak still answer differently, <code>docs/SECURITY_AUDIT.md</code><br />
 says which and why.</p>
-<h3 id="upgrading-7">Upgrading <a class="anchor" href="#upgrading-7">¶</a></h3>
+<h3 id="upgrading-8">Upgrading <a class="anchor" href="#upgrading-8">¶</a></h3>
 <ul>
 <li><strong>Code that branches on the refresh grant&rsquo;s status</strong> sees 400 instead of<br />
 401 for a refused token. Only <code>invalid_client</code> is 401.</li>
@@ -521,7 +543,7 @@ reaches jwt-bearer, token-exchange and PAR.</li>
 <li><strong>SDK.</strong> <code>ServerCredential.ClientID</code> records which client a credential was<br />
 issued to, and the automatic refresh sends it instead of <code>&quot;cli&quot;</code>.</li>
 </ul>
-<h3 id="upgrading-8">Upgrading <a class="anchor" href="#upgrading-8">¶</a></h3>
+<h3 id="upgrading-9">Upgrading <a class="anchor" href="#upgrading-9">¶</a></h3>
 <ul>
 <li><strong>GORM deployments need <code>AutoMigrate</code></strong> for the new app-registration columns<br />
 (<code>dpop_bound_access_tokens</code> and the two back-channel logout fields).</li>

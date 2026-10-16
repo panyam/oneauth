@@ -1082,8 +1082,51 @@ device flow; DCR and metadata follow.</p>
 <tr>
 <td>A client can be required to use PAR</td>
 <td>RFC 9126 §6</td>
-<td>Open</td>
-<td><code>require_pushed_authorization_requests</code> per client needs a registration field across the app stores; <code>RequirePushedRequests</code> is server-wide today</td>
+<td>Pass (was not implemented)</td>
+<td><code>require_pushed_authorization_requests</code> in DCR, <code>core.AppRegistration</code> and every app store; <code>/authorize</code> refuses that client&rsquo;s direct requests. RegisteredRequirementIsEnforced*, <code>appstoretest</code> AllFieldsRoundTrip</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dynamic-client-registration">Dynamic client registration <a class="anchor" href="#dynamic-client-registration">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Ref</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Redirect URIs are real URLs, refused as <code>invalid_redirect_uri</code></td>
+<td>RFC 7591 §3.2.2, RFC 6749 §3.1.2</td>
+<td>Pass (was Partial)</td>
+<td>userinfo and an empty https host are refused too, and every redirect problem answers <code>invalid_redirect_uri</code> (was <code>invalid_client_metadata</code>). BadRedirectURIs*</td>
+</tr>
+<tr>
+<td>Only supported auth methods and grant types</td>
+<td>RFC 7591 §2</td>
+<td>Pass (was Fail)</td>
+<td>an unknown method or grant is <code>invalid_client_metadata</code>; a public client can&rsquo;t take <code>client_credentials</code>; <code>authorization_code</code> needs a <code>redirect_uri</code>. UnknownAuthMethodAndGrantType*</td>
+</tr>
+<tr>
+<td>The stored auth method is the echoed one</td>
+<td>RFC 7591 §2</td>
+<td>Pass (was Fail)</td>
+<td>the response said <code>client_secret_post</code> while <code>&quot;&quot;</code> was stored, so a client reading its registration back (RFC 7592) saw a different method from the one it was told. Both are now <code>client_secret_basic</code>, the RFC default. EchoedAuthMethodIsTheStoredOne*</td>
+</tr>
+<tr>
+<td>A public client gets no secret</td>
+<td>RFC 7591 §2</td>
+<td>Pass (was Fail)</td>
+<td><code>none</code> used to be issued (and stored) a secret. PublicClientGetsNoSecret*</td>
+</tr>
+<tr>
+<td>DCR server errors say nothing internal</td>
+<td>CWE-209</td>
+<td>Pass (was Fail)</td>
+<td>logged, with &ldquo;internal server error&rdquo; in the response</td>
 </tr>
 </tbody>
 </table>
