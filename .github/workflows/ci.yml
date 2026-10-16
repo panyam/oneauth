@@ -105,9 +105,10 @@ jobs:
           done
 
       - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@af08e42c2b62be6e5609d5c7e1b667c5ef52e57d # v0.14.0
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
           target: http://localhost:19876
           rules_file_name: .zap-rules.tsv
           fail_action: false # don't fail CI on findings (yet), just report
+          allow_issue_writing: false # report goes to the run's artifact, not a new issue per push
           cmd_options: '-a -j' # AJAX spider + JSON report
