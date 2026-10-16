@@ -598,6 +598,74 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 </tr>
 </tbody>
 </table>
+<h3 id="fapi-20-security-profile-final-the-rest-of-532">FAPI 2.0 Security Profile (final), the rest of §5.3.2 <a class="anchor" href="#fapi-20-security-profile-final-the-rest-of-532">¶</a></h3>
+<p><code>OneAuthConfig.FAPI2</code> turns the profile on as one switch instead of several (issue 88).</p>
+<table>
+<thead>
+<tr>
+<th>§</th>
+<th>Requirement</th>
+<th>Status</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5.3.2.1 #2</td>
+<td>Reject the resource owner password grant</td>
+<td>Pass (was opt-in)</td>
+<td><code>FAPI2</code> answers <code>unsupported_grant_type</code> even when a <code>PasswordGranter</code> is wired. DPoPRequiredAndNoPasswordGrant*</td>
+</tr>
+<tr>
+<td>5.3.2.1 #3</td>
+<td>Confidential clients only</td>
+<td>Pass (was not possible)</td>
+<td>the confidential-client gate refuses public and unregistered clients under <code>FAPI2</code></td>
+</tr>
+<tr>
+<td>5.3.2.1 #6</td>
+<td>Client authentication by <code>private_key_jwt</code> (or MTLS)</td>
+<td>Pass (was not possible)</td>
+<td><code>fapiClientAuthenticator</code> refuses client secrets; MTLS isn&rsquo;t implemented. ClientAuthentication*</td>
+</tr>
+<tr>
+<td>5.3.2.1 #8</td>
+<td>Accept only the issuer, as a string, as the client assertion&rsquo;s <code>aud</code></td>
+<td>Pass (was not possible)</td>
+<td><code>AcceptedAudiences</code> pinned to the issuer and <code>RequireStringAudience</code>. ClientAuthentication*</td>
+</tr>
+<tr>
+<td>—</td>
+<td>A caller can&rsquo;t choose the audience its assertion is checked against</td>
+<td>Pass (was Fail, every deployment)</td>
+<td><code>derivedAudience</code> read <code>X-Forwarded-Host</code> / <code>-Proto</code> from anyone, so an assertion minted for another server passed. It now uses <code>r.TLS</code> and <code>r.Host</code> only, and the token endpoint also accepts the issuer by default (RFC 7523 §3). ForwardedHeadersDontChooseTheAudience*</td>
+</tr>
+<tr>
+<td>5.3.2.1 #4, #9</td>
+<td>Sender-constrained tokens, no rotation</td>
+<td>Pass</td>
+<td><code>FAPI2</code> sets <code>RequireDPoP</code> and <code>DisableRefreshTokenRotation</code></td>
+</tr>
+<tr>
+<td>5.3.2.2 #1</td>
+<td>PAR only</td>
+<td>Pass</td>
+<td><code>MountAuthorize</code> sets <code>RequirePushedRequests</code> under <code>FAPI2</code>, and panics without a <code>PushedStore</code></td>
+</tr>
+<tr>
+<td>5.3.2.2</td>
+<td>Codes at most 60s, <code>request_uri</code> under 600s</td>
+<td>Pass</td>
+<td>defaults already were; <code>FAPI2</code> caps longer configured values. LifetimeCaps</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Reference server can run the whole profile</td>
+<td>Open</td>
+<td>it has no PAR endpoint yet; next PR</td>
+</tr>
+</tbody>
+</table>
 <h3 id="what-the-walk-found">What the walk found <a class="anchor" href="#what-the-walk-found">¶</a></h3>
 <p>Fixed alongside this section:</p>
 <ul>
