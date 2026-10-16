@@ -189,6 +189,62 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-0141">Version 0.1.41 <a class="anchor" href="#version-0141">¶</a></h2>
+<h3 id="dpop-audit-and-requiring-dpop-issue-88-pr-396">DPoP audit and requiring DPoP (issue 88, PR 396) <a class="anchor" href="#dpop-audit-and-requiring-dpop-issue-88-pr-396">¶</a></h3>
+<p>We walked RFC 9449 and the DPoP parts of FAPI 2.0 against the code, one<br />
+requirement at a time. The matrix is in <code>docs/SECURITY_AUDIT.md</code>, also on the<br />
+site under Conformance. The walk turned up a few bugs and one missing feature.</p>
+<ul>
+<li><strong>Requiring DPoP.</strong> <code>OneAuthConfig.RequireDPoP</code> makes the token endpoint<br />
+refuse any request without a proof (FAPI 2.0 §5.3.2.1). A client registered<br />
+with <code>dpop_bound_access_tokens</code> (RFC 9449 §5.2) is held to it on its own.<br />
+The field is on <code>core.AppRegistration</code> and DCR. Either way a missing proof<br />
+gets 400 <code>invalid_dpop_proof</code>, never a bearer token.</li>
+<li><strong>PAR with a shared validator.</strong> <code>/par</code> checks a proof&rsquo;s <code>htu</code> against its<br />
+own URL, so <code>MountAuthorize</code> giving it the token endpoint&rsquo;s validator works.<br />
+Before, every correct PAR proof failed behind a proxy, and a proof made for<br />
+the token endpoint was accepted at <code>/par</code>. PAR also answers a nonce<br />
+challenge with <code>use_dpop_nonce</code> and <code>DPoP-Nonce</code>.</li>
+<li><strong><code>htu</code> comparison</strong> follows RFC 3986 §6.2 normalization (case, default<br />
+ports, percent-encoding, dot segments).</li>
+<li>RSA proof keys under 2048 bits are refused, <code>jti</code> is capped at 256 bytes, and<br />
+<code>apiauth.FAPIDPoPAlgs()</code> returns ES256 and PS256.</li>
+<li><strong>SDK.</strong> The automatic refresh now carries a proof, so a DPoP client can<br />
+redeem its own bound refresh token. A <code>DPoP-Nonce</code> on any response is kept<br />
+for the next request.</li>
+<li><strong>GORM and GAE app stores</strong> now persist <code>dpop_bound_access_tokens</code>, and the<br />
+<code>backchannel_logout_uri</code> / <code>backchannel_logout_session_required</code> settings<br />
+they used to drop, which switched off back-channel logout after a restart.</li>
+</ul>
+<h3 id="the-refresh-grant-checks-the-client-issue-395-pr-397">The refresh grant checks the client (issue 395, PR 397) <a class="anchor" href="#the-refresh-grant-checks-the-client-issue-395-pr-397">¶</a></h3>
+<p>The refresh grant used to check only the token, so a leaked refresh token<br />
+redeemed under any <code>client_id</code>, or none, and a confidential client&rsquo;s token<br />
+redeemed without its secret (RFC 6749 §6).</p>
+<ul>
+<li>If the token&rsquo;s owner is registered confidential, the request has to<br />
+authenticate as a client, or it gets 401 <code>invalid_client</code>.</li>
+<li>The token must belong to the presenting <code>client_id</code>, or the grant answers<br />
+<code>invalid_grant</code> before rotating, so a refused attempt doesn&rsquo;t use up the<br />
+owner&rsquo;s token. A token stored with no client still redeems.</li>
+<li><code>RefreshGrantRequest.ClientID</code> carries the presenting client for library<br />
+callers of <code>TokenIssuer.RefreshGrant</code>.</li>
+<li>The shared confidential-client check treats an AppStore error other than<br />
+not-found as a 500, where it used to treat the client as public. This also<br />
+reaches jwt-bearer, token-exchange and PAR.</li>
+<li><strong>SDK.</strong> <code>ServerCredential.ClientID</code> records which client a credential was<br />
+issued to, and the automatic refresh sends it instead of <code>&quot;cli&quot;</code>.</li>
+</ul>
+<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<ul>
+<li><strong>GORM deployments need <code>AutoMigrate</code></strong> for the new app-registration columns<br />
+(<code>dpop_bound_access_tokens</code> and the two back-channel logout fields).</li>
+<li><strong>Refresh callers must send their <code>client_id</code></strong>, and confidential clients<br />
+their credentials. Callers that left <code>client_id</code> off, or sent another one,<br />
+are now refused.</li>
+<li><strong>The SDK&rsquo;s automatic refresh sends no client secret</strong>, so a confidential<br />
+client logged in with <code>LoginWithBrowser</code> and a <code>ClientSecret</code> can&rsquo;t<br />
+auto-refresh. Call <code>RefreshToken</code> with the secret (issue 395 item 4).</li>
+</ul>
 <h2 id="version-0140">Version 0.1.40 <a class="anchor" href="#version-0140">¶</a></h2>
 <h3 id="typed-login-and-token-errors-issues-392-393-pr-394">Typed login and token errors (issues 392, 393, PR 394) <a class="anchor" href="#typed-login-and-token-errors-issues-392-393-pr-394">¶</a></h3>
 <p>A caller can now tell why a login failed without matching on text. That&rsquo;s<br />
