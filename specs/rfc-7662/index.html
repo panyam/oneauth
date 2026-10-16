@@ -383,9 +383,9 @@ introspection is a question of how fast you need revocation to propagate.</p>
 </tr>
 <tr>
 <td><code>cnf</code> (RFC 9449 §6) in response</td>
-<td><strong>Partial</strong></td>
-<td><code>tokenIntrospector.Introspect</code> sets <code>IntrospectionResult.Cnf</code></td>
-<td><code>IntrospectionHandler.ServeHTTP</code> does not copy it into the JSON, so the HTTP response carries no <code>cnf</code> today</td>
+<td><strong>Implemented</strong></td>
+<td><code>tokenIntrospector.Introspect</code> sets <code>IntrospectionResult.Cnf</code>; <code>IntrospectionHandler.ServeHTTP</code> emits it for bound tokens only</td>
+<td>Missing from the HTTP response until 0.2.2 (issue 434), so a remote resource server couldn&rsquo;t enforce the binding. <code>TestIntrospection_HTTPResponseCarriesCnf</code></td>
 </tr>
 <tr>
 <td><code>authorization_details</code> (RFC 9396 RAR) in response</td>
