@@ -63,13 +63,18 @@ func TestRefreshClientBinding_RawRequestsWithTheWrongClient(t *testing.T) {
 	refresh, _ := ReadJSON(resp)["refresh_token"].(string)
 	require.NotEmpty(t, refresh)
 
-	for name, body := range map[string]map[string]any{
-		"no client_id":    {"grant_type": "refresh_token", "refresh_token": refresh},
-		"other client_id": {"grant_type": "refresh_token", "refresh_token": refresh, "client_id": "someone-else"},
+	for name, tc := range map[string]struct {
+		body       map[string]any
+		wantStatus int
+		wantErr    string
+	}{
+		"no client_id":    {map[string]any{"grant_type": "refresh_token", "refresh_token": refresh}, 401, "invalid_client"},
+		"other client_id": {map[string]any{"grant_type": "refresh_token", "refresh_token": refresh, "client_id": "someone-else"}, 400, "invalid_grant"},
 	} {
-		resp := c.PostJSON("/api/token", body)
+		resp := c.PostJSON("/api/token", tc.body)
+		assert.Equal(t, tc.wantStatus, resp.StatusCode, name)
 		data := ReadJSON(resp)
-		assert.Equal(t, "invalid_grant", data["error"], name)
+		assert.Equal(t, tc.wantErr, data["error"], name)
 		assert.Nil(t, data["access_token"], name)
 	}
 

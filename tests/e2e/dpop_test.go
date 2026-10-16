@@ -280,7 +280,7 @@ func TestDPoP_E2E_RefreshTokenBindingSurvivesTheStore(t *testing.T) {
 		"refresh_token": {rotated.Token.Token},
 		"client_id":     {dpopE2EClientID},
 	}, false)
-	assert.Equal(t, http.StatusUnauthorized, status)
+	assert.Equal(t, http.StatusBadRequest, status)
 	assert.Equal(t, "invalid_grant", body["error"])
 }
 

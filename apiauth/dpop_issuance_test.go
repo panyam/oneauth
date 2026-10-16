@@ -206,11 +206,11 @@ func TestDPoPIssuance_BoundRefreshTokenRequiresItsOwnKey(t *testing.T) {
 
 		_, attackerProof := newProofSigner(t)
 		rr := postWithProof(t, fx, stolenForm, attackerProof(proofOpts{url: dpopTokenEndpointURL}))
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 		assert.Equal(t, "invalid_grant", decodeJSON(t, rr)["error"])
 
 		rr = postWithProof(t, fx, stolenForm, "")
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 		assert.Equal(t, "invalid_grant", decodeJSON(t, rr)["error"])
 	})
 }

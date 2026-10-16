@@ -464,15 +464,12 @@ func (c *AuthClient) exchangeCode(ctx context.Context, p exchangeCodeParams) (*S
 	}
 	tracing.Inject(ctx, req)
 
-	resp, err := p.HTTPClient.Do(req)
+	// A DPoP client sent dpop_jkt with the authorization request, which
+	// binds the code to its key (RFC 9449 §10), so the exchange has to
+	// prove the key too.
+	resp, body, err := c.doTokenRequest(p.HTTPClient, req)
 	if err != nil {
 		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, newTokenError(resp.StatusCode, body)

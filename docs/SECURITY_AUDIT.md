@@ -47,19 +47,20 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 | 5 | A bad proof fails the request, never falls back to Bearer | MUST | AS | Pass | `apiauth/token_endpoint.go:442` `dpopConfirmation` | InvalidProofRejectsTheRequest |
 | 5 | Public client's refresh token bound to its key, checked on use | MUST | AS | Pass | `token_validator.go` refresh grant | BoundRefreshTokenRequiresItsOwnKey |
 | 5 | Binding survives FS / GORM / GAE stores | — | AS | Pass | `stores/*` | e2e (FS), `stores/gorm/refreshtoken_binding_test.go`, `stores/gae/refreshtoken_binding_test.go` (`make testds`) |
-| 5 | Client's automatic refresh carries a proof | MUST | client | Pass (was Fail) | `client/client.go` `requestToken` → `executeTokenRequest` | RefreshThenRetryMintsAFreshProof\* |
+| 5 | Client's automatic refresh carries a proof | MUST | client | Pass (was Fail) | `client/client.go` `requestToken` → `executeTokenRequest` | RefreshThenRetryMintsAFreshProof\*, e2e SDKAutoRefreshKeepsTheBinding\*; Keycloak SDKRefreshKeepsTheBinding |
 | 5.1 | `dpop_signing_alg_values_supported` in AS metadata | SHOULD | AS | Pass | `apiauth/as_metadata.go:79` | e2e MetadataAdvertisesSigningAlgs |
-| 5.2 | `dpop_bound_access_tokens` client metadata, enforced | MUST if supported | AS | Pass (was not implemented) | `apiauth/token_endpoint.go:478` `requireDPoP`; `core.AppRegistration`; DCR; all app stores | `dpop_require_test.go`\*, `admin/dcr_dpop_test.go`\*, `appstoretest` AllFieldsRoundTrip\* |
+| 5.2 | `dpop_bound_access_tokens` client metadata, enforced | MUST if supported | AS | Pass (was not implemented) | `apiauth/token_endpoint.go:478` `requireDPoP`; `core.AppRegistration`; DCR; all app stores | `dpop_require_test.go`\*, `admin/dcr_dpop_test.go`\*, `appstoretest` AllFieldsRoundTrip\*, e2e DCRRegisteredDPoPBoundClient\* |
 | 6.1 | `cnf.jkt` in the JWT, not forgeable through custom claims | MUST | AS | Pass | `token_validator.go:432` | CustomClaimsCannotForgeCnf |
 | 6.2 | `cnf` in introspection, enforced by an RS that introspects | MUST | AS, RS | Pass | `token_introspector.go`, `introspection_client.go` | IntrospectionReportsConfirmation, EnforcesCnfFromIntrospection\* |
 | 7.1 | `Authorization: DPoP`; 401 with `WWW-Authenticate: DPoP` and `algs` | MUST | RS | Pass | `apiauth/middleware.go:728` `challenge` | ChallengeAdvertisesBothSchemes, ChallengeParamsAreCommaSeparated |
 | 7.2 | Bound token refused under the Bearer scheme | MUST | RS | Pass | `enforceBinding` | RejectsBoundTokenPresentedAsBearer; Keycloak interop |
 | 8 | `use_dpop_nonce` + `DPoP-Nonce` at the token endpoint | MUST | AS | Pass | `dpopConfirmation` | TestNonce_TokenEndpointChallenge |
 | 8 | Same at the PAR endpoint | MUST | AS | Pass (was Fail) | `apiauth/par.go:221` `resolveDPoPBinding` | `par_dpop_shared_test.go` NonceChallenge\* |
-| 8.2, 9 | Client uses a `DPoP-Nonce` from any response | expected | client | Pass (was Partial) | `client/client.go:760` `rememberNonce` | UsesANonceFromASuccessful{Token,Resource}Response\* |
+| 8.2, 9 | Client uses a `DPoP-Nonce` from any response | expected | client | Pass (was Partial) | `client/client.go:760` `rememberNonce` | UsesANonceFromASuccessful{Token,Resource}Response\*, e2e SDKFollowsTheNonceProtocol\* |
 | 9 | `use_dpop_nonce` at the RS (401) | MUST | RS | Pass | `enforceBinding` | TestNonce_ResourceServerChallenge |
 | 10 | Code bound by `dpop_jkt` refuses another key or no proof | MUST | AS | Pass | `authorize_granter.go:113` | `dpop_jkt_test.go` |
-| 10.1 | PAR takes `dpop_jkt` or a proof, rejects a mismatch, checks its own `htu` | MUST | AS | Pass (was Fail with a shared validator) | `resolveDPoPBinding` | `TestPARDPoP_*`, MountAuthorize_PARSharesTheTokenEndpointValidator\* |
+| 10 | Client that sent `dpop_jkt` proves the key on the code exchange | MUST | client | Pass (was Fail) | `client/browser_login.go` `exchangeCode` → `doTokenRequest` | e2e BrowserLoginWithDPoP\*; Keycloak SDKBrowserLogin\* |
+| 10.1 | PAR takes `dpop_jkt` or a proof, rejects a mismatch, checks its own `htu` | MUST | AS | Pass (was Fail with a shared validator) | `resolveDPoPBinding` | `TestPARDPoP_*`, MountAuthorize_PARSharesTheTokenEndpointValidator\*, e2e PARWithDPoP\* |
 | RFC 9728 | `dpop_bound_access_tokens_required` advertised and enforced | — | RS | Pass | `protected_resource.go:56`, `APIMiddleware.RequireDPoP` | RequireDPoPRefusesBearer |
 
 ### FAPI 2.0 Security Profile (final), DPoP requirements
@@ -107,6 +108,31 @@ authenticate the client or check the token belonged to the `client_id` sent with
 `ClientID` match in `RefreshGrant`). The `dpop_bound_access_tokens` check still follows the
 refresh token's owner rather than the request, which is the same client whenever the grant
 would succeed.
+
+The e2e and Keycloak tests added after the walk found three more, also fixed:
+
+- **`LoginWithBrowser` with a DPoP key couldn't log in.** It sent `dpop_jkt`, which binds the
+  code, and then exchanged the code without a proof, so both oneauth and Keycloak refused it.
+- **The refresh grant answered `invalid_grant` with 401.** RFC 6749 §5.2 sends every error
+  with 400 except `invalid_client`. Keycloak uses 400.
+- **A refresh naming no client, for a token that has one, got `invalid_grant`.** It now gets
+  401 `invalid_client` ("no client authentication included", §5.2), and a request naming
+  another client gets `invalid_grant` before any credentials are asked for. Both match
+  Keycloak.
+
+### Compared with Keycloak
+
+`tests/keycloak/refresh_dpop_interop_test.go` sends the same requests to Keycloak and to a
+oneauth AS registered with the same clients, and asserts on both answers. They agree on every
+status. Where the codes or verdicts differ, the test pins both, and we keep ours for the
+reasons below.
+
+| Case | Keycloak | oneauth | Why we keep ours |
+|---|---|---|---|
+| Confidential client, missing or wrong secret, on refresh | 401 `unauthorized_client` | 401 `invalid_client` | §5.2 names `invalid_client` for failed client authentication. |
+| DPoP-bound client sends no proof | 400 `invalid_request` | 400 `invalid_dpop_proof` | RFC 9449 names no code for this. Keycloak also uses `invalid_request` for a wrong `htu`, where §5 does name `invalid_dpop_proof`, and the SDK keys its retry advice on that code. |
+| `htu` with a fragment | refused | accepted | §4.3 says to ignore the fragment. |
+| `htu` with `%2D` for `-`, or a `/./` segment | refused | accepted | §4.3 compares after RFC 3986 §6.2.2 normalization, under which these name the same URL. |
 
 Things that are deliberate rather than gaps:
 

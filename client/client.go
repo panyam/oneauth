@@ -663,27 +663,9 @@ func (c *AuthClient) requestTokenFormWithAssertion(ctx context.Context, tokenEnd
 // covers every grant the client drives without each one repeating the work.
 // No `ath` here: the request has no access token yet.
 func (c *AuthClient) executeTokenRequest(req *http.Request) (*ServerCredential, error) {
-	resp, body, err := c.sendTokenRequest(req, "")
+	resp, body, err := c.doTokenRequest(nil, req)
 	if err != nil {
 		return nil, err
-	}
-
-	// RFC 9449 §8: the server may answer a first request with
-	// use_dpop_nonce and a nonce to use. That is a handshake step rather
-	// than a failure, so the request is retried once with a proof
-	// carrying the nonce. Exactly once: a server that keeps challenging
-	// a correct nonce is misbehaving, and looping would turn that into a
-	// hot spin against it.
-	if c.dpopKey != nil && resp.StatusCode == http.StatusBadRequest && tokenErrorCode(body) == "use_dpop_nonce" {
-		nonce := resp.Header.Get("DPoP-Nonce")
-		if nonce != "" && req.GetBody != nil {
-			c.dpopNonces.set(req.URL.String(), nonce)
-			retried, retriedBody, retryErr := c.retryTokenRequest(req, nonce)
-			if retryErr != nil {
-				return nil, retryErr
-			}
-			resp, body = retried, retriedBody
-		}
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -740,11 +722,36 @@ func issuedTo(clientID string) func(*ServerCredential, error) (*ServerCredential
 	}
 }
 
+// doTokenRequest sends a token request with a DPoP proof when the client
+// holds a key, answering a nonce challenge, and returns the final response
+// and its body for the caller to decode. httpClient nil uses the base
+// transport, which skips the auth-wrapping transport and so can't loop.
+//
+// RFC 9449 §8: the server may answer a first request with use_dpop_nonce and
+// a nonce to use. That is a handshake step rather than a failure, so the
+// request is retried once with a proof carrying the nonce. Exactly once: a
+// server that keeps challenging a correct nonce is misbehaving, and looping
+// would turn that into a hot spin against it.
+func (c *AuthClient) doTokenRequest(httpClient *http.Client, req *http.Request) (*http.Response, []byte, error) {
+	resp, body, err := c.sendTokenRequest(httpClient, req, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	if c.dpopKey != nil && resp.StatusCode == http.StatusBadRequest && tokenErrorCode(body) == "use_dpop_nonce" {
+		nonce := resp.Header.Get("DPoP-Nonce")
+		if nonce != "" && req.GetBody != nil {
+			c.dpopNonces.set(req.URL.String(), nonce)
+			return c.retryTokenRequest(httpClient, req, nonce)
+		}
+	}
+	return resp, body, nil
+}
+
 // sendTokenRequest attaches a DPoP proof (with nonce, when one is known for
 // this server) and performs the request, returning the response and its body.
 // The body is read here because the caller needs it both to detect a nonce
 // challenge and to decode the token response.
-func (c *AuthClient) sendTokenRequest(req *http.Request, nonce string) (*http.Response, []byte, error) {
+func (c *AuthClient) sendTokenRequest(httpClient *http.Client, req *http.Request, nonce string) (*http.Response, []byte, error) {
 	if c.dpopKey != nil {
 		if nonce == "" {
 			nonce = c.dpopNonces.get(req.URL.String())
@@ -756,8 +763,9 @@ func (c *AuthClient) sendTokenRequest(req *http.Request, nonce string) (*http.Re
 		req.Header.Set("DPoP", proof)
 	}
 
-	// Use base transport directly to avoid auth loop
-	httpClient := &http.Client{Transport: c.baseTransport}
+	if httpClient == nil {
+		httpClient = &http.Client{Transport: c.baseTransport}
+	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to server: %w", err)
@@ -785,14 +793,14 @@ func (c *AuthClient) rememberNonce(req *http.Request, resp *http.Response) {
 // The form body was consumed by the first attempt, so it is rebuilt from
 // GetBody, which http.NewRequest populates for the in-memory readers this
 // package uses.
-func (c *AuthClient) retryTokenRequest(original *http.Request, nonce string) (*http.Response, []byte, error) {
+func (c *AuthClient) retryTokenRequest(httpClient *http.Client, original *http.Request, nonce string) (*http.Response, []byte, error) {
 	body, err := original.GetBody()
 	if err != nil {
 		return nil, nil, fmt.Errorf("replay token request body: %w", err)
 	}
 	retry := original.Clone(original.Context())
 	retry.Body = body
-	return c.sendTokenRequest(retry, nonce)
+	return c.sendTokenRequest(httpClient, retry, nonce)
 }
 
 // tokenErrorCode reads the RFC 6749 §5.2 `error` field out of a response
