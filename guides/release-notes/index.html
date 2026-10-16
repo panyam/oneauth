@@ -189,6 +189,14 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-020">Version 0.2.0 <a class="anchor" href="#version-020">¶</a></h2>
+<p>The code is 0.1.57&rsquo;s. The minor version marks the breaking changes that<br />
+shipped across 0.1.38 to 0.1.57: exported API changes (<code>AuthorizationCodeStore</code>,<br />
+<code>NewAuthorizationCodeGranter</code>, <code>oauth2</code> cookie arguments, the PAR and<br />
+verification-token store responses) and defaults that now fail closed. Each<br />
+version&rsquo;s &ldquo;Upgrading&rdquo; section below lists them, and the GitHub release for<br />
+v0.2.0 collects them in one place. It is the first GitHub release since<br />
+0.1.37.</p>
 <h2 id="version-0157">Version 0.1.57 <a class="anchor" href="#version-0157">¶</a></h2>
 <h3 id="reused-authorization-codes-revoke-their-tokens-issue-429-pr-431">Reused authorization codes revoke their tokens (issue 429, PR 431) <a class="anchor" href="#reused-authorization-codes-revoke-their-tokens-issue-429-pr-431">¶</a></h3>
 <ul>
@@ -1069,7 +1077,7 @@ resource-server half is issue 371.</p>
 <h3 id="bug-fix-password-reset-for-oauth-only-users">Bug Fix: Password Reset for OAuth-Only Users <a class="anchor" href="#bug-fix-password-reset-for-oauth-only-users">¶</a></h3>
 <p><code>NewUpdatePasswordFunc</code> now creates a local channel on-demand when one doesn&rsquo;t exist, enabling OAuth-only users to set a password via the standard reset flow. Previously these users received &ldquo;local auth not configured&rdquo; errors.</p>
 <hr />
-<h2 id="version-020">Version 0.2.0 <a class="anchor" href="#version-020">¶</a></h2>
+<h2 id="version-020-1">Version 0.2.0 <a class="anchor" href="#version-020-1">¶</a></h2>
 <h3 id="api-authentication--store-reorganization">API Authentication &amp; Store Reorganization <a class="anchor" href="#api-authentication--store-reorganization">¶</a></h3>
 <p>Major release adding API authentication (JWT access tokens, refresh tokens with rotation and theft detection, API keys, scopes) and new store backends.</p>
 <p><strong>New endpoints</strong>: <code>/api/login</code>, <code>/api/logout</code>, <code>/api/logout-all</code>, <code>/api/keys</code> (CRUD).</p>
