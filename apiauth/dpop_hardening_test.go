@@ -65,7 +65,7 @@ func TestDPoPProof_FAPIAlgsRefuseRS256(t *testing.T) {
 
 	_, err = validateProof(t, v, newProof(t, key, proofOpts{signMethod: jwt.SigningMethodPS256}))
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, []string{"ES256", "PS256"}, v.SigningAlgValuesSupported())
+	assert.ElementsMatch(t, []string{"ES256", "EdDSA", "PS256"}, v.SigningAlgValuesSupported())
 }
 
 // A jti is remembered for the whole acceptance window, so an unbounded one

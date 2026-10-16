@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rsa"
 	"encoding/base64"
@@ -14,15 +15,15 @@ import (
 // Only public key components are included — the struct intentionally omits
 // private key fields (d, p, q, dp, dq, qi) so they cannot leak via JWKS.
 type JWK struct {
-	Kty    string   `json:"kty"`           // "RSA" or "EC"
+	Kty    string   `json:"kty"`           // "RSA", "EC", or "OKP" (Ed25519)
 	Kid    string   `json:"kid"`           // key identifier (RFC 7638 thumbprint)
 	Alg    string   `json:"alg"`           // "RS256" or "ES256"
 	Use    string   `json:"use"`           // "sig"
 	KeyOps []string `json:"key_ops"`       // ["verify"] — explicit usage restriction
 	N      string   `json:"n,omitempty"`   // RSA modulus (base64url, no padding)
 	E      string   `json:"e,omitempty"`   // RSA exponent (base64url, no padding)
-	Crv    string   `json:"crv,omitempty"` // EC curve ("P-256")
-	X      string   `json:"x,omitempty"`   // EC x-coordinate (base64url, no padding)
+	Crv    string   `json:"crv,omitempty"` // EC curve ("P-256") or OKP curve ("Ed25519")
+	X      string   `json:"x,omitempty"`   // EC x-coordinate, or the OKP public key (base64url, no padding)
 	Y      string   `json:"y,omitempty"`   // EC y-coordinate (base64url, no padding)
 }
 
@@ -56,6 +57,20 @@ func RSAPublicKeyToJWK(kid, alg string, pub *rsa.PublicKey) JWK {
 	}
 }
 
+// Ed25519PublicKeyToJWK converts an Ed25519 public key to an OKP JWK
+// (RFC 8037 §2): kty "OKP", crv "Ed25519", and the 32-byte key as x.
+func Ed25519PublicKeyToJWK(kid, alg string, pub ed25519.PublicKey) JWK {
+	return JWK{
+		Kty:    "OKP",
+		Kid:    kid,
+		Alg:    alg,
+		Use:    "sig",
+		KeyOps: []string{"verify"},
+		Crv:    "Ed25519",
+		X:      base64.RawURLEncoding.EncodeToString(pub),
+	}
+}
+
 // ECDSAPublicKeyToJWK converts an ECDSA public key to a JWK.
 // Uses pub.Bytes() (Go 1.25+) instead of deprecated X/Y fields.
 func ECDSAPublicKeyToJWK(kid, alg string, pub *ecdsa.PublicKey) JWK {
@@ -84,9 +99,28 @@ func JWKToPublicKey(jwk JWK) (crypto.PublicKey, string, error) {
 		return rsaJWKToPublicKey(jwk)
 	case "EC":
 		return ecJWKToPublicKey(jwk)
+	case "OKP":
+		return okpJWKToPublicKey(jwk)
 	default:
 		return nil, "", fmt.Errorf("unsupported key type: %s", jwk.Kty)
 	}
+}
+
+// okpJWKToPublicKey handles RFC 8037 OKP keys. Only Ed25519 is accepted:
+// Ed448 has no Go standard-library implementation, and X25519 is a
+// key-agreement key that can't verify a signature.
+func okpJWKToPublicKey(jwk JWK) (crypto.PublicKey, string, error) {
+	if jwk.Crv != "Ed25519" {
+		return nil, "", fmt.Errorf("unsupported OKP curve: %s", jwk.Crv)
+	}
+	x, err := base64.RawURLEncoding.DecodeString(jwk.X)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to decode OKP x: %w", err)
+	}
+	if len(x) != ed25519.PublicKeySize {
+		return nil, "", fmt.Errorf("Ed25519 x must be %d bytes, got %d", ed25519.PublicKeySize, len(x))
+	}
+	return ed25519.PublicKey(x), jwk.Alg, nil
 }
 
 func rsaJWKToPublicKey(jwk JWK) (crypto.PublicKey, string, error) {

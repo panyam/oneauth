@@ -337,6 +337,7 @@ type jwtIssuer struct {
 	getSubjectScopes    core.GetSubjectScopesFunc
 	customClaims        CustomClaimsFunc
 	hooks               TokenHooks
+	disableRotation     bool
 }
 
 // resolveAudience returns the currently-configured aud claim value:
@@ -374,6 +375,10 @@ type JWTIssuerConfig struct {
 	GetSubjectScopes    core.GetSubjectScopesFunc // for password grant (optional)
 	CustomClaims        CustomClaimsFunc          // optional per-token custom-claim injection
 	Hooks               TokenHooks
+
+	// DisableRefreshTokenRotation mirrors
+	// OneAuthConfig.DisableRefreshTokenRotation.
+	DisableRefreshTokenRotation bool
 }
 
 // NewJWTIssuer creates a TokenIssuer that signs JWTs.
@@ -395,6 +400,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		getSubjectScopes:    cfg.GetSubjectScopes,
 		customClaims:        cfg.CustomClaims,
 		hooks:               cfg.Hooks,
+		disableRotation:     cfg.DisableRefreshTokenRotation,
 	}
 }
 
@@ -583,16 +589,21 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		confirmation = req.Confirmation
 	}
 
-	// Rotate: invalidate old, create new in same family
-	rotResp, err := i.refreshStore.RotateRefreshToken(ctx, &core.RotateRefreshTokenRequest{OldToken: req.RefreshToken})
-	if err != nil {
-		if err == core.ErrTokenReused {
-			i.refreshStore.RevokeTokenFamily(ctx, &core.RevokeTokenFamilyRequest{Family: rt.Family})
-			return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
+	// Rotate: invalidate old, create new in same family. With rotation
+	// off (FAPI 2.0 §5.3.2.1) the presented token stays live and the
+	// response carries no refresh_token, so the client keeps using it.
+	var newRefreshToken string
+	if !i.disableRotation {
+		rotResp, err := i.refreshStore.RotateRefreshToken(ctx, &core.RotateRefreshTokenRequest{OldToken: req.RefreshToken})
+		if err != nil {
+			if err == core.ErrTokenReused {
+				i.refreshStore.RevokeTokenFamily(ctx, &core.RevokeTokenFamilyRequest{Family: rt.Family})
+				return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
+			}
+			return nil, fmt.Errorf("server_error: %w", err)
 		}
-		return nil, fmt.Errorf("server_error: %w", err)
+		newRefreshToken = rotResp.Token.Token
 	}
-	newRT := rotResp.Token
 
 	// Create new access token (carry forward scopes + authorization_details)
 	tok, err := i.CreateAccessToken(ctx, &CreateAccessTokenRequest{
@@ -611,7 +622,7 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		AccessToken:          tok.Token,
 		TokenType:            tok.TokenType,
 		ExpiresIn:            tok.ExpiresIn,
-		RefreshToken:         newRT.Token,
+		RefreshToken:         newRefreshToken,
 		Scope:                strings.Join(rt.Scopes, " "),
 		AuthorizationDetails: rt.AuthorizationDetails,
 	}}, nil

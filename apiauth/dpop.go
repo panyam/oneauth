@@ -59,17 +59,19 @@ const defaultDPoPMaxAge = 30 * time.Second
 // same reason.
 //
 // See: https://www.rfc-editor.org/rfc/rfc9449#section-4.2
-var defaultDPoPAlgs = []string{"ES256", "RS256", "PS256"}
+//
+// EdDSA means Ed25519 here (RFC 8037); an Ed448 key is refused when the
+// proof's jwk is parsed.
+var defaultDPoPAlgs = []string{"ES256", "EdDSA", "RS256", "PS256"}
 
 // FAPIDPoPAlgs returns the proof algorithms the FAPI 2.0 Security Profile
-// §5.4.1 permits that this validator supports: ES256 and PS256. FAPI also
-// allows EdDSA, which is not supported yet. Pass it as
+// §5.4.1 permits: PS256, ES256 and EdDSA (Ed25519). Pass it as
 // DPoPConfig.AllowedAlgs to refuse RS256, which FAPI forbids and the
 // default list accepts. Returns a fresh slice on every call.
 //
 // See: https://openid.net/specs/fapi-security-profile-2_0-final.html#section-5.4.1
 func FAPIDPoPAlgs() []string {
-	return []string{"ES256", "PS256"}
+	return []string{"ES256", "EdDSA", "PS256"}
 }
 
 // minDPoPRSABits is the smallest RSA modulus accepted in a proof's `jwk`.

@@ -233,6 +233,20 @@ type OneAuthConfig struct {
 	// back to bearer tokens.
 	RequireDPoP bool
 
+	// DisableRefreshTokenRotation keeps a refresh token in use across
+	// refreshes instead of replacing it on every one. FAPI 2.0 §5.3.2.1
+	// says the AS shall not rotate refresh tokens outside extraordinary
+	// circumstances: with rotation, a client whose refresh response is
+	// lost holds a used token, and presenting it again revokes the whole
+	// family. False (the default) rotates, with that reuse detection,
+	// as RFC 9700 §4.14 recommends for public clients.
+	//
+	// With rotation off the refresh response carries no refresh_token
+	// (RFC 6749 §6 lets the client keep the one it has), the token keeps
+	// its original expiry, and the client and DPoP checks still apply on
+	// every use. A revoked token (logout, revocation) is still refused.
+	DisableRefreshTokenRotation bool
+
 	// TracerProvider opts the validator's signature-verify hot path
 	// into SEP-414 tracing. Nil keeps it on the no-op fast path.
 	TracerProvider trace.TracerProvider
@@ -263,6 +277,8 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		GetSubjectScopes:    cfg.GetSubjectScopes,
 		CustomClaims:        cfg.CustomClaims,
 		Hooks:               cfg.Hooks.Token,
+
+		DisableRefreshTokenRotation: cfg.DisableRefreshTokenRotation,
 	})
 
 	// Wire the validator — needs read-only key lookup + blacklist.

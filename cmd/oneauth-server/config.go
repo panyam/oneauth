@@ -21,6 +21,7 @@ type Config struct {
 	TLS        TLSConfig        `yaml:"tls"`
 	DeviceFlow DeviceFlowConfig `yaml:"device_flow"`
 	CodeFlow   CodeFlowConfig   `yaml:"code_flow"`
+	DPoP       DPoPServerConfig `yaml:"dpop"`
 }
 
 // CodeFlowConfig toggles and configures the RFC 6749 §4.1
@@ -167,6 +168,11 @@ type JWTConfig struct {
 	// so misconfiguration fails loudly: "set private_key_path or
 	// ephemeral_signing_key".
 	EphemeralSigningKey bool `yaml:"ephemeral_signing_key"`
+
+	// DisableRefreshTokenRotation keeps a refresh token in use across
+	// refreshes (OneAuthConfig.DisableRefreshTokenRotation). FAPI 2.0
+	// §5.3.2.1 asks for this; the default rotates, with reuse detection.
+	DisableRefreshTokenRotation bool `yaml:"disable_refresh_token_rotation"`
 }
 
 type ServerConfig struct {

@@ -119,6 +119,13 @@ func main() {
 	// Token blacklist for immediate access token revocation
 	blacklist := core.NewInMemoryBlacklist()
 
+	// RFC 9449 DPoP, opt-in via the dpop block. Built before OneAuth because
+	// the token endpoint's validator is part of its config.
+	dpop, err := buildDPoP(cfg.DPoP, publicBaseURL(cfg))
+	if err != nil {
+		log.Fatalf("Invalid dpop config: %v", err)
+	}
+
 	// Build OneAuth (the transport-independent core) + handlers.
 	oaCfg := apiauth.OneAuthConfig{
 		KeyStore:            keyStore,
@@ -128,6 +135,10 @@ func main() {
 		RefreshStore:        stores.refreshTokenStore,
 		Blacklist:           blacklist,
 		ValidateCredentials: localAuth.ValidateCredentials,
+
+		DPoP:                        dpop.tokenEndpoint,
+		RequireDPoP:                 cfg.DPoP.Require,
+		DisableRefreshTokenRotation: cfg.JWT.DisableRefreshTokenRotation,
 	}
 
 	// Wire asymmetric signing if configured (issue 184). The public half is
@@ -266,6 +277,8 @@ func main() {
 		JWTSecretKey: cfg.JWT.SecretKey,
 		JWTIssuer:    cfg.JWT.Issuer,
 		Blacklist:    blacklist,
+		DPoP:         dpop.resource,
+		RequireDPoP:  cfg.DPoP.RequireAtResource,
 	}
 	mux.Handle("GET /api/me", apiMiddleware.ValidateToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID := apiauth.GetSubjectFromAPIContext(r.Context())
@@ -323,14 +336,7 @@ func main() {
 	// reverse proxies and when bind host is 0.0.0.0). Otherwise fall back to
 	// scheme://host:port — works for loopback dev but breaks for 0.0.0.0
 	// because clients connect via localhost / a routable address. See 184.
-	baseURL := cfg.Server.PublicURL
-	if baseURL == "" {
-		scheme := "http"
-		if cfg.TLS.Enabled {
-			scheme = "https"
-		}
-		baseURL = fmt.Sprintf("%s://%s:%s", scheme, cfg.Server.Host, cfg.Server.Port)
-	}
+	baseURL := publicBaseURL(cfg)
 
 	grantTypes := []string{"password", "refresh_token", "client_credentials"}
 	asMeta := &apiauth.ASServerMetadata{
@@ -348,6 +354,9 @@ func main() {
 		ScopesSupported:                    cfg.JWT.ScopesSupported,
 		ClaimsSupported:                    cfg.JWT.ClaimsSupported,
 		AuthorizationDetailsTypesSupported: cfg.JWT.AuthorizationDetailsTypes,
+	}
+	if dpop.tokenEndpoint != nil {
+		asMeta.DPoPSigningAlgValuesSupported = dpop.tokenEndpoint.SigningAlgValuesSupported()
 	}
 
 	// Device Authorization Grant (RFC 8628), opt-in via device_flow.enabled.
@@ -956,4 +965,19 @@ func fetchSecretManagerKey(cfg *Config) (string, error) {
 		return "", fmt.Errorf("failed to access secret %s: %w", secretName, err)
 	}
 	return string(result.Payload.Data), nil
+}
+
+// publicBaseURL is the externally-visible base URL: server.public_url when
+// set (correct behind a reverse proxy and for a 0.0.0.0 bind), otherwise
+// scheme://host:port. It is the AS metadata issuer and the URL DPoP proofs
+// are checked against.
+func publicBaseURL(cfg *Config) string {
+	if cfg.Server.PublicURL != "" {
+		return cfg.Server.PublicURL
+	}
+	scheme := "http"
+	if cfg.TLS.Enabled {
+		scheme = "https"
+	}
+	return fmt.Sprintf("%s://%s:%s", scheme, cfg.Server.Host, cfg.Server.Port)
 }

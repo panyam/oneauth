@@ -36,7 +36,7 @@ jobs:
 
       - name: Test (sub-modules)
         run: |
-          for mod in stores/gorm stores/gae grpc oauth2; do
+          for mod in stores/gorm stores/gae grpc oauth2 cmd/oneauth-server; do
             echo "Testing $mod..."
             (cd $mod && go test -race -count=1 -short ./...)
           done

@@ -14,6 +14,7 @@ package apiauth_test
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -86,8 +87,11 @@ func newProof(t *testing.T, key any, o proofOpts) string {
 	method := o.signMethod
 	if method == nil {
 		method = jwt.SigningMethodES256
-		if _, ok := key.(*rsa.PrivateKey); ok {
+		switch key.(type) {
+		case *rsa.PrivateKey:
 			method = jwt.SigningMethodRS256
+		case ed25519.PrivateKey:
+			method = jwt.SigningMethodEdDSA
 		}
 	}
 
@@ -145,6 +149,8 @@ func publicJWKMap(t *testing.T, key any, withPrivate bool) map[string]any {
 		jwk = utils.ECDSAPublicKeyToJWK("", "ES256", &k.PublicKey)
 	case *rsa.PrivateKey:
 		jwk = utils.RSAPublicKeyToJWK("", "RS256", &k.PublicKey)
+	case ed25519.PrivateKey:
+		jwk = utils.Ed25519PublicKeyToJWK("", "EdDSA", k.Public().(ed25519.PublicKey))
 	default:
 		t.Fatalf("unsupported test key type %T", key)
 	}
@@ -476,7 +482,7 @@ func TestDPoPProof_SigningAlgValuesSupportedDefaultsToAsymmetric(t *testing.T) {
 
 	algs := v.SigningAlgValuesSupported()
 
-	assert.ElementsMatch(t, []string{"ES256", "RS256", "PS256"}, algs)
+	assert.ElementsMatch(t, []string{"ES256", "EdDSA", "RS256", "PS256"}, algs)
 	for _, alg := range algs {
 		assert.NotContains(t, alg, "HS", "symmetric algorithms must never be advertised for DPoP proofs")
 	}

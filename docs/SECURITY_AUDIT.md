@@ -71,9 +71,10 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 | 5.3.2.1 #12 | AS supports binding the authorization code to the DPoP key | Pass | `dpop_jkt` (RFC 9449 §10) |
 | 5.3.2.1 #13 | Accept `iat` up to 10s ahead, reject more than 60s ahead | Pass | ±30s window; FAPIFutureIATEdges |
 | 5.3.4 #5 | RS shall only accept sender-constrained tokens | Pass | `APIMiddleware.RequireDPoP` |
-| 5.4.1 | Proof algs limited to PS256 / ES256 / EdDSA | Partial | `apiauth.FAPIDPoPAlgs()` gives ES256 + PS256; EdDSA is [issue 395](https://github.com/panyam/oneauth/issues/395) item 1 |
+| 5.4.1 | Proof algs limited to PS256 / ES256 / EdDSA | Pass (was Partial) | `apiauth.FAPIDPoPAlgs()` gives ES256, EdDSA (Ed25519, RFC 8037) and PS256; `client.NewEd25519DPoPKey`; DPoPEdDSA\*, Ed25519MatchesRFC8037; Keycloak Ed25519KeyAgreesOnTheThumbprint |
 | 5.4.1 | RSA keys at least 2048 bits | Pass (was Fail) | `minDPoPRSABits`; RejectsShortRSAKey\* |
-| 5.3.2.1 #9 | No refresh-token rotation | Open | OneAuth always rotates; [issue 395](https://github.com/panyam/oneauth/issues/395) item 2 |
+| 5.3.2.1 #9 | No refresh-token rotation | Pass (was Open) | `OneAuthConfig.DisableRefreshTokenRotation`, opt-in; the default still rotates (RFC 9700 §4.14). RefreshRotationOff\* |
+| — | Reference server can be configured for all of the above | Pass (was not possible) | `cmd/oneauth-server` `dpop:` block and `jwt.disable_refresh_token_rotation`; `deploy-examples/fapi-dpop.yaml`; `cmd/oneauth-server/dpop_test.go` |
 
 ### What the walk found
 
@@ -98,9 +99,7 @@ Fixed alongside this section:
   `backchannel_logout_session_required` weren't persisted, so logout dispatch stopped working
   after a restart on those backends.
 
-Still open, all in [issue 395](https://github.com/panyam/oneauth/issues/395): EdDSA proofs,
-an option to turn off refresh rotation for FAPI, and DPoP config in `cmd/oneauth-server`. The
-two SDK refresh-path issues are fixed (issue 395 items 4 and 5).
+Items 1 to 5 of [issue 395](https://github.com/panyam/oneauth/issues/395) are done: EdDSA proofs, the no-rotation option, the reference server's DPoP config, and the two SDK refresh-path fixes.
 
 The walk also turned up a gap bigger than DPoP, fixed separately: the refresh grant didn't
 authenticate the client or check the token belonged to the `client_id` sent with it
