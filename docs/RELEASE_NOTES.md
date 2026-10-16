@@ -3,6 +3,29 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.50
+
+### DCR validation and per-client PAR (issue 88, PR 424)
+
+- **Redirect URIs** with userinfo or no https host are refused, and every
+  redirect problem answers `invalid_redirect_uri` (`ErrInvalidRedirectURI`,
+  which wraps `ErrInvalidClientMetadata`).
+- **Auth methods and grant types** are checked against what the token
+  endpoint supports and against each other, on register and update.
+- **Default auth method** is `client_secret_basic` (RFC 7591 §2), stored
+  and echoed alike; a `none` client gets no secret.
+- **DCR server errors** are logged, not returned.
+- **`require_pushed_authorization_requests`** (RFC 9126 §6) through DCR,
+  `core.AppRegistration`, the FS / GORM / GAE app stores and the client
+  SDK; `/authorize` enforces it.
+
+### Upgrading
+
+- Registrations with bad redirect URIs, unknown methods or grants, or
+  `authorization_code` without a redirect URI are refused.
+- The echoed default method is `client_secret_basic`.
+- GORM adds a `require_pushed_authorization_requests` column on migrate.
+
 ## Version 0.1.49
 
 ### Authorize, PAR, PKCE and the device flow (issue 88, PR 423)
