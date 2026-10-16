@@ -201,6 +201,7 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	apiKey := createResp.APIKey
 
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"api_key":    createResp.FullKey, // full key is shown only at creation time
@@ -218,6 +219,7 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 // APIAuth.errorResponse wrote).
 func writeAPIErrorJSON(w http.ResponseWriter, code, description string, status int) {
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(core.TokenError{
 		Error:            code,

@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
+	"strings"
 
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
@@ -147,13 +150,11 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// IssuerBaseURL falls back to the inbound request's scheme + host when
 	// no explicit value is configured on the handler — matches pre-refactor
 	// behavior (see DCRHandler.buildRegistrationClientURI).
-	issuerBase := h.IssuerBaseURL
-	if issuerBase == "" {
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-		issuerBase = scheme + "://" + r.Host
+	issuerBase, ok := h.issuerBase(r)
+	if !ok {
+		log.Printf("DCR: refusing to build registration_client_uri from Host %q; set AppRegistrar.IssuerBaseURL (DCRHandler.IssuerBaseURL) to the public URL", r.Host)
+		h.jsonError(w, "server_error", "registration endpoint has no configured base URL", http.StatusInternalServerError)
+		return
 	}
 
 	if h.Registrar == nil {
@@ -177,12 +178,14 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(resp.Registration)
 }
 
 func (h *DCRHandler) jsonError(w http.ResponseWriter, errCode, description string, status int) {
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{
 		"error":             errCode,
@@ -216,4 +219,31 @@ func generateRegistrationAccessToken() (string, error) {
 		return "", fmt.Errorf("failed to generate registration access token: %w", err)
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// issuerBase returns the base URL for registration_client_uri. The
+// configured IssuerBaseURL is used when set. Without one, the request's own
+// scheme and Host are trusted only for a loopback host, which is local
+// development; a Host header is client-supplied, and building a management
+// URI from it would hand clients an attacker's URL (CWE-644).
+func (h *DCRHandler) issuerBase(r *http.Request) (string, bool) {
+	if h.IssuerBaseURL != "" {
+		return strings.TrimRight(h.IssuerBaseURL, "/"), true
+	}
+	host := r.Host
+	if hostname, _, err := net.SplitHostPort(host); err == nil {
+		host = hostname
+	}
+	host = strings.Trim(host, "[]")
+	if host != "localhost" {
+		ip := net.ParseIP(host)
+		if ip == nil || !ip.IsLoopback() {
+			return "", false
+		}
+	}
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host, true
 }

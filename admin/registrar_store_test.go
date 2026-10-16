@@ -41,6 +41,7 @@ func TestAppRegistrar_HydratesFromStore(t *testing.T) {
 
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
+	reg.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	req := httptest.NewRequest(http.MethodGet, "/apps", nil)
 	rr := httptest.NewRecorder()
@@ -67,6 +68,7 @@ func TestAppRegistrar_SaveRegistration_PersistsToStore(t *testing.T) {
 	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
+	reg.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	app := &core.AppRegistration{
 		ClientID:     "app_via_save",
@@ -94,6 +96,7 @@ func TestAppRegistrar_DCR_PersistsToStore(t *testing.T) {
 	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
+	reg.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	body, _ := json.Marshal(map[string]any{"client_name": "register.example", "signing_alg": "HS256"})
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", bytes.NewReader(body))
@@ -126,6 +129,7 @@ func TestAppRegistrar_HandleDeleteApp_PersistsDeletion(t *testing.T) {
 	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
+	reg.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	// Register, then delete, both via HTTP.
 	body, _ := json.Marshal(map[string]any{"client_name": "delete.example", "signing_alg": "HS256"})
@@ -159,6 +163,7 @@ func TestDCR_PersistsViaRegistrar(t *testing.T) {
 	store := core.NewInMemoryAppStore()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrarWithStore(ks, admin.NewNoAuth(), store)
+	reg.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	body, _ := json.Marshal(map[string]any{
 		"client_name":   "DCR Test App",

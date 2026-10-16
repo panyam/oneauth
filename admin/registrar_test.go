@@ -18,6 +18,7 @@ func setupRegistrar(t *testing.T) (*admin.AppRegistrar, *keys.InMemoryKeyStore) 
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
 	reg := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	reg.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	return reg, ks
 }
 

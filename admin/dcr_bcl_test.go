@@ -26,6 +26,7 @@ func registerAppWithBCL(t *testing.T, body string) (handler http.Handler, regist
 	t.Helper()
 	ks := keys.NewInMemoryKeyStore()
 	registrar = admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler = registrar.Handler()
 
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
@@ -62,6 +63,7 @@ func TestDCR_BackchannelLogout_RoundTripsThroughRegister(t *testing.T) {
 func TestDCR_BackchannelLogout_PlainHTTPRejectedByDefault(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	body := `{"client_name":"BCL Client","backchannel_logout_uri":"http://rs.example.com/bcl"}`
@@ -77,6 +79,7 @@ func TestDCR_BackchannelLogout_LiteralLoopbackIPRejectedByDefault(t *testing.T) 
 	// session revoke, makes the AS POST to localhost.
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	for _, uri := range []string{
@@ -101,6 +104,7 @@ func TestDCR_BackchannelLogout_AllowPrivateHostsOptIn(t *testing.T) {
 	// AllowPrivateBCLHosts on the AppRegistrar.
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registrar.AllowPrivateBCLHosts = true
 	handler := registrar.Handler()
 
@@ -115,6 +119,7 @@ func TestDCR_BackchannelLogout_AllowPrivateHostsOptIn(t *testing.T) {
 func TestDCR_BackchannelLogout_FragmentRejected(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	body := `{"client_name":"BCL Client","backchannel_logout_uri":"https://rs.example.com/bcl#frag"}`

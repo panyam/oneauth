@@ -49,6 +49,7 @@ func registerDCRClient(t *testing.T, registrar *admin.AppRegistrar, body string)
 func TestGetRegistration_ValidTokenReturnsResponse(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar,
 		`{"client_name":"Read Me","redirect_uris":["https://app.example/cb"]}`)
 
@@ -75,6 +76,7 @@ func TestGetRegistration_ValidTokenReturnsResponse(t *testing.T) {
 func TestGetRegistration_WrongTokenReturnsUnauthorized(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"Wrong Token"}`)
 
 	_, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
@@ -91,6 +93,7 @@ func TestGetRegistration_WrongTokenReturnsUnauthorized(t *testing.T) {
 func TestGetRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	_, err := registrar.GetRegistration(context.Background(), &admin.GetRegistrationRequest{
 		ClientID:    "app_does_not_exist",
@@ -106,6 +109,7 @@ func TestGetRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
 func TestGetRegistration_WrongAccessTokenRejected(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	body := `{"client_name":"app.example","signing_alg":"HS256"}`
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
@@ -127,6 +131,7 @@ func TestGetRegistration_WrongAccessTokenRejected(t *testing.T) {
 // ErrUnauthorized rather than reaching the store.
 func TestGetRegistration_EmptyInputsReturnUnauthorized(t *testing.T) {
 	registrar := admin.NewAppRegistrar(keys.NewInMemoryKeyStore(), admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	for _, tc := range []struct {
 		name            string
@@ -154,6 +159,7 @@ func TestGetRegistration_EmptyInputsReturnUnauthorized(t *testing.T) {
 func TestDCRManagement_GET_HappyPath(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar,
 		`{"client_name":"GET Test","redirect_uris":["https://app.example/cb"]}`)
 
@@ -182,6 +188,7 @@ func TestDCRManagement_GET_HappyPath(t *testing.T) {
 func TestDCRManagement_GET_WrongToken(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"Wrong Token HTTP"}`)
 
 	req := httptest.NewRequest(http.MethodGet, "/apps/dcr/"+registered["client_id"].(string), nil)
@@ -197,6 +204,7 @@ func TestDCRManagement_GET_WrongToken(t *testing.T) {
 func TestDCRManagement_GET_MissingAuthHeader(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"No Auth Header"}`)
 
 	req := httptest.NewRequest(http.MethodGet, "/apps/dcr/"+registered["client_id"].(string), nil)
@@ -212,6 +220,7 @@ func TestDCRManagement_GET_MissingAuthHeader(t *testing.T) {
 func TestDCRManagement_GET_UnknownClient_Returns401NotFound(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	req := httptest.NewRequest(http.MethodGet, "/apps/dcr/app_phantom", nil)
 	req.Header.Set("Authorization", "Bearer something")
@@ -228,6 +237,7 @@ func TestDCRManagement_GET_UnknownClient_Returns401NotFound(t *testing.T) {
 func TestDCRManagement_UnsupportedMethodReturns405(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"405 Test"}`)
 
 	for _, method := range []string{http.MethodPost, http.MethodPatch} {
@@ -255,6 +265,7 @@ func TestDCRManagement_UnsupportedMethodReturns405(t *testing.T) {
 func TestUpdateRegistration_HappyPath_RotatesToken(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar,
 		`{"client_name":"Pre Update","scope":"read"}`)
 	clientID := registered["client_id"].(string)
@@ -296,6 +307,7 @@ func TestUpdateRegistration_HappyPath_RotatesToken(t *testing.T) {
 func TestUpdateRegistration_WrongTokenReturnsUnauthorized(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"Wrong Token PUT"}`)
 	clientID := registered["client_id"].(string)
 
@@ -315,6 +327,7 @@ func TestUpdateRegistration_WrongTokenReturnsUnauthorized(t *testing.T) {
 func TestUpdateRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	_, err := registrar.UpdateRegistration(context.Background(), &admin.UpdateRegistrationRequest{
 		ClientID:    "app_phantom",
@@ -334,6 +347,7 @@ func TestUpdateRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
 func TestUpdateRegistration_AuthMethodChangeRejected(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"Auth Method Lock"}`)
 	clientID := registered["client_id"].(string)
 	token := registered["registration_access_token"].(string)
@@ -355,6 +369,7 @@ func TestUpdateRegistration_AuthMethodChangeRejected(t *testing.T) {
 func TestDCRManagement_PUT_HappyPath(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"PUT HP","scope":"read"}`)
 	clientID := registered["client_id"].(string)
 	token := registered["registration_access_token"].(string)
@@ -384,6 +399,7 @@ func TestDCRManagement_PUT_HappyPath(t *testing.T) {
 func TestDCRManagement_PUT_MissingBodyClientID(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"Missing CID"}`)
 	clientID := registered["client_id"].(string)
 	token := registered["registration_access_token"].(string)
@@ -402,6 +418,7 @@ func TestDCRManagement_PUT_MissingBodyClientID(t *testing.T) {
 func TestDCRManagement_PUT_BodyClientIDMismatch(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"Mismatch"}`)
 	clientID := registered["client_id"].(string)
 	token := registered["registration_access_token"].(string)
@@ -420,6 +437,7 @@ func TestDCRManagement_PUT_BodyClientIDMismatch(t *testing.T) {
 func TestDCRManagement_PUT_MalformedJSONReturns400(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"Malformed"}`)
 	clientID := registered["client_id"].(string)
 	token := registered["registration_access_token"].(string)
@@ -437,6 +455,7 @@ func TestDCRManagement_PUT_MalformedJSONReturns400(t *testing.T) {
 func TestDCRManagement_PUT_WrongTokenReturns401(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"PUT Wrong Token"}`)
 	clientID := registered["client_id"].(string)
 
@@ -462,6 +481,7 @@ func TestDCRManagement_PUT_WrongTokenReturns401(t *testing.T) {
 func TestDeleteRegistration_HappyPath(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"Delete Me"}`)
 	clientID := registered["client_id"].(string)
 	token := registered["registration_access_token"].(string)
@@ -492,6 +512,7 @@ func TestDeleteRegistration_HappyPath(t *testing.T) {
 func TestDeleteRegistration_WrongTokenReturnsUnauthorized(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"Wrong Token DELETE"}`)
 	clientID := registered["client_id"].(string)
 	token := registered["registration_access_token"].(string)
@@ -516,6 +537,7 @@ func TestDeleteRegistration_WrongTokenReturnsUnauthorized(t *testing.T) {
 func TestDeleteRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	_, err := registrar.DeleteRegistration(context.Background(), &admin.DeleteRegistrationRequest{
 		ClientID:    "app_does_not_exist",
@@ -531,6 +553,7 @@ func TestDeleteRegistration_UnknownClientReturnsUnauthorized(t *testing.T) {
 func TestDeleteRegistration_WrongAccessTokenRejected(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	body := `{"client_name":"app.example","signing_alg":"HS256"}`
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
@@ -553,6 +576,7 @@ func TestDeleteRegistration_WrongAccessTokenRejected(t *testing.T) {
 func TestDCRManagement_DELETE_HappyPath(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"DELETE HP"}`)
 	clientID := registered["client_id"].(string)
 	token := registered["registration_access_token"].(string)
@@ -572,6 +596,7 @@ func TestDCRManagement_DELETE_HappyPath(t *testing.T) {
 func TestDCRManagement_DELETE_WrongToken(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"DELETE Wrong Token"}`)
 
 	req := httptest.NewRequest(http.MethodDelete, "/apps/dcr/"+registered["client_id"].(string), nil)
@@ -586,6 +611,7 @@ func TestDCRManagement_DELETE_WrongToken(t *testing.T) {
 func TestDCRManagement_DELETE_MissingAuthHeader(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registered := registerDCRClient(t, registrar, `{"client_name":"DELETE No Auth"}`)
 
 	req := httptest.NewRequest(http.MethodDelete, "/apps/dcr/"+registered["client_id"].(string), nil)
@@ -600,6 +626,7 @@ func TestDCRManagement_DELETE_MissingAuthHeader(t *testing.T) {
 func TestDCRManagement_DELETE_UnknownClient(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	req := httptest.NewRequest(http.MethodDelete, "/apps/dcr/app_phantom", nil)
 	req.Header.Set("Authorization", "Bearer something")
@@ -616,6 +643,7 @@ func TestDCRManagement_DELETE_UnknownClient(t *testing.T) {
 func TestDCRManagement_GET_DoesNotShadowDCRRegister(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 
 	body := `{"client_name":"Routing Guard"}`
 	req := httptest.NewRequest(http.MethodPost, "/apps/dcr", strings.NewReader(body))
