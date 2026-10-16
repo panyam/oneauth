@@ -394,6 +394,14 @@ DS_CONTAINER_NAME := oneauth-test-datastore
 DS_PORT := 8081
 DS_PROJECT := test-project
 
+# Polls the emulator until it answers, up to a minute. A first start in CI
+# pulls the image and boots a JVM, which a fixed sleep doesn't cover.
+DS_WAIT = for i in $$(seq 1 60); do \
+		curl -sf http://localhost:$(DS_PORT)/ >/dev/null && break; \
+		[ $$i = 60 ] && { echo "Datastore emulator did not come up"; exit 1; }; \
+		sleep 1; \
+	done
+
 # Start a Datastore emulator using Docker for testing
 # --consistency=1.0 because the emulator defaults to 0.9, where a query
 # misses a recent write about one time in ten and the GAE list / contract
@@ -411,7 +419,7 @@ upds:
 			--no-store-on-disk \
 			--consistency=1.0
 	@echo "Waiting for Datastore emulator to be ready..."
-	@sleep 3
+	@$(DS_WAIT)
 	@echo ""
 	@echo "Datastore emulator is running!"
 	@echo "To run GAE tests: make testds"
@@ -439,8 +447,8 @@ testds:
 				--project=$(DS_PROJECT) \
 				--no-store-on-disk \
 				--consistency=1.0; \
-		sleep 5; \
 	fi
+	@$(DS_WAIT)
 	DATASTORE_EMULATOR_HOST=localhost:$(DS_PORT) \
 	DATASTORE_PROJECT_ID=$(DS_PROJECT) \
 	go test -v ./stores/gae/...

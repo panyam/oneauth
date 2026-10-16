@@ -13,7 +13,8 @@ import (
 // operation requires: lookups via Store; confidential-client
 // enforcement via AppStore + Authenticator (issue 266); PKCE verify
 // via core.VerifyPKCE; token mint delegated to Issuer; refresh-token
-// creation delegated to RefreshStore when set.
+// creation delegated to RefreshStore when set; Blacklist revokes the
+// access token from a code that is presented twice.
 //
 // The legacy APIAuth.handleAuthorizationCodeGrant (in authorize_grant.go)
 // is preserved for the transition window so existing consumers keep
@@ -24,19 +25,26 @@ type authorizationCodeGranter struct {
 	Authenticator ClientAuthenticator
 	Issuer        TokenIssuer
 	RefreshStore  core.RefreshTokenStore
+	Blacklist     core.TokenBlacklist
 }
 
 // NewAuthorizationCodeGranter constructs an AuthorizationCodeGranter
 // with the supplied dependencies. Store and Issuer are required;
 // AppStore + Authenticator enable confidential-client enforcement;
 // RefreshStore enables refresh-token issuance on redemption.
-func NewAuthorizationCodeGranter(store core.AuthorizationCodeStore, appStore core.AppRegistrationStore, authenticator ClientAuthenticator, issuer TokenIssuer, refreshStore core.RefreshTokenStore) AuthorizationCodeGranter {
+//
+// A code presented after it was redeemed is refused, and the tokens the
+// first redemption produced are revoked (RFC 6749 §4.1.2): the refresh
+// family through RefreshStore and the access token through blacklist.
+// With a nil blacklist the access token stays valid until it expires.
+func NewAuthorizationCodeGranter(store core.AuthorizationCodeStore, appStore core.AppRegistrationStore, authenticator ClientAuthenticator, issuer TokenIssuer, refreshStore core.RefreshTokenStore, blacklist core.TokenBlacklist) AuthorizationCodeGranter {
 	return &authorizationCodeGranter{
 		Store:         store,
 		AppStore:      appStore,
 		Authenticator: authenticator,
 		Issuer:        issuer,
 		RefreshStore:  refreshStore,
+		Blacklist:     blacklist,
 	}
 }
 
@@ -70,6 +78,12 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		return nil, serverError("lookup authorization code: " + err.Error())
 	}
 	entry := getResp.Code
+
+	// A used code is kept past its own expiry so this check comes first:
+	// its record names the tokens to revoke.
+	if entry.IsUsed() {
+		return nil, r.refuseReuse(ctx, entry.Code)
+	}
 
 	if entry.IsExpired(time.Now()) {
 		_, _ = r.Store.DeleteAuthorizationCode(ctx, &core.DeleteAuthorizationCodeRequest{Code: entry.Code})
@@ -119,11 +133,14 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		return nil, invalidGrant("authorization code is bound to a different DPoP key")
 	}
 
-	// The delete is the single-use gate: of two requests that both read
-	// the code, only the one whose delete succeeds gets tokens.
-	if _, err := r.Store.DeleteAuthorizationCode(ctx, &core.DeleteAuthorizationCodeRequest{Code: entry.Code}); err != nil {
+	// Consume is the single-use gate: of two requests that both read the
+	// code, only the first to consume it gets tokens.
+	if _, err := r.Store.ConsumeAuthorizationCode(ctx, &core.ConsumeAuthorizationCodeRequest{Code: entry.Code}); err != nil {
+		if errors.Is(err, core.ErrAuthorizationCodeUsed) {
+			return nil, r.refuseReuse(ctx, entry.Code)
+		}
 		if errors.Is(err, core.ErrAuthorizationCodeNotFound) {
-			return nil, invalidGrant("authorization code already used")
+			return nil, invalidGrant("authorization code not recognized")
 		}
 		return nil, serverError("consume authorization code: " + err.Error())
 	}
@@ -143,6 +160,11 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		return nil, serverError("create access token: " + err.Error())
 	}
 
+	issued := core.RecordAuthorizationCodeTokensRequest{
+		Code:           entry.Code,
+		TokenID:        tok.TokenID,
+		TokenExpiresAt: tok.ExpiresAt,
+	}
 	pair := &core.TokenPair{
 		AccessToken:          tok.Token,
 		TokenType:            tok.TokenType,
@@ -159,9 +181,55 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		})
 		if rtErr == nil && createResp != nil && createResp.Token != nil {
 			pair.RefreshToken = createResp.Token.Token
+			issued.RefreshFamily = createResp.Token.Family
 		}
 	}
+
+	// The code may have been presented again since it was consumed, before
+	// there was anything recorded to revoke. Then these tokens are the
+	// ones to revoke, and this redemption is refused too.
+	recResp, err := r.Store.RecordAuthorizationCodeTokens(ctx, &issued)
+	if err != nil {
+		r.revoke(ctx, issued.TokenID, issued.TokenExpiresAt, issued.RefreshFamily)
+		return nil, serverError("record authorization code tokens: " + err.Error())
+	}
+	if recResp.ReuseDetected {
+		r.revoke(ctx, issued.TokenID, issued.TokenExpiresAt, issued.RefreshFamily)
+		return nil, invalidGrant("authorization code already used")
+	}
 	return &AuthorizationCodeGrantResponse{Tokens: pair}, nil
+}
+
+// refuseReuse handles a code presented after it was redeemed (RFC 6749
+// §4.1.2). Consuming it again flags the record, so a redemption still
+// in flight refuses its own tokens, and returns the tokens already
+// recorded, which are revoked here.
+func (r *authorizationCodeGranter) refuseReuse(ctx context.Context, code string) error {
+	resp, err := r.Store.ConsumeAuthorizationCode(ctx, &core.ConsumeAuthorizationCodeRequest{Code: code})
+	switch {
+	case errors.Is(err, core.ErrAuthorizationCodeUsed) && resp != nil && resp.Code != nil:
+		c := resp.Code
+		r.revoke(ctx, c.IssuedTokenID, c.IssuedTokenExpiresAt, c.IssuedRefreshFamily)
+	case errors.Is(err, core.ErrAuthorizationCodeNotFound):
+		return invalidGrant("authorization code not recognized")
+	case err != nil && !errors.Is(err, core.ErrAuthorizationCodeUsed):
+		return serverError("consume authorization code: " + err.Error())
+	}
+	return invalidGrant("authorization code already used")
+}
+
+// revoke blacklists an access token and revokes a refresh family, each
+// when there is one to revoke and a store to revoke it in.
+func (r *authorizationCodeGranter) revoke(ctx context.Context, tokenID string, expiresAt time.Time, family string) {
+	if tokenID != "" && r.Blacklist != nil {
+		if expiresAt.IsZero() {
+			expiresAt = time.Now().Add(core.TokenExpiryAccessToken)
+		}
+		_ = r.Blacklist.Revoke(tokenID, expiresAt)
+	}
+	if family != "" && r.RefreshStore != nil {
+		_, _ = r.RefreshStore.RevokeTokenFamily(ctx, &core.RevokeTokenFamilyRequest{Family: family})
+	}
 }
 
 var _ AuthorizationCodeGranter = (*authorizationCodeGranter)(nil)

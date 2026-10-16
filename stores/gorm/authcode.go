@@ -23,6 +23,9 @@ import (
 //   - Scopes + AuthorizationDetails use gorm:"serializer:json" — the
 //     same portable pattern AppStore + DeviceAuthorization use for
 //     their slice / struct-slice fields.
+//   - UsedAt and IssuedTokenExpiresAt are nullable: NULL means unused,
+//     or no token recorded yet. A used row is kept until the access
+//     token it produced expires (RFC 6749 §4.1.2 reuse revocation).
 //
 // Auto-migrated alongside the other oneauth tables (see stores.go).
 type AuthorizationCodeModel struct {
@@ -37,6 +40,11 @@ type AuthorizationCodeModel struct {
 	AuthorizationDetails []core.AuthorizationDetail `gorm:"serializer:json"`
 	IssuedAt             time.Time                  `gorm:"autoCreateTime"`
 	ExpiresAt            time.Time                  `gorm:"not null;index"`
+	UsedAt               *time.Time
+	IssuedTokenID        string     `gorm:"size:128"`
+	IssuedTokenExpiresAt *time.Time `gorm:"index"`
+	IssuedRefreshFamily  string     `gorm:"size:128"`
+	ReuseDetected        bool       `gorm:"not null;default:false"`
 }
 
 // TableName returns the canonical table name. Pinned so a future GORM
@@ -115,6 +123,81 @@ func (s *AuthorizationCodeStore) GetAuthorizationCode(ctx context.Context, req *
 	return &core.GetAuthorizationCodeResponse{Code: modelToAuthCode(&model)}, nil
 }
 
+// ConsumeAuthorizationCode marks an unused code used. The conditional
+// UPDATE (`used_at IS NULL`) is the single-use gate, so of two
+// concurrent calls exactly one sees a row affected. The loser sets
+// reuse_detected and reads the row in one transaction; the UPDATE takes
+// the row lock first, so the read sees any tokens a racing
+// RecordAuthorizationCodeTokens has committed. Returns
+// core.ErrAuthorizationCodeUsed with the record for a used code, and
+// core.ErrAuthorizationCodeNotFound for a missing one.
+func (s *AuthorizationCodeStore) ConsumeAuthorizationCode(ctx context.Context, req *core.ConsumeAuthorizationCodeRequest) (*core.ConsumeAuthorizationCodeResponse, error) {
+	if req == nil || req.Code == "" {
+		return nil, core.ErrAuthorizationCodeNotFound
+	}
+	var model AuthorizationCodeModel
+	used := false
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		res := tx.Model(&AuthorizationCodeModel{}).Where("code = ? AND used_at IS NULL", req.Code).Update("used_at", now)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 1 {
+			if err := tx.First(&model, "code = ?", req.Code).Error; err != nil {
+				return err
+			}
+			model.UsedAt = nil
+			return nil
+		}
+		used = true
+		if err := tx.Model(&AuthorizationCodeModel{}).Where("code = ?", req.Code).Update("reuse_detected", true).Error; err != nil {
+			return err
+		}
+		return tx.First(&model, "code = ?", req.Code).Error
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, core.ErrAuthorizationCodeNotFound
+		}
+		return nil, err
+	}
+	resp := &core.ConsumeAuthorizationCodeResponse{Code: modelToAuthCode(&model)}
+	if used {
+		return resp, core.ErrAuthorizationCodeUsed
+	}
+	return resp, nil
+}
+
+// RecordAuthorizationCodeTokens stores the tokens a redemption minted
+// and reads reuse_detected in the same transaction, after the UPDATE
+// has taken the row lock, so a racing ConsumeAuthorizationCode either
+// sees these tokens or has set the flag this read returns. Returns
+// core.ErrAuthorizationCodeNotFound for a missing code.
+func (s *AuthorizationCodeStore) RecordAuthorizationCodeTokens(ctx context.Context, req *core.RecordAuthorizationCodeTokensRequest) (*core.RecordAuthorizationCodeTokensResponse, error) {
+	if req == nil || req.Code == "" {
+		return nil, core.ErrAuthorizationCodeNotFound
+	}
+	var model AuthorizationCodeModel
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&AuthorizationCodeModel{}).Where("code = ?", req.Code).Updates(map[string]any{
+			"issued_token_id":         req.TokenID,
+			"issued_token_expires_at": nullableTime(req.TokenExpiresAt),
+			"issued_refresh_family":   req.RefreshFamily,
+		}).Error; err != nil {
+			return err
+		}
+		return tx.First(&model, "code = ?", req.Code).Error
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, core.ErrAuthorizationCodeNotFound
+		}
+		return nil, err
+	}
+	return &core.RecordAuthorizationCodeTokensResponse{ReuseDetected: model.ReuseDetected}, nil
+}
+
 // DeleteAuthorizationCode removes the binding. Used by the token
 // endpoint on successful exchange (prevents replay) and by callers
 // cleaning up rejected flows. Returns ErrAuthorizationCodeNotFound
@@ -135,12 +218,14 @@ func (s *AuthorizationCodeStore) DeleteAuthorizationCode(ctx context.Context, re
 	return &core.DeleteAuthorizationCodeResponse{}, nil
 }
 
-// CleanupExpired enumerates the store and removes every record whose
-// ExpiresAt is at or before the current wall-clock time. The
-// ExpiresAt index keeps the scan O(log n + k) for k expired rows.
+// CleanupExpired removes every record past its RetainUntil: the code's
+// own expiry, or for a used code with a recorded token, the later
+// expiry of that token. The ExpiresAt index keeps the scan
+// O(log n + k) for k expired rows.
 func (s *AuthorizationCodeStore) CleanupExpired(ctx context.Context, _ *core.CleanupExpiredAuthorizationCodesRequest) (*core.CleanupExpiredAuthorizationCodesResponse, error) {
 	now := time.Now()
-	result := s.db.WithContext(ctx).Delete(&AuthorizationCodeModel{}, "expires_at <= ?", now)
+	result := s.db.WithContext(ctx).Delete(&AuthorizationCodeModel{},
+		"expires_at <= ? AND (used_at IS NULL OR issued_token_expires_at IS NULL OR issued_token_expires_at <= ?)", now, now)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -161,6 +246,11 @@ func authCodeToModel(c *core.AuthorizationCode) *AuthorizationCodeModel {
 		AuthorizationDetails: c.AuthorizationDetails,
 		IssuedAt:             c.IssuedAt,
 		ExpiresAt:            c.ExpiresAt,
+		UsedAt:               nullableTime(c.UsedAt),
+		IssuedTokenID:        c.IssuedTokenID,
+		IssuedTokenExpiresAt: nullableTime(c.IssuedTokenExpiresAt),
+		IssuedRefreshFamily:  c.IssuedRefreshFamily,
+		ReuseDetected:        c.ReuseDetected,
 	}
 }
 
@@ -178,5 +268,26 @@ func modelToAuthCode(m *AuthorizationCodeModel) *core.AuthorizationCode {
 		AuthorizationDetails: m.AuthorizationDetails,
 		IssuedAt:             m.IssuedAt,
 		ExpiresAt:            m.ExpiresAt,
+		UsedAt:               derefTime(m.UsedAt),
+		IssuedTokenID:        m.IssuedTokenID,
+		IssuedTokenExpiresAt: derefTime(m.IssuedTokenExpiresAt),
+		IssuedRefreshFamily:  m.IssuedRefreshFamily,
+		ReuseDetected:        m.ReuseDetected,
 	}
+}
+
+// nullableTime maps the zero time to NULL.
+func nullableTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
+// derefTime maps NULL to the zero time.
+func derefTime(t *time.Time) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return *t
 }

@@ -513,6 +513,8 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 		Token:     tokenString,
 		ExpiresIn: int64(i.accessExpiry.Seconds()),
 		TokenType: tokenTypeFor(req.Confirmation),
+		TokenID:   jti,
+		ExpiresAt: expiresAt,
 	}, nil
 }
 

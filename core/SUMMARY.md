@@ -16,7 +16,7 @@ and [`localauth/`](../localauth/SUMMARY.md) (username/password) and
 - **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket); also `AccountLockout` for tracking failed login attempts and temporary account lockouts
 - **client_ip.go** — `ClientIP(r, TrustedProxies)` is the address rate limits key on: the TCP peer, or the forwarded client when the peer is a configured proxy (X-Forwarded-For walked right to left). `ParseTrustedProxies` takes CIDRs or addresses. Issue 88.
 - **device_authorization.go** — `DeviceAuthorization`, `DeviceAuthorizationStore` interface + `InMemoryDeviceAuthorizationStore`, `UpperUserCode` normalization helper (RFC 8628)
-- **authorization_code.go** — `AuthorizationCode`, `AuthorizationCodeStore` interface + `InMemoryAuthorizationCodeStore`, `ErrAuthorizationCodeNotFound` sentinel (RFC 6749 §4.1)
+- **authorization_code.go** — `AuthorizationCode`, `AuthorizationCodeStore` interface + `InMemoryAuthorizationCodeStore`, `ErrAuthorizationCodeNotFound` sentinel (RFC 6749 §4.1). Redemption marks a code used (`ConsumeAuthorizationCode`, `ErrAuthorizationCodeUsed`) and records the tokens it minted (`RecordAuthorizationCodeTokens`); the record is kept until that access token expires so a reused code revokes them (RFC 6749 §4.1.2, issue 429)
 
 ## What moved out (and where)
 - `User`, `BasicUser`, `Identity`, `Channel`, `IdentityKey`, `HandleUserFunc`, `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`, `AuthError`, `AuthErrorHandler`, `ErrCode*`, `DetectUsernameType`, `CredentialsValidator`, `LinkedChannels` → [`accounts/`](../accounts/SUMMARY.md)

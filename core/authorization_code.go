@@ -14,6 +14,13 @@ import (
 // surface a different error to the caller in each case.
 var ErrAuthorizationCodeNotFound = errors.New("authorization code not found")
 
+// ErrAuthorizationCodeUsed is returned by
+// AuthorizationCodeStore.ConsumeAuthorizationCode when the code was
+// already redeemed. The response still carries the record, with the
+// tokens the first redemption recorded, so the caller can revoke them
+// (RFC 6749 §4.1.2).
+var ErrAuthorizationCodeUsed = errors.New("authorization code already used")
+
 // AuthorizationCode is one issued RFC 6749 §4.1 authorization code,
 // minted by the AS at the end of a successful /authorize consent and
 // redeemed at the token endpoint via `grant_type=authorization_code`.
@@ -25,10 +32,12 @@ var ErrAuthorizationCodeNotFound = errors.New("authorization code not found")
 // scopes carried forward to the issued access token, and the subject
 // the resource owner consented as.
 //
-// Codes are single-use — the redemption handler deletes the record on
-// successful exchange so a stolen code cannot be replayed for a second
-// access token. RFC 6749 §4.1.2 mandates short lifetimes (≤10 minutes);
-// the apiauth handler defaults to 60 seconds, which matches OAuth 2.1.
+// Codes are single-use. Redemption marks the record used
+// (ConsumeAuthorizationCode) rather than deleting it, and keeps it until
+// the access token it produced expires, so a second redemption can find
+// and revoke that token (RFC 6749 §4.1.2). RFC 6749 §4.1.2 mandates
+// short lifetimes (≤10 minutes); the apiauth handler defaults to 60
+// seconds, which matches OAuth 2.1.
 type AuthorizationCode struct {
 	// Code is the high-entropy identifier the client redeems with.
 	// 256-bit, hex-encoded; unguessable.
@@ -94,6 +103,26 @@ type AuthorizationCode struct {
 	// invalid_grant. RFC 6749 §4.1.2 recommends ≤10 minutes; the
 	// apiauth handler defaults to 60s (OAuth 2.1 alignment).
 	ExpiresAt time.Time `json:"expires_at"`
+
+	// UsedAt is when the code was redeemed, zero while it is unused. Set
+	// once, by ConsumeAuthorizationCode.
+	UsedAt time.Time `json:"used_at,omitempty"`
+
+	// IssuedTokenID is the `jti` of the access token the redemption
+	// minted, and IssuedTokenExpiresAt its expiry. The store keeps a used
+	// record until IssuedTokenExpiresAt, after which there is nothing
+	// left to revoke.
+	IssuedTokenID        string    `json:"issued_token_id,omitempty"`
+	IssuedTokenExpiresAt time.Time `json:"issued_token_expires_at,omitempty"`
+
+	// IssuedRefreshFamily is the family of the refresh token the
+	// redemption minted, empty when it minted none.
+	IssuedRefreshFamily string `json:"issued_refresh_family,omitempty"`
+
+	// ReuseDetected is set when the code is presented after it was used.
+	// The redemption that minted the tokens checks it after recording
+	// them, so a reuse racing the first redemption still revokes.
+	ReuseDetected bool `json:"reuse_detected,omitempty"`
 }
 
 // IsExpired reports whether the code is past its deadline. Centralized
@@ -101,6 +130,21 @@ type AuthorizationCode struct {
 // on the comparison.
 func (a *AuthorizationCode) IsExpired(now time.Time) bool {
 	return !a.ExpiresAt.IsZero() && !now.Before(a.ExpiresAt)
+}
+
+// IsUsed reports whether the code has been redeemed.
+func (a *AuthorizationCode) IsUsed() bool {
+	return !a.UsedAt.IsZero()
+}
+
+// RetainUntil is when CleanupExpired may remove the record: the code's
+// own expiry, or for a used code the later of that and the expiry of the
+// access token it produced.
+func (a *AuthorizationCode) RetainUntil() time.Time {
+	if a.IsUsed() && a.IssuedTokenExpiresAt.After(a.ExpiresAt) {
+		return a.IssuedTokenExpiresAt
+	}
+	return a.ExpiresAt
 }
 
 // CreateAuthorizationCodeRequest carries the inputs for persisting a
@@ -125,14 +169,41 @@ type GetAuthorizationCodeResponse struct {
 }
 
 // DeleteAuthorizationCodeRequest carries the code to remove. The
-// redemption handler deletes after a successful token exchange so the
-// same code cannot be replayed for a second access token.
+// redemption handler deletes an expired code it was handed; a redeemed
+// code is marked used instead (ConsumeAuthorizationCode).
 type DeleteAuthorizationCodeRequest struct {
 	Code string
 }
 
 // DeleteAuthorizationCodeResponse is empty.
 type DeleteAuthorizationCodeResponse struct{}
+
+// ConsumeAuthorizationCodeRequest carries the code being redeemed.
+type ConsumeAuthorizationCodeRequest struct {
+	Code string
+}
+
+// ConsumeAuthorizationCodeResponse carries the record as it was before
+// the call: unused on success, or, with ErrAuthorizationCodeUsed, the
+// first redemption's recorded tokens.
+type ConsumeAuthorizationCodeResponse struct {
+	Code *AuthorizationCode
+}
+
+// RecordAuthorizationCodeTokensRequest names the tokens a redemption
+// minted from Code.
+type RecordAuthorizationCodeTokensRequest struct {
+	Code           string
+	TokenID        string
+	TokenExpiresAt time.Time
+	RefreshFamily  string
+}
+
+// RecordAuthorizationCodeTokensResponse reports whether the code was
+// presented again before the tokens were recorded.
+type RecordAuthorizationCodeTokensResponse struct {
+	ReuseDetected bool
+}
 
 // CleanupExpiredAuthorizationCodesRequest is empty; the call enumerates
 // the store and removes anything past its expiry.
@@ -152,11 +223,13 @@ type CleanupExpiredAuthorizationCodesResponse struct {
 // DeviceAuthorizationStore (issues 269 / 270) and are deferred to
 // follow-ups.
 //
-// Codes are write-once / read-once / delete-on-success. The store does
-// NOT enforce single-use semantics — that lives in the redemption
-// handler so it can fold the consumption check into the same
-// transaction as the binding checks. The store's job is to persist the
-// record and surface ErrAuthorizationCodeNotFound on lookup misses.
+// Redemption is a two-step protocol, both steps atomic per record:
+// ConsumeAuthorizationCode marks the code used (the single-use gate),
+// and RecordAuthorizationCodeTokens stores what the redemption minted.
+// A second Consume flags the record and returns those tokens so the
+// caller can revoke them; a Record that finds the flag tells its caller
+// to revoke its own. Whichever of the two runs second sees the other's
+// write, so a reuse racing the first redemption is still caught.
 type AuthorizationCodeStore interface {
 	// CreateAuthorizationCode inserts a new authorization code. The
 	// Code field MUST be unique across all non-expired records — the
@@ -173,15 +246,26 @@ type AuthorizationCodeStore interface {
 	GetAuthorizationCode(ctx context.Context, req *GetAuthorizationCodeRequest) (*GetAuthorizationCodeResponse, error)
 
 	// DeleteAuthorizationCode removes the binding. Called by the token
-	// endpoint on successful exchange (prevents replay) and by callers
-	// cleaning up rejected flows. Returns
-	// ErrAuthorizationCodeNotFound when no record matches.
+	// endpoint on an expired code and by callers cleaning up rejected
+	// flows. Returns ErrAuthorizationCodeNotFound when no record matches.
 	DeleteAuthorizationCode(ctx context.Context, req *DeleteAuthorizationCodeRequest) (*DeleteAuthorizationCodeResponse, error)
 
-	// CleanupExpired enumerates the store and removes every record
-	// whose ExpiresAt is at or before the current wall-clock time.
-	// Production deployments run this on a timer; tests call it
-	// explicitly.
+	// ConsumeAuthorizationCode marks an unused code used and returns the
+	// record as it was. For a code already used it sets ReuseDetected and
+	// returns ErrAuthorizationCodeUsed together with the record, whose
+	// Issued* fields name the tokens to revoke. A missing code is
+	// ErrAuthorizationCodeNotFound.
+	ConsumeAuthorizationCode(ctx context.Context, req *ConsumeAuthorizationCodeRequest) (*ConsumeAuthorizationCodeResponse, error)
+
+	// RecordAuthorizationCodeTokens stores the tokens a redemption minted
+	// on the used record and reports ReuseDetected, read in the same
+	// atomic step. A missing code is ErrAuthorizationCodeNotFound.
+	RecordAuthorizationCodeTokens(ctx context.Context, req *RecordAuthorizationCodeTokensRequest) (*RecordAuthorizationCodeTokensResponse, error)
+
+	// CleanupExpired removes every record whose RetainUntil is at or
+	// before the current wall-clock time, so a used code outlives its own
+	// expiry until the access token it produced has expired. Production
+	// deployments run this on a timer; tests call it explicitly.
 	CleanupExpired(ctx context.Context, req *CleanupExpiredAuthorizationCodesRequest) (*CleanupExpiredAuthorizationCodesResponse, error)
 }
 
@@ -244,13 +328,53 @@ func (s *InMemoryAuthorizationCodeStore) DeleteAuthorizationCode(_ context.Conte
 	return &DeleteAuthorizationCodeResponse{}, nil
 }
 
+// ConsumeAuthorizationCode marks the code used under the store's lock;
+// see AuthorizationCodeStore.
+func (s *InMemoryAuthorizationCodeStore) ConsumeAuthorizationCode(_ context.Context, req *ConsumeAuthorizationCodeRequest) (*ConsumeAuthorizationCodeResponse, error) {
+	if req == nil || req.Code == "" {
+		return nil, ErrAuthorizationCodeNotFound
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.byCode[req.Code]
+	if !ok {
+		return nil, ErrAuthorizationCodeNotFound
+	}
+	before := *c
+	if c.IsUsed() {
+		c.ReuseDetected = true
+		return &ConsumeAuthorizationCodeResponse{Code: &before}, ErrAuthorizationCodeUsed
+	}
+	c.UsedAt = time.Now()
+	return &ConsumeAuthorizationCodeResponse{Code: &before}, nil
+}
+
+// RecordAuthorizationCodeTokens stores the minted tokens under the
+// store's lock; see AuthorizationCodeStore.
+func (s *InMemoryAuthorizationCodeStore) RecordAuthorizationCodeTokens(_ context.Context, req *RecordAuthorizationCodeTokensRequest) (*RecordAuthorizationCodeTokensResponse, error) {
+	if req == nil || req.Code == "" {
+		return nil, ErrAuthorizationCodeNotFound
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.byCode[req.Code]
+	if !ok {
+		return nil, ErrAuthorizationCodeNotFound
+	}
+	c.IssuedTokenID = req.TokenID
+	c.IssuedTokenExpiresAt = req.TokenExpiresAt
+	c.IssuedRefreshFamily = req.RefreshFamily
+	return &RecordAuthorizationCodeTokensResponse{ReuseDetected: c.ReuseDetected}, nil
+}
+
+// CleanupExpired removes records past their RetainUntil.
 func (s *InMemoryAuthorizationCodeStore) CleanupExpired(_ context.Context, _ *CleanupExpiredAuthorizationCodesRequest) (*CleanupExpiredAuthorizationCodesResponse, error) {
 	now := time.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	removed := 0
 	for code, c := range s.byCode {
-		if c.IsExpired(now) {
+		if !now.Before(c.RetainUntil()) {
 			delete(s.byCode, code)
 			removed++
 		}
