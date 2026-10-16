@@ -96,6 +96,8 @@
       "enabled": true,
       "publicClient": true,
       "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:*", "http://127.0.0.1:*"],
       "protocol": "openid-connect",
       "defaultClientScopes": ["basic", "openid", "email", "profile"],
       "optionalClientScopes": ["read", "write"],
