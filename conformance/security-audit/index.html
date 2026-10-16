@@ -1035,32 +1035,95 @@ several PRs, and rows still Open name the part of issue 88 they&rsquo;re waiting
 <td><code>session_type_test.go</code>*, AccessTokenIsNotASessionCookie*</td>
 </tr>
 <tr>
-<td>Revocation checks the token is the caller&rsquo;s, and verifies it first</td>
+<td>A token the AS signed verifies with the AS&rsquo;s key</td>
+<td>—</td>
+<td>Pass (was Fail)</td>
+<td><code>resolveKey</code> uses the validator&rsquo;s own key for its own <code>kid</code>; it used to fall back to the <code>client_id</code> claim and check against that client&rsquo;s key</td>
+<td>ASTokenNamingARegisteredClientVerifies*</td>
+</tr>
+<tr>
+<td>Revocation only for the client the token was issued to</td>
+<td>RFC 7009 §2.1, CWE-639</td>
+<td>Pass (was Fail)</td>
+<td><code>RevokeRequest.ClientID</code>, <code>ErrRevokeNotOwner</code> → 400 <code>invalid_request</code> (as Keycloak answers)</td>
+<td>AccessTokenOfAnotherClientIsRefused*, RefreshTokenOfAnotherClientIsRefused*</td>
+</tr>
+<tr>
+<td>Revocation verifies an access token before blacklisting its <code>jti</code></td>
+<td>CWE-347</td>
+<td>Pass (was Fail)</td>
+<td><code>TokenRevokerConfig.Validator</code></td>
+<td>UnverifiedTokenNeverReachesTheBlacklist*</td>
+</tr>
+<tr>
+<td>Revocation needs <code>token</code>, and searches every type whatever the hint</td>
 <td>RFC 7009 §2.1</td>
-<td>Open</td>
-<td>blacklists an unverified <code>jti</code> from any client</td>
-<td>revocation PR</td>
+<td>Pass (was Fail)</td>
+<td>missing <code>token</code> is 400 <code>invalid_request</code> (as Keycloak answers); a <code>refresh_token</code> hint no longer stops the access-token search</td>
+<td>MissingTokenIsInvalidRequest*, <code>revocation_test.go</code> EmptyToken</td>
 </tr>
 <tr>
-<td>jwt-bearer and token-exchange assertions single-use</td>
+<td>Introspection <code>token_type</code> is the access-token type</td>
+<td>RFC 7662 §2.2</td>
+<td>Pass (was Fail)</td>
+<td><code>Bearer</code> / <code>DPoP</code>, was the literal <code>access_token</code></td>
+<td>TokenTypeIsTheAccessTokenType*</td>
+</tr>
+<tr>
+<td>Introspection covers refresh tokens</td>
+<td>RFC 7662 §2.1</td>
+<td>Pass (was not implemented)</td>
+<td><code>NewTokenIntrospectorWithRefreshStore</code>; <code>token_type_hint</code> orders the search</td>
+<td>Introspection_RefreshTokens*</td>
+</tr>
+<tr>
+<td>jwt-bearer assertions need <code>exp</code> and a configured audience</td>
 <td>RFC 7523 §3</td>
-<td>Open</td>
-<td>no <code>jti</code> replay check outside ID-JAG</td>
-<td>revocation PR</td>
+<td>Pass (was Fail)</td>
+<td><code>ValidateAssertion</code> requires <code>exp</code> and refuses when it has no audience to compare (it used to accept any <code>aud</code>)</td>
+<td>ExpIsRequired*, NoAudienceConfiguredRefuses*</td>
 </tr>
 <tr>
-<td>Refresh rotation atomic in GORM</td>
-<td>RFC 9700 §4.14</td>
+<td>A jwt-bearer assertion with a <code>jti</code> is single-use</td>
+<td>RFC 7523 §3, CWE-294</td>
+<td>Pass (was Fail)</td>
+<td>keyed by <code>iss</code> + <code>jti</code> in the granter&rsquo;s <code>ReplayStore</code></td>
+<td>AssertionWithJTIIsSingleUse*</td>
+</tr>
+<tr>
+<td>An authorization code redeemed twice at once yields tokens once</td>
+<td>RFC 6749 §4.1.2, CWE-367</td>
+<td>Pass (was Partial)</td>
+<td>the store&rsquo;s delete is the gate, and the loser now gets <code>invalid_grant</code> instead of 500</td>
+<td>RacingRedemptionIsInvalidGrant*</td>
+</tr>
+<tr>
+<td>Tokens from a redeemed code name their client</td>
+<td>RFC 9068 §2.2</td>
+<td>Pass (was Fail)</td>
+<td><code>client_id</code> was missing, so revocation ownership and tenant checks couldn&rsquo;t see it</td>
+<td>AccessTokenNamesTheClient*</td>
+</tr>
+<tr>
+<td>Tokens from a code redeemed twice are revoked</td>
+<td>RFC 6749 §4.1.2 (SHOULD)</td>
 <td>Open</td>
-<td>read-then-write race</td>
-<td>revocation PR</td>
+<td>needs a record of used codes; the second redemption is refused, but tokens from the first stay valid</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Refresh rotation has one winner in GORM</td>
+<td>RFC 9700 §4.14.2, CWE-367</td>
+<td>Pass (was Fail)</td>
+<td>the revoke is a compare-and-set on <code>revoked</code></td>
+<td>RotationRaceHasOneWinner*</td>
 </tr>
 <tr>
 <td>Refresh families have an absolute lifetime</td>
 <td>RFC 9700 §4.14.2</td>
-<td>Open</td>
-<td>sliding only</td>
-<td>revocation PR</td>
+<td>Pass (was Fail)</td>
+<td>rotation keeps the family&rsquo;s <code>ExpiresAt</code> in FS, GORM and GAE, so a family lasts at most <code>TokenExpiryRefreshToken</code> (7 days)</td>
+<td>RotationKeepsTheFamilyExpiry* (all three stores; GAE under <code>make testds</code>)</td>
 </tr>
 </tbody>
 </table>
