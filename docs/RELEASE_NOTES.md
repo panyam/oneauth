@@ -3,6 +3,58 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.45
+
+### Token audit (issue 88, PRs 414 to 416)
+
+Issue 88's third slice walked token validation, revocation and
+introspection. The matrix is the "Tokens and keys" section of
+`docs/SECURITY_AUDIT.md`.
+
+- **Validation.** `exp` is required. An empty HMAC key never signs or
+  verifies. Logout tokens, ID-JAGs and sessions are refused as access tokens
+  by `typ` header and `type` claim. A key registered to a client verifies
+  only tokens carrying that `client_id`, and a token with the validator's own
+  `kid` is checked with its own key (it used to be checked against the
+  named client's key and fail). `CustomClaims` can't set `nbf`, `scope`,
+  `azp`, `sid`, `act` or `may_act`.
+- **Challenges.** `invalid_token` only when a token was presented, 403
+  `insufficient_scope` with `scope` for a missing scope, and
+  `resource_metadata` from `APIMiddleware.ResourceMetadataURL`.
+- **Revocation.** A client revokes only its own tokens (`ErrRevokeNotOwner`,
+  400 `invalid_request`, as Keycloak answers). Access tokens are verified
+  before their `jti` is blacklisted, a missing `token` is 400, and every
+  token type is searched whatever the hint.
+- **Introspection.** `token_type` is `Bearer` / `DPoP`, and refresh tokens
+  can be introspected (`NewTokenIntrospectorWithRefreshStore`, wired by
+  `OneAuth`).
+- **Grants.** jwt-bearer assertions need `exp` and a configured audience,
+  and one with a `jti` is single-use. A code redeemed by two requests at
+  once gives the loser `invalid_grant`, and tokens from a code carry
+  `client_id`.
+- **Refresh tokens.** GORM rotation is a compare-and-set, and rotation keeps
+  the family's expiry in every store.
+- **Sessions.** `httpauth` and the reference server accept only
+  `type: session` JWTs as logins. The reference server refuses a
+  `jwt.secret_key` under 32 bytes.
+- **CodeQL.** The three error-level alerts are fixed: no token prefix in
+  `httpauth`'s log, and no unverified JWT parse in the revoker or the
+  server's `/api/revoke`.
+
+### Upgrading
+
+- **Tokens without `exp`** no longer validate. oneauth always set it.
+- **Missing scope** is 403, not 401.
+- **Reference server:** `jwt.secret_key` (`JWT_SECRET_KEY`) must be at least
+  32 bytes, in every signing mode.
+- **Tenant-minted tokens** must carry their own `client_id`.
+- **Refresh sessions** end `TokenExpiryRefreshToken` (7 days) after login,
+  however often they're refreshed.
+- **jwt-bearer / token-exchange:** set `TrustedAssertionIssuer.Audiences` or
+  the AS issuer URL, or every assertion is refused.
+- **Introspection consumers** reading `token_type` see `Bearer` / `DPoP`.
+- **Revocation** without `token` is 400.
+
 ## Version 0.1.44
 
 ### HTTP-surface audit (issue 88, PRs 403 to 407)
