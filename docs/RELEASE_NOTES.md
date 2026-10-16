@@ -3,6 +3,39 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.42
+
+### Fixes found by comparing with Keycloak (issue 88, PR 398)
+
+New full-stack e2e tests and a suite that sends the same requests to Keycloak
+and to oneauth turned up three bugs.
+
+- **`LoginWithBrowser` with a DPoP key can log in.** It sent `dpop_jkt`, which
+  binds the code to the key, then exchanged the code without a proof, so
+  oneauth and Keycloak both refused every DPoP browser login. The exchange now
+  carries a proof and answers nonce challenges, still through the caller's
+  `HTTPClient`.
+- **Refresh `invalid_grant` is 400**, as RFC 6749 §5.2 has it. It was 401.
+- **A refresh naming no client** for a token that has one gets 401
+  `invalid_client`, and one naming a different client gets `invalid_grant`
+  before any credentials are asked for. Both match Keycloak.
+- **SDK DCR** carries `DPoPBoundAccessTokens` on `ClientRegistrationRequest`
+  and `ClientRegistrationResponse` (RFC 9449 §5.2).
+
+Where oneauth and Keycloak still answer differently, `docs/SECURITY_AUDIT.md`
+says which and why.
+
+### Upgrading
+
+- **Code that branches on the refresh grant's status** sees 400 instead of
+  401 for a refused token. Only `invalid_client` is 401.
+
+### CI
+
+The ZAP baseline scan runs again. Its pinned action version didn't exist, so
+the job had failed at setup on every push to main. It now reports to the run's
+`zap_scan` artifact rather than opening issues.
+
 ## Version 0.1.41
 
 ### DPoP audit and requiring DPoP (issue 88, PR 396)
