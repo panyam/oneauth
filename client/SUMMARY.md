@@ -9,7 +9,7 @@ Go client library for OAuth 2.0 authentication: browser-based login (authorizati
 - **headless_consent.go** — `ApproveConsent` (headless `OpenBrowser` for demo ASes that answer `/authorize` with a consent form: posts the form with its approve button, refuses forms without one)
 - **auth_method.go** — `TokenEndpointAuthMethod` type, `SelectAuthMethod` (negotiates `client_secret_basic` vs `client_secret_post` vs `none` from AS metadata), `applyAuthToForm`
 - **private_key_jwt.go** — `AuthMethodPrivateKeyJWT` constant, `ClientAssertionConfig`, `MintClientAssertion` (RFC 7523 §2.2 / OIDC Core §9 assertion minter — fresh `jti` + bounded lifetime per call)
-- **dpop.go** — `DPoPKey` (RFC 9449): ES256 proof-of-possession key. Mints a per-request proof (`htm`, `htu`, `jti`, `iat`, plus `ath` when presenting a token), exposes the RFC 7638 `Thumbprint()` for `dpop_jkt`, and `SupportedBy` checks the server's advertised algorithms. Wire it with `client.WithDPoPKey`.
+- **dpop.go** — `DPoPKey` (RFC 9449): ES256 proof-of-possession key. Mints a per-request proof (`htm`, `htu`, `jti`, `iat`, plus `ath` when presenting a token), exposes the RFC 7638 `Thumbprint()` for `dpop_jkt`, and `SupportedBy` checks the server's advertised algorithms. Wire it with `client.WithDPoPKey`. `ProofWithNonce` is for callers presenting tokens through their own transport, so they can answer a resource server's `use_dpop_nonce` challenge.
 - **discovery.go** — `ASMetadata`, `DiscoverAS` (RFC 8414 + OIDC Discovery fallback), `DiscoveryOption`
 - **credentials.go** — `ServerCredential`, `CredentialStore` interface
 - **transport.go** — `AuthTransport` (static Bearer token transport)
