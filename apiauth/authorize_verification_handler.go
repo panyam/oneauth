@@ -92,8 +92,13 @@ type authorizeConsentData struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	DPoPJKT             string
-	CSRFToken           string
-	ActionURL           string
+	// RequestURI round-trips a pushed request (RFC 9126) through the
+	// form, so Approve resolves the stored payload instead of re-reading
+	// the other hidden inputs as a fresh request. Custom consent
+	// templates must post it back too.
+	RequestURI string
+	CSRFToken  string
+	ActionURL  string
 }
 
 // authorizeErrorData drives the Error template — the page shown to the
@@ -148,6 +153,7 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
 		DPoPJKT:             req.DPoPJKT,
+		RequestURI:          req.RequestURI,
 		CSRFToken:           h.csrfToken(r),
 		ActionURL:           r.URL.Path,
 	}
@@ -324,6 +330,7 @@ var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent"
     <input type="hidden" name="code_challenge" value="{{.CodeChallenge}}">
     <input type="hidden" name="code_challenge_method" value="{{.CodeChallengeMethod}}">
     {{if .DPoPJKT}}<input type="hidden" name="dpop_jkt" value="{{.DPoPJKT}}">{{end}}
+    {{if .RequestURI}}<input type="hidden" name="request_uri" value="{{.RequestURI}}">{{end}}
     <button type="submit" name="action" value="approve">Approve</button>
     <button type="submit" name="action" value="deny">Deny</button>
   </form>

@@ -128,22 +128,30 @@ func (s *PushedAuthorizationRequestStore) GetPushedAuthorizationRequest(ctx cont
 
 // ConsumePushedAuthorizationRequest marks the record redeemed, leaving the
 // row in place so a replay reads back as "already used" rather than as an
-// unknown reference. Returns core.ErrPushedRequestNotFound when nothing
-// matches.
+// unknown reference. The update is a compare-and-set on consumed, so
+// Consumed is true for exactly one caller however many race. Returns
+// core.ErrPushedRequestNotFound when nothing matches.
 func (s *PushedAuthorizationRequestStore) ConsumePushedAuthorizationRequest(ctx context.Context, req *core.ConsumePushedAuthorizationRequestRequest) (*core.ConsumePushedAuthorizationRequestResponse, error) {
 	if req == nil || req.RequestURI == "" {
 		return nil, core.ErrPushedRequestNotFound
 	}
 	result := s.db.WithContext(ctx).Model(&PushedAuthorizationRequestModel{}).
-		Where("request_uri = ?", req.RequestURI).
+		Where("request_uri = ? AND consumed = ?", req.RequestURI, false).
 		Update("consumed", true)
 	if result.Error != nil {
 		return nil, result.Error
 	}
-	if result.RowsAffected == 0 {
+	if result.RowsAffected == 1 {
+		return &core.ConsumePushedAuthorizationRequestResponse{Consumed: true}, nil
+	}
+	var n int64
+	if err := s.db.WithContext(ctx).Model(&PushedAuthorizationRequestModel{}).Where("request_uri = ?", req.RequestURI).Count(&n).Error; err != nil {
+		return nil, err
+	}
+	if n == 0 {
 		return nil, core.ErrPushedRequestNotFound
 	}
-	return &core.ConsumePushedAuthorizationRequestResponse{}, nil
+	return &core.ConsumePushedAuthorizationRequestResponse{Consumed: false}, nil
 }
 
 // DeletePushedAuthorizationRequest removes a record, returning

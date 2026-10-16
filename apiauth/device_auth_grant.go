@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -83,6 +84,11 @@ type DeviceAuthorizationHandler struct {
 	// suitable for public-client-only deployments and tests, NOT for
 	// production with confidential clients.
 	ClientAuthenticator ClientAuthenticator
+
+	// AppStore, when set, bounds the scope a client may request to the
+	// scope it registered (RFC 6749 §3.3), and grants the registered
+	// scope when none is asked for. MountDeviceFlow wires OneAuth's.
+	AppStore core.AppRegistrationStore
 }
 
 // ServeHTTP implements the RFC 8628 §3.1 device authorization request
@@ -156,7 +162,17 @@ func (h *DeviceAuthorizationHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 	if interval <= 0 {
 		interval = DefaultDeviceAuthorizationInterval
 	}
-	scopes := core.ParseScopes(r.FormValue("scope"))
+	reg, gErr := clientRegistration(r.Context(), h.AppStore, clientID)
+	if gErr != nil {
+		log.Printf("device authorization: %s", gErr.Description)
+		writeOAuthError(w, http.StatusInternalServerError, "server_error", "could not load the client registration")
+		return
+	}
+	scopes, gErr := grantScopes(reg, core.ParseScopes(r.FormValue("scope")))
+	if gErr != nil {
+		writeOAuthError(w, gErr.Status, gErr.Code, gErr.Description)
+		return
+	}
 	auth := &core.DeviceAuthorization{
 		DeviceCode:        deviceCode,
 		UserCode:          userCode,

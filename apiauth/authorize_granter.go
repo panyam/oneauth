@@ -100,6 +100,11 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 	if entry.RedirectURI != req.RedirectURI {
 		return nil, invalidGrant("redirect_uri does not match the authorization request")
 	}
+	// RFC 7636 §4.1: 43 to 128 unreserved characters. A shorter one would
+	// verify against its own challenge but be guessable.
+	if !pkceVerifierShape.MatchString(req.CodeVerifier) {
+		return nil, invalidGrant("code_verifier must be 43 to 128 unreserved characters")
+	}
 	if !core.VerifyPKCE(entry.CodeChallengeMethod, entry.CodeChallenge, req.CodeVerifier) {
 		return nil, invalidGrant("PKCE verification failed")
 	}

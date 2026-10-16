@@ -42,6 +42,13 @@ type AuthorizeMountConfig struct {
 	// AuthorizationHandler.RedirectURIValidator for details.
 	RedirectURIValidator func(ctx context.Context, clientID, redirectURI string) error
 
+	// AllowAnyRedirectURI lets /authorize run with neither an AppStore on
+	// OneAuth nor a RedirectURIValidator, accepting any redirect_uri.
+	// Without it such a mount refuses every request, since there is
+	// nothing to check redirect_uri against. Test fixtures and
+	// conformance harnesses only.
+	AllowAnyRedirectURI bool
+
 	// RedirectOverride, when non-nil, lets conformance scenarios
 	// mutate / strip / corrupt the redirect query values before
 	// they are encoded. Production deployments leave this nil. See
@@ -146,6 +153,7 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 		Store:                 cfg.OneAuth.AuthorizationCodeStore,
 		AppStore:              cfg.OneAuth.AppStore,
 		RedirectURIValidator:  cfg.RedirectURIValidator,
+		AllowAnyRedirectURI:   cfg.AllowAnyRedirectURI,
 		IssuerURL:             cfg.IssuerURL,
 		EmitIssParameter:      cfg.EmitIssParameter,
 		RedirectOverride:      cfg.RedirectOverride,

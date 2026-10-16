@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -82,6 +83,13 @@ func (r *AuthorizationRequest) Scopes() []string {
 type AuthorizationHandler struct {
 	// Store persists minted codes. Required.
 	Store core.AuthorizationCodeStore
+
+	// AllowAnyRedirectURI accepts any redirect_uri when neither AppStore
+	// nor RedirectURIValidator is set. Without it such a handler refuses
+	// every request, since it has nothing to check redirect_uri against
+	// and would otherwise send codes wherever the request said (CWE-601).
+	// For test fixtures and conformance harnesses only.
+	AllowAnyRedirectURI bool
 
 	// AppStore validates the (client_id, redirect_uri) tuple. When nil
 	// the handler accepts any (client_id, redirect_uri) pair — suitable
@@ -190,7 +198,13 @@ func (h *AuthorizationHandler) ParseAndValidate(r *http.Request) (req *Authoriza
 		return h.ValidateValues(r.Context(), values)
 	}
 
-	pushed, displayErr, errCode, errDescription := h.resolvePushedRequest(r.Context(), requestURI, strings.TrimSpace(values.Get("client_id")))
+	// RFC 9126 §4: client_id is REQUIRED alongside request_uri, so the
+	// reference can be checked against the client presenting it.
+	clientID := strings.TrimSpace(values.Get("client_id"))
+	if clientID == "" {
+		return nil, true, "invalid_request", "client_id is required with request_uri"
+	}
+	pushed, displayErr, errCode, errDescription := h.resolvePushedRequest(r.Context(), requestURI, clientID)
 	if errCode != "" {
 		return nil, displayErr, errCode, errDescription
 	}
@@ -235,7 +249,7 @@ func (h *AuthorizationHandler) resolvePushedRequest(ctx context.Context, request
 	// §2.2 binds the reference to the client that pushed it. A client_id
 	// in the URL that disagrees means someone is trying to spend another
 	// client's pushed request.
-	if clientID != "" && clientID != record.ClientID {
+	if clientID != record.ClientID {
 		return nil, true, "invalid_request", "request_uri was not issued to this client"
 	}
 	return record, false, "", ""
@@ -300,8 +314,15 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 	}
 	switch req.CodeChallengeMethod {
 	case core.CodeChallengeMethodS256:
-		// OAuth 2.1 §7.5 mandated default; always accepted.
+		// OAuth 2.1 §7.5 mandated default; always accepted. The challenge
+		// is a base64url SHA-256, so exactly 43 characters (RFC 7636 §4.2).
+		if !s256Challenge.MatchString(req.CodeChallenge) {
+			return req, false, "invalid_request", "code_challenge is not a base64url SHA-256 (43 characters)"
+		}
 	case core.CodeChallengeMethodPlain:
+		if !pkceVerifierShape.MatchString(req.CodeChallenge) {
+			return req, false, "invalid_request", "code_challenge must be 43 to 128 unreserved characters"
+		}
 		if !h.AllowPlainPKCE {
 			return req, false, "invalid_request", "only S256 PKCE is supported (set OneAuthConfig.AllowPlainPKCE to permit plain for OAuth 2.0 fleets)"
 		}
@@ -314,14 +335,50 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 		return req, false, "invalid_request", fmt.Sprintf("unsupported code_challenge_method=%q", req.CodeChallengeMethod)
 	}
 
+	// The client's registered scope bounds what it can ask for (RFC 6749
+	// §3.3), the same rule the token endpoint applies, and asking for
+	// nothing gets the registered default.
+	reg, gErr := clientRegistration(ctx, h.AppStore, req.ClientID)
+	if gErr != nil {
+		return req, true, gErr.Code, "could not load the client registration"
+	}
+	scopes, gErr := grantScopes(reg, req.Scopes())
+	if gErr != nil {
+		return req, false, gErr.Code, gErr.Description
+	}
+	req.Scope = core.JoinScopes(scopes)
+
 	return req, false, "", ""
 }
+
+// s256Challenge is a base64url-encoded SHA-256 without padding (RFC 7636
+// §4.2), and pkceVerifierShape is RFC 7636 §4.1's code_verifier, which a
+// plain challenge equals.
+var (
+	s256Challenge     = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+	pkceVerifierShape = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
+)
 
 // IssueCode mints + persists a fresh authorization code bound to the
 // supplied (request, subject) tuple. The caller (the consent
 // verification handler) calls this on Approve. Returns the code on
 // success.
 func (h *AuthorizationHandler) IssueCode(ctx context.Context, req *AuthorizationRequest, subject string, grantedScopes []string) (string, error) {
+	// A pushed reference is spent by the approval that produces a code
+	// (RFC 9126 §4), not when it is first read: the consent screen renders
+	// on GET and approves on POST, and a reload in between is ordinary.
+	// Spending it before minting makes the consume the single-use gate, so
+	// of two approvals racing on one reference only one gets a code.
+	if req.RequestURI != "" && h.PushedStore != nil {
+		resp, err := h.PushedStore.ConsumePushedAuthorizationRequest(ctx, &core.ConsumePushedAuthorizationRequestRequest{RequestURI: req.RequestURI})
+		if err != nil {
+			return "", fmt.Errorf("consume request_uri: %w", err)
+		}
+		if !resp.Consumed {
+			return "", errors.New("request_uri has already been used")
+		}
+	}
+
 	code, err := generateAuthorizationCode()
 	if err != nil {
 		return "", err
@@ -351,20 +408,6 @@ func (h *AuthorizationHandler) IssueCode(ctx context.Context, req *Authorization
 		return "", err
 	}
 
-	// A pushed reference is spent when it produces a code, not when it
-	// is first read (RFC 9126 §4). Reading it twice is ordinary: the
-	// consent screen renders on GET and approves on POST, and a user who
-	// reloads before approving has done nothing wrong. Consuming here
-	// keeps "one code per pushed request" while leaving that alone.
-	//
-	// A failure to consume is logged rather than fatal: the code is
-	// already minted and the client is entitled to it. The reference
-	// expires on its own within a minute.
-	if req.RequestURI != "" && h.PushedStore != nil {
-		if _, err := h.PushedStore.ConsumePushedAuthorizationRequest(ctx, &core.ConsumePushedAuthorizationRequestRequest{RequestURI: req.RequestURI}); err != nil {
-			log.Printf("apiauth.AuthorizationHandler: could not consume request_uri %q after issuing a code: %v", req.RequestURI, err)
-		}
-	}
 	return code, nil
 }
 
@@ -418,7 +461,10 @@ func (h *AuthorizationHandler) validateRedirectURI(ctx context.Context, clientID
 		return h.RedirectURIValidator(ctx, clientID, redirectURI)
 	}
 	if h.AppStore == nil {
-		return nil
+		if h.AllowAnyRedirectURI {
+			return nil
+		}
+		return newAuthorizeError("no client registry is configured to check redirect_uri against")
 	}
 	resp, err := h.AppStore.GetApp(ctx, &core.GetAppRequest{ClientID: clientID})
 	if err != nil || resp == nil || resp.App == nil {
