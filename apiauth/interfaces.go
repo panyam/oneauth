@@ -3,6 +3,7 @@ package apiauth
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
@@ -589,6 +590,14 @@ type TokenInfo struct {
 	// the token arrives under the Bearer scheme, which is the downgrade
 	// RFC 9449 §7.2 exists to close.
 	Confirmation *core.Confirmation
+
+	// ClientID is the token's client_id claim, empty when the grant had no
+	// client. TokenID is its jti and ExpiresAt its exp. All three come from
+	// the verified token, so callers acting on them (revocation, auditing)
+	// never need to re-parse it unverified.
+	ClientID  string
+	TokenID   string
+	ExpiresAt time.Time
 }
 
 // Note: IntrospectionResult is defined in introspection_client.go.

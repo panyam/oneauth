@@ -194,6 +194,12 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 		}
 	}
 
+	clientID, _ := claims["client_id"].(string)
+	tokenID, _ := claims["jti"].(string)
+	var expiresAt time.Time
+	if exp, err := claims.GetExpirationTime(); err == nil && exp != nil {
+		expiresAt = exp.Time
+	}
 	return &ValidateTokenResponse{Info: &TokenInfo{
 		Subject:              userID,
 		Scopes:               scopes,
@@ -201,6 +207,9 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 		CustomClaims:         customClaims,
 		AuthType:             "jwt",
 		Confirmation:         confirmationFromClaims(claims),
+		ClientID:             clientID,
+		TokenID:              tokenID,
+		ExpiresAt:            expiresAt,
 	}}, nil
 }
 

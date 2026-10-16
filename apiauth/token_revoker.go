@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/panyam/oneauth/core"
 )
 
@@ -105,35 +104,29 @@ func (r *tokenRevoker) lookupRefreshToken(ctx context.Context, token string) *co
 }
 
 // revokeAccessToken blacklists a JWT access token by its jti claim, after
-// the validator has verified it. Tokens that don't verify (forged, expired,
-// already revoked) are left alone.
+// the validator has verified it. Every claim it acts on comes from the
+// verified token. Tokens that don't verify (forged, expired, already
+// revoked) are left alone.
 func (r *tokenRevoker) revokeAccessToken(ctx context.Context, token, caller string) error {
 	if r.blacklist == nil || r.validator == nil {
 		return nil
 	}
-	if _, err := r.validator.ValidateToken(ctx, &ValidateTokenRequest{Token: token}); err != nil {
+	resp, err := r.validator.ValidateToken(ctx, &ValidateTokenRequest{Token: token})
+	if err != nil || resp == nil || resp.Info == nil {
 		return nil
 	}
-
-	claims := jwt.MapClaims{}
-	if _, _, err := jwt.NewParser().ParseUnverified(token, claims); err != nil {
-		return nil
-	}
-	tokenClient, _ := claims["client_id"].(string)
-	if !ownedBy(tokenClient, caller) {
+	info := resp.Info
+	if !ownedBy(info.ClientID, caller) {
 		return ErrRevokeNotOwner
 	}
-
-	jti, ok := claims["jti"].(string)
-	if !ok || jti == "" {
+	if info.TokenID == "" {
 		return nil
 	}
 
-	expiry := time.Now().Add(core.TokenExpiryAccessToken)
-	if exp, err := claims.GetExpirationTime(); err == nil && exp != nil {
-		expiry = exp.Time
+	expiry := info.ExpiresAt
+	if expiry.IsZero() {
+		expiry = time.Now().Add(core.TokenExpiryAccessToken)
 	}
-
-	r.blacklist.Revoke(jti, expiry)
+	r.blacklist.Revoke(info.TokenID, expiry)
 	return nil
 }
