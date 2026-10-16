@@ -189,6 +189,16 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-021">Version 0.2.1 <a class="anchor" href="#version-021">¶</a></h2>
+<h3 id="dpopkeyproofwithnonce-pr-432"><code>DPoPKey.ProofWithNonce</code> (PR 432) <a class="anchor" href="#dpopkeyproofwithnonce-pr-432">¶</a></h3>
+<ul>
+<li><strong>Callers with their own transport can answer a nonce challenge.</strong><br />
+<code>AuthClient</code> retries <code>use_dpop_nonce</code> itself, but a caller that sets<br />
+<code>Authorization</code> per request (mcpkit&rsquo;s MCP transports) had only <code>Proof()</code>,<br />
+which takes no nonce. <code>ProofWithNonce(method, url, token, nonce)</code> mints the<br />
+retry&rsquo;s proof with the server&rsquo;s <code>DPoP-Nonce</code> (RFC 9449 §8 / §9). An empty<br />
+nonce is the same as <code>Proof</code>. Additive; nothing else changes.</li>
+</ul>
 <h2 id="version-020">Version 0.2.0 <a class="anchor" href="#version-020">¶</a></h2>
 <p>The code is 0.1.57&rsquo;s. The minor version marks the breaking changes that<br />
 shipped across 0.1.38 to 0.1.57: exported API changes (<code>AuthorizationCodeStore</code>,<br />
