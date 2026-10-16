@@ -167,11 +167,21 @@ func main() {
 
 	// Build OneAuth (the transport-independent core) + handlers.
 	oaCfg := apiauth.OneAuthConfig{
-		KeyStore:            keyStore,
-		KidStore:            kidStore,
-		SigningKey:          []byte(cfg.JWT.SecretKey),
-		SigningAlg:          "HS256",
-		Issuer:              cfg.JWT.Issuer,
+		KeyStore:   keyStore,
+		KidStore:   kidStore,
+		SigningKey: []byte(cfg.JWT.SecretKey),
+		SigningAlg: "HS256",
+		Issuer:     cfg.JWT.Issuer,
+		// Client assertions name the issuer or one of these endpoints as
+		// aud (RFC 7523 §3). Fixed from public_url rather than derived from
+		// each request, which behind a TLS proxy would say http.
+		AcceptedAudiences: []string{
+			cfg.JWT.Issuer,
+			publicBaseURL(cfg),
+			publicBaseURL(cfg) + "/api/token",
+			publicBaseURL(cfg) + "/oauth/introspect",
+			publicBaseURL(cfg) + "/oauth/revoke",
+		},
 		RefreshStore:        stores.refreshTokenStore,
 		Blacklist:           blacklist,
 		ValidateCredentials: localAuth.ValidateCredentials,

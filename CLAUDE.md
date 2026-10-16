@@ -134,6 +134,8 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - **Wrong credentials on the password grant are 400 `invalid_grant`** (RFC 6749 §5.2, and Keycloak agrees), not 401.
 - **DCR stores `client_secret_basic` when no auth method is sent**, and echoes the same; a `none` client gets no secret. DCR also refuses unknown methods and grant types, and `authorization_code` without a `redirect_uri`, so a fixture registering `{"grant_types":["authorization_code"]}` alone now fails.
 - **FS identity and channel stores refuse a key whose file holds another key's record** (`fs.ErrKeyCollision`). File names are lossy, so two keys can share one; before issue 88 the second key read and overwrote the first.
+- **Client-assertion audiences don't come from forwarded headers.** `derivedAudience` uses `r.TLS` and `r.Host` only (like DPoP `htu`), and the token endpoint also accepts the issuer. Behind a TLS proxy set `OneAuthConfig.AcceptedAudiences`; the reference server sets it from `public_url`.
+- **`OneAuthConfig.FAPI2`** is the FAPI 2.0 Security Profile switch: DPoP required, rotation off, `private_key_jwt` only with the issuer as a string `aud`, no password grant, no public clients, and `MountAuthorize` PAR-only with capped lifetimes (it panics without a `PushedStore`). It needs `DPoP` set, or every token request fails.
 - **httptest URL needed before mount.** When a handler config requires the server's base URL (e.g., RFC 8628 `VerificationURI`), use `httptest.NewUnstartedServer(mux)` → read `server.URL` → mount → `server.Start()`. Avoids post-hoc handler mutation. Pattern in `tests/e2e/device_flow_test.go`.
 
 ## Gap analyses

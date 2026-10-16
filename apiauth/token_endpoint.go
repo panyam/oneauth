@@ -195,7 +195,7 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 		h.writeError(w, serverError("token endpoint not configured"))
 		return
 	}
-	if h.OneAuth.PasswordGranter == nil {
+	if h.OneAuth.PasswordGranter == nil || h.OneAuth.FAPI2 {
 		h.writeError(w, unsupportedGrantType("grant_type=password is not enabled (set OneAuthConfig.PasswordGranter to opt in)"))
 		return
 	}
@@ -705,6 +705,11 @@ func (h *TokenEndpointHandler) authenticateClient(r *http.Request, req *core.Tok
 func (h *TokenEndpointHandler) acceptedAudiences(r *http.Request) []string {
 	if h.OneAuth != nil && len(h.OneAuth.AcceptedAudiences) > 0 {
 		return h.OneAuth.AcceptedAudiences
+	}
+	// RFC 7523 §3 lets the aud be the issuer as well as the token
+	// endpoint URL.
+	if h.OneAuth != nil && h.OneAuth.IssuerURL != "" {
+		return []string{h.OneAuth.IssuerURL, derivedAudience(r)}
 	}
 	return []string{derivedAudience(r)}
 }

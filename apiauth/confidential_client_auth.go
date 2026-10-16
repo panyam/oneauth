@@ -85,6 +85,11 @@ func authenticateClientByRegistration(ctx context.Context, appStore core.AppRegi
 		log.Printf("client authentication: look up client %q: %v", lookupClientID, err)
 		return "", serverError("could not load the client registration")
 	}
+	if (err != nil || appResp == nil || appResp.App == nil) && isFAPI(authenticator) {
+		// FAPI 2.0 allows confidential clients only, so an unregistered
+		// client can't take the public path.
+		return "", invalidClient("FAPI 2.0 requires a registered confidential client")
+	}
 	if err != nil || appResp == nil || appResp.App == nil {
 		if failClosedOnMiss {
 			return "", invalidClient("unable to resolve client registration")
@@ -93,6 +98,9 @@ func authenticateClientByRegistration(ctx context.Context, appStore core.AppRegi
 		return "", nil
 	}
 	if !isConfidentialAuthMethod(appResp.App.TokenEndpointAuthMethod) {
+		if isFAPI(authenticator) {
+			return "", invalidClient("FAPI 2.0 allows confidential clients only")
+		}
 		return "", nil
 	}
 	if authenticator == nil {
