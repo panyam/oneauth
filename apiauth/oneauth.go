@@ -380,6 +380,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 			authenticator,
 			issuer,
 			cfg.RefreshStore,
+			cfg.Blacklist,
 		)
 	}
 	var deviceGranter DeviceCodeGranter

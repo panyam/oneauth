@@ -88,6 +88,12 @@ type CreateAccessTokenResponse struct {
 	// a client told "Bearer" would present it without a proof and every
 	// request would fail at the resource server.
 	TokenType string
+
+	// TokenID is the token's `jti` and ExpiresAt its `exp`, returned so a
+	// caller can later blacklist the token (the authorization code grant
+	// does, when the code is reused) without parsing what it just minted.
+	TokenID   string
+	ExpiresAt time.Time
 }
 
 // ClientCredentialsRequest is the input to TokenIssuer.ClientCredentials.

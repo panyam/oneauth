@@ -21,9 +21,9 @@ How to read the tables:
 ## Summary (October 2026)
 
 Every area issue 88 asked for has been walked: DPoP, the HTTP surface, tokens and keys, input
-validation, and FAPI 2.0. The fixes shipped in v0.1.40 through v0.1.55 (PRs #394 to #428). One
-row in the tables below is still Open (revoking tokens from a reused authorization code), and
-everything else is Pass, with the caveats each row gives.
+validation, and FAPI 2.0. The fixes shipped in v0.1.40 through v0.1.55 (PRs #394 to #428). The
+last Open row, revoking tokens from a reused authorization code, was closed afterwards by #429,
+so every row in the tables below is Pass, with the caveats each row gives.
 
 ### FAPI 2.0 readiness
 
@@ -76,7 +76,6 @@ S is a day or two, M a week, L more.
 
 | Gap | Issue | Size |
 |---|---|---|
-| Revoke tokens issued from a reused authorization code (RFC 6749 §4.1.2 SHOULD) | #429 | S |
 | Retired asymmetric keys published in JWKS during their grace period | #421 | M |
 | PS256 and EdDSA client keys | #330, #331 | S each |
 | `typ: at+jwt` on mint and required on verify (RFC 9068) | #328, #329 | S |
@@ -85,7 +84,6 @@ S is a day or two, M a week, L more.
 | JARM (FAPI 2.0 Message Signing) | #151, mission #409 | M |
 | HTTP Message Signatures (RFC 9421) | #152 | L |
 | A first run of the OIDF conformance suite | #201, #290 | M |
-| GAE store tests in CI (they need a Datastore emulator service) | #429 | S |
 | Signup enumeration with email verification off: a fresh signup logs in and a taken one can't, so it stays visible | — (by design) | — |
 
 ### Test coverage
@@ -93,7 +91,7 @@ S is a day or two, M a week, L more.
 | Layer | What runs | Where it runs |
 |---|---|---|
 | Unit | `apiauth`, `admin`, `keys`, `httpauth`, `localauth`, `core`, `utils`, every store; the `*_hardening_test.go` and `*_test.go` files named in the tables above | CI (`go test -race ./...` in every module) |
-| Store contracts | `appstoretest`, `authcodetest`, `deviceauthtest`, `keystoretest`, `kidstoretest`, `partest` over memory, FS, GORM (SQLite) and GAE, also through `EncryptedKeyStorage` / `EncryptedKidStorage` | CI, except GAE, which runs under `make testds` locally |
+| Store contracts | `appstoretest`, `authcodetest`, `deviceauthtest`, `keystoretest`, `kidstoretest`, `partest` over memory, FS, GORM (SQLite) and GAE, also through `EncryptedKeyStorage` / `EncryptedKidStorage` | CI; GAE in the `gae` job, against the Datastore emulator (`make testds`) |
 | End to end | `tests/e2e`: the full stack in process, including DCR, PAR, DPoP, device flow, revocation | CI (`make e2e` locally, with the race detector) |
 | Keycloak interop | `tests/keycloak`: JWKS validation, DPoP, refresh comparisons, revocation parity, ID tokens refused as access tokens | the Keycloak workflow on PRs touching `apiauth/`, `client/`, `keys/`, `core/`, `cmd/oneauth-server/` |
 | Reference server | `cmd/oneauth-server` tests, plus probes against the built binary recorded in each PR | CI |
@@ -392,7 +390,7 @@ several PRs, and rows still Open name the part of issue 88 they're waiting on.
 | A jwt-bearer assertion with a `jti` is single-use | RFC 7523 §3, CWE-294 | Pass (was Fail) | keyed by `iss` + `jti` in the granter's `ReplayStore` | AssertionWithJTIIsSingleUse\* |
 | An authorization code redeemed twice at once yields tokens once | RFC 6749 §4.1.2, CWE-367 | Pass (was Partial) | the store's delete is the gate, and the loser now gets `invalid_grant` instead of 500 | RacingRedemptionIsInvalidGrant\* |
 | Tokens from a redeemed code name their client | RFC 9068 §2.2 | Pass (was Fail) | `client_id` was missing, so revocation ownership and tenant checks couldn't see it | AccessTokenNamesTheClient\* |
-| Tokens from a code redeemed twice are revoked | RFC 6749 §4.1.2 (SHOULD) | Open (#429) | needs a record of used codes; the second redemption is refused, but tokens from the first stay valid | — |
+| Tokens from a code redeemed twice are revoked | RFC 6749 §4.1.2 (SHOULD), RFC 9700 §4.5 | Pass (was Open, #429) | a redeemed code is marked used and kept until its access token expires; a second presentation blacklists that token's `jti` and revokes the refresh family, and a reuse racing the first redemption makes that one refuse too | AuthCodeReuse\*, ConsumeOnce / ReuseBeforeRecord (`authcodetest`) |
 | Refresh rotation has one winner in GORM | RFC 9700 §4.14.2, CWE-367 | Pass (was Fail) | the revoke is a compare-and-set on `revoked` | RotationRaceHasOneWinner\* |
 | Refresh families have an absolute lifetime | RFC 9700 §4.14.2 | Pass (was Fail) | rotation keeps the family's `ExpiresAt` in FS, GORM and GAE, so a family lasts at most `TokenExpiryRefreshToken` (7 days) | RotationKeepsTheFamilyExpiry\* (all three stores; GAE under `make testds`) |
 

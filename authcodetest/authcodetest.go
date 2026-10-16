@@ -54,6 +54,9 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("DeleteConsumes", func(t *testing.T) { TestDeleteConsumes(t, factory) })
 	t.Run("CleanupExpired", func(t *testing.T) { TestCleanupExpired(t, factory) })
 	t.Run("RestartPersists", func(t *testing.T) { TestRestartPersists(t, factory) })
+	t.Run("ConsumeOnce", func(t *testing.T) { TestConsumeOnce(t, factory) })
+	t.Run("ReuseBeforeRecord", func(t *testing.T) { TestReuseBeforeRecord(t, factory) })
+	t.Run("CleanupKeepsUsedUntilTokenExpiry", func(t *testing.T) { TestCleanupKeepsUsedUntilTokenExpiry(t, factory) })
 }
 
 func newCode() *core.AuthorizationCode {
@@ -116,11 +119,9 @@ func TestCollision(t *testing.T, factory Factory) {
 	require.Error(t, err, "code collision MUST be rejected")
 }
 
-// TestDeleteConsumes pins single-use semantics: a code that has been
-// deleted is no longer reachable via GetAuthorizationCode. The
-// redemption handler relies on this for replay protection — RFC 6749
-// §4.1.2 mandates that the AS MUST invalidate the code after first
-// use.
+// TestDeleteConsumes pins that a deleted code is no longer reachable
+// via GetAuthorizationCode. The redemption handler deletes expired
+// codes this way; redeemed ones are marked used (TestConsumeOnce).
 func TestDeleteConsumes(t *testing.T, factory Factory) {
 	s := factory(t).Store
 	createCode(t, s, newCode())
