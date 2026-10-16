@@ -3,6 +3,16 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.2.0
+
+The code is 0.1.57's. The minor version marks the breaking changes that
+shipped across 0.1.38 to 0.1.57: exported API changes (`AuthorizationCodeStore`,
+`NewAuthorizationCodeGranter`, `oauth2` cookie arguments, the PAR and
+verification-token store responses) and defaults that now fail closed. Each
+version's "Upgrading" section below lists them, and the GitHub release for
+v0.2.0 collects them in one place. It is the first GitHub release since
+0.1.37.
+
 ## Version 0.1.57
 
 ### Reused authorization codes revoke their tokens (issue 429, PR 431)
