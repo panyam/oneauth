@@ -405,7 +405,7 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 <td>MUST</td>
 <td>client</td>
 <td>Pass (was Fail)</td>
-<td><code>client/client.go</code> <code>requestToken</code> → <code>executeTokenRequest</code></td>
+<td><code>client/client.go</code> <code>refreshTokenLocked</code> → <code>requestTokenForm</code> / <code>requestToken</code> → <code>executeTokenRequest</code></td>
 <td>RefreshThenRetryMintsAFreshProof*, e2e SDKAutoRefreshKeepsTheBinding*; Keycloak SDKRefreshKeepsTheBinding</td>
 </tr>
 <tr>
@@ -614,8 +614,8 @@ code we had to touch for §5.2: <code>backchannel_logout_uri</code> and<br />
 after a restart on those backends.</li>
 </ul>
 <p>Still open, all in <a href="https://github.com/panyam/oneauth/issues/395">issue 395</a>: EdDSA proofs,<br />
-an option to turn off refresh rotation for FAPI, DPoP config in <code>cmd/oneauth-server</code>, and two<br />
-SDK refresh-path issues that aren&rsquo;t DPoP-specific.</p>
+an option to turn off refresh rotation for FAPI, and DPoP config in <code>cmd/oneauth-server</code>. The<br />
+two SDK refresh-path issues are fixed (issue 395 items 4 and 5).</p>
 <p>The walk also turned up a gap bigger than DPoP, fixed separately: the refresh grant didn&rsquo;t<br />
 authenticate the client or check the token belonged to the <code>client_id</code> sent with it<br />
 (RFC 6749 §6). It does both now (<code>refreshingClient</code> in <code>token_endpoint.go</code>, and the<br />

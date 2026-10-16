@@ -397,7 +397,7 @@ authorization request, so generate one per login if that is the goal.</li>
 <ol>
 <li>Adds <code>Authorization: Bearer &lt;token&gt;</code> to every request</li>
 <li>Proactively refreshes tokens expiring within 5 minutes</li>
-<li>On 401 response: refreshes the token and retries the request once</li>
+<li>On 401 response: refreshes the token and retries the request once, resending the body through <code>GetBody</code>. A request whose body can&rsquo;t be rewound gets the 401 back instead of being resent empty.</li>
 </ol>
 <h2 id="credential-storage">Credential Storage <a class="anchor" href="#credential-storage">¶</a></h2>
 <h3 id="servercredential">ServerCredential <a class="anchor" href="#servercredential">¶</a></h3>
@@ -467,6 +467,13 @@ authorization request, so generate one per login if that is the goal.</li>
     S4 --&gt; S4A
 </code></pre>
 <p>The refresh uses a <code>grant_type=refresh_token</code> request to the token endpoint. The base transport is used for refresh requests to avoid infinite loops.</p>
+<p>Where it goes depends on discovery. With AS metadata (<code>WithASMetadata</code>, or a <code>DiscoverAS</code> result passed to it) the refresh posts the RFC 6749 §6 form to the discovered <code>token_endpoint</code>, which is what makes background refresh work against Keycloak or any RFC 8414 server. Without it, it posts JSON to oneauth&rsquo;s own <code>/auth/cli/token</code>.</p>
+<p>It presents the client the credential was issued to (<code>ServerCredential.ClientID</code>). The AS redeems a refresh token only for that client, and a confidential client has to authenticate, so give the <code>AuthClient</code> its secret:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>c <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">NewAuthClient</span>(serverURL, store,
+</span></span><span style="display:flex;"><span>    client.<span style="color:#900;font-weight:bold">WithASMetadata</span>(meta),
+</span></span><span style="display:flex;"><span>    client.<span style="color:#900;font-weight:bold">WithClientSecret</span>(secret), <span style="color:#998;font-style:italic">// memory only; never written to the store
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>)
+</span></span></code></pre><p>The secret is sent the way the AS advertises (<code>client_secret_basic</code> first, then <code>client_secret_post</code>), the same choice <code>RefreshToken</code> makes.</p>
 <h2 id="dynamic-client-registration--management-rfc-7591--7592">Dynamic Client Registration &amp; Management (RFC 7591 / 7592) <a class="anchor" href="#dynamic-client-registration--management-rfc-7591--7592">¶</a></h2>
 <p>The <code>client/dcr.go</code> helpers let an application register itself at an authorization server and subsequently manage that registration without going through an admin UI.</p>
 <h3 id="register">Register <a class="anchor" href="#register">¶</a></h3>
