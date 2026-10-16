@@ -2,9 +2,10 @@
 
 This is the compliance matrix asked for in [issue 88](https://github.com/panyam/oneauth/issues/88).
 Issue 88 covers a lot of ground (RFC 6749 through RFC 9728, the security checklist, FAPI 2.0),
-so we're doing it one area at a time, and each area gets a section here once it's been walked
-requirement by requirement. So far that's DPoP, the HTTP surface (transport and headers,
-authentication and sessions, the admin interface), and tokens and keys.
+so we did it one area at a time, and each area got a section here once it had been walked
+requirement by requirement: DPoP, the HTTP surface (transport and headers, authentication and
+sessions, the admin interface), input validation, and tokens and keys, with FAPI 2.0 alongside
+DPoP. The summary below pulls the results together.
 
 How to read the tables:
 
@@ -16,6 +17,88 @@ How to read the tables:
   that stays green without the feature isn't covering it.
 - Code references are `file:line` on the commit that added the section, so they drift. The
   function names don't.
+
+## Summary (October 2026)
+
+Every area issue 88 asked for has been walked: DPoP, the HTTP surface, tokens and keys, input
+validation, and FAPI 2.0. The fixes shipped in v0.1.40 through v0.1.55 (PRs #394 to #428). One
+row in the tables below is still Open (revoking tokens from a reused authorization code), and
+everything else is Pass, with the caveats each row gives.
+
+### FAPI 2.0 readiness
+
+oneauth meets the FAPI 2.0 Security Profile's authorization-server and resource-server
+requirements (§5.3.2, §5.3.4) through `OneAuthConfig.FAPI2`, and the reference server runs the
+profile with `deploy-examples/fapi-dpop.yaml`. Three caveats:
+
+- **Sender constraint is DPoP only.** FAPI allows MTLS or DPoP, and oneauth implements DPoP
+  (RFC 9449 end to end). MTLS is #335.
+- **Client assertions are ES256.** FAPI allows PS256, ES256 and EdDSA; oneauth can register
+  ES256 client keys today. PS256 is #330 and EdDSA client keys #331 (EdDSA DPoP proofs already
+  work).
+- **Not run against the OpenID conformance suite.** The OIDF workflow exists but has never run
+  (#201, #290). Everything here is checked by our own tests and, where Keycloak supports the
+  feature, side by side with Keycloak 26.
+
+What FAPI 2.0 *Message Signing* adds (JARM, signed introspection, HTTP message signatures) is not
+supported, and neither is FAPI 1.0's `s_hash`, which rides on OIDC ID tokens oneauth doesn't
+issue. Those are below.
+
+### What the audit found, by severity
+
+The bugs, not the hardening: each of these let something through that the spec or common sense
+says shouldn't pass.
+
+| Severity | Finding | Fixed in |
+|---|---|---|
+| Critical | `httpauth` signed sessions with a fixed public secret when none was configured, so anyone could mint a session for any user | #404 |
+| High | FS identity store: a crafted email read and overwrote another account's identity; channel keys read another key's password hash | #425 |
+| High | Client-assertion audience taken from `X-Forwarded-Host`, so an assertion minted for another server was accepted | #426 |
+| High | An empty HMAC key verified tokens signed with the empty key (middleware with no secret) | #414 |
+| High | A tenant's registered key could sign tokens for any subject, with no `client_id` | #414 |
+| High | `EncryptedKeyStorage` returned ciphertext, or a planted plaintext secret, as the key | #419 |
+| High | A nil `AdminAuth` and the server default `admin_auth: none` left the admin API open | #406 |
+| Medium | Any client could revoke any other client's tokens, and an unsigned token naming a `jti` revoked it | #416 |
+| Medium | Keycloak ID tokens (and oneauth's own logout tokens, ID-JAGs, sessions) passed as access tokens | #414, #418 |
+| Medium | `X-Forwarded-For` from anyone reset rate-limit buckets | #405 |
+| Medium | Open redirects on logout and the federated callback | #404 |
+| Medium | Reset tokens stored in plaintext, and one link could reset twice under a race | #407 |
+| Medium | PAR broke at the consent screen; a pushed request could issue several codes | #423 |
+| Medium | Registered scope and RAR types were never enforced | #422, #423 |
+| Medium | Signup and CSRF: account enumeration, and same-site posts passing double-submit | #428 |
+| Low | Store errors (hosts, database users) in `error_description` | #422, #424 |
+| Low | GORM refresh rotation could hand out two tokens under a race | #416 |
+| Low | Rotation grace periods were accepted and ignored in the reference server | #420 |
+
+### Gaps, with rough size
+
+S is a day or two, M a week, L more.
+
+| Gap | Issue | Size |
+|---|---|---|
+| Revoke tokens issued from a reused authorization code (RFC 6749 §4.1.2 SHOULD) | #429 | S |
+| Retired asymmetric keys published in JWKS during their grace period | #421 | M |
+| PS256 and EdDSA client keys | #330, #331 | S each |
+| `typ: at+jwt` on mint and required on verify (RFC 9068) | #328, #329 | S |
+| MTLS client authentication and certificate-bound tokens (RFC 8705) | #335 | L |
+| OIDC ID tokens, which `s_hash` (FAPI 1.0) needs | #339 | L |
+| JARM (FAPI 2.0 Message Signing) | #151, mission #409 | M |
+| HTTP Message Signatures (RFC 9421) | #152 | L |
+| A first run of the OIDF conformance suite | #201, #290 | M |
+| GAE store tests in CI (they need a Datastore emulator service) | #429 | S |
+| Signup enumeration with email verification off: a fresh signup logs in and a taken one can't, so it stays visible | — (by design) | — |
+
+### Test coverage
+
+| Layer | What runs | Where it runs |
+|---|---|---|
+| Unit | `apiauth`, `admin`, `keys`, `httpauth`, `localauth`, `core`, `utils`, every store; the `*_hardening_test.go` and `*_test.go` files named in the tables above | CI (`go test -race ./...` in every module) |
+| Store contracts | `appstoretest`, `authcodetest`, `deviceauthtest`, `keystoretest`, `kidstoretest`, `partest` over memory, FS, GORM (SQLite) and GAE, also through `EncryptedKeyStorage` / `EncryptedKidStorage` | CI, except GAE, which runs under `make testds` locally |
+| End to end | `tests/e2e`: the full stack in process, including DCR, PAR, DPoP, device flow, revocation | CI (`make e2e` locally, with the race detector) |
+| Keycloak interop | `tests/keycloak`: JWKS validation, DPoP, refresh comparisons, revocation parity, ID tokens refused as access tokens | the Keycloak workflow on PRs touching `apiauth/`, `client/`, `keys/`, `core/`, `cmd/oneauth-server/` |
+| Reference server | `cmd/oneauth-server` tests, plus probes against the built binary recorded in each PR | CI |
+| Scans | CodeQL on every PR (0 open alerts, two dismissed with a reason); govulncheck, gitleaks, gosec (`make audit`); ZAP baseline on main | CI and `make audit` |
+| OIDF conformance | `tests/oidf-conformance` | never run (#201, #290) |
 
 ## DPoP (RFC 9449, and the DPoP parts of FAPI 2.0)
 
@@ -309,7 +392,7 @@ several PRs, and rows still Open name the part of issue 88 they're waiting on.
 | A jwt-bearer assertion with a `jti` is single-use | RFC 7523 §3, CWE-294 | Pass (was Fail) | keyed by `iss` + `jti` in the granter's `ReplayStore` | AssertionWithJTIIsSingleUse\* |
 | An authorization code redeemed twice at once yields tokens once | RFC 6749 §4.1.2, CWE-367 | Pass (was Partial) | the store's delete is the gate, and the loser now gets `invalid_grant` instead of 500 | RacingRedemptionIsInvalidGrant\* |
 | Tokens from a redeemed code name their client | RFC 9068 §2.2 | Pass (was Fail) | `client_id` was missing, so revocation ownership and tenant checks couldn't see it | AccessTokenNamesTheClient\* |
-| Tokens from a code redeemed twice are revoked | RFC 6749 §4.1.2 (SHOULD) | Open | needs a record of used codes; the second redemption is refused, but tokens from the first stay valid | — |
+| Tokens from a code redeemed twice are revoked | RFC 6749 §4.1.2 (SHOULD) | Open (#429) | needs a record of used codes; the second redemption is refused, but tokens from the first stay valid | — |
 | Refresh rotation has one winner in GORM | RFC 9700 §4.14.2, CWE-367 | Pass (was Fail) | the revoke is a compare-and-set on `revoked` | RotationRaceHasOneWinner\* |
 | Refresh families have an absolute lifetime | RFC 9700 §4.14.2 | Pass (was Fail) | rotation keeps the family's `ExpiresAt` in FS, GORM and GAE, so a family lasts at most `TokenExpiryRefreshToken` (7 days) | RotationKeepsTheFamilyExpiry\* (all three stores; GAE under `make testds`) |
 
