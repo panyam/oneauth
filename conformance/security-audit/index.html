@@ -964,8 +964,8 @@ The fixes land across several PRs; the Status column says which rows are done.</
 </table>
 <h2 id="input-validation">Input validation <a class="anchor" href="#input-validation">¶</a></h2>
 <p>Audited October 2026, against issue 88&rsquo;s &ldquo;Input Validation&rdquo; section and the RFC 6749 §5.2 error<br />
-rows. This section covers the token endpoint and request bodies; <code>/authorize</code>, DCR, PAR and<br />
-metadata follow in the next PR.</p>
+rows. The token endpoint and request bodies came first, then <code>/authorize</code>, PAR, PKCE and the<br />
+device flow; DCR and metadata follow.</p>
 <table>
 <thead>
 <tr>
@@ -1029,6 +1029,61 @@ metadata follow in the next PR.</p>
 <td>CWE-770</td>
 <td>Pass (was Fail)</td>
 <td>64 KiB on the token endpoint (413) and, via <code>httpauth.CapRequestBody</code>, on introspection, revocation, PAR, device authorization and verification, <code>/authorize</code> POST, sessions, API keys, and the login, signup, forgot / reset password and link-credentials forms. Go read up to 10 MB of form, any amount of JSON, and spooled multipart to disk. <code>body_limit_test.go</code>*</td>
+</tr>
+</tbody>
+</table>
+<h3 id="authorization-endpoint-par-pkce-device-flow">Authorization endpoint, PAR, PKCE, device flow <a class="anchor" href="#authorization-endpoint-par-pkce-device-flow">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Ref</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A pushed request survives the consent screen</td>
+<td>RFC 9126 §4</td>
+<td>Pass (was Fail)</td>
+<td>the consent form dropped <code>request_uri</code>, so Approve re-read the hidden inputs as a fresh request: the reference was never spent, and with <code>RequirePushedRequests</code> Approve was refused. The form now carries it. PushedRequestSurvivesConsentAndIsSpentOnce*</td>
+</tr>
+<tr>
+<td>A pushed request issues one code</td>
+<td>RFC 9126 §4, CWE-367</td>
+<td>Pass (was Fail)</td>
+<td><code>IssueCode</code> spends the reference before minting; <code>ConsumePushedAuthorizationRequestResponse.Consumed</code> is true for exactly one caller (GORM: compare-and-set). It used to consume after minting and only log a failure. PushedRequestIssuesOneCode*, <code>partest</code> ConsumeSucceedsOnce</td>
+</tr>
+<tr>
+<td><code>request_uri</code> comes with <code>client_id</code></td>
+<td>RFC 9126 §4</td>
+<td>Pass (was Fail)</td>
+<td>RequestURINeedsClientID*</td>
+</tr>
+<tr>
+<td>PKCE challenge and verifier have the RFC shape</td>
+<td>RFC 7636 §4.1, §4.2</td>
+<td>Pass (was Fail)</td>
+<td>S256 challenge: 43 base64url characters; plain challenge and every verifier: 43 to 128 unreserved. A short verifier verified against its own challenge. CodeChallengeShape*, CodeVerifierShape*</td>
+</tr>
+<tr>
+<td>The registered scope bounds <code>/authorize</code> and device authorization</td>
+<td>RFC 6749 §3.3</td>
+<td>Pass (was Fail)</td>
+<td><code>invalid_scope</code> on the redirect (or 400 at the device endpoint); the registered default when none is asked for. RegisteredScopeIsEnforced*, DeviceAuthorizationHonorsTheRegisteredScope*</td>
+</tr>
+<tr>
+<td><code>/authorize</code> without a client registry fails closed</td>
+<td>RFC 6749 §3.1.2, CWE-601</td>
+<td>Pass (was Fail)</td>
+<td>with neither <code>AppStore</code> nor <code>RedirectURIValidator</code> it sent codes to any <code>redirect_uri</code>; now it refuses unless <code>AllowAnyRedirectURI</code> (test fixtures). NoRegistryFailsClosed*</td>
+</tr>
+<tr>
+<td>A client can be required to use PAR</td>
+<td>RFC 9126 §6</td>
+<td>Open</td>
+<td><code>require_pushed_authorization_requests</code> per client needs a registration field across the app stores; <code>RequirePushedRequests</code> is server-wide today</td>
 </tr>
 </tbody>
 </table>
