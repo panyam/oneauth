@@ -454,6 +454,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 			SubjectFromRequest:   func(r *http.Request) string { return "" },
 			CSRFTokenFromRequest: func(r *http.Request) string { return "" },
 			AutoApproveSubject:   autoApprove,
+			AllowAnyRedirectURI:  oa.AppStore == nil, // test server without a client registry
 		})
 	}
 	apiauth.MountASMetadata(mux, &apiauth.ASServerMetadata{

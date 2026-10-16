@@ -121,7 +121,7 @@ func TestAuthCodeRedeem_PKCEMismatch(t *testing.T) {
 	seedAuthCode(t, store, "code-1")
 
 	rr := httptest.NewRecorder()
-	auth.ServeHTTP(rr, tokenRedeemForm(t, url.Values{"code_verifier": {"wrong-verifier"}}))
+	auth.ServeHTTP(rr, tokenRedeemForm(t, url.Values{"code_verifier": {"wrong-verifier-0123456789abcdef0123456789abcdef"}}))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.Contains(t, rr.Body.String(), "invalid_grant")
 	assert.Contains(t, rr.Body.String(), "PKCE")

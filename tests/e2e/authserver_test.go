@@ -162,6 +162,9 @@ func (e *TestEnv) buildAuthServer(t *testing.T) {
 		SubjectFromRequest:   func(r *http.Request) string { return "" },
 		CSRFTokenFromRequest: func(r *http.Request) string { return "" },
 		AutoApproveSubject:   "e2e-user",
+		// This fixture has no AppStore, so nothing checks redirect_uri;
+		// see loopback_listener_test.go for one that does.
+		AllowAnyRedirectURI: true,
 	})
 
 	// Standards-compliant token endpoint for e2e tests.

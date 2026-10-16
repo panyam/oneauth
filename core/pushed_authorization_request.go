@@ -93,8 +93,15 @@ type ConsumePushedAuthorizationRequestRequest struct {
 	RequestURI string
 }
 
-// ConsumePushedAuthorizationRequestResponse is empty.
-type ConsumePushedAuthorizationRequestResponse struct{}
+// ConsumePushedAuthorizationRequestResponse reports whether this call spent
+// the reference.
+type ConsumePushedAuthorizationRequestResponse struct {
+	// Consumed is true only for the call that flipped the record from
+	// unused to used. A second call on the same reference gets false, so
+	// the caller can refuse it: of two approvals racing on one pushed
+	// request, only one may issue a code.
+	Consumed bool
+}
 
 // DeletePushedAuthorizationRequestRequest removes a record outright.
 type DeletePushedAuthorizationRequestRequest struct {
@@ -142,8 +149,10 @@ type PushedAuthorizationRequestStore interface {
 	GetPushedAuthorizationRequest(ctx context.Context, req *GetPushedAuthorizationRequestRequest) (*GetPushedAuthorizationRequestResponse, error)
 
 	// ConsumePushedAuthorizationRequest marks a record redeemed. Called
-	// once an authorization code has been issued against it. Returns
-	// ErrPushedRequestNotFound when no record matches.
+	// before an authorization code is issued against it; the response's
+	// Consumed is true only for the call that marked it, which makes it
+	// the single-use gate. Returns ErrPushedRequestNotFound when no record
+	// matches.
 	//
 	// Marking rather than deleting is deliberate: a client that replays a
 	// consumed reference should be told its request was already used,
@@ -218,8 +227,11 @@ func (s *InMemoryPushedAuthorizationRequestStore) ConsumePushedAuthorizationRequ
 	if !ok {
 		return nil, ErrPushedRequestNotFound
 	}
+	if stored.Consumed {
+		return &ConsumePushedAuthorizationRequestResponse{Consumed: false}, nil
+	}
 	stored.Consumed = true
-	return &ConsumePushedAuthorizationRequestResponse{}, nil
+	return &ConsumePushedAuthorizationRequestResponse{Consumed: true}, nil
 }
 
 func (s *InMemoryPushedAuthorizationRequestStore) DeletePushedAuthorizationRequest(_ context.Context, req *DeletePushedAuthorizationRequestRequest) (*DeletePushedAuthorizationRequestResponse, error) {

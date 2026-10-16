@@ -35,8 +35,9 @@ func newHandlerForTest(t *testing.T) (*AuthorizationHandler, *core.InMemoryAutho
 	t.Helper()
 	store := core.NewInMemoryAuthorizationCodeStore()
 	return &AuthorizationHandler{
-		Store:     store,
-		IssuerURL: "https://issuer.example",
+		Store:               store,
+		IssuerURL:           "https://issuer.example",
+		AllowAnyRedirectURI: true, // no registry here; tests that check redirect_uri set RedirectURIValidator
 	}, store
 }
 
@@ -139,7 +140,7 @@ func TestParseAndValidate_PlainPKCERejected(t *testing.T) {
 		"client_id":             {"client-x"},
 		"redirect_uri":          {"https://app.example/cb"},
 		"response_type":         {"code"},
-		"code_challenge":        {"any-challenge"},
+		"code_challenge":        {plainTestChallenge},
 		"code_challenge_method": {"plain"},
 	}
 	_, _, errCode, desc := h.ParseAndValidate(newRequest(t, http.MethodGet, "/authorize", form))
@@ -159,16 +160,16 @@ func TestParseAndValidate_PlainPKCEAcceptedWhenAllowed(t *testing.T) {
 		"client_id":             {"client-x"},
 		"redirect_uri":          {"https://app.example/cb"},
 		"response_type":         {"code"},
-		"code_challenge":        {"any-challenge"},
+		"code_challenge":        {plainTestChallenge},
 		"code_challenge_method": {"plain"},
 	}
 	_, _, errCode, _ := h.ParseAndValidate(newRequest(t, http.MethodGet, "/authorize", form))
 	assert.Empty(t, errCode, "plain PKCE MUST be accepted when AllowPlainPKCE=true")
 
 	// Verifier check at redemption: plain compares verifier == challenge.
-	assert.True(t, core.VerifyPKCE(core.CodeChallengeMethodPlain, "any-challenge", "any-challenge"),
+	assert.True(t, core.VerifyPKCE(core.CodeChallengeMethodPlain, plainTestChallenge, plainTestChallenge),
 		"plain verify MUST pass when verifier == challenge")
-	assert.False(t, core.VerifyPKCE(core.CodeChallengeMethodPlain, "any-challenge", "wrong"),
+	assert.False(t, core.VerifyPKCE(core.CodeChallengeMethodPlain, plainTestChallenge, "wrong"),
 		"plain verify MUST fail when verifier != challenge")
 }
 
@@ -183,7 +184,7 @@ func TestParseAndValidate_UnsupportedPKCEMethod(t *testing.T) {
 		"client_id":             {"client-x"},
 		"redirect_uri":          {"https://app.example/cb"},
 		"response_type":         {"code"},
-		"code_challenge":        {"any-challenge"},
+		"code_challenge":        {plainTestChallenge},
 		"code_challenge_method": {"S512"},
 	}
 	_, _, errCode, desc := h.ParseAndValidate(newRequest(t, http.MethodGet, "/authorize", form))
@@ -322,3 +323,7 @@ func TestAppendQuery_PreservesExistingParams(t *testing.T) {
 	assert.Equal(t, "abc", q.Get("code"))
 	assert.Equal(t, "xyz", q.Get("state"))
 }
+
+// plainTestChallenge is a well-formed plain challenge: RFC 7636 §4.1 wants
+// 43 to 128 unreserved characters, and a plain challenge equals its verifier.
+const plainTestChallenge = "plain-challenge-0123456789abcdef0123456789abcdef"

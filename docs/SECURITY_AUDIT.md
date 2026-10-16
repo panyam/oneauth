@@ -211,8 +211,8 @@ The fixes land across several PRs; the Status column says which rows are done.
 ## Input validation
 
 Audited October 2026, against issue 88's "Input Validation" section and the RFC 6749 §5.2 error
-rows. This section covers the token endpoint and request bodies; `/authorize`, DCR, PAR and
-metadata follow in the next PR.
+rows. The token endpoint and request bodies came first, then `/authorize`, PAR, PKCE and the
+device flow; DCR and metadata follow.
 
 | Requirement | Ref | Status | Notes |
 |---|---|---|---|
@@ -225,6 +225,19 @@ metadata follow in the next PR.
 | `invalid_client` 401 carries `WWW-Authenticate` | RFC 6749 §5.2 | Pass (was Fail) | `Basic realm="token"` |
 | Server errors say nothing internal | CWE-209 | Pass (was Fail) | the token endpoint logs a `server_error`'s detail and sends "internal server error"; store errors (hosts, users) used to reach the client |
 | Request bodies are bounded | CWE-770 | Pass (was Fail) | 64 KiB on the token endpoint (413) and, via `httpauth.CapRequestBody`, on introspection, revocation, PAR, device authorization and verification, `/authorize` POST, sessions, API keys, and the login, signup, forgot / reset password and link-credentials forms. Go read up to 10 MB of form, any amount of JSON, and spooled multipart to disk. `body_limit_test.go`\* |
+
+
+### Authorization endpoint, PAR, PKCE, device flow
+
+| Requirement | Ref | Status | Notes |
+|---|---|---|---|
+| A pushed request survives the consent screen | RFC 9126 §4 | Pass (was Fail) | the consent form dropped `request_uri`, so Approve re-read the hidden inputs as a fresh request: the reference was never spent, and with `RequirePushedRequests` Approve was refused. The form now carries it. PushedRequestSurvivesConsentAndIsSpentOnce\* |
+| A pushed request issues one code | RFC 9126 §4, CWE-367 | Pass (was Fail) | `IssueCode` spends the reference before minting; `ConsumePushedAuthorizationRequestResponse.Consumed` is true for exactly one caller (GORM: compare-and-set). It used to consume after minting and only log a failure. PushedRequestIssuesOneCode\*, `partest` ConsumeSucceedsOnce |
+| `request_uri` comes with `client_id` | RFC 9126 §4 | Pass (was Fail) | RequestURINeedsClientID\* |
+| PKCE challenge and verifier have the RFC shape | RFC 7636 §4.1, §4.2 | Pass (was Fail) | S256 challenge: 43 base64url characters; plain challenge and every verifier: 43 to 128 unreserved. A short verifier verified against its own challenge. CodeChallengeShape\*, CodeVerifierShape\* |
+| The registered scope bounds `/authorize` and device authorization | RFC 6749 §3.3 | Pass (was Fail) | `invalid_scope` on the redirect (or 400 at the device endpoint); the registered default when none is asked for. RegisteredScopeIsEnforced\*, DeviceAuthorizationHonorsTheRegisteredScope\* |
+| `/authorize` without a client registry fails closed | RFC 6749 §3.1.2, CWE-601 | Pass (was Fail) | with neither `AppStore` nor `RedirectURIValidator` it sent codes to any `redirect_uri`; now it refuses unless `AllowAnyRedirectURI` (test fixtures). NoRegistryFailsClosed\* |
+| A client can be required to use PAR | RFC 9126 §6 | Open | `require_pushed_authorization_requests` per client needs a registration field across the app stores; `RequirePushedRequests` is server-wide today |
 
 ## Tokens and keys
 

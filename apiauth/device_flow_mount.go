@@ -146,6 +146,7 @@ func MountDeviceFlow(mux *http.ServeMux, cfg DeviceFlowMountConfig) {
 	}
 
 	devAuth := &DeviceAuthorizationHandler{
+		AppStore:                        cfg.OneAuth.AppStore,
 		Store:                           deviceStore,
 		VerificationURI:                 cfg.VerificationURI,
 		VerificationURICompleteTemplate: cfg.VerificationURICompleteTemplate,

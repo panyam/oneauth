@@ -45,6 +45,7 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("NotFound", func(t *testing.T) { TestNotFound(t, factory) })
 	t.Run("Collision", func(t *testing.T) { TestCollision(t, factory) })
 	t.Run("ConsumeMarksWithoutDeleting", func(t *testing.T) { TestConsumeMarksWithoutDeleting(t, factory) })
+	t.Run("ConsumeSucceedsOnce", func(t *testing.T) { TestConsumeSucceedsOnce(t, factory) })
 	t.Run("Delete", func(t *testing.T) { TestDelete(t, factory) })
 	t.Run("CleanupExpired", func(t *testing.T) { TestCleanupExpired(t, factory) })
 	t.Run("RestartPersists", func(t *testing.T) { TestRestartPersists(t, factory) })
@@ -146,6 +147,21 @@ func TestConsumeMarksWithoutDeleting(t *testing.T, factory Factory) {
 
 	_, err = s.ConsumePushedAuthorizationRequest(context.Background(), &core.ConsumePushedAuthorizationRequestRequest{RequestURI: core.PushedRequestURIPrefix + "missing"})
 	require.True(t, errors.Is(err, core.ErrPushedRequestNotFound))
+}
+
+// TestConsumeSucceedsOnce pins the single-use gate: Consumed is true for
+// the first call and false for every later one, so of two approvals racing
+// on one pushed request only one issues a code (RFC 9126 §4).
+func TestConsumeSucceedsOnce(t *testing.T, factory Factory) {
+	s := factory(t).Store
+	create(t, s, newRequest())
+	consume := func() bool {
+		resp, err := s.ConsumePushedAuthorizationRequest(context.Background(), &core.ConsumePushedAuthorizationRequestRequest{RequestURI: testRequestURI})
+		require.NoError(t, err)
+		return resp.Consumed
+	}
+	assert.True(t, consume(), "the first consume spends the reference")
+	assert.False(t, consume(), "a second consume reports it was already spent")
 }
 
 func TestDelete(t *testing.T, factory Factory) {
