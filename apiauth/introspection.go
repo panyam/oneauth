@@ -142,6 +142,11 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	if result.ClientID != "" {
 		resp["client_id"] = result.ClientID
 	}
+	// RFC 9449 §6.2: a remote resource server can only enforce the DPoP
+	// binding if it learns the key here. An unbound token gets no cnf.
+	if !result.Cnf.IsEmpty() {
+		resp["cnf"] = result.Cnf
+	}
 
 	// Include authorization_details if present (RFC 9396 §9.1)
 	rawClaims := parseRawJWTClaims(token)

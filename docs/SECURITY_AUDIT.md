@@ -133,7 +133,7 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 | 5.1 | `dpop_signing_alg_values_supported` in AS metadata | SHOULD | AS | Pass | `apiauth/as_metadata.go:79` | e2e MetadataAdvertisesSigningAlgs |
 | 5.2 | `dpop_bound_access_tokens` client metadata, enforced | MUST if supported | AS | Pass (was not implemented) | `apiauth/token_endpoint.go:478` `requireDPoP`; `core.AppRegistration`; DCR; all app stores | `dpop_require_test.go`\*, `admin/dcr_dpop_test.go`\*, `appstoretest` AllFieldsRoundTrip\*, e2e DCRRegisteredDPoPBoundClient\* |
 | 6.1 | `cnf.jkt` in the JWT, not forgeable through custom claims | MUST | AS | Pass | `token_validator.go:432` | CustomClaimsCannotForgeCnf |
-| 6.2 | `cnf` in introspection, enforced by an RS that introspects | MUST | AS, RS | Pass | `token_introspector.go`, `introspection_client.go` | IntrospectionReportsConfirmation, EnforcesCnfFromIntrospection\* |
+| 6.2 | `cnf` in introspection, enforced by an RS that introspects | MUST | AS, RS | Pass (was Fail over HTTP) | `token_introspector.go`, `IntrospectionHandler.ServeHTTP`, `introspection_client.go`. The HTTP handler dropped `cnf` until issue 434; the earlier tests used the in-process introspector or a stub AS | IntrospectionReportsConfirmation, EnforcesCnfFromIntrospection\*, HTTPResponseCarriesCnf\* |
 | 7.1 | `Authorization: DPoP`; 401 with `WWW-Authenticate: DPoP` and `algs` | MUST | RS | Pass | `apiauth/middleware.go:728` `challenge` | ChallengeAdvertisesBothSchemes, ChallengeParamsAreCommaSeparated |
 | 7.2 | Bound token refused under the Bearer scheme | MUST | RS | Pass | `enforceBinding` | RejectsBoundTokenPresentedAsBearer; Keycloak interop |
 | 8 | `use_dpop_nonce` + `DPoP-Nonce` at the token endpoint | MUST | AS | Pass | `dpopConfirmation` | TestNonce_TokenEndpointChallenge |
@@ -165,7 +165,7 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 | § | Requirement | Status | How |
 |---|---|---|---|
 | 5.3.2.1 #2 | Reject the resource owner password grant | Pass (was opt-in) | `FAPI2` answers `unsupported_grant_type` even when a `PasswordGranter` is wired. DPoPRequiredAndNoPasswordGrant\* |
-| 5.3.2.1 #3 | Confidential clients only | Pass (was not possible) | the confidential-client gate refuses public and unregistered clients under `FAPI2` |
+| 5.3.2.1 #3 | Confidential clients only | Pass (was not possible) | the confidential-client gate refuses public and unregistered clients under `FAPI2`. Until issue 434 a jwt-bearer or token-exchange request with no `client_id` skipped the gate; it now authenticates the client named by its credentials. JwtBearerWithoutClientIDAuthenticatesTheClient\*, TokenExchangeWithoutClientIDAuthenticatesTheClient\* |
 | 5.3.2.1 #6 | Client authentication by `private_key_jwt` (or MTLS) | Pass (was not possible) | `fapiClientAuthenticator` refuses client secrets; MTLS isn't implemented. ClientAuthentication\* |
 | 5.3.2.1 #8 | Accept only the issuer, as a string, as the client assertion's `aud` | Pass (was not possible) | `AcceptedAudiences` pinned to the issuer and `RequireStringAudience`. ClientAuthentication\* |
 | — | A caller can't choose the audience its assertion is checked against | Pass (was Fail, every deployment) | `derivedAudience` read `X-Forwarded-Host` / `-Proto` from anyone, so an assertion minted for another server passed. It now uses `r.TLS` and `r.Host` only, and the token endpoint also accepts the issuer by default (RFC 7523 §3). ForwardedHeadersDontChooseTheAudience\* |
