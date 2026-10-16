@@ -3,6 +3,62 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.44
+
+### HTTP-surface audit (issue 88, PRs 403 to 407)
+
+Issue 88's second slice walked transport and headers, sessions and the admin
+interface after the first ZAP scan. The matrix is in `docs/SECURITY_AUDIT.md`.
+
+- **Credentials on the wire.** `Cache-Control: no-store` on every response
+  that carries a secret: DCR, admin read / list / rotate, API-key creation,
+  token and device errors, the authorize redirect, the reset form. The admin
+  view no longer returns clients' `registration_access_token`. DCR builds
+  `registration_client_uri` from `AppRegistrar.IssuerBaseURL`, never a
+  non-loopback `Host` header.
+- **Sessions.** `httpauth` login cookies are Secure (opt-out
+  `InsecureCookies`), SameSite=Lax and, for the JWT, HttpOnly. The session
+  is renewed at login and logout, every cookie domain is served, and session
+  JWTs carry `type: session` so APIs refuse them as Bearer tokens. A missing
+  secret now means a random per-process one, where it used to be a fixed
+  public string. Logout is POST, and logout / post-login redirects only go
+  to local paths. `httpauth.DenyFraming` keeps the consent, device and
+  password pages out of other sites' frames.
+- **Brute force.** `core.ClientIP` believes `X-Forwarded-For` only from
+  configured `TrustedProxies`. The password grant has a lockout
+  (`TokenEndpointHandler.Lockout`), signup and forgot-password are limited,
+  and `MountDeviceFlow` always limits user-code entry.
+- **Fail-closed defaults.** A nil `AdminAuth` answers 401. Admin bodies are
+  capped at 64 KiB, admin requests are rate limited before the key is
+  checked, and a rotation grace period is at most 7 days.
+- **Password reset.** Every store keeps verification tokens as SHA-256
+  hashes, a link works once even when two requests race, a reset applies
+  the signup password policy, and `AfterPasswordReset`
+  (`NewRevokeSessionsOnReset`) ends the account's other sessions.
+- **Reference server.** Rate limiting is on by default (`rate_limit`,
+  `server.trusted_proxies`). The server won't start with an unset
+  `admin_auth.type`, with `none` unless `allow_open: true`, or with a
+  plain-http public URL on a non-loopback host unless `allow_insecure_http`.
+  `jwt.issuer` defaults to the public URL. Pages load a prebuilt stylesheet
+  (`make server-css`), and the CSP allows only `'self'`.
+
+### Upgrading
+
+- **`AdminAuth`:** pass `NewNoAuth()` for open admin routes; nil now refuses.
+- **DCR behind a real host:** set `AppRegistrar.IssuerBaseURL`, or registration
+  answers 500.
+- **`httpauth`:** set `ONEAUTH_JWT_SECRET_KEY` (or `JWTSecretKey`), or
+  sessions end on restart. Use `InsecureCookies` for plain-http development
+  away from localhost. Link to `/logout` with a POST form.
+- **Reference server:** set `admin_auth.type`, and an https `public_url` (or
+  `allow_insecure_http` on a private network). List your proxies in
+  `server.trusted_proxies`.
+- **Custom `VerificationTokenStore`s** must set
+  `DeleteVerificationTokenResponse.Deleted`. Reset links issued before the
+  upgrade stop working.
+- **`iss`:** tokens from the reference server carry the public URL unless
+  `jwt.issuer` is set.
+
 ## Version 0.1.43
 
 ### DPoP and FAPI follow-ups (issue 395, PRs 400 to 402)

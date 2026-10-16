@@ -93,6 +93,9 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 
 ## Gotchas
 
+- **The reference server refuses unsafe configs at startup.** It needs an explicit `admin_auth.type` (`none` also needs `allow_open: true`), and refuses a plain-http `public_url` on a non-loopback host unless `server.allow_insecure_http`. Env-only setups pass `PUBLIC_URL`; a new launcher that forgets it fails with a message naming the field.
+- **DCR needs `AppRegistrar.IssuerBaseURL` off loopback.** Without it, a request with a non-loopback `Host` gets a 500, since `registration_client_uri` is never built from `Host`. httptest fixtures post with `Host: example.com`, so DCR tests set `IssuerBaseURL = "http://example.com"`.
+- **`make server-css` after changing template classes.** The reference server ships a prebuilt Tailwind stylesheet (`cmd/oneauth-server/static/app.css`) under a `'self'`-only CSP, so a class used nowhere when it was last built has no style.
 - **Run the Datastore emulator with `--consistency=1.0`.** Its default is 0.9, where a query misses a recent write about one time in ten, and the GAE store tests fail at random (9 runs in 10 before issue 395). `make upds` / `make testds` pass it; a container started some other way may not, so `make downds` first if `testds` turns flaky.
 - **gofmt is a CI gate.** The `gofmt` step in `ci.yml` checks every tracked `.go` file in every module; `make fmt` fixes, `make fmtcheck` checks. The one-time cleanup commit is in `.git-blame-ignore-revs` (`git config blame.ignoreRevsFile .git-blame-ignore-revs`).
 - **Keycloak port collision**: Default `KC_PORT=8180`, default `RAR_PORT=8181`. `mcpkit-keycloak` (other project) often holds 8180; pass `make upkcl KC_PORT=8281 && make testkcl KC_PORT=8281` to avoid both that and the RAR_PORT clash.

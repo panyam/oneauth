@@ -1,10 +1,10 @@
 # OneAuth
 
 ## Version
-v0.1.43
+v0.1.44
 
 ## Provides
-- local-authentication: Email/password authentication with signup policy, rate limiting, account lockout
+- local-authentication: Email/password authentication with signup policy, rate limiting, account lockout. Reset tokens are stored hashed and are single-use; a reset ends other sessions (`AfterPasswordReset`); signup and forgot-password are rate limited; `TrustedProxies` gates X-Forwarded-For (issue 88).
 - oauth-integration: OAuth providers (Google, GitHub, etc.) with PKCE
 - jwt-management: Multi-tenant JWT with KeyStore, kid rotation, JWKS discovery, algorithm confusion prevention
 - federated-auth: App registration, resource token minting, multi-service JWT validation
