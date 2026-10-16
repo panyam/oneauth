@@ -40,6 +40,15 @@ REPORT_DIR := test-reports
 # These are the building blocks that testall orchestrates.
 
 # Static analysis via staticcheck
+# gofmt every tracked Go file, across all modules. CI fails on any drift
+# (the gofmt step in .github/workflows/ci.yml); fmtcheck runs the same check.
+fmt:
+	@git ls-files '*.go' | xargs gofmt -w
+
+fmtcheck:
+	@unformatted=$$(git ls-files '*.go' | xargs gofmt -l); \
+	if [ -n "$$unformatted" ]; then echo "Not gofmt-clean (run make fmt):"; echo "$$unformatted"; exit 1; fi
+
 lint:
 	@echo "[lint] Running staticcheck..."
 	@GOFLAGS=-buildvcs=false staticcheck ./...
@@ -913,7 +922,7 @@ audit: vulncheck secrets
 .PHONY: test test-hard testall test-report e2e audit \
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
-	updb downdb dblogs testpg upds downds dslogs testds testrealDS \
+	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck \
 	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
 	deps tag pushtag seccheck verify-submodule-deps \

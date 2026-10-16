@@ -93,6 +93,8 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 
 ## Gotchas
 
+- **Run the Datastore emulator with `--consistency=1.0`.** Its default is 0.9, where a query misses a recent write about one time in ten, and the GAE store tests fail at random (9 runs in 10 before issue 395). `make upds` / `make testds` pass it; a container started some other way may not, so `make downds` first if `testds` turns flaky.
+- **gofmt is a CI gate.** The `gofmt` step in `ci.yml` checks every tracked `.go` file in every module; `make fmt` fixes, `make fmtcheck` checks. The one-time cleanup commit is in `.git-blame-ignore-revs` (`git config blame.ignoreRevsFile .git-blame-ignore-revs`).
 - **Keycloak port collision**: Default `KC_PORT=8180`, default `RAR_PORT=8181`. `mcpkit-keycloak` (other project) often holds 8180; pass `make upkcl KC_PORT=8281 && make testkcl KC_PORT=8281` to avoid both that and the RAR_PORT clash.
 - **RAR test issuer**: lives at `cmd/oneauth-server/deploy-examples/rar-test.yaml`, started inside `make testkcl`. Old `cmd/rar-test-issuer/` is retired.
 - **JWKS only exposes asymmetric keys.** HS256 secrets are *correctly* omitted (`keys/jwks_handler.go`). Tests/services that validate via `JWKSKeyStore` must mint RS256/ES256 tokens — set `jwt.signing_alg: RS256` + `jwt.private_key_path` (or `ephemeral_signing_key: true` for tests).
