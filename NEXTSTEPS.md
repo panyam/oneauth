@@ -5,8 +5,8 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- No open threads. No active mission (`queue.sh`: JARM #409 is parked).
-- This run: dropped fix/429-code-reuse (PR #431 merged, #429 closed); tagged v0.1.57.
+- No open threads. Retriage in progress: the FAPI 2.0 conformance mission (#98) becomes active once the docs/oauth refresh lands.
+- This run: dropped feat/dpop-proof-with-nonce (PR #432 merged); tagged v0.2.0 (first GitHub release since v0.1.37) and v0.2.1.
 
 ## Across threads
 

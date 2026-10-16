@@ -3,6 +3,17 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.2.1
+
+### `DPoPKey.ProofWithNonce` (PR 432)
+
+- **Callers with their own transport can answer a nonce challenge.**
+  `AuthClient` retries `use_dpop_nonce` itself, but a caller that sets
+  `Authorization` per request (mcpkit's MCP transports) had only `Proof()`,
+  which takes no nonce. `ProofWithNonce(method, url, token, nonce)` mints the
+  retry's proof with the server's `DPoP-Nonce` (RFC 9449 §8 / §9). An empty
+  nonce is the same as `Proof`. Additive; nothing else changes.
+
 ## Version 0.2.0
 
 The code is 0.1.57's. The minor version marks the breaking changes that
