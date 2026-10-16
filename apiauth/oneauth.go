@@ -86,6 +86,13 @@ type OneAuthConfig struct {
 	// Key management
 	KeyStore keys.KeyStorage // required — stores client keys
 
+	// KidStore holds keys retired by a rotation for their grace period
+	// (AppRegistrar.KidStore writes them). The validator looks a token's
+	// kid up in KeyStore first and here second, so tokens signed just
+	// before a rotation keep verifying until the grace period ends. Nil
+	// means a rotated key stops verifying at once.
+	KidStore keys.KidStorage
+
 	// Signing configuration
 	SigningKey any    // []byte for HS256, *rsa.PrivateKey for RS256, etc.
 	SigningAlg string // "HS256", "RS256", "ES256" — default "HS256"
@@ -290,8 +297,18 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	if validatorKey == nil {
 		validatorKey = cfg.SigningKey
 	}
+	// Current keys first, then keys still inside a rotation grace period.
+	var keyLookup keys.KeyLookup
+	switch {
+	case cfg.KeyStore != nil && cfg.KidStore != nil:
+		keyLookup = &keys.CompositeKeyLookup{Lookups: []keys.KeyLookup{cfg.KeyStore, cfg.KidStore}}
+	case cfg.KeyStore != nil:
+		keyLookup = cfg.KeyStore
+	case cfg.KidStore != nil:
+		keyLookup = cfg.KidStore
+	}
 	validator := NewJWTValidator(JWTValidatorConfig{
-		KeyLookup:      cfg.KeyStore, // KeyStorage implements KeyLookup
+		KeyLookup:      keyLookup,
 		SigningKey:     validatorKey,
 		SigningAlg:     signingAlg,
 		Blacklist:      cfg.Blacklist,

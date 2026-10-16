@@ -211,6 +211,12 @@ func (e *EncryptedKeyStorage) ListKeyIDs(ctx context.Context, req *ListKeyIDsReq
 // records that PutKey would have encrypted; anything else (public keys,
 // unknown algorithms) was never encrypted and passes through.
 func (e *EncryptedKeyStorage) decryptRecord(rec *KeyRecord) (*KeyRecord, error) {
+	return e.openRecord(rec, e.AllowLegacyPlaintext)
+}
+
+// openRecord is decryptRecord with the legacy-plaintext choice passed in,
+// so EncryptedKidStorage can share it with its own option.
+func (e *EncryptedKeyStorage) openRecord(rec *KeyRecord, allowLegacyPlaintext bool) (*KeyRecord, error) {
 	keyBytes, ok := rec.Key.([]byte)
 	if !ok {
 		return rec, nil
@@ -233,7 +239,7 @@ func (e *EncryptedKeyStorage) decryptRecord(rec *KeyRecord) (*KeyRecord, error) 
 	if !shouldEncrypt(rec) {
 		return rec, nil
 	}
-	if !e.AllowLegacyPlaintext {
+	if !allowLegacyPlaintext {
 		return nil, fmt.Errorf("%w (client %q): not encrypted, and AllowLegacyPlaintext is off", ErrKeyDecrypt, rec.ClientID)
 	}
 	log.Printf("EncryptedKeyStorage: client %q is stored in plaintext; run MigrateLegacy to encrypt it", rec.ClientID)

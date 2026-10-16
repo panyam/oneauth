@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -128,8 +129,11 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hash := sha256.Sum256(body)
 	etag := `"` + hex.EncodeToString(hash[:16]) + `"`
 
-	// Support conditional requests (If-None-Match)
-	if r.Header.Get("If-None-Match") == etag {
+	// RFC 9110 §15.4.5: a 304 carries the ETag and Cache-Control a 200
+	// would, so set them before deciding.
+	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
+	w.Header().Set("ETag", etag)
+	if etagMatches(r.Header.Get("If-None-Match"), etag) {
 		span.SetAttributes(attribute.Int("http.response.status_code", http.StatusNotModified))
 		w.WriteHeader(http.StatusNotModified)
 		return
@@ -137,8 +141,19 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(attribute.Int("http.response.status_code", http.StatusOK))
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
-	w.Header().Set("ETag", etag)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Write(body)
+}
+
+// etagMatches reports whether an If-None-Match header names etag. It takes
+// a comma-separated list and "*", and compares weakly, as RFC 9110 §13.1.2
+// says If-None-Match does.
+func etagMatches(header, etag string) bool {
+	for _, tag := range strings.Split(header, ",") {
+		tag = strings.TrimPrefix(strings.TrimSpace(tag), "W/")
+		if tag == "*" || tag == etag {
+			return true
+		}
+	}
+	return false
 }

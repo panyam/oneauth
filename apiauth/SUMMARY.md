@@ -3,7 +3,7 @@
 JWT-based API authentication built around the transport-agnostic `OneAuth` core. HTTP-side concerns (form parsing, rate limiting, AuthHooks firing, refresh-token capture with device info) live in `TokenEndpointHandler`; grant flow lives behind focused gRPC-shape interfaces; per-concern handlers serve sessions, API keys, etc.
 
 ## Contents
-- **oneauth.go** — `OneAuth` composite struct + `OneAuthConfig` + `NewOneAuth` constructor + HTTP convenience methods (`TokenEndpointHTTPHandler`, `IntrospectionHTTPHandler`, `RevocationHTTPHandler`, `SessionsHTTPHandler`, `APIKeysHTTPHandler`)
+- **oneauth.go** — `OneAuth` composite struct + `OneAuthConfig` + `NewOneAuth` constructor + HTTP convenience methods (`TokenEndpointHTTPHandler`, `IntrospectionHTTPHandler`, `RevocationHTTPHandler`, `SessionsHTTPHandler`, `APIKeysHTTPHandler`). `OneAuthConfig.KidStore` puts rotated keys behind `KeyStore` in the validator's lookup, so a rotation's grace period works.
 - **token_endpoint.go** — `TokenEndpointHandler` serves `POST /api/token`. Parses form, dispatches grant_type, delegates flow to the right interface on OneAuth. Owns rate limiting + AuthHooks firing + refresh-token creation with device info
 - **sessions_http.go** — `SessionsHandler` for `/api/logout`, `/api/logout-all`, `/api/sessions`. Constructed via `oa.SessionsHTTPHandler()`
 - **apikeys.go** — `APIKeysHandler` for `GET/POST /api/keys`, `DELETE /api/keys/{id}`. Constructed via `oa.APIKeysHTTPHandler(store, getScopes)`
