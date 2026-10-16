@@ -199,7 +199,7 @@ The fixes land across several PRs; the Status column says which rows are done.
 | A reset link works once, even under a race | Pass (was Fail) | the token is consumed (`DeleteToken` → `Deleted`) before the password changes (CWE-367) |
 | A reset applies the signup password policy | Pass (was Fail) | it used a hard-coded 8 |
 | A reset ends the account's other sessions | Pass (was Fail) | `AfterPasswordReset`; `NewRevokeSessionsOnReset` revokes its refresh tokens, wired in the reference server (CWE-613) |
-| Signup doesn't reveal which emails have accounts | Open | "email already registered" lets anyone enumerate accounts; fixing it means a changed signup flow (mail the existing owner), not filed yet |
+| Signup doesn't reveal which emails have accounts | Pass with `RequireEmailVerification` (was Open) | a taken email gets the same "check your email" answer as a fresh one (no `user_id` in either), and the owner is mailed through `AccountExistsEmailSender` (CWE-204). Without verification a fresh signup logs in and a taken one can't, so it stays visible. TakenEmailLooksLikeAFreshOne\* (issue 408) |
 | Cookie flags (`HttpOnly`, `Secure`, `SameSite`) | Pass (was Fail) | `httpauth` login cookies are Secure (opt-out `InsecureCookies`), Lax and HttpOnly, `loggedInSubject` included; `oa_token` is Secure behind https; the `oauth2` and `federatedauth` cookies (`oauthstate`, `oauthCallbackURL`, `pkce_verifier`, and their deletes) are Secure + HttpOnly + Lax |
 | Session ID renewed on login and logout | Pass (was Fail) | `SetLoggedInSubject` calls `RenewToken` (CWE-384) |
 | Session JWTs not usable as API access tokens | Pass (was Fail) | session JWTs carry `type: session`, which `APIMiddleware` refuses; `iat` no longer an hour in the future |
@@ -207,7 +207,7 @@ The fixes land across several PRs; the Status column says which rows are done.
 | Logout is POST with CSRF | Pass (was Fail) | `httpauth` `/logout` and the reference server's `/auth/logout` |
 | Post-login and logout redirects stay on this site | Pass (was Fail) | `httpauth.LocalRedirect` on `?to=` and the federated `callbackURL` (CWE-601) |
 | Login cookies set on every configured cookie domain | Pass (was Fail) | `SetLoggedInSubject` returned after the first domain |
-| CSRF | Partial | double-submit with `SameSite=Strict`; not bound to the session, no Origin check |
+| CSRF | Pass (was Partial) | double-submit with `SameSite=Strict`, plus `Sec-Fetch-Site` / `Origin` checks that refuse same-site and cross-site posts, and with `SessionID` set tokens signed over the session (OWASP signed double-submit). The reference server binds to the login session with a key derived from `jwt.secret_key`, and marks the cookie Secure behind an https `public_url`. `csrf_binding_test.go`\* (issue 408) |
 | Rate-limit keys can't be reset with a spoofed `X-Forwarded-For` | Pass (was Fail) | `core.ClientIP` reads it only from configured `TrustedProxies`, right to left (CWE-348) |
 | Brute-force limits on login and the password grant | Pass (was Partial) | per address + username, plus a per-username lockout the password grant now has too; on by default in the reference server (`rate_limit`) |
 | Limits on signup and forgot-password | Pass (was Fail) | per address, and forgot-password per email too (CWE-770) |
@@ -222,6 +222,7 @@ The fixes land across several PRs; the Status column says which rows are done.
 | JWKS exposes only public keys | Pass | symmetric keys skipped |
 | A nil `AdminAuth` fails closed | Pass (was Fail) | nil now answers 401; open access is `NewNoAuth()` on purpose (CWE-306) |
 | Reference server refuses `admin_auth: none` | Pass (was Fail) | `none` needs `allow_open: true`, and an unset type is an error |
+| DCR registration without the admin key | Pass (was not possible) | `admin.InitialAccessTokenAuth` (RFC 7591 §3) as `AppRegistrar.RegistrationAuth` admits `POST /apps/dcr` and nothing else; `admin_auth.dcr_initial_access_tokens` in the reference server, 32 bytes minimum. `dcr_initial_access_token_test.go`\* (issue 408) |
 | Body limits and rate limiting on admin routes | Pass (was Fail) | 64 KiB on DCR and rotate; `AuthRateLimiter` per address, before the key is checked |
 | Rotation grace period bounded | Pass (was Fail) | at most `MaxRotationGracePeriod` (7 days); an unparseable value is a 400 |
 | Dashboard doesn't list every client to any user | Pass (was Fail) | the list is admin-API only |

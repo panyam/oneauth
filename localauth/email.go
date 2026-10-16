@@ -9,6 +9,17 @@ type SendEmail interface {
 	SendPasswordResetEmail(to string, resetLink string) error
 }
 
+// AccountExistsEmailSender is an optional extension of SendEmail. When the
+// configured EmailSender implements it, a signup with an email that already
+// has an account (and RequireEmailVerification on) sends the owner this
+// notice instead of telling the requester the email is taken. link points
+// at the forgot-password page, for an owner who has lost the password.
+// Without it the owner hears nothing, and the requester still learns
+// nothing.
+type AccountExistsEmailSender interface {
+	SendAccountExistsEmail(to string, link string) error
+}
+
 // ConsoleEmailSender is a development implementation that logs emails to console.
 type ConsoleEmailSender struct{}
 

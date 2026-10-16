@@ -230,6 +230,12 @@ type AppRegistrar struct {
 	KeyStore keys.KeyStorage
 	Auth     AdminAuth
 
+	// RegistrationAuth, when set, also admits POST /apps/dcr (RFC 7591
+	// registration) alongside Auth, typically an InitialAccessTokenAuth
+	// (RFC 7591 §3). It opens no other route, so holders of a registration
+	// token can't list, rotate or delete clients.
+	RegistrationAuth AdminAuth
+
 	// KidStore retains old keys during rotation grace periods so that
 	// in-flight tokens signed with the previous key remain verifiable.
 	// If nil, rotation replaces the key immediately with no grace period.
@@ -860,9 +866,13 @@ func (h *AppRegistrar) GetAppRegistration(ctx context.Context, clientID string) 
 // "/apps/dcr/" prefix below wins over the "/apps/" catch-all without further
 // fiddling. The exact-match "/apps/dcr" route handles RFC 7591 registration.
 func (h *AppRegistrar) Handler() http.Handler {
+	dcrAuth := h.Auth
+	if h.RegistrationAuth != nil {
+		dcrAuth = &eitherAuth{first: h.RegistrationAuth, second: h.Auth}
+	}
 	dcr := &DCRHandler{
 		KeyStore:      h.KeyStore,
-		Auth:          h.Auth,
+		Auth:          dcrAuth,
 		Registrar:     h,
 		IssuerBaseURL: h.IssuerBaseURL,
 		admit:         h.allowAuthAttempt,
@@ -875,6 +885,25 @@ func (h *AppRegistrar) Handler() http.Handler {
 	mux.HandleFunc("/apps/", h.withAuth(h.handleAppByID))
 	mux.HandleFunc("/apps", h.withAuth(h.handleListApps))
 	return mux
+}
+
+// eitherAuth admits a request that either credential admits. A nil second
+// is skipped, so a registration token works even without an admin auth.
+// The first error wins when both refuse, so a client presenting a wrong
+// registration token hears about that one.
+type eitherAuth struct {
+	first, second AdminAuth
+}
+
+func (e *eitherAuth) Authenticate(r *http.Request) error {
+	err := e.first.Authenticate(r)
+	if err == nil {
+		return nil
+	}
+	if e.second != nil && e.second.Authenticate(r) == nil {
+		return nil
+	}
+	return err
 }
 
 func (h *AppRegistrar) withAuth(next http.HandlerFunc) http.HandlerFunc {

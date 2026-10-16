@@ -16,3 +16,5 @@ Local (form-based) authentication: signup, login, email verification, password r
 
 ## Dependencies
 `core/` for all foundation types.
+
+- **Signup enumeration (issue 408):** with `RequireEmailVerification`, a taken email gets the same answer as a fresh one and the owner is mailed through the optional `AccountExistsEmailSender`; the verification response no longer carries `user_id`.

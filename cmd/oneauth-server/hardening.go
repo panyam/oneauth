@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"log"
@@ -9,6 +11,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/panyam/oneauth/admin"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // serverCSP is the Content-Security-Policy for every response. Pages load
@@ -71,4 +76,42 @@ func checkSigningSecret(cfg *Config) error {
 		return fmt.Errorf("jwt.secret_key (JWT_SECRET_KEY) must be at least %d bytes, got %d; generate one with: openssl rand -hex 32", minHMACSecret, n)
 	}
 	return nil
+}
+
+// buildRegistrationAuth turns admin_auth.dcr_initial_access_tokens into an
+// InitialAccessTokenAuth, or nil when none are set. Short tokens are
+// refused: a registration token that can be guessed opens registration to
+// anyone.
+func buildRegistrationAuth(cfg *Config) (*admin.InitialAccessTokenAuth, error) {
+	tokens := cfg.AdminAuth.DCRInitialAccessTokens
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+	for _, t := range tokens {
+		if len(t) < minHMACSecret {
+			return nil, fmt.Errorf("admin_auth.dcr_initial_access_tokens: each token must be at least %d bytes; generate one with: openssl rand -hex 32", minHMACSecret)
+		}
+	}
+	return admin.NewInitialAccessTokenAuth(tokens...), nil
+}
+
+// buildCSRF is the server's CSRF middleware. Tokens bind to the login
+// session (a hash of the oa_token cookie, so the cookie itself never
+// appears in a token), are keyed by a secret derived from jwt.secret_key so
+// every instance accepts every other's, and the cookie is Secure whenever
+// clients reach the server over https, TLS terminated here or at a proxy.
+func buildCSRF(cfg *Config) *httpauth.CSRFMiddleware {
+	key := sha256.Sum256([]byte("oneauth-csrf\x00" + cfg.JWT.SecretKey))
+	return &httpauth.CSRFMiddleware{
+		Secure: cfg.TLS.Enabled || strings.HasPrefix(publicBaseURL(cfg), "https://"),
+		Secret: key[:],
+		SessionID: func(r *http.Request) string {
+			c, err := r.Cookie("oa_token")
+			if err != nil || c.Value == "" {
+				return ""
+			}
+			sum := sha256.Sum256([]byte(c.Value))
+			return hex.EncodeToString(sum[:])
+		},
+	}
 }

@@ -114,6 +114,13 @@ func main() {
 	// DCR builds registration_client_uri from this, never from a request's
 	// Host header.
 	registrar.IssuerBaseURL = publicBaseURL(cfg)
+	registrationAuth, err := buildRegistrationAuth(cfg)
+	if err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
+	if registrationAuth != nil {
+		registrar.RegistrationAuth = registrationAuth
+	}
 
 	// Brute-force limits, on by default (rate_limit block).
 	bf, err := buildBruteForce(cfg)
@@ -245,7 +252,7 @@ func main() {
 	sessions := oa.SessionsHTTPHandler()
 
 	// CSRF middleware for browser form endpoints
-	csrf := &httpauth.CSRFMiddleware{Secure: cfg.TLS.Enabled}
+	csrf := buildCSRF(cfg)
 
 	// Wire up HTTP server
 	mux := http.NewServeMux()

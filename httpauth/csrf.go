@@ -2,12 +2,16 @@ package httpauth
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 )
 
 type csrfContextKey struct{}
@@ -38,6 +42,27 @@ type CSRFMiddleware struct {
 	// ExemptFunc returns true if the request should skip CSRF validation.
 	// Default: exempt requests with an Authorization: Bearer header.
 	ExemptFunc func(*http.Request) bool
+
+	// TrustedOrigins are origins (scheme://host[:port]) besides this
+	// server's own whose unsafe requests are accepted. Requests from any
+	// other origin are refused even with a valid token, since a sibling
+	// subdomain can set this cookie (CWE-352).
+	TrustedOrigins []string
+
+	// SessionID, when set, binds tokens to the session it returns: a token
+	// is a nonce plus an HMAC over the session and nonce (OWASP's signed
+	// double-submit), so a token minted for one session, or a value an
+	// attacker set in the cookie, fails for any other. Return "" before
+	// login; such tokens bind to the empty session.
+	SessionID func(*http.Request) string
+
+	// Secret keys the session-bound tokens. Instances behind one load
+	// balancer need the same Secret, or a token minted by one fails on
+	// another. Nil uses a random per-process key.
+	Secret []byte
+
+	secretOnce sync.Once
+	secret     []byte
 }
 
 func (m *CSRFMiddleware) cookieName() string {
@@ -127,7 +152,12 @@ func (m *CSRFMiddleware) Protect(next http.Handler) http.Handler {
 			return
 		}
 
-		// Unsafe method: validate
+		// Unsafe method: validate. Where the request came from is checked
+		// first, since a same-site page can set the cookie below.
+		if !m.originAllowed(r) {
+			m.errorHandler()(w, r)
+			return
+		}
 		cookieToken := ""
 		if c, err := r.Cookie(m.cookieName()); err == nil {
 			cookieToken = c.Value
@@ -144,7 +174,7 @@ func (m *CSRFMiddleware) Protect(next http.Handler) http.Handler {
 			submittedToken = r.Header.Get(m.headerName())
 		}
 
-		if submittedToken == "" || !tokensMatch(cookieToken, submittedToken) {
+		if submittedToken == "" || !tokensMatch(cookieToken, submittedToken) || !m.boundToSession(r, cookieToken) {
 			m.errorHandler()(w, r)
 			return
 		}
@@ -157,11 +187,15 @@ func (m *CSRFMiddleware) Protect(next http.Handler) http.Handler {
 
 // getOrCreateToken returns the existing cookie token or generates a new one.
 func (m *CSRFMiddleware) getOrCreateToken(w http.ResponseWriter, r *http.Request) string {
-	if c, err := r.Cookie(m.cookieName()); err == nil && c.Value != "" {
+	if c, err := r.Cookie(m.cookieName()); err == nil && c.Value != "" && m.boundToSession(r, c.Value) {
 		return c.Value
 	}
 
 	token := generateCSRFToken()
+	if m.SessionID != nil {
+		nonce := token[:32]
+		token = nonce + "." + m.sign(m.SessionID(r), nonce)
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     m.cookieName(),
 		Value:    token,
@@ -202,4 +236,60 @@ func CSRFToken(r *http.Request) string {
 func CSRFTemplateField(r *http.Request) template.HTML {
 	token := CSRFToken(r)
 	return template.HTML(`<input type="hidden" name="csrf_token" value="` + template.HTMLEscapeString(token) + `">`)
+}
+
+// originAllowed reports whether an unsafe request came from this site.
+// Fetch metadata (Sec-Fetch-Site) is the stronger signal: same-site is
+// refused too, since that's the sibling-subdomain case double-submit can't
+// stop. Without it, a present Origin must name this host or a trusted
+// origin. Neither header (older clients, non-browser callers) is allowed;
+// the token check still applies.
+func (m *CSRFMiddleware) originAllowed(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "same-origin", "none":
+		return true
+	case "same-site", "cross-site":
+		return false
+	}
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	for _, o := range m.TrustedOrigins {
+		if origin == o {
+			return true
+		}
+	}
+	u, err := url.Parse(origin)
+	return err == nil && u.Host != "" && strings.EqualFold(u.Host, r.Host)
+}
+
+// boundToSession reports whether token was signed for the request's
+// session. Always true when SessionID isn't set (plain double-submit).
+func (m *CSRFMiddleware) boundToSession(r *http.Request, token string) bool {
+	if m.SessionID == nil {
+		return true
+	}
+	nonce, mac, ok := strings.Cut(token, ".")
+	if !ok || nonce == "" {
+		return false
+	}
+	return hmac.Equal([]byte(mac), []byte(m.sign(m.SessionID(r), nonce)))
+}
+
+// sign is the hex HMAC-SHA256 of session and nonce under the middleware's
+// secret.
+func (m *CSRFMiddleware) sign(session, nonce string) string {
+	m.secretOnce.Do(func() {
+		m.secret = m.Secret
+		if len(m.secret) == 0 {
+			m.secret = make([]byte, 32)
+			if _, err := rand.Read(m.secret); err != nil {
+				panic("oneauth: failed to generate CSRF secret: " + err.Error())
+			}
+		}
+	})
+	h := hmac.New(sha256.New, m.secret)
+	h.Write([]byte(session + "|" + nonce))
+	return hex.EncodeToString(h.Sum(nil))
 }
