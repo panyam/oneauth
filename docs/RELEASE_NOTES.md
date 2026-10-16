@@ -3,6 +3,29 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.57
+
+### Reused authorization codes revoke their tokens (issue 429, PR 431)
+
+- **RFC 6749 §4.1.2.** A redeemed code is marked used rather than deleted
+  and kept until its access token expires. Presenting it again blacklists
+  that token's `jti` (with `OneAuthConfig.Blacklist`) and revokes the
+  refresh family; a reuse racing the first redemption makes that one
+  refuse too.
+- `AuthorizationCodeStore` gains `ConsumeAuthorizationCode`
+  (`ErrAuthorizationCodeUsed`) and `RecordAuthorizationCodeTokens`;
+  in-memory and GORM implement both. `CreateAccessTokenResponse` carries
+  `TokenID` and `ExpiresAt`.
+- **GAE store tests run in CI** (`gae` job, `make testds`, which now waits
+  for the emulator rather than sleeping).
+
+### Upgrading
+
+- Custom `AuthorizationCodeStore` implementations need the two new methods.
+- `NewAuthorizationCodeGranter` takes a `core.TokenBlacklist`.
+- GORM adds five columns to `authorization_codes` through AutoMigrate, and
+  used rows stay until their token expires.
+
 ## Version 0.1.56
 
 ### Security audit closed (issue 88, PR 430)
