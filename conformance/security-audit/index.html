@@ -926,8 +926,8 @@ The fixes land across several PRs; the Status column says which rows are done.</
 </tr>
 <tr>
 <td>Signup doesn&rsquo;t reveal which emails have accounts</td>
-<td>Open</td>
-<td>&ldquo;email already registered&rdquo; lets anyone enumerate accounts; fixing it means a changed signup flow (mail the existing owner), not filed yet</td>
+<td>Pass with <code>RequireEmailVerification</code> (was Open)</td>
+<td>a taken email gets the same &ldquo;check your email&rdquo; answer as a fresh one (no <code>user_id</code> in either), and the owner is mailed through <code>AccountExistsEmailSender</code> (CWE-204). Without verification a fresh signup logs in and a taken one can&rsquo;t, so it stays visible. TakenEmailLooksLikeAFreshOne* (issue 408)</td>
 </tr>
 <tr>
 <td>Cookie flags (<code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code>)</td>
@@ -966,8 +966,8 @@ The fixes land across several PRs; the Status column says which rows are done.</
 </tr>
 <tr>
 <td>CSRF</td>
-<td>Partial</td>
-<td>double-submit with <code>SameSite=Strict</code>; not bound to the session, no Origin check</td>
+<td>Pass (was Partial)</td>
+<td>double-submit with <code>SameSite=Strict</code>, plus <code>Sec-Fetch-Site</code> / <code>Origin</code> checks that refuse same-site and cross-site posts, and with <code>SessionID</code> set tokens signed over the session (OWASP signed double-submit). The reference server binds to the login session with a key derived from <code>jwt.secret_key</code>, and marks the cookie Secure behind an https <code>public_url</code>. <code>csrf_binding_test.go</code>* (issue 408)</td>
 </tr>
 <tr>
 <td>Rate-limit keys can&rsquo;t be reset with a spoofed <code>X-Forwarded-For</code></td>
@@ -1025,6 +1025,11 @@ The fixes land across several PRs; the Status column says which rows are done.</
 <td>Reference server refuses <code>admin_auth: none</code></td>
 <td>Pass (was Fail)</td>
 <td><code>none</code> needs <code>allow_open: true</code>, and an unset type is an error</td>
+</tr>
+<tr>
+<td>DCR registration without the admin key</td>
+<td>Pass (was not possible)</td>
+<td><code>admin.InitialAccessTokenAuth</code> (RFC 7591 §3) as <code>AppRegistrar.RegistrationAuth</code> admits <code>POST /apps/dcr</code> and nothing else; <code>admin_auth.dcr_initial_access_tokens</code> in the reference server, 32 bytes minimum. <code>dcr_initial_access_token_test.go</code>* (issue 408)</td>
 </tr>
 <tr>
 <td>Body limits and rate limiting on admin routes</td>
