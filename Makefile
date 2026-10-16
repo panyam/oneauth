@@ -371,6 +371,10 @@ DS_PORT := 8081
 DS_PROJECT := test-project
 
 # Start a Datastore emulator using Docker for testing
+# --consistency=1.0 because the emulator defaults to 0.9, where a query
+# misses a recent write about one time in ten and the GAE list / contract
+# tests fail at random. Firestore in Datastore mode is strongly consistent,
+# so 1.0 is also what production does.
 upds:
 	@echo "Starting Datastore emulator container..."
 	@docker run --rm -d \
@@ -380,7 +384,8 @@ upds:
 		gcloud beta emulators datastore start \
 			--host-port=0.0.0.0:8081 \
 			--project=$(DS_PROJECT) \
-			--no-store-on-disk
+			--no-store-on-disk \
+			--consistency=1.0
 	@echo "Waiting for Datastore emulator to be ready..."
 	@sleep 3
 	@echo ""
@@ -408,7 +413,8 @@ testds:
 			gcloud beta emulators datastore start \
 				--host-port=0.0.0.0:8081 \
 				--project=$(DS_PROJECT) \
-				--no-store-on-disk; \
+				--no-store-on-disk \
+				--consistency=1.0; \
 		sleep 5; \
 	fi
 	DATASTORE_EMULATOR_HOST=localhost:$(DS_PORT) \
