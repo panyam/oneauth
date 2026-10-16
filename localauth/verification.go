@@ -2,6 +2,8 @@ package localauth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"time"
 )
 
@@ -75,7 +77,13 @@ type DeleteVerificationTokenRequest struct {
 	Token string
 }
 
-type DeleteVerificationTokenResponse struct{}
+type DeleteVerificationTokenResponse struct {
+	// Deleted is true when this call removed the token, and false when it
+	// was already gone. Only one of two concurrent deletes sees true, which
+	// is what makes a token single-use: consume it by deleting it, and act
+	// only when Deleted.
+	Deleted bool
+}
 
 type DeleteSubjectVerificationTokensRequest struct {
 	Subject string
@@ -91,4 +99,14 @@ type VerificationTokenStore interface {
 	GetToken(ctx context.Context, req *GetVerificationTokenRequest) (*GetVerificationTokenResponse, error)
 	DeleteToken(ctx context.Context, req *DeleteVerificationTokenRequest) (*DeleteVerificationTokenResponse, error)
 	DeleteSubjectTokens(ctx context.Context, req *DeleteSubjectVerificationTokensRequest) (*DeleteSubjectVerificationTokensResponse, error)
+}
+
+// HashVerificationToken is how stores key a verification or reset token:
+// the hex SHA-256 of the raw value. Stores keep only this, so read access to
+// the store (a backup, a leaked volume) doesn't yield working links
+// (CWE-256), and the raw token exists only in the email and the request.
+// The token is 32 random bytes, so an unsalted fast hash is enough.
+func HashVerificationToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }

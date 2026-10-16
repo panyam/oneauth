@@ -123,6 +123,7 @@ func main() {
 		HandleUser:          makeHandleUser(cfg),
 		VerifyEmail:         localauth.NewVerifyEmailFunc(stores.identityStore, stores.tokenStore),
 		UpdatePassword:      localauth.NewUpdatePasswordFunc(stores.identityStore, stores.channelStore),
+		AfterPasswordReset:  localauth.NewRevokeSessionsOnReset(stores.identityStore, stores.refreshTokenStore),
 		// Redirect-mode for forgot/reset password
 		ForgotPasswordURL: "/auth/forgot-password",
 		ResetPasswordURL:  "/auth/reset-password",
