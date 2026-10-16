@@ -29,6 +29,7 @@ func ExampleAppRegistrar_hs256FederatedFlow() {
 	// Auth server with AppRegistrar
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	authServer := httptest.NewServer(registrar.Handler())
 	defer authServer.Close()
 
@@ -202,6 +203,7 @@ func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 	ks := keys.NewInMemoryKeyStore()
 	kidStore := keys.NewKidStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registrar.KidStore = kidStore
 	registrar.DefaultGracePeriod = 50 * time.Millisecond
 	regHandler := registrar.Handler()
@@ -268,6 +270,7 @@ func ExampleCompositeKeyLookup_keyRotationGracePeriod() {
 func ExampleAPIMiddleware_crossAppIsolation() {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	regHandler := registrar.Handler()
 
 	// Register two HS256 apps

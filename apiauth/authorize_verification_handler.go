@@ -208,6 +208,7 @@ func (h *AuthorizeVerificationHandler) issueAndRedirect(w http.ResponseWriter, r
 		h.renderError(w, r, "server_error", "could not build redirect")
 		return
 	}
+	noStore(w)
 	http.Redirect(w, r, redirect, http.StatusFound)
 }
 

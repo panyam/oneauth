@@ -158,6 +158,12 @@ func isPrivateOrSpecialIP(ip net.IP) bool {
 // Mount it on any admin service's mux to let apps register and obtain signing credentials.
 // Create with NewAppRegistrar() (in-memory store) or NewAppRegistrarWithStore.
 type AppRegistrar struct {
+	// IssuerBaseURL is this server's public base URL. Handler() gives it to
+	// the DCR endpoint, which builds registration_client_uri from it (RFC
+	// 7592 §3). Empty derives it from a loopback request only, so a
+	// deployment reached by any other host must set it.
+	IssuerBaseURL string
+
 	KeyStore keys.KeyStorage
 	Auth     AdminAuth
 
@@ -367,6 +373,7 @@ func (h *AppRegistrar) ListClients(ctx context.Context, req *ListClientsRequest)
 	apps := make([]*core.AppRegistration, 0, len(h.apps))
 	for _, reg := range h.apps {
 		clone := *reg
+		clone.RegistrationAccessToken = ""
 		apps = append(apps, &clone)
 	}
 	return &ListClientsResponse{Apps: apps}, nil
@@ -385,6 +392,7 @@ func (h *AppRegistrar) GetClient(ctx context.Context, req *GetClientRequest) (*G
 		return nil, core.ErrAppNotFound
 	}
 	clone := *reg
+	clone.RegistrationAccessToken = ""
 	return &GetClientResponse{Registration: &clone}, nil
 }
 
@@ -776,9 +784,10 @@ func (h *AppRegistrar) GetAppRegistration(ctx context.Context, clientID string) 
 // fiddling. The exact-match "/apps/dcr" route handles RFC 7591 registration.
 func (h *AppRegistrar) Handler() http.Handler {
 	dcr := &DCRHandler{
-		KeyStore:  h.KeyStore,
-		Auth:      h.Auth,
-		Registrar: h,
+		KeyStore:      h.KeyStore,
+		Auth:          h.Auth,
+		Registrar:     h,
+		IssuerBaseURL: h.IssuerBaseURL,
 	}
 	dcrMgmt := &DCRManagementHandler{Manager: h}
 
@@ -818,6 +827,7 @@ func (h *AppRegistrar) handleListApps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	json.NewEncoder(w).Encode(map[string]any{"apps": resp.Apps})
 }
 
@@ -860,6 +870,7 @@ func (h *AppRegistrar) handleGetApp(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	json.NewEncoder(w).Encode(resp.Registration)
 }
 
@@ -934,11 +945,13 @@ func (h *AppRegistrar) handleRotateSecret(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	json.NewEncoder(w).Encode(out)
 }
 
 func (h *AppRegistrar) jsonError(w http.ResponseWriter, code, message string, status int) {
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"error": code, "message": message})
 }

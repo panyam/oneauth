@@ -365,6 +365,9 @@ func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request)
 // HandleResetPasswordForm shows the reset password form (GET)
 func (a *LocalAuth) HandleResetPasswordForm(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
+	// The response carries the reset token, which is a credential.
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 
 	// Redirect mode: let the app handle rendering
 	if a.ResetPasswordURL != "" {

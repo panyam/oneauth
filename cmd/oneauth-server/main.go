@@ -91,6 +91,9 @@ func main() {
 		log.Fatalf("Failed to create AppStore: %v", err)
 	}
 	registrar := admin.NewAppRegistrarWithStore(keyStore, adminAuth, appStore)
+	// DCR builds registration_client_uri from this, never from a request's
+	// Host header.
+	registrar.IssuerBaseURL = publicBaseURL(cfg)
 
 	// Build LocalAuth
 	localAuth := &localauth.LocalAuth{

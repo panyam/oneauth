@@ -31,6 +31,7 @@ import (
 func TestDCR_SymmetricRegistration(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	body := `{"client_name":"My CLI App","client_uri":"https://myapp.com","grant_types":["client_credentials"]}`
@@ -71,6 +72,7 @@ func TestDCR_SymmetricRegistration(t *testing.T) {
 func TestDCR_RegistrationResponseIncludesManagementCredentials(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	body := `{"client_name":"Mgmt App","redirect_uris":["https://app.example/cb"]}`
@@ -102,6 +104,7 @@ func TestDCR_RegistrationResponseIncludesManagementCredentials(t *testing.T) {
 func TestDCR_AsymmetricRegistration(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	// Use a real RSA JWK
@@ -139,6 +142,7 @@ func TestDCR_AsymmetricRegistration(t *testing.T) {
 func TestDCR_MissingJWKSForAsymmetric(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	body := `{"client_name":"No Keys","token_endpoint_auth_method":"private_key_jwt"}`
@@ -158,6 +162,7 @@ func TestDCR_MissingJWKSForAsymmetric(t *testing.T) {
 func TestDCR_MethodNotAllowed(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	for _, method := range []string{http.MethodGet, http.MethodPut, http.MethodDelete} {
@@ -174,6 +179,7 @@ func TestDCR_MethodNotAllowed(t *testing.T) {
 func TestDCR_WithAuth(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewAPIKeyAuth("admin-secret"))
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	// Without auth — rejected
@@ -198,6 +204,7 @@ func TestDCR_WithAuth(t *testing.T) {
 func TestDCR_AppRegistrarIntegration(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	handler := registrar.Handler()
 
 	body := `{"client_name":"DCR App","client_uri":"https://dcrapp.com"}`

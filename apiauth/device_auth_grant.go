@@ -245,6 +245,7 @@ func isConfidentialAuthMethod(method string) bool {
 // grant branch.
 func writeOAuthError(w http.ResponseWriter, status int, errorCode, description string) {
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(core.TokenError{
 		Error:            errorCode,

@@ -391,6 +391,7 @@ func TestAppRegistrar_RotateWithGrace(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	kidStore := keys.NewKidStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registrar.KidStore = kidStore
 	regHandler := registrar.Handler()
 
@@ -452,6 +453,7 @@ func TestAppRegistrar_RotateExpiredGrace(t *testing.T) {
 	ks := keys.NewInMemoryKeyStore()
 	kidStore := keys.NewKidStore()
 	registrar := admin.NewAppRegistrar(ks, admin.NewNoAuth())
+	registrar.IssuerBaseURL = "http://example.com" // httptest requests carry Host: example.com
 	registrar.KidStore = kidStore
 	registrar.DefaultGracePeriod = 1 * time.Millisecond
 	regHandler := registrar.Handler()

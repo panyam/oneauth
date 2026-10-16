@@ -663,6 +663,7 @@ func (h *TokenEndpointHandler) writeError(w http.ResponseWriter, err error) {
 		status = http.StatusBadRequest
 	}
 	w.Header().Set("Content-Type", "application/json")
+	noStore(w)
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(core.TokenError{
 		Error:            ge.Code,
