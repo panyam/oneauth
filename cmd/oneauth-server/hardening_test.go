@@ -18,7 +18,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -111,4 +113,43 @@ func TestHardening_DashboardDoesNotListClients(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.False(t, strings.Contains(rr.Body.String(), "app_secret_client_id"))
+}
+
+// An access token signed with the server's secret is not a browser session:
+// pasted into the oa_token cookie it must not sign anyone in, or a client
+// holding a user's scoped token could approve consent as that user.
+//
+// See: https://www.rfc-editor.org/rfc/rfc8725#section-3.11
+func TestHardening_AccessTokenIsNotASessionCookie(t *testing.T) {
+	secret := "server-secret-that-is-32-bytes!!"
+	mint := func(typ string) string {
+		tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": "alice", "type": typ, "exp": time.Now().Add(time.Hour).Unix(),
+		})
+		s, err := tok.SignedString([]byte(secret))
+		require.NoError(t, err)
+		return s
+	}
+	for typ, want := range map[string]string{"access": "", "session": "alice"} {
+		r := httptest.NewRequest(http.MethodGet, "/authorize", nil)
+		r.AddCookie(&http.Cookie{Name: "oa_token", Value: mint(typ)})
+		assert.Equal(t, want, getUserIDFromCookie(r, secret), "type %s", typ)
+	}
+}
+
+// See: https://www.rfc-editor.org/rfc/rfc7518#section-3.2
+func TestHardening_HS256SecretMustBeLongEnough(t *testing.T) {
+	for secret, wantErr := range map[string]bool{
+		"":                                 true,
+		"short":                            true,
+		"exactly-32-bytes-long-secret-ok!": false,
+	} {
+		cfg := loadYAML(t, "jwt:\n  secret_key: \""+secret+"\"\n")
+		err := checkSigningSecret(cfg)
+		assert.Equal(t, wantErr, err != nil, "secret %q", secret)
+	}
+	// With asymmetric signing the HMAC secret only signs browser sessions,
+	// which still need it.
+	cfg := loadYAML(t, "jwt:\n  signing_alg: RS256\n  ephemeral_signing_key: true\n")
+	assert.Error(t, checkSigningSecret(cfg))
 }

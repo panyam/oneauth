@@ -1,8 +1,79 @@
 package apiauth
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/panyam/oneauth/keys"
+	"github.com/panyam/oneauth/utils"
 )
+
+// accessTokenParserOptions are the jwt.Parse options every access-token
+// check uses. exp is required: a token without one would be valid forever
+// (RFC 8725 §3.10).
+func accessTokenParserOptions() []jwt.ParserOption {
+	return []jwt.ParserOption{jwt.WithExpirationRequired()}
+}
+
+// checkAccessTokenKind refuses JWTs that verify with the same key but are
+// something other than an access token: back-channel logout tokens and
+// ID-JAGs are told apart by their JWS typ header, browser sessions by a
+// type claim other than "access" (RFC 8725 §3.11). Tokens with no typ, typ
+// "JWT" (Keycloak's) or the RFC 9068 "at+jwt" pass.
+func checkAccessTokenKind(token *jwt.Token, claims jwt.MapClaims) error {
+	typ, _ := token.Header["typ"].(string)
+	switch strings.ToLower(typ) {
+	case "", "jwt", "at+jwt", "application/at+jwt":
+	default:
+		return fmt.Errorf("not an access token (typ %q)", typ)
+	}
+	if t, ok := claims["type"].(string); ok && t != "access" {
+		return fmt.Errorf("invalid token type")
+	}
+	return nil
+}
+
+// checkTenantKey makes a tenant's key sign only for that tenant. A token
+// verified with a key registered to a client must carry that client_id;
+// without the check, a registered app could sign a token with no client_id
+// and speak for any subject. ownKid is the kid of the verifier's own
+// signing key: the AS's own tokens are exempt, since a grant with no
+// client produces a token with no client_id. Keys with no owner (JWKS
+// from a remote AS) are exempt too.
+func checkTenantKey(rec *keys.KeyRecord, ownKid string, token *jwt.Token) error {
+	if rec == nil || rec.ClientID == "" {
+		return nil
+	}
+	if kid, _ := token.Header["kid"].(string); ownKid != "" && kid == ownKid {
+		return nil
+	}
+	claims, _ := token.Claims.(jwt.MapClaims)
+	if claimClientID, _ := claims["client_id"].(string); claimClientID != rec.ClientID {
+		return fmt.Errorf("key belongs to %q but the token's client_id is %q", rec.ClientID, claimClientID)
+	}
+	return nil
+}
+
+// kidOf is the kid a verifier's own key would sign with, or "" when there
+// is no usable key.
+func kidOf(key any, alg string) string {
+	if b, ok := key.([]byte); ok && len(b) == 0 {
+		return ""
+	}
+	if key == nil {
+		return ""
+	}
+	if alg == "" {
+		alg = "HS256"
+	}
+	kid, err := utils.ComputeKid(key, alg)
+	if err != nil {
+		return ""
+	}
+	return kid
+}
 
 // matchesAudience checks whether expectedAud appears in the JWT "aud"
 // claim. Per RFC 7519 §4.1.3 the claim may be a single string or an

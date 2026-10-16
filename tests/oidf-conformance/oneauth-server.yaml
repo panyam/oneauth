@@ -37,6 +37,8 @@ jwt:
   issuer: https://host.docker.internal:8888
   signing_alg: RS256
   ephemeral_signing_key: true
+  # Signs browser sessions; the server refuses one under 32 bytes.
+  secret_key: ${JWT_SECRET_KEY:-oidf-conformance-session-secret-32-bytes}
 
 admin_auth:
   type: none

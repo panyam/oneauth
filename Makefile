@@ -186,7 +186,7 @@ zap:
 	@echo "[zap] Starting server on :19876..."
 	@PORT=19876 PUBLIC_URL=http://localhost:19876 ADMIN_AUTH_TYPE=api-key ADMIN_API_KEY=test-all-key KEYSTORE_TYPE=memory \
 		USER_STORES_TYPE=fs USER_STORES_PATH=/tmp/oneauth-zap-test-all \
-		JWT_SECRET_KEY=test-all-jwt-secret JWT_ISSUER=oneauth-test-all \
+		JWT_SECRET_KEY=test-all-jwt-secret-at-least-32-bytes JWT_ISSUER=oneauth-test-all \
 		$(BUILD_DIR)/oneauth-server & ZAP_PID=$$!; \
 	ZAP_OK=0; for i in $$(seq 1 15); do \
 		if curl -sf http://localhost:19876/_ah/health > /dev/null 2>&1; then ZAP_OK=1; break; fi; sleep 1; \

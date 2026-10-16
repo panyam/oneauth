@@ -5,7 +5,7 @@
 #   oneauth-server --config deploy-examples/memory.yaml
 #
 # Or with env vars:
-#   JWT_SECRET_KEY=my-secret PORT=9090 oneauth-server --config deploy-examples/memory.yaml
+#   JWT_SECRET_KEY=$(openssl rand -hex 32) PORT=9090 oneauth-server --config deploy-examples/memory.yaml
 
 server:
   port: ${PORT:-8080}

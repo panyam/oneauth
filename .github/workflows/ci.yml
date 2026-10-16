@@ -106,7 +106,7 @@ jobs:
           KEYSTORE_TYPE=memory \
           USER_STORES_TYPE=fs \
           USER_STORES_PATH=/tmp/oneauth-zap \
-          JWT_SECRET_KEY=ci-jwt-secret-for-zap-testing \
+          JWT_SECRET_KEY=ci-jwt-secret-for-zap-testing-32-bytes \
           JWT_ISSUER=oneauth-ci \
           ./build/oneauth-server &
           # Wait for server to be ready

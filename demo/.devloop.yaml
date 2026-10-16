@@ -46,7 +46,7 @@ rules:
       ADMIN_AUTH_TYPE: "api-key"
       ADMIN_API_KEY: "demo-admin-key-12345"
       USER_STORES_TYPE: "gorm"
-      JWT_SECRET_KEY: "demo-jwt-secret-key-change-me"
+      JWT_SECRET_KEY: "demo-jwt-secret-key-change-me-32-bytes-min"
       JWT_ISSUER: "oneauth-demo"
       ONEAUTH_MASTER_KEY: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
     commands:

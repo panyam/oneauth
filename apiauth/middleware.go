@@ -28,6 +28,17 @@ var standardClaims = map[string]bool{
 	"cnf":                   true, // RFC 7800 / RFC 9449 — sender-constraint, never caller-supplied
 }
 
+// issuanceReservedClaims are claims a CustomClaimsFunc can't set, on top of
+// standardClaims: ones a resource server makes authorization decisions on
+// (scope, azp, the RFC 8693 delegation chain) or validity checks with (nbf).
+// client_id is handled separately: a CustomClaimsFunc may supply it when the
+// grant had none (multi-host deployments bind tokens to a host that way),
+// but never overwrite the one the AS set.
+var issuanceReservedClaims = map[string]bool{
+	"nbf": true, "scope": true, "azp": true, "sid": true,
+	"act": true, "may_act": true,
+}
+
 // Context keys for API authentication. Unexported so callers go
 // through the typed Get*FromAPIContext accessors below.
 type apiContextKey string
@@ -149,6 +160,12 @@ type APIMiddleware struct {
 	// validation on the no-op fast path.
 	TracerProvider trace.TracerProvider
 
+	// ResourceMetadataURL, when set, is advertised in every
+	// WWW-Authenticate challenge as resource_metadata (RFC 9728 §5.1), so
+	// a client that got a 401 can discover which authorization server to
+	// use.
+	ResourceMetadataURL string
+
 	// validatorOnce ensures the lazy validator is built only once.
 	validatorOnce sync.Once
 	lazyValidator TokenValidator
@@ -234,7 +251,13 @@ func (m *APIMiddleware) RequireScopes(requiredScopes ...string) func(http.Handle
 			}
 
 			if !core.ContainsAllScopes(info.Scopes, requiredScopes) {
-				m.handleAuthError(w, r, fmt.Errorf("insufficient scope: requires %v", requiredScopes))
+				// RFC 6750 §3.1: 403 with the scope the request needs.
+				m.handleAuthError(w, r, &authError{
+					Scheme:      schemeOf(info),
+					Code:        "insufficient_scope",
+					Description: fmt.Sprintf("requires scope %s", strings.Join(requiredScopes, " ")),
+					scope:       strings.Join(requiredScopes, " "),
+				})
 				return
 			}
 
@@ -317,6 +340,12 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (*TokenInfo, error) {
 
 	info, err := m.authenticate(r, scheme, token)
 	if err != nil {
+		// A token was presented and refused: RFC 6750 §3.1 has the
+		// challenge say invalid_token.
+		var ae *authError
+		if !errors.As(err, &ae) {
+			err = &authError{Scheme: scheme, Code: "invalid_token", Description: "the access token is invalid", err: err}
+		}
 		return nil, err
 	}
 
@@ -532,12 +561,8 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (*TokenInfo, error
 					if token.Header["alg"] != rec.Algorithm {
 						return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
 					}
-					if rec.ClientID != "" {
-						if claims, ok := token.Claims.(jwt.MapClaims); ok {
-							if claimClientID, _ := claims["client_id"].(string); claimClientID != "" && claimClientID != rec.ClientID {
-								return nil, fmt.Errorf("kid owner %q does not match client_id claim %q", rec.ClientID, claimClientID)
-							}
-						}
+					if err := checkTenantKey(rec, kidOf([]byte(m.JWTSecretKey), "HS256"), token); err != nil {
+						return nil, err
 					}
 					return utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 				}
@@ -566,8 +591,13 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (*TokenInfo, error
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
+		// No secret means no inline validation: an empty HMAC key would
+		// verify any token signed with the empty key.
+		if m.JWTSecretKey == "" {
+			return nil, fmt.Errorf("no JWT secret configured")
+		}
 		return []byte(m.JWTSecretKey), nil
-	})
+	}, accessTokenParserOptions()...)
 
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
@@ -582,8 +612,8 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (*TokenInfo, error
 		return nil, fmt.Errorf("invalid claims")
 	}
 
-	if tokenType, ok := claims["type"].(string); ok && tokenType != "access" {
-		return nil, fmt.Errorf("invalid token type")
+	if err := checkAccessTokenKind(token, claims); err != nil {
+		return nil, err
 	}
 
 	if m.JWTIssuer != "" {
@@ -675,6 +705,10 @@ type authError struct {
 	// client can retry immediately (RFC 9449 §9).
 	nonce string
 
+	// scope, set with insufficient_scope, is the scope the request needs
+	// (RFC 6750 §3).
+	scope string
+
 	err error
 }
 
@@ -702,11 +736,17 @@ func (m *APIMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request, 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("WWW-Authenticate", m.challenge(err))
+	status := http.StatusUnauthorized
 	var nonceErr *authError
-	if errors.As(err, &nonceErr) && nonceErr.nonce != "" {
-		w.Header().Set(DPoPNonceHeader, nonceErr.nonce)
+	if errors.As(err, &nonceErr) {
+		if nonceErr.nonce != "" {
+			w.Header().Set(DPoPNonceHeader, nonceErr.nonce)
+		}
+		if nonceErr.Code == "insufficient_scope" {
+			status = http.StatusForbidden
+		}
 	}
-	w.WriteHeader(http.StatusUnauthorized)
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error":             "unauthorized",
 		"error_description": err.Error(),
@@ -726,27 +766,35 @@ func (m *APIMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request, 
 //
 // See: https://www.rfc-editor.org/rfc/rfc9449#section-7.2
 func (m *APIMiddleware) challenge(err error) string {
-	const bearerChallenge = `Bearer realm="api"`
-	if m.DPoP == nil {
-		return bearerChallenge
+	bearerChallenge := `Bearer realm="api"`
+	if m.ResourceMetadataURL != "" {
+		bearerChallenge += `, resource_metadata="` + sanitizeChallengeValue(m.ResourceMetadataURL) + `"`
 	}
-	algs := `algs="` + strings.Join(m.DPoP.SigningAlgValuesSupported(), " ") + `"`
 
 	var ae *authError
-	if !errors.As(err, &ae) || ae.Scheme == "" {
-		// Nothing was attempted, or the scheme could not be established:
-		// advertise both, report nothing (RFC 6750 §3.1).
-		return bearerChallenge + ", DPoP " + algs
-	}
-
+	hasScheme := errors.As(err, &ae) && ae.Scheme != ""
 	var params []string
-	if ae.Code != "" {
+	if hasScheme && ae.Code != "" {
 		params = append(params, `error="`+ae.Code+`"`)
 		if ae.Description != "" {
 			params = append(params, `error_description="`+sanitizeChallengeValue(ae.Description)+`"`)
 		}
+		if ae.scope != "" {
+			params = append(params, `scope="`+sanitizeChallengeValue(ae.scope)+`"`)
+		}
 	}
 
+	if m.DPoP == nil {
+		// Bearer only: error information when a token was presented,
+		// none when the request tried nothing (RFC 6750 §3.1).
+		return strings.Join(append([]string{bearerChallenge}, params...), ", ")
+	}
+	algs := `algs="` + strings.Join(m.DPoP.SigningAlgValuesSupported(), " ") + `"`
+	if !hasScheme {
+		// Nothing was attempted, or the scheme could not be established:
+		// advertise both, report nothing (RFC 6750 §3.1).
+		return bearerChallenge + ", DPoP " + algs
+	}
 	if ae.Scheme == TokenTypeDPoP {
 		return bearerChallenge + ", DPoP " + strings.Join(append(params, algs), ", ")
 	}
@@ -777,4 +825,13 @@ func setAuthContext(ctx context.Context, info *TokenInfo) context.Context {
 	}
 	ctx = core.SetSubjectInContext(ctx, info.Subject)
 	return ctx
+}
+
+// schemeOf is the scheme a validated request authenticated with, for the
+// challenge on a later failure such as a missing scope.
+func schemeOf(info *TokenInfo) string {
+	if info != nil && !info.Confirmation.IsEmpty() {
+		return TokenTypeDPoP
+	}
+	return TokenTypeBearer
 }
