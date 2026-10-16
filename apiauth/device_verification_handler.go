@@ -66,6 +66,16 @@ type DeviceVerificationHandler struct {
 	// Templates overrides the built-in HTML templates. Set any subset of
 	// fields; nil fields fall back to the package defaults.
 	Templates *DeviceTemplates
+
+	// RateLimiter limits user-code submissions per client address. An
+	// 8-character user_code is short enough to guess, so RFC 8628 §5.1
+	// has the server limit attempts. Nil disables it; MountDeviceFlow
+	// always sets one.
+	RateLimiter core.RateLimiter
+
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is
+	// believed when keying RateLimiter.
+	TrustedProxies core.TrustedProxies
 }
 
 // DeviceTemplates lets callers override any of the three built-in HTML
@@ -121,6 +131,11 @@ func (h *DeviceVerificationHandler) Form(w http.ResponseWriter, r *http.Request)
 // `httpauth.CSRFMiddleware.Protect` so the token is enforced before this
 // method runs.
 func (h *DeviceVerificationHandler) Submit(w http.ResponseWriter, r *http.Request) {
+	if h.RateLimiter != nil && !h.RateLimiter.Allow("user_code:"+core.ClientIP(r, h.TrustedProxies)) {
+		w.Header().Set("Retry-After", "60")
+		http.Error(w, "Too many attempts. Wait a minute and try again.", http.StatusTooManyRequests)
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		h.renderForm(w, r, "", "Invalid form submission")
 		return

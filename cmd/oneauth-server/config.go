@@ -22,6 +22,7 @@ type Config struct {
 	DeviceFlow DeviceFlowConfig `yaml:"device_flow"`
 	CodeFlow   CodeFlowConfig   `yaml:"code_flow"`
 	DPoP       DPoPServerConfig `yaml:"dpop"`
+	RateLimit  RateLimitConfig  `yaml:"rate_limit"`
 }
 
 // CodeFlowConfig toggles and configures the RFC 6749 §4.1
@@ -186,6 +187,11 @@ type ServerConfig struct {
 	// behind a reverse proxy, or otherwise differs from the public URL.
 	// See issue 184.
 	PublicURL string `yaml:"public_url"`
+
+	// TrustedProxies lists the reverse proxies (CIDRs or addresses) whose
+	// X-Forwarded-For is believed for rate-limit keys. Empty uses the TCP
+	// peer, which is right when nothing sits in front of the server.
+	TrustedProxies []string `yaml:"trusted_proxies"`
 }
 
 type KeyStoreConfig struct {
