@@ -3,6 +3,48 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.43
+
+### DPoP and FAPI follow-ups (issue 395, PRs 400 to 402)
+
+- **The SDK's automatic refresh works against any RFC 8414 server.** With AS
+  metadata (`WithASMetadata`) it posts the standard refresh form to the
+  discovered token endpoint instead of oneauth's own `/auth/cli/token`, which
+  Keycloak and others don't serve.
+- **`client.WithClientSecret(secret)`** lets the automatic refresh
+  authenticate a confidential client, which the refresh grant has required
+  since 0.1.41. The secret stays in memory and never reaches the credential
+  store.
+- **A request retried after a refresh keeps its body.** One whose body can't
+  be rewound gets the 401 back instead of being resent empty.
+- **EdDSA (Ed25519) DPoP proofs** are accepted by default and by
+  `FAPIDPoPAlgs()`, now ES256, EdDSA and PS256. `utils` handles RFC 8037 OKP
+  keys, and the SDK has `NewEd25519DPoPKey` / `NewDPoPKeyFromEd25519`.
+  Keycloak computes the same thumbprint.
+- **`OneAuthConfig.DisableRefreshTokenRotation`** keeps a refresh token in use
+  across refreshes, as FAPI 2.0 §5.3.2.1 asks. The response then carries no
+  `refresh_token`. The default still rotates.
+- **`cmd/oneauth-server` can turn DPoP on**, with a `dpop:` block (profile or
+  algs, require at the token endpoint and at the API, nonces with a shared
+  secret) and `jwt.disable_refresh_token_rotation`.
+  `deploy-examples/fapi-dpop.yaml` turns all of it on.
+
+### Repo
+
+- The GAE store tests are deterministic. The Datastore emulator now starts
+  with `--consistency=1.0`; at its default of 0.9, 9 of 10 `make testds` runs
+  failed.
+- Every Go file is gofmt-clean and CI checks it. `make fmt` fixes;
+  `.git-blame-ignore-revs` keeps the cleanup commit out of blame.
+
+### Upgrading
+
+- **`DPoPKey` callers:** no exported API changed, but a validator using the
+  default algorithm list now also accepts Ed25519 proofs. Set
+  `DPoPConfig.AllowedAlgs` to refuse them.
+- **SDK clients with AS metadata** now auto-refresh against the discovered
+  endpoint. A confidential client needs `WithClientSecret` to do so.
+
 ## Version 0.1.42
 
 ### Fixes found by comparing with Keycloak (issue 88, PR 398)
