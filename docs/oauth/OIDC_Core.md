@@ -3,7 +3,7 @@
 > **Status:** OpenID Foundation Specification (not an IETF RFC)
 > **Published:** 2014 (latest errata 2024)
 > **L-tier / T-tier:** L7 · T3 (user auth) + T5 (id_token issue)
-> **OneAuth coverage:** Partial — `/authorize` shipped in PR 297 (OAuth-layer), but id_token issuance, nonce, and `/userinfo` are gaps
+> **OneAuth coverage:** Partial. `/authorize` shipped in PR 297 (OAuth-layer), but id_token issuance, nonce, and `/userinfo` are gaps (#339)
 > **See also:** [`OIDC_Discovery.md`](OIDC_Discovery.md) · [`OIDC_BCL.md`](OIDC_BCL.md) · [`OIDC_CIBA.md`](OIDC_CIBA.md) · [`LANDSCAPE.md`](LANDSCAPE.md)
 
 ## In one sentence
@@ -221,16 +221,17 @@ Adding OIDC to a working OAuth AS is largely additive:
 | OIDC Core surface | Status | Where (grep-verified) | Notes |
 |---|---|---|---|
 | `/authorize` endpoint | **Implemented** (OAuth layer) | `apiauth/authorize.go` `AuthorizationHandler` (PR 297) | Issues `code` only; no id_token issuance yet |
-| `id_token` issuance | **Gap** | Only `apiauth/token_exchange_grant.go:27` `TokenTypeIDToken` constant exists (for 8693); no actual id_token mint anywhere | The foundational OIDC piece — without it the rest is mostly moot |
-| `nonce` parameter handling | **Gap** | No `nonce` references in `apiauth/authorize*.go` or `core/authorization_code.go` | Required for OIDC replay defense |
-| `/userinfo` endpoint | **Gap** | `apiauth/as_metadata.go:33` `UserinfoEndpoint` field is wired (advertises a URL) but no handler implements it | Discovery-advertised; needs implementation |
-| `openid`/`profile`/`email`/etc. scope-to-claims mapping | **Gap** | No scope-aware claim selector | Needed for both id_token and userinfo |
+| `id_token` issuance | **Gap** (#339) | Only the `TokenTypeIDToken` constant in `apiauth/token_exchange_grant.go` exists (for 8693); no actual id_token mint anywhere | The foundational OIDC piece; without it the rest is mostly moot |
+| `nonce` parameter handling | **Gap** (#339) | No `nonce` references in `apiauth/authorize*.go` or `core/authorization_code.go` | Required for OIDC replay defense |
+| `/userinfo` endpoint | **Gap** (#339) | `ASServerMetadata.UserinfoEndpoint` in `apiauth/as_metadata.go` is wired (advertises a URL) but no handler implements it | Discovery-advertised; needs implementation |
+| `openid`/`profile`/`email`/etc. scope-to-claims mapping | **Gap** (#339) | No scope-aware claim selector | Needed for both id_token and userinfo |
 | `auth_time`, `acr`, `amr` claims | **Gap** | — | Needed for OIDC step-up auth |
 | `at_hash` claim (id_token integrity binding to access_token) | **Gap** | — | Required when issuing id_token + access_token together |
 | OIDC Discovery (`/.well-known/openid-configuration`) | **Implemented** | `apiauth.MountASMetadata` co-serves both paths | See [`OIDC_Discovery.md`](OIDC_Discovery.md) |
+| ID tokens refused as access tokens (resource-server side) | **Implemented** | `checkAccessTokenKind` in `apiauth/jwt_helpers.go` | Keycloak signs ID tokens with the same key, header and `aud` as its access tokens, and marks them with a `typ` claim of `ID`. Since 0.1.46 the validator refuses a token whose `typ` claim is anything but `Bearer` or `DPoP` |
 
 **Implementation sketch.** OIDC Core is the single largest *implementable*
-gap in OneAuth. The foundation (`/authorize`, JWKS, AS metadata, DCR) is
+gap in OneAuth, tracked in #339. The foundation (`/authorize`, JWKS, AS metadata, DCR) is
 all in place; what's missing is the identity-layer plumbing:
 
 1. **`IDTokenIssuer` interface** alongside `TokenIssuer`. Signs id_tokens

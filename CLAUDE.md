@@ -86,6 +86,7 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - Each subpackage has a `SUMMARY.md` for LLM discoverability.
 - **Documented-contract bar for store backends.** Every exported method on a `stores/*` (or sibling-submodule) store carries a doc comment capturing the WHY of the contract: error-sentinel mapping (`datastore.ErrNoSuchEntity` → `core.ErrAppNotFound` etc.), idempotency promises, transactional scope, non-obvious dances (Get-then-Delete, family-revoke-outside-transaction). Precedents: `stores/gae/appstore.go` (PR 234), `stores/gae/keystore.go`/`kidstore.go`/`stores.go`/`models.go` (#236 / #288). Match the polished precedent, not the closest one — sparse local style isn't license to ship undocumented public API.
 - Security tests must include `// See:` links to RFC/CVE/CWE references.
+- `docs/oauth/` guides cite code by symbol (`apiauth/authorize.go` `ParseAndValidate`), never `file.go:NNN`; line numbers drifted by hundreds between June and October 2026.
 - Use `GH_TOKEN="$GH_PERSONAL_TOKEN"` for gh CLI.
 - Keep new test groups in separate `_test.go` files (don't bloat existing ones).
 - Sub-modules need `GOWORK=off` when running outside workspace.
@@ -143,6 +144,10 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - **CSRF refuses same-site posts.** `CSRFMiddleware` checks `Sec-Fetch-Site` and `Origin` on unsafe methods before the token; a test posting with `Origin` set to another host gets 403 even with a valid token. With `SessionID` set, a token minted before login stops validating after it (the next GET mints a new one).
 - **Signup with verification answers the same for a taken email.** `{"message": "Check your email to finish signing up."}`, no `user_id`. Code that read `user_id` from that response needs another way to find the user.
 - **httptest URL needed before mount.** When a handler config requires the server's base URL (e.g., RFC 8628 `VerificationURI`), use `httptest.NewUnstartedServer(mux)` → read `server.URL` → mount → `server.Start()`. Avoids post-hoc handler mutation. Pattern in `tests/e2e/device_flow_test.go`.
+
+## Issues and missions
+
+Work is ranked by mission (labels and blocked-by links; `~/.claude/skills/retriage/queue.sh` prints the queue). The active mission is #98, the OIDF FAPI 2.0 Security Profile run (`mission_fapi2`); its first ticket is #433. JARM (#409) is parked. A new issue gets a priority (`P0` to `P3`) and either a mission link or `waiting` with its trigger.
 
 ## Gap analyses
 

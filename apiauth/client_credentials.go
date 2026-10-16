@@ -82,8 +82,8 @@ func extractClientCredentials(r *http.Request, req *core.TokenRequest) (*Authent
 // explicit AcceptedAudiences list. Per OIDC Core §9 the audience SHOULD
 // be the AS endpoint URL the client is calling.
 //
-// Scheme detection prefers X-Forwarded-Proto (set by reverse proxies)
-// and falls back to https when r.TLS is set, http otherwise.
+// The scheme is https when r.TLS is set and http otherwise; forwarded
+// headers are ignored (see the body).
 func derivedAudience(r *http.Request) string {
 	// X-Forwarded-Proto / X-Forwarded-Host are not read: anyone can send
 	// them, and letting a caller choose the audience its own assertion is

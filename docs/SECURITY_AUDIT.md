@@ -109,7 +109,7 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 
 | § | Requirement | Level | Role | Status | Code | Test |
 |---|---|---|---|---|---|---|
-| 4.2 | Proof has `typ`, a public `jwk`, a fresh `jti`, `htm`, `htu`, `iat`, and `ath` with a token | MUST | client | Pass | `client/dpop.go:175` `proofWithNonce` | `client/dpop_test.go` ProofShape, EveryProofHasAFreshJTI, ProofBindsToTheAccessToken |
+| 4.2 | Proof has `typ`, a public `jwk`, a fresh `jti`, `htm`, `htu`, `iat`, and `ath` with a token | MUST | client | Pass | `client/dpop.go` `DPoPKey.ProofWithNonce` / `proofWithNonce` | `client/dpop_test.go` ProofShape, EveryProofHasAFreshJTI, ProofBindsToTheAccessToken |
 | 4.2 | Client `htu` has no query or fragment | MUST | client | Pass | `client/dpop.go:235` `canonicalHTU` | HTUDropsQueryAndFragment |
 | 4.3(2) | Exactly one `DPoP` header | MUST | AS, RS | Pass | `apiauth/dpop.go:402` `Confirm`, `:490` `ConfirmResource` | ConfirmRejectsMultipleHeaders, ConfirmResourceRejectsMultipleHeaders\* |
 | 4.3(4) | `jti`, `htm`, `htu`, `iat` all present | MUST | AS, RS | Pass | `apiauth/dpop.go:274` `Validate` | RejectsMissingJTI, RejectsMissingRequiredClaims |

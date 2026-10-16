@@ -100,8 +100,11 @@ Location: https://client.example.com/cb?error=invalid_request
                                        &iss=https://as.example.com
 ```
 
-That redirect — error + `iss` — is exactly what OneAuth's `/authorize` does
-today (`apiauth/authorize.go:173`).
+OneAuth's `/authorize` answers that request with that redirect, error and
+`iss` included, from `AuthorizationHandler.ValidateValues` and
+`AuthorizationHandler.ErrorRedirect` (`apiauth/authorize.go`) when
+`EmitIssParameter` is on. The reference server turns it on whenever
+`code_flow` is enabled.
 
 ## Where it lands on the OAuth abstraction
 
@@ -127,9 +130,9 @@ bearer is widely off — but they brand themselves as "OAuth 2.0 with
 For OneAuth, see the audit-table verdict in
 [`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md). The shortcut:
 
-- 5/8 compliant today (post PR 297)
-- 2 deliberate transition gaps (ROPC, query-param bearer)
-- 1 historical gap closed by recent work (PKCE server-side enforcement)
+- Compliant by default on all 9 rows of the audit table.
+- ROPC and query-param bearer are off unless a deployment opts in (issues 294 and 295, both closed). `FAPI2` refuses ROPC outright.
+- The reference server still wires the password grant outside `fapi2: true`.
 
 ## Migration path
 
@@ -142,11 +145,13 @@ question. The path is:
    exact redirect URI matching, refresh rotation. These break nothing
    correctly-implemented clients do today.
 3. **Plan migrations for 2.0-legal-but-2.1-illegal features**:
-   - **ROPC**: identify callers, document `localauth/` HTTP-login alternative,
-     ship as a breaking change behind a major version bump
-   - **Query-param bearer**: document the WebSocket-auth alternative
-     (subprotocol headers, initial-frame auth, short-lived per-connection
-     tickets), then remove
+   - **ROPC**: off by default in the library since issue 294. A deployment
+     opts in by setting `OneAuthConfig.PasswordGranter`
+     (`NewPasswordGranter`); `localauth/` HTTP login is the alternative.
+   - **Query-param bearer**: off by default since issue 295. A deployment
+     opts in with `APIMiddleware.LegacyQueryParamBearer`; `docs/DEMOS.md`
+     lists the WebSocket alternatives (subprotocol headers, initial-frame
+     auth, short-lived per-connection tickets).
 4. **Treat the dual-status as a feature.** OneAuth-as-AS being 2.1-strict
    while OneAuth's SDK and middleware speak 2.0 to the world is *the
    intended deployment posture*. Don't try to force the SDK side to be 2.1
@@ -165,18 +170,19 @@ exactly this kind of deprecation window.
 
 The single source of truth is [`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md).
 The row-by-row table there is kept in lock-step with the codebase as each
-non-compliance is closed. As of this writing (post PR 297):
+non-compliance is closed. As of 0.2.1:
 
 | 2.1 requirement | OneAuth verdict | Tracking |
 |---|---|---|
-| 1. PKCE required for all auth-code | **Compliant** (server enforces on `/authorize`) | landed PR 297 |
-| 2. Implicit grant removed | **Compliant by absence** | — |
-| 3. ROPC removed | **Non-compliant** | issue 294 |
-| 4. Exact redirect URI matching | **Compliant** (DCR + `/authorize`) | landed PR 296 / 297 |
-| 5. PKCE S256-only | **Compliant** | landed PR 297 |
-| 6. HTTPS redirect URIs | **Compliant** (DCR) | landed PR 296 |
-| 7. Bearer NOT in query string | **Non-compliant** (opt-in deprecation warning) | issue 295 |
-| 8. Refresh token rotation | **Compliant** | — |
+| 1. PKCE required for all auth-code | **Compliant** (server enforces on `/authorize`, and checks the shape: an S256 challenge is 43 base64url characters, a verifier 43 to 128 unreserved characters) | landed PR 297; shape checks 0.1.49 |
+| 2. Implicit grant removed | **Compliant** (`/authorize` accepts only `response_type=code`) | — |
+| 3. ROPC removed | **Compliant by default** (nil `OneAuthConfig.PasswordGranter` answers `unsupported_grant_type`; `FAPI2` refuses it) | issue 294 (closed) |
+| 4. Exact redirect URI matching | **Compliant** (DCR + `/authorize`). An `http` loopback redirect matches on any port, per RFC 8252 §7.3. `/authorize` with no client registry refuses every request unless `AllowAnyRedirectURI` is set. | landed PR 296 / 297; loopback 0.1.38; registry 0.1.49 |
+| 5. PKCE S256-only | **Compliant** (`plain` only with `AllowPlainPKCE`) | landed PR 297 |
+| 6. HTTPS redirect URIs | **Compliant** (DCR) | landed PR 296; stricter DCR checks 0.1.50 |
+| 7. Bearer NOT in query string | **Compliant by default** (`APIMiddleware.LegacyQueryParamBearer` is empty unless set) | issue 295 (closed) |
+| 8. Refresh token rotation | **Compliant**. The token must belong to the presenting client, and a confidential owner must authenticate. `DisableRefreshTokenRotation` turns rotation off for FAPI 2.0. | client binding 0.1.41; optional rotation 0.1.43 |
+| 9. Authorization code single use | **Compliant**. A reused code is refused and the refresh family it issued is revoked, along with its access token when `OneAuthConfig.Blacklist` is set. | 0.1.57 (issue 429) |
 
 If a row above moves, update `docs/OAUTH21_ALIGNMENT.md` *and* this doc *and*
 [`LANDSCAPE.md`](LANDSCAPE.md) §6 in the same change.
