@@ -3,6 +3,30 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.53
+
+### Reference server runs FAPI 2.0 (issue 88, PR 427)
+
+- **PAR on the reference server.** `code_flow.par.enabled` mounts
+  `POST /par` on the code store's backend; `required` refuses direct
+  `/authorize`; metadata advertises `pushed_authorization_request_endpoint`
+  and `require_pushed_authorization_requests`.
+- **`fapi2: true`** sets `OneAuthConfig.FAPI2`. The server refuses to start
+  without `dpop.enabled`, or with `code_flow` but no PAR; metadata lists
+  `private_key_jwt` / ES256 only and no password grant.
+  `deploy-examples/fapi-dpop.yaml` runs the whole profile.
+- **FAPI assertion algorithms.** `AuthenticateClientRequest.AllowedAssertionAlgs`;
+  under `FAPI2` only PS256 / ES256 / EdDSA client assertions pass (ES256 is
+  the one oneauth can register today).
+- **Keycloak parity.** A revocation interop test pins the cross-client and
+  missing-token answers.
+
+### Upgrading
+
+- `FAPI2` with RS256 `private_key_jwt` clients: switch them to ES256 keys.
+- `fapi-dpop.yaml` now runs the full profile (private_key_jwt only, no
+  password grant, PAR for `/authorize`).
+
 ## Version 0.1.52
 
 ### FAPI 2.0 profile; client-assertion audiences (issue 88, PR 426)
