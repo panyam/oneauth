@@ -659,10 +659,16 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 <td>defaults already were; <code>FAPI2</code> caps longer configured values. LifetimeCaps</td>
 </tr>
 <tr>
+<td>5.4.1</td>
+<td>Client assertions signed with PS256, ES256 or EdDSA</td>
+<td>Pass (was Fail)</td>
+<td><code>FAPI2</code> refuses other algorithms through <code>AuthenticateClientRequest.AllowedAssertionAlgs</code>. oneauth verifies ES256 assertions; PS256 and EdDSA client keys can&rsquo;t be registered yet. ClientAuthentication*</td>
+</tr>
+<tr>
 <td>—</td>
 <td>Reference server can run the whole profile</td>
-<td>Open</td>
-<td>it has no PAR endpoint yet; next PR</td>
+<td>Pass (was not possible)</td>
+<td><code>fapi2: true</code> and <code>code_flow.par</code> in <code>deploy-examples/fapi-dpop.yaml</code>; the server refuses <code>fapi2</code> without DPoP, or with <code>/authorize</code> but no PAR; metadata lists <code>private_key_jwt</code> / ES256 only, the PAR endpoint, <code>require_pushed_authorization_requests</code>, and no password grant. <code>cmd/oneauth-server/fapi_test.go</code>*</td>
 </tr>
 </tbody>
 </table>
@@ -744,6 +750,18 @@ reasons below.</p>
 <td>refused</td>
 <td>accepted</td>
 <td>§4.3 compares after RFC 3986 §6.2.2 normalization, under which these name the same URL.</td>
+</tr>
+<tr>
+<td>Revoke another client&rsquo;s token (RFC 7009)</td>
+<td>400 <code>invalid_request</code></td>
+<td>400 <code>invalid_request</code></td>
+<td>Same answer; pinned by <code>TestKeycloakCompare_Revocation</code>.</td>
+</tr>
+<tr>
+<td>Revoke with no <code>token</code></td>
+<td>400 <code>invalid_request</code></td>
+<td>400 <code>invalid_request</code></td>
+<td>Same answer.</td>
 </tr>
 </tbody>
 </table>
