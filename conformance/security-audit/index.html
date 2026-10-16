@@ -846,7 +846,7 @@ The fixes land across several PRs; the Status column says which rows are done.</
 <tr>
 <td>Cookie flags (<code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code>)</td>
 <td>Pass (was Fail)</td>
-<td><code>httpauth</code> login cookies are Secure (opt-out <code>InsecureCookies</code>) and Lax, the token one HttpOnly; <code>oa_token</code> is Secure behind https; <code>oauthstate</code> / <code>oauthCallbackURL</code> HttpOnly + Lax</td>
+<td><code>httpauth</code> login cookies are Secure (opt-out <code>InsecureCookies</code>), Lax and HttpOnly, <code>loggedInSubject</code> included; <code>oa_token</code> is Secure behind https; the <code>oauth2</code> and <code>federatedauth</code> cookies (<code>oauthstate</code>, <code>oauthCallbackURL</code>, <code>pkce_verifier</code>, and their deletes) are Secure + HttpOnly + Lax</td>
 </tr>
 <tr>
 <td>Session ID renewed on login and logout</td>
@@ -1007,6 +1007,13 @@ several PRs, and rows still Open name the part of issue 88 they&rsquo;re waiting
 <td>OtherJWTKindsAreNotAccessTokens*</td>
 </tr>
 <tr>
+<td>An OIDC provider&rsquo;s ID tokens aren&rsquo;t access tokens</td>
+<td>RFC 8725 §3.11, RFC 9068 §4</td>
+<td>Pass (was Fail)</td>
+<td>Keycloak signs ID tokens with the access token&rsquo;s key, header <code>typ</code> and <code>aud</code>; <code>checkAccessTokenKind</code> refuses a <code>typ</code> claim other than <code>Bearer</code> / <code>DPoP</code></td>
+<td>Keycloak OnlyTheAccessTokenIsAnAccessToken*, OtherJWTKindsAreNotAccessTokens*</td>
+</tr>
+<tr>
 <td>A tenant&rsquo;s key signs only for that tenant</td>
 <td>CWE-347</td>
 <td>Pass (was Fail)</td>
@@ -1146,9 +1153,15 @@ several PRs, and rows still Open name the part of issue 88 they&rsquo;re waiting
 </tr>
 <tr>
 <td><code>EncryptedKeyStorage</code> fails closed</td>
-<td>CWE-311</td>
-<td>Open</td>
-<td>a failed decrypt returns the ciphertext as the key; no AAD binds a record to its kid (keys PR)</td>
+<td>CWE-311, CWE-354</td>
+<td>Pass (was Fail)</td>
+<td><code>ErrKeyDecrypt</code> for a wrong master key, tampering, or plaintext without <code>AllowLegacyPlaintext</code>; it used to return the stored bytes as the key. <code>encrypted_failclosed_test.go</code>*</td>
+</tr>
+<tr>
+<td>A stored ciphertext opens only for its own record</td>
+<td>NIST SP 800-38D §5.2.1.1</td>
+<td>Pass (was Fail)</td>
+<td><code>oaenc1:</code> records carry AAD over client, alg and kid. CiphertextOnlyOpensForItsRecord*</td>
 </tr>
 <tr>
 <td>Retired keys encrypted at rest</td>

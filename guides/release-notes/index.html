@@ -189,6 +189,38 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<h2 id="version-0146">Version 0.1.46 <a class="anchor" href="#version-0146">¶</a></h2>
+<h3 id="keys-id-tokens-and-codeql-issue-88-prs-417-to-419">Keys, ID tokens and CodeQL (issue 88, PRs 417 to 419) <a class="anchor" href="#keys-id-tokens-and-codeql-issue-88-prs-417-to-419">¶</a></h3>
+<ul>
+<li><strong>Encrypted key storage fails closed.</strong> <code>EncryptedKeyStorage</code> returns<br />
+<code>keys.ErrKeyDecrypt</code> for a record it can&rsquo;t open, where it used to return<br />
+the stored bytes as the key. Records are written as <code>oaenc1:</code> + nonce +<br />
+AES-256-GCM with AAD over client, alg and kid, so a ciphertext copied into<br />
+another record won&rsquo;t open. Plaintext secrets need <code>AllowLegacyPlaintext</code>,<br />
+and <code>MigrateLegacy</code> rewrites old records. The reference server runs it<br />
+once with <code>key_store.migrate_legacy</code> (<code>KEYSTORE_MIGRATE_LEGACY=true</code>).</li>
+<li><strong>OIDC ID tokens aren&rsquo;t access tokens.</strong> Keycloak signs ID tokens with<br />
+the same key, header and <code>aud</code> as access tokens; a <code>typ</code> claim other than<br />
+<code>Bearer</code> / <code>DPoP</code> is now refused.</li>
+<li><strong>Cookies.</strong> Every cookie in <code>oauth2</code>, <code>federatedauth</code> and the demo app,<br />
+deletes included, is Secure + HttpOnly + SameSite=Lax, and <code>httpauth</code>&rsquo;s<br />
+<code>loggedInSubject</code> is HttpOnly. <code>LocalRedirect</code> rebuilds its target from<br />
+the parsed path, query and fragment.</li>
+<li><strong>Workflows</strong> run with a read-only <code>GITHUB_TOKEN</code>.</li>
+</ul>
+<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<ul>
+<li><strong>Encrypted key stores holding plaintext secrets:</strong> start once with<br />
+<code>key_store.migrate_legacy: true</code>, or set <code>AllowLegacyPlaintext</code> and call<br />
+<code>MigrateLegacy</code>. Until then those clients fail with <code>ErrKeyDecrypt</code>.<br />
+Records written now can&rsquo;t be read by older versions.</li>
+<li><strong><code>oauth2</code>:</strong> drop <code>BaseOAuth2.SecureCookies</code> and the <code>secure</code> argument to<br />
+<code>OauthRedirectorWithPKCE</code> / <code>SetPKCECookie</code>. Social login over plain http<br />
+works only on localhost.</li>
+<li><strong>Pages reading <code>loggedInSubject</code> from script</strong> no longer can.</li>
+<li><strong>Non-oneauth issuers</strong> whose access tokens carry a <code>typ</code> claim other than<br />
+<code>Bearer</code> / <code>DPoP</code> are refused.</li>
+</ul>
 <h2 id="version-0145">Version 0.1.45 <a class="anchor" href="#version-0145">¶</a></h2>
 <h3 id="token-audit-issue-88-prs-414-to-416">Token audit (issue 88, PRs 414 to 416) <a class="anchor" href="#token-audit-issue-88-prs-414-to-416">¶</a></h3>
 <p>Issue 88&rsquo;s third slice walked token validation, revocation and<br />
@@ -225,7 +257,7 @@ the family&rsquo;s expiry in every store.</li>
 <code>httpauth</code>&rsquo;s log, and no unverified JWT parse in the revoker or the<br />
 server&rsquo;s <code>/api/revoke</code>.</li>
 </ul>
-<h3 id="upgrading">Upgrading <a class="anchor" href="#upgrading">¶</a></h3>
+<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
 <ul>
 <li><strong>Tokens without <code>exp</code></strong> no longer validate. oneauth always set it.</li>
 <li><strong>Missing scope</strong> is 403, not 401.</li>
@@ -276,7 +308,7 @@ plain-http public URL on a non-loopback host unless <code>allow_insecure_http</c
 <code>jwt.issuer</code> defaults to the public URL. Pages load a prebuilt stylesheet<br />
 (<code>make server-css</code>), and the CSP allows only <code>'self'</code>.</li>
 </ul>
-<h3 id="upgrading-1">Upgrading <a class="anchor" href="#upgrading-1">¶</a></h3>
+<h3 id="upgrading-2">Upgrading <a class="anchor" href="#upgrading-2">¶</a></h3>
 <ul>
 <li><strong><code>AdminAuth</code>:</strong> pass <code>NewNoAuth()</code> for open admin routes; nil now refuses.</li>
 <li><strong>DCR behind a real host:</strong> set <code>AppRegistrar.IssuerBaseURL</code>, or registration<br />
@@ -326,7 +358,7 @@ failed.</li>
 <li>Every Go file is gofmt-clean and CI checks it. <code>make fmt</code> fixes;<br />
 <code>.git-blame-ignore-revs</code> keeps the cleanup commit out of blame.</li>
 </ul>
-<h3 id="upgrading-2">Upgrading <a class="anchor" href="#upgrading-2">¶</a></h3>
+<h3 id="upgrading-3">Upgrading <a class="anchor" href="#upgrading-3">¶</a></h3>
 <ul>
 <li><strong><code>DPoPKey</code> callers:</strong> no exported API changed, but a validator using the<br />
 default algorithm list now also accepts Ed25519 proofs. Set<br />
@@ -353,7 +385,7 @@ and <code>ClientRegistrationResponse</code> (RFC 9449 §5.2).</li>
 </ul>
 <p>Where oneauth and Keycloak still answer differently, <code>docs/SECURITY_AUDIT.md</code><br />
 says which and why.</p>
-<h3 id="upgrading-3">Upgrading <a class="anchor" href="#upgrading-3">¶</a></h3>
+<h3 id="upgrading-4">Upgrading <a class="anchor" href="#upgrading-4">¶</a></h3>
 <ul>
 <li><strong>Code that branches on the refresh grant&rsquo;s status</strong> sees 400 instead of<br />
 401 for a refused token. Only <code>invalid_client</code> is 401.</li>
@@ -407,7 +439,7 @@ reaches jwt-bearer, token-exchange and PAR.</li>
 <li><strong>SDK.</strong> <code>ServerCredential.ClientID</code> records which client a credential was<br />
 issued to, and the automatic refresh sends it instead of <code>&quot;cli&quot;</code>.</li>
 </ul>
-<h3 id="upgrading-4">Upgrading <a class="anchor" href="#upgrading-4">¶</a></h3>
+<h3 id="upgrading-5">Upgrading <a class="anchor" href="#upgrading-5">¶</a></h3>
 <ul>
 <li><strong>GORM deployments need <code>AutoMigrate</code></strong> for the new app-registration columns<br />
 (<code>dpop_bound_access_tokens</code> and the two back-channel logout fields).</li>
