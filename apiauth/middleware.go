@@ -2,6 +2,7 @@ package apiauth
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -561,8 +562,15 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (*TokenInfo, error
 					if token.Header["alg"] != rec.Algorithm {
 						return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
 					}
-					if err := checkTenantKey(rec, kidOf([]byte(m.JWTSecretKey), "HS256"), token); err != nil {
-						return nil, err
+					// A record holding our own secret is our own key, so its
+					// tokens are exempt. Comparing the keys directly avoids
+					// hashing the secret just to compare kids.
+					recKey, _ := rec.Key.([]byte)
+					ownKey := m.JWTSecretKey != "" && subtle.ConstantTimeCompare(recKey, []byte(m.JWTSecretKey)) == 1
+					if !ownKey {
+						if err := checkTenantKey(rec, "", token); err != nil {
+							return nil, err
+						}
 					}
 					return utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 				}
