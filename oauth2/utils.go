@@ -22,14 +22,14 @@ func generateStateOauthCookie(w http.ResponseWriter) string {
 	// HttpOnly: script has no use for the state, and reading it would let
 	// an XSS forge a callback. Lax still sends it on the IdP's top-level
 	// redirect back.
-	cookie := http.Cookie{Name: "oauthstate", Value: state, Path: "/", Expires: expiration, HttpOnly: true, SameSite: http.SameSiteLaxMode}
+	cookie := http.Cookie{Name: "oauthstate", Value: state, Path: "/", Expires: expiration, HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode}
 	http.SetCookie(w, &cookie)
 	return state
 }
 
 // OauthRedirector creates a redirect handler with PKCE enabled (default).
 func OauthRedirector(oauthConfig *oauth2.Config) func(w http.ResponseWriter, r *http.Request) {
-	return OauthRedirectorWithPKCE(oauthConfig, false)
+	return OauthRedirectorWithPKCE(oauthConfig)
 }
 
 // OauthRedirectorNoPKCE creates a redirect handler WITHOUT PKCE.
@@ -45,6 +45,7 @@ func OauthRedirectorNoPKCE(oauthConfig *oauth2.Config) func(w http.ResponseWrite
 				Expires:  time.Now().Add(24 * time.Hour),
 				MaxAge:   120,
 				HttpOnly: true,
+				Secure:   true,
 				SameSite: http.SameSiteLaxMode,
 			})
 		}
@@ -55,8 +56,8 @@ func OauthRedirectorNoPKCE(oauthConfig *oauth2.Config) func(w http.ResponseWrite
 }
 
 // OauthRedirectorWithPKCE creates a redirect handler with PKCE support (RFC 7636).
-// When secure is true, the PKCE cookie is marked Secure (HTTPS only).
-func OauthRedirectorWithPKCE(oauthConfig *oauth2.Config, secure bool) func(w http.ResponseWriter, r *http.Request) {
+// Its cookies are Secure, which browsers also accept on http://localhost.
+func OauthRedirectorWithPKCE(oauthConfig *oauth2.Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Create oauthState cookie and callback url cookie so we know where to redirect back to
 		callbackURL := r.URL.Query().Get("callbackURL")
@@ -68,6 +69,7 @@ func OauthRedirectorWithPKCE(oauthConfig *oauth2.Config, secure bool) func(w htt
 				Expires:  time.Now().Add(24 * time.Hour),
 				MaxAge:   120, // keep this short
 				HttpOnly: true,
+				Secure:   true,
 				SameSite: http.SameSiteLaxMode,
 			})
 		}
@@ -80,7 +82,7 @@ func OauthRedirectorWithPKCE(oauthConfig *oauth2.Config, secure bool) func(w htt
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		SetPKCECookie(w, verifier, secure)
+		SetPKCECookie(w, verifier)
 		challenge := computeCodeChallenge(verifier)
 
 		u := oauthConfig.AuthCodeURL(oauthState,

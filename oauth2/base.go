@@ -28,9 +28,6 @@ type BaseOAuth2 struct {
 	// requires it for all clients. Set to true only for providers that
 	// don't support PKCE — a warning will be logged on startup.
 	DisablePKCE bool
-
-	// SecureCookies sets the Secure flag on PKCE and state cookies (HTTPS only).
-	SecureCookies bool
 }
 
 // SetHTTPClient sets the HTTP client used for OAuth requests.
@@ -100,7 +97,7 @@ func (b *BaseOAuth2) setupHandlers() {
 			"See: https://datatracker.ietf.org/doc/html/rfc7636", b.ClientId)
 		b.mux.HandleFunc("/", OauthRedirectorNoPKCE(&b.oauthConfig))
 	} else {
-		b.mux.HandleFunc("/", OauthRedirectorWithPKCE(&b.oauthConfig, b.SecureCookies))
+		b.mux.HandleFunc("/", OauthRedirectorWithPKCE(&b.oauthConfig))
 	}
 
 	// An "easier" way to login by X if we already have the access tokens

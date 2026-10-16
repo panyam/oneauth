@@ -181,7 +181,7 @@ The fixes land across several PRs; the Status column says which rows are done.
 | A reset applies the signup password policy | Pass (was Fail) | it used a hard-coded 8 |
 | A reset ends the account's other sessions | Pass (was Fail) | `AfterPasswordReset`; `NewRevokeSessionsOnReset` revokes its refresh tokens, wired in the reference server (CWE-613) |
 | Signup doesn't reveal which emails have accounts | Open | "email already registered" lets anyone enumerate accounts; fixing it means a changed signup flow (mail the existing owner), not filed yet |
-| Cookie flags (`HttpOnly`, `Secure`, `SameSite`) | Pass (was Fail) | `httpauth` login cookies are Secure (opt-out `InsecureCookies`) and Lax, the token one HttpOnly; `oa_token` is Secure behind https; `oauthstate` / `oauthCallbackURL` HttpOnly + Lax |
+| Cookie flags (`HttpOnly`, `Secure`, `SameSite`) | Pass (was Fail) | `httpauth` login cookies are Secure (opt-out `InsecureCookies`), Lax and HttpOnly, `loggedInSubject` included; `oa_token` is Secure behind https; the `oauth2` and `federatedauth` cookies (`oauthstate`, `oauthCallbackURL`, `pkce_verifier`, and their deletes) are Secure + HttpOnly + Lax |
 | Session ID renewed on login and logout | Pass (was Fail) | `SetLoggedInSubject` calls `RenewToken` (CWE-384) |
 | Session JWTs not usable as API access tokens | Pass (was Fail) | session JWTs carry `type: session`, which `APIMiddleware` refuses; `iat` no longer an hour in the future |
 | No hard-coded session signing secret | Pass (was Fail) | `httpauth` fell back to a fixed public secret; now a random per-process one with a warning (CWE-798), and HS256 is pinned |

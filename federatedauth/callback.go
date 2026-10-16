@@ -76,10 +76,14 @@ func (b *OAuthBridge) SaveUserAndRedirect(authtype, provider string, token *oaut
 	log.Println("Redirecting to CallbackURL: ", callbackURL)
 	// then delete the cookie too so it won't be used for subsequent redirects
 	http.SetCookie(w, &http.Cookie{
-		Name:   "oauthCallbackURL",
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1, Expires: time.Now(),
+		Name:     "oauthCallbackURL",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Now(),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	})
 	http.Redirect(w, r, callbackURL, http.StatusFound)
 }
@@ -208,10 +212,13 @@ func (b *OAuthBridge) HandleLinkOAuthCallback(linkingUserID, provider string, us
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:   "oauthCallbackURL",
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
+		Name:     "oauthCallbackURL",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	http.Redirect(w, r, callbackURL, http.StatusFound)

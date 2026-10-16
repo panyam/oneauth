@@ -235,31 +235,29 @@ func (a *OneAuth) SetLoggedInSubject(subject string, w http.ResponseWriter, r *h
 	}
 
 	for _, cookieDomain := range domains {
-		a.setCookie(w, "oauthstate", "", cookieDomain, -1, true)
+		a.setCookie(w, "oauthstate", "", cookieDomain, -1)
 		if subject == "" {
-			a.setCookie(w, "loggedInSubject", "", cookieDomain, -1, false)
-			a.setCookie(w, a.AuthTokenSessionVar, "", cookieDomain, -1, true)
+			a.setCookie(w, "loggedInSubject", "", cookieDomain, -1)
+			a.setCookie(w, a.AuthTokenSessionVar, "", cookieDomain, -1)
 			continue
 		}
-		// loggedInSubject carries only the user ID, for pages that read it
-		// from script, so it is not HttpOnly. The token cookie is.
-		a.setCookie(w, "loggedInSubject", subject, cookieDomain, a.SessionTimeoutInSeconds, false)
-		a.setCookie(w, a.AuthTokenSessionVar, tokenString, cookieDomain, a.SessionTimeoutInSeconds, true)
+		a.setCookie(w, "loggedInSubject", subject, cookieDomain, a.SessionTimeoutInSeconds)
+		a.setCookie(w, a.AuthTokenSessionVar, tokenString, cookieDomain, a.SessionTimeoutInSeconds)
 	}
 	return tokenString
 }
 
 // setCookie writes one login cookie with the attributes every one of them
-// gets: Secure unless InsecureCookies, SameSite=Lax, and HttpOnly when
-// asked. maxAge < 0 deletes it.
-func (a *OneAuth) setCookie(w http.ResponseWriter, name, value, domain string, maxAge int, httpOnly bool) {
+// gets: Secure unless InsecureCookies, SameSite=Lax, and HttpOnly (no
+// page reads them from script). maxAge < 0 deletes it.
+func (a *OneAuth) setCookie(w http.ResponseWriter, name, value, domain string, maxAge int) {
 	c := &http.Cookie{
 		Name:     name,
 		Value:    value,
 		Domain:   domain,
 		Path:     "/",
 		MaxAge:   maxAge,
-		HttpOnly: httpOnly,
+		HttpOnly: true,
 		Secure:   !a.InsecureCookies,
 		SameSite: http.SameSiteLaxMode,
 	}

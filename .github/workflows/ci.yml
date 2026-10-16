@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Read-only token by default; a job that needs more says so.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -72,6 +76,9 @@ jobs:
         run: staticcheck ./...
 
   secrets:
+    permissions:
+      contents: read
+      pull-requests: read # gitleaks lists a PR's commits
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

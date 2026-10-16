@@ -55,17 +55,18 @@ func computeCodeChallenge(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 
-// SetPKCECookie stores the code verifier in an HttpOnly cookie for the
-// duration of the OAuth flow. The cookie is read back in the callback
-// handler and sent as the code_verifier in the token exchange.
-func SetPKCECookie(w http.ResponseWriter, verifier string, secure bool) {
+// SetPKCECookie stores the code verifier in an HttpOnly, Secure cookie for
+// the duration of the OAuth flow. The cookie is read back in the callback
+// handler and sent as the code_verifier in the token exchange. Browsers
+// accept Secure cookies on http://localhost, so local development works.
+func SetPKCECookie(w http.ResponseWriter, verifier string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     PKCECookieName,
 		Value:    verifier,
 		Path:     "/",
 		MaxAge:   int(PKCECookieTTL.Seconds()),
 		HttpOnly: true, // not accessible to JavaScript
-		Secure:   secure,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -83,9 +84,12 @@ func GetPKCEVerifier(r *http.Request) string {
 // ClearPKCECookie removes the PKCE verifier cookie after use.
 func ClearPKCECookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
-		Name:   PKCECookieName,
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
+		Name:     PKCECookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	})
 }

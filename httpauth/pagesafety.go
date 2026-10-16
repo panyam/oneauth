@@ -38,8 +38,10 @@ func LocalRedirect(target, fallback string) string {
 		return fallback
 	}
 	u, err := url.Parse(target)
-	if err != nil || u.Scheme != "" || u.Host != "" {
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil {
 		return fallback
 	}
-	return target
+	// Rebuilt from the parsed path, query and fragment, so nothing that
+	// names a host can survive into the Location header.
+	return (&url.URL{Path: u.Path, RawPath: u.RawPath, RawQuery: u.RawQuery, Fragment: u.Fragment}).String()
 }

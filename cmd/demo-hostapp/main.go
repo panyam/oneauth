@@ -96,7 +96,7 @@ func main() {
 			}
 			http.SetCookie(w, &http.Cookie{
 				Name: "app_token", Value: tokenString,
-				Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: 86400,
+				Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, MaxAge: 86400,
 			})
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 		},
@@ -154,7 +154,7 @@ func main() {
 
 	// Logout
 	mux.HandleFunc("GET /logout", func(w http.ResponseWriter, r *http.Request) {
-		http.SetCookie(w, &http.Cookie{Name: "app_token", MaxAge: -1, Path: "/"})
+		http.SetCookie(w, &http.Cookie{Name: "app_token", MaxAge: -1, Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	})
 
