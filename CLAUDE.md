@@ -128,6 +128,8 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - **A key rotation's grace period needs a KidStore on both sides.** `AppRegistrar.KidStore` keeps the old key and `OneAuthConfig.KidStore` lets the validator find it; with either missing, `grace_period` is accepted and the old key stops verifying at once. The reference server builds one on the key store's backend (FS under `<path>/kids`) and sweeps it.
 - **Deploy examples leave `jwt.issuer` empty so it follows `public_url`.** A pinned issuer disagrees with discovery as soon as `PUBLIC_URL` is overridden, and every token a client mints against the discovered issuer fails. `rar-test.yaml` pins its issuer on purpose for the Keycloak suite.
 - **RSA keys under 2048 bits fail at load.** `ParsePublicKeyPEM`, `ParsePrivateKeyPEM` and the JWK parser refuse them, so a test fixture generating 1024-bit keys fails before any token is verified.
+- **A registered client's `scope` limits what the token endpoint grants.** With an `AppStore`, `client_credentials` and the password grant answer 400 `invalid_scope` for a scope outside `AppRegistration.Scope`, and grant the registered scope when none is asked for. A test that registers a client with a scope and asks for another now fails; one that leaves `Scope` empty is unaffected.
+- **Wrong credentials on the password grant are 400 `invalid_grant`** (RFC 6749 §5.2, and Keycloak agrees), not 401.
 - **httptest URL needed before mount.** When a handler config requires the server's base URL (e.g., RFC 8628 `VerificationURI`), use `httptest.NewUnstartedServer(mux)` → read `server.URL` → mount → `server.Start()`. Avoids post-hoc handler mutation. Pattern in `tests/e2e/device_flow_test.go`.
 
 ## Gap analyses

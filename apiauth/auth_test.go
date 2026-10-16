@@ -113,21 +113,21 @@ func TestPasswordGrant(t *testing.T) {
 			grantType:      "password",
 			username:       "apitest@example.com",
 			password:       "wrongpassword",
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: http.StatusBadRequest, // RFC 6749 §5.2 invalid_grant
 		},
 		{
 			name:           "non-existent user",
 			grantType:      "password",
 			username:       "nonexistent@example.com",
 			password:       "password123",
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: http.StatusBadRequest, // RFC 6749 §5.2 invalid_grant
 		},
 		{
 			name:           "missing credentials",
 			grantType:      "password",
 			username:       "",
 			password:       "",
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: http.StatusBadRequest, // RFC 6749 §5.2 invalid_grant
 		},
 		{
 			name:           "unsupported grant type",

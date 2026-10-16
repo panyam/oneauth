@@ -8,7 +8,7 @@ HTTP-layer auth: session-based middleware, CSRF protection, and the OneAuth sess
 - **mux.go** — `OneAuth` struct, `AuthUserStore` interface, OAuth callback handling, `LinkOAuthConfig`
 
 ## Recent Additions
-- **LimitBody** middleware — caps request body size to prevent oversized payload attacks
+- **LimitBody** middleware — caps request body size to prevent oversized payload attacks. `CapRequestBody(w, r)` does the same inside a handler (`MaxFormBodySize`, 64 KiB); every apiauth / localauth handler that reads a body calls it (issue 88).
 - **SecurityHeaders** middleware — sets standard security response headers (X-Content-Type-Options, X-Frame-Options, etc.)
 - **DenyFraming** (`pagesafety.go`) — X-Frame-Options: DENY plus `frame-ancestors 'none'` when no CSP is set; the authorize, device and localauth pages call it so they can't be clickjacked without the deployment's middleware.
 - **LocalRedirect** (`pagesafety.go`) — returns a redirect target only if it's a path on this site; used for logout `?to=` and the federated `callbackURL` (CWE-601).

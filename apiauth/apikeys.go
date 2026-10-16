@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // APIKeysHandler serves the API-key management endpoints:
@@ -154,6 +155,7 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		Scopes    []string `json:"scopes,omitempty"`
 		ExpiresIn int64    `json:"expires_in,omitempty"`
 	}
+	httpauth.CapRequestBody(w, r)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorJSON(w, "invalid_request", "invalid request body", http.StatusBadRequest)
 		return

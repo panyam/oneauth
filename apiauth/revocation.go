@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/panyam/oneauth/httpauth"
 	"github.com/panyam/oneauth/tracing"
 )
 
@@ -54,6 +55,7 @@ func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	httpauth.CapRequestBody(w, r)
 	if err := r.ParseForm(); err != nil {
 		h.errorResponse(w, "invalid_request", "malformed request body", http.StatusBadRequest)
 		return

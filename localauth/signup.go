@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/panyam/oneauth/accounts"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // HandleSignup processes user registration.
@@ -215,6 +216,7 @@ func (a *LocalAuth) validateWithPolicy(creds *Credentials, policy SignupPolicy) 
 
 // parseSignupForm parses signup form data without validation.
 func (a *LocalAuth) parseSignupForm(r *http.Request) (*Credentials, *accounts.AuthError) {
+	httpauth.CapRequestBody(nil, r)
 	contentType := r.Header.Get("Content-Type")
 	// For signup, always use "username" field (UsernameField is for login only)
 	usernameField := "username"

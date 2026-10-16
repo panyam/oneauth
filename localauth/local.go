@@ -202,6 +202,7 @@ func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *LocalAuth) parseLoginForm(r *http.Request) (username, password string, err error) {
+	httpauth.CapRequestBody(nil, r)
 	contentType := r.Header.Get("Content-Type")
 	usernameField := a.getUsernameField()
 	passwordField := a.getPasswordField()
@@ -321,6 +322,7 @@ func (a *LocalAuth) HandleForgotPasswordForm(w http.ResponseWriter, r *http.Requ
 
 // HandleForgotPassword handles forgot password requests (POST)
 func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
+	httpauth.CapRequestBody(w, r)
 	if a.TokenStore == nil || a.EmailSender == nil {
 		http.Error(w, `{"error": "Password reset not configured"}`, http.StatusInternalServerError)
 		return
@@ -435,6 +437,7 @@ func (a *LocalAuth) HandleResetPasswordForm(w http.ResponseWriter, r *http.Reque
 
 // HandleResetPassword handles password reset submissions (POST)
 func (a *LocalAuth) HandleResetPassword(w http.ResponseWriter, r *http.Request) {
+	httpauth.CapRequestBody(w, r)
 	if a.TokenStore == nil || a.UpdatePassword == nil {
 		http.Error(w, `{"error": "Password reset not configured"}`, http.StatusInternalServerError)
 		return
@@ -618,6 +621,7 @@ type GetLoggedInUserFunc func(r *http.Request) (userID string, err error)
 //   - 409 Conflict: Local credentials already exist
 func (a *LocalAuth) HandleLinkCredentials(config LinkCredentialsConfig, getUser GetLoggedInUserFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		httpauth.CapRequestBody(w, r)
 		// Get logged-in user
 		userID, err := getUser(r)
 		if err != nil || userID == "" {

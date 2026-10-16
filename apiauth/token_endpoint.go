@@ -74,6 +74,7 @@ func (h *TokenEndpointHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxTokenRequestBytes)
 	req, err := parseTokenRequest(r)
 	if err != nil {
 		h.writeError(w, err)
@@ -121,12 +122,28 @@ func (h *TokenEndpointHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// maxTokenRequestBytes bounds a token request body. Real requests are a
+// few kilobytes even with authorization_details and a client assertion;
+// without a bound a JSON body is read without limit (CWE-770).
+const maxTokenRequestBytes = 64 << 10
+
+// tooLarge reports whether err came from the MaxBytesReader limit.
+func tooLarge(err error) bool {
+	var mbe *http.MaxBytesError
+	return errors.As(err, &mbe)
+}
+
+var requestTooLarge = &GrantError{Code: "invalid_request", Description: "request body too large", Status: http.StatusRequestEntityTooLarge}
+
 // parseTokenRequest reads the request body and returns the parsed
 // core.TokenRequest. Returns a *GrantError on malformed input.
 func parseTokenRequest(r *http.Request) (*core.TokenRequest, *GrantError) {
 	ct := r.Header.Get("Content-Type")
 	if strings.HasPrefix(ct, "application/x-www-form-urlencoded") {
 		if err := r.ParseForm(); err != nil {
+			if tooLarge(err) {
+				return nil, requestTooLarge
+			}
 			return nil, invalidRequest("invalid form body")
 		}
 		req := &core.TokenRequest{
@@ -159,6 +176,9 @@ func parseTokenRequest(r *http.Request) (*core.TokenRequest, *GrantError) {
 	}
 	var req core.TokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if tooLarge(err) {
+			return nil, requestTooLarge
+		}
 		return nil, invalidRequest("invalid request body")
 	}
 	return &req, nil
@@ -192,10 +212,31 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// authorization_details are checked before credentials so a malformed
+	// one is the client's 400, not a 500 out of the granter.
+	if err := core.ValidateAll(req.AuthorizationDetails); err != nil {
+		h.writeError(w, &GrantError{Code: "invalid_authorization_details", Description: err.Error(), Status: http.StatusBadRequest})
+		return
+	}
+	reg, gErr := clientRegistration(r.Context(), h.OneAuth.AppStore, requestingClientID(r, req))
+	if gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
+	if gErr := checkRARTypes(reg, req.AuthorizationDetails); gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
+	scopes, gErr := grantScopes(reg, core.ParseScopes(req.Scope))
+	if gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
+
 	resp, err := h.OneAuth.PasswordGranter.PasswordGrant(r.Context(), &PasswordGrantRequest{
 		Username:             req.Username,
 		Password:             req.Password,
-		Scopes:               core.ParseScopes(req.Scope),
+		Scopes:               scopes,
 		AuthorizationDetails: req.AuthorizationDetails,
 		ClientID:             req.ClientID,
 		Confirmation:         cnf,
@@ -212,7 +253,7 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 				h.Lockout.RecordFailure(req.Username)
 			}
 			h.fireOnLoginFailure(req.Username, err)
-			h.writeError(w, &GrantError{Code: "invalid_grant", Description: "invalid credentials", Status: http.StatusUnauthorized})
+			h.writeError(w, invalidGrant("invalid credentials")) // RFC 6749 §5.2: 400
 		default:
 			log.Printf("password grant: %v", err)
 			h.writeError(w, serverError("password grant failed"))
@@ -365,10 +406,24 @@ func (h *TokenEndpointHandler) handleClientCredentials(w http.ResponseWriter, r 
 		h.writeError(w, &GrantError{Code: "invalid_authorization_details", Description: err.Error(), Status: http.StatusBadRequest})
 		return
 	}
+	reg, gErr := clientRegistration(r.Context(), h.OneAuth.AppStore, authedClientID)
+	if gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
+	if gErr := checkRARTypes(reg, req.AuthorizationDetails); gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
+	scopes, gErr := grantScopes(reg, core.ParseScopes(req.Scope))
+	if gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
 
-	scopes := core.ParseScopes(req.Scope)
 	tok, err := h.OneAuth.Issuer.CreateAccessToken(r.Context(), &CreateAccessTokenRequest{
 		Subject:              authedClientID,
+		ClientID:             authedClientID,
 		Scopes:               scopes,
 		AuthorizationDetails: req.AuthorizationDetails,
 		Confirmation:         cnf,
@@ -687,12 +742,24 @@ func (h *TokenEndpointHandler) writeError(w http.ResponseWriter, err error) {
 	if status == 0 {
 		status = http.StatusBadRequest
 	}
+	description := ge.Description
+	if ge.Code == "server_error" {
+		// The detail (a store or crypto error) goes to the log, not the
+		// client: it can name hosts, users and internals (CWE-209).
+		log.Printf("token endpoint: server_error: %s", ge.Description)
+		description = "internal server error"
+	}
+	if ge.Code == "invalid_client" && status == http.StatusUnauthorized {
+		// RFC 6749 §5.2: a 401 for client authentication carries a
+		// challenge for the scheme the client should use.
+		w.Header().Set("WWW-Authenticate", `Basic realm="token"`)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	noStore(w)
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(core.TokenError{
 		Error:            ge.Code,
-		ErrorDescription: ge.Description,
+		ErrorDescription: description,
 	})
 }
 
