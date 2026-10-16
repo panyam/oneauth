@@ -42,6 +42,10 @@ type ClientRegistrationRequest struct {
 	// wire-compatible; consumers whose spec requires it (e.g. MCP per SEP-837)
 	// set it explicitly.
 	ApplicationType string `json:"application_type,omitempty"`
+	// DPoPBoundAccessTokens asks the AS to always issue this client
+	// DPoP-bound access tokens and to refuse its token requests that
+	// carry no proof (RFC 9449 §5.2).
+	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
 }
 
 // ClientRegistrationResponse is the parsed response from a DCR endpoint,
@@ -62,6 +66,10 @@ type ClientRegistrationResponse struct {
 	GrantTypes              []string `json:"grant_types,omitempty"`
 	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
 	Scope                   string   `json:"scope,omitempty"`
+
+	// DPoPBoundAccessTokens is the AS's record of the RFC 9449 §5.2
+	// setting. An AS that ignores the field leaves it false.
+	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
 
 	// RFC 7592 §3 — management credentials. RegistrationClientURI is the
 	// management endpoint for this specific registration; RegistrationAccessToken
