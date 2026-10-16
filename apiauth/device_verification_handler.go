@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // DeviceVerificationHandler serves the RFC 8628 §3.3 user-facing
@@ -176,6 +177,7 @@ func (h *DeviceVerificationHandler) Consent(w http.ResponseWriter, r *http.Reque
 	}
 	data.ClientName = lookupClientName(r.Context(), h.AppStore, auth.ClientID)
 
+	httpauth.DenyFraming(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	tmpl := h.consentTemplate()
 	if err := tmpl.Execute(w, data); err != nil {
@@ -233,6 +235,7 @@ func (h *DeviceVerificationHandler) Decide(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *DeviceVerificationHandler) renderForm(w http.ResponseWriter, r *http.Request, userCode, errMsg string) {
+	httpauth.DenyFraming(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := deviceFormData{
 		UserCode:  userCode,
@@ -247,6 +250,7 @@ func (h *DeviceVerificationHandler) renderForm(w http.ResponseWriter, r *http.Re
 }
 
 func (h *DeviceVerificationHandler) renderDone(w http.ResponseWriter, approved bool) {
+	httpauth.DenyFraming(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := deviceDoneData{Approved: approved}
 	tmpl := h.doneTemplate()

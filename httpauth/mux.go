@@ -1,6 +1,8 @@
 package httpauth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"log/slog"
@@ -37,6 +39,13 @@ type OneAuth struct {
 
 	// How long is a session cookie valid for.  Defaults to 1 day
 	SessionTimeoutInSeconds int
+
+	// InsecureCookies drops the Secure attribute from the login cookies.
+	// They are Secure by default, which browsers honour over https and on
+	// http://localhost; set this only for plain-http development on any
+	// other host. Every other attribute (HttpOnly on the token, SameSite)
+	// is kept either way.
+	InsecureCookies bool
 }
 
 func New(appName string) *OneAuth {
@@ -61,7 +70,15 @@ func (a *OneAuth) EnsureDefaults() *OneAuth {
 	if a.JWTSecretKey == "" {
 		a.JWTSecretKey = strings.TrimSpace(os.Getenv("ONEAUTH_JWT_SECRET_KEY"))
 		if a.JWTSecretKey == "" {
-			a.JWTSecretKey = "MyTestJWTSecretKey123456"
+			// A fixed fallback would be a public signing key: anyone could
+			// mint a session for any user (CWE-798). A random per-process
+			// secret is safe, at the cost of logging everyone out on restart.
+			b := make([]byte, 32)
+			if _, err := rand.Read(b); err != nil {
+				panic(fmt.Sprintf("httpauth: generate session secret: %v", err))
+			}
+			a.JWTSecretKey = hex.EncodeToString(b)
+			slog.Warn("httpauth: JWTSecretKey and ONEAUTH_JWT_SECRET_KEY are unset; using a random per-process secret, so sessions end on restart")
 		}
 	}
 	if a.Middleware.AuthTokenCookieName == "" {
@@ -118,7 +135,9 @@ func (a *OneAuth) AddAuth(prefix string, handler http.Handler) *OneAuth {
 func (a *OneAuth) setupRoutes() *OneAuth {
 	if a.mux == nil {
 		a.mux = http.NewServeMux()
-		a.mux.HandleFunc("/logout", a.onLogout)
+		// POST only: a GET logout can be fired by any page the user visits
+		// (an <img> tag), logging them out cross-site (CWE-352).
+		a.mux.HandleFunc("POST /logout", a.onLogout)
 	}
 	return a
 }
@@ -127,7 +146,7 @@ func (a *OneAuth) verifyJWT(tokenString string) (loggedInSubject string, t any, 
 	// Parse the token with the secret key
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		return []byte(a.JWTSecretKey), nil
-	})
+	}, jwt.WithValidMethods([]string{"HS256"}))
 
 	// Check for verification errors
 	if err != nil {
@@ -157,13 +176,12 @@ func (a *OneAuth) onLogout(w http.ResponseWriter, r *http.Request) {
 	log.Println("Logging out user...")
 	a.SetLoggedInSubject("", w, r)
 	log.Println("Accept Header Type: ", r.Header["Accept"])
-	toUrl := r.URL.Query()["to"]
-	log.Println("TOURL: ", toUrl)
-	if len(toUrl) == 0 || toUrl[0] == "" {
+	to := r.URL.Query().Get("to")
+	if to == "" {
 		fmt.Fprintf(w, "Logged Out")
-	} else {
-		http.Redirect(w, r, toUrl[0], http.StatusFound)
+		return
 	}
+	http.Redirect(w, r, LocalRedirect(to, "/"), http.StatusFound)
 }
 
 // SetLoggedInSubject stores the authenticated subject (RFC 7519 `sub`
@@ -175,74 +193,75 @@ func (a *OneAuth) onLogout(w http.ResponseWriter, r *http.Request) {
 // object to user.Id() at the call site.
 func (a *OneAuth) SetLoggedInSubject(subject string, w http.ResponseWriter, r *http.Request) string {
 	a.EnsureDefaults()
-	log.Println("ReqHost, Cookie Domains: ", r.Host, a.CookieDomains)
 	domains := a.CookieDomains
 	if slices.Index(a.CookieDomains, "") < 0 { // default domain
 		domains = append(domains, "")
 	}
-	for _, cookieDomain := range domains {
-		http.SetCookie(w, &http.Cookie{
-			Name:   "oauthstate",
-			Value:  "",
-			MaxAge: -1, Expires: time.Now(),
-			Domain: cookieDomain,
-			Path:   "/",
-		})
 
-		if subject != "" {
-			a.Session.Put(r.Context(), "loggedInSubject", subject)
-			http.SetCookie(w, &http.Cookie{
-				Name:    "loggedInSubject",
-				Value:   subject,
-				Domain:  cookieDomain,
-				Path:    "/",
-				Expires: time.Now().Add(time.Second * time.Duration(a.SessionTimeoutInSeconds)),
-				MaxAge:  a.SessionTimeoutInSeconds,
-			})
-
-			token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-				"sub": subject,
-				"iss": a.JwtIssuer,
-				"aud": "admin", // replace with Role for the user later on
-				"exp": time.Now().Add(time.Hour).Unix(),
-				"iat": time.Now().Add(time.Hour).Unix(), // issued at
-			})
-			tokenString, err := token.SignedString([]byte(a.JWTSecretKey))
-			if err != nil {
-				slog.Info("error signing token", "err", err)
-			}
-
-			a.Session.Put(r.Context(), a.AuthTokenSessionVar, tokenString)
-			http.SetCookie(w, &http.Cookie{
-				Name:    a.AuthTokenSessionVar,
-				Value:   tokenString,
-				Domain:  cookieDomain,
-				Path:    "/",
-				Expires: time.Now().Add(time.Second * time.Duration(a.SessionTimeoutInSeconds)),
-				MaxAge:  a.SessionTimeoutInSeconds,
-			})
-			return tokenString
-		}
-
-		// clear the session and cookie values
-		log.Println("Logging out user")
-		if err := a.Session.Clear(r.Context()); err != nil {
-			slog.Warn("error clearing session ", "err", err)
-		}
-		http.SetCookie(w, &http.Cookie{
-			Name:    "loggedInSubject",
-			Domain:  cookieDomain,
-			Path:    "/",
-			MaxAge:  -1,
-			Expires: time.Now(),
-		})
-		http.SetCookie(w, &http.Cookie{
-			Name:    a.AuthTokenSessionVar,
-			Domain:  cookieDomain,
-			Path:    "/",
-			MaxAge:  -1,
-			Expires: time.Now(),
-		})
+	// A new session token on every login and logout, so a session ID that
+	// someone planted before login is worthless after it (CWE-384).
+	if err := a.Session.RenewToken(r.Context()); err != nil {
+		slog.Warn("error renewing session token", "err", err)
 	}
-	return ""
+
+	var tokenString string
+	if subject != "" {
+		a.Session.Put(r.Context(), "loggedInSubject", subject)
+		now := time.Now()
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": subject,
+			"iss": a.JwtIssuer,
+			"aud": "admin", // replace with Role for the user later on
+			"exp": now.Add(time.Hour).Unix(),
+			"iat": now.Unix(),
+			// A session token, not an API access token: apiauth's
+			// middleware accepts only type "access" or none, so this keeps
+			// a stolen login cookie from working as a Bearer token.
+			"type": "session",
+		})
+		var err error
+		tokenString, err = token.SignedString([]byte(a.JWTSecretKey))
+		if err != nil {
+			slog.Info("error signing token", "err", err)
+		}
+		a.Session.Put(r.Context(), a.AuthTokenSessionVar, tokenString)
+	} else if err := a.Session.Clear(r.Context()); err != nil {
+		slog.Warn("error clearing session ", "err", err)
+	}
+
+	for _, cookieDomain := range domains {
+		a.setCookie(w, "oauthstate", "", cookieDomain, -1, true)
+		if subject == "" {
+			a.setCookie(w, "loggedInSubject", "", cookieDomain, -1, false)
+			a.setCookie(w, a.AuthTokenSessionVar, "", cookieDomain, -1, true)
+			continue
+		}
+		// loggedInSubject carries only the user ID, for pages that read it
+		// from script, so it is not HttpOnly. The token cookie is.
+		a.setCookie(w, "loggedInSubject", subject, cookieDomain, a.SessionTimeoutInSeconds, false)
+		a.setCookie(w, a.AuthTokenSessionVar, tokenString, cookieDomain, a.SessionTimeoutInSeconds, true)
+	}
+	return tokenString
+}
+
+// setCookie writes one login cookie with the attributes every one of them
+// gets: Secure unless InsecureCookies, SameSite=Lax, and HttpOnly when
+// asked. maxAge < 0 deletes it.
+func (a *OneAuth) setCookie(w http.ResponseWriter, name, value, domain string, maxAge int, httpOnly bool) {
+	c := &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Domain:   domain,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: httpOnly,
+		Secure:   !a.InsecureCookies,
+		SameSite: http.SameSiteLaxMode,
+	}
+	if maxAge < 0 {
+		c.Expires = time.Unix(0, 0)
+	} else {
+		c.Expires = time.Now().Add(time.Duration(maxAge) * time.Second)
+	}
+	http.SetCookie(w, c)
 }

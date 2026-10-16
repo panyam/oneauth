@@ -13,7 +13,7 @@
       <div class="space-x-4 text-sm">
         {{if .User}}
           <span class="text-gray-600">{{.User}}</span>
-          <a href="/auth/logout" class="text-indigo-600 hover:underline">Logout</a>
+          <form method="POST" action="/auth/logout" class="inline">{{.CSRFField}}<button type="submit" class="text-indigo-600 hover:underline">Logout</button></form>
           <a href="/dashboard" class="text-indigo-600 hover:underline">Dashboard</a>
         {{else}}
           <a href="/auth/login" class="text-indigo-600 hover:underline">Login</a>

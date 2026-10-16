@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // AuthorizeVerificationHandler serves the RFC 6749 §4.1 user-facing
@@ -150,6 +151,7 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		CSRFToken:           h.csrfToken(r),
 		ActionURL:           r.URL.Path,
 	}
+	httpauth.DenyFraming(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.consentTemplate().Execute(w, data); err != nil {
 		http.Error(w, "render consent", http.StatusInternalServerError)
@@ -235,6 +237,7 @@ func (h *AuthorizeVerificationHandler) renderError(w http.ResponseWriter, r *htt
 		writeOAuthError(w, http.StatusBadRequest, errCode, errDescription)
 		return
 	}
+	httpauth.DenyFraming(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusBadRequest)
 	_ = h.errorTemplate().Execute(w, authorizeErrorData{
