@@ -263,6 +263,13 @@ func (v *jwtValidator) CheckAuthorizationDetails(ctx context.Context, req *Check
 
 // resolveKey finds the appropriate signing key for a JWT token.
 func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
+	// A token naming our own kid was signed by us. Resolving it through
+	// KeyLookup instead would fall back to the client_id claim and verify
+	// an AS-issued token against that client's key.
+	if kid, _ := token.Header["kid"].(string); v.ownKid != "" && kid == v.ownKid {
+		return v.signingKeyFor(token)
+	}
+
 	// Try kid-based lookup first (only when a KeyLookup is configured)
 	if v.keyLookup != nil {
 		if kid, ok := token.Header["kid"].(string); ok && kid != "" {
@@ -299,31 +306,37 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 	// Self-validation fallback: the validator was configured with its own
 	// SigningKey (typical APIAuth shape — one key, no KeyStore).
 	if v.signingKey != nil {
-		switch k := v.signingKey.(type) {
-		case []byte:
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			// An empty HMAC key verifies any token signed with the empty
-			// key (RFC 7518 §3.2 wants at least the hash size).
-			if len(k) == 0 {
-				return nil, fmt.Errorf("no HMAC key configured")
-			}
-			return k, nil
-		default:
-			// Asymmetric key — type-check against the token's alg before returning.
-			if v.signingAlg != "" && token.Header["alg"] != v.signingAlg {
-				v.hooks.fireOnAlgorithmMismatch(v.signingAlg, fmt.Sprintf("%v", token.Header["alg"]))
-				return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", v.signingAlg, token.Header["alg"])
-			}
-			return v.signingKey, nil
-		}
+		return v.signingKeyFor(token)
 	}
 
 	if v.keyLookup == nil {
 		return nil, fmt.Errorf("no key store configured")
 	}
 	return nil, fmt.Errorf("no key found for token")
+}
+
+// signingKeyFor returns the validator's own key for a token, after checking
+// the token's alg is one that key can verify.
+func (v *jwtValidator) signingKeyFor(token *jwt.Token) (any, error) {
+	switch k := v.signingKey.(type) {
+	case []byte:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		// An empty HMAC key verifies any token signed with the empty
+		// key (RFC 7518 §3.2 wants at least the hash size).
+		if len(k) == 0 {
+			return nil, fmt.Errorf("no HMAC key configured")
+		}
+		return k, nil
+	default:
+		// Asymmetric key — type-check against the token's alg before returning.
+		if v.signingAlg != "" && token.Header["alg"] != v.signingAlg {
+			v.hooks.fireOnAlgorithmMismatch(v.signingAlg, fmt.Sprintf("%v", token.Header["alg"]))
+			return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", v.signingAlg, token.Header["alg"])
+		}
+		return v.signingKey, nil
+	}
 }
 
 // jwtIssuer implements TokenIssuer using JWT signing.

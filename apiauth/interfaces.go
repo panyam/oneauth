@@ -2,6 +2,7 @@ package apiauth
 
 import (
 	"context"
+	"errors"
 
 	"github.com/panyam/oneauth/accounts"
 	"github.com/panyam/oneauth/core"
@@ -437,6 +438,11 @@ type TokenIntrospector interface {
 // IntrospectRequest is the input to TokenIntrospector.Introspect.
 type IntrospectRequest struct {
 	Token string
+
+	// TokenTypeHint is RFC 7662's token_type_hint. "refresh_token" looks
+	// the token up in the refresh store first; anything else tries it as
+	// an access token first. Either way the other kind is tried next.
+	TokenTypeHint string
 }
 
 // IntrospectResponse wraps the RFC 7662 introspection result.
@@ -459,7 +465,19 @@ type TokenRevoker interface {
 type RevokeRequest struct {
 	Token         string
 	TokenTypeHint string
+
+	// ClientID is the authenticated client making the request. When set,
+	// a token issued to a different client is refused with
+	// ErrRevokeNotOwner (RFC 7009 §2.1). Empty skips the check, for
+	// callers revoking on the AS's own behalf.
+	ClientID string
 }
+
+// ErrRevokeNotOwner is returned by TokenRevoker.Revoke when the token
+// verifies but was issued to a client other than RevokeRequest.ClientID.
+// RevocationHandler answers it with 400 invalid_request, as Keycloak does.
+// A token that names no client can be revoked by any authenticated client.
+var ErrRevokeNotOwner = errors.New("token was not issued to the requesting client")
 
 // RevokeResponse — empty (success/failure via error). Wrapped per convention.
 type RevokeResponse struct{}

@@ -195,15 +195,15 @@ func TestRevocation_GarbageToken(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
-// TestRevocation_EmptyToken verifies that submitting an empty token
-// returns 200 OK.
+// TestRevocation_EmptyToken verifies that a request without a token is
+// refused: token is REQUIRED, and a missing parameter is invalid_request.
 //
 // See: https://www.rfc-editor.org/rfc/rfc7009#section-2.1
 func TestRevocation_EmptyToken(t *testing.T) {
 	revHandler, _, _ := setupRevocation(t)
 
 	rr := postRevoke(t, revHandler, "", "", "revoke-client", "revoke-client-secret")
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 // TestRevocation_NoAuth verifies that an unauthenticated request is rejected

@@ -161,7 +161,7 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.
 		AuthorizationDetails: old.AuthorizationDetails,
 		Confirmation:         old.Confirmation,
 		CreatedAt:            now,
-		ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
+		ExpiresAt:            old.ExpiresAt, // the family's, not extended
 		LastUsedAt:           now,
 		Revoked:              false,
 	}

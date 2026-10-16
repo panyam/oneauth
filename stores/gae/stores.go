@@ -945,7 +945,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			AuthorizationDetails: authzDetailsBytes,
 			ConfirmationJKT:      confirmationJKT(oldRT.Confirmation),
 			CreatedAt:            now,
-			ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
+			ExpiresAt:            oldRT.ExpiresAt, // the family's, not extended
 			LastUsedAt:           now,
 			Revoked:              false,
 		}
@@ -966,7 +966,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			AuthorizationDetails: oldRT.AuthorizationDetails,
 			Confirmation:         oldRT.Confirmation,
 			CreatedAt:            now,
-			ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
+			ExpiresAt:            oldRT.ExpiresAt, // the family's, not extended
 			LastUsedAt:           now,
 			Revoked:              false,
 		}

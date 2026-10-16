@@ -11,10 +11,11 @@ import (
 
 // tokenRevoker implements TokenRevoker using a blacklist (for access tokens)
 // and a RefreshTokenStore (for refresh tokens).
-// Depends only on Blacklist + RefreshTokenStore — no HTTP, no transport.
+// Depends only on Blacklist + RefreshTokenStore + Validator — no HTTP, no transport.
 type tokenRevoker struct {
 	blacklist    core.TokenBlacklist
 	refreshStore core.RefreshTokenStore
+	validator    TokenValidator
 	hooks        TokenHooks
 }
 
@@ -22,7 +23,13 @@ type tokenRevoker struct {
 type TokenRevokerConfig struct {
 	Blacklist    core.TokenBlacklist
 	RefreshStore core.RefreshTokenStore
-	Hooks        TokenHooks
+
+	// Validator verifies an access token before its jti is blacklisted,
+	// so a forged token naming someone else's jti can't revoke theirs.
+	// Without one, access tokens are never blacklisted.
+	Validator TokenValidator
+
+	Hooks TokenHooks
 }
 
 // NewTokenRevoker creates a TokenRevoker.
@@ -30,12 +37,17 @@ func NewTokenRevoker(cfg TokenRevokerConfig) TokenRevoker {
 	return &tokenRevoker{
 		blacklist:    cfg.Blacklist,
 		refreshStore: cfg.RefreshStore,
+		validator:    cfg.Validator,
 		hooks:        cfg.Hooks,
 	}
 }
 
-// Revoke invalidates a token. Tries refresh token first if no hint or
-// hint is "refresh_token", then tries access token blacklisting.
+// Revoke invalidates a token. It looks the token up as a refresh token
+// first and otherwise treats it as an access token, whatever the hint.
+//
+// A token that doesn't resolve, or doesn't verify, is not an error: RFC
+// 7009 §2.2 answers it like a success. A token issued to a client other
+// than req.ClientID returns ErrRevokeNotOwner and is left alone.
 //
 // When the token resolves to a refresh token we capture its (subject, family,
 // client_id) before the revoke completes and fire OnTokenRevoked so BCL
@@ -46,78 +58,75 @@ func (r *tokenRevoker) Revoke(ctx context.Context, req *RevokeRequest) (*RevokeR
 	if req == nil {
 		return nil, fmt.Errorf("RevokeRequest is required")
 	}
-	var sub, sid, clientID string
-	switch req.TokenTypeHint {
-	case "refresh_token":
-		sub, sid, clientID = r.revokeRefreshTokenInfo(ctx, req.Token)
-	case "access_token":
-		r.revokeAccessToken(req.Token)
-	default:
-		// No hint — try refresh first (cheaper lookup), then access
-		var found bool
-		sub, sid, clientID, found = r.revokeRefreshTokenInfoIfPresent(ctx, req.Token)
-		if !found {
-			r.revokeAccessToken(req.Token)
+	rt := r.lookupRefreshToken(ctx, req.Token)
+	// The hint only orders the search, and RFC 7009 §2.1 has the server
+	// try every type it supports; the refresh lookup is the cheap one.
+	if rt == nil {
+		if err := r.revokeAccessToken(ctx, req.Token, req.ClientID); err != nil {
+			return nil, err
+		}
+		r.hooks.fireOnRevoked(req.Token, req.TokenTypeHint)
+		return &RevokeResponse{}, nil
+	}
+	if rt != nil {
+		if !ownedBy(rt.ClientID, req.ClientID) {
+			return nil, ErrRevokeNotOwner
+		}
+		if !rt.Revoked {
+			r.refreshStore.RevokeRefreshToken(ctx, &core.RevokeRefreshTokenRequest{Token: req.Token})
 		}
 	}
 
 	r.hooks.fireOnRevoked(req.Token, req.TokenTypeHint)
-	if sub != "" {
-		r.hooks.fireOnTokenRevoked(sub, sid, clientID)
+	if rt != nil && rt.Subject != "" {
+		r.hooks.fireOnTokenRevoked(rt.Subject, rt.Family, rt.ClientID)
 	}
 	return &RevokeResponse{}, nil
 }
 
-// revokeRefreshTokenInfo revokes the refresh token and returns the
-// (subject, sid, client_id) captured before revocation. Empty strings when
-// the token doesn't resolve. Distinct from revokeRefreshTokenInfoIfPresent
-// only in the boolean signal — the typed-hint path doesn't need to know
-// whether to fall through to access-token revocation.
-func (r *tokenRevoker) revokeRefreshTokenInfo(ctx context.Context, token string) (sub, sid, clientID string) {
-	sub, sid, clientID, _ = r.revokeRefreshTokenInfoIfPresent(ctx, token)
-	return sub, sid, clientID
+// ownedBy reports whether a token issued to tokenClient may be revoked by
+// caller. An empty caller is the AS acting for itself; a token with no
+// client has nobody else to belong to.
+func ownedBy(tokenClient, caller string) bool {
+	return caller == "" || tokenClient == "" || tokenClient == caller
 }
 
-// revokeRefreshTokenInfoIfPresent attempts to revoke a refresh token. Returns
-// (subject, family-as-sid, client_id, found). The boolean lets the no-hint
-// caller decide whether to fall through to access-token blacklisting.
-func (r *tokenRevoker) revokeRefreshTokenInfoIfPresent(ctx context.Context, token string) (sub, sid, clientID string, found bool) {
+// lookupRefreshToken returns the stored refresh token, or nil when there is
+// no refresh store or the token isn't in it.
+func (r *tokenRevoker) lookupRefreshToken(ctx context.Context, token string) *core.RefreshToken {
 	if r.refreshStore == nil {
-		return "", "", "", false
+		return nil
 	}
 	getResp, err := r.refreshStore.GetRefreshToken(ctx, &core.GetRefreshTokenRequest{Token: token})
-	if err != nil || getResp == nil || getResp.Token == nil {
-		return "", "", "", false
+	if err != nil || getResp == nil {
+		return nil
 	}
-	sub = getResp.Token.Subject
-	sid = getResp.Token.Family
-	clientID = getResp.Token.ClientID
-	if !getResp.Token.Revoked {
-		r.refreshStore.RevokeRefreshToken(ctx, &core.RevokeRefreshTokenRequest{Token: token})
-	}
-	return sub, sid, clientID, true
+	return getResp.Token
 }
 
-// revokeAccessToken blacklists a JWT access token by its jti claim.
-func (r *tokenRevoker) revokeAccessToken(token string) {
-	if r.blacklist == nil {
-		return
+// revokeAccessToken blacklists a JWT access token by its jti claim, after
+// the validator has verified it. Tokens that don't verify (forged, expired,
+// already revoked) are left alone.
+func (r *tokenRevoker) revokeAccessToken(ctx context.Context, token, caller string) error {
+	if r.blacklist == nil || r.validator == nil {
+		return nil
+	}
+	if _, err := r.validator.ValidateToken(ctx, &ValidateTokenRequest{Token: token}); err != nil {
+		return nil
 	}
 
-	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
-	parsed, _, err := parser.ParseUnverified(token, jwt.MapClaims{})
-	if err != nil {
-		return
+	claims := jwt.MapClaims{}
+	if _, _, err := jwt.NewParser().ParseUnverified(token, claims); err != nil {
+		return nil
 	}
-
-	claims, ok := parsed.Claims.(jwt.MapClaims)
-	if !ok {
-		return
+	tokenClient, _ := claims["client_id"].(string)
+	if !ownedBy(tokenClient, caller) {
+		return ErrRevokeNotOwner
 	}
 
 	jti, ok := claims["jti"].(string)
 	if !ok || jti == "" {
-		return
+		return nil
 	}
 
 	expiry := time.Now().Add(core.TokenExpiryAccessToken)
@@ -126,4 +135,5 @@ func (r *tokenRevoker) revokeAccessToken(token string) {
 	}
 
 	r.blacklist.Revoke(jti, expiry)
+	return nil
 }

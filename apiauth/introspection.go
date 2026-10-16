@@ -101,7 +101,7 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Delegate to transport-independent introspector
-	introspectResp, err := h.Introspector.Introspect(r.Context(), &IntrospectRequest{Token: token})
+	introspectResp, err := h.Introspector.Introspect(r.Context(), &IntrospectRequest{Token: token, TokenTypeHint: r.FormValue("token_type_hint")})
 	if err != nil || introspectResp == nil || !introspectResp.Result.Active {
 		// RFC 7662: invalid tokens get {"active": false}, never an error
 		span.SetAttributes(attribute.Bool("oauth.token_active", false))
@@ -113,9 +113,11 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	// Build response from IntrospectionResult
 	resp := map[string]any{
-		"active":     true,
-		"sub":        result.Sub,
-		"token_type": result.TokenType,
+		"active": true,
+		"sub":    result.Sub,
+	}
+	if result.TokenType != "" {
+		resp["token_type"] = result.TokenType
 	}
 	if result.Scope != "" {
 		resp["scope"] = result.Scope

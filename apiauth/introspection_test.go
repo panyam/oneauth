@@ -109,7 +109,7 @@ func TestIntrospection_ActiveToken(t *testing.T) {
 	assert.Equal(t, true, resp["active"])
 	assert.Equal(t, "user-42", resp["sub"])
 	assert.Equal(t, "test-issuer", resp["iss"])
-	assert.Equal(t, "access_token", resp["token_type"])
+	assert.Equal(t, "Bearer", resp["token_type"], "RFC 7662 §2.2: the RFC 6749 §7.1 type")
 	assert.NotNil(t, resp["exp"])
 	assert.NotNil(t, resp["iat"])
 

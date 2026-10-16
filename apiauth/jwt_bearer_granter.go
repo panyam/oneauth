@@ -152,9 +152,20 @@ func (h *jwtBearerGranter) JwtBearerGrant(ctx context.Context, req *JwtBearerGra
 		}
 		// TODO(ext-auth#13): propagate an act/actor claim so the access
 		// token distinguishes the agent from the user it acts for.
-	} else if _, autherr := authenticateConfidentialClient(ctx, h.appStore, h.authenticator, req.ClientID, creds); autherr != nil {
+	} else {
 		// Plain jwt-bearer: authenticate a confidential requesting client.
-		return nil, autherr
+		if _, autherr := authenticateConfidentialClient(ctx, h.appStore, h.authenticator, req.ClientID, creds); autherr != nil {
+			return nil, autherr
+		}
+		// RFC 7523 §3 lets the AS refuse a replayed jti. An assertion that
+		// carries one is spent on first use; jti values are only unique per
+		// issuer, so the key includes iss.
+		if jti, _ := claims["jti"].(string); jti != "" {
+			iss, _ := claims["iss"].(string)
+			if h.replayStore.SeenWithin(iss+"\x00"+jti, idjagReplayTTL(claims)) {
+				return nil, invalidGrant("assertion replay detected: jti already used")
+			}
+		}
 	}
 
 	tok, err := h.issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{

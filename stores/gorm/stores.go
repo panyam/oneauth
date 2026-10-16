@@ -441,12 +441,18 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			return core.ErrTokenExpired
 		}
 
+		// Compare-and-set on revoked: a request that rotated the same token
+		// after our read leaves no row to update, whatever the isolation
+		// level, and its caller already holds the new token.
 		now := time.Now()
-		if err := tx.Model(&oldModel).Updates(map[string]any{
-			"revoked":    true,
-			"revoked_at": now,
-		}).Error; err != nil {
-			return err
+		res := tx.Model(&RefreshTokenModel{}).
+			Where("token_hash = ? AND revoked = ?", oldHash, false).
+			Updates(map[string]any{"revoked": true, "revoked_at": now})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return core.ErrTokenReused
 		}
 
 		newToken, err := core.GenerateSecureToken()
@@ -465,7 +471,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			Scopes:               oldModel.Scopes,
 			AuthorizationDetails: oldModel.AuthorizationDetails,
 			ConfirmationJKT:      oldModel.ConfirmationJKT,
-			ExpiresAt:            now.Add(core.TokenExpiryRefreshToken),
+			ExpiresAt:            oldModel.ExpiresAt, // the family's, not extended
 			LastUsedAt:           now,
 			Revoked:              false,
 		}

@@ -302,13 +302,16 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		TracerProvider: cfg.TracerProvider,
 	})
 
-	// Wire the introspector — needs only the validator
-	introspector := NewTokenIntrospector(validator)
+	// Wire the introspector — the validator, plus the refresh store so
+	// refresh tokens can be introspected too (RFC 7662 §2.1)
+	introspector := NewTokenIntrospectorWithRefreshStore(validator, cfg.RefreshStore)
 
-	// Wire the revoker — needs blacklist + refresh store
+	// Wire the revoker — the validator checks an access token before its
+	// jti is blacklisted
 	revoker := NewTokenRevoker(TokenRevokerConfig{
 		Blacklist:    cfg.Blacklist,
 		RefreshStore: cfg.RefreshStore,
+		Validator:    validator,
 		Hooks:        cfg.Hooks.Token,
 	})
 
