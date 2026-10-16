@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/panyam/oneauth/httpauth"
 	"github.com/panyam/oneauth/tracing"
 )
 
@@ -73,6 +74,7 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	// Parse form before extracting credentials — client_secret_post
 	// and private_key_jwt both live in the form body.
+	httpauth.CapRequestBody(w, r)
 	if err := r.ParseForm(); err != nil {
 		h.jsonResponse(w, http.StatusBadRequest, map[string]any{"error": "invalid_request"})
 		return

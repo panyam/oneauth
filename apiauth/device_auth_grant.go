@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // DeviceCodeGrantType is the OAuth grant type URI for the RFC 8628 device
@@ -100,6 +101,7 @@ func (h *DeviceAuthorizationHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		writeOAuthError(w, http.StatusMethodNotAllowed, "invalid_request", "method not allowed")
 		return
 	}
+	httpauth.CapRequestBody(w, r)
 	if err := r.ParseForm(); err != nil {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "invalid form body")
 		return

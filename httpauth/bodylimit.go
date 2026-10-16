@@ -56,3 +56,20 @@ func IsBodyTooLargeError(err error) bool {
 	// Fallback for reading errors
 	return err == io.ErrUnexpectedEOF
 }
+
+// MaxFormBodySize bounds the body of an auth endpoint: a token, revocation,
+// introspection, PAR or device request, or a login, signup or reset form.
+// Real ones are a few kilobytes; without a bound, Go reads up to 10 MB of
+// form and any amount of JSON (CWE-770).
+const MaxFormBodySize = 64 << 10
+
+// CapRequestBody limits r.Body to MaxFormBodySize, so ParseForm or a JSON
+// decode past it fails and the handler answers with its usual 400. Call it
+// before the first read. w may be nil (in a helper that only has the
+// request); with a writer, the server also closes the connection once the
+// limit is hit.
+func CapRequestBody(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil {
+		r.Body = http.MaxBytesReader(w, r.Body, MaxFormBodySize)
+	}
+}

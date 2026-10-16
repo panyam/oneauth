@@ -136,6 +136,7 @@ func (h *DeviceVerificationHandler) Submit(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Too many attempts. Wait a minute and try again.", http.StatusTooManyRequests)
 		return
 	}
+	httpauth.CapRequestBody(w, r)
 	if err := r.ParseForm(); err != nil {
 		h.renderForm(w, r, "", "Invalid form submission")
 		return
@@ -204,6 +205,7 @@ func (h *DeviceVerificationHandler) Consent(w http.ResponseWriter, r *http.Reque
 // Deny. Wrap with `httpauth.CSRFMiddleware.Protect` AND
 // `httpauth.Middleware.EnsureUser`; the handler trusts both have run.
 func (h *DeviceVerificationHandler) Decide(w http.ResponseWriter, r *http.Request) {
+	httpauth.CapRequestBody(w, r)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return

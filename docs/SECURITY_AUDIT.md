@@ -208,6 +208,24 @@ The fixes land across several PRs; the Status column says which rows are done.
 | Dashboard doesn't list every client to any user | Pass (was Fail) | the list is admin-API only |
 | Bulk eviction endpoint | Not applicable | no such endpoint exists |
 
+## Input validation
+
+Audited October 2026, against issue 88's "Input Validation" section and the RFC 6749 §5.2 error
+rows. This section covers the token endpoint and request bodies; `/authorize`, DCR, PAR and
+metadata follow in the next PR.
+
+| Requirement | Ref | Status | Notes |
+|---|---|---|---|
+| A client gets only its registered scope | RFC 6749 §3.3, RFC 7591 §2 | Pass (was Fail) | `client_credentials` and the password grant refuse a scope outside the registration with 400 `invalid_scope`, and grant the registered scope when none is asked for. A registration without `scope` places no limit. `token_input_hardening_test.go`\* |
+| A client uses only its registered RAR types | RFC 9396 §5 | Pass (was Fail) | `authorization_details_types` checked on the same grants; 400 `invalid_authorization_details` |
+| A registration lookup failure fails closed | — | Pass | a store error is `server_error`, not "no registration", so an outage can't lift a client's limits |
+| `client_credentials` tokens name their client | RFC 9068 §2.2 | Pass (was Fail) | `client_id` claim, which revocation ownership and the tenant check read |
+| `invalid_grant` is 400 | RFC 6749 §5.2 | Pass (was Fail) | the password grant answered a wrong password with 401; Keycloak answers 400 too |
+| Malformed `authorization_details` is the client's error | RFC 9396 §5 | Pass (was Fail) | the password grant turned it into a 500 |
+| `invalid_client` 401 carries `WWW-Authenticate` | RFC 6749 §5.2 | Pass (was Fail) | `Basic realm="token"` |
+| Server errors say nothing internal | CWE-209 | Pass (was Fail) | the token endpoint logs a `server_error`'s detail and sends "internal server error"; store errors (hosts, users) used to reach the client |
+| Request bodies are bounded | CWE-770 | Pass (was Fail) | 64 KiB on the token endpoint (413) and, via `httpauth.CapRequestBody`, on introspection, revocation, PAR, device authorization and verification, `/authorize` POST, sessions, API keys, and the login, signup, forgot / reset password and link-credentials forms. Go read up to 10 MB of form, any amount of JSON, and spooled multipart to disk. `body_limit_test.go`\* |
+
 ## Tokens and keys
 
 Audited October 2026, against issue 88's "Token Security" and "Key Management" sections, RFC

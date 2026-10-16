@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // SessionsHandler serves the per-user session-management endpoints:
@@ -49,6 +50,7 @@ func (h *SessionsHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
 	}
+	httpauth.CapRequestBody(w, r)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
 		writeAPIErrorJSON(w, "invalid_request", "refresh_token required", http.StatusBadRequest)
 		return

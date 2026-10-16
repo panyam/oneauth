@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // DefaultPushedRequestExpiry is how long a request_uri stays usable.
@@ -88,6 +89,7 @@ func (h *PARHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, serverError("PAR endpoint is not configured"))
 		return
 	}
+	httpauth.CapRequestBody(w, r)
 	if err := r.ParseForm(); err != nil {
 		h.writeError(w, invalidRequest("could not parse form body"))
 		return

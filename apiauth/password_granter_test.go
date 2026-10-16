@@ -147,8 +147,8 @@ func TestPasswordGrant_WiredInvalidCredentialsRejects(t *testing.T) {
 	rr := httptest.NewRecorder()
 	endpoint.ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusUnauthorized, rr.Code,
-		"wrong credentials with granter wired MUST return 401, got %d: %s", rr.Code, rr.Body.String())
+	require.Equal(t, http.StatusBadRequest, rr.Code,
+		"wrong credentials with granter wired MUST return 400 invalid_grant (RFC 6749 §5.2), got %d: %s", rr.Code, rr.Body.String())
 	var resp map[string]string
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.Equal(t, "invalid_grant", resp["error"])
