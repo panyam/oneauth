@@ -319,20 +319,20 @@ spec-level optionality and the deployed-reality mandate don&rsquo;t align.</p>
 <tr>
 <td>JWS Compact Serialization (§3.1)</td>
 <td><strong>Implemented</strong> (via <code>github.com/golang-jwt/jwt/v5</code>)</td>
-<td><code>apiauth/token_validator.go</code> (<code>jwtIssuer.CreateAccessToken</code> at line 382), <code>apiauth/asymmetric_jwt_test.go</code></td>
+<td><code>apiauth/token_validator.go</code> (<code>jwtIssuer.CreateAccessToken</code>), <code>apiauth/asymmetric_jwt_test.go</code></td>
 <td>Standard library form; the only OAuth-relevant serialization</td>
 </tr>
 <tr>
 <td><code>alg</code> header parameter</td>
 <td><strong>Implemented</strong></td>
-<td>Library handles; OneAuth verifies algs allow-listed</td>
-<td>HS256 (symmetric), RS256 + ES256 (asymmetric)</td>
+<td>Library handles; OneAuth verifies algs allow-listed (<code>utils.SigningMethodForAlg</code>, <code>DPoPConfig.AllowedAlgs</code>, <code>AuthenticateClientRequest.AllowedAssertionAlgs</code>)</td>
+<td>Access tokens sign with HS256, RS256 or ES256. DPoP proofs accept ES256, EdDSA (Ed25519, since 0.1.43), RS256 and PS256 (since 0.1.41). Under <code>OneAuthConfig.FAPI2</code> client assertions must be PS256, ES256 or EdDSA (0.1.54). An empty HMAC key never signs or verifies (0.1.45), and RSA keys under 2048 bits are refused at load (<code>utils.CheckRSAKeySize</code>, 0.1.47)</td>
 </tr>
 <tr>
 <td><code>kid</code> header for key rotation</td>
 <td><strong>Implemented</strong></td>
 <td><code>keys/kid.go</code>, <code>keys/jwks_handler.go</code></td>
-<td>Grace-period multi-key serving via <code>KidStore</code></td>
+<td>Since 0.1.47 the validator finds a rotated key through <code>OneAuthConfig.KidStore</code> until its grace period ends. <code>JWKSHandler</code> publishes retired keys only from an in-memory <code>*keys.KidStore</code>, and the reference server passes none, so a remote verifier loses the old key at rotation (#421)</td>
 </tr>
 <tr>
 <td><code>alg=none</code> rejection</td>

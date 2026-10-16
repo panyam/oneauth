@@ -333,7 +333,7 @@ profiles. FAPI 2.0 (L8) does restrict allowed algs.</p>
 <td><code>HS256</code></td>
 <td><strong>Implemented</strong></td>
 <td>golang-jwt; used for some symmetric-key flows</td>
-<td>Never published to JWKS (<code>keys/jwks_handler.go:21–22</code>)</td>
+<td>Never published to JWKS (<code>keys.JWKSHandler</code>). Since 0.1.45 an empty HMAC key never signs or verifies, and the reference server refuses a <code>jwt.secret_key</code> under 32 bytes</td>
 </tr>
 <tr>
 <td><code>RS256</code></td>
@@ -349,15 +349,15 @@ profiles. FAPI 2.0 (L8) does restrict allowed algs.</p>
 </tr>
 <tr>
 <td><code>PS256</code></td>
-<td><strong>Not implemented</strong></td>
-<td>—</td>
-<td>Needed for FAPI 1.0 Advanced; tracked under future FAPI work</td>
+<td><strong>Partial</strong></td>
+<td><code>apiauth/dpop.go</code> (<code>defaultDPoPAlgs</code>, <code>FAPIDPoPAlgs</code>); <code>apiauth/fapi2.go</code> (<code>fapi2AssertionAlgs</code>)</td>
+<td>Accepted on DPoP proofs since 0.1.41, and allowed for client assertions under <code>OneAuthConfig.FAPI2</code> since 0.1.54. oneauth can&rsquo;t sign tokens with PS256 or register a PS256 client key (#330)</td>
 </tr>
 <tr>
 <td><code>EdDSA</code> (Ed25519)</td>
-<td><strong>Not implemented</strong></td>
-<td>—</td>
-<td>Modern recommendation; partial coverage via <code>sshkeys/</code> for SSH-only contexts; not wired into apiauth signing</td>
+<td><strong>Partial</strong></td>
+<td><code>apiauth/dpop.go</code> (<code>defaultDPoPAlgs</code>); <code>utils/jwk.go</code> (<code>okpJWKToPublicKey</code>); <code>apiauth/fapi2.go</code> (<code>fapi2AssertionAlgs</code>)</td>
+<td>Ed25519 DPoP proofs are accepted by default since 0.1.43, and EdDSA client assertions are allowed under <code>FAPI2</code> since 0.1.54. oneauth can&rsquo;t sign tokens with EdDSA or register an Ed25519 client key (#331). <code>sshkeys/</code> uses Ed25519 for SSH only</td>
 </tr>
 <tr>
 <td><code>none</code> rejection</td>
@@ -371,9 +371,15 @@ profiles. FAPI 2.0 (L8) does restrict allowed algs.</p>
 <td>Library enforces; OneAuth never passes a public key as a symmetric secret</td>
 <td>The classic attack is blocked by library design</td>
 </tr>
+<tr>
+<td>RSA key size (§3.3, 2048-bit minimum)</td>
+<td><strong>Implemented</strong></td>
+<td><code>utils.CheckRSAKeySize</code> in the PEM and JWK parsers</td>
+<td>Since 0.1.47 an RSA key under 2048 bits fails at load, including one a remote JWKS publishes</td>
+</tr>
 </tbody>
 </table>
-<p>The two gaps (PS256, EdDSA) are FAPI-track items, not L0 spine concerns.</p>
+<p>PS256 and EdDSA are accepted on DPoP proofs and FAPI 2.0 client assertions. Signing tokens with them, and registering client keys of those types, are still open (#330, #331). Under <code>FAPI2</code> ES256 is the one assertion algorithm a client can use today.</p>
 <h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
 <p>JWA itself is just a registry — you don&rsquo;t choose to use it or not. The<br />
 <em>algorithm choice</em> is what matters:</p>

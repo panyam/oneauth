@@ -343,7 +343,7 @@ changes to Discovery.</p>
 <tr>
 <td><code>/.well-known/openid-configuration</code> endpoint</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/as_metadata.go:153</code> <code>MountASMetadata</code> registers it</td>
+<td><code>apiauth/as_metadata.go</code> <code>MountASMetadata</code> registers it</td>
 <td>Same handler serves both paths</td>
 </tr>
 <tr>
@@ -355,49 +355,49 @@ changes to Discovery.</p>
 <tr>
 <td><code>issuer</code> field</td>
 <td><strong>Implemented</strong></td>
-<td><code>ASServerMetadata.Issuer</code> (<code>apiauth/as_metadata.go:22</code>)</td>
+<td><code>ASServerMetadata.Issuer</code> (<code>apiauth/as_metadata.go</code>)</td>
 <td>—</td>
 </tr>
 <tr>
 <td><code>authorization_endpoint</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>as_metadata.go:29</code></td>
+<td><code>ASServerMetadata.AuthorizationEndpoint</code></td>
 <td>—</td>
 </tr>
 <tr>
 <td><code>userinfo_endpoint</code></td>
 <td><strong>Implemented (advertised)</strong></td>
-<td><code>as_metadata.go:33</code></td>
+<td><code>ASServerMetadata.UserinfoEndpoint</code></td>
 <td>Field present; underlying handler is a gap (see <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a>)</td>
 </tr>
 <tr>
 <td><code>id_token_signing_alg_values_supported</code></td>
-<td><strong>Field present</strong>, partial wiring</td>
-<td><code>as_metadata.go</code> carries the field</td>
+<td><strong>Gap</strong></td>
 <td>—</td>
+<td><code>ASServerMetadata</code> has no such field, and OneAuth issues no ID tokens. Tracked in <a href="https://github.com/panyam/oneauth/issues/339">#339</a></td>
 </tr>
 <tr>
 <td><code>subject_types_supported</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>as_metadata.go:64</code></td>
+<td><code>ASServerMetadata.SubjectTypesSupported</code></td>
 <td>Typically <code>[&quot;public&quot;]</code></td>
 </tr>
 <tr>
 <td><code>claims_supported</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>as_metadata.go:48</code></td>
+<td><code>ASServerMetadata.ClaimsSupported</code></td>
 <td>Per-deployment config</td>
 </tr>
 <tr>
 <td><code>authorization_response_iss_parameter_supported</code> (RFC 9207)</td>
 <td><strong>Implemented</strong></td>
-<td><code>as_metadata.go:78</code></td>
+<td><code>ASServerMetadata.AuthorizationResponseIssParameterSupported</code></td>
 <td>—</td>
 </tr>
 <tr>
 <td><code>backchannel_logout_supported</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>as_metadata.go:86</code></td>
+<td><code>ASServerMetadata.BackchannelLogoutSupported</code></td>
 <td>—</td>
 </tr>
 <tr>
@@ -408,15 +408,15 @@ changes to Discovery.</p>
 </tr>
 <tr>
 <td><code>pushed_authorization_request_endpoint</code></td>
-<td><strong>Gap</strong></td>
-<td>—</td>
-<td>Tracked under <a href="RFC_9126.md"><code>RFC_9126.md</code></a> PAR</td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.PushedAuthorizationRequestEndpoint</code>, with <code>RequirePushedAuthorizationRequests</code></td>
+<td>Since 0.1.38; the reference server advertises both with <code>code_flow.par.enabled</code> (0.1.54). See <a href="RFC_9126.md"><code>RFC_9126.md</code></a></td>
 </tr>
 <tr>
 <td><code>dpop_signing_alg_values_supported</code></td>
-<td><strong>Gap</strong></td>
-<td>—</td>
-<td>Tracked under <a href="RFC_9449.md"><code>RFC_9449.md</code></a> DPoP</td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.DPoPSigningAlgValuesSupported</code></td>
+<td>Since 0.1.37. See <a href="RFC_9449.md"><code>RFC_9449.md</code></a></td>
 </tr>
 </tbody>
 </table>

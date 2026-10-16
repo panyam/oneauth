@@ -335,44 +335,50 @@ mix-up attack family doesn&rsquo;t apply where there&rsquo;s no redirect.</li>
 <tr>
 <td><code>iss</code> parameter on success redirect</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/authorize.go:235</code> emits when <code>EmitIssParameter &amp;&amp; IssuerURL != &quot;&quot;</code></td>
+<td><code>apiauth/authorize.go</code> <code>AuthorizationHandler.SuccessRedirect</code> emits when <code>EmitIssParameter &amp;&amp; IssuerURL != &quot;&quot;</code></td>
 <td>Opt-in per deployment</td>
 </tr>
 <tr>
 <td><code>iss</code> parameter on error redirect</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/authorize.go:259</code> same toggle</td>
+<td><code>apiauth/authorize.go</code> <code>AuthorizationHandler.ErrorRedirect</code>, same toggle</td>
 <td>Per RFC 9207 §3</td>
 </tr>
 <tr>
-<td><code>EmitIssParameter</code> toggle on <code>AuthorizationHandlerConfig</code></td>
+<td><code>EmitIssParameter</code> toggle on <code>AuthorizationHandler</code> and <code>AuthorizeMountConfig</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/authorize.go:89–92</code> field definition</td>
+<td><code>apiauth/authorize.go</code> <code>AuthorizationHandler.EmitIssParameter</code>; <code>apiauth/authorize_mount.go</code> <code>AuthorizeMountConfig.EmitIssParameter</code></td>
 <td>Default off; enable per deployment</td>
 </tr>
 <tr>
 <td><code>MountAuthorize</code> passes through</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/authorize_mount.go:36,128</code></td>
+<td><code>apiauth/authorize_mount.go</code> <code>MountAuthorize</code> copies <code>IssuerURL</code> and <code>EmitIssParameter</code> onto the <code>AuthorizationHandler</code> it builds</td>
 <td>Wired in the convenience mount helper</td>
 </tr>
 <tr>
-<td><code>IssuerURL</code> required when <code>EmitIssParameter</code> true</td>
+<td><code>IssuerURL</code> required by <code>MountAuthorize</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/authorize_mount.go:114</code> panics on misconfig</td>
+<td><code>apiauth/authorize_mount.go</code> <code>MountAuthorize</code> panics when <code>IssuerURL</code> is empty, whether or not <code>EmitIssParameter</code> is set</td>
 <td>Hard fail at boot, not at request time</td>
 </tr>
 <tr>
 <td>AS metadata advertisement (<code>authorization_response_iss_parameter_supported</code>)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/as_metadata.go:78</code> field</td>
+<td><code>apiauth/as_metadata.go</code> <code>ASServerMetadata.AuthorizationResponseIssParameterSupported</code></td>
 <td>Optional; pair with <code>EmitIssParameter</code> on the same deployment</td>
+</tr>
+<tr>
+<td>Reference server</td>
+<td><strong>Implemented</strong></td>
+<td><code>cmd/oneauth-server/main.go</code> mounts <code>/authorize</code> with <code>EmitIssParameter: true</code>; <code>cmd/oneauth-server/metadata.go</code> <code>serverASMetadata</code> advertises <code>authorization_response_iss_parameter_supported</code></td>
+<td>Both only with <code>code_flow</code> enabled. Before 0.1.51 the server never emitted <code>iss</code></td>
 </tr>
 <tr>
 <td>Test coverage</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/authorize_test.go:214–250</code> exercises both opt-in and opt-out</td>
-<td>—</td>
+<td><code>apiauth/authorize_test.go</code> <code>TestSuccessRedirect_EmitsIssWhenConfigured</code>, <code>TestSuccessRedirect_OmitsIssWhenNotConfigured</code>, <code>TestRedirectOverride_CanStripIss</code>; <code>cmd/oneauth-server/metadata_test.go</code></td>
+<td>Covers opt-in, opt-out and the server&rsquo;s metadata</td>
 </tr>
 </tbody>
 </table>

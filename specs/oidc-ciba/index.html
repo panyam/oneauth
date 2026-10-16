@@ -189,7 +189,7 @@
 <p><strong>Status:</strong> OpenID Foundation Specification<br />
 <strong>Published:</strong> 2021 (final)<br />
 <strong>L-tier / T-tier:</strong> L4 (grant) + L7 (identity) · T5<br />
-<strong>OneAuth coverage:</strong> Gap<br />
+<strong>OneAuth coverage:</strong> Gap (#341)<br />
 <strong>See also:</strong> <a href="RFC_8628.md"><code>RFC_8628.md</code></a> · <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
@@ -381,7 +381,7 @@ the user&rsquo;s device via push. Without that, you can&rsquo;t ship it.</li>
 <tr>
 <td><code>urn:openid:params:grant-type:ciba</code> grant dispatch</td>
 <td><strong>Gap</strong></td>
-<td>Would slot alongside other grant types in the <code>apiauth/token_endpoint.go:69</code> switch</td>
+<td>Would slot alongside other grant types in the <code>grant_type</code> switch in <code>TokenEndpointHandler.ServeHTTP</code> (<code>apiauth/token_endpoint.go</code>)</td>
 </tr>
 <tr>
 <td>Poll / ping / push notification mode handling</td>
@@ -416,7 +416,7 @@ the user&rsquo;s device via push. Without that, you can&rsquo;t ship it.</li>
 <tr>
 <td><code>id_token</code> issuance</td>
 <td><strong>Gap</strong></td>
-<td>Foundational — see <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a></td>
+<td>Foundational; see <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a> (#339)</td>
 </tr>
 </tbody>
 </table>

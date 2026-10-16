@@ -224,9 +224,9 @@ mechanism.</p>
 </tbody>
 </table>
 <p>7009 is the simplest L2 RFC. Two pages of normative text. The endpoint<br />
-returns 200 OK in all cases (per §2.2) — clients don&rsquo;t get error feedback<br />
-about <em>why</em> a revocation may have failed, by design (don&rsquo;t leak token<br />
-existence).</p>
+returns 200 OK whether or not the token was found (per §2.2). Clients<br />
+don&rsquo;t get error feedback about <em>why</em> a revocation may have failed, by<br />
+design (don&rsquo;t leak token existence).</p>
 <h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
 <p>You&rsquo;re using a third-party calendar integration on your phone. You uninstall<br />
 the app. The app&rsquo;s last lifecycle hook fires, and the app calls:</p>
@@ -247,17 +247,26 @@ under the hood.</p>
 <li><strong>Two parameters: <code>token</code> and <code>token_type_hint</code>.</strong> The hint is<br />
 <code>access_token</code> or <code>refresh_token</code>; AS uses it for lookup ordering but<br />
 doesn&rsquo;t require accuracy. AS searches its token store and revokes<br />
-whichever it finds.</li>
+whichever it finds. OneAuth checks the refresh store first and then<br />
+tries the token as an access token, whatever the hint says.</li>
 <li><strong><code>200 OK</code> is the only success response.</strong> Per §2.2, ASes MUST return<br />
 200 OK regardless of whether the token was found, already revoked,<br />
-or never existed. This is a deliberate information-leak defense.</li>
+or never existed. This is a deliberate information-leak defense.<br />
+§2.1 also has the AS check that the token was issued to the calling<br />
+client. OneAuth answers 400 <code>invalid_request</code> for a token issued to<br />
+another client (<code>ErrRevokeNotOwner</code>), as Keycloak does, and 400 for a<br />
+request with no <code>token</code> (0.1.45).</li>
 <li><strong>Caller authentication required.</strong> Same as introspection — only<br />
 authorized parties (clients revoking their own tokens, or admin<br />
 tooling) should be able to revoke.</li>
 <li><strong>Revoking a refresh token revokes the family.</strong> Per RFC 9700 §4.14,<br />
 revoking a refresh token also revokes the descendant access tokens —<br />
-this is what &ldquo;log out everywhere&rdquo; relies on. OneAuth&rsquo;s implementation<br />
-does this via <code>RevokeTokenFamily</code>.</li>
+this is what &ldquo;log out everywhere&rdquo; relies on. OneAuth&rsquo;s revocation<br />
+endpoint marks the presented refresh token revoked and leaves access<br />
+tokens already minted from it to expire. Rotation has already spent the<br />
+older tokens in the family, so the chain ends there. If the revoked<br />
+token is presented again, the refresh grant treats it as reuse and<br />
+revokes the whole family with <code>RevokeTokenFamily</code>.</li>
 <li><strong>Idempotent.</strong> Revoke twice == revoke once. Safe to retry.</li>
 </ol>
 <h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
@@ -270,7 +279,9 @@ does this via <code>RevokeTokenFamily</code>.</li>
 </span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
 </span></span></code></pre><p>Empty body. That&rsquo;s the entire happy path. Errors (failed caller<br />
 authentication) get JSON error responses per §2.2.1 — but the <em>token not<br />
-found / already revoked / wrong type</em> cases all return success.</p>
+found / already revoked / wrong type</em> cases all return success.<br />
+In OneAuth a missing <code>token</code> and a token issued to another client are also<br />
+errors, each a 400 <code>invalid_request</code>.</p>
 <h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
 <ul>
 <li><strong>L2 lifecycle.</strong> Revocation is the <em>write</em> side; introspection is the<br />
@@ -304,32 +315,50 @@ path uses revocation internally via the family-revoke action.</p>
 <tr>
 <td><code>POST /oauth/revoke</code> endpoint</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/revocation.go:19</code> <code>RevocationHandler</code></td>
-<td>RFC 7009 §2 compliant</td>
+<td><code>apiauth/revocation.go</code> <code>RevocationHandler.ServeHTTP</code>, built by <code>OneAuth.RevocationHTTPHandler</code></td>
+<td>RFC 7009 §2 compliant. The reference server mounts it at the advertised <code>/oauth/revoke</code> since 0.1.51</td>
 </tr>
 <tr>
 <td><code>token</code> + <code>token_type_hint</code> parsing</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/revocation.go:97–102</code></td>
-<td>Hint is honored as a lookup ordering hint, not a strict filter</td>
+<td><code>RevocationHandler.ServeHTTP</code></td>
+<td>A missing <code>token</code> is 400 <code>invalid_request</code> (0.1.45). Every token type is searched whatever the hint: <code>tokenRevoker.Revoke</code> (<code>apiauth/token_revoker.go</code>) checks the refresh store, then the access token (0.1.45)</td>
 </tr>
 <tr>
-<td><code>200 OK</code> for all non-error cases</td>
+<td><code>200 OK</code> for not-found, invalid and already-revoked tokens</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/revocation.go:107</code> &ldquo;RFC 7009 §2.2: always 200 OK&rdquo; comment</td>
+<td><code>RevocationHandler.okResponse</code></td>
 <td>Doesn&rsquo;t leak token existence</td>
+</tr>
+<tr>
+<td>Caller may revoke only its own tokens (§2.1)</td>
+<td><strong>Implemented</strong></td>
+<td><code>tokenRevoker.Revoke</code> returns <code>ErrRevokeNotOwner</code> (<code>apiauth/interfaces.go</code>)</td>
+<td>400 <code>invalid_request</code>, matching Keycloak (0.1.45). <code>TestKeycloakCompare_Revocation</code> in <code>tests/keycloak/revocation_interop_test.go</code> pins the cross-client and missing-token answers against Keycloak (0.1.54)</td>
+</tr>
+<tr>
+<td>Access tokens verified before blacklisting</td>
+<td><strong>Implemented</strong></td>
+<td><code>tokenRevoker.revokeAccessToken</code> runs <code>TokenRevokerConfig.Validator</code> before blacklisting the <code>jti</code></td>
+<td>A forged token naming another token&rsquo;s <code>jti</code> revokes nothing. Without a validator or blacklist, access tokens are not blacklisted (0.1.45)</td>
 </tr>
 <tr>
 <td>Caller authentication via HTTP Basic</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/revocation.go:82,91</code> rejects unauthenticated; <code>WWW-Authenticate: Basic realm=&quot;revocation&quot;</code></td>
+<td><code>RevocationHandler.ServeHTTP</code> rejects unauthenticated callers with 401 <code>invalid_client</code>; <code>WWW-Authenticate: Basic realm=&quot;revocation&quot;</code></td>
 <td>—</td>
 </tr>
 <tr>
-<td>Family revoke on refresh-token revocation</td>
+<td>Refresh-token revocation</td>
 <td><strong>Implemented</strong></td>
-<td>Transport-independent <code>Revoker.Revoke</code> interface; concrete implementations cascade via <code>RevokeTokenFamily</code></td>
-<td>Tied to refresh rotation per RFC 9700 §4.14</td>
+<td><code>tokenRevoker.Revoke</code> calls <code>RefreshTokenStore.RevokeRefreshToken</code> on the presented token</td>
+<td>Revokes that token, not its family. Presenting it again trips reuse detection, which calls <code>RevokeTokenFamily</code> (RFC 9700 §4.14)</td>
+</tr>
+<tr>
+<td>Reused authorization codes</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize_granter.go</code> <code>authorizationCodeGranter.refuseReuse</code></td>
+<td>A second redemption blacklists the code&rsquo;s access token (with <code>OneAuthConfig.Blacklist</code>) and revokes its refresh family (0.1.57, issue 429)</td>
 </tr>
 <tr>
 <td>Idempotency</td>

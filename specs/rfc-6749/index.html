@@ -401,22 +401,40 @@ the finished car.</p>
 <td>Landed in PR 297; closes long-standing gap</td>
 </tr>
 <tr>
+<td>Redirect URI check at <code>/authorize</code> (§3.1.2)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize.go</code> <code>validateRedirectURI</code>, <code>RedirectURIMatches</code></td>
+<td>Exact match against the registered URIs. Since 0.1.38 (issue 389) an <code>http</code> loopback redirect (127.0.0.1, [::1], localhost) ignores the port, as RFC 8252 §7.3 requires; scheme, host, path and query still match exactly. Since 0.1.49 a handler with neither an <code>AppStore</code> nor a <code>RedirectURIValidator</code> refuses every request unless <code>AllowAnyRedirectURI</code> is set (on <code>AuthorizationHandler</code> or <code>AuthorizeMountConfig</code>)</td>
+</tr>
+<tr>
 <td><code>/token</code> endpoint (§3.2)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go:69</code> <code>switch req.GrantType</code> (in <code>TokenEndpointHandler.ServeHTTP</code>, <code>:50</code>)</td>
+<td><code>apiauth/token_endpoint.go</code> <code>TokenEndpointHandler.ServeHTTP</code> (its <code>switch req.GrantType</code>)</td>
 <td>Dispatches to per-grant handler</td>
 </tr>
 <tr>
 <td><code>authorization_code</code> grant (§4.1)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/authorize_granter.go</code> (dispatched at <code>token_endpoint.go:69</code>; <code>AuthorizationCodeGrantType</code> const in <code>authorize.go:35</code>)</td>
-<td>PKCE verified at exchange (<code>authorize_granter.go:100</code>); exact <code>redirect_uri</code> match at <code>authorize_granter.go:97</code></td>
+<td><code>apiauth/authorize_granter.go</code> <code>AuthorizationCodeGrant</code> (dispatched by <code>TokenEndpointHandler.dispatchAuthorizationCode</code>; <code>AuthorizationCodeGrantType</code> const in <code>apiauth/authorize.go</code>)</td>
+<td>PKCE verified at exchange (<code>core.VerifyPKCE</code>); exact <code>redirect_uri</code> match against the code&rsquo;s record, both in <code>AuthorizationCodeGrant</code></td>
+</tr>
+<tr>
+<td>Single-use authorization codes (§4.1.2, §10.5)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize_granter.go</code> <code>AuthorizationCodeGrant</code>, <code>refuseReuse</code>; <code>core.AuthorizationCodeStore</code> <code>ConsumeAuthorizationCode</code> / <code>RecordAuthorizationCodeTokens</code></td>
+<td>Since 0.1.57 (issue 429) a redeemed code is marked used, not deleted, and kept until its access token expires. Presenting it again blacklists that token&rsquo;s <code>jti</code> (only with <code>OneAuthConfig.Blacklist</code> set) and revokes the refresh family. A reuse racing the first redemption makes the first one refuse its tokens too. Custom stores need both methods, atomic per record</td>
+</tr>
+<tr>
+<td>Registered scope (§3.3)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/client_policy.go</code> <code>grantScopes</code>, called from <code>handleClientCredentials</code>, <code>handlePassword</code> and <code>AuthorizationHandler.ValidateValues</code></td>
+<td>With an <code>AppStore</code>, a scope outside <code>AppRegistration.Scope</code> is 400 <code>invalid_scope</code> on <code>client_credentials</code> and the password grant (0.1.48), and <code>invalid_scope</code> on the <code>/authorize</code> error redirect (0.1.49). Asking for no scope grants the registered one. A registration with no scope places no limit</td>
 </tr>
 <tr>
 <td><code>client_credentials</code> grant (§4.4)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go:248</code> (<code>handleClientCredentials</code>; <code>extractClientCredentials</code> in <code>apiauth/client_credentials.go:32</code>)</td>
-<td>—</td>
+<td><code>apiauth/token_endpoint.go</code> <code>handleClientCredentials</code>; <code>extractClientCredentials</code> in <code>apiauth/client_credentials.go</code></td>
+<td>Tokens carry <code>client_id</code> (0.1.48)</td>
 </tr>
 <tr>
 <td><code>refresh_token</code> grant (§6)</td>
@@ -427,8 +445,8 @@ the finished car.</p>
 <tr>
 <td><code>password</code> / ROPC grant (§4.3)</td>
 <td><strong>Implemented (and slated for removal)</strong></td>
-<td><code>apiauth/token_endpoint.go:139</code> <code>handlePassword</code> (dispatched at <code>:69</code>)</td>
-<td>OAuth 2.1 §7.6 removes ROPC; tracked under issue 294</td>
+<td><code>apiauth/token_endpoint.go</code> <code>handlePassword</code></td>
+<td>Off unless <code>OneAuthConfig.PasswordGranter</code> is set, and always off under <code>OneAuthConfig.FAPI2</code> (0.1.52). <code>TokenEndpointHandler.Lockout</code> locks a username after repeated failures (0.1.44). OAuth 2.1 §7.6 removes ROPC; tracked under issue 294</td>
 </tr>
 <tr>
 <td><code>implicit</code> grant (§4.2)</td>
@@ -439,19 +457,19 @@ the finished car.</p>
 <tr>
 <td>Error response shape (§5.2)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go</code> <code>writeError</code> (<code>:426</code>) + <code>GrantError</code> (<code>apiauth/grant_errors.go:20</code>) used across all grant handlers</td>
-<td>Returns <code>{error, error_description}</code> per §5.2</td>
+<td><code>apiauth/token_endpoint.go</code> <code>TokenEndpointHandler.writeError</code> + <code>GrantError</code> (<code>apiauth/grant_errors.go</code>) used across all grant handlers</td>
+<td>Returns <code>{error, error_description}</code> per §5.2. Wrong credentials on the password grant are 400 <code>invalid_grant</code>, and a refused refresh token is 400 <code>invalid_grant</code> (0.1.42), not 401. An <code>invalid_client</code> 401 carries <code>WWW-Authenticate: Basic</code>. A <code>server_error</code> logs its detail and sends &ldquo;internal server error&rdquo;. Malformed <code>authorization_details</code> on the password grant is 400, not 500, and a body over 64 KiB is 413 (0.1.48)</td>
 </tr>
 <tr>
 <td>Extension grants (§4.5)</td>
 <td><strong>Implemented</strong></td>
-<td><code>JwtBearerGrantType</code>, <code>TokenExchangeGrantType</code>, <code>DeviceCodeGrantType</code> all dispatched at <code>token_endpoint.go:69</code></td>
+<td><code>JwtBearerGrantType</code>, <code>TokenExchangeGrantType</code>, <code>DeviceCodeGrantType</code> all dispatched in <code>TokenEndpointHandler.ServeHTTP</code></td>
 <td>Plugs in RFCs 7523, 8693, 8628</td>
 </tr>
 <tr>
 <td><code>state</code> parameter for CSRF (§10.12)</td>
 <td><strong>Client-side enforced</strong></td>
-<td><code>client/browser_login.go</code> adds + verifies; server stores via <code>AuthorizationStore</code></td>
+<td><code>client/browser_login.go</code> <code>LoginWithBrowser</code> generates and checks it; the AS echoes it in <code>AuthorizationHandler.SuccessRedirect</code> / <code>ErrorRedirect</code></td>
 <td>—</td>
 </tr>
 </tbody>

@@ -329,7 +329,7 @@ fine for tests, not production). The BCP describes <em>what</em> must happen, no
 <li><strong>Sender constraint (DPoP / mTLS) is &ldquo;SHOULD&rdquo; in 9700, not MUST.</strong> For<br />
 internal service-to-service traffic on a controlled network you may<br />
 reasonably skip it. FAPI 2.0 (L8) promotes it to MUST.</li>
-<li><strong>Some §4 items only apply to specific deployment shapes</strong> (e.g., §4.16 on<br />
+<li><strong>Some §4 items only apply to specific deployment shapes</strong> (e.g., §4.12 on<br />
 307 redirects matters only if you reverse-proxy <code>/token</code>). Read for what<br />
 your topology actually does.</li>
 </ul>
@@ -351,38 +351,44 @@ verdict; the table below summarises against the BCP defenses themselves.</p>
 <tr>
 <td>PKCE for all auth-code flows (§2.1.1)</td>
 <td><strong>Compliant</strong></td>
-<td><code>apiauth/authorize.go:192</code> requires <code>code_challenge</code>; <code>apiauth/authorize_granter.go:100</code> verifies at token endpoint</td>
-<td>Server-side enforcement landed in #297 (<code>/authorize</code>)</td>
+<td><code>AuthorizationHandler.ValidateValues</code> (<code>apiauth/authorize.go</code>) requires <code>code_challenge</code>; <code>authorizationCodeGranter.AuthorizationCodeGrant</code> (<code>apiauth/authorize_granter.go</code>) checks the verifier with <code>core.VerifyPKCE</code></td>
+<td>Server-side enforcement landed in PR 297 (<code>/authorize</code>)</td>
+</tr>
+<tr>
+<td>PKCE shape (RFC 7636 §4.1, §4.2)</td>
+<td><strong>Compliant</strong></td>
+<td><code>AuthorizationHandler.ValidateValues</code></td>
+<td>An S256 <code>code_challenge</code> must be 43 base64url characters, and a <code>code_verifier</code> or plain challenge 43 to 128 unreserved characters (0.1.49)</td>
 </tr>
 <tr>
 <td>PKCE method MUST be S256 (§2.1.1)</td>
 <td><strong>Compliant</strong></td>
-<td><code>apiauth/authorize.go:205–210</code> rejects anything other than <code>S256</code></td>
+<td><code>AuthorizationHandler.ValidateValues</code> rejects anything other than <code>S256</code> unless <code>AllowPlainPKCE</code> is set</td>
 <td><code>plain</code> rejected by default; default omitted is rejected too</td>
 </tr>
 <tr>
 <td>Exact redirect URI matching (§2.1.3, §4.1)</td>
 <td><strong>Compliant</strong></td>
-<td><code>apiauth/authorize.go:182</code> via <code>validateRedirectURI</code> against AppStore/RedirectURIValidator; <code>admin/registrar.go</code> validates HTTPS at DCR</td>
-<td>Two-layer check: registration + authorization</td>
+<td><code>AuthorizationHandler.validateRedirectURI</code> (<code>apiauth/authorize.go</code>) against AppStore/RedirectURIValidator, compared with <code>RedirectURIMatches</code>; <code>admin/registrar.go</code> <code>validateRedirectURI</code> at DCR</td>
+<td>Two-layer check: registration + authorization. An <code>http</code> loopback redirect matches on any port, as RFC 8252 §7.3 requires; scheme, host, path and query still match exactly (0.1.38). With neither an AppStore nor a <code>RedirectURIValidator</code>, <code>/authorize</code> refuses every request unless <code>AllowAnyRedirectURI</code> is set (0.1.49).</td>
 </tr>
 <tr>
 <td>HTTPS redirect URIs, RFC 8252 loopback exempt (§2.1.2)</td>
 <td><strong>Compliant</strong></td>
-<td><code>admin/registrar.go</code> <code>Register</code>/<code>UpdateRegistration</code></td>
-<td>Loopback (<code>127.0.0.1</code>, <code>::1</code>, <code>localhost</code>) carved out per RFC 8252 §7.3</td>
+<td><code>admin/registrar.go</code> <code>validateRedirectURIs</code>, called from <code>Register</code>/<code>UpdateRegistration</code></td>
+<td>Loopback (<code>127.0.0.1</code>, <code>::1</code>, <code>localhost</code>) carved out per RFC 8252 §7.3. Since 0.1.50 DCR also refuses userinfo and a missing https host, and every redirect problem answers <code>invalid_redirect_uri</code> (<code>admin.ErrInvalidRedirectURI</code>).</td>
 </tr>
 <tr>
 <td>Implicit grant removed (§2.1.2)</td>
-<td><strong>Compliant by absence</strong></td>
-<td>No <code>/authorize</code> <code>response_type=token</code> path</td>
-<td>Preserved post-#297; only <code>code</code> is accepted</td>
+<td><strong>Compliant</strong></td>
+<td><code>AuthorizationHandler.ValidateValues</code> answers any <code>response_type</code> but <code>code</code> with <code>unsupported_response_type</code></td>
+<td>Preserved post PR 297; only <code>code</code> is accepted. The reference server advertises <code>response_types_supported: [&quot;code&quot;]</code> only with <code>code_flow</code> on (0.1.51).</td>
 </tr>
 <tr>
 <td>ROPC removed (§2.4)</td>
-<td><strong>Non-compliant</strong></td>
-<td><code>apiauth/token_endpoint.go:70</code> <code>case &quot;password&quot;:</code> still active</td>
-<td>Tracked under issue #294; removal needs migration-path analysis</td>
+<td><strong>Compliant by default; opt-in retained</strong></td>
+<td><code>TokenEndpointHandler.handlePassword</code> (<code>apiauth/token_endpoint.go</code>) answers <code>unsupported_grant_type</code> while <code>OneAuthConfig.PasswordGranter</code> is nil, and always under <code>FAPI2</code></td>
+<td>The library leaves ROPC off unless a deployment wires <code>NewPasswordGranter</code> (issue 294). The reference server wires it, except under <code>fapi2: true</code>, where the grant is refused and left out of metadata.</td>
 </tr>
 <tr>
 <td>Bearer tokens NOT in query string (§4.3.2)</td>
@@ -393,35 +399,76 @@ verdict; the table below summarises against the BCP defenses themselves.</p>
 <tr>
 <td>Refresh-token rotation + reuse detection (§4.14)</td>
 <td><strong>Compliant</strong></td>
-<td><code>apiauth/token_validator.go:536</code> <code>RotateRefreshToken</code> → <code>core.ErrTokenReused</code> (<code>:538</code>) → <code>RevokeTokenFamily</code> at line 539</td>
-<td>Backend-agnostic; FS, GORM, GAE all implement; exercised by <code>apiauth/auth_test.go</code> reuse subtest</td>
+<td><code>RotateRefreshToken</code> in the refresh path of <code>apiauth/token_validator.go</code> → <code>core.ErrTokenReused</code> → <code>RevokeTokenFamily</code></td>
+<td>Backend-agnostic; FS, GORM, GAE all implement; exercised by <code>apiauth/auth_test.go</code> reuse subtest. The grant checks the presenting client: the token must belong to the <code>client_id</code> sent, and a confidential owner must authenticate (0.1.41). <code>OneAuthConfig.DisableRefreshTokenRotation</code> turns rotation off, as FAPI 2.0 asks; <code>FAPI2</code> sets it (0.1.43). GORM rotation is a compare-and-set, and rotation keeps the family&rsquo;s expiry in every store (0.1.45).</td>
+</tr>
+<tr>
+<td>Authorization code reuse (RFC 6749 §4.1.2)</td>
+<td><strong>Compliant</strong></td>
+<td><code>authorizationCodeGranter.refuseReuse</code> / <code>revoke</code> (<code>apiauth/authorize_granter.go</code>); <code>AuthorizationCodeStore.ConsumeAuthorizationCode</code></td>
+<td>A redeemed code is kept, marked used, until its access token expires. Presenting it again blacklists that token&rsquo;s <code>jti</code> (with <code>OneAuthConfig.Blacklist</code>) and revokes the refresh family (0.1.57, issue 429).</td>
 </tr>
 <tr>
 <td><code>iss</code> on authorization-response redirect (§4.4 / RFC 9207)</td>
-<td><strong>Compliant (opt-in)</strong></td>
-<td><code>apiauth/authorize.go:235,259</code> emits when <code>EmitIssParameter</code> true</td>
-<td>Toggle on per-deployment; CLAUDE.md standards table calls this out</td>
+<td><strong>Compliant</strong></td>
+<td><code>AuthorizationHandler.SuccessRedirect</code> / <code>ErrorRedirect</code> (<code>apiauth/authorize.go</code>) emit it when <code>EmitIssParameter</code> is true</td>
+<td>Opt-in in the library (<code>AuthorizeMountConfig.EmitIssParameter</code>). The reference server always sets it with <code>code_flow</code> on and advertises <code>authorization_response_iss_parameter_supported</code> (0.1.51).</td>
 </tr>
 <tr>
-<td>Sender-constrained tokens — DPoP / mTLS (§4.10)</td>
+<td>Sender-constrained tokens, DPoP (§4.10)</td>
+<td><strong>Compliant</strong></td>
+<td><code>DPoPProofValidator</code> (<code>apiauth/dpop.go</code>) via <code>OneAuthConfig.DPoP</code>; <code>APIMiddleware.DPoP</code> / <code>RequireDPoP</code></td>
+<td>RFC 9449 is implemented end to end: token binding (0.1.37), <code>dpop_jkt</code> on <code>/authorize</code>, nonces and client SDK proofs (0.1.38), <code>OneAuthConfig.RequireDPoP</code> (0.1.41), EdDSA proofs and <code>DisableRefreshTokenRotation</code> (0.1.43). See <a href="RFC_9449.md">RFC_9449.md</a>.</td>
+</tr>
+<tr>
+<td>Sender-constrained tokens, mTLS (§4.10)</td>
 <td><strong>Gap</strong></td>
 <td>—</td>
-<td>Tracked under <code>docs/oauth/RFC_9449.md</code> (#316) and <code>RFC_8705.md</code> (#315)</td>
+<td>RFC 8705 is #335. See <a href="RFC_8705.md">RFC_8705.md</a>.</td>
 </tr>
 <tr>
-<td>Client authentication — assertion-based (§2.3)</td>
-<td><strong>Partial</strong></td>
-<td><code>client_secret_jwt</code> via PR 293 (issue #159); <code>private_key_jwt</code> status TBD by grep</td>
-<td>RFC 7523 doc (#314) will verify and detail</td>
+<td>Client authentication, assertion-based (§2.3)</td>
+<td><strong>Compliant</strong></td>
+<td><code>clientAuthenticator.authenticateAssertion</code> (<code>apiauth/client_authenticator.go</code>)</td>
+<td><code>client_secret_jwt</code> (issue 159) and <code>private_key_jwt</code> are both supported. Audiences come from <code>r.TLS</code> and <code>r.Host</code> or <code>OneAuthConfig.AcceptedAudiences</code>, never forwarded headers, and the issuer is accepted (0.1.52). Under <code>FAPI2</code> only PS256 / ES256 / EdDSA assertions pass, with the issuer as a string <code>aud</code>; oneauth can register only ES256 client keys today (0.1.54). See <a href="RFC_7523.md">RFC_7523.md</a>.</td>
 </tr>
 <tr>
-<td>Authorization request integrity — JAR / PAR (§4.18)</td>
+<td>Authorization request integrity, PAR</td>
+<td><strong>Compliant</strong></td>
+<td><code>PARHandler</code> (<code>apiauth/par.go</code>), mounted by <code>MountAuthorize</code> when <code>AuthorizeMountConfig.PushedStore</code> is set</td>
+<td>RFC 9126 since 0.1.38. A pushed request issues one code and survives the consent screen (0.1.49); <code>require_pushed_authorization_requests</code> is per client through DCR (0.1.50); the reference server serves PAR with <code>code_flow.par.enabled</code> (0.1.54). See <a href="RFC_9126.md">RFC_9126.md</a>.</td>
+</tr>
+<tr>
+<td>Authorization request integrity, JAR</td>
 <td><strong>Gap</strong></td>
 <td>—</td>
-<td>Tracked under <code>docs/oauth/RFC_9101.md</code> (#320) and <code>RFC_9126.md</code> (#319)</td>
+<td>RFC 9101 is #338. See <a href="RFC_9101.md">RFC_9101.md</a>.</td>
+</tr>
+<tr>
+<td>Open redirectors (§4.11)</td>
+<td><strong>Compliant</strong></td>
+<td><code>httpauth.LocalRedirect</code> (<code>httpauth/pagesafety.go</code>)</td>
+<td>Logout and post-login redirects go only to local paths, and logout is POST (0.1.44).</td>
+</tr>
+<tr>
+<td>CSRF on browser forms (§4.7)</td>
+<td><strong>Compliant</strong></td>
+<td><code>httpauth.CSRFMiddleware</code> (<code>httpauth/csrf.go</code>)</td>
+<td>Unsafe methods are checked against <code>Sec-Fetch-Site</code> and <code>Origin</code> (with <code>TrustedOrigins</code>) before the token, and with <code>SessionID</code> set a token is bound to the session. The reference server binds tokens to the login session (0.1.55).</td>
+</tr>
+<tr>
+<td>Credential responses not cached (RFC 6749 §5.1)</td>
+<td><strong>Compliant</strong></td>
+<td><code>noStore</code> (<code>apiauth/no_store.go</code>) and the handlers that set <code>Cache-Control: no-store</code></td>
+<td>Every response carrying a secret is <code>no-store</code>: token responses and errors, device responses, DCR, admin read / list / rotate, API-key creation, the authorize redirect and the reset form (0.1.44).</td>
 </tr>
 </tbody>
 </table>
+<p>The FAPI 2.0 Security Profile (<code>OneAuthConfig.FAPI2</code>, 0.1.52 and 0.1.54)<br />
+turns on the strict end of several rows above at once: DPoP required,<br />
+rotation off, <code>private_key_jwt</code> only, no password grant, no public clients,<br />
+and PAR-only <code>/authorize</code>. <a href="../SECURITY_AUDIT.md"><code>docs/SECURITY_AUDIT.md</code></a><br />
+walks it requirement by requirement and lists its caveats.</p>
 <p>The audit table in <code>docs/OAUTH21_ALIGNMENT.md</code> is the single source of truth<br />
 for ROPC and query-param-bearer status; this doc is the BCP-level mapping.<br />
 When a row in either updates, update both.</p>
@@ -443,9 +490,8 @@ When a row in either updates, update both.</p>
 </ul>
 <blockquote>
 <p><strong>Maintenance note.</strong> When OAuth 2.1 graduates from draft to RFC, update the<br />
-&ldquo;In one sentence&rdquo; line and the OAuth 2.1 cross-link. When DPoP / mTLS / JAR<br />
-/ PAR docs land, swap their per-row status here in lock-step with<br />
-<code>LANDSCAPE.md</code> §6.</p>
+&ldquo;In one sentence&rdquo; line and the OAuth 2.1 cross-link. When mTLS (#335) or JAR<br />
+(#338) ships, update its row here in the same change as <code>LANDSCAPE.md</code> §6.</p>
 </blockquote>
 
 

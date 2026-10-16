@@ -348,37 +348,55 @@ introspection is a question of how fast you need revocation to propagate.</p>
 <tr>
 <td><code>POST /oauth/introspect</code> endpoint</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/introspection.go:131</code> <code>IntrospectionHandler.ServeHTTP</code></td>
+<td><code>apiauth/introspection.go</code> <code>IntrospectionHandler.ServeHTTP</code>, built by <code>OneAuth.IntrospectionHTTPHandler</code></td>
 <td>RFC 7662 §2.2 compliant</td>
 </tr>
 <tr>
 <td>Caller authentication via HTTP Basic</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/introspection.go:152</code> rejects unauthenticated with <code>WWW-Authenticate: Basic realm=&quot;introspection&quot;</code></td>
+<td><code>IntrospectionHandler.ServeHTTP</code> rejects unauthenticated callers with <code>WWW-Authenticate: Basic realm=&quot;introspection&quot;</code></td>
 <td>—</td>
 </tr>
 <tr>
 <td><code>{&quot;active&quot;:false}</code> for invalid tokens (uniform response)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/introspection.go:177</code> per §2.2 invariant</td>
+<td><code>IntrospectionHandler.ServeHTTP</code> per §2.2 invariant</td>
 <td>Doesn&rsquo;t leak revoked-vs-expired distinction</td>
 </tr>
 <tr>
 <td>Full claim set on active tokens</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/introspection.go:185</code> returns full claim envelope</td>
-<td>Includes scope, client_id, sub, iat, exp</td>
+<td><code>apiauth/token_introspector.go</code> <code>tokenIntrospector.Introspect</code> builds the result; <code>IntrospectionHandler.ServeHTTP</code> writes it</td>
+<td>Includes scope, client_id, sub, iss, aud, jti, iat, exp</td>
+</tr>
+<tr>
+<td><code>token_type</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>tokenIntrospector.Introspect</code> via <code>tokenTypeFor</code></td>
+<td><code>Bearer</code>, or <code>DPoP</code> for a key-bound token (0.1.45)</td>
+</tr>
+<tr>
+<td>Refresh-token introspection</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/token_introspector.go</code> <code>NewTokenIntrospectorWithRefreshStore</code>; <code>OneAuth</code> wires it with <code>OneAuthConfig.RefreshStore</code></td>
+<td>A live refresh token reports active with sub, client_id, scope and exp; a revoked or expired one reports inactive. <code>token_type_hint</code> only picks which kind is tried first (0.1.45)</td>
+</tr>
+<tr>
+<td><code>cnf</code> (RFC 9449 §6) in response</td>
+<td><strong>Partial</strong></td>
+<td><code>tokenIntrospector.Introspect</code> sets <code>IntrospectionResult.Cnf</code></td>
+<td><code>IntrospectionHandler.ServeHTTP</code> does not copy it into the JSON, so the HTTP response carries no <code>cnf</code> today</td>
 </tr>
 <tr>
 <td><code>authorization_details</code> (RFC 9396 RAR) in response</td>
 <td><strong>Implemented</strong></td>
-<td>Per <code>apiauth/auth_rar_test.go</code> exercising introspection-with-RAR</td>
+<td><code>IntrospectionHandler.ServeHTTP</code>; <code>TestIntrospection_WithRAR</code> in <code>apiauth/auth_rar_test.go</code></td>
 <td>—</td>
 </tr>
 <tr>
 <td>W3C Trace Context (SEP-414 / issue 254)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/introspection.go:42–44</code> <code>TracerProvider</code> field; emits <code>oneauth.token.introspect</code> span with <code>oauth.token_active</code> attribute</td>
+<td><code>IntrospectionHandler.TracerProvider</code> field; emits <code>oneauth.introspect</code> span with <code>oauth.token_active</code> attribute</td>
 <td>Nil-safe tracing</td>
 </tr>
 <tr>

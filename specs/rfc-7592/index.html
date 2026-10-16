@@ -269,8 +269,9 @@ This avoids the merge-semantics ambiguity that bites JSON-merge APIs.</li>
 includes a new <code>registration_access_token</code> that supersedes the one<br />
 used to make the request. Old token is invalidated. This is exactly<br />
 the same pattern as refresh-token rotation (RFC 9700 §4.14).</li>
-<li><strong><code>DELETE</code> is idempotent and irrevocable.</strong> No undo. Returns 204<br />
-regardless of whether the client existed.</li>
+<li><strong><code>DELETE</code> is irrevocable.</strong> No undo. The registration access token<br />
+dies with the registration (§2.3), so a second <code>DELETE</code> with the same<br />
+token gets 401 <code>invalid_token</code>, the same answer as an unknown client.</li>
 </ol>
 <h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
 <p><strong>Read current registration:</strong></p>
@@ -370,43 +371,61 @@ authenticate management calls.</li>
 <tr>
 <td><code>GET /apps/dcr/{client_id}</code> (read)</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/DCRManagementHandler</code> (composed via <code>ClientRegistrationManager</code> interface from <code>admin/client_management.go:30,52</code>)</td>
-<td>—</td>
+<td><code>admin/dcr_management.go</code> <code>DCRManagementHandler.ServeHTTP</code> → <code>ClientRegistrationManager.GetRegistration</code> (<code>admin/client_management.go</code>), implemented by <code>AppRegistrar.GetRegistration</code></td>
+<td>Omits <code>client_secret</code></td>
 </tr>
 <tr>
 <td><code>PUT /apps/dcr/{client_id}</code> (update + rotation)</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/client_management.go:30,41</code> documented rotation contract: &ldquo;the registration_access_token is rotated (RFC 7592 §2.2)&rdquo;</td>
-<td>Response carries the new token</td>
+<td><code>admin/registrar.go</code> <code>AppRegistrar.UpdateRegistration</code>; rotation contract documented on <code>ClientRegistrationManager.UpdateRegistration</code></td>
+<td>Response carries the new token. Changing <code>token_endpoint_auth_method</code> is refused with <code>invalid_client_metadata</code></td>
+</tr>
+<tr>
+<td><code>PUT</code> metadata validation</td>
+<td><strong>Implemented</strong></td>
+<td><code>AppRegistrar.UpdateRegistration</code> runs <code>validateRedirectURIs</code> and <code>validateClientMetadata</code>, the checks registration uses</td>
+<td>Bad redirect URIs answer <code>invalid_redirect_uri</code>; unsupported or conflicting auth method and grant types answer <code>invalid_client_metadata</code> (0.1.50)</td>
 </tr>
 <tr>
 <td><code>DELETE /apps/dcr/{client_id}</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/client_management.go:52</code> — checked + delete</td>
-<td>Idempotent</td>
+<td><code>admin/registrar.go</code> <code>AppRegistrar.DeleteRegistration</code>: token check, store delete, then the client&rsquo;s key is dropped from <code>KeyStore</code></td>
+<td>204 on success. Not idempotent on the wire: a repeat <code>DELETE</code> finds no registration and answers 401 <code>invalid_token</code></td>
 </tr>
 <tr>
 <td>Bearer-token caller authentication</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/client_management.go:30</code> validates <code>AccessToken</code> against stored <code>registration_access_token</code> for the specific <code>client_id</code></td>
-<td>Per-client, not cross-client</td>
+<td><code>AppRegistrar.GetRegistration</code> / <code>UpdateRegistration</code> / <code>DeleteRegistration</code> compare <code>AccessToken</code> with the stored <code>registration_access_token</code> in constant time</td>
+<td>Wrong token, missing token and unknown client all return <code>ErrUnauthorized</code> (401), so client IDs can&rsquo;t be probed</td>
 </tr>
 <tr>
 <td>Token-vs-client matching</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/client_management.go:30</code> — only the specific client_id allowed</td>
+<td>Same methods; the token is looked up on the <code>client_id</code> from the path, and <code>DCRManagementHandler.handlePut</code> requires the body <code>client_id</code> to match it</td>
 <td>Defense against cross-client management</td>
 </tr>
 <tr>
 <td>Full-replace semantics (not merge)</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/client_management.go:41</code> matches §2.2 contract</td>
+<td><code>AppRegistrar.UpdateRegistration</code> overwrites every editable field from the request</td>
 <td>—</td>
+</tr>
+<tr>
+<td>Response caching</td>
+<td><strong>Implemented</strong></td>
+<td><code>DCRManagementHandler.handleGet</code> / <code>handlePut</code> / <code>handleDelete</code></td>
+<td><code>Cache-Control: no-store</code> on every success response (0.1.44)</td>
+</tr>
+<tr>
+<td>Admin view of registrations</td>
+<td><strong>Implemented</strong></td>
+<td><code>AppRegistrar.GetClient</code> / <code>ListClients</code> blank <code>RegistrationAccessToken</code></td>
+<td>The admin routes no longer return a client&rsquo;s management token (0.1.44)</td>
 </tr>
 <tr>
 <td>Test coverage</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr_management_test.go</code> covers happy path + wrong-token rejection (lines 47–73)</td>
+<td><code>admin/dcr_management_test.go</code> (<code>TestDCRManagement_GET_HappyPath</code>, <code>TestDCRManagement_GET_WrongToken</code>, <code>TestUpdateRegistration_HappyPath_RotatesToken</code>, <code>TestDeleteRegistration_HappyPath</code>, and others); <code>admin/dcr_validation_test.go</code></td>
 <td>—</td>
 </tr>
 </tbody>

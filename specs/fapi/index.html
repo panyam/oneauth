@@ -189,7 +189,7 @@
 <p><strong>Status:</strong> OpenID Foundation Specifications (final)<br />
 <strong>Published:</strong> FAPI 1.0 (2021), FAPI 2.0 Security Profile (final, 2025)<br />
 <strong>L-tier / T-tier:</strong> L8 · T0 (profile of all)<br />
-<strong>OneAuth coverage:</strong> Not conformant — L5 is half-landed (DPoP shipped under #336; mTLS tracked under #335), L6 is half-landed (PAR shipped under #337; JAR tracked under #338)<br />
+<strong>OneAuth coverage:</strong> FAPI 2.0 Security Profile §5.3.2 / §5.3.4 met through <code>OneAuthConfig.FAPI2</code> (0.1.52; reference server 0.1.54), with three caveats: DPoP is the only sender constraint (mTLS is #335), only ES256 client keys can be registered (#330, #331), and the OIDF conformance suite has never been run (mission #98, #433). FAPI 2.0 Message Signing (JAR #338, JARM mission #409) and FAPI 1.0 (ID tokens for <code>s_hash</code>, #339) are not supported<br />
 <strong>See also:</strong> <a href="RFC_9126.md"><code>RFC_9126.md</code></a> · <a href="RFC_9101.md"><code>RFC_9101.md</code></a> · <a href="RFC_9449.md"><code>RFC_9449.md</code></a> · <a href="RFC_8705.md"><code>RFC_8705.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
@@ -276,7 +276,7 @@ consent-driven access.</p>
 <td><strong>FAPI 2.0 Security Profile</strong></td>
 <td>2025 (final)</td>
 <td>Successor to both</td>
-<td>Simpler, modernized; PAR + DPoP/mTLS mandatory; deprecates JARM in favor of JAR-everywhere</td>
+<td>Simpler, modernized; PAR + PKCE + DPoP/mTLS + <code>private_key_jwt</code>/mTLS client auth mandatory. Signed requests (JAR) and signed responses (JARM) move to the separate FAPI 2.0 Message Signing profile</td>
 </tr>
 </tbody>
 </table>
@@ -291,18 +291,20 @@ alternatives (no implicit, no ROPC, no <code>plain</code> PKCE, no <code>none</c
 <li><strong>Sender-constrained tokens are mandatory.</strong> Either mTLS-bound<br />
 (<code>cnf.x5t#S256</code>, RFC 8705) or DPoP-bound (<code>cnf.jkt</code>, RFC 9449). The<br />
 choice depends on PKI availability, not security level.</li>
-<li><strong>Request integrity is mandatory.</strong> JAR for the signature; PAR for the<br />
-transport. Even at FAPI 2.0 with everything modernized, JAR/PAR<br />
-remain the request-side baseline.</li>
+<li><strong>Request integrity is mandatory.</strong> The FAPI 2.0 Security Profile gets<br />
+it from PAR: the request travels over an authenticated back channel.<br />
+FAPI 1.0 Advanced and FAPI 2.0 Message Signing also sign it with JAR,<br />
+which adds non-repudiation.</li>
 <li><strong>Strict alg choices.</strong> PS256, ES256 or EdDSA (FAPI 2.0 §5.4.1), with<br />
 RSA keys of at least 2048 bits. <code>RS256</code> and <code>HS256</code> are forbidden. The &ldquo;alg=none&rdquo; footgun is closed by the spec, not just by<br />
 the implementer.</li>
 <li><strong>Public + open client model has gone.</strong> All clients are confidential<br />
 in FAPI; SPAs and mobile-only deployments either run an authorized<br />
 backend (BFF pattern) or accept that they&rsquo;re not FAPI.</li>
-<li><strong>JARM (JWT-secured Authorization Response Mode)</strong> is the FAPI 1.0<br />
-signed-response sibling of JAR (signed <em>request</em>). FAPI 2.0 reuses<br />
-JAR&rsquo;s framework instead of carrying JARM separately.</li>
+<li><strong>JARM (JWT-secured Authorization Response Mode)</strong> is the<br />
+signed-response sibling of JAR (signed <em>request</em>). FAPI 1.0 Advanced<br />
+uses it, and FAPI 2.0 carries it in the Message Signing profile rather<br />
+than the Security Profile.</li>
 </ol>
 <h2 id="wire-pattern-the-full-fapi-20-baseline">Wire pattern (the full FAPI 2.0 baseline) <a class="anchor" href="#wire-pattern-the-full-fapi-20-baseline">¶</a></h2>
 <pre><code>Setup time (T0):
@@ -311,7 +313,7 @@ JAR&rsquo;s framework instead of carrying JARM separately.</li>
   ✓ DPoP / mTLS endpoint segregation if needed
 
 Each request (T1):
-  ✓ Client POSTs request to /par with JAR-signed JWT body
+  ✓ Client POSTs the request to /par (JAR-signed only under Message Signing)
   ✓ AS returns short request_uri
   ✓ Client redirects: GET /authorize?client_id=X&amp;request_uri=urn:ietf:...
 
@@ -355,7 +357,8 @@ as its baseline (along with OAuth 2.0 — many of FAPI 2.0&rsquo;s mandates <em>
 <ul>
 <li>You&rsquo;re already on the 2.1-strict path (PKCE everywhere, no implicit, no<br />
 ROPC, exact redirect, refresh rotation).</li>
-<li>You add the L5 and L6 layers explicitly (mTLS or DPoP, PAR, JAR).</li>
+<li>You add the L5 and L6 layers explicitly (mTLS or DPoP, PAR; JAR only for<br />
+Message Signing).</li>
 <li>You restrict algorithms and disable the loose extensions.</li>
 </ul>
 <h2 id="migration-path-regular-oauth--fapi">Migration path (regular OAuth → FAPI) <a class="anchor" href="#migration-path-regular-oauth--fapi">¶</a></h2>
@@ -368,16 +371,19 @@ RFC 9068. (For OneAuth, this is done — see<br />
 <li><strong>Ship the L5 sender constraint.</strong> mTLS for confidential-with-PKI<br />
 deployments; DPoP for everyone else. Most teams ship DPoP first<br />
 because PKI is harder.</li>
-<li><strong>Ship the L6 request integrity.</strong> PAR + JAR. PAR is the easier<br />
-precursor; JAR builds on existing JWS plumbing.</li>
+<li><strong>Ship the L6 request integrity.</strong> PAR is what the FAPI 2.0 Security<br />
+Profile needs. JAR comes next if you target Message Signing or FAPI<br />
+1.0, and builds on existing JWS plumbing.</li>
 <li><strong>Restrict alg choices.</strong> Lock down to PS256 / ES256 / EdDSA in AS<br />
 metadata and JWKS; reject HS256 and RS256.</li>
 <li><strong>Run the OpenID FAPI conformance suite</strong> against your AS in<br />
 <code>dryrun</code> mode. It surfaces gaps mercilessly.</li>
 <li><strong>Submit for self-certification</strong> if a regulator requires it.</li>
 </ol>
-<p>For OneAuth, that order is: L5 first (DPoP &gt; mTLS), then L6 (PAR &gt; JAR),<br />
-then alg lockdown. With those landed, FAPI 2.0 conformance is in reach.</p>
+<p>For OneAuth, steps 1 to 4 have landed for the FAPI 2.0 Security Profile:<br />
+DPoP (mTLS is still #335), PAR, and the algorithm lockdown, all switched on<br />
+together by <code>OneAuthConfig.FAPI2</code>. Step 5 has not happened. The OIDF suite<br />
+has never been run against oneauth (mission #98, #433).</p>
 <h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
 <ul>
 <li><strong>Consumer-grade OAuth without regulatory pressure.</strong> FAPI is heavy.<br />
@@ -391,7 +397,16 @@ signing per request. Cheap, but not free. High-frequency internal<br />
 services may not want the overhead.</li>
 </ul>
 <h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
-<p><strong>Not FAPI-conformant.</strong> The blocking gaps are explicit:</p>
+<p><strong>The FAPI 2.0 Security Profile is met but not certified.</strong> oneauth meets<br />
+the profile&rsquo;s authorization-server and resource-server requirements (§5.3.2,<br />
+§5.3.4) through <code>OneAuthConfig.FAPI2</code>, and the reference server runs the<br />
+profile with <code>deploy-examples/fapi-dpop.yaml</code>. There are three caveats. DPoP<br />
+is the only sender constraint (mTLS is #335). Only ES256 client keys can be<br />
+registered, so FAPI clients use ES256 (PS256 is #330, EdDSA client keys<br />
+#331). The OIDF conformance suite has never been run (mission #98, #433), so<br />
+everything here is checked by oneauth&rsquo;s own tests and, where Keycloak supports<br />
+the feature, side by side with Keycloak 26. The requirement-by-requirement<br />
+matrix is in <a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a>.</p>
 <table>
 <thead>
 <tr>
@@ -402,13 +417,23 @@ services may not want the overhead.</li>
 </thead>
 <tbody>
 <tr>
+<td>FAPI 2.0 profile switch</td>
+<td><strong>Implemented</strong> (0.1.52). <code>OneAuthConfig.FAPI2</code> requires DPoP (sets <code>RequireDPoP</code>), turns off refresh-token rotation, accepts only <code>private_key_jwt</code> client authentication with the issuer as a string <code>aud</code>, refuses the password grant and public or unregistered clients, and makes <code>MountAuthorize</code> PAR-only with the code lifetime capped at 60 seconds and the <code>request_uri</code> lifetime under 600 seconds. <code>MountAuthorize</code> panics under <code>FAPI2</code> without a <code>PushedStore</code>. <code>OneAuthConfig.DPoP</code> must be set too, or every token request is refused</td>
+<td><a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a></td>
+</tr>
+<tr>
+<td>Reference server</td>
+<td><strong>Implemented</strong> (0.1.54). <code>fapi2: true</code> sets <code>OneAuthConfig.FAPI2</code>. The server refuses to start without <code>dpop.enabled</code>, or with <code>code_flow</code> on but no <code>code_flow.par.enabled</code>. <code>code_flow.par.enabled</code> mounts <code>POST /par</code>, and <code>code_flow.par.required</code> refuses direct <code>/authorize</code>. Under <code>fapi2</code> the metadata lists <code>private_key_jwt</code> / ES256 only, the PAR endpoint, <code>require_pushed_authorization_requests</code>, and no password grant. <code>deploy-examples/fapi-dpop.yaml</code> runs the whole profile</td>
+<td><a href="RFC_9126.md"><code>RFC_9126.md</code></a></td>
+</tr>
+<tr>
 <td>PAR</td>
-<td><strong>Implemented</strong> (repo issue 337)</td>
+<td><strong>Implemented</strong> (repo issue 337). Required under <code>FAPI2</code></td>
 <td><a href="RFC_9126.md"><code>RFC_9126.md</code></a></td>
 </tr>
 <tr>
 <td>JAR</td>
-<td>Gap (repo issue 150)</td>
+<td>Gap (#338). Not part of the FAPI 2.0 Security Profile; FAPI 2.0 Message Signing and FAPI 1.0 Advanced use it</td>
 <td><a href="RFC_9101.md"><code>RFC_9101.md</code></a></td>
 </tr>
 <tr>
@@ -418,27 +443,32 @@ services may not want the overhead.</li>
 </tr>
 <tr>
 <td>DPoP (sender constraint)</td>
-<td><strong>Implemented</strong>. <code>OneAuthConfig.RequireDPoP</code> makes the AS issue only bound tokens (§5.3.2.1), <code>APIMiddleware.RequireDPoP</code> makes the RS accept only bound tokens (§5.3.4), and <code>apiauth.FAPIDPoPAlgs()</code> limits proofs to ES256 / EdDSA / PS256. The reference server turns all of it on with <code>deploy-examples/fapi-dpop.yaml</code></td>
+<td><strong>Implemented</strong>. <code>OneAuthConfig.RequireDPoP</code> makes the AS issue only bound tokens (§5.3.2.1), and <code>FAPI2</code> sets it. <code>APIMiddleware.RequireDPoP</code> makes the RS accept only bound tokens (§5.3.4), and <code>apiauth.FAPIDPoPAlgs()</code> limits proofs to ES256 / EdDSA / PS256. The reference server turns all of it on with <code>deploy-examples/fapi-dpop.yaml</code></td>
 <td><a href="RFC_9449.md"><code>RFC_9449.md</code></a>, <a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a></td>
 </tr>
 <tr>
 <td>mTLS (sender constraint, PKI clients)</td>
-<td>Gap</td>
+<td>Gap (#335). FAPI allows DPoP instead, so this is not blocking</td>
 <td><a href="RFC_8705.md"><code>RFC_8705.md</code></a></td>
 </tr>
 <tr>
-<td>PS256 algorithm</td>
-<td>Gap for AS token signing (logged). DPoP proofs already accept PS256</td>
-<td><a href="RFC_7518.md"><code>RFC_7518.md</code></a> + <code>_PENDING_GAPS.md</code> entry 4</td>
+<td>Client authentication (§5.3.2.1 #6, #8)</td>
+<td><strong>Implemented</strong> under <code>FAPI2</code>: <code>private_key_jwt</code> only, with the issuer as the sole string <code>aud</code>. Since 0.1.52 the expected audience comes from <code>r.TLS</code> and <code>r.Host</code> (and the issuer), never from forwarded headers; behind a TLS proxy set <code>OneAuthConfig.AcceptedAudiences</code></td>
+<td><a href="RFC_7523.md"><code>RFC_7523.md</code></a></td>
+</tr>
+<tr>
+<td>Algorithms (§5.4.1)</td>
+<td><strong>Partial.</strong> Under <code>FAPI2</code> only PS256 / ES256 / EdDSA client assertions pass (<code>AuthenticateClientRequest.AllowedAssertionAlgs</code>), but only ES256 client keys can be registered (PS256 #330, EdDSA #331). DPoP proofs accept ES256, EdDSA (0.1.43) and PS256. The AS signs tokens with ES256 but not PS256 (#330). RSA keys under 2048 bits are refused at load</td>
+<td><a href="RFC_7518.md"><code>RFC_7518.md</code></a></td>
 </tr>
 <tr>
 <td>OIDC Core (id_token issuance)</td>
-<td>Gap (largest open item)</td>
+<td>Gap (#339). Not needed for the FAPI 2.0 Security Profile; FAPI 1.0&rsquo;s <code>s_hash</code> rides on ID tokens</td>
 <td><a href="OIDC_Core.md"><code>OIDC_Core.md</code></a></td>
 </tr>
 <tr>
-<td>JARM (signed authz responses, FAPI 1.0 only)</td>
-<td>Gap (tracked under repo issue 151)</td>
+<td>JARM (signed authz responses; FAPI 1.0 and FAPI 2.0 Message Signing)</td>
+<td>Gap (mission #409)</td>
 <td>—</td>
 </tr>
 <tr>
@@ -448,7 +478,7 @@ services may not want the overhead.</li>
 </tr>
 <tr>
 <td>Refresh tokens</td>
-<td><strong>Implemented as an option.</strong> OneAuth rotates on every use with reuse detection by default (RFC 9700). <code>OneAuthConfig.DisableRefreshTokenRotation</code> (server: <code>jwt.disable_refresh_token_rotation</code>) turns it off, as FAPI 2.0 §5.3.2.1 asks</td>
+<td><strong>Implemented as an option.</strong> OneAuth rotates on every use with reuse detection by default (RFC 9700). <code>OneAuthConfig.DisableRefreshTokenRotation</code> (server: <code>jwt.disable_refresh_token_rotation</code>) turns it off, as FAPI 2.0 §5.3.2.1 asks, and <code>FAPI2</code> sets it</td>
 <td><a href="RFC_9700.md"><code>RFC_9700.md</code></a></td>
 </tr>
 <tr>
@@ -461,26 +491,30 @@ services may not want the overhead.</li>
 <td>Implemented (DCR + <code>/authorize</code>)</td>
 <td><a href="RFC_9700.md"><code>RFC_9700.md</code></a></td>
 </tr>
+<tr>
+<td>OIDF conformance run</td>
+<td>Not done. The OIDF workflow exists but has never run (mission #98, #433)</td>
+<td><a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a></td>
+</tr>
 </tbody>
 </table>
-<p>The &ldquo;what&rsquo;s needed&rdquo; reduces to: <strong>JAR + OIDC Core id_token + PS256 token<br />
-signing</strong>, with mTLS as the optional<br />
-second sender constraint. DPoP and PAR are done. That&rsquo;s still a fair amount<br />
-of work, but the shape of each piece is well-defined.</p>
+<p>What remains for the FAPI 2.0 Security Profile is a first OIDF conformance<br />
+run, PS256 and EdDSA client keys, and mTLS as a second sender constraint.<br />
+FAPI 2.0 Message Signing adds JAR and JARM, and FAPI 1.0 adds OIDC ID tokens.</p>
 <p><strong>The strategic question</strong> for OneAuth isn&rsquo;t <em>whether</em> FAPI is reachable<br />
-(it is), but <em>whether the user base needs it.</em> If demand exists for<br />
+(the Security Profile is met), but <em>whether the user base needs</em> the rest. If demand exists for<br />
 banking-grade APIs the work pays off. If consumer SSO is the primary<br />
 target, FAPI may always be aspirational.</p>
 <h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
 <ul>
-<li><a href="RFC_9126.md">RFC 9126 PAR</a> — mandatory</li>
-<li><a href="RFC_9101.md">RFC 9101 JAR</a> — mandatory</li>
+<li><a href="RFC_9126.md">RFC 9126 PAR</a> — mandatory in the FAPI 2.0 Security Profile</li>
+<li><a href="RFC_9101.md">RFC 9101 JAR</a> — FAPI 1.0 Advanced and FAPI 2.0 Message Signing</li>
 <li><a href="RFC_9396.md">RFC 9396 RAR</a> — strongly recommended for transaction APIs</li>
 <li><a href="RFC_9449.md">RFC 9449 DPoP</a> — sender constraint (public)</li>
 <li><a href="RFC_8705.md">RFC 8705 mTLS</a> — sender constraint (PKI)</li>
 <li><a href="OIDC_Core.md">OIDC Core</a> — id_token + auth_time + acr</li>
 <li><a href="RFC_9700.md">RFC 9700 BCP</a> — the security baseline</li>
-<li>Repo issues: 151 (JARM), 152 (RFC 9421 HTTP Message Signatures for FAPI 2.0 message signing), 160 (<code>attest_jwt_client_auth</code>), 161 (regional Open Banking profiles)</li>
+<li>Repo issues: mission #409 (JARM; issue 151 is closed), 152 (RFC 9421 HTTP Message Signatures for FAPI 2.0 message signing), 160 (<code>attest_jwt_client_auth</code>), 161 (regional Open Banking profiles)</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

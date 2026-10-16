@@ -318,11 +318,13 @@ in this folder has paired <em>OAuth 2.0 status</em> and <em>OAuth 2.1 status</em
 S256-only, exact redirect match, refresh-token rotation with family revoke.<br />
 Its client SDK and middleware <strong>interop with 2.0 deployments</strong> because that&rsquo;s<br />
 what the production world advertises.</p>
-<p>Some 2.0-legal-but-2.1-illegal features are retained with deprecation flags<br />
-and migration paths in flight:</p>
+<p>Some 2.0-legal-but-2.1-illegal features are retained as opt-ins, off by<br />
+default:</p>
 <ul>
-<li>ROPC password grant (<a href="https://github.com/panyam/oneauth/issues/294">issue 294</a>)</li>
-<li>Query-param bearer fallback (<a href="https://github.com/panyam/oneauth/issues/295">issue 295</a>)</li>
+<li>ROPC password grant (issue 294, closed). Off until a deployment sets<br />
+<code>OneAuthConfig.PasswordGranter</code>; <code>FAPI2</code> refuses it either way.</li>
+<li>Query-param bearer fallback (issue 295, closed). Off until a deployment<br />
+sets <code>APIMiddleware.LegacyQueryParamBearer</code>.</li>
 </ul>
 <p>These are <em>transition states</em>, not non-compliance. A deployment that needs<br />
 strict 2.1 turns them off; a deployment migrating off a legacy IdP keeps them<br />
@@ -985,8 +987,8 @@ proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</
 <tr>
 <td>6749 OAuth 2.0</td>
 <td>Implemented</td>
-<td><code>apiauth/api_auth.go</code>, <code>apiauth/oneauth.go</code>, <code>apiauth/authorize*.go</code></td>
-<td><code>/authorize</code> + <code>authorization_code</code> grant added in #297 (see <code>apiauth.MountAuthorize</code>)</td>
+<td><code>apiauth.TokenEndpointHandler</code> (<code>apiauth/token_endpoint.go</code>), <code>apiauth/oneauth.go</code>, <code>apiauth/authorize*.go</code></td>
+<td><code>/authorize</code> + <code>authorization_code</code> grant added in PR 297 (see <code>apiauth.MountAuthorize</code>). A reused code revokes the tokens it issued (0.1.57).</td>
 </tr>
 <tr>
 <td>6750 Bearer</td>
@@ -1020,14 +1022,14 @@ proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</
 </tr>
 <tr>
 <td>7523 JWT client auth</td>
-<td>Partial</td>
-<td><code>apiauth/</code> (PR #293)</td>
-<td><code>client_secret_jwt</code> landed; <code>private_key_jwt</code> status — verify</td>
+<td>Implemented</td>
+<td><code>apiauth.NewClientAuthenticator</code> (<code>apiauth/client_authenticator.go</code>)</td>
+<td><code>client_secret_jwt</code> (PR 293) and <code>private_key_jwt</code>. Under <code>FAPI2</code> only PS256 / ES256 / EdDSA assertions with the issuer as a string <code>aud</code> pass, and oneauth can register only ES256 client keys today (0.1.52, 0.1.54).</td>
 </tr>
 <tr>
 <td>7523 JWT-bearer grant</td>
 <td>Implemented</td>
-<td><code>apiauth/api_auth.go</code></td>
+<td><code>apiauth.NewJwtBearerGranter</code> (<code>apiauth/jwt_bearer_granter.go</code>)</td>
 <td>—</td>
 </tr>
 <tr>
@@ -1069,14 +1071,14 @@ proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</
 <tr>
 <td>8693 Token Exchange</td>
 <td>Implemented</td>
-<td><code>apiauth/api_auth.go</code></td>
+<td><code>apiauth.NewTokenExchanger</code> (<code>apiauth/token_exchange_granter.go</code>)</td>
 <td>—</td>
 </tr>
 <tr>
 <td>8705 mTLS</td>
 <td>Gap</td>
 <td>—</td>
-<td>Candidate for FAPI track</td>
+<td>#335. FAPI 2.0 accepts DPoP in its place.</td>
 </tr>
 <tr>
 <td>9068 JWT AT</td>
@@ -1088,19 +1090,19 @@ proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</
 <td>9101 JAR</td>
 <td>Gap</td>
 <td>—</td>
-<td>Candidate for #116 / FAPI track</td>
+<td>#338</td>
 </tr>
 <tr>
 <td>9126 PAR</td>
-<td>Gap</td>
-<td>—</td>
-<td>Candidate for #116 / FAPI track</td>
+<td>Implemented</td>
+<td><code>apiauth.PARHandler</code>, mounted by <code>apiauth.MountAuthorize</code> when <code>PushedStore</code> is set</td>
+<td>Since 0.1.38. One code per pushed request (0.1.49), per-client <code>require_pushed_authorization_requests</code> (0.1.50), reference server <code>code_flow.par</code> (0.1.54).</td>
 </tr>
 <tr>
 <td>9207 iss param</td>
 <td>Implemented</td>
-<td><code>apiauth/authorize.go</code> (<code>EmitIssParameter</code> toggle, emitted on <code>/authorize</code> redirect — landed in #297)</td>
-<td>Opt-in per deployment via <code>AuthorizationHandlerConfig.EmitIssParameter</code></td>
+<td><code>apiauth.AuthorizationHandler.SuccessRedirect</code> / <code>ErrorRedirect</code> (<code>apiauth/authorize.go</code>), emitted when <code>EmitIssParameter</code> is set; landed in PR 297</td>
+<td>Opt-in in the library via <code>AuthorizeMountConfig.EmitIssParameter</code>. The reference server always emits it with <code>code_flow</code> on (0.1.51).</td>
 </tr>
 <tr>
 <td>9396 RAR</td>
@@ -1110,9 +1112,9 @@ proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</
 </tr>
 <tr>
 <td>9449 DPoP</td>
-<td>Gap</td>
-<td>—</td>
-<td>Candidate for L5 work</td>
+<td>Implemented</td>
+<td><code>apiauth.DPoPProofValidator</code> (<code>apiauth/dpop.go</code>) via <code>OneAuthConfig.DPoP</code>; <code>APIMiddleware.DPoP</code>; <code>client.DPoPKey</code></td>
+<td>End to end since 0.1.38: token and code binding, nonces, client SDK proofs. <code>RequireDPoP</code> (0.1.41) and EdDSA proofs (0.1.43).</td>
 </tr>
 <tr>
 <td>9700 Security BCP</td>
@@ -1129,8 +1131,8 @@ proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</
 <tr>
 <td>OIDC Core</td>
 <td>Partial</td>
-<td>—</td>
-<td><code>/authorize</code> pending #116; see <code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code></td>
+<td><code>apiauth.MountAuthorize</code></td>
+<td><code>/authorize</code> and the code flow exist; ID tokens, <code>nonce</code> and userinfo are #339. See <code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code>.</td>
 </tr>
 <tr>
 <td>OIDC Discovery</td>
@@ -1146,9 +1148,9 @@ proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</
 </tr>
 <tr>
 <td>FAPI 1.0 / 2.0</td>
-<td>Not claimed</td>
-<td>—</td>
-<td>Unlocks once L5 (DPoP/mTLS) + L6 (PAR/JAR) land</td>
+<td>FAPI 2.0 Security Profile implemented</td>
+<td><code>OneAuthConfig.FAPI2</code>; reference server <code>fapi2: true</code> (<code>deploy-examples/fapi-dpop.yaml</code>)</td>
+<td>Since 0.1.52 and 0.1.54, with the caveats in <code>docs/SECURITY_AUDIT.md</code>: DPoP only (no mTLS), ES256 client keys only, and no OIDF conformance run yet (mission #98). FAPI 1.0 and FAPI 2.0 Message Signing are not claimed.</td>
 </tr>
 <tr>
 <td>GNAP</td>
@@ -1158,15 +1160,17 @@ proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</
 </tr>
 </tbody>
 </table>
-<p><strong>Where the obvious frontier is.</strong> Looking at the matrix:</p>
+<p><strong>Where the obvious frontier is.</strong> DPoP, PAR and the FAPI 2.0 Security<br />
+Profile have shipped. What the matrix still leaves open:</p>
 <ol>
-<li><strong>L5 sender constraint</strong> — DPoP (9449) first, then mTLS (8705). Both<br />
-slot-fillers behind a <code>TokenBindingValidator</code> interface.</li>
-<li><strong>L6 request integrity</strong> — PAR (9126) → JAR (9101). PAR is the lower-effort<br />
-precursor; JAR is needed for FAPI.</li>
-<li><strong>OIDC Core full</strong> — needs <code>/authorize</code> (#116) and refresh of consent UX.</li>
+<li><strong>L5 mTLS</strong> (RFC 8705, #335). The other sender-constraint option FAPI<br />
+allows, and certificate-bound client authentication.</li>
+<li><strong>L6 JAR and JARM</strong> (RFC 9101, #338; JARM is mission #409). Signed<br />
+authorization requests and responses, which FAPI 2.0 Message Signing<br />
+needs.</li>
+<li><strong>OIDC ID tokens</strong> (#339). ID tokens, <code>nonce</code> and userinfo on top of the<br />
+existing <code>/authorize</code>.</li>
 </ol>
-<p>Those three unlock the L8 FAPI 2.0 conformance story.</p>
 <hr />
 <h2 id="7-worked-examples">7. Worked examples <a class="anchor" href="#7-worked-examples">¶</a></h2>
 <p>Each example walks through the L and T tiers on a scenario you&rsquo;ve actually<br />

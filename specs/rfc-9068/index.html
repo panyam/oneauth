@@ -189,7 +189,7 @@
 <p><strong>Status:</strong> Standards Track<br />
 <strong>Published:</strong> 2021-10<br />
 <strong>L-tier / T-tier:</strong> L1 · T5 (issue) + T7 (verify)<br />
-<strong>OneAuth coverage:</strong> Implemented<br />
+<strong>OneAuth coverage:</strong> Partial (claims and verify-side token-kind checks implemented; <code>typ:at+jwt</code> on issue is #328)<br />
 <strong>See also:</strong> <a href="RFC_7519.md"><code>RFC_7519.md</code></a> · <a href="RFC_7662.md"><code>RFC_7662.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
@@ -367,7 +367,7 @@ zero and the cross-vendor compatibility win is large.</p>
 <tr>
 <td>Standard claims (<code>iss</code>, <code>sub</code>, <code>aud</code>, <code>exp</code>, <code>iat</code>, <code>jti</code>)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/as_metadata_test.go:131,141</code> declares the supported set; all handlers emit</td>
+<td><code>TestASMetadata_ClaimsSupported</code> in <code>apiauth/as_metadata_test.go</code> declares the supported set; all handlers emit</td>
 <td>Test asserts <code>claims_supported=[sub,iss,aud,exp,iat,jti]</code></td>
 </tr>
 <tr>
@@ -378,9 +378,9 @@ zero and the cross-vendor compatibility win is large.</p>
 </tr>
 <tr>
 <td><code>scope</code> claim</td>
-<td><strong>Implemented</strong></td>
-<td><code>apiauth/token_validator.go</code> (<code>CreateAccessToken</code> at line 382) and <code>apiauth/id_jag.go</code> (line 195) carry scope into the JWT</td>
-<td>—</td>
+<td><strong>Partial</strong></td>
+<td><code>apiauth/token_validator.go</code> (<code>jwtIssuer.CreateAccessToken</code>) and <code>apiauth/id_jag.go</code> (<code>jwtIDJAGIssuer.CreateIDJAG</code>)</td>
+<td>Access tokens carry the granted scopes as a <code>scopes</code> JSON array, not the space-separated <code>scope</code> string 9068 §2.2.3 names. ID-JAGs carry <code>scope</code> as a string. <code>CustomClaimsFunc</code> can&rsquo;t add a <code>scope</code> claim (0.1.45)</td>
 </tr>
 <tr>
 <td><code>jti</code> for revocation support</td>
@@ -390,21 +390,21 @@ zero and the cross-vendor compatibility win is large.</p>
 </tr>
 <tr>
 <td><code>typ:at+jwt</code> header</td>
-<td><strong>Gap</strong> (verify by re-grep before committing)</td>
-<td>golang-jwt v5 default <code>typ:JWT</code></td>
-<td>Add <code>typ:at+jwt</code> to access-token mints; trivial change behind a flag</td>
+<td><strong>Gap</strong></td>
+<td><code>jwtIssuer.CreateAccessToken</code> leaves golang-jwt v5&rsquo;s default <code>typ:JWT</code></td>
+<td>Emitting <code>typ:at+jwt</code> on access-token mints is #328</td>
 </tr>
 <tr>
 <td><code>authorization_details</code> (RFC 9396) carried</td>
 <td><strong>Implemented</strong></td>
-<td><code>core/authorization_details.go</code>; emitted in <code>apiauth/token_validator.go</code> (<code>CreateAccessToken</code> at line 406) and <code>apiauth/id_jag.go</code> (line 201)</td>
-<td>Goes alongside <code>scope</code></td>
+<td><code>core/authorization_details.go</code>; emitted in <code>apiauth/token_validator.go</code> (<code>jwtIssuer.CreateAccessToken</code>) and <code>apiauth/id_jag.go</code> (<code>jwtIDJAGIssuer.CreateIDJAG</code>)</td>
+<td>Goes alongside <code>scopes</code></td>
 </tr>
 <tr>
 <td>RS-side <code>typ</code> validation</td>
-<td><strong>Gap</strong></td>
-<td>Verify currently treats any signed JWT as acceptable</td>
-<td>Companion to the issuance-side <code>typ:at+jwt</code> gap</td>
+<td><strong>Partial, by design</strong></td>
+<td><code>checkAccessTokenKind</code> in <code>apiauth/jwt_helpers.go</code></td>
+<td>The validator accepts <code>typ</code> <code>at+jwt</code>, <code>application/at+jwt</code>, <code>JWT</code> or none, and refuses other token kinds signed with the same key: logout tokens and ID-JAGs by <code>typ</code> header and sessions by <code>type</code> claim (0.1.45), and Keycloak ID tokens by a <code>typ</code> claim other than <code>Bearer</code> or <code>DPoP</code> (0.1.46). Requiring <code>at+jwt</code> is not planned, because Keycloak&rsquo;s access tokens carry <code>typ:JWT</code> (issue 329 was closed for that reason)</td>
 </tr>
 <tr>
 <td><code>auth_time</code>, <code>acr</code>, <code>amr</code> (optional)</td>
@@ -414,9 +414,9 @@ zero and the cross-vendor compatibility win is large.</p>
 </tr>
 </tbody>
 </table>
-<p>The two gaps (<code>typ:at+jwt</code> on issue, <code>typ</code> validation on verify) are small<br />
-wins that would tighten 9068 conformance. Worth a follow-up ticket if not<br />
-already on the backlog.</p>
+<p>The verify side already refuses the other token kinds oneauth and Keycloak<br />
+sign with the same key. The issue side still mints <code>typ:JWT</code> and a <code>scopes</code><br />
+array; <code>typ:at+jwt</code> is tracked in #328.</p>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
 <li><a href="RFC_7519.md">RFC 7519 JWT</a> — the parent spec 9068 profiles</li>

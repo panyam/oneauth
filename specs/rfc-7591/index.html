@@ -265,7 +265,9 @@ from later RFCs (<code>authorization_details_types</code> for RAR,<br />
 for prototype tooling, dangerous in production. Authenticated DCR<br />
 (§3.2) requires a <em>registration initial access token</em> before the<br />
 register call succeeds. Production deployments almost always use the<br />
-authenticated form.</li>
+authenticated form. In OneAuth, <code>admin.InitialAccessTokenAuth</code> set as<br />
+<code>AppRegistrar.RegistrationAuth</code> admits <code>POST /apps/dcr</code> for holders of<br />
+an initial access token and opens no other admin route.</li>
 <li><strong>Returns include <code>registration_access_token</code> + <code>registration_client_uri</code></strong><br />
 (§3.2.1). These tie into <a href="RFC_7592.md">RFC 7592 management</a> — the token<br />
 lets the client later read/update/delete its own registration without<br />
@@ -334,7 +336,9 @@ HTTPS redirect URIs (other than loopback) must be rejected.</p>
 <ol>
 <li><strong>Stand up the DCR endpoint behind an admin-token gate.</strong> Authenticated<br />
 DCR with initial-access-token requirement (§3.2). This is the form<br />
-most production IdPs ship.</li>
+most production IdPs ship. On the OneAuth reference server, list the<br />
+tokens under <code>admin_auth.dcr_initial_access_tokens</code> (each at least 32<br />
+bytes).</li>
 <li><strong>Migrate existing clients lazily.</strong> Don&rsquo;t auto-import legacy clients<br />
 into the DCR registry; new clients get DCR, existing ones stay where<br />
 they are. They differ only in <em>how</em> they got their credentials.</li>
@@ -368,62 +372,110 @@ extensions to DCR or out-of-band provisioning.</li>
 <tr>
 <td><code>POST /apps/dcr</code> endpoint</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:121</code> <code>DCRHandler.ServeHTTP</code></td>
+<td><code>admin/dcr.go</code> <code>DCRHandler.ServeHTTP</code></td>
 <td>RFC 7591 §3 compliant</td>
 </tr>
 <tr>
 <td><code>client_metadata</code> JSON parsing</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:134–138</code> decodes into <code>DCRRequest</code></td>
-<td>—</td>
+<td><code>admin/dcr.go</code> <code>DCRHandler.ServeHTTP</code> decodes into <code>DCRRequest</code></td>
+<td>Body capped at 64 KiB (413 above it) since 0.1.48</td>
 </tr>
 <tr>
 <td><code>client_id</code> + <code>client_secret</code> generation</td>
 <td><strong>Implemented</strong></td>
-<td>Delegated to <code>ClientRegistrar.Register</code> (composed interface)</td>
-<td>High-entropy via secure-random</td>
+<td><code>admin/registrar.go</code> <code>AppRegistrar.Register</code> (behind the <code>ClientRegistrar</code> interface)</td>
+<td>High-entropy via secure-random. A <code>none</code> client gets no secret (0.1.50)</td>
 </tr>
 <tr>
 <td><code>client_id_issued_at</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:96</code> field on response</td>
+<td><code>admin/dcr.go</code> <code>DCRResponse.ClientIDIssuedAt</code></td>
 <td>Unix seconds</td>
 </tr>
 <tr>
 <td><code>client_secret_expires_at</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:97</code></td>
+<td><code>admin/dcr.go</code> <code>DCRResponse.ClientSecretExpiresAt</code></td>
 <td>0 = never expires (per 7591 §3.2.1)</td>
 </tr>
 <tr>
-<td>Authenticated DCR (initial access token)</td>
+<td>Authenticated DCR (admin credential)</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:127–131</code> gated on <code>h.Auth.Authenticate</code></td>
-<td>Pluggable auth — <code>nil</code> allows open DCR for dev</td>
+<td><code>admin/dcr.go</code> <code>DCRHandler.ServeHTTP</code> calls <code>DCRHandler.Auth.Authenticate</code></td>
+<td>A nil <code>Auth</code> answers 401 since 0.1.44. Open DCR needs <code>admin.NewNoAuth()</code></td>
+</tr>
+<tr>
+<td>Initial access token (§3)</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/auth.go</code> <code>InitialAccessTokenAuth</code>, set as <code>AppRegistrar.RegistrationAuth</code></td>
+<td>Sent as <code>Authorization: Bearer</code>, compared in constant time. Admits <code>POST /apps/dcr</code> only. Reference server: <code>admin_auth.dcr_initial_access_tokens</code>, 32 bytes minimum (0.1.55)</td>
 </tr>
 <tr>
 <td><code>registration_access_token</code> + <code>registration_client_uri</code> issuance</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:106–108</code> returned per RFC 7592 §3</td>
-<td>Enables paired 7592 management</td>
+<td><code>admin/dcr.go</code> <code>DCRResponse.RegistrationAccessToken</code> / <code>RegistrationClientURI</code> per RFC 7592 §3</td>
+<td>The URI is built from <code>AppRegistrar.IssuerBaseURL</code>, or from the request only for a loopback host; otherwise registration answers 500 (0.1.44)</td>
 </tr>
 <tr>
-<td>Redirect URI HTTPS validation</td>
+<td>Redirect URI validation</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/registrar.go</code> <code>Register</code> validates each URI per RFC 8252 + 9700 §2.1.2</td>
-<td>Loopback carve-out for native apps; non-HTTPS rejected with <code>invalid_client_metadata</code></td>
+<td><code>admin/registrar.go</code> <code>validateRedirectURI</code>, called from <code>AppRegistrar.Register</code></td>
+<td>https, loopback http (RFC 8252 §7.3) or a private-use scheme. Fragments, userinfo and https without a host are refused. Every redirect problem answers <code>invalid_redirect_uri</code> (<code>ErrInvalidRedirectURI</code>, which wraps <code>ErrInvalidClientMetadata</code>) since 0.1.50</td>
+</tr>
+<tr>
+<td><code>token_endpoint_auth_method</code> + <code>grant_types</code> checks</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/registrar.go</code> <code>validateClientMetadata</code></td>
+<td>On register and update, both are checked against what the token endpoint supports and against each other: no <code>client_credentials</code> for a <code>none</code> client, and <code>authorization_code</code> needs a redirect URI (0.1.50)</td>
+</tr>
+<tr>
+<td>Default <code>token_endpoint_auth_method</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/registrar.go</code> <code>effectiveAuthMethod</code></td>
+<td><code>client_secret_basic</code> (RFC 7591 §2), stored and echoed alike (0.1.50)</td>
 </tr>
 <tr>
 <td><code>authorization_details_types</code> (RFC 9396 RAR)</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:104</code> field</td>
+<td><code>admin/dcr.go</code> <code>DCRRequest.AuthorizationDetailsTypes</code></td>
 <td>Client can declare which RAR types it expects</td>
 </tr>
 <tr>
 <td><code>backchannel_logout_uri</code> (OIDC BCL)</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:112–113</code> echo of registered receiver metadata</td>
-<td>—</td>
+<td><code>admin/dcr.go</code> <code>DCRResponse.BackchannelLogoutURI</code> echoes the registered receiver metadata</td>
+<td>Validated by <code>validateBackchannelLogoutURI</code></td>
+</tr>
+<tr>
+<td><code>dpop_bound_access_tokens</code> (RFC 9449 §5.2)</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/dcr.go</code> <code>DCRRequest.DPoPBoundAccessTokens</code>, echoed on <code>DCRResponse</code></td>
+<td>The token endpoint refuses this client&rsquo;s requests without a DPoP proof (0.1.41)</td>
+</tr>
+<tr>
+<td><code>require_pushed_authorization_requests</code> (RFC 9126 §6)</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/dcr.go</code> <code>DCRRequest.RequirePushedAuthorizationRequests</code>, echoed on <code>DCRResponse</code></td>
+<td><code>/authorize</code> refuses this client&rsquo;s requests that don&rsquo;t come through PAR (0.1.50)</td>
+</tr>
+<tr>
+<td>Response caching</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/no_store.go</code> <code>noStore</code></td>
+<td><code>Cache-Control: no-store</code> on every DCR response, errors included (0.1.44)</td>
+</tr>
+<tr>
+<td>Rate limiting</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/registrar.go</code> <code>AppRegistrar.AuthRateLimiter</code></td>
+<td>Per client address, checked before the credential. Nil disables it; the reference server sets it (0.1.44)</td>
+</tr>
+<tr>
+<td>Server errors</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/dcr.go</code> <code>DCRHandler.ServeHTTP</code></td>
+<td>The detail is logged and the client gets <code>server_error</code> with &ldquo;internal server error&rdquo; (0.1.50)</td>
 </tr>
 <tr>
 <td><code>software_statement</code> (§2.3)</td>

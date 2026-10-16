@@ -318,26 +318,26 @@ online in 2026.</p>
 <tr>
 <td><code>/.well-known/oauth-protected-resource</code> endpoint</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/protected_resource.go:119</code> <code>NewProtectedResourceHandler</code></td>
+<td><code>apiauth/protected_resource.go</code> <code>NewProtectedResourceHandler</code></td>
 <td>Single-handler form</td>
 </tr>
 <tr>
 <td><code>MountProtectedResource</code> registrar</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/protected_resource.go:81</code></td>
-<td>Bundles handler + optional AS metadata proxy</td>
+<td><code>apiauth/protected_resource.go</code> <code>MountProtectedResource</code></td>
+<td>Bundles handler + optional AS metadata proxy. Each well-known pattern is mounted once, so several authorization servers no longer panic <code>ServeMux</code> (0.1.51). The bare proxy path goes to the first server; a path-based server keeps its own path</td>
 </tr>
 <tr>
 <td><code>resource</code> + <code>authorization_servers</code> required fields</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/protected_resource.go:19–26</code> <code>ProtectedResourceMetadata</code> struct</td>
+<td><code>apiauth/protected_resource.go</code> <code>ProtectedResourceMetadata</code> struct</td>
 <td>Tested in <code>protected_resource_test.go</code> (full + minimal-required modes)</td>
 </tr>
 <tr>
 <td><code>bearer_methods_supported</code> advertisement</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/protected_resource.go:38</code> <code>BearerMethodsSupported</code> field</td>
-<td>Caller-populated (omitempty); reference server sets <code>[&quot;header&quot;]</code> — OneAuth accepts header-form bearer only (RFC 6750 §2.1)</td>
+<td><code>ProtectedResourceMetadata.BearerMethodsSupported</code> field</td>
+<td>Caller-populated (omitempty); reference server sets <code>[&quot;header&quot;]</code>, since OneAuth accepts header-form bearer only (RFC 6750 §2.1)</td>
 </tr>
 <tr>
 <td><code>scopes_supported</code></td>
@@ -362,6 +362,12 @@ online in 2026.</p>
 <td><strong>Implemented</strong></td>
 <td><code>ProtectedResourceMetadata.DPoPSigningAlgValuesSupported</code></td>
 <td>Fill from <code>DPoPProofValidator.SigningAlgValuesSupported()</code> so the advertisement cannot drift from what is accepted</td>
+</tr>
+<tr>
+<td><code>resource_metadata</code> in <code>WWW-Authenticate</code> (§5.1)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/middleware.go</code> <code>APIMiddleware.ResourceMetadataURL</code></td>
+<td>When set, every challenge carries <code>resource_metadata=&quot;&lt;url&gt;&quot;</code>, so a client that got a 401 can find the authorization server (0.1.45)</td>
 </tr>
 <tr>
 <td><code>tls_client_certificate_bound_access_tokens</code></td>

@@ -321,7 +321,7 @@ in the client&rsquo;s <code>jwks</code> (or <code>jwks_uri</code>) metadata via 
 <li><strong>Client constructs a fresh <code>client_assertion</code> JWT per token call.</strong><br />
 Library support is universal (golang-jwt, jose-jwt, jsonwebtoken).</li>
 <li><strong>AS validates</strong> — OneAuth does this via<br />
-<code>ClientAuthenticator.AuthenticateClient</code> (<code>apiauth/client_authenticator.go:102</code>).</li>
+<code>ClientAuthenticator.AuthenticateClient</code> (<code>clientAuthenticator.authenticateAssertion</code> in <code>apiauth/client_authenticator.go</code>).</li>
 <li><strong>Remove the <code>client_secret</code></strong> from the client&rsquo;s registration once all<br />
 token calls use private_key_jwt. Defense-in-depth — without a secret to<br />
 leak, there&rsquo;s no secret-leak attack.</li>
@@ -343,31 +343,31 @@ that can&rsquo;t yet manage asymmetric keys per client.</p>
 <tr>
 <td><code>grant_type=...:jwt-bearer</code> (grant mode)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go:80–81</code> <code>case JwtBearerGrantType</code> → <code>dispatchJwtBearer</code>; full handler at <code>apiauth/jwt_bearer_granter.go:77</code> <code>JwtBearerGrant</code> (RFC 7523 §2.1)</td>
+<td><code>apiauth/token_endpoint.go</code> <code>case JwtBearerGrantType</code> → <code>TokenEndpointHandler.dispatchJwtBearer</code>; full handler at <code>apiauth/jwt_bearer_granter.go</code> <code>jwtBearerGranter.JwtBearerGrant</code> (RFC 7523 §2.1)</td>
 <td>Multiple test cases in <code>jwt_bearer_grant_test.go</code></td>
 </tr>
 <tr>
 <td><code>urn:ietf:params:oauth:grant-type:jwt-bearer</code> constant</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/jwt_bearer_grant.go:27</code> <code>JwtBearerGrantType</code></td>
+<td><code>apiauth/jwt_bearer_grant.go</code> <code>JwtBearerGrantType</code></td>
 <td>—</td>
 </tr>
 <tr>
 <td><code>client_assertion_type=...:jwt-bearer</code> (client auth)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/client_authenticator.go:120</code> validates exact URN</td>
+<td><code>apiauth/client_authenticator.go</code> checks the exact <code>ClientAssertionTypeJWTBearer</code> URN</td>
 <td>—</td>
 </tr>
 <tr>
 <td><code>private_key_jwt</code> (asymmetric)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/client_authenticator.go:65–70,102</code> validates JWS signature against published JWK</td>
+<td><code>apiauth/client_authenticator.go</code> <code>authenticateAssertion</code> validates JWS signature against published JWK</td>
 <td><code>Method</code> field returns <code>&quot;private_key_jwt&quot;</code> for asymmetric clients</td>
 </tr>
 <tr>
 <td><code>client_secret_jwt</code> (HMAC)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/client_authenticator.go:65–70</code> + <code>apiauth/client_secret_jwt_test.go:151,167</code> validates <code>Method == &quot;client_secret_jwt&quot;</code></td>
+<td><code>apiauth/client_authenticator.go</code> <code>authenticateAssertion</code> + <code>TestClientSecretJWT_MethodClassification</code> in <code>apiauth/client_secret_jwt_test.go</code> validates <code>Method == &quot;client_secret_jwt&quot;</code></td>
 <td>Landed in PR 293 (issue 159)</td>
 </tr>
 <tr>
@@ -379,26 +379,32 @@ that can&rsquo;t yet manage asymmetric keys per client.</p>
 <tr>
 <td><code>aud</code> matches AS token endpoint</td>
 <td><strong>Implemented</strong></td>
-<td>Validated in client_authenticator</td>
-<td>Prevents cross-AS replay</td>
+<td><code>apiauth/client_authenticator.go</code> against <code>AcceptedAudiences</code>; fallback <code>derivedAudience</code> in <code>apiauth/client_credentials.go</code></td>
+<td>Prevents cross-AS replay. Since 0.1.52 the derived audience comes from <code>r.TLS</code> and <code>r.Host</code> only, never <code>X-Forwarded-Host</code> / <code>X-Forwarded-Proto</code>, which had let a caller choose the audience its own assertion was checked against. The token endpoint also accepts the issuer (§3). Behind a TLS proxy set <code>OneAuthConfig.AcceptedAudiences</code>; the reference server sets it from <code>jwt.issuer</code> and <code>public_url</code>. Under <code>OneAuthConfig.FAPI2</code> the issuer is the only accepted audience and <code>aud</code> must be a single string</td>
 </tr>
 <tr>
 <td><code>exp</code> short-lived enforcement</td>
 <td><strong>Implemented</strong></td>
-<td>Library default + explicit window</td>
-<td>—</td>
+<td>Library default + explicit window; <code>ValidateAssertion</code> in <code>apiauth/jwt_bearer_grant.go</code></td>
+<td>Since 0.1.45 a jwt-bearer grant assertion must carry <code>exp</code> and is checked against a configured audience (<code>TrustedAssertionIssuer.Audiences</code>, else the AS audience or issuer URL). With none configured every assertion is refused</td>
 </tr>
 <tr>
 <td><code>jti</code> replay defense</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/client_authenticator.go:238–239</code> calls <code>jtiStore.SeenWithin(jti, replayWindow)</code> and rejects on hit; pluggable <code>JTIStore</code> interface for distributed deployments</td>
-<td>Tested in <code>client_secret_jwt_test.go:266</code> and <code>private_key_jwt_test.go:269</code></td>
+<td><code>apiauth/client_authenticator.go</code> calls <code>jtiStore.SeenWithin(jti, replayWindow)</code> and rejects on hit; pluggable <code>JTIStore</code> interface for distributed deployments. For the grant, <code>jwtBearerGranter.JwtBearerGrant</code> spends any assertion that carries a <code>jti</code>, keyed by <code>iss</code> + <code>jti</code> (0.1.45)</td>
+<td>Tested in <code>TestClientSecretJWT_RejectsReplayedJTI</code>, <code>TestPrivateKeyJWT_RejectsReplayedJTI</code> and <code>TestJwtBearerHardening_AssertionWithJTIIsSingleUse</code></td>
 </tr>
 <tr>
 <td>AS metadata advertisement (<code>token_endpoint_auth_signing_alg_values_supported</code>)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/as_metadata.go:61</code> field — see RFC 8414 doc</td>
+<td><code>ASServerMetadata.TokenEndpointAuthSigningAlgValuesSupported</code> in <code>apiauth/as_metadata.go</code>; see RFC 8414 doc</td>
 <td>—</td>
+</tr>
+<tr>
+<td>Assertion algorithms under FAPI 2.0</td>
+<td><strong>Implemented</strong></td>
+<td><code>AuthenticateClientRequest.AllowedAssertionAlgs</code>; <code>fapi2AssertionAlgs</code> in <code>apiauth/fapi2.go</code></td>
+<td>Since 0.1.54 <code>FAPI2</code> accepts only PS256, ES256 and EdDSA client assertions. oneauth can register only ES256 client keys of those (#330, #331), so an RS256 <code>private_key_jwt</code> client stops authenticating when FAPI is on</td>
 </tr>
 <tr>
 <td>ID-JAG redemption (MCP EMA)</td>
@@ -410,7 +416,7 @@ that can&rsquo;t yet manage asymmetric keys per client.</p>
 <td>Confidential-client auth (§3, optional)</td>
 <td><strong>Implemented</strong></td>
 <td><code>apiauth/confidential_client_auth.go</code> + <code>jwt_bearer_granter.go</code>; tests in <code>confidential_client_grants_test.go</code></td>
-<td>Issue 356. Registered confidential client (auth method != none) MUST authenticate; unregistered/public stays assertion-only. Fail-OPEN on unknown client_id — §3 makes client auth optional here (unlike device_code&rsquo;s fail-closed)</td>
+<td>Issue 356. Registered confidential client (auth method != none) MUST authenticate; unregistered/public stays assertion-only. An unknown <code>client_id</code> takes the public path, since §3 makes client auth optional here (device_code fails closed). An AppStore error other than not-found is a 500 since 0.1.41, where it used to read as a public client. Under <code>FAPI2</code> an unregistered or public client is refused with <code>invalid_client</code> (0.1.52)</td>
 </tr>
 <tr>
 <td>Auth-method binding (no downgrade)</td>
@@ -439,7 +445,7 @@ against this AS via the standard §3 audience validation.</li>
 <code>client_id</code> claim (draft §5), so the resource server sees which client the<br />
 IdP vouched for.</li>
 </ul>
-<p>Plain jwt-bearer assertions (no ID-JAG <code>typ</code>) are unaffected. Issuance is the<br />
+<p>Plain jwt-bearer assertions (no ID-JAG <code>typ</code>) get no <code>client_id</code> binding. Since 0.1.45 any assertion that carries a <code>jti</code> is single-use too, keyed by <code>iss</code> and <code>jti</code>, since <code>jti</code> values are unique only per issuer. Issuance is the<br />
 sibling <a href="RFC_8693.md">RFC 8693</a> token-exchange path. <code>act</code>/actor propagation<br />
 for agent-vs-user identity is a tracked follow-up (mcpkit ext-auth#13).</p>
 <h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>

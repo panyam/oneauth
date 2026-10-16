@@ -189,7 +189,7 @@
 <p><strong>Status:</strong> OpenID Foundation Specification (not an IETF RFC)<br />
 <strong>Published:</strong> 2014 (latest errata 2024)<br />
 <strong>L-tier / T-tier:</strong> L7 · T3 (user auth) + T5 (id_token issue)<br />
-<strong>OneAuth coverage:</strong> Partial — <code>/authorize</code> shipped in PR 297 (OAuth-layer), but id_token issuance, nonce, and <code>/userinfo</code> are gaps<br />
+<strong>OneAuth coverage:</strong> Partial. <code>/authorize</code> shipped in PR 297 (OAuth-layer), but id_token issuance, nonce, and <code>/userinfo</code> are gaps (#339)<br />
 <strong>See also:</strong> <a href="OIDC_Discovery.md"><code>OIDC_Discovery.md</code></a> · <a href="OIDC_BCL.md"><code>OIDC_BCL.md</code></a> · <a href="OIDC_CIBA.md"><code>OIDC_CIBA.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
@@ -412,25 +412,25 @@ surface smaller.</li>
 </tr>
 <tr>
 <td><code>id_token</code> issuance</td>
-<td><strong>Gap</strong></td>
-<td>Only <code>apiauth/token_exchange_grant.go:27</code> <code>TokenTypeIDToken</code> constant exists (for 8693); no actual id_token mint anywhere</td>
-<td>The foundational OIDC piece — without it the rest is mostly moot</td>
+<td><strong>Gap</strong> (#339)</td>
+<td>Only the <code>TokenTypeIDToken</code> constant in <code>apiauth/token_exchange_grant.go</code> exists (for 8693); no actual id_token mint anywhere</td>
+<td>The foundational OIDC piece; without it the rest is mostly moot</td>
 </tr>
 <tr>
 <td><code>nonce</code> parameter handling</td>
-<td><strong>Gap</strong></td>
+<td><strong>Gap</strong> (#339)</td>
 <td>No <code>nonce</code> references in <code>apiauth/authorize*.go</code> or <code>core/authorization_code.go</code></td>
 <td>Required for OIDC replay defense</td>
 </tr>
 <tr>
 <td><code>/userinfo</code> endpoint</td>
-<td><strong>Gap</strong></td>
-<td><code>apiauth/as_metadata.go:33</code> <code>UserinfoEndpoint</code> field is wired (advertises a URL) but no handler implements it</td>
+<td><strong>Gap</strong> (#339)</td>
+<td><code>ASServerMetadata.UserinfoEndpoint</code> in <code>apiauth/as_metadata.go</code> is wired (advertises a URL) but no handler implements it</td>
 <td>Discovery-advertised; needs implementation</td>
 </tr>
 <tr>
 <td><code>openid</code>/<code>profile</code>/<code>email</code>/etc. scope-to-claims mapping</td>
-<td><strong>Gap</strong></td>
+<td><strong>Gap</strong> (#339)</td>
 <td>No scope-aware claim selector</td>
 <td>Needed for both id_token and userinfo</td>
 </tr>
@@ -452,10 +452,16 @@ surface smaller.</li>
 <td><code>apiauth.MountASMetadata</code> co-serves both paths</td>
 <td>See <a href="OIDC_Discovery.md"><code>OIDC_Discovery.md</code></a></td>
 </tr>
+<tr>
+<td>ID tokens refused as access tokens (resource-server side)</td>
+<td><strong>Implemented</strong></td>
+<td><code>checkAccessTokenKind</code> in <code>apiauth/jwt_helpers.go</code></td>
+<td>Keycloak signs ID tokens with the same key, header and <code>aud</code> as its access tokens, and marks them with a <code>typ</code> claim of <code>ID</code>. Since 0.1.46 the validator refuses a token whose <code>typ</code> claim is anything but <code>Bearer</code> or <code>DPoP</code></td>
+</tr>
 </tbody>
 </table>
 <p><strong>Implementation sketch.</strong> OIDC Core is the single largest <em>implementable</em><br />
-gap in OneAuth. The foundation (<code>/authorize</code>, JWKS, AS metadata, DCR) is<br />
+gap in OneAuth, tracked in #339. The foundation (<code>/authorize</code>, JWKS, AS metadata, DCR) is<br />
 all in place; what&rsquo;s missing is the identity-layer plumbing:</p>
 <ol>
 <li><strong><code>IDTokenIssuer</code> interface</strong> alongside <code>TokenIssuer</code>. Signs id_tokens<br />

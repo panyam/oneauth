@@ -333,8 +333,11 @@ rejected:</p>
 </span></span><span style="display:flex;"><span>                                       &amp;error_description=code_challenge+is+required+%28PKCE%29
 </span></span><span style="display:flex;"><span>                                       &amp;state=xyzABC
 </span></span><span style="display:flex;"><span>                                       &amp;iss=https://as.example.com
-</span></span></code></pre><p>That redirect — error + <code>iss</code> — is exactly what OneAuth&rsquo;s <code>/authorize</code> does<br />
-today (<code>apiauth/authorize.go:173</code>).</p>
+</span></span></code></pre><p>OneAuth&rsquo;s <code>/authorize</code> answers that request with that redirect, error and<br />
+<code>iss</code> included, from <code>AuthorizationHandler.ValidateValues</code> and<br />
+<code>AuthorizationHandler.ErrorRedirect</code> (<code>apiauth/authorize.go</code>) when<br />
+<code>EmitIssParameter</code> is on. The reference server turns it on whenever<br />
+<code>code_flow</code> is enabled.</p>
 <h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
 <ul>
 <li><strong>L0 spine.</strong> 2.1 <em>is</em> the spine; it&rsquo;s the document that legitimizes the<br />
@@ -355,9 +358,9 @@ bearer is widely off — but they brand themselves as &ldquo;OAuth 2.0 with<br /
 <p>For OneAuth, see the audit-table verdict in<br />
 <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>. The shortcut:</p>
 <ul>
-<li>5/8 compliant today (post PR 297)</li>
-<li>2 deliberate transition gaps (ROPC, query-param bearer)</li>
-<li>1 historical gap closed by recent work (PKCE server-side enforcement)</li>
+<li>Compliant by default on all 9 rows of the audit table.</li>
+<li>ROPC and query-param bearer are off unless a deployment opts in (issues 294 and 295, both closed). <code>FAPI2</code> refuses ROPC outright.</li>
+<li>The reference server still wires the password grant outside <code>fapi2: true</code>.</li>
 </ul>
 <h2 id="migration-path">Migration path <a class="anchor" href="#migration-path">¶</a></h2>
 <p>This is the only doc in this folder whose <em>primary purpose</em> is the migration<br />
@@ -370,11 +373,13 @@ exact redirect URI matching, refresh rotation. These break nothing<br />
 correctly-implemented clients do today.</li>
 <li><strong>Plan migrations for 2.0-legal-but-2.1-illegal features</strong>:
 <ul>
-<li><strong>ROPC</strong>: identify callers, document <code>localauth/</code> HTTP-login alternative,<br />
-ship as a breaking change behind a major version bump</li>
-<li><strong>Query-param bearer</strong>: document the WebSocket-auth alternative<br />
-(subprotocol headers, initial-frame auth, short-lived per-connection<br />
-tickets), then remove</li>
+<li><strong>ROPC</strong>: off by default in the library since issue 294. A deployment<br />
+opts in by setting <code>OneAuthConfig.PasswordGranter</code><br />
+(<code>NewPasswordGranter</code>); <code>localauth/</code> HTTP login is the alternative.</li>
+<li><strong>Query-param bearer</strong>: off by default since issue 295. A deployment<br />
+opts in with <code>APIMiddleware.LegacyQueryParamBearer</code>; <code>docs/DEMOS.md</code><br />
+lists the WebSocket alternatives (subprotocol headers, initial-frame<br />
+auth, short-lived per-connection tickets).</li>
 </ul>
 </li>
 <li><strong>Treat the dual-status as a feature.</strong> OneAuth-as-AS being 2.1-strict<br />
@@ -392,7 +397,7 @@ exactly this kind of deprecation window.</p>
 <h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
 <p>The single source of truth is <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>.<br />
 The row-by-row table there is kept in lock-step with the codebase as each<br />
-non-compliance is closed. As of this writing (post PR 297):</p>
+non-compliance is closed. As of 0.2.1:</p>
 <table>
 <thead>
 <tr>
@@ -404,43 +409,48 @@ non-compliance is closed. As of this writing (post PR 297):</p>
 <tbody>
 <tr>
 <td>1. PKCE required for all auth-code</td>
-<td><strong>Compliant</strong> (server enforces on <code>/authorize</code>)</td>
-<td>landed PR 297</td>
+<td><strong>Compliant</strong> (server enforces on <code>/authorize</code>, and checks the shape: an S256 challenge is 43 base64url characters, a verifier 43 to 128 unreserved characters)</td>
+<td>landed PR 297; shape checks 0.1.49</td>
 </tr>
 <tr>
 <td>2. Implicit grant removed</td>
-<td><strong>Compliant by absence</strong></td>
+<td><strong>Compliant</strong> (<code>/authorize</code> accepts only <code>response_type=code</code>)</td>
 <td>—</td>
 </tr>
 <tr>
 <td>3. ROPC removed</td>
-<td><strong>Non-compliant</strong></td>
-<td>issue 294</td>
+<td><strong>Compliant by default</strong> (nil <code>OneAuthConfig.PasswordGranter</code> answers <code>unsupported_grant_type</code>; <code>FAPI2</code> refuses it)</td>
+<td>issue 294 (closed)</td>
 </tr>
 <tr>
 <td>4. Exact redirect URI matching</td>
-<td><strong>Compliant</strong> (DCR + <code>/authorize</code>)</td>
-<td>landed PR 296 / 297</td>
+<td><strong>Compliant</strong> (DCR + <code>/authorize</code>). An <code>http</code> loopback redirect matches on any port, per RFC 8252 §7.3. <code>/authorize</code> with no client registry refuses every request unless <code>AllowAnyRedirectURI</code> is set.</td>
+<td>landed PR 296 / 297; loopback 0.1.38; registry 0.1.49</td>
 </tr>
 <tr>
 <td>5. PKCE S256-only</td>
-<td><strong>Compliant</strong></td>
+<td><strong>Compliant</strong> (<code>plain</code> only with <code>AllowPlainPKCE</code>)</td>
 <td>landed PR 297</td>
 </tr>
 <tr>
 <td>6. HTTPS redirect URIs</td>
 <td><strong>Compliant</strong> (DCR)</td>
-<td>landed PR 296</td>
+<td>landed PR 296; stricter DCR checks 0.1.50</td>
 </tr>
 <tr>
 <td>7. Bearer NOT in query string</td>
-<td><strong>Non-compliant</strong> (opt-in deprecation warning)</td>
-<td>issue 295</td>
+<td><strong>Compliant by default</strong> (<code>APIMiddleware.LegacyQueryParamBearer</code> is empty unless set)</td>
+<td>issue 295 (closed)</td>
 </tr>
 <tr>
 <td>8. Refresh token rotation</td>
-<td><strong>Compliant</strong></td>
-<td>—</td>
+<td><strong>Compliant</strong>. The token must belong to the presenting client, and a confidential owner must authenticate. <code>DisableRefreshTokenRotation</code> turns rotation off for FAPI 2.0.</td>
+<td>client binding 0.1.41; optional rotation 0.1.43</td>
+</tr>
+<tr>
+<td>9. Authorization code single use</td>
+<td><strong>Compliant</strong>. A reused code is refused and the refresh family it issued is revoked, along with its access token when <code>OneAuthConfig.Blacklist</code> is set.</td>
+<td>0.1.57 (issue 429)</td>
 </tr>
 </tbody>
 </table>

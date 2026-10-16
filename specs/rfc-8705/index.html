@@ -189,7 +189,7 @@
 <p><strong>Status:</strong> Standards Track<br />
 <strong>Published:</strong> 2020-02<br />
 <strong>L-tier / T-tier:</strong> L5 · T5 (auth + mint binding) + T6 (present) + T7 (verify binding)<br />
-<strong>OneAuth coverage:</strong> Gap (candidate for FAPI track)<br />
+<strong>OneAuth coverage:</strong> Gap (#335). FAPI 2.0 is met with DPoP instead (<code>OneAuthConfig.FAPI2</code>)<br />
 <strong>See also:</strong> <a href="RFC_9449.md"><code>RFC_9449.md</code></a> · <a href="RFC_7523.md"><code>RFC_7523.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
@@ -394,8 +394,8 @@ overhead without solving a problem you have.</li>
 <tr>
 <td><code>tls_client_auth</code> client auth method (§2.1)</td>
 <td><strong>Gap</strong></td>
-<td>No mTLS handlers in <code>apiauth/</code>; single reference in <code>admin/DESIGN.md:19</code> mentions mTLS as a future admin authenticator (unrelated to OAuth client auth)</td>
-<td>Required for FAPI 1.0 Advanced / FAPI 2.0</td>
+<td>No mTLS handlers in <code>apiauth/</code>; the <code>AdminAuth</code> row of <code>admin/DESIGN.md</code> mentions mTLS as a future admin authenticator (unrelated to OAuth client auth)</td>
+<td>Tracked in #335. FAPI 2.0 accepts MTLS or DPoP, and oneauth meets it with DPoP through <code>OneAuthConfig.FAPI2</code> (0.1.52) and the reference server&rsquo;s <code>fapi2: true</code> (0.1.54), so MTLS is optional there</td>
 </tr>
 <tr>
 <td><code>self_signed_tls_client_auth</code> (§2.2)</td>
@@ -439,14 +439,21 @@ overhead without solving a problem you have.</li>
 <ol>
 <li>A new <code>ClientAuthenticator</code> strategy alongside the existing<br />
 <code>client_secret_*</code> / <code>private_key_jwt</code> / <code>client_secret_jwt</code> flavors,<br />
-reading the cert from a configurable trusted header (<code>X-Client-Cert</code><br />
-default, since OneAuth typically runs behind a TLS-terminating proxy).</li>
-<li>A <code>TokenBindingValidator</code> interface (shared seam with DPoP) that<br />
-exposes the cnf-claim emission and verification paths. Both 8705 and<br />
-9449 plug in behind the interface.</li>
+reading the cert from <code>r.TLS</code> when oneauth terminates TLS. Behind a<br />
+TLS-terminating proxy the cert arrives in a header such as<br />
+<code>X-Client-Cert</code>, and that would need an explicit trusted-proxy rule:<br />
+since 0.1.52 oneauth takes nothing security-relevant from forwarded<br />
+headers (client-assertion audiences and DPoP <code>htu</code> both ignore them),<br />
+because any caller can send them.</li>
+<li>A <code>cnf.x5t#S256</code> emission and verification path beside DPoP&rsquo;s. DPoP<br />
+has its own <code>DPoPProofValidator</code> (<code>apiauth/dpop.go</code>) and <code>cnf.jkt</code><br />
+binding; no shared token-binding interface exists, and adding MTLS<br />
+would mean either one or a second parallel path.</li>
 <li>AS metadata fields added incrementally — opt-in per deployment.</li>
 </ol>
-<p>This is also where FAPI test conformance starts to become reachable.</p>
+<p>FAPI 2.0 conformance does not depend on this work, since the DPoP path<br />
+already covers it. MTLS would matter for deployments whose clients<br />
+already hold certificates.</p>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
 <li><a href="RFC_9449.md">RFC 9449</a> — DPoP; the sibling sender-constraint mechanism for non-PKI deployments</li>

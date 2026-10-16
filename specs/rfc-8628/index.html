@@ -339,7 +339,7 @@ unchanged. The polling discipline (<code>interval</code>, <code>slow_down</code>
 <tr>
 <td><code>POST /device/authorize</code> endpoint</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/device_auth_grant.go</code> <code>DeviceAuthorizationHandler</code>; mounted by <code>apiauth.MountDeviceFlow</code> at <code>device_flow_mount.go:97–117</code></td>
+<td><code>apiauth/device_auth_grant.go</code> <code>DeviceAuthorizationHandler.ServeHTTP</code>; mounted by <code>apiauth.MountDeviceFlow</code> (<code>apiauth/device_flow_mount.go</code>)</td>
 <td>RFC 8628 §3.1–3.2</td>
 </tr>
 <tr>
@@ -351,43 +351,67 @@ unchanged. The polling discipline (<code>interval</code>, <code>slow_down</code>
 <tr>
 <td><code>verification_uri_complete</code> (§3.3.1)</td>
 <td><strong>Implemented</strong></td>
-<td><code>device_flow_mount.go:36–38</code> — config field substitutes user code into a template URL</td>
+<td><code>DeviceFlowMountConfig.VerificationURICompleteTemplate</code> / <code>DeviceAuthorizationHandler.VerificationURICompleteTemplate</code> substitutes the user code into a template URL</td>
 <td>Used for QR-code shortcuts</td>
 </tr>
 <tr>
 <td><code>interval</code> polling hint (§3.5)</td>
 <td><strong>Implemented</strong></td>
-<td><code>device_flow_mount.go:47</code> config defaults to 5s</td>
+<td><code>DeviceFlowMountConfig.Interval</code>; zero uses <code>DefaultDeviceAuthorizationInterval</code> (5s)</td>
 <td>—</td>
 </tr>
 <tr>
 <td><code>expires_in</code> (§3.2)</td>
 <td><strong>Implemented</strong></td>
-<td>Per <code>DeviceAuthorizationHandlerConfig.ExpiresIn</code></td>
-<td>Configurable; defaults sensible</td>
+<td><code>DeviceFlowMountConfig.Expiry</code>; zero uses <code>DefaultDeviceAuthorizationExpiry</code> (15 minutes)</td>
+<td>Configurable</td>
+</tr>
+<tr>
+<td>Registered scope at device authorization</td>
+<td><strong>Implemented</strong></td>
+<td><code>DeviceAuthorizationHandler.ServeHTTP</code> calls <code>grantScopes</code> (<code>apiauth/client_policy.go</code>)</td>
+<td>A scope outside <code>AppRegistration.Scope</code> gets 400 <code>invalid_scope</code>. With no scope asked for, the registered scope is granted (0.1.49).</td>
+</tr>
+<tr>
+<td>User-code brute-force limit (§5.1)</td>
+<td><strong>Implemented</strong></td>
+<td><code>DeviceFlowMountConfig.UserCodeRateLimiter</code>; nil uses <code>DefaultUserCodeRateLimiter</code></td>
+<td><code>MountDeviceFlow</code> always installs a limiter on <code>POST /device</code>, keyed by client address through <code>core.ClientIP</code> and <code>TrustedProxies</code> (0.1.44).</td>
+</tr>
+<tr>
+<td>Framing and caching</td>
+<td><strong>Implemented</strong></td>
+<td><code>httpauth.DenyFraming</code> on the <code>DeviceVerificationHandler</code> pages; <code>noStore</code> in <code>writeOAuthError</code></td>
+<td>The code entry, consent and done pages refuse framing. The device authorization response and every device error carry <code>Cache-Control: no-store</code> (0.1.44).</td>
 </tr>
 <tr>
 <td><code>POST /token</code> with <code>grant_type=...:device_code</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go:78–79</code> (<code>dispatchDeviceCode</code>) dispatches to <code>apiauth/device_granter.go:46</code> <code>DeviceCodeGrant</code>; per-RFC <code>authorization_pending</code> / <code>slow_down</code> / <code>access_denied</code> / <code>expired_token</code> errors emitted</td>
+<td><code>TokenEndpointHandler.dispatchDeviceCode</code> (<code>apiauth/token_endpoint.go</code>) dispatches to <code>deviceCodeGranter.DeviceCodeGrant</code> (<code>apiauth/device_granter.go</code>); per-RFC <code>authorization_pending</code> / <code>slow_down</code> / <code>access_denied</code> / <code>expired_token</code> errors emitted</td>
 <td>Full RFC 8628 §3.5 polling state machine</td>
+</tr>
+<tr>
+<td>Client SDK</td>
+<td><strong>Implemented</strong></td>
+<td><code>client.AuthClient.DeviceAuthorization</code>, <code>PollDeviceToken</code> (<code>client/device_grant.go</code>)</td>
+<td><code>PollDeviceToken</code> returns <code>ErrAuthorizationPending</code>, <code>ErrSlowDown</code> and the other RFC 8628 sentinels for its polling loop, and a <code>*client.TokenError</code> for any other error code. <code>DeviceAuthorization</code> returns <code>*TokenError</code> too (0.1.40).</td>
 </tr>
 <tr>
 <td>Persistence interface (<code>DeviceAuthorizationStore</code>)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/oneauth.go:56</code> field; backends via <code>deviceauthtest/RunAll</code> contract suite</td>
+<td><code>OneAuthConfig.DeviceAuthStore</code> (<code>apiauth/oneauth.go</code>); backends via <code>deviceauthtest.RunAll</code> contract suite</td>
 <td>FS/GORM/GAE all implement</td>
 </tr>
 <tr>
 <td>AS metadata advertisement (<code>device_authorization_endpoint</code>)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/as_metadata.go:34</code> field</td>
+<td><code>ASServerMetadata.DeviceAuthorizationEndpoint</code> (<code>apiauth/as_metadata.go</code>)</td>
 <td>Per RFC 8628 §4</td>
 </tr>
 <tr>
 <td>Test coverage</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/device_auth_grant_test.go</code>, <code>apiauth/device_flow_mount_test.go</code>, <code>tests/e2e/device_flow_test.go</code></td>
+<td><code>apiauth/device_auth_grant_test.go</code>, <code>apiauth/device_flow_mount_test.go</code>, <code>apiauth/device_verification_handler_test.go</code>, <code>tests/e2e/device_flow_test.go</code></td>
 <td>E2E exercises the polling state machine</td>
 </tr>
 </tbody>

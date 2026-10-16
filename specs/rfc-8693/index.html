@@ -322,13 +322,13 @@ auth-code and client_credentials.</p>
 <tr>
 <td><code>grant_type=...:token-exchange</code> dispatch</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go:82–83</code> <code>case TokenExchangeGrantType</code> → <code>dispatchTokenExchange</code>; handler at <code>apiauth/token_exchange_granter.go:72</code> <code>TokenExchange</code></td>
+<td><code>apiauth/token_endpoint.go</code> <code>case TokenExchangeGrantType</code> → <code>TokenEndpointHandler.dispatchTokenExchange</code>; handler at <code>apiauth/token_exchange_granter.go</code> <code>tokenExchanger.TokenExchange</code></td>
 <td>—</td>
 </tr>
 <tr>
 <td><code>subject_token</code> parsing (Phase 1: JWT only)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go:113</code> reads <code>subject_token</code>; tests at <code>token_exchange_grant_test.go:36–37</code></td>
+<td><code>apiauth/token_endpoint.go</code> reads <code>subject_token</code>; <code>TestTokenExchangeGrant_HappyPath</code> in <code>token_exchange_grant_test.go</code></td>
 <td>RFC 8693 §2.1</td>
 </tr>
 <tr>
@@ -364,14 +364,14 @@ auth-code and client_credentials.</p>
 <tr>
 <td>Subject-token JWT signature validation</td>
 <td><strong>Implemented</strong></td>
-<td>Exchange validates against trusted-issuer JWKS</td>
-<td>—</td>
+<td><code>ValidateAssertion</code> in <code>apiauth/jwt_bearer_grant.go</code>, against the trusted issuer&rsquo;s key</td>
+<td>Since 0.1.45 the subject token must carry <code>exp</code> and match a configured audience (<code>TrustedAssertionIssuer.Audiences</code>, else the AS audience or issuer URL). With none configured every exchange is refused</td>
 </tr>
 <tr>
 <td><code>may_act</code> claim handling</td>
 <td><strong>Not implemented</strong></td>
 <td>—</td>
-<td>Future Phase 2</td>
+<td>Future Phase 2. <code>CustomClaimsFunc</code> can&rsquo;t set <code>act</code> or <code>may_act</code> on access tokens (0.1.45)</td>
 </tr>
 </tbody>
 </table>
@@ -391,6 +391,7 @@ draft-ietf-oauth-identity-assertion-authz-grant-04:</p>
 <li>The response reports <code>issued_token_type</code> = the id-jag URN and<br />
 <code>token_type: N_A</code> (RFC 8693 §2.2.1 — an ID-JAG is redeemed, not presented<br />
 as a bearer token).</li>
+<li>An ID-JAG is not an access token. Since 0.1.45 the validator refuses one presented to a resource server, by its <code>typ</code> header (<code>checkAccessTokenKind</code>).</li>
 <li>Issuance is <strong>off by default</strong>. Wire <code>apiauth.NewJWTIDJAGIssuer</code> (signed<br />
 with the IdP key) into <code>TokenExchangerConfig.IDJAGIssuer</code> or<br />
 <code>OneAuthConfig.IDJAGIssuer</code> to opt in — minting a cross-domain<br />
@@ -402,7 +403,8 @@ authorization grant is a sensitive capability gated per #344.</li>
 <p>A confidential requesting client is authenticated on the exchange when its<br />
 <code>client_id</code> names a registered confidential client (issue 356,<br />
 <code>apiauth/confidential_client_auth.go</code>); public / unregistered clients keep the<br />
-assertion-only path.</p>
+assertion-only path. Since 0.1.41 an AppStore error other than not-found is a<br />
+500, where it used to treat the client as public.</p>
 <h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
 <ul>
 <li><strong>Same-domain machine-to-machine auth</strong> — use <code>client_credentials</code>. No<br />

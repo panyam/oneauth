@@ -372,74 +372,80 @@ RAR.</li>
 <tr>
 <td><code>AuthorizationDetail</code> type</td>
 <td><strong>Implemented</strong></td>
-<td><code>core/authorization_details.go:29</code> struct with <code>Type</code> + <code>Actions</code> + custom marshaler for extensions</td>
+<td><code>core/authorization_details.go</code> <code>AuthorizationDetail</code> struct with <code>Type</code> + <code>Actions</code> + custom marshaler for extensions</td>
 <td>Type-required (§5.2) validated in <code>Validate()</code></td>
 </tr>
 <tr>
 <td><code>Validate</code> / <code>ValidateAll</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>core/authorization_details.go:56,68</code></td>
+<td><code>core/authorization_details.go</code> <code>AuthorizationDetail.Validate</code>, <code>ValidateAll</code></td>
 <td>Returns <code>ErrInvalidAuthorizationDetails</code> per §5.2</td>
 </tr>
 <tr>
 <td><code>FilterByType</code> helper</td>
 <td><strong>Implemented</strong></td>
-<td><code>core/authorization_details.go:79</code></td>
+<td><code>core/authorization_details.go</code> <code>FilterByType</code></td>
 <td>Useful for RS-side per-type checks</td>
 </tr>
 <tr>
 <td>Token-endpoint parsing</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go:119–123</code> per §6.1 (JSON-encoded form param), <code>token_endpoint.go:260</code> validates via <code>core.ValidateAll</code></td>
-<td>—</td>
+<td><code>apiauth/token_endpoint.go</code> parses the JSON-encoded form param per §6.1; the grant handlers validate via <code>core.ValidateAll</code></td>
+<td>Malformed JSON is 400 <code>invalid_authorization_details</code></td>
 </tr>
 <tr>
 <td>Per-grant validation</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/authorize_granter.go:115</code> (auth-code), <code>apiauth/token_endpoint.go:260</code> (client_credentials)</td>
-<td>All grants flow through <code>core.ValidateAll</code></td>
+<td><code>TokenEndpointHandler.handlePassword</code> and <code>handleClientCredentials</code> in <code>apiauth/token_endpoint.go</code>; <code>jwtBearerGranter.JwtBearerGrant</code>; <code>tokenExchanger.TokenExchange</code></td>
+<td>Each runs <code>core.ValidateAll</code> on request-supplied details and answers 400 <code>invalid_authorization_details</code>. A malformed value on the password grant was a 500 before 0.1.48. The authorization-code grant issues the details stored with the code (<code>AuthorizationCodeGranter</code>); <code>/authorize</code> does not parse <code>authorization_details</code></td>
+</tr>
+<tr>
+<td>Registered types enforced at the token endpoint</td>
+<td><strong>Implemented</strong></td>
+<td><code>checkRARTypes</code> and <code>clientRegistration</code> in <code>apiauth/client_policy.go</code>; <code>TestTokenInput_RARTypesHonorTheRegistration</code></td>
+<td>Since 0.1.48, with an <code>AppStore</code>, <code>client_credentials</code> and the password grant answer 400 <code>invalid_authorization_details</code> for a type outside the client&rsquo;s registered <code>authorization_details_types</code>. A registration listing no types allows any type. A store error other than not-found fails closed as <code>server_error</code></td>
 </tr>
 <tr>
 <td>Refresh-token carry forward</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_validator.go:550,564</code> <code>rt.AuthorizationDetails</code></td>
+<td><code>apiauth/token_validator.go</code> <code>jwtIssuer.RefreshGrant</code> reissues <code>rt.AuthorizationDetails</code></td>
 <td>RAR survives refresh per §10</td>
 </tr>
 <tr>
 <td>Token response includes <code>authorization_details</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_endpoint.go:417</code> <code>writeTokens</code> encodes <code>core.TokenPair.AuthorizationDetails</code>, called from all handlers</td>
+<td><code>apiauth/token_endpoint.go</code> <code>TokenEndpointHandler.writeTokens</code> encodes <code>core.TokenPair.AuthorizationDetails</code>, called from all handlers</td>
 <td>—</td>
 </tr>
 <tr>
 <td>JWT claim emission</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_validator.go:405–406</code> <code>claims[&quot;authorization_details&quot;] = details</code> (and <code>apiauth/id_jag.go:200–201</code>)</td>
+<td><code>apiauth/token_validator.go</code> <code>jwtIssuer.CreateAccessToken</code> sets <code>claims[&quot;authorization_details&quot;] = details</code> (and <code>jwtIDJAGIssuer.CreateIDJAG</code> in <code>apiauth/id_jag.go</code>)</td>
 <td>Carried into issued JWTs</td>
 </tr>
 <tr>
 <td>Middleware extraction (<code>GetAuthorizationDetailsFromContext</code>)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/middleware.go:174</code> accessor; <code>456–457,512</code> parses from JWT, stuffs into context</td>
+<td><code>apiauth/middleware.go</code> <code>GetAuthorizationDetailsFromContext</code> accessor; <code>APIMiddleware.validateJWTInline</code> parses the claim (<code>parseAuthorizationDetailsFromClaims</code> in <code>apiauth/rar_claims.go</code>) into context</td>
 <td>RS-side accessor</td>
 </tr>
 <tr>
 <td>Introspection response includes <code>authorization_details</code></td>
 <td><strong>Implemented</strong></td>
-<td>Per <code>apiauth/auth_rar_test.go:97,237</code> exercising</td>
+<td><code>apiauth/introspection.go</code>; <code>TestIntrospection_WithRAR</code> in <code>apiauth/auth_rar_test.go</code></td>
 <td>—</td>
 </tr>
 <tr>
 <td>AS metadata advertisement (<code>authorization_details_types_supported</code>)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/as_metadata.go:37</code></td>
+<td><code>ASServerMetadata.AuthorizationDetailsTypesSupported</code> in <code>apiauth/as_metadata.go</code></td>
 <td>Deployment-configurable</td>
 </tr>
 <tr>
 <td>DCR client metadata (<code>authorization_details_types</code>)</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:104</code></td>
-<td>Per-client declared types</td>
+<td><code>DCRRequest.AuthorizationDetailsTypes</code> in <code>admin/dcr.go</code></td>
+<td>Per-client declared types. The token endpoint enforces them since 0.1.48 (row above)</td>
 </tr>
 </tbody>
 </table>

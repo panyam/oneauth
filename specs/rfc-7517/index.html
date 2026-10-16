@@ -326,8 +326,8 @@ verification.</p>
 <tr>
 <td><code>/.well-known/jwks.json</code> endpoint</td>
 <td><strong>Implemented</strong></td>
-<td><code>keys/jwks_handler.go:21–142</code> (<code>JWKSHandler.ServeHTTP</code>)</td>
-<td>Cached via <code>Cache-Control: public, max-age=3600</code> header</td>
+<td><code>keys/jwks_handler.go</code> (<code>JWKSHandler.ServeHTTP</code>)</td>
+<td>Cached via <code>Cache-Control: public, max-age=3600</code> and an <code>ETag</code>. Since 0.1.47 a 304 keeps both headers, and <code>If-None-Match</code> accepts lists, <code>*</code> and weak tags (<code>etagMatches</code>)</td>
 </tr>
 <tr>
 <td><code>RSA</code> key type encoding</td>
@@ -342,16 +342,28 @@ verification.</p>
 <td>ES256 supported</td>
 </tr>
 <tr>
+<td><code>OKP</code> (Ed25519) key type, RFC 8037</td>
+<td><strong>Implemented</strong> for DPoP proof keys</td>
+<td><code>utils/jwk.go</code> <code>Ed25519PublicKeyToJWK</code> and <code>okpJWKToPublicKey</code></td>
+<td>Added in 0.1.43 so DPoP proofs can carry Ed25519 keys. Only the Ed25519 curve parses. <code>JWKSHandler</code> publishes RS256 and ES256 keys only (<code>utils.IsAsymmetricAlg</code>), so no OKP key appears in oneauth&rsquo;s own JWKS</td>
+</tr>
+<tr>
+<td>RSA key size floor</td>
+<td><strong>Implemented</strong></td>
+<td><code>utils.CheckRSAKeySize</code>, called by <code>ParsePublicKeyPEM</code>, <code>ParsePrivateKeyPEM</code> and <code>rsaJWKToPublicKey</code></td>
+<td>Since 0.1.47 an RSA key under 2048 bits fails at load. <code>JWKSKeyStore</code> skips such a key in a remote JWKS and logs it</td>
+</tr>
+<tr>
 <td><strong>Symmetric keys (HS256) deliberately omitted</strong></td>
 <td><strong>Compliant</strong></td>
-<td><code>keys/jwks_handler.go:21–22</code> comment: &ldquo;Only asymmetric keys (RS256/ES256) are included — HS256 secrets are never exposed&rdquo;</td>
+<td><code>keys.JWKSHandler</code> doc comment: &ldquo;Only asymmetric keys (RS256/ES256) are included — HS256 secrets are never exposed&rdquo;</td>
 <td>CLAUDE.md &ldquo;Gotchas&rdquo; calls this out</td>
 </tr>
 <tr>
 <td><code>kid</code> rotation with grace period</td>
-<td><strong>Implemented</strong></td>
-<td><code>keys/kid.go</code> <code>KidStore</code> + <code>CompositeKeyLookup</code></td>
-<td>Old kids served briefly after rotation</td>
+<td><strong>Partial</strong></td>
+<td><code>keys/kid.go</code> <code>KidStore</code> + <code>CompositeKeyLookup</code>; <code>OneAuthConfig.KidStore</code></td>
+<td>Since 0.1.47 oneauth&rsquo;s own validator verifies a rotated key until its grace period ends. <code>JWKSHandler</code> publishes retired keys only from an in-memory <code>*keys.KidStore</code>; a persistent kid store can&rsquo;t be listed, and the reference server passes none. A remote resource server loses the old key at rotation (#421)</td>
 </tr>
 <tr>
 <td>Remote JWKS fetcher with caching</td>
@@ -374,8 +386,8 @@ verification.</p>
 <tr>
 <td><code>EncryptedKeyStorage</code> for private keys at rest</td>
 <td><strong>Implemented</strong></td>
-<td><code>keys/encrypted.go</code></td>
-<td>AES-256-GCM at rest; public PEM passes through</td>
+<td><code>keys/encrypted.go</code>, <code>keys/encrypted_kid.go</code></td>
+<td>Records are written as <code>oaenc1:</code> + nonce + AES-256-GCM, with AAD over client, alg and kid, so a ciphertext copied into another record won&rsquo;t open. Since 0.1.46 a record that won&rsquo;t decrypt is <code>keys.ErrKeyDecrypt</code>, and so is a plaintext secret unless <code>AllowLegacyPlaintext</code> is set; <code>MigrateLegacy</code> rewrites old records. <code>EncryptedKidStorage</code> (0.1.47) applies the same rules to retired keys. Public PEMs pass through</td>
 </tr>
 </tbody>
 </table>

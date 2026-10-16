@@ -189,7 +189,7 @@
 <p><strong>Status:</strong> OpenID Foundation Specification<br />
 <strong>Published:</strong> 2019 (final)<br />
 <strong>L-tier / T-tier:</strong> L7 · T8 (lifecycle / logout)<br />
-<strong>OneAuth coverage:</strong> Implemented (<code>apiauth/BCLDispatcher</code> + <code>LogoutTokenIssuer</code>)<br />
+<strong>OneAuth coverage:</strong> Implemented on the OP side (<code>apiauth.BCLDispatcher</code> + <code>LogoutTokenIssuer</code>); no RP-side validator<br />
 <strong>See also:</strong> <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a> · <a href="RFC_7009.md"><code>RFC_7009.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
@@ -331,55 +331,67 @@ deployments standardize on.</p>
 <tr>
 <td><code>BCLDispatcher</code> — fans out logout to all subscribed RPs</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/bcl_dispatcher.go:46</code> (struct) + <code>Dispatch</code> method at line 126</td>
+<td><code>apiauth/bcl_dispatcher.go</code> (<code>BCLDispatcher</code> struct + <code>BCLDispatcher.Dispatch</code>)</td>
 <td>Per-RP failure doesn&rsquo;t block other RPs</td>
 </tr>
 <tr>
 <td><code>LogoutTokenIssuer</code> — mints the signed <code>logout_token</code> JWT</td>
 <td><strong>Implemented</strong></td>
 <td><code>apiauth/logout_token.go</code></td>
-<td>All required claims plus <code>events</code>; <code>nonce</code> deliberately omitted per §2.4 ¶6 (line 115)</td>
+<td>All required claims plus <code>events</code>; <code>nonce</code> deliberately omitted per §2.4 ¶6 (<code>jwtLogoutTokenIssuer.CreateLogoutToken</code>)</td>
 </tr>
 <tr>
 <td><code>backchannel_logout_uri</code> DCR field</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:112</code> echoed back per OIDC BCL §3.1</td>
+<td><code>DCRRequest.BackchannelLogoutURI</code> in <code>admin/dcr.go</code>, echoed back per OIDC BCL §3.1</td>
 <td>RP registers via 7591 metadata</td>
 </tr>
 <tr>
 <td><code>backchannel_logout_session_required</code> DCR field</td>
 <td><strong>Implemented</strong></td>
-<td><code>admin/dcr.go:113</code></td>
+<td><code>DCRRequest.BackchannelLogoutSessionRequired</code> in <code>admin/dcr.go</code></td>
 <td>Controls whether <code>sid</code> MUST appear in the dispatched token</td>
+</tr>
+<tr>
+<td>BCL settings persist in every app store</td>
+<td><strong>Implemented</strong></td>
+<td><code>stores/gorm/appstore.go</code>, <code>stores/gae/appstore.go</code></td>
+<td>Before 0.1.41 the GORM and GAE app stores dropped <code>backchannel_logout_uri</code> and <code>backchannel_logout_session_required</code>, so back-channel logout switched off after a restart. GORM deployments need <code>AutoMigrate</code> for the two columns</td>
 </tr>
 <tr>
 <td>Per-RP <code>aud</code> enforcement</td>
 <td><strong>Implemented</strong></td>
-<td><code>bcl_dispatcher.go:77</code> comment: &ldquo;(mis-configured or malicious) <code>backchannel_logout_uri</code> cannot be&rdquo; — RP receives only its own audience</td>
-<td></td>
+<td><code>BCLDispatcher.Dispatch</code> mints one <code>logout_token</code> per client with <code>CreateLogoutTokenRequest.Audience</code> set to that client</td>
+<td>RP receives only its own audience. Delivery refuses private and loopback receiver addresses unless <code>BCLDispatcher.AllowPrivateHosts</code> is set</td>
 </tr>
 <tr>
 <td><code>OnSubjectRevoked</code> / <code>OnTokenRevoked</code> hooks for orchestration</td>
 <td><strong>Implemented</strong></td>
-<td><code>bcl_integration_test.go:72,126</code> exercises both</td>
+<td><code>TestBCL_HandleLogoutAll_FiresDispatchesToRegisteredReceivers</code> and <code>TestBCL_HandleLogout_FiresOnTokenRevokedWithCapturedSubject</code> in <code>bcl_integration_test.go</code> exercise both</td>
 <td>Composes with refresh-token family revoke (RFC 7009 + RFC 9700 §4.14)</td>
 </tr>
 <tr>
 <td>AS metadata: <code>backchannel_logout_supported</code>, <code>backchannel_logout_session_supported</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/as_metadata.go:86,93</code></td>
+<td><code>ASServerMetadata.BackchannelLogoutSupported</code> / <code>BackchannelLogoutSessionSupported</code> in <code>apiauth/as_metadata.go</code></td>
 <td>Discovery advertised</td>
 </tr>
 <tr>
 <td><code>logout_token</code> JWT signature validation (RP side)</td>
-<td><strong>Implemented</strong> (in OneAuth&rsquo;s own client SDK)</td>
-<td>Helps clients consuming OneAuth-issued logout_tokens</td>
-<td>—</td>
+<td><strong>Not implemented</strong></td>
+<td><code>client/</code> has no <code>logout_token</code> receiver or validator</td>
+<td>An RP consuming oneauth&rsquo;s logout tokens validates them with its own JWT library</td>
+</tr>
+<tr>
+<td>Logout tokens refused as access tokens</td>
+<td><strong>Implemented</strong></td>
+<td><code>checkAccessTokenKind</code> in <code>apiauth/jwt_helpers.go</code></td>
+<td>A logout token is signed with the AS key. Since 0.1.45 the validator refuses one presented as an access token by its <code>typ: logout+jwt</code> header</td>
 </tr>
 <tr>
 <td>Test coverage</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/bcl_dispatcher_test.go</code>, <code>bcl_integration_test.go</code>, <code>bcl_integration_test.go:122–145</code> end-to-end with <code>OnTokenRevoked</code></td>
+<td><code>apiauth/bcl_dispatcher_test.go</code>, <code>bcl_integration_test.go</code> (<code>TestBCL_HandleLogout_FiresOnTokenRevokedWithCapturedSubject</code> runs end-to-end with <code>OnTokenRevoked</code>)</td>
 <td>—</td>
 </tr>
 </tbody>

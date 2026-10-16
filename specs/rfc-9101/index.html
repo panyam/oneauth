@@ -189,7 +189,7 @@
 <p><strong>Status:</strong> Standards Track<br />
 <strong>Published:</strong> 2021-08<br />
 <strong>L-tier / T-tier:</strong> L6 · T1 (prepare)<br />
-<strong>OneAuth coverage:</strong> Gap (tracked under issue 338; issue 150 was consolidated into it)<br />
+<strong>OneAuth coverage:</strong> Gap for signed request objects (#338; issue 150 was consolidated into it). <code>request_uri</code> works for references from oneauth&rsquo;s own PAR endpoint<br />
 <strong>See also:</strong> <a href="RFC_9126.md"><code>RFC_9126.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
@@ -300,7 +300,7 @@ selector but URL <code>redirect_uri</code> etc. are ignored.</li>
 </span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> bank.example
 </span></span></code></pre><p>Bank fetches <code>https://psp.example/request-objects/abc</code>, validates the<br />
 JWT returned, proceeds as if <code>request=&lt;jwt&gt;</code> had been used.</p>
-<p><strong>Delivery via PAR + JAR</strong> (the FAPI 2.0 baseline) — see<br />
+<p><strong>Delivery via PAR + JAR</strong> (FAPI 2.0 Message Signing; FAPI 1.0 Advanced). See<br />
 <a href="RFC_9126.md"><code>RFC_9126.md</code></a>. The signed JWT is POSTed to <code>/par</code>; the<br />
 returned <code>request_uri</code> is short and URN-shaped.</p>
 <h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
@@ -321,8 +321,11 @@ unless a regulator demands integrity.</p>
 <h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
 <p>Not mandated by 2.1. OAuth 2.1 §4 references JAR alongside PAR; both are<br />
 optional.</p>
-<p>FAPI 2.0 mandates JAR (signed request objects). FAPI 1.0 Advanced also<br />
-mandates it. If your trajectory is FAPI, JAR is on the critical path.</p>
+<p>FAPI 1.0 Advanced mandates JAR (signed request objects). The FAPI 2.0<br />
+Security Profile does not: it requires PAR, and moves signed request<br />
+objects into the separate FAPI 2.0 Message Signing profile. oneauth meets<br />
+the Security Profile without JAR (see <a href="FAPI.md"><code>FAPI.md</code></a>). JAR is on the<br />
+critical path only if you target Message Signing or FAPI 1.0.</p>
 <h2 id="migration-path-unsigned-request--jar">Migration path (unsigned-request → JAR) <a class="anchor" href="#migration-path-unsigned-request--jar">¶</a></h2>
 <p>A pragmatic on-ramp:</p>
 <ol>
@@ -351,8 +354,9 @@ can verify against. Public clients can theoretically use dynamic keys<br />
 skip JAR.</li>
 <li><strong>Deployments that already require PAR</strong> can argue JAR is redundant —<br />
 the PAR endpoint is back-channel and client-authed, so request<br />
-integrity is established at PAR time. FAPI 2.0 <em>still</em> requires JAR<br />
-on top because defense-in-depth.</li>
+integrity is established at PAR time. The FAPI 2.0 Security Profile<br />
+agrees and asks for PAR alone; FAPI 2.0 Message Signing adds JAR on top<br />
+for non-repudiation.</li>
 </ul>
 <h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
 <table>
@@ -368,14 +372,14 @@ on top because defense-in-depth.</li>
 <tr>
 <td><code>request</code> parameter at <code>/authorize</code></td>
 <td><strong>Gap</strong></td>
-<td><code>apiauth/authorize.go:159–167</code> <code>ParseAndValidate</code> parses none of <code>request</code> / <code>request_object</code> / <code>request_uri</code> today — only <code>client_id</code> / <code>redirect_uri</code> / <code>response_type</code> / <code>scope</code> / <code>state</code> / <code>code_challenge</code> / <code>code_challenge_method</code></td>
-<td>Tracked under issue 150 — JAR is one of OneAuth&rsquo;s named feature gaps</td>
+<td><code>apiauth/authorize.go</code> <code>AuthorizationHandler.ParseAndValidate</code> does not read <code>request</code>; it reads <code>request_uri</code> (for PAR) and otherwise only <code>client_id</code> / <code>redirect_uri</code> / <code>response_type</code> / <code>scope</code> / <code>state</code> / <code>code_challenge</code> / <code>code_challenge_method</code> / <code>dpop_jkt</code></td>
+<td>Tracked under #338</td>
 </tr>
 <tr>
 <td><code>request_uri</code> parameter at <code>/authorize</code></td>
-<td><strong>Gap</strong></td>
-<td>Same</td>
-<td>—</td>
+<td><strong>Partial</strong></td>
+<td><code>AuthorizationHandler.ParseAndValidate</code> → <code>resolvePushedRequest</code></td>
+<td>Works for references issued by oneauth&rsquo;s own <code>/par</code> since 0.1.38 (see <a href="RFC_9126.md"><code>RFC_9126.md</code></a>). Fetching a request object from a client-hosted URL, and signed request objects in general, are the gap (#338)</td>
 </tr>
 <tr>
 <td>Request JWT signature validation</td>
@@ -431,7 +435,7 @@ per-client and per-deployment.</li>
 <li><a href="RFC_9700.md">RFC 9700</a> — §4.18 motivates request integrity</li>
 <li><a href="RFC_7515.md">RFC 7515</a> / <a href="RFC_7516.md">RFC 7516</a> — the JOSE primitives</li>
 <li><a href="RFC_7523.md">RFC 7523</a> — the client-auth analogue (same key, different purpose)</li>
-<li><a href="FAPI.md">FAPI 1.0 / 2.0</a> — mandates JAR</li>
+<li><a href="FAPI.md">FAPI 1.0 / 2.0</a> — FAPI 1.0 Advanced and FAPI 2.0 Message Signing use JAR; the FAPI 2.0 Security Profile does not</li>
 <li><a href="RFC_oauth21.md">OAuth 2.1 draft</a> — references but doesn&rsquo;t mandate</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>

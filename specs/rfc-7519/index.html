@@ -342,19 +342,19 @@ the default.</p>
 <tr>
 <td>JWT issuance</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/token_validator.go</code> (<code>jwtIssuer.CreateAccessToken</code> at line 382), <code>apiauth/asymmetric_jwt_test.go</code></td>
+<td><code>apiauth/token_validator.go</code> (<code>jwtIssuer.CreateAccessToken</code>), <code>apiauth/asymmetric_jwt_test.go</code></td>
 <td>Via <code>github.com/golang-jwt/jwt/v5</code></td>
 </tr>
 <tr>
 <td>JWT verification (full RFC 7519 §7.2 checks)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/jwt_helpers.go</code> <code>matchesAudience</code> at line 10; full claim validation across handlers</td>
-<td><code>iss</code>, <code>aud</code>, <code>exp</code>, <code>iat</code> enforced</td>
+<td><code>apiauth/jwt_helpers.go</code> (<code>accessTokenParserOptions</code>, <code>matchesAudience</code>); full claim validation across handlers</td>
+<td><code>iss</code>, <code>aud</code>, <code>exp</code>, <code>iat</code> enforced. <code>exp</code> is required since 0.1.45 (<code>jwt.WithExpirationRequired</code>)</td>
 </tr>
 <tr>
 <td><code>aud</code> string OR array handling</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/audience_test.go:251–258</code> <code>arrayAudClaims</code> tests both shapes</td>
+<td><code>apiauth/audience_test.go</code> <code>arrayAudClaims</code> tests both shapes</td>
 <td>Multi-audience tokens validate correctly</td>
 </tr>
 <tr>
@@ -365,9 +365,9 @@ the default.</p>
 </tr>
 <tr>
 <td><code>exp</code> validation with clock skew</td>
-<td><strong>Implemented</strong> (library default)</td>
+<td><strong>Implemented</strong></td>
 <td>golang-jwt allows configurable skew</td>
-<td>OneAuth uses library defaults</td>
+<td>OneAuth uses library defaults for skew. A token with no <code>exp</code> is refused since 0.1.45</td>
 </tr>
 <tr>
 <td><code>jti</code> for revoke / reuse detection</td>
@@ -379,7 +379,19 @@ the default.</p>
 <td>Custom claims (private + RFC 9396 RAR)</td>
 <td><strong>Implemented</strong></td>
 <td><code>core/authorization_details.go</code> for RAR; per-claim helpers in <code>apiauth/custom_claims_test.go</code></td>
-<td><code>authorization_details</code> claim carries RAR</td>
+<td><code>authorization_details</code> claim carries RAR. <code>CustomClaimsFunc</code> can&rsquo;t set the standard claims, and since 0.1.45 it can&rsquo;t set <code>nbf</code>, <code>scope</code>, <code>azp</code>, <code>sid</code>, <code>act</code> or <code>may_act</code> either (<code>issuanceReservedClaims</code>)</td>
+</tr>
+<tr>
+<td>Token-kind separation (RFC 8725 §3.11)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/jwt_helpers.go</code> <code>checkAccessTokenKind</code></td>
+<td>A JWT signed with the same key is refused as an access token when it is another kind: logout tokens (<code>typ: logout+jwt</code>) and ID-JAGs by <code>typ</code> header, browser sessions by a <code>type</code> claim other than <code>access</code> (0.1.45), and Keycloak ID tokens by a <code>typ</code> claim other than <code>Bearer</code> or <code>DPoP</code> (0.1.46)</td>
+</tr>
+<tr>
+<td>Tenant key binding</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/jwt_helpers.go</code> <code>checkTenantKey</code></td>
+<td>Since 0.1.45 a key registered to a client verifies only tokens carrying that <code>client_id</code>. The validator&rsquo;s own key and keys with no owner (a remote JWKS) are exempt</td>
 </tr>
 </tbody>
 </table>

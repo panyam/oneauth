@@ -412,8 +412,8 @@ reliably sign proofs per request.</li>
 <tr>
 <td>DPoP proof JWT validation at <code>/token</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/dpop.go</code> — <code>DPoPProofValidator</code></td>
-<td><code>typ</code>, <code>alg</code> allow-list, embedded <code>jwk</code> (RSA keys of at least 2048 bits), signature, <code>htm</code>, <code>htu</code> (compared after RFC 3986 §6.2 normalization), <code>iat</code> window, <code>jti</code> replay (<code>jti</code> capped at 256 bytes)</td>
+<td><code>apiauth/dpop.go</code> <code>DPoPProofValidator</code></td>
+<td><code>typ</code>, <code>alg</code> allow-list (default ES256, EdDSA, RS256, PS256; EdDSA means Ed25519 and is accepted by default since 0.1.43), embedded <code>jwk</code> (RSA keys of at least 2048 bits), signature, <code>htm</code>, <code>htu</code> (compared after RFC 3986 §6.2 normalization), <code>iat</code> window, <code>jti</code> replay (<code>jti</code> capped at 256 bytes)</td>
 </tr>
 <tr>
 <td><code>cnf.jkt</code> claim emission on issued tokens</td>
@@ -472,8 +472,8 @@ reliably sign proofs per request.</li>
 <tr>
 <td>Requiring DPoP at the AS (FAPI 2.0 §5.3.2.1; §5.2 <code>dpop_bound_access_tokens</code>)</td>
 <td><strong>Implemented</strong></td>
-<td><code>OneAuthConfig.RequireDPoP</code> (every client); <code>core.AppRegistration.DPoPBoundAccessTokens</code>, settable through DCR (one client)</td>
-<td>A request with no proof gets 400 <code>invalid_dpop_proof</code>, never a bearer token</td>
+<td><code>OneAuthConfig.RequireDPoP</code> (every client); <code>core.AppRegistration.DPoPBoundAccessTokens</code>, settable through DCR (one client); <code>OneAuthConfig.FAPI2</code> sets <code>RequireDPoP</code></td>
+<td>A request with no proof gets 400 <code>invalid_dpop_proof</code>, never a bearer token. The reference server&rsquo;s <code>dpop:</code> block sets it with <code>require: true</code> (0.1.43)</td>
 </tr>
 <tr>
 <td><code>dpop_signing_alg_values_supported</code> AS metadata</td>
@@ -502,8 +502,20 @@ reliably sign proofs per request.</li>
 <tr>
 <td>Client-side proof minting</td>
 <td><strong>Implemented</strong></td>
-<td><code>client.DPoPKey</code> + <code>client.WithDPoPKey</code></td>
-<td>Token requests (including the automatic refresh), resource requests (<code>ath</code>), and <code>dpop_jkt</code> on browser login. A <code>DPoP-Nonce</code> on any response, not only a challenge, is used for the next request (§8.2)</td>
+<td><code>client.DPoPKey</code> (<code>NewDPoPKey</code> for ES256; <code>NewEd25519DPoPKey</code> / <code>NewDPoPKeyFromEd25519</code> for EdDSA, 0.1.43) + <code>client.WithDPoPKey</code></td>
+<td>Token requests (including the automatic refresh), resource requests (<code>ath</code>), and <code>dpop_jkt</code> on browser login. Since 0.1.42 <code>LoginWithBrowser</code> also sends a proof on the code exchange and answers its nonce challenge. A <code>DPoP-Nonce</code> on any response, not only a challenge, is used for the next request (§8.2). <code>DPoPKey.ProofWithNonce</code> (0.2.1) mints a proof with a given nonce for callers that set <code>Authorization</code> on their own transport</td>
+</tr>
+<tr>
+<td>SDK DCR <code>dpop_bound_access_tokens</code> (§5.2)</td>
+<td><strong>Implemented</strong></td>
+<td><code>client.ClientRegistrationRequest.DPoPBoundAccessTokens</code> / <code>ClientRegistrationResponse.DPoPBoundAccessTokens</code></td>
+<td>Since 0.1.42</td>
+</tr>
+<tr>
+<td>Reference server</td>
+<td><strong>Implemented</strong></td>
+<td><code>cmd/oneauth-server</code> <code>dpop:</code> block (<code>profile</code> or <code>algs</code>, <code>require</code>, <code>require_at_resource</code>, <code>nonce</code>) and <code>jwt.disable_refresh_token_rotation</code></td>
+<td>Since 0.1.43. <code>deploy-examples/fapi-dpop.yaml</code> turns all of it on, with <code>fapi2: true</code></td>
 </tr>
 <tr>
 <td>Keycloak interop (issuance by a third party)</td>
@@ -561,10 +573,13 @@ function rather than a flag:</p>
 own. The client SDK answers a challenge automatically when a <code>DPoPKey</code> is<br />
 configured.</p>
 <p><strong>Requiring DPoP.</strong> A FAPI deployment sets <code>RequireDPoP</code> on both sides and<br />
-restricts the algorithms:</p>
+restricts the algorithms. <code>OneAuthConfig.FAPI2</code> sets the AS side&rsquo;s<br />
+<code>RequireDPoP</code> (and turns off refresh-token rotation) on its own; the<br />
+algorithm list and the resource server&rsquo;s <code>RequireDPoP</code> are still set<br />
+separately:</p>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>validator <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewDPoPProofValidator</span>(apiauth.DPoPConfig{
 </span></span><span style="display:flex;"><span>    EndpointURL: <span style="color:#d14">&#34;https://as.example.com/api/token&#34;</span>,
-</span></span><span style="display:flex;"><span>    AllowedAlgs: apiauth.<span style="color:#900;font-weight:bold">FAPIDPoPAlgs</span>(), <span style="color:#998;font-style:italic">// ES256 + PS256; RS256 is refused
+</span></span><span style="display:flex;"><span>    AllowedAlgs: apiauth.<span style="color:#900;font-weight:bold">FAPIDPoPAlgs</span>(), <span style="color:#998;font-style:italic">// ES256, EdDSA, PS256; RS256 is refused
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>})
 </span></span><span style="display:flex;"><span>oa <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewOneAuth</span>(apiauth.OneAuthConfig{ <span style="color:#998;font-style:italic">/* ... */</span> DPoP: validator, RequireDPoP: <span style="color:#000;font-weight:bold">true</span> })
 </span></span></code></pre><p>To require it of some clients only, register them with<br />
@@ -573,6 +588,10 @@ restricts the algorithms:</p>
 up in <code>AppStore</code>.</p>
 <p><code>MountAuthorize</code> hands the same validator to <code>/par</code>. That&rsquo;s safe: the pushed<br />
 endpoint checks <code>htu</code> against its own path on <code>EndpointURL</code>&rsquo;s origin.</p>
+<p>The reference server does the same from configuration: a <code>dpop:</code> block with<br />
+<code>profile: fapi</code>, <code>require</code> and <code>require_at_resource</code>, plus<br />
+<code>jwt.disable_refresh_token_rotation</code>. <code>deploy-examples/fapi-dpop.yaml</code> sets<br />
+all of them along with <code>fapi2: true</code>.</p>
 <p>The full requirement-by-requirement matrix is in<br />
 <a href="../SECURITY_AUDIT.md"><code>docs/SECURITY_AUDIT.md</code></a>.</p>
 <p><strong>What is left.</strong></p>
@@ -580,9 +599,10 @@ endpoint checks <code>htu</code> against its own path on <code>EndpointURL</code
 <li>A <code>TokenBindingValidator</code> interface (shared seam with mTLS) — deferred<br />
 on purpose until #335 makes the second shape visible, since an<br />
 interface with one implementation is a guess about the second.</li>
-<li>PKCE pairs <em>naturally</em> with DPoP — both are per-flow ephemeral<br />
-asymmetric defenses. A future &ldquo;FAPI 2.0 strict mode&rdquo; toggle in<br />
-OneAuth would enable PKCE + DPoP + PAR + JAR together.</li>
+<li>mTLS as the second sender constraint (#335). <code>OneAuthConfig.FAPI2</code><br />
+already requires DPoP and turns on PAR-only <code>/authorize</code> and the rest<br />
+of the FAPI 2.0 Security Profile together (see <a href="FAPI.md"><code>FAPI.md</code></a>), so DPoP is<br />
+the only sender constraint a FAPI deployment can use today.</li>
 </ol>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>

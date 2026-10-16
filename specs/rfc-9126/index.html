@@ -225,8 +225,9 @@ shrinking the redirect.</p>
 </tbody>
 </table>
 <p>PAR is the <em>transport</em> improvement for <code>/authorize</code> requests. It pairs<br />
-naturally with JAR (signed requests) and RAR (rich authorization data) —<br />
-together they form the FAPI 2.0 request-side baseline.</p>
+naturally with JAR (signed requests) and RAR (rich authorization data).<br />
+The FAPI 2.0 Security Profile requires PAR; signing the request with JAR<br />
+belongs to FAPI 2.0 Message Signing and FAPI 1.0 Advanced.</p>
 <h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
 <p>An EU open-banking payment initiation: the third-party app wants to<br />
 authorize a transfer of €500 from a customer&rsquo;s account A to merchant B.<br />
@@ -364,8 +365,8 @@ log-leak threat model often doesn&rsquo;t apply.</li>
 <tr>
 <td><code>request_uri</code> lookup at <code>/authorize</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>AuthorizationHandler.PushedStore</code></td>
-<td>The stored payload is authoritative; posted parameters are ignored rather than merged</td>
+<td><code>apiauth/authorize.go</code> <code>AuthorizationHandler.ParseAndValidate</code> → <code>resolvePushedRequest</code></td>
+<td>The stored payload is authoritative; posted parameters are ignored rather than merged. Since 0.1.49 <code>client_id</code> is required alongside <code>request_uri</code> (§4) and must match the client that pushed it</td>
 </tr>
 <tr>
 <td><code>pushed_authorization_request_endpoint</code> AS metadata</td>
@@ -374,15 +375,33 @@ log-leak threat model often doesn&rsquo;t apply.</li>
 <td>Advertise only where /par is mounted</td>
 </tr>
 <tr>
-<td><code>require_pushed_authorization_requests</code></td>
+<td><code>require_pushed_authorization_requests</code>, AS-wide</td>
 <td><strong>Implemented</strong></td>
 <td><code>ASServerMetadata.RequirePushedAuthorizationRequests</code> (advertisement) + <code>AuthorizeMountConfig.RequirePushedRequests</code> (enforcement)</td>
-<td>AS-wide; per-client policy is a follow-up</td>
+<td>Refuses any <code>/authorize</code> request without <code>request_uri</code></td>
+</tr>
+<tr>
+<td><code>require_pushed_authorization_requests</code>, per client (§6)</td>
+<td><strong>Implemented</strong></td>
+<td><code>core.AppRegistration.RequirePushedAuthorizationRequests</code>; DCR; FS / GORM / GAE app stores; <code>client.ClientRegistrationRequest</code> in the SDK; enforced in <code>AuthorizationHandler.ParseAndValidate</code></td>
+<td>Since 0.1.50. A client registered with it gets <code>invalid_request</code> on a direct <code>/authorize</code> request</td>
+</tr>
+<tr>
+<td>One code per pushed request</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize.go</code> <code>AuthorizationHandler.IssueCode</code>; <code>core.ConsumePushedAuthorizationRequestResponse.Consumed</code></td>
+<td>Since 0.1.49. <code>IssueCode</code> spends the reference before minting, and <code>Consumed</code> is true for exactly one caller, so of two approvals racing on one push only one gets a code. A custom <code>PushedAuthorizationRequestStore</code> must set <code>Consumed</code></td>
+</tr>
+<tr>
+<td>Consent screen round-trips <code>request_uri</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize_verification_handler.go</code> <code>authorizeConsentData.RequestURI</code></td>
+<td>Since 0.1.49. Approve resolves the stored payload. A custom consent template must post <code>request_uri</code> back, or Approve treats the hidden inputs as a fresh request and fails under <code>RequirePushedRequests</code></td>
 </tr>
 <tr>
 <td>PAR store with TTL&rsquo;d <code>request_uri</code> records</td>
 <td><strong>Implemented</strong></td>
-<td><code>core.PushedAuthorizationRequestStore</code>, in-memory + GORM, shared contract suite in <code>partest/</code></td>
+<td><code>core.PushedAuthorizationRequestStore</code>, in-memory + GORM (<code>stores/gorm/par.go</code>), shared contract suite in <code>partest/</code></td>
 <td>FS and GAE backends are follow-ups</td>
 </tr>
 <tr>
@@ -397,30 +416,40 @@ log-leak threat model often doesn&rsquo;t apply.</li>
 <td><code>PARHandler.resolveDPoPBinding</code></td>
 <td>Both forms accepted, a mismatch between them rejected</td>
 </tr>
+<tr>
+<td>FAPI 2.0 PAR-only mode</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/authorize_mount.go</code> <code>MountAuthorize</code> under <code>OneAuthConfig.FAPI2</code></td>
+<td>Since 0.1.52. Sets <code>RequirePushedRequests</code>, caps the code lifetime at 60 seconds and the <code>request_uri</code> lifetime under 600 seconds, and panics without a <code>PushedStore</code></td>
+</tr>
+<tr>
+<td>Reference server</td>
+<td><strong>Implemented</strong></td>
+<td><code>cmd/oneauth-server</code> <code>code_flow.par.enabled</code> / <code>code_flow.par.required</code>; <code>buildPushedStore</code>; <code>serverASMetadata</code></td>
+<td>Since 0.1.54. <code>enabled</code> mounts <code>POST /par</code> on the code store&rsquo;s backend (memory or gorm) and advertises <code>pushed_authorization_request_endpoint</code>. <code>required</code>, or <code>fapi2: true</code>, refuses direct <code>/authorize</code> and advertises <code>require_pushed_authorization_requests</code></td>
+</tr>
 </tbody>
 </table>
 <p><strong>Single-use, precisely.</strong> §4 wants a <code>request_uri</code> used once and explicitly<br />
-tolerates a repeat caused by a browser reload. OneAuth consumes the<br />
-reference when an authorization code is issued, not when it is read, because<br />
-the built-in consent screen reads it twice (render, then approve) and a user<br />
-who reloads before approving has done nothing wrong. One code per pushed<br />
-request still holds.</p>
+tolerates a repeat caused by a browser reload. OneAuth spends the reference<br />
+in <code>IssueCode</code>, when an authorization code is issued, not when it is read.<br />
+The built-in consent screen reads it twice (render, then approve), and a user<br />
+who reloads before approving has done nothing wrong. Before 0.1.49 this<br />
+held only for requests that never reached the consent form: Approve re-read<br />
+the hidden inputs as a fresh request and never spent the reference.</p>
 <p><strong>A side effect worth knowing.</strong> Once a request arrives by reference, the<br />
 consent screen&rsquo;s hidden inputs stop mattering: the handler reads the stored<br />
-payload and ignores what was posted. Tampering with them becomes impossible<br />
-rather than merely detected.</p>
-<p><strong>Implementation sketch.</strong> PAR is roughly analogous in shape to<br />
-RFC 8628 (Device Authorization). Both:</p>
-<ul>
-<li>Add a new pre-flow endpoint that validates + stores a request</li>
-<li>Hand the client an opaque reference to redeem later</li>
-<li>Use an interface-shaped store backed by FS / GORM / GAE</li>
-</ul>
-<p>Worth modeling the implementation on <code>apiauth/device_auth_grant.go</code> +<br />
-<code>apiauth/MountDeviceFlow</code>.</p>
+payload and ignores what was posted. The form carries <code>request_uri</code> back, and<br />
+Approve resolves the stored payload from it.</p>
+<p><strong>What exists.</strong> The endpoint is <code>apiauth/par.go</code> <code>PARHandler</code>. It validates a<br />
+push with the same <code>AuthorizationHandler.ValidateValues</code> that <code>/authorize</code><br />
+runs, so the two cannot drift (§4). Storage is <code>core.PushedAuthorizationRequestStore</code>,<br />
+with in-memory and GORM implementations and the <code>partest</code> contract suite.<br />
+<code>MountAuthorize</code> wires the endpoint next to <code>/authorize</code> when<br />
+<code>AuthorizeMountConfig.PushedStore</code> is set.</p>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
-<li><a href="RFC_9101.md">RFC 9101</a> — JAR; the signature-side companion. PAR + JAR is the FAPI baseline.</li>
+<li><a href="RFC_9101.md">RFC 9101</a> — JAR; the signature-side companion. FAPI 2.0 Message Signing and FAPI 1.0 Advanced pair it with PAR.</li>
 <li><a href="RFC_9396.md">RFC 9396</a> — RAR; PAR is the cleanest carrier for RAR&rsquo;s <code>authorization_details</code> JSON</li>
 <li><a href="RFC_6749.md">RFC 6749</a> — the framework whose <code>/authorize</code> PAR augments</li>
 <li><a href="RFC_9700.md">RFC 9700</a> — §4.18 motivates PAR for request integrity</li>

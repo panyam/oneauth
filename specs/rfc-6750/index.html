@@ -312,8 +312,8 @@ SDKs.</li>
 <p>Note also that 6750&rsquo;s <code>WWW-Authenticate</code> error-code field set (§3.1) is<br />
 under-implemented in many 2.0 deployments — most just return bare<br />
 <code>Bearer realm=...</code> without the structured <code>error=</code> / <code>scope=</code> fields that<br />
-let clients refresh-vs-step-up intelligently. OneAuth currently has this<br />
-same gap (see status table below).</p>
+let clients refresh-vs-step-up intelligently. OneAuth emits <code>error=</code> and<br />
+<code>scope=</code> since 0.1.45 (see status table below).</p>
 <h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
 <p>OAuth 2.1 §5 re-exports 6750 with §2.3 (the query-string form) <strong>explicitly<br />
 forbidden</strong> rather than merely discouraged. The header and body forms are<br />
@@ -326,7 +326,7 @@ legacy callers. A pragmatic on-ramp:</p>
 <ol>
 <li><strong>Detect.</strong> Log every query-param-bearer hit with caller IP and path so<br />
 you can quantify exposure. OneAuth does this via <code>sync.Once</code> to avoid<br />
-log spam (see <code>apiauth/middleware.go:274</code>).</li>
+log spam (see <code>APIMiddleware.credentials</code> in <code>apiauth/middleware.go</code>).</li>
 <li><strong>Document the alternative for each carrier scenario:</strong>
 <ul>
 <li><strong>WebSocket auth at upgrade</strong> — use the <code>Sec-WebSocket-Protocol</code><br />
@@ -368,14 +368,14 @@ field or an initial-frame auth message — <em>not</em> the discouraged (2.0)<br
 <tr>
 <td><code>Authorization: Bearer &lt;token&gt;</code> header (§2.1)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/middleware.go:289–290</code> parses <code>Bearer</code> (case-insensitive); empty-token rejected</td>
+<td><code>apiauth/middleware.go</code> <code>APIMiddleware.credentials</code> parses <code>Bearer</code> (case-insensitive); empty-token rejected</td>
 <td>Default <code>AuthHeader</code> is <code>&quot;Authorization&quot;</code>; overridable via <code>APIMiddleware.AuthHeader</code></td>
 </tr>
 <tr>
 <td><code>WWW-Authenticate: Bearer realm=...</code> (§3)</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/middleware.go:497</code> sends <code>Bearer realm=&quot;api&quot;</code> on auth failure</td>
-<td>Realm is hard-coded <code>&quot;api&quot;</code>; structured <code>error=</code> not currently emitted (gap below)</td>
+<td><code>APIMiddleware.challenge</code>, sent by <code>APIMiddleware.handleAuthError</code></td>
+<td>Realm is hard-coded <code>&quot;api&quot;</code>. Params are comma-separated (RFC 9110 §11.6.1). A request with no credentials, a malformed header or an unknown scheme gets the bare <code>Bearer realm=&quot;api&quot;</code></td>
 </tr>
 <tr>
 <td>Form-encoded body param (§2.2)</td>
@@ -391,21 +391,24 @@ field or an initial-frame auth message — <em>not</em> the discouraged (2.0)<br
 </tr>
 <tr>
 <td><code>error=&quot;invalid_token&quot;</code> on challenge</td>
-<td><strong>Gap</strong></td>
-<td>—</td>
-<td>Currently emits bare <code>Bearer realm=&quot;api&quot;</code>. Should distinguish missing / malformed / expired → propose follow-up</td>
+<td><strong>Implemented</strong></td>
+<td><code>APIMiddleware.validateRequest</code></td>
+<td>401 with <code>error=&quot;invalid_token&quot;</code> and an <code>error_description</code>, only when a token was presented and refused (0.1.45)</td>
 </tr>
 <tr>
 <td><code>error=&quot;insufficient_scope&quot;</code> + <code>scope=</code></td>
-<td><strong>Gap</strong></td>
-<td>—</td>
-<td>Same; required for progressive consent UX</td>
+<td><strong>Implemented</strong></td>
+<td><code>APIMiddleware.RequireScopes</code></td>
+<td>403 with <code>error=&quot;insufficient_scope&quot;</code> and <code>scope=&quot;&lt;required scopes&gt;&quot;</code>. Before 0.1.45 a missing scope was 401</td>
+</tr>
+<tr>
+<td><code>resource_metadata</code> on challenge (RFC 9728 §5.1)</td>
+<td><strong>Implemented</strong></td>
+<td><code>APIMiddleware.ResourceMetadataURL</code></td>
+<td>Optional. When set, every challenge carries <code>resource_metadata=&quot;&lt;url&gt;&quot;</code> (0.1.45)</td>
 </tr>
 </tbody>
 </table>
-<p>The two gaps are the obvious quick wins on this RFC: structured<br />
-<code>WWW-Authenticate</code> lets clients refresh/escalate without prompting the user.<br />
-Worth filing once we have a concrete client demand.</p>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
 <li><a href="RFC_6749.md">RFC 6749</a> — the framework that produces the token 6750 carries</li>

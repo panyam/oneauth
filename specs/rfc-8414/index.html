@@ -233,10 +233,12 @@ established the pattern; 8414 generalized it for OAuth-only deployments.</p>
 </span></span><span style="display:flex;"><span>auth0 <span style="color:#000;font-weight:bold">=</span> Auth0Client(issuer<span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#34;https://tenant.us.auth0.com&#34;</span>)
 </span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># SDK fetches: https://tenant.us.auth0.com/.well-known/openid-configuration</span>
 </span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Now it knows: token endpoint, JWKS URI, supported algs, scopes, ...</span>
-</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// OneAuth client
-</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>client, err <span style="color:#000;font-weight:bold">:=</span> oneauth.<span style="color:#900;font-weight:bold">New</span>(ctx, <span style="color:#d14">&#34;https://as.example.com&#34;</span>)
-</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// SDK fetches: https://as.example.com/.well-known/openid-configuration
-</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Now it knows everything it needs to authorize and validate
+</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// OneAuth client SDK (package client)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>meta, err <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">DiscoverASWithContext</span>(ctx, <span style="color:#d14">&#34;https://as.example.com&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// SDK fetches https://as.example.com/.well-known/oauth-authorization-server,
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// falls back to /.well-known/openid-configuration, and refuses a document
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// whose issuer doesn&#39;t match the URL it asked (RFC 8414 §3.3).
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// meta.TokenEndpoint, meta.JWKSURI and the rest are now known.
 </span></span></span></code></pre><p>That&rsquo;s 8414 at work. The single string <code>https://as.example.com</code> is enough<br />
 because the discovery doc carries everything else.</p>
 <h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
@@ -336,7 +338,7 @@ capabilities (<code>code_challenge_methods_supported</code>, etc.).</p>
 <tr>
 <td><code>/.well-known/oauth-authorization-server</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/as_metadata.go:153</code> <code>MountASMetadata</code> registers it</td>
+<td><code>apiauth/as_metadata.go</code> <code>MountASMetadata</code> registers it</td>
 <td>Co-served with the OIDC path</td>
 </tr>
 <tr>
@@ -348,8 +350,8 @@ capabilities (<code>code_challenge_methods_supported</code>, etc.).</p>
 <tr>
 <td><code>ASServerMetadata</code> struct</td>
 <td><strong>Implemented</strong></td>
-<td><code>apiauth/as_metadata.go:20–98</code></td>
-<td>Covers 6749, 7517, 7591, 8628, 9207, 9396, OIDC BCL, OIDC discovery fields</td>
+<td><code>apiauth/as_metadata.go</code> <code>ASServerMetadata</code></td>
+<td>Covers 6749, 7517, 7591, 8628, 9126, 9207, 9396, 9449, OIDC BCL, OIDC discovery fields</td>
 </tr>
 <tr>
 <td><code>jwks_uri</code> advertisement</td>
@@ -360,32 +362,50 @@ capabilities (<code>code_challenge_methods_supported</code>, etc.).</p>
 <tr>
 <td><code>authorization_response_iss_parameter_supported</code> (RFC 9207)</td>
 <td><strong>Implemented</strong></td>
-<td><code>as_metadata.go:78</code> field; opt-in per-deployment</td>
+<td><code>ASServerMetadata.AuthorizationResponseIssParameterSupported</code>; opt-in per-deployment</td>
 <td>Pointer to RFC 9207</td>
 </tr>
 <tr>
 <td><code>authorization_details_types_supported</code> (RFC 9396)</td>
 <td><strong>Implemented</strong></td>
-<td><code>as_metadata.go:37</code></td>
+<td><code>ASServerMetadata.AuthorizationDetailsTypesSupported</code></td>
 <td>RAR types enumerable per-deployment</td>
 </tr>
 <tr>
 <td><code>code_challenge_methods_supported=[&quot;S256&quot;]</code></td>
 <td><strong>Implemented</strong></td>
-<td><code>as_metadata.go:63</code></td>
-<td><code>plain</code> deliberately absent — clients refuse non-S256 ASes</td>
+<td><code>ASServerMetadata.CodeChallengeMethodsSupported</code></td>
+<td><code>plain</code> deliberately absent, so clients refuse non-S256 ASes</td>
 </tr>
 <tr>
 <td><code>backchannel_logout_supported</code> (OIDC BCL)</td>
 <td><strong>Implemented</strong></td>
-<td><code>as_metadata.go:86</code></td>
+<td><code>ASServerMetadata.BackchannelLogoutSupported</code></td>
 <td>Optional, advertised when wired</td>
 </tr>
 <tr>
 <td><code>dpop_signing_alg_values_supported</code> (RFC 9449)</td>
-<td><strong>Not implemented</strong></td>
-<td>—</td>
-<td>DPoP gap (covered separately under RFC_9449.md)</td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.DPoPSigningAlgValuesSupported</code>, filled from <code>DPoPProofValidator.SigningAlgValuesSupported</code></td>
+<td>Since 0.1.37. Advertise it only when a DPoP validator is wired</td>
+</tr>
+<tr>
+<td><code>pushed_authorization_request_endpoint</code> (RFC 9126)</td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.PushedAuthorizationRequestEndpoint</code></td>
+<td>Since 0.1.38. Advertise it only where <code>/par</code> is mounted</td>
+</tr>
+<tr>
+<td><code>require_pushed_authorization_requests</code> (RFC 9126)</td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.RequirePushedAuthorizationRequests</code></td>
+<td>Since 0.1.38. Set it only alongside <code>AuthorizeMountConfig.RequirePushedRequests</code>, which enforces it</td>
+</tr>
+<tr>
+<td><code>token_endpoint_auth_signing_alg_values_supported</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.TokenEndpointAuthSigningAlgValuesSupported</code></td>
+<td>Required when <code>private_key_jwt</code> or <code>client_secret_jwt</code> is advertised</td>
 </tr>
 <tr>
 <td><code>Cache-Control</code> on responses</td>
@@ -399,8 +419,29 @@ capabilities (<code>code_challenge_methods_supported</code>, etc.).</p>
 <td><code>apiauth/as_metadata_proxy.go</code> <code>ASMetadataProxy</code></td>
 <td>For RS deployments that proxy a foreign AS&rsquo;s discovery</td>
 </tr>
+<tr>
+<td>Client-side discovery</td>
+<td><strong>Implemented</strong></td>
+<td><code>client/discovery.go</code> <code>DiscoverAS</code> / <code>DiscoverASWithContext</code></td>
+<td>Tries the RFC 8414 path, then the OIDC path; an <code>issuer</code> mismatch is <code>ErrMetadataIssuerMismatch</code>, with no fallback</td>
+</tr>
 </tbody>
 </table>
+<h3 id="reference-server-metadata">Reference server metadata <a class="anchor" href="#reference-server-metadata">¶</a></h3>
+<p><code>cmd/oneauth-server/metadata.go</code> <code>serverASMetadata</code> builds the document<br />
+from what the server mounts. The <code>issuer</code> is <code>server.public_url</code><br />
+(<code>scheme://host:port</code> without one), and <code>jwt.issuer</code> follows it unless<br />
+set (0.1.44).</p>
+<p>Since 0.1.51 the <code>code</code> response type, the RFC 9207 <code>iss</code> flag and the<br />
+<code>none</code> auth method are advertised only with <code>code_flow</code> on. The implicit<br />
+<code>token</code> response type is gone, and the advertised <code>POST /oauth/revoke</code> is<br />
+mounted.</p>
+<p>With <code>code_flow.par.enabled</code> the document carries<br />
+<code>pushed_authorization_request_endpoint</code>, and <code>require_pushed_authorization_requests</code><br />
+is true under <code>code_flow.par.required</code> or <code>fapi2</code> (0.1.54).</p>
+<p>Under <code>fapi2: true</code> the token endpoint auth methods are <code>private_key_jwt</code><br />
+only, the signing algorithm list is <code>ES256</code> only, and the password grant<br />
+is absent from <code>grant_types_supported</code> (0.1.54).</p>
 <h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
 <p>You&rsquo;ll almost always publish discovery metadata. The one carve-out is<br />
 locked-down internal deployments where the client population is known and<br />
