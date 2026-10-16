@@ -543,6 +543,12 @@ type AuthenticateClientRequest struct {
 	// injection through multi-valued aud. Authenticators other than
 	// oneauth's own may ignore it.
 	RequireStringAudience bool
+
+	// AllowedAssertionAlgs, when non-empty, refuses a client assertion
+	// signed with any other algorithm, on top of the per-client alg
+	// binding. FAPI 2.0 §5.4.1 allows PS256, ES256 and EdDSA only.
+	// Authenticators other than oneauth's own may ignore it.
+	AllowedAssertionAlgs []string
 }
 
 // AuthenticateClientResponse reports the authenticated client and the

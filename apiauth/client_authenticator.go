@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -270,6 +271,9 @@ func (a *clientAuthenticator) authenticateAssertion(req *AuthenticateClientReque
 		return nil, fmt.Errorf("%w: verified claims unparseable", errInvalidClient)
 	}
 
+	if len(req.AllowedAssertionAlgs) > 0 && !slices.Contains(req.AllowedAssertionAlgs, verified.Method.Alg()) {
+		return nil, fmt.Errorf("%w: assertion algorithm %s is not allowed here", errInvalidClient, verified.Method.Alg())
+	}
 	if _, isString := verifiedClaims["aud"].(string); req.RequireStringAudience && !isString {
 		return nil, fmt.Errorf("%w: assertion aud must be a single string", errInvalidClient)
 	}

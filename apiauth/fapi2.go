@@ -26,6 +26,7 @@ func (a *fapiClientAuthenticator) AuthenticateClient(ctx context.Context, req *A
 	}
 	strict := *req
 	strict.RequireStringAudience = true
+	strict.AllowedAssertionAlgs = fapi2AssertionAlgs
 	return a.inner.AuthenticateClient(ctx, &strict)
 }
 
@@ -34,6 +35,11 @@ func isFAPI(a ClientAuthenticator) bool {
 	_, ok := a.(*fapiClientAuthenticator)
 	return ok
 }
+
+// fapi2AssertionAlgs are FAPI 2.0 §5.4.1's signing algorithms. oneauth
+// verifies ES256 client assertions today; PS256 and EdDSA keys can't be
+// registered yet, so in practice FAPI clients use ES256.
+var fapi2AssertionAlgs = []string{"PS256", "ES256", "EdDSA"}
 
 // FAPI 2.0 §5.3.2.2 lifetimes.
 const (

@@ -74,6 +74,9 @@ func main() {
 	if err := checkSigningSecret(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
+	if err := checkFAPI2(cfg); err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
 
 	// Build KeyStore (optionally wrapped with encryption)
 	keyStore, db, err := buildKeyStore(cfg)
@@ -172,6 +175,7 @@ func main() {
 		SigningKey: []byte(cfg.JWT.SecretKey),
 		SigningAlg: "HS256",
 		Issuer:     cfg.JWT.Issuer,
+		FAPI2:      cfg.FAPI2,
 		// Client assertions name the issuer or one of these endpoints as
 		// aud (RFC 7523 §3). Fixed from public_url rather than derived from
 		// each request, which behind a TLS proxy would say http.
@@ -380,7 +384,7 @@ func main() {
 	// because clients connect via localhost / a routable address. See 184.
 	baseURL := publicBaseURL(cfg)
 
-	grantTypes := []string{"password", "refresh_token", "client_credentials"}
+	grantTypes := baseGrantTypes(cfg)
 	asMeta := serverASMetadata(cfg, baseURL, cfg.CodeFlow.Enabled)
 	if dpop.tokenEndpoint != nil {
 		asMeta.DPoPSigningAlgValuesSupported = dpop.tokenEndpoint.SigningAlgValuesSupported()
@@ -434,11 +438,20 @@ func main() {
 		oa.AuthorizationCodeStore = codeStore
 		oa.AppStore = appStore
 
+		var pushedStore core.PushedAuthorizationRequestStore
+		if cfg.CodeFlow.PAR.Enabled {
+			pushedStore, err = buildPushedStore(cfg, db)
+			if err != nil {
+				log.Fatalf("Failed to create PushedAuthorizationRequestStore: %v", err)
+			}
+		}
 		apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
-			OneAuth:          oa,
-			IssuerURL:        baseURL,
-			EmitIssParameter: true, // RFC 9207, advertised in serverASMetadata
-			Expiry:           cfg.CodeFlow.Expiry,
+			PushedStore:           pushedStore,
+			RequirePushedRequests: cfg.CodeFlow.PAR.Required,
+			OneAuth:               oa,
+			IssuerURL:             baseURL,
+			EmitIssParameter:      true, // RFC 9207, advertised in serverASMetadata
+			Expiry:                cfg.CodeFlow.Expiry,
 			SubjectFromRequest: func(r *http.Request) string {
 				return getUserIDFromCookie(r, cfg.JWT.SecretKey)
 			},
@@ -827,6 +840,32 @@ func buildAuthorizationCodeStore(cfg *Config, sharedDB *gorm.DB) (core.Authoriza
 
 	default:
 		return nil, fmt.Errorf("unknown code_flow.store type: %s (memory and gorm are supported; fs/gae backends are tracked as follow-ups)", sc.Type)
+	}
+}
+
+// buildPushedStore backs RFC 9126 PAR with the same backend as the
+// authorization codes (code_flow.store): pushed requests and the codes
+// they produce live and expire together.
+func buildPushedStore(cfg *Config, sharedDB *gorm.DB) (core.PushedAuthorizationRequestStore, error) {
+	sc := cfg.CodeFlow.Store
+	switch sc.Type {
+	case "memory":
+		return core.NewInMemoryPushedAuthorizationRequestStore(), nil
+	case "gorm":
+		db := sharedDB
+		if db == nil || cfg.KeyStore.GORM.DSN != sc.GORM.DSN || cfg.KeyStore.GORM.Driver != sc.GORM.Driver {
+			fresh, err := openGORM(sc.GORM)
+			if err != nil {
+				return nil, err
+			}
+			db = fresh
+		}
+		if err := gormstore.AutoMigrate(db); err != nil {
+			return nil, err
+		}
+		return gormstore.NewPushedAuthorizationRequestStore(db), nil
+	default:
+		return nil, fmt.Errorf("code_flow.par needs code_flow.store type memory or gorm, got %q", sc.Type)
 	}
 }
 
