@@ -94,6 +94,23 @@ type DeviceFlowMountConfig struct {
 	// is NOT wrapped — it is a machine-to-machine endpoint called by
 	// the device, not a browser form, and CSRF does not apply.
 	VerifierMiddleware func(http.Handler) http.Handler
+
+	// UserCodeRateLimiter limits POST /device submissions per client
+	// address (RFC 8628 §5.1). Nil uses DefaultUserCodeRateLimiter, so
+	// user-code guessing is always limited.
+	UserCodeRateLimiter core.RateLimiter
+
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is
+	// believed when keying UserCodeRateLimiter.
+	TrustedProxies core.TrustedProxies
+}
+
+// DefaultUserCodeRateLimiter is the user-code limiter MountDeviceFlow uses
+// when none is configured: a burst of 10 submissions per address, then one
+// every 6 seconds. A person typing a code from a TV gets it right within a
+// few tries; a script guessing 39-bit codes gets nowhere.
+func DefaultUserCodeRateLimiter() core.RateLimiter {
+	return core.NewInMemoryRateLimiter(1.0/6, 10)
 }
 
 // MountDeviceFlow stamps the five RFC 8628 routes onto mux:
@@ -158,6 +175,11 @@ func MountDeviceFlow(mux *http.ServeMux, cfg DeviceFlowMountConfig) {
 		LoginRedirectURL:     cfg.LoginRedirectURL,
 		LoginNextParam:       cfg.LoginNextParam,
 		Templates:            cfg.Templates,
+		RateLimiter:          cfg.UserCodeRateLimiter,
+		TrustedProxies:       cfg.TrustedProxies,
+	}
+	if verifier.RateLimiter == nil {
+		verifier.RateLimiter = DefaultUserCodeRateLimiter()
 	}
 
 	wrap := cfg.VerifierMiddleware

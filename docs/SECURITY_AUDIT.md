@@ -184,7 +184,10 @@ The fixes land across several PRs; the Status column says which rows are done.
 | Post-login and logout redirects stay on this site | Pass (was Fail) | `httpauth.LocalRedirect` on `?to=` and the federated `callbackURL` (CWE-601) |
 | Login cookies set on every configured cookie domain | Pass (was Fail) | `SetLoggedInSubject` returned after the first domain |
 | CSRF | Partial | double-submit with `SameSite=Strict`; not bound to the session, no Origin check |
-| Brute-force limits on login, password grant, user-code entry | Open | limiters exist but nothing wires them by default; `X-Forwarded-For` is trusted unconditionally |
+| Rate-limit keys can't be reset with a spoofed `X-Forwarded-For` | Pass (was Fail) | `core.ClientIP` reads it only from configured `TrustedProxies`, right to left (CWE-348) |
+| Brute-force limits on login and the password grant | Pass (was Partial) | per address + username, plus a per-username lockout the password grant now has too; on by default in the reference server (`rate_limit`) |
+| Limits on signup and forgot-password | Pass (was Fail) | per address, and forgot-password per email too (CWE-770) |
+| Device user-code guessing limited | Pass (was Fail) | `MountDeviceFlow` always installs a per-address limiter (RFC 8628 §5.1) |
 
 ### Admin interface
 

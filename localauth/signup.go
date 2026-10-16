@@ -17,6 +17,11 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error": "Signup not configured"}`, http.StatusInternalServerError)
 		return
 	}
+	// Account creation is limited per client, so one source can't mass
+	// register (CWE-770).
+	if !a.allow(w, "signup:"+a.clientIP(r)) {
+		return
+	}
 
 	// Parse signup form data
 	creds, parseErr := a.parseSignupForm(r)

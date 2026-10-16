@@ -96,6 +96,13 @@ func main() {
 	// Host header.
 	registrar.IssuerBaseURL = publicBaseURL(cfg)
 
+	// Brute-force limits, on by default (rate_limit block).
+	bf, err := buildBruteForce(cfg)
+	if err != nil {
+		log.Fatalf("Invalid rate limit config: %v", err)
+	}
+	bf.sweep()
+
 	// Build LocalAuth
 	localAuth := &localauth.LocalAuth{
 		ValidateCredentials: localauth.NewCredentialsValidator(stores.identityStore, stores.channelStore, stores.userStore),
@@ -118,6 +125,11 @@ func main() {
 			renderTemplate(w, "signup.html", map[string]any{"Title": "Sign Up", "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
+		TrustedProxies: bf.trustedProxies,
+	}
+	if bf.limiter != nil {
+		localAuth.RateLimiter = bf.limiter
+		localAuth.Lockout = bf.lockout
 	}
 
 	// Token blacklist for immediate access token revocation
@@ -187,6 +199,11 @@ func main() {
 		ValidateCredentials: localAuth.ValidateCredentials,
 	})
 	tokenEndpoint := apiauth.NewTokenEndpointHandler(oa)
+	tokenEndpoint.TrustedProxies = bf.trustedProxies
+	if bf.limiter != nil {
+		tokenEndpoint.RateLimiter = bf.limiter
+		tokenEndpoint.Lockout = bf.lockout
+	}
 	sessions := oa.SessionsHTTPHandler()
 
 	// CSRF middleware for browser form endpoints
@@ -390,6 +407,7 @@ func main() {
 			CSRFTokenFromRequest: httpauth.CSRFToken,
 			LoginRedirectURL:     "/auth/login",
 			VerifierMiddleware:   csrf.Protect,
+			TrustedProxies:       bf.trustedProxies,
 		})
 
 		asMeta.DeviceAuthorizationEndpoint = baseURL + "/device/authorize"

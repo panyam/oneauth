@@ -92,24 +92,29 @@ type LocalAuth struct {
 	// Lockout locks accounts after consecutive failed login attempts. Optional.
 	// When set, locked accounts receive 429 Too Many Requests until the lockout expires.
 	Lockout *core.AccountLockout
+
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is
+	// believed when keying rate limits. Empty keys on the TCP peer, which
+	// is right when nothing sits in front of this process; behind a proxy
+	// every client would otherwise share the proxy's bucket.
+	TrustedProxies core.TrustedProxies
 }
 
-// getClientIP extracts the client IP from the request for rate limiting.
-func getClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if idx := strings.Index(xff, ","); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
+// clientIP is the address used for rate-limit keys: the TCP peer, or the
+// forwarded client when the peer is one of TrustedProxies.
+func (a *LocalAuth) clientIP(r *http.Request) string {
+	return core.ClientIP(r, a.TrustedProxies)
+}
+
+// allow applies RateLimiter to one key, answering 429 when it's exhausted.
+// With no RateLimiter everything is allowed.
+func (a *LocalAuth) allow(w http.ResponseWriter, key string) bool {
+	if a.RateLimiter == nil || a.RateLimiter.Allow(key) {
+		return true
 	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
-	}
-	ip := r.RemoteAddr
-	if idx := strings.LastIndex(ip, ":"); idx != -1 {
-		ip = ip[:idx]
-	}
-	return ip
+	w.Header().Set("Retry-After", "60")
+	http.Error(w, `{"error":"too many requests","code":"rate_limited"}`, http.StatusTooManyRequests)
+	return false
 }
 
 // ServeHTTP handles login requests
@@ -129,7 +134,7 @@ func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Rate limiting check (before credential validation to prevent timing bypass)
 	if a.RateLimiter != nil {
-		key := getClientIP(r) + ":" + username
+		key := a.clientIP(r) + ":" + username
 		if !a.RateLimiter.Allow(key) {
 			w.Header().Set("Retry-After", "60")
 			http.Error(w, `{"error":"too many login attempts","code":"rate_limited"}`, http.StatusTooManyRequests)
@@ -313,6 +318,11 @@ func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request)
 		http.Error(w, `{"error": "Password reset not configured"}`, http.StatusInternalServerError)
 		return
 	}
+	// Each request sends an email, so it's limited per client before
+	// anything else, and per address below (CWE-770).
+	if !a.allow(w, "forgot:"+a.clientIP(r)) {
+		return
+	}
 
 	// Parse form (supports both url-encoded and multipart)
 	if err := r.ParseMultipartForm(32 << 10); err != nil {
@@ -326,6 +336,9 @@ func (a *LocalAuth) HandleForgotPassword(w http.ResponseWriter, r *http.Request)
 	email := r.FormValue("email")
 	if email == "" {
 		http.Error(w, `{"error": "Email required"}`, http.StatusBadRequest)
+		return
+	}
+	if !a.allow(w, "forgot-email:"+strings.ToLower(strings.TrimSpace(email))) {
 		return
 	}
 

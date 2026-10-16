@@ -35,6 +35,19 @@ type TokenEndpointHandler struct {
 	// username. Nil disables rate limiting.
 	RateLimiter core.RateLimiter
 
+	// Lockout locks a username after consecutive failed password-grant
+	// attempts, whatever address they come from, so spreading guesses
+	// over many IPs doesn't get around RateLimiter. A locked account gets
+	// 429 even with the right password until the lockout expires. Nil
+	// disables it.
+	Lockout *core.AccountLockout
+
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is
+	// believed for rate-limit keys and the refresh token's recorded IP.
+	// Empty uses the TCP peer, so a spoofed header can't buy a fresh
+	// bucket (CWE-348).
+	TrustedProxies core.TrustedProxies
+
 	// TracerProvider opts the handler into SEP-414 tracing. Nil keeps
 	// the no-op fast path.
 	TracerProvider trace.TracerProvider
@@ -167,11 +180,16 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if h.RateLimiter != nil {
-		key := getClientIP(r) + ":" + req.Username
+		key := core.ClientIP(r, h.TrustedProxies) + ":" + req.Username
 		if !h.RateLimiter.Allow(key) {
 			h.writeError(w, &GrantError{Code: "rate_limit_exceeded", Description: "too many login attempts", Status: http.StatusTooManyRequests})
 			return
 		}
+	}
+	if h.Lockout != nil && h.Lockout.IsLocked(req.Username) {
+		w.Header().Set("Retry-After", "60")
+		h.writeError(w, &GrantError{Code: "rate_limit_exceeded", Description: "account temporarily locked", Status: http.StatusTooManyRequests})
+		return
 	}
 
 	resp, err := h.OneAuth.PasswordGranter.PasswordGrant(r.Context(), &PasswordGrantRequest{
@@ -190,6 +208,9 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 		msg := err.Error()
 		switch {
 		case strings.HasPrefix(msg, "invalid_grant"):
+			if h.Lockout != nil {
+				h.Lockout.RecordFailure(req.Username)
+			}
 			h.fireOnLoginFailure(req.Username, err)
 			h.writeError(w, &GrantError{Code: "invalid_grant", Description: "invalid credentials", Status: http.StatusUnauthorized})
 		default:
@@ -199,12 +220,16 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if h.Lockout != nil {
+		h.Lockout.RecordSuccess(req.Username)
+	}
+
 	// Refresh token (HTTP-side: device info captured from request).
 	var refreshTokenStr string
 	if h.OneAuth.RefreshStore != nil {
 		deviceInfo := map[string]any{
 			"user_agent": r.UserAgent(),
-			"ip":         getClientIP(r),
+			"ip":         core.ClientIP(r, h.TrustedProxies),
 			"created_at": time.Now().UTC().Format(time.RFC3339),
 		}
 		createResp, rtErr := h.OneAuth.RefreshStore.CreateRefreshToken(r.Context(), &core.CreateRefreshTokenRequest{
