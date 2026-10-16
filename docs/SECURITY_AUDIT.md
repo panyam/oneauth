@@ -163,7 +163,7 @@ The fixes land across several PRs; the Status column says which rows are done.
 | ... on the authorize redirect carrying a code, and the reset-password form | RFC 6749 §10.5 | Pass (was Fail) | `issueAndRedirect`, `HandleResetPasswordForm` | `authorize_no_store_test.go`\*, `reset_no_store_test.go`\* |
 | `registration_client_uri` not built from the request's `Host` | CWE-644 | Pass (was Fail) | `AppRegistrar.IssuerBaseURL`; loopback-only fallback in `DCRHandler.issuerBase` | RegistrationURIIgnoresForeignHost\* |
 | Admin view doesn't return clients' `registration_access_token` | RFC 7592 §3 | Pass (was Fail) | `ListClients` / `GetClient` clear it | AdminViewOmitsRegistrationAccessToken\* |
-| Anti-framing on consent, device and login pages | RFC 6749 §10.13 | Open | only the reference server's `SecurityHeaders` wrapper | sessions PR |
+| Anti-framing on consent, device and password pages | RFC 6749 §10.13 | Pass (was Fail) | `httpauth.DenyFraming` in the authorize, device and localauth page handlers; keeps a deployment's own CSP | `framing_test.go`\*, `authorize_framing_test.go`\* |
 | CSP without third-party script or `unsafe-inline` | — | Open | reference server loads the Tailwind Play CDN | server hardening PR |
 | HTTPS enforcement for a non-loopback deployment | OAuth 2.1 §1.5 | Open | nothing refuses plain HTTP | server hardening PR |
 | CORS | — | Pass | no CORS on the token endpoint; no `Allow-Credentials` anywhere | — |
@@ -176,10 +176,14 @@ The fixes land across several PRs; the Status column says which rows are done.
 | Password hashing | Pass | bcrypt cost 10, over-72-byte passwords refused, dummy hash for unknown users |
 | API keys, refresh tokens, device codes stored hashed | Pass | bcrypt / SHA-256 |
 | Password-reset tokens stored hashed, single use | Open | stored and looked up in plaintext; reset PR |
-| Cookie flags (`HttpOnly`, `Secure`, `SameSite`) | Open | `httpauth` session JWT cookie has none; `oa_token` lacks `Secure` |
-| Session ID renewed on login | Open | `httpauth` never calls `RenewToken` |
-| Session JWTs not usable as API access tokens | Open | tokens with no `type` claim pass `APIMiddleware` |
-| CSRF | Partial | double-submit with `SameSite=Strict`; `GET /auth/logout` is CSRF-able |
+| Cookie flags (`HttpOnly`, `Secure`, `SameSite`) | Pass (was Fail) | `httpauth` login cookies are Secure (opt-out `InsecureCookies`) and Lax, the token one HttpOnly; `oa_token` is Secure behind https; `oauthstate` / `oauthCallbackURL` HttpOnly + Lax |
+| Session ID renewed on login and logout | Pass (was Fail) | `SetLoggedInSubject` calls `RenewToken` (CWE-384) |
+| Session JWTs not usable as API access tokens | Pass (was Fail) | session JWTs carry `type: session`, which `APIMiddleware` refuses; `iat` no longer an hour in the future |
+| No hard-coded session signing secret | Pass (was Fail) | `httpauth` fell back to a fixed public secret; now a random per-process one with a warning (CWE-798), and HS256 is pinned |
+| Logout is POST with CSRF | Pass (was Fail) | `httpauth` `/logout` and the reference server's `/auth/logout` |
+| Post-login and logout redirects stay on this site | Pass (was Fail) | `httpauth.LocalRedirect` on `?to=` and the federated `callbackURL` (CWE-601) |
+| Login cookies set on every configured cookie domain | Pass (was Fail) | `SetLoggedInSubject` returned after the first domain |
+| CSRF | Partial | double-submit with `SameSite=Strict`; not bound to the session, no Origin check |
 | Brute-force limits on login, password grant, user-code entry | Open | limiters exist but nothing wires them by default; `X-Forwarded-For` is trusted unconditionally |
 
 ### Admin interface
