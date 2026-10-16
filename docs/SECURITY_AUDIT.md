@@ -249,6 +249,17 @@ device flow; DCR and metadata follow.
 | A public client gets no secret | RFC 7591 §2 | Pass (was Fail) | `none` used to be issued (and stored) a secret. PublicClientGetsNoSecret\* |
 | DCR server errors say nothing internal | CWE-209 | Pass (was Fail) | logged, with "internal server error" in the response |
 
+### Metadata, resource metadata, FS stores
+
+| Requirement | Ref | Status | Notes |
+|---|---|---|---|
+| Metadata advertises only supported response types | RFC 8414 §2 | Pass (was Fail) | the reference server listed `token` (implicit); now `code` only, and only with `code_flow` on. `serverASMetadata`, `cmd/oneauth-server/metadata_test.go`\* |
+| The advertised revocation endpoint is served | RFC 8414 §2, RFC 7009 | Pass (was Fail) | the server advertised `/oauth/revoke` and answered 404; it now mounts `oa.RevocationHTTPHandler()` |
+| RFC 9207 `iss` on the authorization response | RFC 9207 §2, FAPI 2.0 §5.3.2.1 | Pass (was Fail) | the server never turned it on; with `code_flow` it now emits and advertises it |
+| `none` advertised when public clients exist | RFC 8414 §2 | Pass (was Fail) | listed with `code_flow` on, where DCR can register public clients |
+| Resource metadata with several authorization servers | RFC 9728 §2 | Pass (was Fail) | `MountProtectedResource` registered the same pattern twice and panicked; each pattern is now mounted once. SeveralAuthorizationServers\* |
+| FS identity and channel files never serve another key | CWE-706 | Pass (was Fail) | file names are lossy (`filepath.Base`, `safeName`), so `x/email:victim@example.com` read and overwrote the victim's identity, and `a:b@` read `a_b@`'s password hash. Both stores now check the record's own key and return `fs.ErrKeyCollision`. `key_collision_test.go`\* |
+
 ## Tokens and keys
 
 Audited October 2026, against issue 88's "Token Security" and "Key Management" sections, RFC

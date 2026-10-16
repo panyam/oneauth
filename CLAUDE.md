@@ -133,6 +133,7 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - **A registered client's `scope` limits what the token endpoint grants.** With an `AppStore`, `client_credentials` and the password grant answer 400 `invalid_scope` for a scope outside `AppRegistration.Scope`, and grant the registered scope when none is asked for. A test that registers a client with a scope and asks for another now fails; one that leaves `Scope` empty is unaffected.
 - **Wrong credentials on the password grant are 400 `invalid_grant`** (RFC 6749 §5.2, and Keycloak agrees), not 401.
 - **DCR stores `client_secret_basic` when no auth method is sent**, and echoes the same; a `none` client gets no secret. DCR also refuses unknown methods and grant types, and `authorization_code` without a `redirect_uri`, so a fixture registering `{"grant_types":["authorization_code"]}` alone now fails.
+- **FS identity and channel stores refuse a key whose file holds another key's record** (`fs.ErrKeyCollision`). File names are lossy, so two keys can share one; before issue 88 the second key read and overwrote the first.
 - **httptest URL needed before mount.** When a handler config requires the server's base URL (e.g., RFC 8628 `VerificationURI`), use `httptest.NewUnstartedServer(mux)` → read `server.URL` → mount → `server.Start()`. Avoids post-hoc handler mutation. Pattern in `tests/e2e/device_flow_test.go`.
 
 ## Gap analyses

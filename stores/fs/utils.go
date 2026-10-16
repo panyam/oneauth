@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,3 +84,10 @@ func writeAtomicFile(path string, data []byte) error {
 
 	return nil
 }
+
+// ErrKeyCollision is returned by the FS identity and channel stores when the
+// file a key maps to holds a different key's record. File names are derived
+// from keys (filepath.Base, safeName), and two keys can map to one name;
+// returning or overwriting the other record would hand one account's
+// identity or credentials to another (CWE-706).
+var ErrKeyCollision = errors.New("fs: key maps to a file that holds a different record")

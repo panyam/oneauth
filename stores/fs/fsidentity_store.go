@@ -60,6 +60,11 @@ func (s *FSIdentityStore) GetIdentity(ctx context.Context, req *accounts.GetIden
 	if err := json.Unmarshal(data, &identity); err != nil {
 		return nil, err
 	}
+	// The file name is a lossy function of the key, so check the record is
+	// the one asked for.
+	if identity.Type != req.IdentityType || identity.Value != req.IdentityValue {
+		return nil, ErrKeyCollision
+	}
 	return &accounts.GetIdentityResponse{Identity: &identity}, nil
 }
 
@@ -69,6 +74,12 @@ func (s *FSIdentityStore) SaveIdentity(ctx context.Context, req *accounts.SaveId
 	}
 	identity := req.Identity
 	path := s.getIdentityPath(identity.Type, identity.Value)
+	if data, err := os.ReadFile(path); err == nil {
+		var existing accounts.Identity
+		if json.Unmarshal(data, &existing) == nil && (existing.Type != identity.Type || existing.Value != identity.Value) {
+			return nil, ErrKeyCollision
+		}
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return nil, err
 	}

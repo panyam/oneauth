@@ -70,6 +70,11 @@ func (s *FSChannelStore) GetChannel(ctx context.Context, req *accounts.GetChanne
 	if err := json.Unmarshal(data, &channel); err != nil {
 		return nil, err
 	}
+	// safeName folds "/", "\" and ":" into "_", so check the record is the
+	// one asked for.
+	if channel.Provider != req.Provider || channel.IdentityKey != req.IdentityKey {
+		return nil, ErrKeyCollision
+	}
 	return &accounts.GetChannelResponse{Channel: &channel}, nil
 }
 
@@ -81,6 +86,12 @@ func (s *FSChannelStore) SaveChannel(ctx context.Context, req *accounts.SaveChan
 	path, err := s.getChannelPath(channel.Provider, channel.IdentityKey)
 	if err != nil {
 		return nil, err
+	}
+	if data, err := os.ReadFile(path); err == nil {
+		var existing accounts.Channel
+		if json.Unmarshal(data, &existing) == nil && (existing.Provider != channel.Provider || existing.IdentityKey != channel.IdentityKey) {
+			return nil, ErrKeyCollision
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return nil, err

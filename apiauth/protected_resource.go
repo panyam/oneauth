@@ -119,6 +119,17 @@ func MountProtectedResource(mux *http.ServeMux, meta *ProtectedResourceMetadata,
 	// Clients that discover the PRM and try RFC 8414 at the AS URL will
 	// get 404 from OIDC-only providers. They may retry at the resource
 	// server URL, where this proxy serves the cached metadata.
+	//
+	// Each pattern is mounted once, for the first server that claims it:
+	// ServeMux panics on a pattern registered twice. The bare path goes to
+	// the first server, and every path-based server keeps its own path.
+	mounted := map[string]bool{}
+	mount := func(pattern string, h http.Handler) {
+		if !mounted[pattern] {
+			mounted[pattern] = true
+			mux.Handle(pattern, h)
+		}
+	}
 	for _, asURL := range meta.AuthorizationServers {
 		proxy := NewASMetadataProxy(asURL, 0)
 		_, asPath := splitASOriginPath(asURL)
@@ -126,10 +137,10 @@ func MountProtectedResource(mux *http.ServeMux, meta *ProtectedResourceMetadata,
 		if asPath != "" {
 			// Path-based AS (e.g., Keycloak realms):
 			// /.well-known/oauth-authorization-server/realms/foo
-			mux.Handle("/.well-known/oauth-authorization-server"+asPath, proxy)
+			mount("/.well-known/oauth-authorization-server"+asPath, proxy)
 		}
-		// Also mount at the simple path for non-path-based AS or as fallback
-		mux.Handle("/.well-known/oauth-authorization-server", proxy)
+		// The simple path, for a non-path-based AS or as a fallback.
+		mount("/.well-known/oauth-authorization-server", proxy)
 	}
 }
 
