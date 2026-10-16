@@ -47,7 +47,7 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 | 5 | A bad proof fails the request, never falls back to Bearer | MUST | AS | Pass | `apiauth/token_endpoint.go:442` `dpopConfirmation` | InvalidProofRejectsTheRequest |
 | 5 | Public client's refresh token bound to its key, checked on use | MUST | AS | Pass | `token_validator.go` refresh grant | BoundRefreshTokenRequiresItsOwnKey |
 | 5 | Binding survives FS / GORM / GAE stores | — | AS | Pass | `stores/*` | e2e (FS), `stores/gorm/refreshtoken_binding_test.go`, `stores/gae/refreshtoken_binding_test.go` (`make testds`) |
-| 5 | Client's automatic refresh carries a proof | MUST | client | Pass (was Fail) | `client/client.go` `requestToken` → `executeTokenRequest` | RefreshThenRetryMintsAFreshProof\*, e2e SDKAutoRefreshKeepsTheBinding\*; Keycloak SDKRefreshKeepsTheBinding |
+| 5 | Client's automatic refresh carries a proof | MUST | client | Pass (was Fail) | `client/client.go` `refreshTokenLocked` → `requestTokenForm` / `requestToken` → `executeTokenRequest` | RefreshThenRetryMintsAFreshProof\*, e2e SDKAutoRefreshKeepsTheBinding\*; Keycloak SDKRefreshKeepsTheBinding |
 | 5.1 | `dpop_signing_alg_values_supported` in AS metadata | SHOULD | AS | Pass | `apiauth/as_metadata.go:79` | e2e MetadataAdvertisesSigningAlgs |
 | 5.2 | `dpop_bound_access_tokens` client metadata, enforced | MUST if supported | AS | Pass (was not implemented) | `apiauth/token_endpoint.go:478` `requireDPoP`; `core.AppRegistration`; DCR; all app stores | `dpop_require_test.go`\*, `admin/dcr_dpop_test.go`\*, `appstoretest` AllFieldsRoundTrip\*, e2e DCRRegisteredDPoPBoundClient\* |
 | 6.1 | `cnf.jkt` in the JWT, not forgeable through custom claims | MUST | AS | Pass | `token_validator.go:432` | CustomClaimsCannotForgeCnf |
@@ -99,8 +99,8 @@ Fixed alongside this section:
   after a restart on those backends.
 
 Still open, all in [issue 395](https://github.com/panyam/oneauth/issues/395): EdDSA proofs,
-an option to turn off refresh rotation for FAPI, DPoP config in `cmd/oneauth-server`, and two
-SDK refresh-path issues that aren't DPoP-specific.
+an option to turn off refresh rotation for FAPI, and DPoP config in `cmd/oneauth-server`. The
+two SDK refresh-path issues are fixed (issue 395 items 4 and 5).
 
 The walk also turned up a gap bigger than DPoP, fixed separately: the refresh grant didn't
 authenticate the client or check the token belonged to the `client_id` sent with it

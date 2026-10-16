@@ -276,7 +276,7 @@ resp, err := httpClient.Get("https://api.example.com/resource")
 Returns an `*http.Client` wired with `refreshTransport` that:
 1. Adds `Authorization: Bearer <token>` to every request
 2. Proactively refreshes tokens expiring within 5 minutes
-3. On 401 response: refreshes the token and retries the request once
+3. On 401 response: refreshes the token and retries the request once, resending the body through `GetBody`. A request whose body can't be rewound gets the 401 back instead of being resent empty.
 
 ## Credential Storage
 
@@ -366,6 +366,19 @@ flowchart TD
 ```
 
 The refresh uses a `grant_type=refresh_token` request to the token endpoint. The base transport is used for refresh requests to avoid infinite loops.
+
+Where it goes depends on discovery. With AS metadata (`WithASMetadata`, or a `DiscoverAS` result passed to it) the refresh posts the RFC 6749 §6 form to the discovered `token_endpoint`, which is what makes background refresh work against Keycloak or any RFC 8414 server. Without it, it posts JSON to oneauth's own `/auth/cli/token`.
+
+It presents the client the credential was issued to (`ServerCredential.ClientID`). The AS redeems a refresh token only for that client, and a confidential client has to authenticate, so give the `AuthClient` its secret:
+
+```go
+c := client.NewAuthClient(serverURL, store,
+    client.WithASMetadata(meta),
+    client.WithClientSecret(secret), // memory only; never written to the store
+)
+```
+
+The secret is sent the way the AS advertises (`client_secret_basic` first, then `client_secret_post`), the same choice `RefreshToken` makes.
 
 ## Dynamic Client Registration & Management (RFC 7591 / 7592)
 
