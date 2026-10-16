@@ -195,6 +195,14 @@ func (h *AuthorizationHandler) ParseAndValidate(r *http.Request) (req *Authoriza
 		if h.RequirePushedRequests {
 			return nil, true, "invalid_request", "this server accepts authorization requests only through the pushed authorization request endpoint (RFC 9126)"
 		}
+		// RFC 9126 §6: a client can register to be held to PAR on its own.
+		reg, gErr := clientRegistration(r.Context(), h.AppStore, strings.TrimSpace(values.Get("client_id")))
+		if gErr != nil {
+			return nil, true, gErr.Code, "could not load the client registration"
+		}
+		if reg != nil && reg.RequirePushedAuthorizationRequests {
+			return nil, true, "invalid_request", "this client is registered to send authorization requests only through the pushed authorization request endpoint (RFC 9126 §6)"
+		}
 		return h.ValidateValues(r.Context(), values)
 	}
 

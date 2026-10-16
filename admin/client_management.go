@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 // ClientRegistrationManager is the transport-agnostic core of OAuth 2.0
@@ -135,3 +136,9 @@ var ErrUnauthorized = errors.New("unauthorized registration management request")
 // proven possession of the registration access token — refusing to distinguish
 // would be needlessly cryptic.
 var ErrInvalidClientMetadata = errors.New("invalid client metadata")
+
+// ErrInvalidRedirectURI is a redirect_uri the AS won't register. It wraps
+// ErrInvalidClientMetadata, so callers checking for that still see a 400,
+// and the DCR handlers answer it with RFC 7591 §3.2.2's
+// invalid_redirect_uri instead.
+var ErrInvalidRedirectURI = fmt.Errorf("%w: invalid redirect_uri", ErrInvalidClientMetadata)

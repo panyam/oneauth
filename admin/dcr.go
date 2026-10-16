@@ -91,6 +91,10 @@ type DCRRequest struct {
 	// RFC 9449 §5.2: true asks the AS to refuse this client's token
 	// requests that carry no DPoP proof. Absent means false.
 	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
+
+	// RFC 9126 §6: true asks the AS to refuse this client's authorization
+	// requests that don't come through PAR.
+	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
 }
 
 // DCRResponse is the RFC 7591 client registration response, extended with the
@@ -124,6 +128,10 @@ type DCRResponse struct {
 	// RFC 9449 §5.2 echo, so the client can confirm the AS will hold it
 	// to DPoP.
 	DPoPBoundAccessTokens bool `json:"dpop_bound_access_tokens,omitempty"`
+
+	// RFC 9126 §6: true asks the AS to refuse this client's authorization
+	// requests that don't come through PAR.
+	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
 }
 
 // ServeHTTP is the HTTP wrapper for ClientRegistrar.Register (RFC 7591 DCR).
@@ -182,11 +190,17 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		IssuerBaseURL: issuerBase,
 	})
 	if err != nil {
+		if errors.Is(err, ErrInvalidRedirectURI) {
+			h.jsonError(w, "invalid_redirect_uri", err.Error(), http.StatusBadRequest)
+			return
+		}
 		if errors.Is(err, ErrInvalidClientMetadata) {
 			h.jsonError(w, "invalid_client_metadata", err.Error(), http.StatusBadRequest)
 			return
 		}
-		h.jsonError(w, "server_error", err.Error(), http.StatusInternalServerError)
+		// The detail goes to the log, not the client (CWE-209).
+		log.Printf("DCR register: %v", err)
+		h.jsonError(w, "server_error", "internal server error", http.StatusInternalServerError)
 		return
 	}
 

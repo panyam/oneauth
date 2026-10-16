@@ -100,6 +100,9 @@ func (h *DCRManagementHandler) handlePut(w http.ResponseWriter, r *http.Request,
 	case errors.Is(err, ErrUnauthorized):
 		dcrUnauthorized(w, "invalid_token", "Invalid registration access token")
 		return
+	case errors.Is(err, ErrInvalidRedirectURI):
+		dcrBadRequest(w, "invalid_redirect_uri", "Update rejected: "+err.Error())
+		return
 	case errors.Is(err, ErrInvalidClientMetadata):
 		dcrBadRequest(w, "invalid_client_metadata", "Update rejected: "+err.Error())
 		return
