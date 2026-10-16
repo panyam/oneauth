@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/panyam/oneauth/core"
 	"time"
 )
@@ -171,3 +172,12 @@ var ErrInvalidPublicKey = errors.New("invalid public key")
 // rotation was attempted without supplying the public_key field.
 // Wrapper layers map this to HTTP 400 invalid_request.
 var ErrPublicKeyRequired = errors.New("public key required for asymmetric algorithm")
+
+// MaxRotationGracePeriod caps how long a rotated-out secret or key stays
+// valid. Without a cap, one admin call could keep an old credential alive
+// for years.
+const MaxRotationGracePeriod = 7 * 24 * time.Hour
+
+// ErrGracePeriodTooLong is returned by RotateSecret when GracePeriod
+// exceeds MaxRotationGracePeriod.
+var ErrGracePeriodTooLong = fmt.Errorf("grace period exceeds %s", MaxRotationGracePeriod)

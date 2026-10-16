@@ -32,11 +32,13 @@ type DCRHandler struct {
 	// KeyStore stores client credentials (same KeyStore as AppRegistrar).
 	KeyStore keys.KeyStorage
 
-	// Auth authenticates the caller. Supports both:
-	//   - Initial access token via Authorization: Bearer header (RFC 7591 §3)
-	//   - X-Admin-Key header (OneAuth custom, backward-compatible)
-	// If nil, registration is open (not recommended for production).
+	// Auth authenticates the caller with whatever AdminAuth it is (the
+	// X-Admin-Key header for APIKeyAuth). Nil refuses every registration;
+	// pass NewNoAuth() for open registration.
 	Auth AdminAuth
+
+	// admit is AppRegistrar's per-address limiter, when built by Handler().
+	admit func(http.ResponseWriter, *http.Request) bool
 
 	// Registrar is the underlying AppRegistrar for metadata storage.
 	// If nil, client metadata is not persisted (only KeyStore is used).
@@ -135,15 +137,26 @@ func (h *DCRHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if h.Auth != nil {
-		if err := h.Auth.Authenticate(r); err != nil {
-			h.jsonError(w, "invalid_token", "Authentication required", http.StatusUnauthorized)
-			return
-		}
+	if h.admit != nil && !h.admit(w, r) {
+		return
 	}
+	if h.Auth == nil {
+		h.jsonError(w, "invalid_token", "registration authentication is not configured", http.StatusUnauthorized)
+		return
+	}
+	if err := h.Auth.Authenticate(r); err != nil {
+		h.jsonError(w, "invalid_token", "Authentication required", http.StatusUnauthorized)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxAdminBody)
 
 	var body DCRRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			h.jsonError(w, "invalid_client_metadata", "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		h.jsonError(w, "invalid_client_metadata", "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
