@@ -3,6 +3,31 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.51
+
+### FS key collisions, server metadata, multi-AS resource metadata (issue 88, PR 425)
+
+- **Security: FS identity and channel stores could serve one account's
+  records for another key.** File names are lossy (`filepath.Base` for
+  identities, `safeName` for channels), so `x/email:victim@example.com`
+  read and, on save, overwrote the victim's identity, and
+  `email:a:b@example.com` read `email:a_b@example.com`'s password hash.
+  Both stores now check that a file's record belongs to the requested key,
+  on read and write, and return `fs.ErrKeyCollision` otherwise. Every
+  earlier version using the FS stores is affected; file names don't change.
+- **Reference server metadata** advertises `code`, RFC 9207 `iss` and the
+  `none` auth method only with `code_flow`, drops the implicit `token`
+  response type, mounts the advertised `POST /oauth/revoke`, and emits
+  `iss` on authorize redirects.
+- **`MountProtectedResource`** mounts each pattern once, so several
+  authorization servers no longer panic.
+
+### Upgrading
+
+- FS deployments: an email that collides with an existing identity's file
+  is refused with `ErrKeyCollision`.
+- Reference-server clients see `iss` on authorization responses.
+
 ## Version 0.1.50
 
 ### DCR validation and per-client PAR (issue 88, PR 424)
