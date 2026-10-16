@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-v0.1.54
+v0.1.55
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout. Reset tokens are stored hashed and are single-use; a reset ends other sessions (`AfterPasswordReset`); signup and forgot-password are rate limited; `TrustedProxies` gates X-Forwarded-For (issue 88).
@@ -13,7 +13,7 @@ v0.1.54
 - channel-linking: Multi-provider login linking
 - api-key-management: API key generation and validation
 - refresh-token-rotation: Refresh tokens with theft detection (family-based revocation). The refresh grant checks the client (RFC 6749 §6): a confidential owner must authenticate, and the token must belong to the presenting `client_id`, or the grant refuses before rotating (issue 395). Rotation can be turned off for FAPI 2.0 (`OneAuthConfig.DisableRefreshTokenRotation`). Rotation keeps the family's expiry, so a family lasts at most `TokenExpiryRefreshToken`, and GORM rotation is a compare-and-set (issue 88).
-- csrf-protection: Double-submit cookie CSRF protection
+- csrf-protection: Double-submit cookie CSRF protection, plus `Sec-Fetch-Site` / `Origin` checks and optional session-signed tokens (`SessionID`)
 - multi-backend-storage: Store implementations for filesystem, GORM (PostgreSQL/MySQL), Google Datastore
 - pluggable-app-registry: AppRegistrationStore interface for persisting registered apps. In-memory (issue 165), filesystem (issue 166), and GORM SQL (issue 167) backends all ship. Reference server (cmd/oneauth-server) exposes the choice via `app_store.type`. Closes parent issue 20.
 - asymmetric-issuer-signing: Reference server supports RS256/ES256 token signing (`jwt.signing_alg`). Public half is registered in the keystore so JWKS exposes it for remote resource servers to validate without a shared secret. Production deployments set `jwt.private_key_path`; tests/dev opt into ephemeral keys via explicit `jwt.ephemeral_signing_key: true` so misconfiguration fails loudly. Closes issue 184.

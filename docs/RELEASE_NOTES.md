@@ -3,6 +3,31 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.55
+
+### HTTP-surface follow-ups (issue 408, PR 428)
+
+- **Signup doesn't reveal existing accounts** when `RequireEmailVerification`
+  is on: a taken email gets the same "check your email" answer as a fresh
+  one (no `user_id` in either), and the owner is told through the optional
+  `AccountExistsEmailSender`.
+- **DCR initial access tokens (RFC 7591 §3).** `admin.InitialAccessTokenAuth`
+  as `AppRegistrar.RegistrationAuth` admits `POST /apps/dcr` without the
+  admin key and opens nothing else; reference server:
+  `admin_auth.dcr_initial_access_tokens` (32 bytes minimum).
+- **CSRF.** `CSRFMiddleware` refuses same-site and cross-site posts
+  (`Sec-Fetch-Site`, `Origin`, `TrustedOrigins`), and with `SessionID`
+  signs tokens over the session. The reference server binds them to the
+  login session with an HMAC-derived key and marks the cookie Secure
+  behind an https `public_url`.
+
+### Upgrading
+
+- The verification-required signup response no longer carries `user_id`.
+- Form posts from another origin need `TrustedOrigins`.
+- Library users setting `CSRFMiddleware.SessionID` across instances need a
+  shared `Secret`.
+
 ## Version 0.1.54
 
 ### Reference server runs FAPI 2.0 (issue 88, PR 427)
