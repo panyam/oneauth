@@ -3,6 +3,27 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.1.52
+
+### FAPI 2.0 profile; client-assertion audiences (issue 88, PR 426)
+
+- **Security: a caller could choose the audience its client assertion was
+  checked against.** The expected `aud` came from `X-Forwarded-Host` /
+  `X-Forwarded-Proto`, so an assertion minted for another authorization
+  server (same client key) was accepted. Audiences now come from `r.TLS`
+  and `r.Host` only, and the token endpoint also accepts the issuer by
+  default (RFC 7523 §3). The reference server sets `AcceptedAudiences` from
+  `jwt.issuer` and `public_url`.
+- **`OneAuthConfig.FAPI2`** turns on the FAPI 2.0 Security Profile §5.3.2:
+  DPoP required, rotation off, `private_key_jwt` only with the issuer as a
+  string `aud`, no password grant, no public or unregistered clients, and a
+  PAR-only `MountAuthorize` with capped code / `request_uri` lifetimes.
+
+### Upgrading
+
+- Behind a TLS proxy, set `AcceptedAudiences` if clients put the https
+  token-endpoint URL in `aud`; forwarded headers no longer supply it.
+
 ## Version 0.1.51
 
 ### FS key collisions, server metadata, multi-AS resource metadata (issue 88, PR 425)
