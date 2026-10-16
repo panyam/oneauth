@@ -188,7 +188,8 @@
 <p>This is the compliance matrix asked for in <a href="https://github.com/panyam/oneauth/issues/88">issue 88</a>.<br />
 Issue 88 covers a lot of ground (RFC 6749 through RFC 9728, the security checklist, FAPI 2.0),<br />
 so we&rsquo;re doing it one area at a time, and each area gets a section here once it&rsquo;s been walked<br />
-requirement by requirement. So far that&rsquo;s DPoP.</p>
+requirement by requirement. So far that&rsquo;s DPoP and the HTTP surface (transport and headers,<br />
+authentication and sessions, the admin interface).</p>
 <p>How to read the tables:</p>
 <ul>
 <li><strong>Status</strong> is what the code does today, checked by reading it, not by trusting the docs.<br />
@@ -690,6 +691,205 @@ shared store.</li>
 <li><strong>Nonces are off by default.</strong> §8 leaves the policy to the server, and demanding one on every<br />
 request breaks clients that haven&rsquo;t implemented the retry. See <code>DPoPConfig.NoncePolicy</code>.</li>
 </ul>
+<h2 id="http-surface-transport-sessions-admin">HTTP surface (transport, sessions, admin) <a class="anchor" href="#http-surface-transport-sessions-admin">¶</a></h2>
+<p>Audited October 2026, after the first ZAP baseline scan of the reference server. The checklist<br />
+is issue 88&rsquo;s &ldquo;Transport &amp; Headers&rdquo;, &ldquo;Authentication &amp; Session&rdquo; and &ldquo;Admin Interface&rdquo; sections.<br />
+The fixes land across several PRs; the Status column says which rows are done.</p>
+<h3 id="transport-and-headers">Transport and headers <a class="anchor" href="#transport-and-headers">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Ref</th>
+<th>Status</th>
+<th>Code</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>redirect_uri</code> is https except on loopback</td>
+<td>RFC 6749 §3.1.2.1, RFC 8252 §7.3</td>
+<td>Pass</td>
+<td><code>admin/registrar.go</code> <code>validateRedirectURI</code></td>
+<td><code>admin/redirect_uri_validation_test.go</code></td>
+</tr>
+<tr>
+<td><code>Cache-Control: no-store</code> on token responses</td>
+<td>RFC 6749 §5.1</td>
+<td>Pass</td>
+<td><code>apiauth/token_endpoint.go</code> <code>writeTokens</code></td>
+<td>existing</td>
+</tr>
+<tr>
+<td>&hellip; and on token and device errors</td>
+<td>OAuth 2.1 §3.2.4</td>
+<td>Pass (was Fail)</td>
+<td><code>writeError</code>, <code>writeOAuthError</code></td>
+<td><code>credential_no_store_test.go</code>*</td>
+</tr>
+<tr>
+<td>&hellip; and on DCR, admin read / list / rotate, API key creation</td>
+<td>RFC 7591 §3.2.1 → RFC 6749 §5.1</td>
+<td>Pass (was Fail)</td>
+<td><code>admin/no_store.go</code>, <code>apiauth/apikeys.go</code></td>
+<td><code>admin/credential_responses_test.go</code>*, <code>credential_no_store_test.go</code>*</td>
+</tr>
+<tr>
+<td>&hellip; on the authorize redirect carrying a code, and the reset-password form</td>
+<td>RFC 6749 §10.5</td>
+<td>Pass (was Fail)</td>
+<td><code>issueAndRedirect</code>, <code>HandleResetPasswordForm</code></td>
+<td><code>authorize_no_store_test.go</code>*, <code>reset_no_store_test.go</code>*</td>
+</tr>
+<tr>
+<td><code>registration_client_uri</code> not built from the request&rsquo;s <code>Host</code></td>
+<td>CWE-644</td>
+<td>Pass (was Fail)</td>
+<td><code>AppRegistrar.IssuerBaseURL</code>; loopback-only fallback in <code>DCRHandler.issuerBase</code></td>
+<td>RegistrationURIIgnoresForeignHost*</td>
+</tr>
+<tr>
+<td>Admin view doesn&rsquo;t return clients&rsquo; <code>registration_access_token</code></td>
+<td>RFC 7592 §3</td>
+<td>Pass (was Fail)</td>
+<td><code>ListClients</code> / <code>GetClient</code> clear it</td>
+<td>AdminViewOmitsRegistrationAccessToken*</td>
+</tr>
+<tr>
+<td>Anti-framing on consent, device and login pages</td>
+<td>RFC 6749 §10.13</td>
+<td>Open</td>
+<td>only the reference server&rsquo;s <code>SecurityHeaders</code> wrapper</td>
+<td>sessions PR</td>
+</tr>
+<tr>
+<td>CSP without third-party script or <code>unsafe-inline</code></td>
+<td>—</td>
+<td>Open</td>
+<td>reference server loads the Tailwind Play CDN</td>
+<td>server hardening PR</td>
+</tr>
+<tr>
+<td>HTTPS enforcement for a non-loopback deployment</td>
+<td>OAuth 2.1 §1.5</td>
+<td>Open</td>
+<td>nothing refuses plain HTTP</td>
+<td>server hardening PR</td>
+</tr>
+<tr>
+<td>CORS</td>
+<td>—</td>
+<td>Pass</td>
+<td>no CORS on the token endpoint; no <code>Allow-Credentials</code> anywhere</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="authentication-and-sessions">Authentication and sessions <a class="anchor" href="#authentication-and-sessions">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Constant-time compares for secrets</td>
+<td>Pass</td>
+<td>client secrets, admin key, CSRF, PKCE, RFC 7592 token, DPoP nonce MAC</td>
+</tr>
+<tr>
+<td>Password hashing</td>
+<td>Pass</td>
+<td>bcrypt cost 10, over-72-byte passwords refused, dummy hash for unknown users</td>
+</tr>
+<tr>
+<td>API keys, refresh tokens, device codes stored hashed</td>
+<td>Pass</td>
+<td>bcrypt / SHA-256</td>
+</tr>
+<tr>
+<td>Password-reset tokens stored hashed, single use</td>
+<td>Open</td>
+<td>stored and looked up in plaintext; reset PR</td>
+</tr>
+<tr>
+<td>Cookie flags (<code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code>)</td>
+<td>Open</td>
+<td><code>httpauth</code> session JWT cookie has none; <code>oa_token</code> lacks <code>Secure</code></td>
+</tr>
+<tr>
+<td>Session ID renewed on login</td>
+<td>Open</td>
+<td><code>httpauth</code> never calls <code>RenewToken</code></td>
+</tr>
+<tr>
+<td>Session JWTs not usable as API access tokens</td>
+<td>Open</td>
+<td>tokens with no <code>type</code> claim pass <code>APIMiddleware</code></td>
+</tr>
+<tr>
+<td>CSRF</td>
+<td>Partial</td>
+<td>double-submit with <code>SameSite=Strict</code>; <code>GET /auth/logout</code> is CSRF-able</td>
+</tr>
+<tr>
+<td>Brute-force limits on login, password grant, user-code entry</td>
+<td>Open</td>
+<td>limiters exist but nothing wires them by default; <code>X-Forwarded-For</code> is trusted unconditionally</td>
+</tr>
+</tbody>
+</table>
+<h3 id="admin-interface">Admin interface <a class="anchor" href="#admin-interface">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RFC 7592 token scoped to its own client</td>
+<td>Pass</td>
+<td>constant-time compare against that client&rsquo;s stored token</td>
+</tr>
+<tr>
+<td>Admin API key compared in constant time</td>
+<td>Pass</td>
+<td><code>admin/auth.go</code></td>
+</tr>
+<tr>
+<td>JWKS exposes only public keys</td>
+<td>Pass</td>
+<td>symmetric keys skipped</td>
+</tr>
+<tr>
+<td>A nil <code>AdminAuth</code> fails closed</td>
+<td>Open</td>
+<td>nil skips the check</td>
+</tr>
+<tr>
+<td>Reference server refuses <code>admin_auth: none</code></td>
+<td>Open</td>
+<td>it logs a warning and serves an open admin API</td>
+</tr>
+<tr>
+<td>Body limits and rate limiting on admin routes</td>
+<td>Open</td>
+<td>body limits only in the reference server&rsquo;s wrapper</td>
+</tr>
+<tr>
+<td>Bulk eviction endpoint</td>
+<td>Not applicable</td>
+<td>no such endpoint exists</td>
+</tr>
+</tbody>
+</table>
 
 
     </div>
