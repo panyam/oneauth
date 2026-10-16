@@ -962,6 +962,76 @@ The fixes land across several PRs; the Status column says which rows are done.</
 </tr>
 </tbody>
 </table>
+<h2 id="input-validation">Input validation <a class="anchor" href="#input-validation">¶</a></h2>
+<p>Audited October 2026, against issue 88&rsquo;s &ldquo;Input Validation&rdquo; section and the RFC 6749 §5.2 error<br />
+rows. This section covers the token endpoint and request bodies; <code>/authorize</code>, DCR, PAR and<br />
+metadata follow in the next PR.</p>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Ref</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A client gets only its registered scope</td>
+<td>RFC 6749 §3.3, RFC 7591 §2</td>
+<td>Pass (was Fail)</td>
+<td><code>client_credentials</code> and the password grant refuse a scope outside the registration with 400 <code>invalid_scope</code>, and grant the registered scope when none is asked for. A registration without <code>scope</code> places no limit. <code>token_input_hardening_test.go</code>*</td>
+</tr>
+<tr>
+<td>A client uses only its registered RAR types</td>
+<td>RFC 9396 §5</td>
+<td>Pass (was Fail)</td>
+<td><code>authorization_details_types</code> checked on the same grants; 400 <code>invalid_authorization_details</code></td>
+</tr>
+<tr>
+<td>A registration lookup failure fails closed</td>
+<td>—</td>
+<td>Pass</td>
+<td>a store error is <code>server_error</code>, not &ldquo;no registration&rdquo;, so an outage can&rsquo;t lift a client&rsquo;s limits</td>
+</tr>
+<tr>
+<td><code>client_credentials</code> tokens name their client</td>
+<td>RFC 9068 §2.2</td>
+<td>Pass (was Fail)</td>
+<td><code>client_id</code> claim, which revocation ownership and the tenant check read</td>
+</tr>
+<tr>
+<td><code>invalid_grant</code> is 400</td>
+<td>RFC 6749 §5.2</td>
+<td>Pass (was Fail)</td>
+<td>the password grant answered a wrong password with 401; Keycloak answers 400 too</td>
+</tr>
+<tr>
+<td>Malformed <code>authorization_details</code> is the client&rsquo;s error</td>
+<td>RFC 9396 §5</td>
+<td>Pass (was Fail)</td>
+<td>the password grant turned it into a 500</td>
+</tr>
+<tr>
+<td><code>invalid_client</code> 401 carries <code>WWW-Authenticate</code></td>
+<td>RFC 6749 §5.2</td>
+<td>Pass (was Fail)</td>
+<td><code>Basic realm=&quot;token&quot;</code></td>
+</tr>
+<tr>
+<td>Server errors say nothing internal</td>
+<td>CWE-209</td>
+<td>Pass (was Fail)</td>
+<td>the token endpoint logs a <code>server_error</code>&rsquo;s detail and sends &ldquo;internal server error&rdquo;; store errors (hosts, users) used to reach the client</td>
+</tr>
+<tr>
+<td>Request bodies are bounded</td>
+<td>CWE-770</td>
+<td>Pass (was Fail)</td>
+<td>64 KiB on the token endpoint (413) and, via <code>httpauth.CapRequestBody</code>, on introspection, revocation, PAR, device authorization and verification, <code>/authorize</code> POST, sessions, API keys, and the login, signup, forgot / reset password and link-credentials forms. Go read up to 10 MB of form, any amount of JSON, and spooled multipart to disk. <code>body_limit_test.go</code>*</td>
+</tr>
+</tbody>
+</table>
 <h2 id="tokens-and-keys">Tokens and keys <a class="anchor" href="#tokens-and-keys">¶</a></h2>
 <p>Audited October 2026, against issue 88&rsquo;s &ldquo;Token Security&rdquo; and &ldquo;Key Management&rdquo; sections, RFC<br />
 8725 (JWT best practices), RFC 6750 and RFC 7009. Like the HTTP surface, the fixes land across<br />
