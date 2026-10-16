@@ -1,7 +1,10 @@
-# In-memory configuration with DPoP turned on the way FAPI 2.0 asks: every
-# access token sender-constrained, FAPI's proof algorithms, server nonces,
-# and refresh tokens that aren't rotated (FAPI 2.0 §5.3.2.1).
-# All data is lost on restart.
+# In-memory configuration for the FAPI 2.0 Security Profile: fapi2 turns on
+# OneAuthConfig.FAPI2 (private_key_jwt only with the issuer as aud,
+# confidential clients only, no password grant, PAR-only /authorize), and
+# DPoP is configured the way FAPI asks: every access token
+# sender-constrained, FAPI's proof algorithms, server nonces, and refresh
+# tokens that aren't rotated (FAPI 2.0 §5.3.2.1). All data is lost on
+# restart.
 #
 # Usage:
 #   oneauth-server --config deploy-examples/fapi-dpop.yaml
@@ -40,3 +43,11 @@ dpop:
     required: true
     # Shared by every instance behind one URL. Empty keys nonces per process.
     secret: ${DPOP_NONCE_SECRET:-}
+
+# FAPI 2.0 §5.3.2: needs dpop.enabled, and PAR whenever /authorize is on.
+fapi2: true
+
+code_flow:
+  enabled: true
+  par:
+    enabled: true

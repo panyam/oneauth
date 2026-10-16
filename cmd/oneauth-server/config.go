@@ -22,7 +22,12 @@ type Config struct {
 	DeviceFlow DeviceFlowConfig `yaml:"device_flow"`
 	CodeFlow   CodeFlowConfig   `yaml:"code_flow"`
 	DPoP       DPoPServerConfig `yaml:"dpop"`
-	RateLimit  RateLimitConfig  `yaml:"rate_limit"`
+
+	// FAPI2 runs the FAPI 2.0 Security Profile (OneAuthConfig.FAPI2). It
+	// needs dpop.enabled, and code_flow.par.enabled when code_flow is on;
+	// the server refuses to start otherwise.
+	FAPI2     bool            `yaml:"fapi2"`
+	RateLimit RateLimitConfig `yaml:"rate_limit"`
 }
 
 // CodeFlowConfig toggles and configures the RFC 6749 §4.1
@@ -60,6 +65,21 @@ type CodeFlowConfig struct {
 	// DeviceAuthStoreConfig so operators see one pattern across both
 	// grants.
 	Store AuthorizationCodeStoreConfig `yaml:"store"`
+
+	// PAR serves RFC 9126 pushed authorization requests at POST /par, on
+	// the same store backend as the codes.
+	PAR PARConfig `yaml:"par"`
+}
+
+// PARConfig configures the pushed authorization request endpoint.
+type PARConfig struct {
+	// Enabled mounts POST /par and advertises it.
+	Enabled bool `yaml:"enabled"`
+
+	// Required refuses authorization requests that don't come through
+	// PAR, and advertises require_pushed_authorization_requests. fapi2
+	// implies it.
+	Required bool `yaml:"required"`
 }
 
 // AuthorizationCodeStoreConfig configures the AuthorizationCodeStore

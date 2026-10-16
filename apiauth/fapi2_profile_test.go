@@ -11,6 +11,8 @@ package apiauth_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -35,7 +37,8 @@ const fapiIssuer = "https://as.example.com"
 
 type fapiFixture struct {
 	endpoint http.Handler
-	key      *rsa.PrivateKey
+	key      *ecdsa.PrivateKey // pk-client: ES256, which FAPI 2.0 §5.4.1 allows
+	rsaKey   *rsa.PrivateKey   // rs-client: RS256, which it doesn't
 	sign     func(proofOpts) string
 }
 
@@ -44,17 +47,23 @@ type fapiFixture struct {
 func newFAPIFixture(t *testing.T, fapi2 bool) *fapiFixture {
 	t.Helper()
 	ctx := context.Background()
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	pubPEM, err := utils.EncodePublicKeyPEM(&priv.PublicKey)
 	require.NoError(t, err)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	rsaPEM, err := utils.EncodePublicKeyPEM(&rsaKey.PublicKey)
+	require.NoError(t, err)
 	ks := keys.NewInMemoryKeyStore()
-	_, err = ks.PutKey(ctx, &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "pk-client", Key: pubPEM, Algorithm: "RS256"}})
+	_, err = ks.PutKey(ctx, &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "pk-client", Key: pubPEM, Algorithm: "ES256"}})
+	require.NoError(t, err)
+	_, err = ks.PutKey(ctx, &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "rs-client", Key: rsaPEM, Algorithm: "RS256"}})
 	require.NoError(t, err)
 	_, err = ks.PutKey(ctx, &keys.PutKeyRequest{Record: &keys.KeyRecord{ClientID: "secret-client", Key: []byte("secret-client-secret-32-bytes-ok"), Algorithm: "HS256"}})
 	require.NoError(t, err)
 	apps := core.NewInMemoryAppStore()
-	for id, m := range map[string]string{"pk-client": "private_key_jwt", "secret-client": "client_secret_basic"} {
+	for id, m := range map[string]string{"pk-client": "private_key_jwt", "rs-client": "private_key_jwt", "secret-client": "client_secret_basic"} {
 		_, err := apps.SaveApp(ctx, &core.SaveAppRequest{App: &core.AppRegistration{ClientID: id, TokenEndpointAuthMethod: m}})
 		require.NoError(t, err)
 	}
@@ -64,17 +73,22 @@ func newFAPIFixture(t *testing.T, fapi2 bool) *fapiFixture {
 		DPoP: apiauth.NewDPoPProofValidator(apiauth.DPoPConfig{EndpointURL: testProofURL}),
 	})
 	_, sign := newProofSigner(t)
-	return &fapiFixture{endpoint: apiauth.NewTokenEndpointHandler(oa), key: priv, sign: sign}
+	return &fapiFixture{endpoint: apiauth.NewTokenEndpointHandler(oa), key: priv, rsaKey: rsaKey, sign: sign}
 }
 
 func (f *fapiFixture) assertion(t *testing.T, aud any) string {
 	t.Helper()
+	return f.signAs(t, "pk-client", jwt.SigningMethodES256, f.key, aud)
+}
+
+func (f *fapiFixture) signAs(t *testing.T, client string, method jwt.SigningMethod, key any, aud any) string {
+	t.Helper()
 	jti := make([]byte, 16)
 	_, _ = rand.Read(jti)
-	tok, err := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"iss": "pk-client", "sub": "pk-client", "aud": aud, "jti": base64.RawURLEncoding.EncodeToString(jti),
+	tok, err := jwt.NewWithClaims(method, jwt.MapClaims{
+		"iss": client, "sub": client, "aud": aud, "jti": base64.RawURLEncoding.EncodeToString(jti),
 		"iat": time.Now().Unix(), "exp": time.Now().Add(time.Minute).Unix(),
-	}).SignedString(f.key)
+	}).SignedString(key)
 	require.NoError(t, err)
 	return tok
 }
@@ -139,6 +153,9 @@ func TestFAPI2_ClientAuthentication(t *testing.T) {
 
 	rr = f.post(t, fapiReq{form: pkForm(f.assertion(t, []string{fapiIssuer})), proof: true})
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "aud must be a string, not an array: %s", rr.Body.String())
+
+	rr = f.post(t, fapiReq{form: pkForm(f.signAs(t, "rs-client", jwt.SigningMethodRS256, f.rsaKey, fapiIssuer)), proof: true})
+	assert.Equal(t, http.StatusUnauthorized, rr.Code, "RS256 isn't a FAPI 2.0 §5.4.1 algorithm: %s", rr.Body.String())
 
 	rr = f.post(t, fapiReq{form: pkForm(f.assertion(t, fapiIssuer)), proof: true})
 	assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

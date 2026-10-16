@@ -91,7 +91,8 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 | 5.3.2.1 #4, #9 | Sender-constrained tokens, no rotation | Pass | `FAPI2` sets `RequireDPoP` and `DisableRefreshTokenRotation` |
 | 5.3.2.2 #1 | PAR only | Pass | `MountAuthorize` sets `RequirePushedRequests` under `FAPI2`, and panics without a `PushedStore` |
 | 5.3.2.2 | Codes at most 60s, `request_uri` under 600s | Pass | defaults already were; `FAPI2` caps longer configured values. LifetimeCaps |
-| — | Reference server can run the whole profile | Open | it has no PAR endpoint yet; next PR |
+| 5.4.1 | Client assertions signed with PS256, ES256 or EdDSA | Pass (was Fail) | `FAPI2` refuses other algorithms through `AuthenticateClientRequest.AllowedAssertionAlgs`. oneauth verifies ES256 assertions; PS256 and EdDSA client keys can't be registered yet. ClientAuthentication\* |
+| — | Reference server can run the whole profile | Pass (was not possible) | `fapi2: true` and `code_flow.par` in `deploy-examples/fapi-dpop.yaml`; the server refuses `fapi2` without DPoP, or with `/authorize` but no PAR; metadata lists `private_key_jwt` / ES256 only, the PAR endpoint, `require_pushed_authorization_requests`, and no password grant. `cmd/oneauth-server/fapi_test.go`\* |
 
 ### What the walk found
 
@@ -149,6 +150,8 @@ reasons below.
 | DPoP-bound client sends no proof | 400 `invalid_request` | 400 `invalid_dpop_proof` | RFC 9449 names no code for this. Keycloak also uses `invalid_request` for a wrong `htu`, where §5 does name `invalid_dpop_proof`, and the SDK keys its retry advice on that code. |
 | `htu` with a fragment | refused | accepted | §4.3 says to ignore the fragment. |
 | `htu` with `%2D` for `-`, or a `/./` segment | refused | accepted | §4.3 compares after RFC 3986 §6.2.2 normalization, under which these name the same URL. |
+| Revoke another client's token (RFC 7009) | 400 `invalid_request` | 400 `invalid_request` | Same answer; pinned by `TestKeycloakCompare_Revocation`. |
+| Revoke with no `token` | 400 `invalid_request` | 400 `invalid_request` | Same answer. |
 
 Things that are deliberate rather than gaps:
 
