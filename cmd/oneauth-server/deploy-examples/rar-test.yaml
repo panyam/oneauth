@@ -49,3 +49,4 @@ jwt:
 
 admin_auth:
   type: none
+  allow_open: true

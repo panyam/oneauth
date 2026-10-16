@@ -26,41 +26,8 @@
 </div>
 
 <h2 class="text-xl font-semibold mb-2">Registered Apps</h2>
-<p class="text-sm text-gray-500 mb-4">
-  These are the apps that have registered with this Auth Server.
-  Each gets a unique <code class="bg-gray-100 px-1 rounded">client_id</code> and signing key stored in the shared KeyStore.
-  When an app mints a resource token, Resource Servers look up the signing key by <code class="bg-gray-100 px-1 rounded">client_id</code> to verify it.
+<p class="text-sm text-gray-500">
+  Registered apps are listed through the admin API (<code class="bg-gray-100 px-1 rounded">GET /apps</code> with the admin key),
+  not on a page every signed-in user can see.
 </p>
-{{if .Apps}}
-<div class="bg-white shadow rounded-lg overflow-hidden">
-  <table class="w-full text-sm">
-    <thead class="bg-gray-50">
-      <tr>
-        <th class="px-4 py-2 text-left">Client ID</th>
-        <th class="px-4 py-2 text-left">Domain</th>
-        <th class="px-4 py-2 text-left">Algorithm</th>
-        <th class="px-4 py-2 text-left">Created</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y">
-      {{range .Apps}}
-      <tr>
-        <td class="px-4 py-2 font-mono text-xs">{{.ClientID}}</td>
-        <td class="px-4 py-2">{{.ClientDomain}}</td>
-        <td class="px-4 py-2">{{.SigningAlg}}</td>
-        <td class="px-4 py-2">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
-</div>
-<p class="text-xs text-gray-400 mt-2">
-  Apps registered automatically at startup. In production, registration would go through an admin approval flow.
-  The <code class="bg-gray-100 px-1 rounded">client_secret</code> is shown only once at registration and never stored in plaintext.
-</p>
-{{else}}
-<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
-  No apps registered yet. Start DrawApp or ChatApp &mdash; they auto-register on first boot via <code class="bg-yellow-100 px-1 rounded">POST /apps/register</code>.
-</div>
-{{end}}
 {{end}}

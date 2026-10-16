@@ -101,6 +101,7 @@ jobs:
         run: |
           PORT=19876 \
           ADMIN_AUTH_TYPE=api-key \
+          PUBLIC_URL=http://localhost:19876 \
           ADMIN_API_KEY=ci-test-key \
           KEYSTORE_TYPE=memory \
           USER_STORES_TYPE=fs \

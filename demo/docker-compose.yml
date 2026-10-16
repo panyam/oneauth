@@ -23,6 +23,7 @@ services:
       - "9999:9999"
     environment:
       PORT: "9999"
+      PUBLIC_URL: "http://localhost:9999"
       KEYSTORE_TYPE: gorm
       GORM_DRIVER: postgres
       DATABASE_URL: "host=postgres user=oneauth password=${POSTGRES_PASSWORD:-oneauth-demo-pass} dbname=oneauth port=5432 sslmode=disable"

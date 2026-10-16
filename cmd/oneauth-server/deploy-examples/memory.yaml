@@ -10,6 +10,7 @@
 server:
   port: ${PORT:-8080}
   host: 0.0.0.0
+  public_url: ${PUBLIC_URL:-http://localhost:8080}
 
 keystore:
   type: memory
@@ -27,3 +28,4 @@ jwt:
 
 admin_auth:
   type: none    # open registration — for dev only
+  allow_open: true

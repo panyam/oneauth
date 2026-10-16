@@ -192,6 +192,12 @@ type ServerConfig struct {
 	// X-Forwarded-For is believed for rate-limit keys. Empty uses the TCP
 	// peer, which is right when nothing sits in front of the server.
 	TrustedProxies []string `yaml:"trusted_proxies"`
+
+	// AllowInsecureHTTP lets the server run with a plain-http public URL
+	// on a non-loopback host. Without it startup refuses, since every
+	// credential would cross the network in cleartext. For private
+	// networks only (docker-compose service names, a lab).
+	AllowInsecureHTTP bool `yaml:"allow_insecure_http"`
 }
 
 type KeyStoreConfig struct {
@@ -217,8 +223,13 @@ type GAEConfig struct {
 }
 
 type AdminAuthConfig struct {
-	Type   string       `yaml:"type"` // none, api-key, oidc
+	Type   string       `yaml:"type"` // api-key, or none with allow_open
 	APIKey APIKeyConfig `yaml:"api_key"`
+
+	// AllowOpen acknowledges type: none, which leaves app registration
+	// and the admin API open to anyone who can reach the server. Without
+	// it, type: none refuses to start.
+	AllowOpen bool `yaml:"allow_open"`
 }
 
 type APIKeyConfig struct {
@@ -282,17 +293,16 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.AppStore.Type == "" {
 		cfg.AppStore.Type = "memory"
 	}
-	if cfg.AdminAuth.Type == "" {
-		cfg.AdminAuth.Type = "none"
-	}
 	if cfg.UserStores.Type == "" {
 		cfg.UserStores.Type = "fs"
 	}
 	if cfg.UserStores.FS.Path == "" {
 		cfg.UserStores.FS.Path = "./data/server"
 	}
+	// The issuer is the public URL unless set: RFC 8414 §3.3 has the
+	// tokens' iss match the metadata issuer, which is the public URL.
 	if cfg.JWT.Issuer == "" {
-		cfg.JWT.Issuer = "oneauth"
+		cfg.JWT.Issuer = publicBaseURL(&cfg)
 	}
 	if len(cfg.JWT.ScopesSupported) == 0 {
 		cfg.JWT.ScopesSupported = defaultScopesSupported()
@@ -331,8 +341,11 @@ func defaultClaimsSupported() []string {
 func configFromEnv() Config {
 	return Config{
 		Server: ServerConfig{
-			Port: os.Getenv("PORT"),
-			Host: os.Getenv("HOST"),
+			Port:              os.Getenv("PORT"),
+			Host:              os.Getenv("HOST"),
+			PublicURL:         os.Getenv("PUBLIC_URL"),
+			TrustedProxies:    splitList(os.Getenv("TRUSTED_PROXIES")),
+			AllowInsecureHTTP: os.Getenv("ALLOW_INSECURE_HTTP") == "true",
 		},
 		KeyStore: KeyStoreConfig{
 			Type:      os.Getenv("KEYSTORE_TYPE"),
@@ -360,7 +373,8 @@ func configFromEnv() Config {
 			},
 		},
 		AdminAuth: AdminAuthConfig{
-			Type: os.Getenv("ADMIN_AUTH_TYPE"),
+			Type:      os.Getenv("ADMIN_AUTH_TYPE"),
+			AllowOpen: os.Getenv("ADMIN_AUTH_ALLOW_OPEN") == "true",
 			APIKey: APIKeyConfig{
 				Key: os.Getenv("ADMIN_API_KEY"),
 			},
@@ -376,4 +390,15 @@ func configFromEnv() Config {
 			Issuer:    os.Getenv("JWT_ISSUER"),
 		},
 	}
+}
+
+// splitList splits a comma-separated env value, dropping empty entries.
+func splitList(v string) []string {
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
