@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
@@ -101,10 +102,13 @@ func buildRegistrationAuth(cfg *Config) (*admin.InitialAccessTokenAuth, error) {
 // every instance accepts every other's, and the cookie is Secure whenever
 // clients reach the server over https, TLS terminated here or at a proxy.
 func buildCSRF(cfg *Config) *httpauth.CSRFMiddleware {
-	key := sha256.Sum256([]byte("oneauth-csrf\x00" + cfg.JWT.SecretKey))
+	// The CSRF key is HMAC(secret, label), so it's derived from the secret
+	// without the two ever being the same key.
+	kdf := hmac.New(sha256.New, []byte(cfg.JWT.SecretKey))
+	kdf.Write([]byte("oneauth-csrf"))
 	return &httpauth.CSRFMiddleware{
 		Secure: cfg.TLS.Enabled || strings.HasPrefix(publicBaseURL(cfg), "https://"),
-		Secret: key[:],
+		Secret: kdf.Sum(nil),
 		SessionID: func(r *http.Request) string {
 			c, err := r.Cookie("oa_token")
 			if err != nil || c.Value == "" {
