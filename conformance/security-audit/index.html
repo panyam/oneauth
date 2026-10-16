@@ -757,25 +757,32 @@ The fixes land across several PRs; the Status column says which rows are done.</
 <td>AdminViewOmitsRegistrationAccessToken*</td>
 </tr>
 <tr>
-<td>Anti-framing on consent, device and login pages</td>
+<td>Anti-framing on consent, device and password pages</td>
 <td>RFC 6749 §10.13</td>
-<td>Open</td>
-<td>only the reference server&rsquo;s <code>SecurityHeaders</code> wrapper</td>
-<td>sessions PR</td>
+<td>Pass (was Fail)</td>
+<td><code>httpauth.DenyFraming</code> in the authorize, device and localauth page handlers; keeps a deployment&rsquo;s own CSP</td>
+<td><code>framing_test.go</code>*, <code>authorize_framing_test.go</code>*</td>
 </tr>
 <tr>
 <td>CSP without third-party script or <code>unsafe-inline</code></td>
-<td>—</td>
-<td>Open</td>
-<td>reference server loads the Tailwind Play CDN</td>
-<td>server hardening PR</td>
+<td>CWE-829</td>
+<td>Pass (was Fail)</td>
+<td>reference server serves a prebuilt, embedded <code>static/app.css</code> (<code>make server-css</code>); <code>serverCSP</code> allows only <code>'self'</code></td>
+<td><code>hardening_test.go</code> PagesLoadNoThirdPartyScript*</td>
 </tr>
 <tr>
 <td>HTTPS enforcement for a non-loopback deployment</td>
-<td>OAuth 2.1 §1.5</td>
-<td>Open</td>
-<td>nothing refuses plain HTTP</td>
-<td>server hardening PR</td>
+<td>OAuth 2.1 §1.5, CWE-319</td>
+<td>Pass (was Fail)</td>
+<td>reference server refuses a plain-http <code>public_url</code> on a non-loopback host unless <code>allow_insecure_http</code></td>
+<td>PlainHTTPOnAPublicHostRefused*</td>
+</tr>
+<tr>
+<td>Token <code>iss</code> matches the metadata issuer</td>
+<td>RFC 8414 §3.3</td>
+<td>Pass (was Fail)</td>
+<td><code>jwt.issuer</code> defaults to the public URL instead of <code>&quot;oneauth&quot;</code></td>
+<td>IssuerDefaultsToThePublicURL*</td>
 </tr>
 <tr>
 <td>CORS</td>
@@ -812,34 +819,89 @@ The fixes land across several PRs; the Status column says which rows are done.</
 <td>bcrypt / SHA-256</td>
 </tr>
 <tr>
-<td>Password-reset tokens stored hashed, single use</td>
+<td>Password-reset and verification tokens stored hashed</td>
+<td>Pass (was Fail)</td>
+<td>every store keys them by <code>localauth.HashVerificationToken</code> (SHA-256) and never writes the raw value (CWE-256)</td>
+</tr>
+<tr>
+<td>A reset link works once, even under a race</td>
+<td>Pass (was Fail)</td>
+<td>the token is consumed (<code>DeleteToken</code> → <code>Deleted</code>) before the password changes (CWE-367)</td>
+</tr>
+<tr>
+<td>A reset applies the signup password policy</td>
+<td>Pass (was Fail)</td>
+<td>it used a hard-coded 8</td>
+</tr>
+<tr>
+<td>A reset ends the account&rsquo;s other sessions</td>
+<td>Pass (was Fail)</td>
+<td><code>AfterPasswordReset</code>; <code>NewRevokeSessionsOnReset</code> revokes its refresh tokens, wired in the reference server (CWE-613)</td>
+</tr>
+<tr>
+<td>Signup doesn&rsquo;t reveal which emails have accounts</td>
 <td>Open</td>
-<td>stored and looked up in plaintext; reset PR</td>
+<td>&ldquo;email already registered&rdquo; lets anyone enumerate accounts; fixing it means a changed signup flow (mail the existing owner), not filed yet</td>
 </tr>
 <tr>
 <td>Cookie flags (<code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code>)</td>
-<td>Open</td>
-<td><code>httpauth</code> session JWT cookie has none; <code>oa_token</code> lacks <code>Secure</code></td>
+<td>Pass (was Fail)</td>
+<td><code>httpauth</code> login cookies are Secure (opt-out <code>InsecureCookies</code>) and Lax, the token one HttpOnly; <code>oa_token</code> is Secure behind https; <code>oauthstate</code> / <code>oauthCallbackURL</code> HttpOnly + Lax</td>
 </tr>
 <tr>
-<td>Session ID renewed on login</td>
-<td>Open</td>
-<td><code>httpauth</code> never calls <code>RenewToken</code></td>
+<td>Session ID renewed on login and logout</td>
+<td>Pass (was Fail)</td>
+<td><code>SetLoggedInSubject</code> calls <code>RenewToken</code> (CWE-384)</td>
 </tr>
 <tr>
 <td>Session JWTs not usable as API access tokens</td>
-<td>Open</td>
-<td>tokens with no <code>type</code> claim pass <code>APIMiddleware</code></td>
+<td>Pass (was Fail)</td>
+<td>session JWTs carry <code>type: session</code>, which <code>APIMiddleware</code> refuses; <code>iat</code> no longer an hour in the future</td>
+</tr>
+<tr>
+<td>No hard-coded session signing secret</td>
+<td>Pass (was Fail)</td>
+<td><code>httpauth</code> fell back to a fixed public secret; now a random per-process one with a warning (CWE-798), and HS256 is pinned</td>
+</tr>
+<tr>
+<td>Logout is POST with CSRF</td>
+<td>Pass (was Fail)</td>
+<td><code>httpauth</code> <code>/logout</code> and the reference server&rsquo;s <code>/auth/logout</code></td>
+</tr>
+<tr>
+<td>Post-login and logout redirects stay on this site</td>
+<td>Pass (was Fail)</td>
+<td><code>httpauth.LocalRedirect</code> on <code>?to=</code> and the federated <code>callbackURL</code> (CWE-601)</td>
+</tr>
+<tr>
+<td>Login cookies set on every configured cookie domain</td>
+<td>Pass (was Fail)</td>
+<td><code>SetLoggedInSubject</code> returned after the first domain</td>
 </tr>
 <tr>
 <td>CSRF</td>
 <td>Partial</td>
-<td>double-submit with <code>SameSite=Strict</code>; <code>GET /auth/logout</code> is CSRF-able</td>
+<td>double-submit with <code>SameSite=Strict</code>; not bound to the session, no Origin check</td>
 </tr>
 <tr>
-<td>Brute-force limits on login, password grant, user-code entry</td>
-<td>Open</td>
-<td>limiters exist but nothing wires them by default; <code>X-Forwarded-For</code> is trusted unconditionally</td>
+<td>Rate-limit keys can&rsquo;t be reset with a spoofed <code>X-Forwarded-For</code></td>
+<td>Pass (was Fail)</td>
+<td><code>core.ClientIP</code> reads it only from configured <code>TrustedProxies</code>, right to left (CWE-348)</td>
+</tr>
+<tr>
+<td>Brute-force limits on login and the password grant</td>
+<td>Pass (was Partial)</td>
+<td>per address + username, plus a per-username lockout the password grant now has too; on by default in the reference server (<code>rate_limit</code>)</td>
+</tr>
+<tr>
+<td>Limits on signup and forgot-password</td>
+<td>Pass (was Fail)</td>
+<td>per address, and forgot-password per email too (CWE-770)</td>
+</tr>
+<tr>
+<td>Device user-code guessing limited</td>
+<td>Pass (was Fail)</td>
+<td><code>MountDeviceFlow</code> always installs a per-address limiter (RFC 8628 §5.1)</td>
 </tr>
 </tbody>
 </table>
@@ -870,18 +932,28 @@ The fixes land across several PRs; the Status column says which rows are done.</
 </tr>
 <tr>
 <td>A nil <code>AdminAuth</code> fails closed</td>
-<td>Open</td>
-<td>nil skips the check</td>
+<td>Pass (was Fail)</td>
+<td>nil now answers 401; open access is <code>NewNoAuth()</code> on purpose (CWE-306)</td>
 </tr>
 <tr>
 <td>Reference server refuses <code>admin_auth: none</code></td>
-<td>Open</td>
-<td>it logs a warning and serves an open admin API</td>
+<td>Pass (was Fail)</td>
+<td><code>none</code> needs <code>allow_open: true</code>, and an unset type is an error</td>
 </tr>
 <tr>
 <td>Body limits and rate limiting on admin routes</td>
-<td>Open</td>
-<td>body limits only in the reference server&rsquo;s wrapper</td>
+<td>Pass (was Fail)</td>
+<td>64 KiB on DCR and rotate; <code>AuthRateLimiter</code> per address, before the key is checked</td>
+</tr>
+<tr>
+<td>Rotation grace period bounded</td>
+<td>Pass (was Fail)</td>
+<td>at most <code>MaxRotationGracePeriod</code> (7 days); an unparseable value is a 400</td>
+</tr>
+<tr>
+<td>Dashboard doesn&rsquo;t list every client to any user</td>
+<td>Pass (was Fail)</td>
+<td>the list is admin-API only</td>
 </tr>
 <tr>
 <td>Bulk eviction endpoint</td>
