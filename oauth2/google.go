@@ -57,8 +57,12 @@ func (g *GoogleOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.FormValue("state") != oauthState.Value {
 		http.SetCookie(w, &http.Cookie{
-			Name:   "oauthstate",
-			MaxAge: 0,
+			Name:     "oauthstate",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
 		})
 		http.Error(w, fmt.Sprintf("invalid oauth google state: %s, CookieOauthState: %s", r.FormValue("state"), oauthState.Value), http.StatusBadRequest)
 		// ctx.Redirect(http.StatusFound, g.AuthFailureUrl)

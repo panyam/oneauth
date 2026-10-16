@@ -8,6 +8,10 @@ name: OIDF Conformance
 on:
   workflow_dispatch:
 
+# Read-only token by default; a job that needs more says so.
+permissions:
+  contents: read
+
 jobs:
   oidf-discovery:
     runs-on: ubuntu-latest

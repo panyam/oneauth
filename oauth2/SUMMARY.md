@@ -3,7 +3,7 @@
 OAuth2 authorization code flow for Google and GitHub, with PKCE (RFC 7636) support.
 
 ## Contents
-- **base.go** — `BaseOAuth2` struct, shared redirect/callback logic, `DisablePKCE`, `SecureCookies`
+- **base.go** — `BaseOAuth2` struct, shared redirect/callback logic, `DisablePKCE` (every cookie is Secure + HttpOnly)
 - **google.go** — `GoogleOAuth2` (Google OAuth2 provider)
 - **github.go** — `GithubOAuth2` (GitHub OAuth2 provider)
 - **utils.go** — `OauthRedirector`, `OauthRedirectorWithPKCE`, state cookie generation

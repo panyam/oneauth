@@ -69,7 +69,7 @@ func TestPKCE_GenerateVerifier_Unique(t *testing.T) {
 // See: https://datatracker.ietf.org/doc/html/rfc7636#section-7.1
 func TestPKCE_VerifierCookieHttpOnly(t *testing.T) {
 	rr := httptest.NewRecorder()
-	oauth2.SetPKCECookie(rr, "test-verifier", false)
+	oauth2.SetPKCECookie(rr, "test-verifier")
 
 	cookies := rr.Result().Cookies()
 	require.Len(t, cookies, 1)
