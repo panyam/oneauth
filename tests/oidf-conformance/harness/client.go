@@ -75,11 +75,27 @@ func New(baseURL string) *Client {
 // and any per-plan options). The returned PlanID is opaque and must be
 // passed to RunTest to start a test under the plan.
 func (c *Client) CreatePlan(ctx context.Context, planName string, config any) (string, error) {
+	return c.CreatePlanWithVariant(ctx, planName, nil, config)
+}
+
+// CreatePlanWithVariant is CreatePlan for plans that take plan-level
+// variants (FAPI 2.0's client_auth_type, sender_constrain, openid, ...).
+// The harness picks the plan's modules from these, so GetPlan afterwards
+// lists only the modules that apply. A nil variant sends none.
+func (c *Client) CreatePlanWithVariant(ctx context.Context, planName string, variant map[string]string, config any) (string, error) {
 	body, err := json.Marshal(config)
 	if err != nil {
 		return "", fmt.Errorf("marshal plan config: %w", err)
 	}
-	u := fmt.Sprintf("%s/api/plan?%s", c.BaseURL, url.Values{"planName": {planName}}.Encode())
+	q := url.Values{"planName": {planName}}
+	if variant != nil {
+		v, err := json.Marshal(variant)
+		if err != nil {
+			return "", fmt.Errorf("marshal plan variant: %w", err)
+		}
+		q.Set("variant", string(v))
+	}
+	u := fmt.Sprintf("%s/api/plan?%s", c.BaseURL, q.Encode())
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
 	if err != nil {
 		return "", err
@@ -125,6 +141,37 @@ func (c *Client) RunTest(ctx context.Context, planID, testName string, variant m
 		return "", fmt.Errorf("run test %s: harness returned empty id", testName)
 	}
 	return resp.ID, nil
+}
+
+// Plan is a created plan as the harness reports it.
+type Plan struct {
+	ID       string       `json:"_id"`
+	PlanName string       `json:"planName"`
+	Modules  []PlanModule `json:"modules"`
+}
+
+// PlanModule is one test module in a plan. Variant is the module-level
+// variant (FAPI 2.0's fapi_request_method, fapi_response_mode) that RunTest
+// must pass back; Instances lists the test ids already run for it.
+type PlanModule struct {
+	TestModule string            `json:"testModule"`
+	Variant    map[string]string `json:"variant"`
+	Instances  []string          `json:"instances"`
+}
+
+// GetPlan returns a created plan with the modules the harness selected for
+// its variants.
+func (c *Client) GetPlan(ctx context.Context, planID string) (*Plan, error) {
+	u := fmt.Sprintf("%s/api/plan/%s", c.BaseURL, url.PathEscape(planID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	var plan Plan
+	if err := c.do(req, &plan); err != nil {
+		return nil, fmt.Errorf("get plan %s: %w", planID, err)
+	}
+	return &plan, nil
 }
 
 // TestInfo summarises a test's current state. status is the harness

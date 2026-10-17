@@ -40,6 +40,23 @@ make downoidf
 # Ctrl-C the oneauth-server in Terminal 2.
 ```
 
+## FAPI 2.0 Security Profile (the mission exercise)
+
+```bash
+make exercise-fapi2
+```
+
+This is the FAPI 2.0 mission's exercise (issue 98). It runs the harness's `fapi2-security-profile-final-test-plan` against `oneauth-server` and prints one line per module. The script, `scripts/exercise-fapi2.sh`, does four things:
+
+1. Starts the harness if it isn't up.
+2. Starts `oneauth-server` with `oneauth-fapi2.yaml`, which is `deploy-examples/fapi-dpop.yaml`'s profile over TLS on `:8889`. It generates a fresh P-256 signing key for each run.
+3. Signs up a browser user and registers two ES256 `private_key_jwt` clients through DCR.
+4. Runs every module and stops the server again on exit.
+
+The plan variants are `private_key_jwt`, `dpop`, `plain_fapi` and `plain_oauth`. It's `plain_oauth` because oneauth issues no ID tokens yet (#339). The harness's headless browser logs in and approves using the selectors in `fapi2.BrowserAutomation`, and `fapi2/config_test.go` checks those selectors against the real login and consent pages.
+
+The command exits non-zero until every module passes, so it isn't a CI gate yet. Wiring it into the ratchet next to `discovery_test.go` is the mission's "done when". The server log goes to `/tmp/oneauth-fapi2-exercise.log`.
+
 ## Running a baseline plan via the harness REST API
 
 The UI is the easy path; the API is reproducible. Both work with the same harness instance.
@@ -79,6 +96,8 @@ tests/oidf-conformance/
 ├── README.md                        ← this file
 ├── docker-compose-prebuilt.yml      ← upstream OIDF compose (vendored)
 ├── oneauth-server.yaml              ← AS config the harness can target
+├── oneauth-fapi2.yaml               ← FAPI 2.0 AS config for `make exercise-fapi2`
+├── fapi2/                           ← FAPI 2.0 plan config, DCR setup, runner (cmd/exercise)
 ├── baselines/
 │   └── 2026-05-09/                  ← captured logs from the first baseline run
 │       ├── BASELINE.md              ← human-readable summary

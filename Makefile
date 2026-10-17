@@ -702,6 +702,13 @@ testoidf:
 	fi
 	cd tests/oidf-conformance && GOWORK=off go test -count=1 -v ./...
 
+# The FAPI 2.0 mission's exercise (issue 98): runs the OIDF
+# fapi2-security-profile-final-test-plan against oneauth-server on :8889 and
+# prints one line per module. Starts the harness if needed. Not a CI gate:
+# it exits non-zero until every module passes.
+exercise-fapi2:
+	./scripts/exercise-fapi2.sh
+
 # =============================================================================
 # Conformance ratchet — see docs/CONFORMANCE.md
 # =============================================================================
@@ -946,7 +953,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

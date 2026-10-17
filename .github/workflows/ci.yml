@@ -55,6 +55,11 @@ jobs:
             (cd $mod && go test -race -count=1 -short ./...)
           done
 
+      # The harness client and the FAPI 2.0 exercise's plan config. The
+      # tests that drive a live harness skip when it isn't running.
+      - name: Test (OIDF conformance tooling)
+        run: cd tests/oidf-conformance && GOWORK=off go test -count=1 ./...
+
   # The GAE store tests skip without DATASTORE_PROJECT_ID, so the test job
   # above never runs them. The emulator needs --consistency=1.0, and a
   # services: container can't take arguments, so make testds starts it.
