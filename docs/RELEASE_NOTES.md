@@ -3,6 +3,24 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.2.4
+
+### Reference server TLS follows BCP 195 (issue 440, PR 445)
+
+- **TLS 1.2 accepted suites outside BCP 195.** With `tls.enabled`, the
+  server used Go's default `tls.Config`, which on TLS 1.2 still accepts the
+  ECDHE CBC and ChaCha20 suites. It now requires TLS 1.2 or later and, on
+  1.2, only RFC 9325 §4.2's ECDHE + AES-GCM suites (FAPI 2.0 §5.2.1). TLS
+  1.3 is unchanged.
+- The FAPI 2.0 exercise registers its second client with the query suffix
+  the plan adds to that client's redirect URI. It now passes 35 of 46
+  modules, `happy-flow` among them.
+
+### Upgrading
+
+- Only `cmd/oneauth-server` with `tls.enabled`: a TLS 1.2 client offering
+  only CBC suites can no longer connect. The library is unchanged.
+
 ## Version 0.2.3
 
 ### Reference server: the browser code flow works end to end (issue 438, PR 444)

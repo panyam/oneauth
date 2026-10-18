@@ -5,8 +5,8 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- No open threads. Active mission: #98 (OIDF FAPI 2.0 Security Profile run), 2/6; next ready #439. Exercise last ran 2026-10-17 @ 9369845: 33/46 passed (`happy-flow` fails only on #440).
-- This run: dropped feat/433-exercise-fapi2 (PR #442) and fix/438-login-next (PR #444); filed #443; #440 P2 → P1; tagged v0.2.3.
+- No open threads. Active mission: #98 (OIDF FAPI 2.0 Security Profile run), 3/6; next ready #439. Exercise last ran 2026-10-17 @ e012a7b: 35/46 passed, `happy-flow` included.
+- This run: dropped fix/440-tls-bcp195 (PR #445, #440 closed); tagged v0.2.4.
 
 ## Across threads
 
