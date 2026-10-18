@@ -1103,7 +1103,7 @@ sequenceDiagram
     C->>AS: "POST /api/token + DPoP: proof"
     AS->>AS: Validate proof<br/>"typ, alg, signature, htm, htu, iat window, jti replay"
     AS->>AS: "Thumbprint the public key (RFC 7638)"
-    AS-->>C: "token_type: DPoP<br/>access token carries cnf.jkt<br/>refresh token bound to the same key"
+    AS-->>C: "token_type: DPoP<br/>access token carries cnf.jkt<br/>a public client's refresh token is bound to the same key"
 
     C->>C: Mint a NEW proof for this request<br/>"adds ath = hash of the access token"
     C->>RS: "GET /resource<br/>Authorization: DPoP token<br/>DPoP: proof"

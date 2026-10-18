@@ -104,34 +104,41 @@ func TestClientRedirectURI_SecondClientCarriesTheQuerySuffix(t *testing.T) {
 	assert.Equal(t, base+"?dummy1=lorem&dummy2=ipsum", ClientRedirectURI(s.HarnessURL, s.Alias, 1))
 }
 
-// The browser automation fills in oneauth's own login and consent pages, so
-// its selectors have to exist in those pages. A template edit that renames a
-// field would otherwise only show up as a harness timeout.
+// The browser automation fills in oneauth's own login, consent and error
+// pages, so its selectors have to exist in those pages. A template edit that
+// renames a field would otherwise only show up as a harness timeout.
 func TestBrowserAutomation_SelectorsExistInTheServerPages(t *testing.T) {
 	login, err := os.ReadFile(filepath.Join("..", "..", "..", "cmd", "oneauth-server", "templates", "login.html"))
 	require.NoError(t, err)
-	consent, err := os.ReadFile(filepath.Join("..", "..", "..", "apiauth", "authorize_verification_handler.go"))
+	authorize, err := os.ReadFile(filepath.Join("..", "..", "..", "apiauth", "authorize_verification_handler.go"))
 	require.NoError(t, err)
 
 	s := testSetup(t)
 	tasks := BrowserAutomation(s)
 	require.Len(t, tasks, 1)
 	assert.Equal(t, "https://host.docker.internal:8889/authorize*", tasks[0].Match)
-	pages := map[string]string{"Login": string(login), "Consent": string(consent)}
-	for _, task := range tasks[0].Tasks {
-		page, ok := pages[task.Task]
-		if !ok {
-			continue
-		}
-		for _, cmd := range task.Commands {
-			locator, _ := cmd[2].(string)
-			switch cmd[1] {
-			case "name":
-				assert.Contains(t, page, `name="`+locator+`"`, "%s: %v", task.Task, cmd)
-			case "xpath":
-				// //button[@value='approve'] → value="approve"
-				attr := strings.TrimSuffix(strings.SplitN(locator, "@", 2)[1], "']")
-				assert.Contains(t, page, strings.Replace(attr, "='", `="`, 1)+`"`, "%s: %v", task.Task, cmd)
+	for _, browser := range ModuleBrowsers(s) {
+		tasks = append(tasks, browser...)
+	}
+	pages := map[string]string{"Login": string(login), "Consent": string(authorize), "Error page": string(authorize)}
+	for _, entry := range tasks {
+		for _, task := range entry.Tasks {
+			page, ok := pages[task.Task]
+			if !ok {
+				continue
+			}
+			for _, cmd := range task.Commands {
+				locator, _ := cmd[2].(string)
+				switch cmd[1] {
+				case "name":
+					assert.Contains(t, page, `name="`+locator+`"`, "%s: %v", task.Task, cmd)
+				case "id":
+					assert.Contains(t, page, `id="`+locator+`"`, "%s: %v", task.Task, cmd)
+				case "xpath":
+					// //button[@value='approve'] → value="approve"
+					attr := strings.TrimSuffix(strings.SplitN(locator, "@", 2)[1], "']")
+					assert.Contains(t, page, strings.Replace(attr, "='", `="`, 1)+`"`, "%s: %v", task.Task, cmd)
+				}
 			}
 		}
 	}

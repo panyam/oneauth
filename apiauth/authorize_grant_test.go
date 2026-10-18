@@ -198,10 +198,13 @@ func TestAuthCodeRedeem_UnknownCode(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "invalid_grant")
 }
 
-// TestAuthCodeRedeem_MissingPKCEVerifier pins the §4.1.3 invalid_request
-// mapping for a missing code_verifier — every code minted by /authorize
-// carries a code_challenge, so a redemption without code_verifier
-// cannot satisfy the PKCE check.
+// TestAuthCodeRedeem_MissingPKCEVerifier pins invalid_grant for a missing
+// code_verifier: every code minted by /authorize carries a code_challenge,
+// so the redemption fails the PKCE check, which RFC 7636 §4.6 answers with
+// invalid_grant. The OIDF FAPI 2.0 plan's
+// ensure-pkce-code-verifier-required module expects the same.
+//
+// See: https://www.rfc-editor.org/rfc/rfc7636#section-4.6
 func TestAuthCodeRedeem_MissingPKCEVerifier(t *testing.T) {
 	auth, store := setupAuthCode(t)
 	seedAuthCode(t, store, "code-1")
@@ -209,7 +212,9 @@ func TestAuthCodeRedeem_MissingPKCEVerifier(t *testing.T) {
 	rr := httptest.NewRecorder()
 	auth.ServeHTTP(rr, tokenRedeemForm(t, url.Values{"code_verifier": {""}}))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Contains(t, rr.Body.String(), "invalid_request")
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "invalid_grant", body["error"])
 }
 
 // TestAuthCodeRedeem_GrantNotEnabled pins that a token endpoint without

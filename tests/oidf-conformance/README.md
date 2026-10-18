@@ -53,7 +53,7 @@ This is the FAPI 2.0 mission's exercise (issue 98). It runs the harness's `fapi2
 3. Signs up a browser user and registers two ES256 `private_key_jwt` clients through DCR.
 4. Runs every module and stops the server again on exit.
 
-The plan variants are `private_key_jwt`, `dpop`, `plain_fapi` and `plain_oauth`. It's `plain_oauth` because oneauth issues no ID tokens yet (#339). The harness's headless browser logs in and approves using the selectors in `fapi2.BrowserAutomation`, and `fapi2/config_test.go` checks those selectors against the real login and consent pages.
+The plan variants are `private_key_jwt`, `dpop`, `plain_fapi` and `plain_oauth`. It's `plain_oauth` because oneauth issues no ID tokens yet (#339). The harness's headless browser logs in and approves using the selectors in `fapi2.BrowserAutomation`. Six modules need a different script, which the plan config carries as per-module overrides (`fapi2.ModuleBrowsers`): Deny for `user-rejects-authentication`, a skipped first visit for the reused-`request_uri` module, and a wait for oneauth's error page (`id="authorize-error"`) for the four that expect `/authorize` to refuse. A wait on the error page fills the module's screenshot placeholder, so those modules finish as REVIEW, the harness's result for a check a person signs off on. `fapi2/config_test.go` checks every selector against the real login, consent and error pages.
 
 The command exits non-zero until every module passes, so it isn't a CI gate yet. Wiring it into the ratchet next to `discovery_test.go` is the mission's "done when". The server log goes to `/tmp/oneauth-fapi2-exercise.log`.
 

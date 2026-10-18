@@ -64,7 +64,10 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		return nil, invalidRequest("code is required")
 	}
 	if req.CodeVerifier == "" {
-		return nil, invalidRequest("code_verifier is required (PKCE)")
+		// RFC 7636 §4.6 answers a failed PKCE check with invalid_grant,
+		// and a missing verifier is one; Keycloak and the OIDF FAPI 2.0
+		// plan agree.
+		return nil, invalidGrant("code_verifier is required (PKCE)")
 	}
 	if req.RedirectURI == "" {
 		return nil, invalidRequest("redirect_uri is required")
@@ -177,7 +180,7 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 			Subject:      entry.Subject,
 			ClientID:     entry.ClientID,
 			Scopes:       entry.Scopes,
-			Confirmation: req.Confirmation,
+			Confirmation: refreshConfirmation(authedID, req.Confirmation),
 		})
 		if rtErr == nil && createResp != nil && createResp.Token != nil {
 			pair.RefreshToken = createResp.Token.Token

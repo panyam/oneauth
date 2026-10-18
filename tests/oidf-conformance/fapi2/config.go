@@ -133,11 +133,15 @@ func RegistrationRequest(key ClientKey, redirectURI, scope string) map[string]an
 	}
 }
 
-// BrowserTask is one harness browser-automation entry: while the harness's
-// headless browser is on a URL matching Match, it runs Tasks in order.
+// BrowserTask is one harness browser-automation entry: when the harness's
+// headless browser is sent to a URL matching Match, it runs Tasks in order.
+// The harness uses the first entry that matches. MatchLimit, when set, is how
+// many visits the entry handles before the harness moves on to the next
+// match.
 type BrowserTask struct {
-	Match string        `json:"match"`
-	Tasks []BrowserStep `json:"tasks"`
+	Match      string        `json:"match"`
+	MatchLimit int           `json:"match-limit,omitempty"`
+	Tasks      []BrowserStep `json:"tasks"`
 }
 
 // BrowserStep runs Commands when the current page matches Match. Each
@@ -151,27 +155,89 @@ type BrowserStep struct {
 
 // BrowserAutomation logs in on oneauth's login page, approves on its consent
 // page, and waits for the harness callback to finish. Login is optional
-// because the browser may already have a session.
-//
-// The modules that expect /authorize to refuse with an error page fail at
-// the Consent step instead (no Approve button): the error page shares the
-// /authorize URL, so the harness can't tell it apart by match.
+// because the browser may already have a session. ModuleBrowsers lists the
+// modules that need something else.
 func BrowserAutomation(s Setup) []BrowserTask {
 	return []BrowserTask{{
 		Match: s.IssuerURL + "/authorize*",
-		Tasks: []BrowserStep{
-			{Task: "Login", Match: s.IssuerURL + "/auth/login*", Optional: true, Commands: [][]any{
-				{"text", "name", "username", s.User.Email},
-				{"text", "name", "password", s.User.Password},
-				{"click", "xpath", "//button[@type='submit']"},
-			}},
-			{Task: "Consent", Match: s.IssuerURL + "/authorize*", Commands: [][]any{
-				{"click", "xpath", "//button[@value='approve']"},
-			}},
-			{Task: "Verify Complete", Match: "*/test/*/callback*", Commands: [][]any{
-				{"wait", "id", "submission_complete", 10},
-			}},
+		Tasks: []BrowserStep{loginStep(s), consentStep(s, "approve"), callbackStep()},
+	}}
+}
+
+// ModuleBrowsers is the browser automation for the modules the default
+// script can't drive, keyed by module name. The plan config carries each one
+// as an override, which replaces the whole browser list for that module.
+//
+//   - user-rejects-authentication clicks Deny and expects access_denied at
+//     the callback.
+//   - The error-page modules wait for oneauth's error page (its
+//     id="authorize-error" heading), which fills the module's screenshot
+//     placeholder with the page source and ends it in REVIEW. There's no
+//     callback step: the module is done once the placeholder is filled, and
+//     "*/test/*/callback*" would match the error page's own URL anyway,
+//     since the harness callback is in its redirect_uri parameter.
+//   - par-attempt-reuse-request_uri completes one normal flow with the
+//     request_uri and then expects the error page for the second visit.
+//   - par-ensure-reused-request-uri-prior-to-auth-completion-succeeds sends
+//     the browser to the same /authorize URL twice and refuses a login on the
+//     first visit, so the first visit only loads the page.
+func ModuleBrowsers(s Setup) map[string][]BrowserTask {
+	authorize := s.IssuerURL + "/authorize*"
+	errorPage := BrowserTask{
+		Match: authorize,
+		Tasks: []BrowserStep{loginStep(s), {
+			Task: "Error page", Match: authorize, Commands: [][]any{
+				{"wait", "id", "authorize-error", 10, "Authorization error", "update-image-placeholder"},
+			},
+		}},
+	}
+	firstVisitOnly := func(b BrowserTask) BrowserTask {
+		b.MatchLimit = 1
+		return b
+	}
+	browsers := map[string][]BrowserTask{
+		"fapi2-security-profile-final-user-rejects-authentication": {{
+			Match: authorize,
+			Tasks: []BrowserStep{loginStep(s), consentStep(s, "deny"), callbackStep()},
+		}},
+		"fapi2-security-profile-final-par-attempt-reuse-request_uri": {
+			firstVisitOnly(BrowserAutomation(s)[0]),
+			errorPage,
 		},
+		"fapi2-security-profile-final-par-ensure-reused-request-uri-prior-to-auth-completion-succeeds": {
+			firstVisitOnly(BrowserTask{Match: authorize, Tasks: []BrowserStep{}}),
+			BrowserAutomation(s)[0],
+		},
+	}
+	for _, m := range []string{
+		"fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails",
+		"fapi2-security-profile-final-par-attempt-to-use-expired-request_uri",
+		"fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client",
+	} {
+		browsers[m] = []BrowserTask{errorPage}
+	}
+	return browsers
+}
+
+func loginStep(s Setup) BrowserStep {
+	return BrowserStep{Task: "Login", Match: s.IssuerURL + "/auth/login*", Optional: true, Commands: [][]any{
+		{"text", "name", "username", s.User.Email},
+		{"text", "name", "password", s.User.Password},
+		{"click", "xpath", "//button[@type='submit']"},
+	}}
+}
+
+// consentStep clicks the consent page's button with the given value,
+// approve or deny.
+func consentStep(s Setup, action string) BrowserStep {
+	return BrowserStep{Task: "Consent", Match: s.IssuerURL + "/authorize*", Commands: [][]any{
+		{"click", "xpath", "//button[@value='" + action + "']"},
+	}}
+}
+
+func callbackStep() BrowserStep {
+	return BrowserStep{Task: "Verify Complete", Match: "*/test/*/callback*", Commands: [][]any{
+		{"wait", "id", "submission_complete", 10},
 	}}
 }
 
@@ -185,6 +251,10 @@ func PlanConfig(s Setup) map[string]any {
 			"jwks":             map[string]any{"keys": []map[string]string{c.Key.PrivateJWK()}},
 		}
 	}
+	overrides := map[string]any{}
+	for module, browser := range ModuleBrowsers(s) {
+		overrides[module] = map[string]any{"browser": browser}
+	}
 	return map[string]any{
 		"alias":       s.Alias,
 		"description": "oneauth FAPI 2.0 mission exercise (issue 98)",
@@ -195,7 +265,8 @@ func PlanConfig(s Setup) map[string]any {
 			"resourceUrl":    s.IssuerURL + "/api/me",
 			"resourceMethod": "GET",
 		},
-		"browser": BrowserAutomation(s),
+		"browser":  BrowserAutomation(s),
+		"override": overrides,
 	}
 }
 

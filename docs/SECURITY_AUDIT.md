@@ -128,6 +128,7 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 | 5 | `token_type: DPoP` on a bound token | MUST | AS | Pass | `apiauth/dpop.go:693` `tokenTypeFor` | ClientCredentialsBindsAccessToken |
 | 5 | A bad proof fails the request, never falls back to Bearer | MUST | AS | Pass | `apiauth/token_endpoint.go:442` `dpopConfirmation` | InvalidProofRejectsTheRequest |
 | 5 | Public client's refresh token bound to its key, checked on use | MUST | AS | Pass | `token_validator.go` refresh grant | BoundRefreshTokenRequiresItsOwnKey |
+| 5 | Confidential client's refresh token left unbound (client authentication constrains it) | — | AS | Pass (was stricter) | `confidential_client_auth.go` `refreshConfirmation` | e2e RefreshBindingFollowsClientType, DeviceGrant_RefreshBindingFollowsClientType |
 | 5 | Binding survives FS / GORM / GAE stores | — | AS | Pass | `stores/*` | e2e (FS), `stores/gorm/refreshtoken_binding_test.go`, `stores/gae/refreshtoken_binding_test.go` (`make testds`) |
 | 5 | Client's automatic refresh carries a proof | MUST | client | Pass (was Fail) | `client/client.go` `refreshTokenLocked` → `requestTokenForm` / `requestToken` → `executeTokenRequest` | RefreshThenRetryMintsAFreshProof\*, e2e SDKAutoRefreshKeepsTheBinding\*; Keycloak SDKRefreshKeepsTheBinding |
 | 5.1 | `dpop_signing_alg_values_supported` in AS metadata | SHOULD | AS | Pass | `apiauth/as_metadata.go:79` | e2e MetadataAdvertisesSigningAlgs |
@@ -236,10 +237,6 @@ reasons below.
 
 Things that are deliberate rather than gaps:
 
-- **Confidential clients' refresh tokens are key-bound too.** §5 only requires it for public
-  clients, since a confidential client's refresh token is already bound by client
-  authentication. Binding them anyway is stricter. The cost is that a confidential client
-  can't switch DPoP keys halfway through a session.
 - **The default `JTIStore` is in-memory.** That's right for one node and wrong for a fleet,
   where a proof replayed against a different node isn't seen. `DPoPConfig.JTIStore` takes a
   shared store.
