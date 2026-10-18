@@ -10,6 +10,7 @@
   </p>
   <form method="POST" action="/auth/login" class="bg-white shadow rounded-lg p-6 space-y-4">
     {{.CSRFField}}
+    {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
       <input type="email" name="username" required
