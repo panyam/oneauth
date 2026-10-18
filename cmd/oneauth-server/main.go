@@ -88,10 +88,12 @@ func main() {
 	log.Printf("oneauth-server listening on %s (keystore=%s, user_stores=%s, auth=%s)",
 		addr, cfg.KeyStore.Type, cfg.UserStores.Type, cfg.AdminAuth.Type)
 
+	srv := &http.Server{Addr: addr, Handler: handler}
 	if cfg.TLS.Enabled {
-		log.Fatal(http.ListenAndServeTLS(addr, cfg.TLS.Cert, cfg.TLS.Key, handler))
+		srv.TLSConfig = serverTLSConfig()
+		log.Fatal(srv.ListenAndServeTLS(cfg.TLS.Cert, cfg.TLS.Key))
 	} else {
-		log.Fatal(http.ListenAndServe(addr, handler))
+		log.Fatal(srv.ListenAndServe())
 	}
 }
 

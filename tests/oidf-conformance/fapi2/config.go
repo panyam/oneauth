@@ -103,6 +103,21 @@ func RedirectURI(harnessURL, alias string) string {
 	return fmt.Sprintf("%s/test/a/%s/callback", harnessURL, alias)
 }
 
+// SecondClientRedirectSuffix is the query the plan appends to the second
+// client's redirect URI, to check that a registered URI's query is kept
+// (RFC 6749 §3.1.2). The suffixed URI has to be the one registered, or the
+// second client's PAR request fails as an unregistered redirect.
+const SecondClientRedirectSuffix = "?dummy1=lorem&dummy2=ipsum"
+
+// ClientRedirectURI is the redirect URI to register for the plan's client
+// number i (0 for "client", 1 for "client2").
+func ClientRedirectURI(harnessURL, alias string, i int) string {
+	if i == 1 {
+		return RedirectURI(harnessURL, alias) + SecondClientRedirectSuffix
+	}
+	return RedirectURI(harnessURL, alias)
+}
+
 // RegistrationRequest is the RFC 7591 body that registers one test client:
 // confidential, private_key_jwt with the public key inline, DPoP-bound.
 func RegistrationRequest(key ClientKey, redirectURI, scope string) map[string]any {

@@ -97,6 +97,13 @@ func TestRegistrationRequest_PublicKeyOnly(t *testing.T) {
 	assert.NotContains(t, keys[0], "d")
 }
 
+func TestClientRedirectURI_SecondClientCarriesTheQuerySuffix(t *testing.T) {
+	s := testSetup(t)
+	base := "https://localhost.emobix.co.uk:8443/test/a/oneauth-fapi2/callback"
+	assert.Equal(t, base, ClientRedirectURI(s.HarnessURL, s.Alias, 0))
+	assert.Equal(t, base+"?dummy1=lorem&dummy2=ipsum", ClientRedirectURI(s.HarnessURL, s.Alias, 1))
+}
+
 // The browser automation fills in oneauth's own login and consent pages, so
 // its selectors have to exist in those pages. A template edit that renames a
 // field would otherwise only show up as a harness timeout.
