@@ -30,6 +30,14 @@ const ClientAssertionTypeJWTBearer = "urn:ietf:params:oauth:client-assertion-typ
 // JTIStore memory footprint.
 const MaxClientAssertionLifetime = 5 * time.Minute
 
+// ClientAssertionClockSkew is how far a client assertion's `iat`, `nbf`
+// and `exp` may be off from the server's clock. FAPI 2.0 §5.3.2.1 asks
+// the server to accept an `iat` or `nbf` up to 10 seconds in the future,
+// since client clocks drift, and to refuse one more than 60 seconds
+// ahead. The same tolerance lets an assertion through up to 10 seconds
+// after its `exp`.
+const ClientAssertionClockSkew = 10 * time.Second
+
 var errInvalidClient = &clientError{"invalid_client"}
 
 type clientError struct{ msg string }
@@ -195,7 +203,8 @@ func (a *clientAuthenticator) authenticateSecret(req *AuthenticateClientRequest)
 //   - iss == sub == client_id.
 //   - aud MUST match the configured audience (token endpoint URL or
 //     AS issuer URL — the caller decides which).
-//   - exp MUST be in the future; iat (if present) in the past; the
+//   - exp MUST be in the future and iat / nbf (if present) in the
+//     past, each within ClientAssertionClockSkew; the
 //     assertion lifetime (exp - iat) MUST NOT exceed
 //     MaxClientAssertionLifetime.
 //   - jti MUST NOT have been seen within the assertion lifetime.
@@ -256,7 +265,7 @@ func (a *clientAuthenticator) authenticateAssertion(req *AuthenticateClientReque
 	// Lock the alg to what the client registered. Without this an
 	// attacker could swap RS256 for HS256 and use the public key as
 	// the HMAC secret (algorithm-confusion, CVE-2016-10555 class).
-	verifyParser := jwt.NewParser(jwt.WithValidMethods([]string{rec.Algorithm}))
+	verifyParser := jwt.NewParser(jwt.WithValidMethods([]string{rec.Algorithm}), jwt.WithLeeway(ClientAssertionClockSkew), jwt.WithIssuedAt())
 	verified, err := verifyParser.Parse(req.ClientAssertion, func(t *jwt.Token) (interface{}, error) {
 		return verifyKey, nil
 	})

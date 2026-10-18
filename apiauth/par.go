@@ -122,6 +122,14 @@ func (h *PARHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, _, errCode, errDescription := h.Authorization.ValidateValues(r.Context(), payload); errCode != "" {
+		// ValidateValues answers unauthorized_client when the
+		// (client_id, redirect_uri) pair doesn't match a registration.
+		// The push has authenticated the client already, so here that can
+		// only be a bad redirect_uri, which RFC 6749 §4.1.2.1 (where
+		// RFC 9126 §2.3 points) calls invalid_request.
+		if errCode == "unauthorized_client" {
+			errCode = "invalid_request"
+		}
 		h.writeError(w, &GrantError{Code: errCode, Description: errDescription, Status: http.StatusBadRequest})
 		return
 	}
