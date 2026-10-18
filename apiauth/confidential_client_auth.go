@@ -157,3 +157,16 @@ func authenticateFAPIWithoutLookup(ctx context.Context, appStore core.AppRegistr
 	}
 	return resp.ClientID, nil
 }
+
+// refreshConfirmation is the DPoP binding a new refresh token carries. RFC
+// 9449 §5 binds only a public client's refresh token: a confidential
+// client's is already sender-constrained by its client authentication, so it
+// stays unbound and each refresh binds its access token to whatever key the
+// client proves then. authedID is the client the shared gate authenticated,
+// empty when none was.
+func refreshConfirmation(authedID string, cnf *core.Confirmation) *core.Confirmation {
+	if authedID != "" {
+		return nil
+	}
+	return cnf
+}

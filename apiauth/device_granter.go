@@ -131,7 +131,7 @@ func (r *deviceCodeGranter) DeviceCodeGrant(ctx context.Context, req *DeviceCode
 			Subject:      subject,
 			ClientID:     auth.ClientID,
 			Scopes:       auth.Scopes,
-			Confirmation: req.Confirmation,
+			Confirmation: refreshConfirmation(authedID, req.Confirmation),
 		})
 		if rtErr == nil && createResp != nil && createResp.Token != nil {
 			pair.RefreshToken = createResp.Token.Token

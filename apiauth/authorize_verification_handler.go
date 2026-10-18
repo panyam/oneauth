@@ -339,6 +339,6 @@ var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent"
 var defaultAuthorizeErrorTmpl = template.Must(template.New("authorize_error").Parse(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Authorization error</title></head>
 <body>
-  <h1>Authorization error</h1>
+  <h1 id="authorize-error">Authorization error</h1>
   <p><strong>{{.ErrorCode}}</strong>{{if .ErrorDescription}}: {{.ErrorDescription}}{{end}}</p>
 </body></html>`))
