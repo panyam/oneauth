@@ -1,8 +1,11 @@
 services:
   mongodb:
     image: ${MONGODB_IMAGE:-mongo:6.0.13}
+    # A named volume rather than a bind mount into the checkout: removing
+    # the worktree that ran `make upoidf` deleted the database under the
+    # running container (issue 438).
     volumes:
-     - ./mongo/data:/data/db
+     - mongo-data:/data/db
     logging:
       driver: "json-file"
       options:
@@ -12,6 +15,13 @@ services:
     image: registry.gitlab.com/openid/conformance-suite/nginx:${IMAGE_TAG:-latest}
     ports:
      - "8443:8443"
+    # The harness's headless browser runs in the server container, where
+    # public DNS answers 127.0.0.1 for this name. The alias sends its
+    # redirects to the harness callback (/test/a/<alias>/callback) here.
+    networks:
+      default:
+        aliases:
+         - localhost.emobix.co.uk
     depends_on:
      - server
     logging:
@@ -48,3 +58,6 @@ services:
       options:
         max-size: "500k"
         max-file: "5"
+
+volumes:
+  mongo-data:

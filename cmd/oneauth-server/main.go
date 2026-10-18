@@ -78,28 +78,52 @@ func main() {
 		log.Fatalf("Invalid server config: %v", err)
 	}
 
+	handler, cleanup, err := buildServer(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cleanup()
+
+	addr := cfg.Server.Host + ":" + cfg.Server.Port
+	log.Printf("oneauth-server listening on %s (keystore=%s, user_stores=%s, auth=%s)",
+		addr, cfg.KeyStore.Type, cfg.UserStores.Type, cfg.AdminAuth.Type)
+
+	if cfg.TLS.Enabled {
+		log.Fatal(http.ListenAndServeTLS(addr, cfg.TLS.Cert, cfg.TLS.Key, handler))
+	} else {
+		log.Fatal(http.ListenAndServe(addr, handler))
+	}
+}
+
+// buildServer wires every store, handler and route the config asks for and
+// returns the server's root handler, with the security headers applied. main
+// serves it; tests drive it in-process with httptest. cleanup removes the
+// memory-mode user stores' temp directory. An error names the part of the
+// config that could not be built, and nothing is listening yet when it
+// returns.
+func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) {
 	// Build KeyStore (optionally wrapped with encryption)
 	keyStore, db, err := buildKeyStore(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create KeyStore: %v", err)
+		return nil, nil, fmt.Errorf("Failed to create KeyStore: %w", err)
 	}
 
 	// Build AdminAuth
 	adminAuth, err := buildAdminAuth(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create AdminAuth: %v", err)
+		return nil, nil, fmt.Errorf("Failed to create AdminAuth: %w", err)
 	}
 
 	// Build user stores (for auth pages)
 	stores, err := buildUserStores(cfg, db)
 	if err != nil {
-		log.Fatalf("Failed to create user stores: %v", err)
+		return nil, nil, fmt.Errorf("Failed to create user stores: %w", err)
 	}
 
 	// Build AppRegistrar with the configured AppRegistrationStore (issue 167).
 	appStore, err := buildAppStore(cfg, db)
 	if err != nil {
-		log.Fatalf("Failed to create AppStore: %v", err)
+		return nil, nil, fmt.Errorf("Failed to create AppStore: %w", err)
 	}
 	registrar := admin.NewAppRegistrarWithStore(keyStore, adminAuth, appStore)
 	// Rotated keys stay valid for their grace period: the registrar moves
@@ -107,7 +131,7 @@ func main() {
 	// drops them once expired.
 	kidStore, err := buildKidStore(cfg, db)
 	if err != nil {
-		log.Fatalf("Failed to create KidStore: %v", err)
+		return nil, nil, fmt.Errorf("Failed to create KidStore: %w", err)
 	}
 	registrar.KidStore = kidStore
 	sweepKidStore(kidStore, 10*time.Minute)
@@ -116,7 +140,7 @@ func main() {
 	registrar.IssuerBaseURL = publicBaseURL(cfg)
 	registrationAuth, err := buildRegistrationAuth(cfg)
 	if err != nil {
-		log.Fatalf("Invalid server config: %v", err)
+		return nil, nil, fmt.Errorf("Invalid server config: %w", err)
 	}
 	if registrationAuth != nil {
 		registrar.RegistrationAuth = registrationAuth
@@ -125,7 +149,7 @@ func main() {
 	// Brute-force limits, on by default (rate_limit block).
 	bf, err := buildBruteForce(cfg)
 	if err != nil {
-		log.Fatalf("Invalid rate limit config: %v", err)
+		return nil, nil, fmt.Errorf("Invalid rate limit config: %w", err)
 	}
 	bf.sweep()
 	// The admin and DCR routes get their own per-address budget, checked
@@ -151,7 +175,7 @@ func main() {
 		ForgotPasswordURL: "/auth/forgot-password",
 		ResetPasswordURL:  "/auth/reset-password",
 		OnLoginError: func(err *accounts.AuthError, w http.ResponseWriter, r *http.Request) bool {
-			renderTemplate(w, "login.html", map[string]any{"Title": "Login", "Error": err.Message, "CSRFField": httpauth.CSRFTemplateField(r)})
+			renderTemplate(w, "login.html", map[string]any{"Title": "Login", "Error": err.Message, "Next": loginNext(r.FormValue("next")), "CSRFField": httpauth.CSRFTemplateField(r)})
 			return true
 		},
 		OnSignupError: func(err *accounts.AuthError, w http.ResponseWriter, r *http.Request) bool {
@@ -172,17 +196,42 @@ func main() {
 	// the token endpoint's validator is part of its config.
 	dpop, err := buildDPoP(cfg.DPoP, publicBaseURL(cfg))
 	if err != nil {
-		log.Fatalf("Invalid dpop config: %v", err)
+		return nil, nil, fmt.Errorf("Invalid dpop config: %w", err)
+	}
+
+	// The device and code stores go into OneAuthConfig: NewOneAuth builds
+	// each grant's granter, and the client authenticator's AppStore, from
+	// the config, so a store attached to OneAuth afterwards is never read
+	// (issue 438). The AppStore drives confidential-client enforcement on
+	// redemption (issue 266).
+	var deviceStore core.DeviceAuthorizationStore
+	if cfg.DeviceFlow.Enabled {
+		if deviceStore, err = buildDeviceAuthStore(cfg, db); err != nil {
+			return nil, nil, fmt.Errorf("Failed to create DeviceAuthStore: %w", err)
+		}
+	}
+	var codeStore core.AuthorizationCodeStore
+	if cfg.CodeFlow.Enabled {
+		if codeStore, err = buildAuthorizationCodeStore(cfg, db); err != nil {
+			return nil, nil, fmt.Errorf("Failed to create AuthorizationCodeStore: %w", err)
+		}
+	}
+	var flowAppStore core.AppRegistrationStore
+	if cfg.DeviceFlow.Enabled || cfg.CodeFlow.Enabled {
+		flowAppStore = appStore
 	}
 
 	// Build OneAuth (the transport-independent core) + handlers.
 	oaCfg := apiauth.OneAuthConfig{
-		KeyStore:   keyStore,
-		KidStore:   kidStore,
-		SigningKey: []byte(cfg.JWT.SecretKey),
-		SigningAlg: "HS256",
-		Issuer:     cfg.JWT.Issuer,
-		FAPI2:      cfg.FAPI2,
+		AppStore:               flowAppStore,
+		DeviceAuthStore:        deviceStore,
+		AuthorizationCodeStore: codeStore,
+		KeyStore:               keyStore,
+		KidStore:               kidStore,
+		SigningKey:             []byte(cfg.JWT.SecretKey),
+		SigningAlg:             "HS256",
+		Issuer:                 cfg.JWT.Issuer,
+		FAPI2:                  cfg.FAPI2,
 		// Client assertions name the issuer or one of these endpoints as
 		// aud (RFC 7523 §3). Fixed from public_url rather than derived from
 		// each request, which behind a TLS proxy would say http.
@@ -209,7 +258,7 @@ func main() {
 	if alg := cfg.JWT.SigningAlg; alg == "RS256" || alg == "ES256" {
 		priv, pubPEM, err := loadOrGenerateSigningKey(cfg.JWT, alg)
 		if err != nil {
-			log.Fatalf("Failed to load/generate %s signing key: %v", alg, err)
+			return nil, nil, fmt.Errorf("Failed to load/generate %s signing key: %w", alg, err)
 		}
 		oaCfg.SigningKey = priv
 		oaCfg.SigningAlg = alg
@@ -217,7 +266,7 @@ func main() {
 		// accepts the same PEM bytes the keystore stores.
 		pubKey, err := utils.DecodeVerifyKey(pubPEM, alg)
 		if err != nil {
-			log.Fatalf("Failed to parse issuer public key: %v", err)
+			return nil, nil, fmt.Errorf("Failed to parse issuer public key: %w", err)
 		}
 		oaCfg.VerifyKey = pubKey
 
@@ -228,7 +277,7 @@ func main() {
 			Key:       pubPEM,
 			Algorithm: alg,
 		}}); err != nil {
-			log.Fatalf("Failed to register issuer public key: %v", err)
+			return nil, nil, fmt.Errorf("Failed to register issuer public key: %w", err)
 		}
 		log.Printf("Asymmetric token signing enabled (alg=%s, public key registered as %q for JWKS)", alg, issuerClientID)
 	}
@@ -279,7 +328,7 @@ func main() {
 
 	// Auth pages (browser) — wrapped with CSRF protection
 	mux.Handle("GET /auth/login", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, "login.html", map[string]any{"Title": "Login", "CSRFField": httpauth.CSRFTemplateField(r)})
+		renderTemplate(w, "login.html", map[string]any{"Title": "Login", "Next": loginNext(r.URL.Query().Get("next")), "CSRFField": httpauth.CSRFTemplateField(r)})
 	})))
 	mux.Handle("POST /auth/login", csrf.Protect(http.HandlerFunc(localAuth.ServeHTTP)))
 
@@ -335,7 +384,11 @@ func main() {
 	mux.HandleFunc("POST /api/logout", sessions.HandleLogout)
 
 	// JWT-protected API endpoints
+	// oa.Validator checks the signature with the key the token endpoint
+	// signs with (HS256 secret, or the RS256 / ES256 public key), plus the
+	// issuer, token type and blacklist.
 	apiMiddleware := &apiauth.APIMiddleware{
+		Validator:    oa.Validator,
 		JWTSecretKey: cfg.JWT.SecretKey,
 		JWTIssuer:    cfg.JWT.Issuer,
 		Blacklist:    blacklist,
@@ -398,18 +451,10 @@ func main() {
 	}
 
 	// Device Authorization Grant (RFC 8628), opt-in via device_flow.enabled.
-	// Mount the routes, point APIAuth at the device store + app store
-	// (the latter drives RFC 8628 §3.4 confidential-client enforcement
-	// on redemption — issue 266), and advertise the endpoint + grant
-	// type in AS metadata so discovery surfaces the capability.
+	// Mount the routes (OneAuth already has the device store) and
+	// advertise the endpoint + grant type in AS metadata so discovery
+	// surfaces the capability.
 	if cfg.DeviceFlow.Enabled {
-		deviceStore, err := buildDeviceAuthStore(cfg, db)
-		if err != nil {
-			log.Fatalf("Failed to create DeviceAuthStore: %v", err)
-		}
-		oa.DeviceAuthStore = deviceStore
-		oa.AppStore = appStore
-
 		apiauth.MountDeviceFlow(mux, apiauth.DeviceFlowMountConfig{
 			OneAuth:                         oa,
 			VerificationURI:                 baseURL + "/device",
@@ -432,24 +477,15 @@ func main() {
 
 	// RFC 6749 §4.1 Authorization Code Grant + PKCE + RFC 9207 iss
 	// emission, opt-in via code_flow.enabled. Mounts the consent
-	// surface, points APIAuth at the code store + app store (the latter
-	// drives confidential-client enforcement on redemption — same shape
-	// as device flow's #266), and advertises the endpoint, "code"
-	// response type, and "authorization_code" grant type in AS metadata
-	// so discovery surfaces the capability.
+	// surface (OneAuth already has the code store) and advertises the
+	// endpoint, "code" response type, and "authorization_code" grant
+	// type in AS metadata so discovery surfaces the capability.
 	if cfg.CodeFlow.Enabled {
-		codeStore, err := buildAuthorizationCodeStore(cfg, db)
-		if err != nil {
-			log.Fatalf("Failed to create AuthorizationCodeStore: %v", err)
-		}
-		oa.AuthorizationCodeStore = codeStore
-		oa.AppStore = appStore
-
 		var pushedStore core.PushedAuthorizationRequestStore
 		if cfg.CodeFlow.PAR.Enabled {
 			pushedStore, err = buildPushedStore(cfg, db)
 			if err != nil {
-				log.Fatalf("Failed to create PushedAuthorizationRequestStore: %v", err)
+				return nil, nil, fmt.Errorf("Failed to create PushedAuthorizationRequestStore: %w", err)
 			}
 		}
 		apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
@@ -474,10 +510,6 @@ func main() {
 
 	apiauth.MountASMetadata(mux, asMeta)
 
-	addr := cfg.Server.Host + ":" + cfg.Server.Port
-	log.Printf("oneauth-server listening on %s (keystore=%s, user_stores=%s, auth=%s)",
-		addr, cfg.KeyStore.Type, cfg.UserStores.Type, cfg.AdminAuth.Type)
-
 	secHeaders := httpauth.SecurityHeadersWithConfig(httpauth.SecurityHeadersConfig{
 		HSTSMaxAge:                31536000,
 		HSTSIncludeSubDomains:     true,
@@ -489,13 +521,7 @@ func main() {
 		CrossOriginOpenerPolicy:   "same-origin",
 		CrossOriginResourcePolicy: "same-origin",
 	})
-	handler := secHeaders(mux)
-
-	if cfg.TLS.Enabled {
-		log.Fatal(http.ListenAndServeTLS(addr, cfg.TLS.Cert, cfg.TLS.Key, handler))
-	} else {
-		log.Fatal(http.ListenAndServe(addr, handler))
-	}
+	return secHeaders(mux), stores.Cleanup, nil
 }
 
 // userStores holds all the store instances needed for auth.
@@ -968,9 +994,18 @@ func makeHandleUser(cfg *Config) accounts.HandleUserFunc {
 			return
 		}
 
-		// Browser: redirect to dashboard
-		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+		// Browser: back to the page that sent the user to login (the
+		// /authorize consent page, say), or the dashboard.
+		http.Redirect(w, r, httpauth.LocalRedirect(r.FormValue("next"), "/dashboard"), http.StatusSeeOther)
 	}
+}
+
+// loginNext is the return-after-login path the login form carries as a
+// hidden field: the ?next= that /authorize and /device put on the login
+// URL, or "" when it would leave this site (CWE-601), so the form never
+// round-trips a foreign URL.
+func loginNext(next string) string {
+	return httpauth.LocalRedirect(next, "")
 }
 
 // getUserFromCookie extracts display name from the JWT cookie.

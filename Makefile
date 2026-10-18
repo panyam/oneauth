@@ -677,7 +677,7 @@ upoidf:
 downoidf:
 	@echo "Stopping OIDF conformance stack..."
 	@docker compose -f $(OIDF_COMPOSE) down
-	@echo "MongoDB data persists in tests/oidf-conformance/mongo/ — delete that dir for a clean slate."
+	@echo "MongoDB data persists in the oidf-conformance_mongo-data volume; docker volume rm it for a clean slate."
 
 upoidf-as:
 	@echo "Starting cmd/oneauth-server on :8888 with OIDF baseline config..."
