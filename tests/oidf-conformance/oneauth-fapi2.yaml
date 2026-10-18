@@ -1,0 +1,54 @@
+# cmd/oneauth-server for the FAPI 2.0 mission's exercise (issue 98):
+# deploy-examples/fapi-dpop.yaml's profile, served over TLS at the host name
+# the OIDF harness container uses, on 8889 so it can run beside the
+# discovery baseline on 8888. `make exercise-fapi2` starts it.
+
+server:
+  port: 8889
+  host: 0.0.0.0
+  public_url: https://host.docker.internal:8889
+
+tls:
+  enabled: true
+  cert: tests/oidf-conformance/certs/server.crt
+  key: tests/oidf-conformance/certs/server.key
+
+keystore:
+  type: memory
+
+user_stores:
+  type: memory
+
+jwt:
+  # Empty follows public_url, which is what the harness checks iss against.
+  issuer: ""
+  signing_alg: ES256
+  # ephemeral_signing_key always makes an RSA key, which ES256 refuses, so
+  # scripts/exercise-fapi2.sh generates a P-256 key per run.
+  private_key_path: ${OIDF_FAPI2_SIGNING_KEY}
+  secret_key: ${JWT_SECRET_KEY:-oidf-fapi2-exercise-session-secret-32b}
+  disable_refresh_token_rotation: true
+
+admin_auth:
+  type: none    # the exercise registers its clients through open DCR
+  allow_open: true
+
+dpop:
+  enabled: true
+  profile: fapi
+  require: true
+  require_at_resource: true
+  nonce:
+    required: true
+
+# The harness logs the same user in once per module, dozens of times a
+# minute; the default 10 a minute throttles it halfway through the plan.
+rate_limit:
+  login_per_minute: 600
+
+fapi2: true
+
+code_flow:
+  enabled: true
+  par:
+    enabled: true

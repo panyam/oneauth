@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# The FAPI 2.0 mission's exercise (issue 98): run the OIDF
+# fapi2-security-profile-final-test-plan against cmd/oneauth-server.
+#
+#   1. start the OIDF harness (make upoidf) unless it's already up
+#   2. start oneauth-server with tests/oidf-conformance/oneauth-fapi2.yaml
+#      on https://localhost:8889 (https://host.docker.internal:8889 from
+#      inside the harness container), stopped again on exit
+#   3. register a user and two clients, run every module, print results
+#
+# Exits non-zero while any module doesn't pass. Server log:
+# $OIDF_FAPI2_LOG (default /tmp/oneauth-fapi2-exercise.log).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+harness=https://localhost.emobix.co.uk:8443
+server=https://localhost:8889
+ca=tests/oidf-conformance/certs/ca.crt
+logfile=${OIDF_FAPI2_LOG:-/tmp/oneauth-fapi2-exercise.log}
+
+if ! curl -ksf -o /dev/null "$harness/"; then
+  make upoidf
+fi
+
+if curl -sf --cacert "$ca" -o /dev/null "$server/.well-known/openid-configuration"; then
+  echo "A server is already listening on $server. Stop it first: the exercise needs a fresh one." >&2
+  exit 2
+fi
+
+export OIDF_FAPI2_SIGNING_KEY=${OIDF_FAPI2_SIGNING_KEY:-/tmp/oneauth-fapi2-signing-key.pem}
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$OIDF_FAPI2_SIGNING_KEY" 2>/dev/null
+
+go build -buildvcs=false -o /tmp/oneauth-fapi2-server ./cmd/oneauth-server
+/tmp/oneauth-fapi2-server --config tests/oidf-conformance/oneauth-fapi2.yaml >"$logfile" 2>&1 &
+server_pid=$!
+trap 'kill $server_pid 2>/dev/null || true' EXIT
+
+for _ in $(seq 1 30); do
+  curl -sf --cacert "$ca" -o /dev/null "$server/.well-known/openid-configuration" && break
+  if ! kill -0 "$server_pid" 2>/dev/null; then
+    echo "oneauth-server exited at startup; log follows:" >&2
+    cat "$logfile" >&2
+    exit 2
+  fi
+  sleep 1
+done
+
+(cd tests/oidf-conformance && GOWORK=off go run ./fapi2/cmd/exercise \
+  -harness "$harness" -server "$server" -issuer https://host.docker.internal:8889 \
+  -ca certs/ca.crt "$@")
