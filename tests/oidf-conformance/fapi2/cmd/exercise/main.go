@@ -49,13 +49,12 @@ func main() {
 	if err := fapi2.SignUp(ctx, hc, *serverURL, s.User); err != nil {
 		log.Fatalf("step 1, sign up the browser user: %v", err)
 	}
-	redirect := fapi2.RedirectURI(*harnessURL, *alias)
 	for i := range s.Clients {
 		key, err := fapi2.NewClientKey()
 		if err != nil {
 			log.Fatal(err)
 		}
-		id, err := fapi2.Register(ctx, hc, *serverURL, key, redirect, s.Scope)
+		id, err := fapi2.Register(ctx, hc, *serverURL, key, fapi2.ClientRedirectURI(*harnessURL, *alias, i), s.Scope)
 		if err != nil {
 			log.Fatalf("step 2, register client %d: %v", i+1, err)
 		}
