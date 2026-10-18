@@ -431,7 +431,7 @@ reliably sign proofs per request.</li>
 <td>Refresh-token binding (§5)</td>
 <td><strong>Implemented</strong></td>
 <td><code>core.RefreshToken.Confirmation</code>; FS / GORM / GAE stores, each with a round-trip test</td>
-<td>Rotation carries the binding forward; a bound token is unredeemable without its key. Confidential clients&rsquo; refresh tokens are bound too, which is stricter than §5 asks (it only requires binding for public clients) and means a confidential client can&rsquo;t switch DPoP keys mid-session</td>
+<td>Rotation carries the binding forward; a bound token is unredeemable without its key. Only a public client&rsquo;s refresh token is bound. A confidential client&rsquo;s is constrained by its client authentication instead, as §5 says, so it can refresh with a new key and the new access token binds to that key (<code>refreshConfirmation</code> in <code>apiauth/confidential_client_auth.go</code>, issue 443)</td>
 </tr>
 <tr>
 <td>RS-side proof validation (every request: <code>htm</code>, <code>htu</code>, <code>ath</code>, <code>jti</code>)</td>

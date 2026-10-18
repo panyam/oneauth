@@ -625,6 +625,15 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 </tr>
 <tr>
 <td>5</td>
+<td>Confidential client&rsquo;s refresh token left unbound (client authentication constrains it)</td>
+<td>—</td>
+<td>AS</td>
+<td>Pass (was stricter)</td>
+<td><code>confidential_client_auth.go</code> <code>refreshConfirmation</code></td>
+<td>e2e RefreshBindingFollowsClientType, DeviceGrant_RefreshBindingFollowsClientType</td>
+</tr>
+<tr>
+<td>5</td>
 <td>Binding survives FS / GORM / GAE stores</td>
 <td>—</td>
 <td>AS</td>
@@ -999,10 +1008,6 @@ reasons below.</p>
 </table>
 <p>Things that are deliberate rather than gaps:</p>
 <ul>
-<li><strong>Confidential clients&rsquo; refresh tokens are key-bound too.</strong> §5 only requires it for public<br />
-clients, since a confidential client&rsquo;s refresh token is already bound by client<br />
-authentication. Binding them anyway is stricter. The cost is that a confidential client<br />
-can&rsquo;t switch DPoP keys halfway through a session.</li>
 <li><strong>The default <code>JTIStore</code> is in-memory.</strong> That&rsquo;s right for one node and wrong for a fleet,<br />
 where a proof replayed against a different node isn&rsquo;t seen. <code>DPoPConfig.JTIStore</code> takes a<br />
 shared store.</li>

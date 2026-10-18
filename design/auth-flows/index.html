@@ -1294,7 +1294,7 @@ Result: User can now login TWO ways:
     C-&gt;&gt;AS: &quot;POST /api/token + DPoP: proof&quot;
     AS-&gt;&gt;AS: Validate proof&lt;br/&gt;&quot;typ, alg, signature, htm, htu, iat window, jti replay&quot;
     AS-&gt;&gt;AS: &quot;Thumbprint the public key (RFC 7638)&quot;
-    AS--&gt;&gt;C: &quot;token_type: DPoP&lt;br/&gt;access token carries cnf.jkt&lt;br/&gt;refresh token bound to the same key&quot;
+    AS--&gt;&gt;C: &quot;token_type: DPoP&lt;br/&gt;access token carries cnf.jkt&lt;br/&gt;a public client's refresh token is bound to the same key&quot;
 
     C-&gt;&gt;C: Mint a NEW proof for this request&lt;br/&gt;&quot;adds ath = hash of the access token&quot;
     C-&gt;&gt;RS: &quot;GET /resource&lt;br/&gt;Authorization: DPoP token&lt;br/&gt;DPoP: proof&quot;
