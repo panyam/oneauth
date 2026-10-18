@@ -1,7 +1,7 @@
 # OneAuth
 
 ## Version
-v0.2.2
+v0.2.3
 
 ## Provides
 - local-authentication: Email/password authentication with signup policy, rate limiting, account lockout. Reset tokens are stored hashed and are single-use; a reset ends other sessions (`AfterPasswordReset`); signup and forgot-password are rate limited; `TrustedProxies` gates X-Forwarded-For (issue 88).

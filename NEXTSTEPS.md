@@ -5,8 +5,8 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- No open threads. Active mission: #98 (OIDF FAPI 2.0 Security Profile run), 0/1; next ready #433 (make exercise-fapi2 runnable). Exercise never run yet.
-- This run: dropped docs/oauth-refresh (PR #435) and fix/434-introspect-cnf (PR #437, #434 closed); tagged v0.2.2. Retriage applied (JARM #409 parked; #339 is the likely next mission).
+- No open threads. Active mission: #98 (OIDF FAPI 2.0 Security Profile run), 2/6; next ready #439. Exercise last ran 2026-10-17 @ 9369845: 33/46 passed (`happy-flow` fails only on #440).
+- This run: dropped feat/433-exercise-fapi2 (PR #442) and fix/438-login-next (PR #444); filed #443; #440 P2 → P1; tagged v0.2.3.
 
 ## Across threads
 

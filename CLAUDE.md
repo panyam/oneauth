@@ -143,11 +143,13 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - **FAPI client keys are ES256.** Under `FAPI2` only PS256 / ES256 / EdDSA client assertions pass, and oneauth can register only ES256 of those today, so an RS256 `private_key_jwt` client stops authenticating when FAPI is turned on.
 - **CSRF refuses same-site posts.** `CSRFMiddleware` checks `Sec-Fetch-Site` and `Origin` on unsafe methods before the token; a test posting with `Origin` set to another host gets 403 even with a valid token. With `SessionID` set, a token minted before login stops validating after it (the next GET mints a new one).
 - **Signup with verification answers the same for a taken email.** `{"message": "Check your email to finish signing up."}`, no `user_id`. Code that read `user_id` from that response needs another way to find the user.
+- **`buildServer(cfg)` is the whole reference server.** `main()` only loads the config, runs the startup checks and listens. A test in `cmd/oneauth-server` builds the real handler with `buildServer` on an `httptest.NewUnstartedServer` (its listener address gives `public_url`); `newLoginFixture` in `login_next_test.go` adds a signed-up user and a DCR client. Anything `NewOneAuth` reads (stores, `AppStore`, keys) has to be in `OneAuthConfig`, since the granters are built at construction and a field set on `OneAuth` afterwards is never read (issue 438).
+- **The OIDF harness bind-mounts `certs/` from the checkout that ran `make upoidf`.** Run `make downoidf` before removing that worktree, or the harness loses its truststore. MongoDB is in the `oidf-conformance_mongo-data` volume since issue 438, and nginx answers as `localhost.emobix.co.uk` inside the compose network so the harness's own browser reaches its callback.
 - **httptest URL needed before mount.** When a handler config requires the server's base URL (e.g., RFC 8628 `VerificationURI`), use `httptest.NewUnstartedServer(mux)` → read `server.URL` → mount → `server.Start()`. Avoids post-hoc handler mutation. Pattern in `tests/e2e/device_flow_test.go`.
 
 ## Issues and missions
 
-Work is ranked by mission (labels and blocked-by links; `~/.claude/skills/retriage/queue.sh` prints the queue). The active mission is #98, the OIDF FAPI 2.0 Security Profile run (`mission_fapi2`); its first ticket is #433. JARM (#409) is parked. A new issue gets a priority (`P0` to `P3`) and either a mission link or `waiting` with its trigger.
+Work is ranked by mission (labels and blocked-by links; `~/.claude/skills/retriage/queue.sh` prints the queue). The active mission is #98, the OIDF FAPI 2.0 Security Profile run (`mission_fapi2`); `make exercise-fapi2` is its exercise, and `queue.sh` names the next ready ticket. JARM (#409) is parked. A new issue gets a priority (`P0` to `P3`) and either a mission link or `waiting` with its trigger.
 
 ## Gap analyses
 

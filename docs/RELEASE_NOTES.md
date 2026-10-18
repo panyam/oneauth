@@ -3,6 +3,34 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.2.3
+
+### Reference server: the browser code flow works end to end (issue 438, PR 444)
+
+- **Login dropped `next`.** `/authorize` sends an unauthenticated user to
+  `/auth/login?next=…`, and `cmd/oneauth-server` always redirected a
+  browser login to `/dashboard`, so the code flow never reached consent.
+  The form now carries `next` and follows it when it's a path on this site
+  (`httpauth.LocalRedirect`); anything else still goes to `/dashboard`.
+- **Code and device-code redemption answered `unsupported_grant_type`.** The
+  server attached its code store, device store and AppStore to `OneAuth`
+  after `NewOneAuth` had built the granters, so they were never read. They
+  are now in `OneAuthConfig`.
+- **`/api/*` refused the server's own RS256 / ES256 tokens.** The middleware
+  knew only the HS256 secret; it now uses `oa.Validator`.
+- `main()` is split into `buildServer(cfg)` so tests drive the real server
+  in-process. The OIDF FAPI 2.0 exercise (`make exercise-fapi2`) goes from
+  10 of 46 modules passing to 33.
+
+### Upgrading
+
+- Library code is unchanged. Only `cmd/oneauth-server` deployments with
+  `code_flow` or `device_flow` enabled see different behavior: codes now
+  redeem, and the client authenticator checks each client's registered
+  `token_endpoint_auth_method`.
+- The OIDF harness keeps MongoDB in a named volume; an old
+  `tests/oidf-conformance/mongo/` directory can be deleted.
+
 ## Version 0.2.2
 
 ### Introspection `cnf`; FAPI2 assertion grants (issue 434, PR 437)
