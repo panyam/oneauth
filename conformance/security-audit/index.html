@@ -217,9 +217,11 @@ profile with <code>deploy-examples/fapi-dpop.yaml</code>. Three caveats:</p>
 <li><strong>Client assertions are ES256.</strong> FAPI allows PS256, ES256 and EdDSA; oneauth can register<br />
 ES256 client keys today. PS256 is #330 and EdDSA client keys #331 (EdDSA DPoP proofs already<br />
 work).</li>
-<li><strong>Not run against the OpenID conformance suite.</strong> The OIDF workflow exists but has never run<br />
-(#201, #290). Everything here is checked by our own tests and, where Keycloak supports the<br />
-feature, side by side with Keycloak 26.</li>
+<li><strong>The OpenID conformance suite runs locally, not in CI.</strong> <code>make testoidf</code> runs the FAPI 2.0<br />
+plan (mission #98): 41 of 46 modules pass, four end in REVIEW on oneauth&rsquo;s error page, and the<br />
+RS256 module is skipped (#330). The OIDF workflow is manual-only and has never run. Beyond<br />
+that, everything here is checked by our own tests and, where Keycloak supports the feature,<br />
+side by side with Keycloak 26.</li>
 </ul>
 <p>What FAPI 2.0 <em>Message Signing</em> adds (JARM, signed introspection, HTTP message signatures) is not<br />
 supported, and neither is FAPI 1.0&rsquo;s <code>s_hash</code>, which rides on OIDC ID tokens oneauth doesn&rsquo;t<br />
@@ -375,8 +377,8 @@ says shouldn&rsquo;t pass.</p>
 <td>L</td>
 </tr>
 <tr>
-<td>A first run of the OIDF conformance suite</td>
-<td>#201, #290</td>
+<td>The OIDF conformance suite in CI (the FAPI 2.0 plan runs locally)</td>
+<td>#290</td>
 <td>M</td>
 </tr>
 <tr>
@@ -428,8 +430,8 @@ says shouldn&rsquo;t pass.</p>
 </tr>
 <tr>
 <td>OIDF conformance</td>
-<td><code>tests/oidf-conformance</code></td>
-<td>never run (#201, #290)</td>
+<td><code>tests/oidf-conformance</code>, the discovery and FAPI 2.0 plans</td>
+<td>local (<code>make testoidf</code>); the workflow is manual-only (#290)</td>
 </tr>
 </tbody>
 </table>

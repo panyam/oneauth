@@ -358,6 +358,56 @@
 <p>The store ships in-memory and GORM behind the shared <code>partest</code> contract suite. FS and GAE are tracked under #382. This also closed RFC 9449 §10.1, since a push may carry the DPoP key as <code>dpop_jkt</code> or as a proof header.</p>
 <p><strong>Unblocked #98:</strong> PAR was FAPI 2.0&rsquo;s last outstanding prerequisite.</p>
 <hr />
+<h2 id="oidf-fapi-20-security-profile-run-mission-98--complete">OIDF FAPI 2.0 Security Profile run (mission #98) ✅ COMPLETE <a class="anchor" href="#oidf-fapi-20-security-profile-run-mission-98--complete">¶</a></h2>
+<p>The OpenID Foundation&rsquo;s <code>fapi2-security-profile-final-test-plan</code> runs against <code>cmd/oneauth-server</code> with <code>deploy-examples/fapi-dpop.yaml</code>&rsquo;s profile (<code>make exercise-fapi2</code>), and <code>make testoidf</code> enforces the result: 41 of 46 modules pass, the four that expect <code>/authorize</code> to refuse end in REVIEW with oneauth&rsquo;s error page checked against <code>known-gaps.yaml</code>, and the RS256 module is skipped because FAPI clients use ES256 (#330). Shipped in 0.2.3 to 0.2.5:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Delivery</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>433</td>
+<td>The exercise itself: harness plan, DCR clients, browser automation</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>438</td>
+<td>Reference server&rsquo;s browser code flow works end to end (<code>next</code> on login, granters built from <code>OneAuthConfig</code>)</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>439</td>
+<td>PAR answers <code>invalid_request</code> for an unregistered redirect URI; client assertions allow 10s clock skew</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>440</td>
+<td>Reference server TLS follows BCP 195</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>443</td>
+<td>Confidential clients&rsquo; refresh tokens unbound from DPoP keys; missing <code>code_verifier</code> is <code>invalid_grant</code>; per-module browser scripts</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>447</td>
+<td>Plan judged against <code>known-gaps.yaml</code> inside <code>make testoidf</code></td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>441</td>
+<td><code>fapi2</code> signs ES256; ephemeral keys follow <code>signing_alg</code></td>
+<td>Merged</td>
+</tr>
+</tbody>
+</table>
+<p>Still open: the OIDF workflow in CI is manual-only (#290), and PS256 (#330) would let the RS256 module run.</p>
+<hr />
 <h2 id="execution-order">Execution Order <a class="anchor" href="#execution-order">¶</a></h2>
 <pre><code class="language-mermaid">flowchart TD
     subgraph BUGS[&quot;Bug Fixes&quot;]

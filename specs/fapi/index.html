@@ -382,8 +382,8 @@ metadata and JWKS; reject HS256 and RS256.</li>
 </ol>
 <p>For OneAuth, steps 1 to 4 have landed for the FAPI 2.0 Security Profile:<br />
 DPoP (mTLS is still #335), PAR, and the algorithm lockdown, all switched on<br />
-together by <code>OneAuthConfig.FAPI2</code>. Step 5 has not happened. The OIDF suite<br />
-has never been run against oneauth (mission #98, #433).</p>
+together by <code>OneAuthConfig.FAPI2</code>. Step 5 has run locally (mission #98):<br />
+the harness&rsquo;s <code>fapi2-security-profile-final-test-plan</code> runs locally through <code>make testoidf</code>: 41 of 46 modules pass, the four that expect an error page end in REVIEW with the right refusal captured, and the RS256 module is skipped because FAPI clients use ES256. The OIDF workflow in CI is still manual-only and has not run.</p>
 <h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
 <ul>
 <li><strong>Consumer-grade OAuth without regulatory pressure.</strong> FAPI is heavy.<br />
@@ -403,9 +403,9 @@ the profile&rsquo;s authorization-server and resource-server requirements (§5.3
 profile with <code>deploy-examples/fapi-dpop.yaml</code>. There are three caveats. DPoP<br />
 is the only sender constraint (mTLS is #335). Only ES256 client keys can be<br />
 registered, so FAPI clients use ES256 (PS256 is #330, EdDSA client keys<br />
-#331). The OIDF conformance suite has never been run (mission #98, #433), so<br />
-everything here is checked by oneauth&rsquo;s own tests and, where Keycloak supports<br />
-the feature, side by side with Keycloak 26. The requirement-by-requirement<br />
+#331). The OIDF FAPI 2.0 plan runs locally in <code>make testoidf</code> (mission #98)<br />
+but not yet in CI. Beyond it, everything here is checked by oneauth&rsquo;s own<br />
+tests and, where Keycloak supports the feature, side by side with Keycloak 26. The requirement-by-requirement<br />
 matrix is in <a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a>.</p>
 <table>
 <thead>
@@ -493,7 +493,7 @@ matrix is in <a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a>.<
 </tr>
 <tr>
 <td>OIDF conformance run</td>
-<td>Not done. The OIDF workflow exists but has never run (mission #98, #433)</td>
+<td><strong>Local</strong> (0.2.5). <code>make testoidf</code> runs the FAPI 2.0 plan: 41 of 46 pass, 4 REVIEW error pages checked against <code>known-gaps.yaml</code>, 1 RS256 skip (#330). The CI workflow is manual-only and has not run</td>
 <td><a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a></td>
 </tr>
 </tbody>
