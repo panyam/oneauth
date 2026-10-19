@@ -10,7 +10,7 @@ This directory wires the [OpenID Foundation conformance suite](https://gitlab.co
 make testoidf
 ```
 
-Auto-starts the harness + AS if they aren't already running, then runs `discovery_test.go` which drives the harness via REST, summarises per-check FAILURE/WARNING outcomes, and diffs them against the OIDF entries in `../conformance/known-gaps.yaml`. Exits non-zero on:
+Auto-starts the harness + AS if they aren't already running, then runs `discovery_test.go` and the FAPI 2.0 plan (below). The discovery test drives the harness via REST, summarises per-check FAILURE/WARNING outcomes, and diffs them against the OIDF entries in `../conformance/known-gaps.yaml`. Exits non-zero on:
 
 - a check failure not in the manifest (regression)
 - a manifest entry with no observed failure (ratchet-up — remove the entry)
@@ -55,7 +55,9 @@ This is the FAPI 2.0 mission's exercise (issue 98). It runs the harness's `fapi2
 
 The plan variants are `private_key_jwt`, `dpop`, `plain_fapi` and `plain_oauth`. It's `plain_oauth` because oneauth issues no ID tokens yet (#339). The harness's headless browser logs in and approves using the selectors in `fapi2.BrowserAutomation`. Six modules need a different script, which the plan config carries as per-module overrides (`fapi2.ModuleBrowsers`): Deny for `user-rejects-authentication`, a skipped first visit for the reused-`request_uri` module, and a wait for oneauth's error page (`id="authorize-error"`) for the four that expect `/authorize` to refuse. A wait on the error page fills the module's screenshot placeholder, so those modules finish as REVIEW, the harness's result for a check a person signs off on. `fapi2/config_test.go` checks every selector against the real login, consent and error pages.
 
-The command exits non-zero until every module passes, so it isn't a CI gate yet. Wiring it into the ratchet next to `discovery_test.go` is the mission's "done when". The server log goes to `/tmp/oneauth-fapi2-exercise.log`.
+Each module is then judged against its entry in `../conformance/known-gaps.yaml` (`fapi2.Judge`). A module with no entry has to pass. This plan's entries name whole modules rather than checks, and use two statuses the discovery plan doesn't. `expected-review` covers the four error-page modules, and its `evidence` is text the captured page has to contain, so a 500 or the wrong refusal still fails. `expected-skip` covers `ensure-signed-client-assertion-with-RS256-fails`, which the harness runs only with an RSA client key (issue 330). The command exits non-zero on a REGRESSION (a module ended worse than its entry allows) or a RATCHET-UP (an entry that no longer matches the run), and prints the captured error text next to each REVIEW line.
+
+`make exercise-fapi2 MODULE=reuse-request_uri` runs only the modules whose names contain the string, which is handy when checking one browser script. `make testoidf` runs the same judgement as `TestOIDF_FAPI2_SecurityProfile` in `fapi2_plan_test.go`, through `scripts/exercise-fapi2.sh --go-test`, so a regression fails the ratchet. The server log goes to `/tmp/oneauth-fapi2-exercise.log`.
 
 ## Running a baseline plan via the harness REST API
 

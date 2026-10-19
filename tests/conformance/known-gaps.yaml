@@ -13,7 +13,9 @@
 #   plan/test — external suites only (OIDF, MCP); paired. For OIDF, `test`
 #               carries the harness check-class identifier (`src` in the
 #               log JSON), which is the stable per-check identifier across runs.
-#   status    — must be "expected-fail"
+#   status    — "expected-fail"; external entries may also be "expected-review"
+#               or "expected-skip" (see the FAPI 2.0 section at the end)
+#   evidence  — expected-review only: text the captured page must contain
 #   issue     — required GitHub issue number tracking the gap
 #   owner     — GitHub handle responsible for closing the gap
 #   reason    — multi-line; what is missing and why this is filed instead of fixed
@@ -108,3 +110,74 @@
     userinfo_endpoint is absent. Gated on issue 116 (the userinfo
     endpoint is part of the OIDC IdP surface).
   expires: 2026-12-31
+
+# -----------------------------------------------------------------------------
+# FAPI 2.0 Security Profile plan (mission issue 98)
+# -----------------------------------------------------------------------------
+# Enforced by tests/oidf-conformance/fapi2_plan_test.go through fapi2.Judge.
+# Unlike the discovery entries above, `test` names a whole plan module, and
+# two more statuses apply. `expected-review` is a module the harness ends in
+# REVIEW (a screenshot a person signs off on); `evidence` is text the page
+# the browser captured must contain, so a different error page still fails.
+# `expected-skip` is a module the harness skips for this plan's config.
+# Every other module has to pass.
+
+- suite: oidf
+  plan: fapi2-security-profile-final-test-plan
+  test: fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails
+  status: expected-review
+  evidence: only through the pushed authorization request endpoint
+  issue: 98
+  owner: panyam
+  reason: |
+    FAPI 2.0 makes PAR mandatory, so /authorize refuses a direct request
+    with oneauth's error page. The harness asks for a screenshot of it.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: fapi2-security-profile-final-test-plan
+  test: fapi2-security-profile-final-par-attempt-reuse-request_uri
+  status: expected-review
+  evidence: request_uri has already been used
+  issue: 98
+  owner: panyam
+  reason: |
+    A request_uri is single-use (RFC 9126 §2.2), so the second visit gets
+    oneauth's error page. The harness asks for a screenshot of it.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: fapi2-security-profile-final-test-plan
+  test: fapi2-security-profile-final-par-attempt-to-use-expired-request_uri
+  status: expected-review
+  evidence: request_uri has expired
+  issue: 98
+  owner: panyam
+  reason: |
+    An expired request_uri gets oneauth's error page. The harness asks for
+    a screenshot of it.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: fapi2-security-profile-final-test-plan
+  test: fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client
+  status: expected-review
+  evidence: request_uri was not issued to this client
+  issue: 98
+  owner: panyam
+  reason: |
+    A request_uri presented with another client's client_id gets oneauth's
+    error page. The harness asks for a screenshot of it.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: fapi2-security-profile-final-test-plan
+  test: fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails
+  status: expected-skip
+  issue: 330
+  owner: panyam
+  reason: |
+    The harness runs this only with an RSA client key, and the plan's
+    clients use ES256 because oneauth can't register a PS256 client yet
+    (issue 330). The harness says the skip doesn't block certification.
+  expires: 2027-12-31

@@ -97,6 +97,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 | In-process e2e | `tests/e2e/` | All endpoints end-to-end against `cmd/oneauth-server` |
 | Conformance ratchet | `tests/conformance/` | RFC 8414 dual-path (`as_metadata/`), RFC 7662 (`introspection/`), `private_key_jwt` (`client_auth/`); expected failures in `known-gaps.yaml`, run by `make testconformance` |
 | OIDF discovery plan | `tests/oidf-conformance/` | `oidcc-config-certification-test-plan` through `make testoidf`. The OIDF workflow is `workflow_dispatch` only and has not run in CI yet. |
+| OIDF FAPI 2.0 plan | `tests/oidf-conformance/fapi2/` | `fapi2-security-profile-final-test-plan` through `make testoidf` (and `make exercise-fapi2`); whole-module `expected-review` / `expected-skip` entries in `known-gaps.yaml`. Local only, like the discovery plan. |
 
 ### 2.2 Suites to adopt (Tier 1)
 

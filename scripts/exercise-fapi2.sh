@@ -8,8 +8,15 @@
 #      inside the harness container), stopped again on exit
 #   3. register a user and two clients, run every module, print results
 #
-# Exits non-zero while any module doesn't pass. Server log:
-# $OIDF_FAPI2_LOG (default /tmp/oneauth-fapi2-exercise.log).
+# Each module is judged against tests/conformance/known-gaps.yaml, and the
+# script exits non-zero on a regression or a stale entry. Arguments go to
+# fapi2/cmd/exercise (e.g. -module reuse-request_uri to run just matching
+# modules).
+#
+# With --go-test as the first argument, step 3 is instead `go test ./...` in
+# tests/oidf-conformance, the ratchet `make testoidf` runs, and the remaining
+# arguments go to go test. Server log: $OIDF_FAPI2_LOG (default
+# /tmp/oneauth-fapi2-exercise.log).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -44,6 +51,12 @@ for _ in $(seq 1 30); do
   fi
   sleep 1
 done
+
+if [[ "${1:-}" == --go-test ]]; then
+  shift
+  (cd tests/oidf-conformance && GOWORK=off go test -count=1 -v -timeout 90m ./... "$@")
+  exit
+fi
 
 (cd tests/oidf-conformance && GOWORK=off go run ./fapi2/cmd/exercise \
   -harness "$harness" -server "$server" -issuer https://host.docker.internal:8889 \

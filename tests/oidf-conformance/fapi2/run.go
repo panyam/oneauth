@@ -88,13 +88,38 @@ type ModuleResult struct {
 	Result string
 	// FirstFailure is the first FAILURE message in the module's log.
 	FirstFailure string
-	Err          error
+	// ReviewPage is the page source the browser captured for the module's
+	// REVIEW check, if it filled one. Passing modules carry REVIEW entries
+	// too, with the placeholder marked no longer required and no page.
+	ReviewPage string
+	Err        error
+}
+
+// Prepare signs up s.User and registers both of s.Clients with the server
+// at serverURL, filling in each client's ID and key.
+func Prepare(ctx context.Context, hc *http.Client, serverURL string, s *Setup) error {
+	if err := SignUp(ctx, hc, serverURL, s.User); err != nil {
+		return fmt.Errorf("sign up the browser user: %w", err)
+	}
+	for i := range s.Clients {
+		key, err := NewClientKey()
+		if err != nil {
+			return err
+		}
+		id, err := Register(ctx, hc, serverURL, key, ClientRedirectURI(s.HarnessURL, s.Alias, i), s.Scope)
+		if err != nil {
+			return fmt.Errorf("register client %d: %w", i+1, err)
+		}
+		s.Clients[i] = RegisteredClient{ID: id, Key: key}
+	}
+	return nil
 }
 
 // RunPlan creates the plan and runs each of its modules in turn, giving each
 // up to perModule to finish. A module stuck waiting on the browser shows up
-// as TIMEOUT rather than stopping the run.
-func RunPlan(ctx context.Context, h *harness.Client, s Setup, perModule time.Duration, progress func(ModuleResult)) (string, []ModuleResult, error) {
+// as TIMEOUT rather than stopping the run. With only set, it runs just the
+// modules whose names contain it.
+func RunPlan(ctx context.Context, h *harness.Client, s Setup, perModule time.Duration, only string, progress func(ModuleResult)) (string, []ModuleResult, error) {
 	planID, err := h.CreatePlanWithVariant(ctx, PlanName, PlanVariant(), PlanConfig(s))
 	if err != nil {
 		return "", nil, err
@@ -105,6 +130,9 @@ func RunPlan(ctx context.Context, h *harness.Client, s Setup, perModule time.Dur
 	}
 	var results []ModuleResult
 	for _, m := range plan.Modules {
+		if !strings.Contains(m.TestModule, only) {
+			continue
+		}
 		r := runModule(ctx, h, planID, m, perModule)
 		results = append(results, r)
 		if progress != nil {
@@ -135,9 +163,11 @@ func runModule(ctx context.Context, h *harness.Client, planID string, m harness.
 	}
 	if entries, lerr := h.GetLog(ctx, testID); lerr == nil {
 		for _, e := range entries {
-			if e.Result == harness.ResultFailure {
+			if e.Result == harness.ResultFailure && r.FirstFailure == "" {
 				r.FirstFailure = e.Src + ": " + e.Msg
-				break
+			}
+			if e.Result == harness.ResultReview && e.PageSource != "" && r.ReviewPage == "" {
+				r.ReviewPage = e.PageSource
 			}
 		}
 	}

@@ -690,24 +690,29 @@ oidflogs:
 # the harness + AS if not already running, then runs the discovery
 # test wrapper which drives the harness via REST and diffs results
 # against tests/conformance/known-gaps.yaml (external-suite entries).
+# The FAPI 2.0 plan (issue 98) runs in the same go test, against a fresh
+# FAPI server on :8889 that scripts/exercise-fapi2.sh --go-test starts
+# and stops. The full run takes a while (46 modules).
 testoidf:
 	@if ! curl -ksf -o /dev/null https://localhost.emobix.co.uk:8443/; then \
 		echo "OIDF harness not running — starting it..."; \
 		$(MAKE) upoidf; \
 	fi
-	@if ! curl -sf -o /dev/null http://localhost:8888/.well-known/openid-configuration; then \
+	@if ! curl -sf --cacert tests/oidf-conformance/certs/ca.crt -o /dev/null https://localhost:8888/.well-known/openid-configuration; then \
 		echo "oneauth-server not running on :8888 — starting it in the background..."; \
 		go run -buildvcs=false ./cmd/oneauth-server --config $(OIDF_AS_CONFIG) > /dev/null 2>&1 & \
-		until curl -sf -o /dev/null http://localhost:8888/.well-known/openid-configuration; do sleep 1; done; \
+		until curl -sf --cacert tests/oidf-conformance/certs/ca.crt -o /dev/null https://localhost:8888/.well-known/openid-configuration; do sleep 1; done; \
 	fi
-	cd tests/oidf-conformance && GOWORK=off go test -count=1 -v ./...
+	./scripts/exercise-fapi2.sh --go-test
 
 # The FAPI 2.0 mission's exercise (issue 98): runs the OIDF
 # fapi2-security-profile-final-test-plan against oneauth-server on :8889 and
-# prints one line per module. Starts the harness if needed. Not a CI gate:
-# it exits non-zero until every module passes.
+# prints one line per module. Starts the harness if needed. Exits non-zero
+# on any module out of line with tests/conformance/known-gaps.yaml, the
+# same check `make testoidf` runs. MODULE=<substring> runs only matching
+# modules.
 exercise-fapi2:
-	./scripts/exercise-fapi2.sh
+	./scripts/exercise-fapi2.sh $(if $(MODULE),-module $(MODULE))
 
 # =============================================================================
 # Conformance ratchet — see docs/CONFORMANCE.md

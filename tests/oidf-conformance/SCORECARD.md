@@ -12,8 +12,8 @@ Test module: `oidcc-discovery-endpoint-verification`
 
 | Metric | Count |
 |---|---|
-| Total checks observed | 22 |
-| Passing | 18 |
+| Total checks observed | 31 |
+| Passing | 27 |
 | Known gaps (expected-fail in manifest) | 4 |
 | Regressions (failed but NOT in manifest) | 0 |
 | Ratchet-up available (in manifest but passed) | 0 |
@@ -26,24 +26,33 @@ Test module: `oidcc-discovery-endpoint-verification`
 | `CheckDiscEndpointAuthorizationEndpoint` | KNOWN-FAIL | [#116](https://github.com/panyam/oneauth/issues/116) | authorization_endpoint is not advertised because /authorize isn't |
 | `CheckDiscEndpointDiscoveryUrl` | PASS | — |  |
 | `CheckDiscEndpointIssuer` | PASS | — |  |
+| `CheckDiscEndpointIssuerIsValidUrl` | PASS | — |  |
+| `CheckDiscEndpointLocalesCanonicalCasing` | PASS | — |  |
+| `CheckDiscEndpointLocalesSyntax` | PASS | — |  |
 | `CheckDiscEndpointRegistrationEndpoint` | PASS | — |  |
 | `CheckDiscEndpointRequestUriParameterSupported` | PASS | — |  |
 | `CheckDiscEndpointScopesSupportedContainsOpenId` | PASS | — |  |
+| `CheckDiscEndpointScopesSupportedSyntax` | PASS | — |  |
 | `CheckDiscEndpointSubjectTypesSupported` | PASS | — |  |
 | `CheckDiscEndpointTokenEndpoint` | PASS | — |  |
 | `CheckDiscEndpointUserinfoEndpoint` | KNOWN-WARN | [#116](https://github.com/panyam/oneauth/issues/116) | userinfo_endpoint is absent. Gated on issue 116 (the userinfo |
 | `CheckDiscoveryEndpointReturnedJsonContentType` | PASS | — |  |
+| `CheckForUnexpectedParametersInServerMetadata` | PASS | — |  |
 | `CheckJwksUri` | PASS | — |  |
 | `EnsureDiscoveryEndpointResponseStatusCodeIs200` | PASS | — |  |
+| `EnsureJwksHasNoPrivateOrSymmetricKeyMaterial` | PASS | — |  |
 | `EnsureServerConfigurationCodeChallengeMethodsSupportedIsAnArray` | PASS | — |  |
-| `EnsureServerJwksDoesNotContainPrivateOrSymmetricKeys` | PASS | — |  |
 | `FetchServerKeys` | PASS | — |  |
 | `GetDynamicServerConfiguration` | PASS | — |  |
+| `MapJwksToValidationLocation` | PASS | — |  |
 | `OIDCCCheckDiscEndpointClaimsSupported` | PASS | — |  |
 | `OIDCCCheckDiscEndpointGrantTypesSupported` | PASS | — |  |
 | `OIDCCCheckDiscEndpointIdTokenSigningAlgValuesSupported` | KNOWN-FAIL | [#116](https://github.com/panyam/oneauth/issues/116) | id_token_signing_alg_values_supported is gated on issue 116 issuing |
 | `OIDCCCheckDiscEndpointResponseTypesSupported` | KNOWN-FAIL | [#116](https://github.com/panyam/oneauth/issues/116) | OneAuth does not implement /authorize and therefore advertises no |
-| `ValidateServerJWKs` | PASS | — |  |
+| `ParseUsableJwksKeys` | PASS | — |  |
+| `ValidateJwksStructure` | PASS | — |  |
+| `ValidateServerMetadataAgainstSchema` | PASS | — |  |
+| `WarnOnUnusableJwksKeys` | PASS | — |  |
 
 ### Legend
 
