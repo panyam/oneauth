@@ -286,6 +286,11 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 			return
 		}
 		refreshTokenStr = createResp.Token.Token
+		if err := recordAccessToken(r.Context(), h.OneAuth.RefreshStore, h.OneAuth.Blacklist, refreshTokenStr, resp.TokenID, resp.ExpiresAt); err != nil {
+			log.Printf("record access token: %v", err)
+			h.writeError(w, serverError("failed to create session"))
+			return
+		}
 	}
 
 	h.fireOnLoginSuccess(resp.Subject)

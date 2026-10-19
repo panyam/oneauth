@@ -7,8 +7,8 @@ and [`localauth/`](../localauth/SUMMARY.md) (username/password) and
 [`federatedauth/`](../federatedauth/SUMMARY.md) (OAuth/SAML callbacks).
 
 ## Contents
-- **stores.go** — Store interfaces: `RefreshTokenStore`, `APIKeyStore`
-- **tokens.go** — `RefreshToken`, `APIKey`, `TokenPair`, `TokenRequest`, `TokenError`, error vars, expiry constants, `GenerateSecureToken`, `GenerateAPIKeyID`, `GenerateAPIKeySecret`
+- **stores.go** — Store interfaces: `RefreshTokenStore` (`RecordAccessToken` + `RevokeTokenFamily` returning the family's access tokens, RFC 7009 §2.1), `APIKeyStore`
+- **tokens.go** — `RefreshToken`, `IssuedAccessToken` (+ `AppendIssuedAccessToken` / `LiveIssuedAccessTokens` pruning helpers), `APIKey`, `TokenPair`, `TokenRequest`, `TokenError`, error vars, expiry constants, `GenerateSecureToken`, `GenerateAPIKeyID`, `GenerateAPIKeySecret`
 - **scopes.go** — Scope constants (`ScopeRead`, etc.), `GetUserScopesFunc`, `ParseScopes`, `JoinScopes`, `IntersectScopes`, `UnionScopes`
 - **context.go** — `GetUserIDFromContext()`, `SetUserIDInContext()`, `DefaultUserParamName`
 - **authorization_details.go** — `AuthorizationDetail` struct (RFC 9396), custom JSON marshal/unmarshal with extension flattening, `ValidateAll()`, `FilterByType()`, `ErrInvalidAuthorizationDetails`

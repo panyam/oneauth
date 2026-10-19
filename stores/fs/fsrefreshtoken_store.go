@@ -220,26 +220,52 @@ func (s *FSRefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core
 	return &core.RevokeSubjectTokensResponse{}, nil
 }
 
+// RecordAccessToken appends the access token to req.Token's record under
+// the store lock, so it is atomic against RevokeTokenFamily. A missing
+// token is core.ErrTokenNotFound.
+func (s *FSRefreshTokenStore) RecordAccessToken(ctx context.Context, req *core.RecordAccessTokenRequest) (*core.RecordAccessTokenResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rt, err := s.getTokenUnsafe(req.Token)
+	if err != nil {
+		return nil, err
+	}
+	rt.AccessTokens = core.AppendIssuedAccessToken(rt.AccessTokens,
+		core.IssuedAccessToken{TokenID: req.TokenID, ExpiresAt: req.ExpiresAt}, time.Now())
+	if err := s.saveToken(rt); err != nil {
+		return nil, err
+	}
+	return &core.RecordAccessTokenResponse{Revoked: rt.Revoked}, nil
+}
+
+// RevokeTokenFamily revokes every live token in the family and returns
+// the unexpired access tokens recorded on any of them, revoked or not.
 func (s *FSRefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	now := time.Now()
+	var issued []core.IssuedAccessToken
 	if err := s.forEachToken(func(token *core.RefreshToken, path string) error {
-		if token.Family == req.Family && !token.Revoked {
-			now := time.Now()
-			token.Revoked = true
-			token.RevokedAt = &now
-			data, err := json.MarshalIndent(token, "", "  ")
-			if err != nil {
-				return err
-			}
-			return writeAtomicFile(path, data)
+		if token.Family != req.Family {
+			return nil
 		}
-		return nil
+		issued = append(issued, core.LiveIssuedAccessTokens(token.AccessTokens, now)...)
+		if token.Revoked {
+			return nil
+		}
+		token.Revoked = true
+		token.RevokedAt = &now
+		data, err := json.MarshalIndent(token, "", "  ")
+		if err != nil {
+			return err
+		}
+		return writeAtomicFile(path, data)
 	}); err != nil {
 		return nil, err
 	}
-	return &core.RevokeTokenFamilyResponse{}, nil
+	return &core.RevokeTokenFamilyResponse{AccessTokens: issued}, nil
 }
 
 func (s *FSRefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {

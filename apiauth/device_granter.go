@@ -135,6 +135,9 @@ func (r *deviceCodeGranter) DeviceCodeGrant(ctx context.Context, req *DeviceCode
 		})
 		if rtErr == nil && createResp != nil && createResp.Token != nil {
 			pair.RefreshToken = createResp.Token.Token
+			if err := recordAccessToken(ctx, r.RefreshStore, nil, pair.RefreshToken, tok.TokenID, tok.ExpiresAt); err != nil {
+				return nil, serverError("record access token: " + err.Error())
+			}
 		}
 	}
 

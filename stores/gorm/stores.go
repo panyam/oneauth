@@ -513,14 +513,67 @@ func (s *RefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.R
 	return &core.RevokeSubjectTokensResponse{}, nil
 }
 
-func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
-	now := time.Now()
-	if err := s.db.WithContext(ctx).Model(&RefreshTokenModel{}).
-		Where("family = ? AND revoked = ?", req.Family, false).
-		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error; err != nil {
+// RecordAccessToken appends the access token to req.Token's row and
+// reports whether the row was revoked. The transaction writes the row
+// before reading it, which takes the row lock, so it serializes against
+// RevokeTokenFamily (whose UPDATE takes the same lock) and against a
+// concurrent RecordAccessToken on the same row: neither loses the
+// other's append. A missing token is core.ErrTokenNotFound.
+func (s *RefreshTokenStore) RecordAccessToken(ctx context.Context, req *core.RecordAccessTokenRequest) (*core.RecordAccessTokenResponse, error) {
+	tokenHash := s.hashToken(req.Token)
+	var revoked bool
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		res := tx.Model(&RefreshTokenModel{}).Where("token_hash = ?", tokenHash).Update("last_used_at", now)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return core.ErrTokenNotFound
+		}
+		var model RefreshTokenModel
+		if err := tx.First(&model, "token_hash = ?", tokenHash).Error; err != nil {
+			return err
+		}
+		revoked = model.Revoked
+		list := core.AppendIssuedAccessToken(model.AccessTokens,
+			core.IssuedAccessToken{TokenID: req.TokenID, ExpiresAt: req.ExpiresAt}, now)
+		return tx.Model(&RefreshTokenModel{}).Where("token_hash = ?", tokenHash).
+			Update("access_tokens", IssuedAccessTokensJSON(list)).Error
+	})
+	if err != nil {
 		return nil, err
 	}
-	return &core.RevokeTokenFamilyResponse{}, nil
+	return &core.RecordAccessTokenResponse{Revoked: revoked}, nil
+}
+
+// RevokeTokenFamily revokes the family's live rows, then reads every row
+// in the family, revoked earlier or not, for its unexpired access tokens.
+// Revoking first takes the row locks, so a RecordAccessToken that began
+// earlier has committed before the read and one that begins later sees
+// Revoked.
+func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
+	var issued []core.IssuedAccessToken
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		if err := tx.Model(&RefreshTokenModel{}).
+			Where("family = ? AND revoked = ?", req.Family, false).
+			Updates(map[string]any{"revoked": true, "revoked_at": now}).Error; err != nil {
+			return err
+		}
+		var models []RefreshTokenModel
+		if err := tx.Where("family = ?", req.Family).Find(&models).Error; err != nil {
+			return err
+		}
+		for _, m := range models {
+			issued = append(issued, core.LiveIssuedAccessTokens(m.AccessTokens, now)...)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &core.RevokeTokenFamilyResponse{AccessTokens: issued}, nil
 }
 
 func (s *RefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {

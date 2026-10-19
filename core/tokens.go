@@ -50,6 +50,36 @@ type RefreshToken struct {
 	LastUsedAt           time.Time             `json:"last_used_at"`
 	RevokedAt            *time.Time            `json:"revoked_at,omitempty"`
 	Revoked              bool                  `json:"revoked"`
+
+	// AccessTokens are the unexpired access tokens issued with this
+	// refresh token (RefreshTokenStore.RecordAccessToken), kept so
+	// revoking the family can blacklist them.
+	AccessTokens []IssuedAccessToken `json:"access_tokens,omitempty"`
+}
+
+// IssuedAccessToken identifies an access token by its `jti` and `exp`,
+// which is what a TokenBlacklist entry needs.
+type IssuedAccessToken struct {
+	TokenID   string    `json:"token_id"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// AppendIssuedAccessToken returns list plus tok, without the entries
+// that expired before now. Store backends share it so they prune alike.
+func AppendIssuedAccessToken(list []IssuedAccessToken, tok IssuedAccessToken, now time.Time) []IssuedAccessToken {
+	out := LiveIssuedAccessTokens(list, now)
+	return append(out, tok)
+}
+
+// LiveIssuedAccessTokens returns the entries of list that expire after now.
+func LiveIssuedAccessTokens(list []IssuedAccessToken, now time.Time) []IssuedAccessToken {
+	var out []IssuedAccessToken
+	for _, t := range list {
+		if t.ExpiresAt.After(now) {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // IsExpired checks if a refresh token has expired.

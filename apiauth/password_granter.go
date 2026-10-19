@@ -138,5 +138,7 @@ func (g *defaultPasswordGranter) PasswordGrant(ctx context.Context, req *Passwor
 		ExpiresIn:            tok.ExpiresIn,
 		GrantedScopes:        grantedScopes,
 		AuthorizationDetails: req.AuthorizationDetails,
+		TokenID:              tok.TokenID,
+		ExpiresAt:            tok.ExpiresAt,
 	}, nil
 }

@@ -79,6 +79,34 @@ func (a *AuthorizationDetailsJSON) Scan(value any) error {
 	return json.Unmarshal(bytes, a)
 }
 
+// IssuedAccessTokensJSON stores a refresh token's []core.IssuedAccessToken
+// as JSONB.
+type IssuedAccessTokensJSON []core.IssuedAccessToken
+
+func (a IssuedAccessTokensJSON) Value() (driver.Value, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return json.Marshal(a)
+}
+
+func (a *IssuedAccessTokensJSON) Scan(value any) error {
+	if value == nil {
+		*a = nil
+		return nil
+	}
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return nil
+	}
+	return json.Unmarshal(bytes, a)
+}
+
 // UserModel is the GORM model for users
 type UserModel struct {
 	ID        string    `gorm:"primaryKey;size:64"`
@@ -226,7 +254,8 @@ type RefreshTokenModel struct {
 	ExpiresAt            time.Time                `gorm:"index"`
 	LastUsedAt           time.Time
 	RevokedAt            *time.Time
-	Revoked              bool `gorm:"default:false;index"`
+	Revoked              bool                   `gorm:"default:false;index"`
+	AccessTokens         IssuedAccessTokensJSON `gorm:"type:jsonb"` // RFC 7009 §2.1: blacklisted when the family is revoked
 }
 
 func (RefreshTokenModel) TableName() string {
@@ -250,6 +279,7 @@ func (m *RefreshTokenModel) ToRefreshToken() *core.RefreshToken {
 		LastUsedAt:           m.LastUsedAt,
 		RevokedAt:            m.RevokedAt,
 		Revoked:              m.Revoked,
+		AccessTokens:         m.AccessTokens,
 	}
 }
 
@@ -270,6 +300,7 @@ func RefreshTokenToModel(t *core.RefreshToken) *RefreshTokenModel {
 		LastUsedAt:           t.LastUsedAt,
 		RevokedAt:            t.RevokedAt,
 		Revoked:              t.Revoked,
+		AccessTokens:         IssuedAccessTokensJSON(t.AccessTokens),
 	}
 }
 

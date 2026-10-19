@@ -311,6 +311,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		Hooks:               cfg.Hooks.Token,
 
 		DisableRefreshTokenRotation: cfg.DisableRefreshTokenRotation,
+		Blacklist:                   cfg.Blacklist,
 	})
 
 	// Wire the validator — needs read-only key lookup + blacklist.

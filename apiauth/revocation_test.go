@@ -310,7 +310,25 @@ func (s *inMemoryRefreshStore) RevokeSubjectTokens(ctx context.Context, req *cor
 	return &core.RevokeSubjectTokensResponse{}, nil
 }
 func (s *inMemoryRefreshStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
-	return &core.RevokeTokenFamilyResponse{}, nil
+	now := time.Now()
+	resp := &core.RevokeTokenFamilyResponse{}
+	for _, rt := range s.tokens {
+		if rt.Family != req.Family {
+			continue
+		}
+		rt.Revoked = true
+		resp.AccessTokens = append(resp.AccessTokens, core.LiveIssuedAccessTokens(rt.AccessTokens, now)...)
+	}
+	return resp, nil
+}
+func (s *inMemoryRefreshStore) RecordAccessToken(ctx context.Context, req *core.RecordAccessTokenRequest) (*core.RecordAccessTokenResponse, error) {
+	rt, ok := s.tokens[req.Token]
+	if !ok {
+		return nil, core.ErrTokenNotFound
+	}
+	rt.AccessTokens = core.AppendIssuedAccessToken(rt.AccessTokens,
+		core.IssuedAccessToken{TokenID: req.TokenID, ExpiresAt: req.ExpiresAt}, time.Now())
+	return &core.RecordAccessTokenResponse{Revoked: rt.Revoked}, nil
 }
 func (s *inMemoryRefreshStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {
 	return &core.GetSubjectTokensResponse{}, nil

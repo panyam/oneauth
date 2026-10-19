@@ -143,6 +143,7 @@ type RefreshTokenEntity struct {
 	LastUsedAt           time.Time      `datastore:"last_used_at"`
 	RevokedAt            time.Time      `datastore:"revoked_at,omitempty"`
 	Revoked              bool           `datastore:"revoked"`
+	AccessTokens         []byte         `datastore:"access_tokens,noindex"` // JSON []core.IssuedAccessToken, RFC 7009 §2.1
 }
 
 // APIKeyEntity is the Datastore entity for API keys
