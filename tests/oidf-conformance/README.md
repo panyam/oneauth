@@ -49,7 +49,7 @@ make exercise-fapi2
 This is the FAPI 2.0 mission's exercise (issue 98). It runs the harness's `fapi2-security-profile-final-test-plan` against `oneauth-server` and prints one line per module. The script, `scripts/exercise-fapi2.sh`, does four things:
 
 1. Starts the harness if it isn't up.
-2. Starts `oneauth-server` with `oneauth-fapi2.yaml`, which is `deploy-examples/fapi-dpop.yaml`'s profile over TLS on `:8889`. It generates a fresh P-256 signing key for each run.
+2. Starts `oneauth-server` with `oneauth-fapi2.yaml`, which is `deploy-examples/fapi-dpop.yaml`'s profile over TLS on `:8889`. The server signs with ES256 using a P-256 key it makes at startup (`ephemeral_signing_key`), so each run gets a fresh one.
 3. Signs up a browser user and registers two ES256 `private_key_jwt` clients through DCR.
 4. Runs every module and stops the server again on exit.
 

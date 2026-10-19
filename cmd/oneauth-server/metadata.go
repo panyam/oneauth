@@ -61,11 +61,18 @@ func baseGrantTypes(cfg *Config) []string {
 }
 
 // checkFAPI2 refuses a fapi2 config the server can't honor: FAPI 2.0
-// needs sender-constrained tokens (dpop) and, when /authorize is served,
-// PAR.
+// needs sender-constrained tokens (dpop), an access-token signing algorithm
+// it allows, and, when /authorize is served, PAR.
 func checkFAPI2(cfg *Config) error {
 	if !cfg.FAPI2 {
 		return nil
+	}
+	if cfg.JWT.SigningAlg != "ES256" {
+		alg := cfg.JWT.SigningAlg
+		if alg == "" {
+			alg = "HS256 (the default)"
+		}
+		return fmt.Errorf("fapi2 needs jwt.signing_alg: ES256, got %s: FAPI 2.0 §5.4.1 allows PS256, ES256 and EdDSA, and ES256 is the one oneauth signs with (PS256 is issue 330)", alg)
 	}
 	if !cfg.DPoP.Enabled {
 		return fmt.Errorf("fapi2 needs dpop.enabled: FAPI 2.0 §5.3.2.1 allows sender-constrained access tokens only")

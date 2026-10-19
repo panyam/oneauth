@@ -713,13 +713,11 @@ func sweepKidStore(store keys.KidStorage, interval time.Duration) {
 // Resolution rules:
 //   - PrivateKeyPath set → load from file (production path).
 //   - PrivateKeyPath empty + EphemeralSigningKey true → generate a fresh
-//     RSA-2048 keypair (test/dev convenience). Logs prominent warning that
-//     tokens will be invalidated on every restart.
+//     keypair for alg, RSA-2048 for RS256 and P-256 for ES256 (test/dev
+//     convenience). Logs prominent warning that tokens will be invalidated
+//     on every restart.
 //   - Both empty → error. Misconfiguration must fail loudly so production
 //     deployments don't silently get ephemeral keys.
-//
-// ES256 is accepted as alg but currently only RSA generation is implemented
-// for the ephemeral path; ES256 deployments must supply PrivateKeyPath.
 func loadOrGenerateSigningKey(cfg JWTConfig, alg string) (priv crypto.PrivateKey, pubPEM []byte, err error) {
 	if cfg.PrivateKeyPath != "" {
 		data, err := os.ReadFile(cfg.PrivateKeyPath)
@@ -744,13 +742,17 @@ func loadOrGenerateSigningKey(cfg JWTConfig, alg string) (priv crypto.PrivateKey
 	if !cfg.EphemeralSigningKey {
 		return nil, nil, fmt.Errorf("jwt.signing_alg=%s requires either jwt.private_key_path or jwt.ephemeral_signing_key=true", alg)
 	}
-	// Test/dev path: ephemeral RSA keypair. Loud warning — tokens go
-	// stale on restart, JWKS rotates.
-	log.Printf("WARNING: jwt.ephemeral_signing_key=true — generating fresh RSA-2048 keypair. " +
-		"Tokens issued by this instance will be INVALID after restart. Use jwt.private_key_path in production.")
-	privPEM, pubPEM, err := utils.GenerateRSAKeyPair(2048)
+	// Test/dev path: ephemeral keypair. Loud warning — tokens go stale on
+	// restart, JWKS rotates.
+	kind, generate := "RSA-2048", func() ([]byte, []byte, error) { return utils.GenerateRSAKeyPair(2048) }
+	if alg == "ES256" {
+		kind, generate = "P-256", utils.GenerateECDSAKeyPair
+	}
+	log.Printf("WARNING: jwt.ephemeral_signing_key=true — generating fresh %s keypair. "+
+		"Tokens issued by this instance will be INVALID after restart. Use jwt.private_key_path in production.", kind)
+	privPEM, pubPEM, err := generate()
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate RSA keypair: %w", err)
+		return nil, nil, fmt.Errorf("generate %s keypair: %w", kind, err)
 	}
 	priv, err = utils.ParsePrivateKeyPEM(privPEM)
 	if err != nil {

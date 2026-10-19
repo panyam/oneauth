@@ -174,7 +174,7 @@ implemented. They're fixed in the same PR as this section, and the leftovers are
 | 5.3.2.2 #1 | PAR only | Pass | `MountAuthorize` sets `RequirePushedRequests` under `FAPI2`, and panics without a `PushedStore` |
 | 5.3.2.2 | Codes at most 60s, `request_uri` under 600s | Pass | defaults already were; `FAPI2` caps longer configured values. LifetimeCaps |
 | 5.4.1 | Client assertions signed with PS256, ES256 or EdDSA | Pass (was Fail) | `FAPI2` refuses other algorithms through `AuthenticateClientRequest.AllowedAssertionAlgs`. oneauth verifies ES256 assertions; PS256 and EdDSA client keys can't be registered yet. ClientAuthentication\* |
-| — | Reference server can run the whole profile | Pass (was not possible) | `fapi2: true` and `code_flow.par` in `deploy-examples/fapi-dpop.yaml`; the server refuses `fapi2` without DPoP, or with `/authorize` but no PAR; metadata lists `private_key_jwt` / ES256 only, the PAR endpoint, `require_pushed_authorization_requests`, and no password grant. `cmd/oneauth-server/fapi_test.go`\* |
+| — | Reference server can run the whole profile | Pass (was not possible) | `fapi2: true` and `code_flow.par` in `deploy-examples/fapi-dpop.yaml`; the server refuses `fapi2` without DPoP, with access tokens signed anything but ES256, or with `/authorize` but no PAR; metadata lists `private_key_jwt` / ES256 only, the PAR endpoint, `require_pushed_authorization_requests`, and no password grant. `cmd/oneauth-server/fapi_test.go`\* |
 
 ### What the walk found
 

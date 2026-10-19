@@ -22,6 +22,7 @@ func TestAPIMe_AcceptsTheServersOwnTokens(t *testing.T) {
 	for name, jwtExtra := range map[string]string{
 		"HS256": "",
 		"RS256": "  signing_alg: RS256\n  ephemeral_signing_key: true",
+		"ES256": "  signing_alg: ES256\n  ephemeral_signing_key: true",
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := newLoginFixtureWith(t, jwtExtra)

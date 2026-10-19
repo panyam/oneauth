@@ -17,21 +17,24 @@ import (
 
 const fapiBase = "jwt:\n  secret_key: \"fapi-server-test-secret-32-bytes\"\n"
 
+// fapiSigning is the jwt block a fapi2 config needs to pass checkFAPI2.
+const fapiSigning = fapiBase + "  signing_alg: ES256\n  ephemeral_signing_key: true\n"
+
 func TestFAPIServer_RefusesAConfigThatCantMeetTheProfile(t *testing.T) {
-	cfg := loadYAML(t, fapiBase+"fapi2: true\n")
+	cfg := loadYAML(t, fapiSigning+"fapi2: true\n")
 	assert.Error(t, checkFAPI2(cfg), "FAPI without DPoP")
 
-	cfg = loadYAML(t, fapiBase+"fapi2: true\ndpop:\n  enabled: true\ncode_flow:\n  enabled: true\n")
+	cfg = loadYAML(t, fapiSigning+"fapi2: true\ndpop:\n  enabled: true\ncode_flow:\n  enabled: true\n")
 	assert.Error(t, checkFAPI2(cfg), "FAPI with /authorize but no PAR")
 
-	cfg = loadYAML(t, fapiBase+"fapi2: true\ndpop:\n  enabled: true\ncode_flow:\n  enabled: true\n  par:\n    enabled: true\n")
+	cfg = loadYAML(t, fapiSigning+"fapi2: true\ndpop:\n  enabled: true\ncode_flow:\n  enabled: true\n  par:\n    enabled: true\n")
 	assert.NoError(t, checkFAPI2(cfg))
 
 	assert.NoError(t, checkFAPI2(loadYAML(t, fapiBase)), "FAPI off: nothing to check")
 }
 
 func TestFAPIServer_MetadataSaysWhatFAPIAllows(t *testing.T) {
-	cfg := loadYAML(t, fapiBase+"fapi2: true\ndpop:\n  enabled: true\ncode_flow:\n  enabled: true\n  par:\n    enabled: true\n")
+	cfg := loadYAML(t, fapiSigning+"fapi2: true\ndpop:\n  enabled: true\ncode_flow:\n  enabled: true\n  par:\n    enabled: true\n")
 	meta := serverASMetadata(cfg, "https://as.example.com", true)
 	assert.Equal(t, []string{"private_key_jwt"}, meta.TokenEndpointAuthMethods)
 	assert.Equal(t, "https://as.example.com/par", meta.PushedAuthorizationRequestEndpoint)

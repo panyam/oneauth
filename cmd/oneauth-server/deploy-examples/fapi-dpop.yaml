@@ -25,6 +25,13 @@ user_stores:
   type: memory
 
 jwt:
+  # FAPI 2.0 §5.4.1 allows PS256, ES256 and EdDSA; oneauth signs with ES256.
+  # Point JWT_PRIVATE_KEY_PATH at a P-256 PEM to keep tokens valid across
+  # restarts. Without one the server makes a fresh key each start.
+  signing_alg: ES256
+  private_key_path: ${JWT_PRIVATE_KEY_PATH:-}
+  ephemeral_signing_key: true
+  # Still signs the login session cookies.
   secret_key: ${JWT_SECRET_KEY:-dev-secret-change-in-production!!}
   # Empty means the public URL, which keeps token iss and discovery in step.
   issuer: ${JWT_ISSUER}
