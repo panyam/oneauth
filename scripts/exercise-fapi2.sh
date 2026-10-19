@@ -34,9 +34,6 @@ if curl -sf --cacert "$ca" -o /dev/null "$server/.well-known/openid-configuratio
   exit 2
 fi
 
-export OIDF_FAPI2_SIGNING_KEY=${OIDF_FAPI2_SIGNING_KEY:-/tmp/oneauth-fapi2-signing-key.pem}
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$OIDF_FAPI2_SIGNING_KEY" 2>/dev/null
-
 go build -buildvcs=false -o /tmp/oneauth-fapi2-server ./cmd/oneauth-server
 /tmp/oneauth-fapi2-server --config tests/oidf-conformance/oneauth-fapi2.yaml >"$logfile" 2>&1 &
 server_pid=$!

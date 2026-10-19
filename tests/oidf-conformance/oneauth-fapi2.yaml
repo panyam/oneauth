@@ -23,9 +23,8 @@ jwt:
   # Empty follows public_url, which is what the harness checks iss against.
   issuer: ""
   signing_alg: ES256
-  # ephemeral_signing_key always makes an RSA key, which ES256 refuses, so
-  # scripts/exercise-fapi2.sh generates a P-256 key per run.
-  private_key_path: ${OIDF_FAPI2_SIGNING_KEY}
+  # A fresh P-256 key per run; the exercise starts a new server each time.
+  ephemeral_signing_key: true
   secret_key: ${JWT_SECRET_KEY:-oidf-fapi2-exercise-session-secret-32b}
   disable_refresh_token_rotation: true
 
