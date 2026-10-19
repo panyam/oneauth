@@ -909,7 +909,7 @@ implemented. They&rsquo;re fixed in the same PR as this section, and the leftove
 <td>—</td>
 <td>Reference server can run the whole profile</td>
 <td>Pass (was not possible)</td>
-<td><code>fapi2: true</code> and <code>code_flow.par</code> in <code>deploy-examples/fapi-dpop.yaml</code>; the server refuses <code>fapi2</code> without DPoP, or with <code>/authorize</code> but no PAR; metadata lists <code>private_key_jwt</code> / ES256 only, the PAR endpoint, <code>require_pushed_authorization_requests</code>, and no password grant. <code>cmd/oneauth-server/fapi_test.go</code>*</td>
+<td><code>fapi2: true</code> and <code>code_flow.par</code> in <code>deploy-examples/fapi-dpop.yaml</code>; the server refuses <code>fapi2</code> without DPoP, with access tokens signed anything but ES256, or with <code>/authorize</code> but no PAR; metadata lists <code>private_key_jwt</code> / ES256 only, the PAR endpoint, <code>require_pushed_authorization_requests</code>, and no password grant. <code>cmd/oneauth-server/fapi_test.go</code>*</td>
 </tr>
 </tbody>
 </table>

@@ -423,7 +423,7 @@ matrix is in <a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a>.<
 </tr>
 <tr>
 <td>Reference server</td>
-<td><strong>Implemented</strong> (0.1.54). <code>fapi2: true</code> sets <code>OneAuthConfig.FAPI2</code>. The server refuses to start without <code>dpop.enabled</code>, or with <code>code_flow</code> on but no <code>code_flow.par.enabled</code>. <code>code_flow.par.enabled</code> mounts <code>POST /par</code>, and <code>code_flow.par.required</code> refuses direct <code>/authorize</code>. Under <code>fapi2</code> the metadata lists <code>private_key_jwt</code> / ES256 only, the PAR endpoint, <code>require_pushed_authorization_requests</code>, and no password grant. <code>deploy-examples/fapi-dpop.yaml</code> runs the whole profile</td>
+<td><strong>Implemented</strong> (0.1.54). <code>fapi2: true</code> sets <code>OneAuthConfig.FAPI2</code>. The server refuses to start without <code>dpop.enabled</code>, with a <code>jwt.signing_alg</code> other than ES256 (HS256 is the default, and FAPI 2.0 §5.4.1 allows PS256, ES256 and EdDSA), or with <code>code_flow</code> on but no <code>code_flow.par.enabled</code>. <code>code_flow.par.enabled</code> mounts <code>POST /par</code>, and <code>code_flow.par.required</code> refuses direct <code>/authorize</code>. Under <code>fapi2</code> the metadata lists <code>private_key_jwt</code> / ES256 only, the PAR endpoint, <code>require_pushed_authorization_requests</code>, and no password grant. <code>deploy-examples/fapi-dpop.yaml</code> runs the whole profile, signing with ES256 from <code>JWT_PRIVATE_KEY_PATH</code> or a key made at startup</td>
 <td><a href="RFC_9126.md"><code>RFC_9126.md</code></a></td>
 </tr>
 <tr>
