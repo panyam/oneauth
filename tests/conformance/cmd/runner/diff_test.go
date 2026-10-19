@@ -220,6 +220,26 @@ func TestEntry_Validate(t *testing.T) {
 			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-fail", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "",
 		},
+		{
+			name:    "external expected-review ok",
+			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-review", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			wantErr: "",
+		},
+		{
+			name:    "external expected-skip ok",
+			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-skip", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			wantErr: "",
+		},
+		{
+			name:    "go-native expected-skip refused",
+			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-skip", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			wantErr: "expected-fail",
+		},
+		{
+			name:    "external unknown status refused",
+			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "skip", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			wantErr: "expected-review",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

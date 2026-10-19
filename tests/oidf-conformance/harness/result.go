@@ -20,6 +20,10 @@ const (
 	ResultWarning Result = "WARNING"
 	// ResultInfo: informational; ignored by the ratchet.
 	ResultInfo Result = "INFO"
+	// ResultReview: a check a person signs off on, usually from a
+	// screenshot. When the browser fills the screenshot placeholder, the
+	// entry carries the captured page in PageSource.
+	ResultReview Result = "REVIEW"
 )
 
 // LogEntry is one line of the harness's structured log. The harness
@@ -32,6 +36,9 @@ type LogEntry struct {
 	Result Result `json:"result"`
 	Msg    string `json:"msg"`
 	TestID string `json:"testId,omitempty"`
+	// PageSource is the page the browser captured for a REVIEW entry, when
+	// its wait command used update-image-placeholder.
+	PageSource string `json:"page_source,omitempty"`
 }
 
 // CheckOutcome is one row of a TestSummary. Each Src may appear in the

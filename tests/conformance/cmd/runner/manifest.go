@@ -21,18 +21,22 @@ import (
 //     plan:  dynamic-op-basic
 //     test:  dcr-rejects-non-https-redirect-uri
 //
-// Status is the expected outcome. Today the only legal value is "expected-fail";
-// a passing test should not be in the manifest at all.
+// Status is the expected outcome; a passing test should not be in the
+// manifest at all. Go-native entries can only be "expected-fail". External
+// entries may also be "expected-review" or "expected-skip", which the FAPI 2.0
+// plan uses for whole modules the harness ends in REVIEW or skips; its
+// adapter (tests/oidf-conformance/fapi2.Judge) reads Evidence for those.
 type Entry struct {
-	Suite   string `yaml:"suite"`
-	ID      string `yaml:"id,omitempty"`
-	Plan    string `yaml:"plan,omitempty"`
-	Test    string `yaml:"test,omitempty"`
-	Status  string `yaml:"status"`
-	Issue   int    `yaml:"issue"`
-	Owner   string `yaml:"owner"`
-	Reason  string `yaml:"reason"`
-	Expires string `yaml:"expires"`
+	Suite    string `yaml:"suite"`
+	ID       string `yaml:"id,omitempty"`
+	Plan     string `yaml:"plan,omitempty"`
+	Test     string `yaml:"test,omitempty"`
+	Status   string `yaml:"status"`
+	Evidence string `yaml:"evidence,omitempty"`
+	Issue    int    `yaml:"issue"`
+	Owner    string `yaml:"owner"`
+	Reason   string `yaml:"reason"`
+	Expires  string `yaml:"expires"`
 }
 
 // Key returns the runner's lookup key for this entry.
@@ -57,7 +61,12 @@ func (e Entry) Validate() error {
 	if e.ID != "" && (e.Plan != "" || e.Test != "") {
 		return fmt.Errorf("id is set; plan/test must be empty (cannot mix shapes)")
 	}
-	if e.Status != "expected-fail" {
+	switch {
+	case e.Status == "expected-fail":
+	case e.ID == "" && (e.Status == "expected-review" || e.Status == "expected-skip"):
+	case e.ID == "":
+		return fmt.Errorf("status must be \"expected-fail\", \"expected-review\" or \"expected-skip\" (got %q)", e.Status)
+	default:
 		return fmt.Errorf("status must be \"expected-fail\" (got %q)", e.Status)
 	}
 	if e.Issue == 0 {
