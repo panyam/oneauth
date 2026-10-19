@@ -152,7 +152,7 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 
 ## Issues and missions
 
-Work is ranked by mission (labels and blocked-by links; `~/.claude/skills/retriage/queue.sh` prints the queue). The active mission is #98, the OIDF FAPI 2.0 Security Profile run (`mission_fapi2`); `make exercise-fapi2` is its exercise, and `queue.sh` names the next ready ticket. JARM (#409) is parked. A new issue gets a priority (`P0` to `P3`) and either a mission link or `waiting` with its trigger.
+Work is ranked by mission (labels and blocked-by links; `~/.claude/skills/retriage/queue.sh` prints the queue). No mission is active. The last one, #98 (the OIDF FAPI 2.0 Security Profile run), closed in v0.2.5, and `make testoidf` keeps its result from regressing. JARM (#409) is parked. A new issue gets a priority (`P0` to `P3`) and either a mission link or `waiting` with its trigger.
 
 ## Gap analyses
 
