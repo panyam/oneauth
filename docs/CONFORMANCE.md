@@ -140,7 +140,7 @@ These RFCs have no public conformance tooling. We write them as transport-agnost
 
 FAPI 1.0, FAPI-CIBA, OpenID Federation, OID4VCI, EUDI Wallet, regional Open Banking profiles. The OIDF suite has plans for all of these; we will not run them.
 
-FAPI 2.0 is no longer on this list. oneauth implements the FAPI 2.0 Security Profile (`OneAuthConfig.FAPI2`, 0.1.52 and 0.1.54), and the first OIDF run of its plan is mission #98 (see [`docs/SECURITY_AUDIT.md`](SECURITY_AUDIT.md) for the caveats). JARM is mission #409 and mTLS certificate-bound tokens are #335. See [`docs/gaps/AUTHLETE_GAP_ANALYSIS.md`](gaps/AUTHLETE_GAP_ANALYSIS.md) for the rationale.
+FAPI 2.0 is no longer on this list. oneauth implements the FAPI 2.0 Security Profile (`OneAuthConfig.FAPI2`, 0.1.52 and 0.1.54), and its OIDF plan runs in `make testoidf` (mission #98) (see [`docs/SECURITY_AUDIT.md`](SECURITY_AUDIT.md) for the caveats). JARM is mission #409 and mTLS certificate-bound tokens are #335. See [`docs/gaps/AUTHLETE_GAP_ANALYSIS.md`](gaps/AUTHLETE_GAP_ANALYSIS.md) for the rationale.
 
 ---
 

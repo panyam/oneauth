@@ -178,6 +178,24 @@ The store ships in-memory and GORM behind the shared `partest` contract suite. F
 
 ---
 
+## OIDF FAPI 2.0 Security Profile run (mission #98) ✅ COMPLETE
+
+The OpenID Foundation's `fapi2-security-profile-final-test-plan` runs against `cmd/oneauth-server` with `deploy-examples/fapi-dpop.yaml`'s profile (`make exercise-fapi2`), and `make testoidf` enforces the result: 41 of 46 modules pass, the four that expect `/authorize` to refuse end in REVIEW with oneauth's error page checked against `known-gaps.yaml`, and the RS256 module is skipped because FAPI clients use ES256 (#330). Shipped in 0.2.3 to 0.2.5:
+
+| # | Delivery | Status |
+|---|---|---|
+| 433 | The exercise itself: harness plan, DCR clients, browser automation | Merged |
+| 438 | Reference server's browser code flow works end to end (`next` on login, granters built from `OneAuthConfig`) | Merged |
+| 439 | PAR answers `invalid_request` for an unregistered redirect URI; client assertions allow 10s clock skew | Merged |
+| 440 | Reference server TLS follows BCP 195 | Merged |
+| 443 | Confidential clients' refresh tokens unbound from DPoP keys; missing `code_verifier` is `invalid_grant`; per-module browser scripts | Merged |
+| 447 | Plan judged against `known-gaps.yaml` inside `make testoidf` | Merged |
+| 441 | `fapi2` signs ES256; ephemeral keys follow `signing_alg` | Merged |
+
+Still open: the OIDF workflow in CI is manual-only (#290), and PS256 (#330) would let the RS256 module run.
+
+---
+
 ## Execution Order
 
 ```mermaid

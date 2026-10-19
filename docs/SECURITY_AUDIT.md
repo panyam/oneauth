@@ -36,9 +36,11 @@ profile with `deploy-examples/fapi-dpop.yaml`. Three caveats:
 - **Client assertions are ES256.** FAPI allows PS256, ES256 and EdDSA; oneauth can register
   ES256 client keys today. PS256 is #330 and EdDSA client keys #331 (EdDSA DPoP proofs already
   work).
-- **Not run against the OpenID conformance suite.** The OIDF workflow exists but has never run
-  (#201, #290). Everything here is checked by our own tests and, where Keycloak supports the
-  feature, side by side with Keycloak 26.
+- **The OpenID conformance suite runs locally, not in CI.** `make testoidf` runs the FAPI 2.0
+  plan (mission #98): 41 of 46 modules pass, four end in REVIEW on oneauth's error page, and the
+  RS256 module is skipped (#330). The OIDF workflow is manual-only and has never run. Beyond
+  that, everything here is checked by our own tests and, where Keycloak supports the feature,
+  side by side with Keycloak 26.
 
 What FAPI 2.0 *Message Signing* adds (JARM, signed introspection, HTTP message signatures) is not
 supported, and neither is FAPI 1.0's `s_hash`, which rides on OIDC ID tokens oneauth doesn't
@@ -83,7 +85,7 @@ S is a day or two, M a week, L more.
 | OIDC ID tokens, which `s_hash` (FAPI 1.0) needs | #339 | L |
 | JARM (FAPI 2.0 Message Signing) | #151, mission #409 | M |
 | HTTP Message Signatures (RFC 9421) | #152 | L |
-| A first run of the OIDF conformance suite | #201, #290 | M |
+| The OIDF conformance suite in CI (the FAPI 2.0 plan runs locally) | #290 | M |
 | Signup enumeration with email verification off: a fresh signup logs in and a taken one can't, so it stays visible | — (by design) | — |
 
 ### Test coverage
@@ -96,7 +98,7 @@ S is a day or two, M a week, L more.
 | Keycloak interop | `tests/keycloak`: JWKS validation, DPoP, refresh comparisons, revocation parity, ID tokens refused as access tokens | the Keycloak workflow on PRs touching `apiauth/`, `client/`, `keys/`, `core/`, `cmd/oneauth-server/` |
 | Reference server | `cmd/oneauth-server` tests, plus probes against the built binary recorded in each PR | CI |
 | Scans | CodeQL on every PR (0 open alerts, two dismissed with a reason); govulncheck, gitleaks, gosec (`make audit`); ZAP baseline on main | CI and `make audit` |
-| OIDF conformance | `tests/oidf-conformance` | never run (#201, #290) |
+| OIDF conformance | `tests/oidf-conformance`, the discovery and FAPI 2.0 plans | local (`make testoidf`); the workflow is manual-only (#290) |
 
 ## DPoP (RFC 9449, and the DPoP parts of FAPI 2.0)
 

@@ -10,7 +10,7 @@ OneAuth is **not** trying to be a full identity provider — it interoperates wi
 - **Composed interfaces, no god objects.** Every transport-agnostic surface follows `Method(ctx, *XRequest) (*XResponse, error)` — `TokenIssuer` / `TokenValidator` / `TokenIntrospector` / `TokenRevoker` / `ClientAuthenticator` / `ClientRegistrationManager` / `ClientRegistrar`. HTTP handlers are thin wrappers.
 - **Storage-agnostic.** Three backends ship for every store interface — file (dev), GORM (Postgres / MySQL / SQLite), GAE/Datastore. Bring your own by implementing the interfaces.
 - **Lightweight core.** Top-level module pulls ~6 deps (jwt, scs, x/crypto, x/oauth2, …). Heavy backends (GORM, GAE, SAML, gRPC) are separate Go sub-modules so consumers only download what they use. See [docs/MIGRATION.md](docs/MIGRATION.md) for the sub-module layout.
-- **Real interop.** Keycloak conformance suite runs against a live container in `tests/keycloak/`. Gap analyses vs Auth0 and Authlete live in [docs/gaps/](docs/gaps/).
+- **Real interop.** Keycloak conformance suite runs against a live container in `tests/keycloak/`, and the OpenID Foundation's FAPI 2.0 Security Profile plan runs clean against the reference server in `tests/oidf-conformance/` (`make testoidf`). Gap analyses vs Auth0 and Authlete live in [docs/gaps/](docs/gaps/).
 
 ## Standards
 
@@ -126,6 +126,7 @@ Every package has a `DESIGN.md` (rich) and `SUMMARY.md` (LLM-friendly index). Th
 make test          # Unit tests
 make e2e           # In-process e2e (~2s)
 make testkcl       # Keycloak interop + RAR conformance (Docker)
+make testoidf      # OIDF discovery + FAPI 2.0 plans (Docker)
 make testall       # 9-stage matrix + report
 ```
 

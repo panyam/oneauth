@@ -3,6 +3,60 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+## Version 0.2.5
+
+The OIDF FAPI 2.0 Security Profile plan now runs clean against the
+reference server: 41 of 46 modules pass, the four that expect an error page
+end in REVIEW with the right refusal, and the RS256 module is skipped since
+FAPI clients use ES256 (issue 330). `make testoidf` enforces it (mission 98).
+
+### PAR and client assertions (issue 439, PR 446)
+
+- **PAR answered `unauthorized_client` for an unregistered `redirect_uri`.** It is now
+  `invalid_request` (RFC 9126 §2.3), as the OIDF plan expects.
+- **Client assertions tolerate 10 seconds of clock skew** on `iat`, `nbf`
+  and `exp` (`ClientAssertionClockSkew`, FAPI 2.0 §5.3.2.1), and `iat` is
+  checked against the clock.
+
+### Refresh binding and PKCE errors (issue 443, PR 448)
+
+- **A confidential client's refresh token is no longer bound to its DPoP
+  key.** RFC 9449 §5 binds only a public client's refresh token, since a
+  confidential client authenticates every refresh. Before, a confidential
+  client that rotated its DPoP key couldn't refresh. Access tokens stay
+  bound, and public clients are unchanged.
+- **A missing `code_verifier` is `invalid_grant`** (RFC 7636 §4.6), not
+  `invalid_request`.
+- `/authorize`'s default error page carries `id="authorize-error"`.
+
+### The FAPI 2.0 plan in the ratchet (issue 447, PR 449)
+
+- Every module is judged against `tests/conformance/known-gaps.yaml`, which
+  gains whole-module `expected-review` (with `evidence` the captured page
+  must contain) and `expected-skip` statuses for external suites.
+- `make testoidf` runs the plan next to the discovery test, and it no longer
+  hangs waiting on the discovery server over plain http.
+- `make exercise-fapi2 MODULE=<substring>` runs matching modules only.
+
+### FAPI signing on the reference server (issue 441, PR 450)
+
+- **`jwt.ephemeral_signing_key` follows `signing_alg`**: P-256 for ES256,
+  where it used to make an RSA key that ES256 refused at startup.
+- **`fapi2: true` refuses any `jwt.signing_alg` but ES256**, the default
+  HS256 included (FAPI 2.0 §5.4.1).
+- `deploy-examples/fapi-dpop.yaml` signs ES256 from `JWT_PRIVATE_KEY_PATH`
+  or a startup key, so its JWKS is no longer empty.
+
+### Upgrading
+
+- `cmd/oneauth-server` with `fapi2: true` needs `jwt.signing_alg: ES256`
+  plus `jwt.private_key_path` or `jwt.ephemeral_signing_key: true`, or it
+  refuses to start.
+- Code that matched `invalid_request` for a missing `code_verifier` should
+  match `invalid_grant`.
+- Refresh tokens already issued to confidential clients stay bound until
+  they expire; new ones are unbound.
+
 ## Version 0.2.4
 
 ### Reference server TLS follows BCP 195 (issue 440, PR 445)

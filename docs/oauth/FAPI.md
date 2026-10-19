@@ -167,8 +167,8 @@ ordered path is:
 
 For OneAuth, steps 1 to 4 have landed for the FAPI 2.0 Security Profile:
 DPoP (mTLS is still #335), PAR, and the algorithm lockdown, all switched on
-together by `OneAuthConfig.FAPI2`. Step 5 has not happened. The OIDF suite
-has never been run against oneauth (mission #98, #433).
+together by `OneAuthConfig.FAPI2`. Step 5 has run locally (mission #98):
+the harness's `fapi2-security-profile-final-test-plan` runs locally through `make testoidf`: 41 of 46 modules pass, the four that expect an error page end in REVIEW with the right refusal captured, and the RS256 module is skipped because FAPI clients use ES256. The OIDF workflow in CI is still manual-only and has not run.
 
 ## When NOT to use it
 
@@ -190,9 +190,9 @@ the profile's authorization-server and resource-server requirements (§5.3.2,
 profile with `deploy-examples/fapi-dpop.yaml`. There are three caveats. DPoP
 is the only sender constraint (mTLS is #335). Only ES256 client keys can be
 registered, so FAPI clients use ES256 (PS256 is #330, EdDSA client keys
-#331). The OIDF conformance suite has never been run (mission #98, #433), so
-everything here is checked by oneauth's own tests and, where Keycloak supports
-the feature, side by side with Keycloak 26. The requirement-by-requirement
+#331). The OIDF FAPI 2.0 plan runs locally in `make testoidf` (mission #98)
+but not yet in CI. Beyond it, everything here is checked by oneauth's own
+tests and, where Keycloak supports the feature, side by side with Keycloak 26. The requirement-by-requirement
 matrix is in [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md).
 
 | FAPI requirement | OneAuth status | Doc |
@@ -212,7 +212,7 @@ matrix is in [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md).
 | Refresh tokens | **Implemented as an option.** OneAuth rotates on every use with reuse detection by default (RFC 9700). `OneAuthConfig.DisableRefreshTokenRotation` (server: `jwt.disable_refresh_token_rotation`) turns it off, as FAPI 2.0 §5.3.2.1 asks, and `FAPI2` sets it | [`RFC_9700.md`](RFC_9700.md) |
 | `iss` on redirect | Implemented | [`RFC_9207.md`](RFC_9207.md) |
 | Strict redirect URI matching + HTTPS | Implemented (DCR + `/authorize`) | [`RFC_9700.md`](RFC_9700.md) |
-| OIDF conformance run | Not done. The OIDF workflow exists but has never run (mission #98, #433) | [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
+| OIDF conformance run | **Local** (0.2.5). `make testoidf` runs the FAPI 2.0 plan: 41 of 46 pass, 4 REVIEW error pages checked against `known-gaps.yaml`, 1 RS256 skip (#330). The CI workflow is manual-only and has not run | [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
 
 What remains for the FAPI 2.0 Security Profile is a first OIDF conformance
 run, PS256 and EdDSA client keys, and mTLS as a second sender constraint.
