@@ -400,7 +400,7 @@ verdict; the table below summarises against the BCP defenses themselves.</p>
 <td>Refresh-token rotation + reuse detection (§4.14)</td>
 <td><strong>Compliant</strong></td>
 <td><code>RotateRefreshToken</code> in the refresh path of <code>apiauth/token_validator.go</code> → <code>core.ErrTokenReused</code> → <code>RevokeTokenFamily</code></td>
-<td>Backend-agnostic; FS, GORM, GAE all implement; exercised by <code>apiauth/auth_test.go</code> reuse subtest. The grant checks the presenting client: the token must belong to the <code>client_id</code> sent, and a confidential owner must authenticate (0.1.41). <code>OneAuthConfig.DisableRefreshTokenRotation</code> turns rotation off, as FAPI 2.0 asks; <code>FAPI2</code> sets it (0.1.43). GORM rotation is a compare-and-set, and rotation keeps the family&rsquo;s expiry in every store (0.1.45).</td>
+<td>Backend-agnostic; FS, GORM, GAE all implement; exercised by <code>apiauth/auth_test.go</code> reuse subtest. The grant checks the presenting client: the token must belong to the <code>client_id</code> sent, and a confidential owner must authenticate (0.1.41). <code>OneAuthConfig.DisableRefreshTokenRotation</code> turns rotation off, as FAPI 2.0 asks; <code>FAPI2</code> sets it (0.1.43). GORM rotation is a compare-and-set, and rotation keeps the family&rsquo;s expiry in every store (0.1.45). On reuse the family&rsquo;s unexpired access tokens are blacklisted too, with <code>OneAuthConfig.Blacklist</code> (issue 436).</td>
 </tr>
 <tr>
 <td>Authorization code reuse (RFC 6749 §4.1.2)</td>

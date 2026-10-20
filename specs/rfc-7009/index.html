@@ -259,14 +259,15 @@ request with no <code>token</code> (0.1.45).</li>
 <li><strong>Caller authentication required.</strong> Same as introspection — only<br />
 authorized parties (clients revoking their own tokens, or admin<br />
 tooling) should be able to revoke.</li>
-<li><strong>Revoking a refresh token revokes the family.</strong> Per RFC 9700 §4.14,<br />
-revoking a refresh token also revokes the descendant access tokens —<br />
-this is what &ldquo;log out everywhere&rdquo; relies on. OneAuth&rsquo;s revocation<br />
-endpoint marks the presented refresh token revoked and leaves access<br />
-tokens already minted from it to expire. Rotation has already spent the<br />
-older tokens in the family, so the chain ends there. If the revoked<br />
-token is presented again, the refresh grant treats it as reuse and<br />
-revokes the whole family with <code>RevokeTokenFamily</code>.</li>
+<li><strong>Revoking a refresh token revokes the family.</strong> §2.1 says revoking a<br />
+refresh token SHOULD also invalidate the access tokens issued from the<br />
+same grant. OneAuth records each access token&rsquo;s <code>jti</code> and expiry on<br />
+the refresh token it was issued with (<code>RefreshTokenStore.RecordAccessToken</code>),<br />
+so revoking any member of the family revokes the whole family and<br />
+blacklists every unexpired access token it minted: the one from login<br />
+and every one from refreshing since. That needs <code>OneAuthConfig.Blacklist</code>;<br />
+without one the refresh tokens die and the access tokens run out their<br />
+lifetime (issue 436).</li>
 <li><strong>Idempotent.</strong> Revoke twice == revoke once. Safe to retry.</li>
 </ol>
 <h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
@@ -349,10 +350,10 @@ path uses revocation internally via the family-revoke action.</p>
 <td>—</td>
 </tr>
 <tr>
-<td>Refresh-token revocation</td>
+<td>Refresh-token revocation, with its access tokens (§2.1)</td>
 <td><strong>Implemented</strong></td>
-<td><code>tokenRevoker.Revoke</code> calls <code>RefreshTokenStore.RevokeRefreshToken</code> on the presented token</td>
-<td>Revokes that token, not its family. Presenting it again trips reuse detection, which calls <code>RevokeTokenFamily</code> (RFC 9700 §4.14)</td>
+<td><code>tokenRevoker.Revoke</code> calls <code>RefreshTokenStore.RevokeTokenFamily</code> and blacklists the access tokens it returns</td>
+<td>Every grant that issues a refresh token (password, authorization code, device code, refresh) records its access token on it with <code>RecordAccessToken</code>. Access tokens are blacklisted only with <code>OneAuthConfig.Blacklist</code>. Contract suite in <code>refreshtokentest</code>, run by FS, GORM and GAE (issue 436)</td>
 </tr>
 <tr>
 <td>Reused authorization codes</td>
