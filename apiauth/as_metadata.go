@@ -90,6 +90,11 @@ type ASServerMetadata struct {
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
 	SubjectTypesSupported         []string `json:"subject_types_supported,omitempty"`
 
+	// IDTokenSigningAlgValuesSupported lists the algorithms ID tokens are
+	// signed with (OIDC Discovery §3, REQUIRED for an OpenID Provider).
+	// Set it to the AS signing alg when OneAuthConfig.OIDC is on.
+	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported,omitempty"`
+
 	// AuthorizationResponseIssParameterSupported advertises RFC 9207
 	// support — when true, the AS includes an `iss` query parameter on
 	// every authorization response (both successful redirects with `code`

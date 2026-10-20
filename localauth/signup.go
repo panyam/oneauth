@@ -108,7 +108,7 @@ func (a *LocalAuth) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	// Log user in automatically (unless email verification is required)
 	if !a.RequireEmailVerification || a.EmailSender == nil {
 		// Note: token is nil for local auth (no OAuth tokens)
-		userInfo := map[string]any{}
+		userInfo := map[string]any{"user_id": user.Id()}
 		if creds.Username != "" {
 			userInfo["username"] = creds.Username
 		}

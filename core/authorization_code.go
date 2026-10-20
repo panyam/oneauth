@@ -95,6 +95,17 @@ type AuthorizationCode struct {
 	// access token. Nil when the request had no authorization_details.
 	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"`
 
+	// Nonce is the OIDC Core §3.1.2.1 `nonce` request parameter, echoed
+	// into the ID token the redemption issues (§3.1.3.6) so the client
+	// can tie that ID token to its own authorization request. Empty when
+	// the client sent none.
+	Nonce string `json:"nonce,omitempty"`
+
+	// AuthTime is when the user last authenticated, the ID token's
+	// `auth_time` claim (OIDC Core §2). Zero when the deployment does not
+	// know, in which case the claim is left out.
+	AuthTime time.Time `json:"auth_time,omitempty"`
+
 	// IssuedAt is when the AS minted the code. Useful for telemetry
 	// and as the anchor for any future "max code age" enforcement.
 	IssuedAt time.Time `json:"issued_at"`

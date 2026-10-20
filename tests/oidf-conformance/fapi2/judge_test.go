@@ -17,6 +17,11 @@ func TestJudge_EachModuleAgainstItsExpectation(t *testing.T) {
 		"review": {Module: "review", Status: StatusExpectedReview, Evidence: "request_uri has already been used"},
 		"skip":   {Module: "skip", Status: StatusExpectedSkip},
 		"fail":   {Module: "fail", Status: StatusExpectedFail, Evidence: "wrong aud"},
+		"warn":   {Module: "warn", Status: StatusExpectedWarning, Evidence: "non-requested claim 'typ'"},
+	}
+	typWarnings := []string{
+		"EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ'",
+		"EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claims. This may indicate ...",
 	}
 	tests := []struct {
 		name string
@@ -40,6 +45,11 @@ func TestJudge_EachModuleAgainstItsExpectation(t *testing.T) {
 		{"expected fail with its failure", ModuleResult{Module: "fail", Result: "FAILED", FirstFailure: "Check: wrong aud"}, VerdictOK},
 		{"expected fail with another failure", ModuleResult{Module: "fail", Result: "FAILED", FirstFailure: "Check: bad nonce"}, VerdictRegression},
 		{"expected fail now passes", ModuleResult{Module: "fail", Result: "PASSED"}, VerdictRatchetUp},
+		{"expected warning with its warning", ModuleResult{Module: "warn", Result: "WARNING", Warnings: typWarnings}, VerdictOK},
+		{"expected warning plus another check's", ModuleResult{Module: "warn", Result: "WARNING", Warnings: append(typWarnings, "CheckOther: soft")}, VerdictRegression},
+		{"expected warning with another claim", ModuleResult{Module: "warn", Result: "WARNING", Warnings: []string{"EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'email'"}}, VerdictRegression},
+		{"expected warning now passes", ModuleResult{Module: "warn", Result: "PASSED"}, VerdictRatchetUp},
+		{"expected warning fails", ModuleResult{Module: "warn", Result: "FAILED"}, VerdictRegression},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -102,6 +112,21 @@ func TestLoadExpectations_RefusesAReviewWithoutEvidence(t *testing.T) {
   test: some-module
   status: expected-review
   issue: 98
+`), 0o644))
+
+	_, err := LoadExpectations(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "evidence")
+}
+
+func TestLoadExpectations_RefusesAWarningWithoutEvidence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known-gaps.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+- suite: oidf
+  plan: `+PlanName+`
+  test: some-module
+  status: expected-warning
+  issue: 339
 `), 0o644))
 
 	_, err := LoadExpectations(path)

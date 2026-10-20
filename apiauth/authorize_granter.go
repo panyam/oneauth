@@ -26,6 +26,10 @@ type authorizationCodeGranter struct {
 	Issuer        TokenIssuer
 	RefreshStore  core.RefreshTokenStore
 	Blacklist     core.TokenBlacklist
+
+	// IDTokens mints the OIDC ID token for a code granted the "openid"
+	// scope. Nil issues none, which is what an AS without OIDC does.
+	IDTokens IDTokenIssuer
 }
 
 // NewAuthorizationCodeGranter constructs an AuthorizationCodeGranter
@@ -38,6 +42,10 @@ type authorizationCodeGranter struct {
 // family through RefreshStore and the access token through blacklist.
 // With a nil blacklist the access token stays valid until it expires.
 func NewAuthorizationCodeGranter(store core.AuthorizationCodeStore, appStore core.AppRegistrationStore, authenticator ClientAuthenticator, issuer TokenIssuer, refreshStore core.RefreshTokenStore, blacklist core.TokenBlacklist) AuthorizationCodeGranter {
+	return newAuthorizationCodeGranter(store, appStore, authenticator, issuer, refreshStore, blacklist)
+}
+
+func newAuthorizationCodeGranter(store core.AuthorizationCodeStore, appStore core.AppRegistrationStore, authenticator ClientAuthenticator, issuer TokenIssuer, refreshStore core.RefreshTokenStore, blacklist core.TokenBlacklist) *authorizationCodeGranter {
 	return &authorizationCodeGranter{
 		Store:         store,
 		AppStore:      appStore,
@@ -174,6 +182,24 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		ExpiresIn:            tok.ExpiresIn,
 		Scope:                joinScopes(entry.Scopes),
 		AuthorizationDetails: entry.AuthorizationDetails,
+	}
+	// OIDC Core §3.1.3.3: an `openid` grant gets an ID token beside the
+	// access token, bound to it by at_hash and to the authorization
+	// request by nonce.
+	if r.IDTokens != nil && core.ContainsScope(entry.Scopes, core.ScopeOpenID) {
+		idResp, err := r.IDTokens.CreateIDToken(ctx, &CreateIDTokenRequest{
+			Subject:     entry.Subject,
+			ClientID:    entry.ClientID,
+			Scopes:      entry.Scopes,
+			Nonce:       entry.Nonce,
+			AuthTime:    entry.AuthTime,
+			AccessToken: tok.Token,
+		})
+		if err != nil {
+			r.revoke(ctx, issued.TokenID, issued.TokenExpiresAt, "")
+			return nil, serverError("create ID token: " + err.Error())
+		}
+		pair.IDToken = idResp.Token
 	}
 	if r.RefreshStore != nil {
 		createResp, rtErr := r.RefreshStore.CreateRefreshToken(ctx, &core.CreateRefreshTokenRequest{

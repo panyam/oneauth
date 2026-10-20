@@ -77,6 +77,9 @@ func main() {
 	if err := checkFAPI2(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
+	if err := checkOIDC(cfg); err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
 
 	handler, cleanup, err := buildServer(cfg)
 	if err != nil {
@@ -284,6 +287,12 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		log.Printf("Asymmetric token signing enabled (alg=%s, public key registered as %q for JWKS)", alg, issuerClientID)
 	}
 
+	if cfg.CodeFlow.Enabled && cfg.CodeFlow.OIDC {
+		oaCfg.OIDC = &apiauth.OIDCConfig{
+			UserClaims: localauth.ProfileClaims(stores.userStore, stores.identityStore),
+		}
+	}
+
 	oa := apiauth.NewOneAuth(oaCfg)
 	// ROPC is opt-in post-#294. The reference server wires the granter
 	// to preserve the current grant_type=password support — operators
@@ -406,6 +415,11 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 			"scopes":  scopes,
 		})
 	})))
+	if oa.OIDC != nil {
+		userinfo := oa.UserinfoHTTPHandler(apiMiddleware)
+		mux.Handle("GET /userinfo", userinfo)
+		mux.Handle("POST /userinfo", userinfo)
+	}
 	mux.Handle("GET /api/sessions", apiMiddleware.ValidateToken(http.HandlerFunc(sessions.HandleListSessions)))
 	mux.Handle("POST /api/logout-all", apiMiddleware.ValidateToken(http.HandlerFunc(sessions.HandleLogoutAll)))
 
@@ -499,6 +513,9 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 			Expiry:                cfg.CodeFlow.Expiry,
 			SubjectFromRequest: func(r *http.Request) string {
 				return getUserIDFromCookie(r, cfg.JWT.SecretKey)
+			},
+			AuthTimeFromRequest: func(r *http.Request) time.Time {
+				return getAuthTimeFromCookie(r, cfg.JWT.SecretKey)
 			},
 			CSRFTokenFromRequest: httpauth.CSRFToken,
 			LoginRedirectURL:     "/auth/login",
@@ -1041,6 +1058,24 @@ func getUserIDFromCookie(r *http.Request, secretKey string) string {
 		return sub
 	}
 	return ""
+}
+
+// getAuthTimeFromCookie is when the session cookie was minted, at login,
+// which the ID token reports as auth_time. Zero when there is no session.
+func getAuthTimeFromCookie(r *http.Request, secretKey string) time.Time {
+	cookie, err := r.Cookie("oa_token")
+	if err != nil {
+		return time.Time{}
+	}
+	claims := parseJWTCookie(cookie.Value, secretKey)
+	if claims == nil {
+		return time.Time{}
+	}
+	iat, err := claims.GetIssuedAt()
+	if err != nil || iat == nil {
+		return time.Time{}
+	}
+	return iat.Time
 }
 
 func getUserEmailFromCookie(r *http.Request, secretKey string) string {

@@ -34,7 +34,7 @@ func TestPlanVariant(t *testing.T) {
 		"fapi_profile":               "plain_fapi",
 		"client_auth_type":           "private_key_jwt",
 		"sender_constrain":           "dpop",
-		"openid":                     "plain_oauth",
+		"openid":                     "openid_connect",
 		"authorization_request_type": "simple",
 		"grant_management":           "disabled",
 	}, PlanVariant())

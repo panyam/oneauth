@@ -58,6 +58,13 @@ func newLoginFixture(t *testing.T) *loginFixture {
 // newLoginFixtureWith appends jwtExtra under the config's jwt block.
 func newLoginFixtureWith(t *testing.T, jwtExtra string) *loginFixture {
 	t.Helper()
+	return newLoginFixtureConfig(t, jwtExtra, "")
+}
+
+// newLoginFixtureConfig appends jwtExtra under the jwt block and
+// codeFlowExtra under code_flow.
+func newLoginFixtureConfig(t *testing.T, jwtExtra, codeFlowExtra string) *loginFixture {
+	t.Helper()
 	srv := httptest.NewUnstartedServer(nil)
 	base := "http://" + srv.Listener.Addr().(*net.TCPAddr).String()
 	cfg := loadYAML(t, fmt.Sprintf(`
@@ -75,7 +82,8 @@ admin_auth:
   allow_open: true
 code_flow:
   enabled: true
-`, base, jwtExtra))
+%s
+`, base, jwtExtra, codeFlowExtra))
 	handler, cleanup, err := buildServer(cfg)
 	require.NoError(t, err)
 	t.Cleanup(cleanup)

@@ -33,6 +33,12 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 		iss := true
 		meta.AuthorizationResponseIssParameterSupported = &iss
 		meta.TokenEndpointAuthMethods = append(meta.TokenEndpointAuthMethods, "none")
+		if cfg.CodeFlow.OIDC {
+			// OIDC Discovery §3: userinfo_endpoint is RECOMMENDED and
+			// id_token_signing_alg_values_supported REQUIRED.
+			meta.UserinfoEndpoint = baseURL + "/userinfo"
+			meta.IDTokenSigningAlgValuesSupported = []string{cfg.JWT.SigningAlg}
+		}
 		if cfg.CodeFlow.PAR.Enabled {
 			meta.PushedAuthorizationRequestEndpoint = baseURL + "/par"
 			if cfg.CodeFlow.PAR.Required || cfg.FAPI2 {
@@ -58,6 +64,26 @@ func baseGrantTypes(cfg *Config) []string {
 		return []string{"refresh_token", "client_credentials"}
 	}
 	return []string{"password", "refresh_token", "client_credentials"}
+}
+
+// checkOIDC refuses code_flow.oidc without an asymmetric signing key: a
+// client verifies an ID token against the JWKS, which publishes no HMAC
+// secret (OIDC Core §10.1 signs an HMAC ID token with the client's own
+// secret instead).
+func checkOIDC(cfg *Config) error {
+	if !cfg.CodeFlow.OIDC {
+		return nil
+	}
+	if !cfg.CodeFlow.Enabled {
+		return fmt.Errorf("code_flow.oidc needs code_flow.enabled: ID tokens come from the authorization code grant")
+	}
+	if alg := cfg.JWT.SigningAlg; alg != "RS256" && alg != "ES256" {
+		if alg == "" {
+			alg = "HS256 (the default)"
+		}
+		return fmt.Errorf("code_flow.oidc needs jwt.signing_alg RS256 or ES256, got %s: clients verify ID tokens against the JWKS, which has no HMAC secret", alg)
+	}
+	return nil
 }
 
 // checkFAPI2 refuses a fapi2 config the server can't honor: FAPI 2.0

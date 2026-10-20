@@ -62,6 +62,17 @@ type AuthorizationRequest struct {
 	// IssueCode consumes it once a code has been minted, which is what
 	// makes a pushed reference good for one authorization.
 	RequestURI string
+
+	// Nonce is the OIDC Core §3.1.2.1 `nonce` parameter. The code carries
+	// it to the token endpoint, which echoes it in the ID token. Optional;
+	// empty when the client sent none.
+	Nonce string
+
+	// AuthTime is when the approving user last authenticated. It does not
+	// come from the request: the verification handler sets it from
+	// AuthTimeFromRequest before IssueCode, and the ID token reports it as
+	// `auth_time`. Zero leaves the claim out.
+	AuthTime time.Time
 }
 
 // Scopes returns the request's scope claim split on the RFC 6749
@@ -282,6 +293,7 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 		CodeChallenge:       strings.TrimSpace(values.Get("code_challenge")),
 		CodeChallengeMethod: strings.TrimSpace(values.Get("code_challenge_method")),
 		DPoPJKT:             strings.TrimSpace(values.Get("dpop_jkt")),
+		Nonce:               values.Get("nonce"),
 	}
 
 	// RFC 6749 §4.1.2.1 — missing client_id / redirect_uri is a
@@ -409,6 +421,8 @@ func (h *AuthorizationHandler) IssueCode(ctx context.Context, req *Authorization
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
 		DPoPJKT:             req.DPoPJKT,
+		Nonce:               req.Nonce,
+		AuthTime:            req.AuthTime,
 		IssuedAt:            now,
 		ExpiresAt:           now.Add(expiry),
 	}

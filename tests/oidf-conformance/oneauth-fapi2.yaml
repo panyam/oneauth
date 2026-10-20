@@ -49,5 +49,7 @@ fapi2: true
 
 code_flow:
   enabled: true
+  # OpenID Connect, so the plan's openid_connect variant gets ID tokens.
+  oidc: true
   par:
     enabled: true

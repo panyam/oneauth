@@ -189,6 +189,10 @@ func (a *LocalAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Add username to userInfo
 	userInfo["username"] = username
+	// The user's ID, which every token the AS issues names as `sub`. The
+	// session built from userInfo must use it too, or a code from
+	// /authorize names the user by login name instead.
+	userInfo["user_id"] = user.Id()
 
 	// Ensure email or phone is in userInfo based on login type
 	if usernameType == "email" && userInfo["email"] == nil {

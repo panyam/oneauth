@@ -85,6 +85,14 @@ type OneAuth struct {
 	// RequireDPoP mirrors OneAuthConfig.RequireDPoP.
 	RequireDPoP bool
 
+	// OIDC mirrors OneAuthConfig.OIDC, nil when OpenID Connect is off.
+	// UserinfoHTTPHandler reads its UserClaims.
+	OIDC *OIDCConfig
+
+	// IDTokenIssuer mints the ID tokens the authorization-code grant
+	// returns for an `openid` scope. Nil when OIDC is off.
+	IDTokenIssuer IDTokenIssuer
+
 	// Hooks — lifecycle callbacks grouped by concern.
 	Hooks Hooks
 }
@@ -275,6 +283,17 @@ type OneAuthConfig struct {
 	// into SEP-414 tracing. Nil keeps it on the no-op fast path.
 	TracerProvider trace.TracerProvider
 
+	// OIDC, when non-nil, turns on OpenID Connect Core: the
+	// authorization-code grant returns an ID token whenever the granted
+	// scope includes "openid", and UserinfoHTTPHandler serves the user's
+	// claims. Nil (the default) treats "openid" as an ordinary scope.
+	//
+	// ID tokens are signed with SigningKey, which must be an RS256 or
+	// ES256 private key. NewOneAuth panics on an HS256 secret, because
+	// OIDC Core §10.1 signs an HMAC ID token with the client's own secret
+	// and a shared one would let every resource server forge ID tokens.
+	OIDC *OIDCConfig
+
 	// Hooks — lifecycle callbacks
 	Hooks Hooks
 }
@@ -370,12 +389,27 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		authenticator = &fapiClientAuthenticator{inner: authenticator}
 	}
 
+	var idTokens IDTokenIssuer
+	if cfg.OIDC != nil {
+		var err error
+		idTokens, err = NewJWTIDTokenIssuer(JWTIDTokenIssuerConfig{
+			SigningKey: cfg.SigningKey,
+			SigningAlg: signingAlg,
+			Issuer:     cfg.Issuer,
+			Expiry:     cfg.OIDC.IDTokenExpiry,
+			UserClaims: cfg.OIDC.UserClaims,
+		})
+		if err != nil {
+			panic("apiauth: NewOneAuth: OIDC: " + err.Error())
+		}
+	}
+
 	// Per-grant Granters. Nil when the corresponding store / config is
 	// not wired; TokenEndpointHandler maps a nil Granter to
 	// unsupported_grant_type for that grant_type.
 	var authCodeGranter AuthorizationCodeGranter
 	if cfg.AuthorizationCodeStore != nil {
-		authCodeGranter = NewAuthorizationCodeGranter(
+		g := newAuthorizationCodeGranter(
 			cfg.AuthorizationCodeStore,
 			cfg.AppStore,
 			authenticator,
@@ -383,6 +417,8 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 			cfg.RefreshStore,
 			cfg.Blacklist,
 		)
+		g.IDTokens = idTokens
+		authCodeGranter = g
 	}
 	var deviceGranter DeviceCodeGranter
 	if cfg.DeviceAuthStore != nil {
@@ -440,6 +476,8 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		AcceptedAudiences:        cfg.AcceptedAudiences,
 		DPoP:                     cfg.DPoP,
 		RequireDPoP:              cfg.RequireDPoP,
+		OIDC:                     cfg.OIDC,
+		IDTokenIssuer:            idTokens,
 		Hooks:                    cfg.Hooks,
 	}
 	return oa

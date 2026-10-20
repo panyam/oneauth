@@ -220,33 +220,42 @@ Adding OIDC to a working OAuth AS is largely additive:
 
 | OIDC Core surface | Status | Where (grep-verified) | Notes |
 |---|---|---|---|
-| `/authorize` endpoint | **Implemented** (OAuth layer) | `apiauth/authorize.go` `AuthorizationHandler` (PR 297) | Issues `code` only; no id_token issuance yet |
-| `id_token` issuance | **Gap** (#339) | Only the `TokenTypeIDToken` constant in `apiauth/token_exchange_grant.go` exists (for 8693); no actual id_token mint anywhere | The foundational OIDC piece; without it the rest is mostly moot |
-| `nonce` parameter handling | **Gap** (#339) | No `nonce` references in `apiauth/authorize*.go` or `core/authorization_code.go` | Required for OIDC replay defense |
-| `/userinfo` endpoint | **Gap** (#339) | `ASServerMetadata.UserinfoEndpoint` in `apiauth/as_metadata.go` is wired (advertises a URL) but no handler implements it | Discovery-advertised; needs implementation |
-| `openid`/`profile`/`email`/etc. scope-to-claims mapping | **Gap** (#339) | No scope-aware claim selector | Needed for both id_token and userinfo |
-| `auth_time`, `acr`, `amr` claims | **Gap** | — | Needed for OIDC step-up auth |
-| `at_hash` claim (id_token integrity binding to access_token) | **Gap** | — | Required when issuing id_token + access_token together |
+| `/authorize` endpoint | **Implemented** | `apiauth/authorize.go` `AuthorizationHandler` (PR 297) | `response_type=code` only; the ID token comes from the token endpoint |
+| `id_token` issuance | **Implemented** (#339) | `apiauth/oidc.go` `IDTokenIssuer` / `NewJWTIDTokenIssuer`, called by `authorizationCodeGranter` | Opt-in through `OneAuthConfig.OIDC`; issued when the granted scope includes `openid`. RS256 or ES256 only, and `NewOneAuth` panics on an HS256 secret (§10.1 would need the client's own secret) |
+| `nonce` parameter handling | **Implemented** (#339) | `AuthorizationRequest.Nonce` → `core.AuthorizationCode.Nonce` → the ID token | Survives PAR (the pushed payload) and the consent form (a hidden input; a custom template must post it back) |
+| `/userinfo` endpoint | **Implemented** (#339) | `OneAuth.UserinfoHTTPHandler` in `apiauth/oidc_userinfo.go` | GET and POST, Bearer or DPoP through the caller's `APIMiddleware`; 403 `insufficient_scope` without `openid`. JSON only, no signed response |
+| `openid`/`profile`/`email`/etc. scope-to-claims mapping | **Implemented** (#339) | `OIDCConfig.UserClaims`, `core.FilterClaimsByScope` (the §5.4 table), `localauth.ProfileClaims` | One function feeds both the ID token and userinfo, so they agree |
+| `auth_time` claim | **Implemented** (#339) | `AuthorizeMountConfig.AuthTimeFromRequest` → `core.AuthorizationCode.AuthTime` | Left out when the deployment does not say when the user logged in |
+| `acr`, `amr`, `prompt`, `max_age`, `claims` parameter | **Gap** (#453) | — | Re-authentication and step-up |
+| `at_hash` claim (id_token integrity binding to access_token) | **Implemented** (#339) | `tokenHash` in `apiauth/oidc.go` | Left half of SHA-256 for RS256 / ES256 |
+| ID token on the refresh grant | **Gap** (#453) | — | OIDC Core §12.2 allows one; it needs `auth_time` kept on the refresh token |
 | OIDC Discovery (`/.well-known/openid-configuration`) | **Implemented** | `apiauth.MountASMetadata` co-serves both paths | See [`OIDC_Discovery.md`](OIDC_Discovery.md) |
 | ID tokens refused as access tokens (resource-server side) | **Implemented** | `checkAccessTokenKind` in `apiauth/jwt_helpers.go` | Keycloak signs ID tokens with the same key, header and `aud` as its access tokens, and marks them with a `typ` claim of `ID`. Since 0.1.46 the validator refuses a token whose `typ` claim is anything but `Bearer` or `DPoP` |
 
-**Implementation sketch.** OIDC Core is the single largest *implementable*
-gap in OneAuth, tracked in #339. The foundation (`/authorize`, JWKS, AS metadata, DCR) is
-all in place; what's missing is the identity-layer plumbing:
+**Turning it on.** Set `OneAuthConfig.OIDC` with an RS256 or ES256
+signing key, and pass `localauth.ProfileClaims(users, identities)` (or your
+own function) as `UserClaims`:
 
-1. **`IDTokenIssuer` interface** alongside `TokenIssuer`. Signs id_tokens
-   with the same JWKS-published keys; emits required claims (`iss`,
-   `sub`, `aud`, `exp`, `iat`, `nonce`, `at_hash`).
-2. **Scope-driven claim selector** that maps `openid profile email` → set
-   of claims. Configurable per-deployment via a `ClaimMapping` hook.
-3. **`/userinfo` handler** that bearer-auths and returns the same claim
-   set the id_token would have carried.
-4. **`nonce` storage + echo** in the authorization code record.
-5. **`UserSession` tracking** for `auth_time` and (eventually) for OIDC
-   front-channel logout and session management.
+```go
+oa := apiauth.NewOneAuth(apiauth.OneAuthConfig{
+    SigningKey: priv, SigningAlg: "ES256", VerifyKey: &priv.PublicKey,
+    Issuer: issuerURL, AuthorizationCodeStore: codes,
+    OIDC: &apiauth.OIDCConfig{UserClaims: localauth.ProfileClaims(users, identities)},
+})
+mux.Handle("GET /userinfo", oa.UserinfoHTTPHandler(resourceMiddleware))
+mux.Handle("POST /userinfo", oa.UserinfoHTTPHandler(resourceMiddleware))
+```
 
-This unblocks downstream work (CIBA, full FAPI 2.0 conformance, broader
-OIDC ecosystem interop).
+Advertise `userinfo_endpoint` and `id_token_signing_alg_values_supported`
+on the `ASServerMetadata` you mount, and set
+`AuthorizeMountConfig.AuthTimeFromRequest` if your session knows when the
+user logged in. The reference server does all of this under
+`code_flow.oidc: true`.
+
+An ID token carries a `typ` claim of `ID`, the same marker Keycloak uses,
+so `checkAccessTokenKind` refuses it as an access token. OIDC defines no
+marker of its own, and without one an ID token signed with the AS key would
+open any resource the AS protects.
 
 ## Related specs
 

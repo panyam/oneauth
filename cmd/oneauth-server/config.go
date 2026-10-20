@@ -69,6 +69,13 @@ type CodeFlowConfig struct {
 	// PAR serves RFC 9126 pushed authorization requests at POST /par, on
 	// the same store backend as the codes.
 	PAR PARConfig `yaml:"par"`
+
+	// OIDC turns on OpenID Connect Core: an `openid` code grant returns an
+	// ID token, GET / POST /userinfo serves the user's profile claims, and
+	// discovery advertises both. It needs jwt.signing_alg RS256 or ES256,
+	// since ID tokens are verified against the JWKS; the server refuses to
+	// start otherwise.
+	OIDC bool `yaml:"oidc"`
 }
 
 // PARConfig configures the pushed authorization request endpoint.
@@ -344,6 +351,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if len(cfg.JWT.ClaimsSupported) == 0 {
 		cfg.JWT.ClaimsSupported = defaultClaimsSupported()
+		if cfg.CodeFlow.Enabled && cfg.CodeFlow.OIDC {
+			cfg.JWT.ClaimsSupported = append(cfg.JWT.ClaimsSupported, oidcClaimsSupported()...)
+		}
 	}
 	if cfg.DeviceFlow.Enabled && cfg.DeviceFlow.Store.Type == "" {
 		cfg.DeviceFlow.Store.Type = "memory"
@@ -365,10 +375,17 @@ func defaultScopesSupported() []string {
 }
 
 // defaultClaimsSupported returns the default `claims_supported` advertised
-// in AS metadata. Conservative — only the claims OneAuth's bearer tokens
-// already emit. Expand once a userinfo endpoint lands (issue 116).
+// in AS metadata: the claims OneAuth's access tokens emit. With
+// code_flow.oidc on, oidcClaimsSupported is added.
 func defaultClaimsSupported() []string {
 	return []string{"sub", "iss", "aud", "exp", "iat", "jti", "scope", "client_id"}
+}
+
+// oidcClaimsSupported lists the ID token and userinfo claims the server
+// adds under code_flow.oidc: the ones every ID token can carry, and the
+// profile claims localauth.ProfileClaims maps.
+func oidcClaimsSupported() []string {
+	return []string{"nonce", "auth_time", "at_hash", "preferred_username", "email", "email_verified", "phone_number", "phone_number_verified"}
 }
 
 // configFromEnv builds a Config purely from environment variables.

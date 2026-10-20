@@ -38,7 +38,7 @@ func TestOIDF_FAPI2_SecurityProfile(t *testing.T) {
 	}
 	hc := &http.Client{Timeout: 30 * time.Second, Transport: probeTransport(t)}
 	s := fapi2.Setup{
-		Alias: "oneauth-fapi2", HarnessURL: harnessURL(), IssuerURL: envOr("OIDF_FAPI2_ISSUER", "https://host.docker.internal:8889"), Scope: "read",
+		Alias: "oneauth-fapi2", HarnessURL: harnessURL(), IssuerURL: envOr("OIDF_FAPI2_ISSUER", "https://host.docker.internal:8889"), Scope: "openid read",
 		User: fapi2.User{Email: "fapi2-user@example.com", Password: "fapi2-exercise-password"},
 	}
 	ctx := context.Background()
