@@ -128,6 +128,11 @@ type TokenPair struct {
 	Scope                string                `json:"scope,omitempty"`
 	AuthorizationDetails []AuthorizationDetail `json:"authorization_details,omitempty"` // RFC 9396
 
+	// IDToken is the OIDC Core §3.1.3.3 ID token, issued alongside the
+	// access token when the grant's scope includes "openid" and the AS has
+	// OIDC turned on. Empty otherwise.
+	IDToken string `json:"id_token,omitempty"`
+
 	// IssuedTokenType identifies the type of token issued (RFC 8693 §2.2,
 	// REQUIRED for token-exchange responses; absent for other grants).
 	// Common values:

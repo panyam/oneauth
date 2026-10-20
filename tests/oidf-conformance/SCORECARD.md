@@ -13,8 +13,8 @@ Test module: `oidcc-discovery-endpoint-verification`
 | Metric | Count |
 |---|---|
 | Total checks observed | 31 |
-| Passing | 27 |
-| Known gaps (expected-fail in manifest) | 4 |
+| Passing | 31 |
+| Known gaps (expected-fail in manifest) | 0 |
 | Regressions (failed but NOT in manifest) | 0 |
 | Ratchet-up available (in manifest but passed) | 0 |
 
@@ -23,7 +23,7 @@ Test module: `oidcc-discovery-endpoint-verification`
 | Check | Status | Gating | Note |
 |---|---|---|---|
 | `CheckDiscEndpointAllEndpointsAreHttps` | PASS | — |  |
-| `CheckDiscEndpointAuthorizationEndpoint` | KNOWN-FAIL | [#116](https://github.com/panyam/oneauth/issues/116) | authorization_endpoint is not advertised because /authorize isn't |
+| `CheckDiscEndpointAuthorizationEndpoint` | PASS | — |  |
 | `CheckDiscEndpointDiscoveryUrl` | PASS | — |  |
 | `CheckDiscEndpointIssuer` | PASS | — |  |
 | `CheckDiscEndpointIssuerIsValidUrl` | PASS | — |  |
@@ -35,7 +35,7 @@ Test module: `oidcc-discovery-endpoint-verification`
 | `CheckDiscEndpointScopesSupportedSyntax` | PASS | — |  |
 | `CheckDiscEndpointSubjectTypesSupported` | PASS | — |  |
 | `CheckDiscEndpointTokenEndpoint` | PASS | — |  |
-| `CheckDiscEndpointUserinfoEndpoint` | KNOWN-WARN | [#116](https://github.com/panyam/oneauth/issues/116) | userinfo_endpoint is absent. Gated on issue 116 (the userinfo |
+| `CheckDiscEndpointUserinfoEndpoint` | PASS | — |  |
 | `CheckDiscoveryEndpointReturnedJsonContentType` | PASS | — |  |
 | `CheckForUnexpectedParametersInServerMetadata` | PASS | — |  |
 | `CheckJwksUri` | PASS | — |  |
@@ -47,8 +47,8 @@ Test module: `oidcc-discovery-endpoint-verification`
 | `MapJwksToValidationLocation` | PASS | — |  |
 | `OIDCCCheckDiscEndpointClaimsSupported` | PASS | — |  |
 | `OIDCCCheckDiscEndpointGrantTypesSupported` | PASS | — |  |
-| `OIDCCCheckDiscEndpointIdTokenSigningAlgValuesSupported` | KNOWN-FAIL | [#116](https://github.com/panyam/oneauth/issues/116) | id_token_signing_alg_values_supported is gated on issue 116 issuing |
-| `OIDCCCheckDiscEndpointResponseTypesSupported` | KNOWN-FAIL | [#116](https://github.com/panyam/oneauth/issues/116) | OneAuth does not implement /authorize and therefore advertises no |
+| `OIDCCCheckDiscEndpointIdTokenSigningAlgValuesSupported` | PASS | — |  |
+| `OIDCCCheckDiscEndpointResponseTypesSupported` | PASS | — |  |
 | `ParseUsableJwksKeys` | PASS | — |  |
 | `ValidateJwksStructure` | PASS | — |  |
 | `ValidateServerMetadataAgainstSchema` | PASS | — |  |

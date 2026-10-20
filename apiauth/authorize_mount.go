@@ -64,6 +64,11 @@ type AuthorizeMountConfig struct {
 	// or a cookie-reading equivalent. Required.
 	SubjectFromRequest func(r *http.Request) string
 
+	// AuthTimeFromRequest returns when the logged-in user authenticated,
+	// reported as the ID token's `auth_time`. Optional; nil leaves the
+	// claim out. See AuthorizeVerificationHandler.AuthTimeFromRequest.
+	AuthTimeFromRequest func(r *http.Request) time.Time
+
 	// CSRFTokenFromRequest returns the per-request CSRF token to
 	// embed in the rendered HTML form. Wire `httpauth.CSRFToken`.
 	// Required.
@@ -176,6 +181,7 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 		Authorization:        authzHandler,
 		AppStore:             cfg.OneAuth.AppStore,
 		SubjectFromRequest:   cfg.SubjectFromRequest,
+		AuthTimeFromRequest:  cfg.AuthTimeFromRequest,
 		CSRFTokenFromRequest: cfg.CSRFTokenFromRequest,
 		LoginRedirectURL:     cfg.LoginRedirectURL,
 		LoginNextParam:       cfg.LoginNextParam,

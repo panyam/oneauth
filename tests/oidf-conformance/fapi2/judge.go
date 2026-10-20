@@ -24,6 +24,11 @@ const (
 	// StatusExpectedSkip is a module the harness skips for this plan's
 	// configuration.
 	StatusExpectedSkip = "expected-skip"
+	// StatusExpectedWarning is a module that passes apart from a warning
+	// oneauth accepts on purpose. Evidence is required: one warning must
+	// contain it, and every other warning must come from the same check,
+	// so a warning from anywhere else is still a regression.
+	StatusExpectedWarning = "expected-warning"
 )
 
 // Expectation is one known-gaps.yaml entry for PlanName.
@@ -67,6 +72,10 @@ func LoadExpectations(path string) (map[string]Expectation, error) {
 		case StatusExpectedReview:
 			if e.Evidence == "" {
 				return nil, fmt.Errorf("manifest entry %s: expected-review needs evidence, the text the captured page must show", e.Test)
+			}
+		case StatusExpectedWarning:
+			if e.Evidence == "" {
+				return nil, fmt.Errorf("manifest entry %s: expected-warning needs evidence, the text the warning must show", e.Test)
 			}
 		default:
 			return nil, fmt.Errorf("manifest entry %s: unknown status %q", e.Test, e.Status)
@@ -140,15 +149,22 @@ func judgeOne(r ModuleResult, e Expectation, listed bool) Verdict {
 		return v
 	}
 	want, evidenceIn := map[string]string{
-		StatusExpectedFail:   "FAILED",
-		StatusExpectedReview: "REVIEW",
-		StatusExpectedSkip:   "SKIPPED",
+		StatusExpectedFail:    "FAILED",
+		StatusExpectedReview:  "REVIEW",
+		StatusExpectedSkip:    "SKIPPED",
+		StatusExpectedWarning: "WARNING",
 	}[e.Status], ""
 	switch e.Status {
 	case StatusExpectedFail:
 		evidenceIn = r.FirstFailure
 	case StatusExpectedReview:
 		evidenceIn = r.ReviewPage
+	}
+	if e.Status == StatusExpectedWarning && r.Result == want {
+		if !warningsMatch(r.Warnings, e.Evidence) {
+			v.Kind, v.Detail = VerdictRegression, fmt.Sprintf("ended WARNING but not only with %q: %v", e.Evidence, r.Warnings)
+		}
+		return v
 	}
 	switch {
 	case r.Result != want:
@@ -157,4 +173,25 @@ func judgeOne(r ModuleResult, e Expectation, listed bool) Verdict {
 		v.Kind, v.Detail = VerdictRegression, fmt.Sprintf("ended %s but without %q", want, e.Evidence)
 	}
 	return v
+}
+
+// warningsMatch reports whether one of warnings contains evidence and every
+// warning comes from the same check (the "Src" before the colon) as that one.
+func warningsMatch(warnings []string, evidence string) bool {
+	src := ""
+	for _, w := range warnings {
+		if strings.Contains(w, evidence) {
+			src, _, _ = strings.Cut(w, ":")
+			break
+		}
+	}
+	if src == "" {
+		return false
+	}
+	for _, w := range warnings {
+		if s, _, _ := strings.Cut(w, ":"); s != src {
+			return false
+		}
+	}
+	return true
 }

@@ -58,7 +58,7 @@ func main() {
 	ctx := context.Background()
 
 	s := fapi2.Setup{
-		Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, Scope: "read",
+		Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, Scope: "openid read",
 		User: fapi2.User{Email: "fapi2-user@example.com", Password: "fapi2-exercise-password"},
 	}
 	if err := fapi2.Prepare(ctx, hc, *serverURL, &s); err != nil {

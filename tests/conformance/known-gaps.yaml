@@ -42,45 +42,10 @@
 # The discovery plan baseline + per-check rationale lives in
 # `tests/oidf-conformance/baselines/2026-05-09/BASELINE.md`.
 
-# Substantive metadata gaps gated on issue 116 (full OIDC Provider).
-
-- suite: oidf
-  plan: oidcc-config-certification-test-plan
-  test: OIDCCCheckDiscEndpointResponseTypesSupported
-  status: expected-fail
-  issue: 116
-  owner: panyam
-  reason: |
-    OneAuth does not implement /authorize and therefore advertises no
-    response_types_supported that matches OIDC (we serve `token` only,
-    which is for the resource-token API surface; OIDC checks expect at
-    least one of `code`, `id_token`, etc.). Closes when issue 116 ships.
-  expires: 2026-12-31
-
-- suite: oidf
-  plan: oidcc-config-certification-test-plan
-  test: OIDCCCheckDiscEndpointIdTokenSigningAlgValuesSupported
-  status: expected-fail
-  issue: 116
-  owner: panyam
-  reason: |
-    id_token_signing_alg_values_supported is gated on issue 116 issuing
-    id_tokens. We could advertise the alg list standalone, but the field
-    is semantically about id_token signing and there are currently no
-    id_tokens to sign.
-  expires: 2026-12-31
-
-- suite: oidf
-  plan: oidcc-config-certification-test-plan
-  test: CheckDiscEndpointAuthorizationEndpoint
-  status: expected-fail
-  issue: 116
-  owner: panyam
-  reason: |
-    authorization_endpoint is not advertised because /authorize isn't
-    implemented. Single biggest gap to the OIDC IdP claim; tracked
-    under issue 116.
-  expires: 2026-12-31
+# The four metadata gaps gated on issue 116 (response_types_supported,
+# id_token_signing_alg_values_supported, authorization_endpoint,
+# userinfo_endpoint) closed under issue 339, when the baseline server
+# turned on code_flow.oidc.
 
 # Note: the baseline (2026-05-09) also flagged
 # `OIDCCCheckDiscEndpointClaimsSupported`,
@@ -100,17 +65,6 @@
 #   - CheckJwksUri                         (https-protocol)
 #   - CheckDiscEndpointAllEndpointsAreHttps (aggregate)
 
-- suite: oidf
-  plan: oidcc-config-certification-test-plan
-  test: CheckDiscEndpointUserinfoEndpoint
-  status: expected-fail
-  issue: 116
-  owner: panyam
-  reason: |
-    userinfo_endpoint is absent. Gated on issue 116 (the userinfo
-    endpoint is part of the OIDC IdP surface).
-  expires: 2026-12-31
-
 # -----------------------------------------------------------------------------
 # FAPI 2.0 Security Profile plan (mission issue 98)
 # -----------------------------------------------------------------------------
@@ -120,7 +74,8 @@
 # REVIEW (a screenshot a person signs off on); `evidence` is text the page
 # the browser captured must contain, so a different error page still fails.
 # `expected-skip` is a module the harness skips for this plan's config.
-# Every other module has to pass.
+# `expected-warning` is a module whose only warnings come from the check
+# its evidence names. Every other module has to pass.
 
 - suite: oidf
   plan: fapi2-security-profile-final-test-plan
@@ -180,4 +135,32 @@
     The harness runs this only with an RSA client key, and the plan's
     clients use ES256 because oneauth can't register a PS256 client yet
     (issue 330). The harness says the skip doesn't block certification.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: fapi2-security-profile-final-test-plan
+  test: fapi2-security-profile-final-happy-flow
+  status: expected-warning
+  evidence: non-requested claim 'typ'
+  issue: 339
+  owner: panyam
+  reason: |
+    oneauth's ID tokens carry a `typ: ID` claim so a resource server
+    refuses one presented as an access token (checkAccessTokenKind), the
+    marker Keycloak uses too. OIDC defines no marker, and a JOSE header
+    typ other than JWT is refused by common relying-party libraries
+    (Nimbus), so the claim stays and the harness warns that the client
+    did not request it.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: fapi2-security-profile-final-test-plan
+  test: fapi2-security-profile-final-test-claims-parameter-identity-claims
+  status: expected-skip
+  issue: 453
+  owner: panyam
+  reason: |
+    The harness skips this module because the discovery document does not
+    advertise claims_parameter_supported; the OIDC `claims` request
+    parameter is not implemented yet.
   expires: 2027-12-31

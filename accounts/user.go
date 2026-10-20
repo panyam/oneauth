@@ -75,6 +75,11 @@ func IdentityKey(identityType, identityValue string) string {
 
 // HandleUserFunc is called after successful authentication (OAuth or local)
 // to let the host application complete its session/redirect logic.
+//
+// For local auth, userInfo carries the user's profile plus "user_id",
+// the ID the token endpoint uses as `sub`. A session that identifies the
+// user by that ID gets the same `sub` from /authorize as from the
+// password grant.
 type HandleUserFunc func(authtype string, provider string, token *oauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request)
 
 // DetectUsernameType attempts to detect what type of username was provided.

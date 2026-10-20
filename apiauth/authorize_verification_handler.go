@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/httpauth"
@@ -38,6 +39,12 @@ type AuthorizeVerificationHandler struct {
 	// user is unauthenticated). Wire `httpauth.Middleware.GetLoggedInSubject`.
 	// Required.
 	SubjectFromRequest func(r *http.Request) string
+
+	// AuthTimeFromRequest returns when the logged-in user authenticated,
+	// which becomes the ID token's `auth_time` (OIDC Core §2). The zero
+	// time, or a nil function, leaves the claim out. Wire it to whatever
+	// the session records at login, such as the session cookie's `iat`.
+	AuthTimeFromRequest func(r *http.Request) time.Time
 
 	// CSRFTokenFromRequest returns the per-request CSRF token to
 	// embed in the rendered form. Wire `httpauth.CSRFToken`. Required.
@@ -92,6 +99,7 @@ type authorizeConsentData struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	DPoPJKT             string
+	Nonce               string
 	// RequestURI round-trips a pushed request (RFC 9126) through the
 	// form, so Approve resolves the stored payload instead of re-reading
 	// the other hidden inputs as a fresh request. Custom consent
@@ -153,6 +161,7 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
 		DPoPJKT:             req.DPoPJKT,
+		Nonce:               req.Nonce,
 		RequestURI:          req.RequestURI,
 		CSRFToken:           h.csrfToken(r),
 		ActionURL:           r.URL.Path,
@@ -206,6 +215,9 @@ func (h *AuthorizeVerificationHandler) Decide(w http.ResponseWriter, r *http.Req
 }
 
 func (h *AuthorizeVerificationHandler) issueAndRedirect(w http.ResponseWriter, r *http.Request, req *AuthorizationRequest, subject string) {
+	if h.AuthTimeFromRequest != nil {
+		req.AuthTime = h.AuthTimeFromRequest(r)
+	}
 	code, err := h.Authorization.IssueCode(r.Context(), req, subject, nil)
 	if err != nil {
 		h.redirectError(w, r, req, "server_error", "could not issue authorization code")
@@ -330,6 +342,7 @@ var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent"
     <input type="hidden" name="code_challenge" value="{{.CodeChallenge}}">
     <input type="hidden" name="code_challenge_method" value="{{.CodeChallengeMethod}}">
     {{if .DPoPJKT}}<input type="hidden" name="dpop_jkt" value="{{.DPoPJKT}}">{{end}}
+    {{if .Nonce}}<input type="hidden" name="nonce" value="{{.Nonce}}">{{end}}
     {{if .RequestURI}}<input type="hidden" name="request_uri" value="{{.RequestURI}}">{{end}}
     <button type="submit" name="action" value="approve">Approve</button>
     <button type="submit" name="action" value="deny">Deny</button>

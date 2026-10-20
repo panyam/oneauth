@@ -5,6 +5,7 @@ Local (form-based) authentication: signup, login, email verification, password r
 ## Contents
 - **local.go** — `LocalAuth` struct (login, email verify, forgot/reset password, credential linking handler)
 - **Password reset (issue 88)** — tokens are stored as `HashVerificationToken` (SHA-256), consumed via `DeleteToken`→`Deleted` before the password changes, checked against the signup password policy, and followed by `AfterPasswordReset` (`NewRevokeSessionsOnReset` revokes the account's refresh tokens).
+- **oidc_claims.go** — `ProfileClaims(users, identities)`: an OIDC `UserClaimsFunc` mapping the local profile to `preferred_username`, `email`/`email_verified`, `phone_number`/`phone_number_verified`, gated by scope (#339). Login and signup pass `user_id` to `HandleUser` so a session names the user by the same ID tokens use
 - **signup.go** — `HandleSignup`, form parsing, policy-based validation
 - **helpers.go** — `NewCreateUserFunc`, `NewCredentialsValidator`, `NewVerifyEmailFunc`, `NewUpdatePasswordFunc`, `NewEnsureAuthUserFunc`, `LinkLocalCredentials`, `EnsureAuthUserConfig`
 

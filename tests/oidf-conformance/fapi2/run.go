@@ -88,6 +88,8 @@ type ModuleResult struct {
 	Result string
 	// FirstFailure is the first FAILURE message in the module's log.
 	FirstFailure string
+	// Warnings are the module's WARNING messages, each as "Src: Msg".
+	Warnings []string
 	// ReviewPage is the page source the browser captured for the module's
 	// REVIEW check, if it filled one. Passing modules carry REVIEW entries
 	// too, with the placeholder marked no longer required and no page.
@@ -165,6 +167,9 @@ func runModule(ctx context.Context, h *harness.Client, planID string, m harness.
 		for _, e := range entries {
 			if e.Result == harness.ResultFailure && r.FirstFailure == "" {
 				r.FirstFailure = e.Src + ": " + e.Msg
+			}
+			if e.Result == harness.ResultWarning {
+				r.Warnings = append(r.Warnings, e.Src+": "+e.Msg)
 			}
 			if e.Result == harness.ResultReview && e.PageSource != "" && r.ReviewPage == "" {
 				r.ReviewPage = e.PageSource

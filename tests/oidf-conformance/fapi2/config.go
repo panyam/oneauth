@@ -84,14 +84,14 @@ type Setup struct {
 }
 
 // PlanVariant is FAPI 2.0 as oneauth implements it: private_key_jwt client
-// authentication, DPoP sender constraint, plain FAPI, and plain OAuth
-// because oneauth issues no ID tokens yet (#339).
+// authentication, DPoP sender constraint, plain FAPI, and OpenID Connect,
+// so the plan checks the ID token the code grant returns (issue 339).
 func PlanVariant() map[string]string {
 	return map[string]string{
 		"fapi_profile":               "plain_fapi",
 		"client_auth_type":           "private_key_jwt",
 		"sender_constrain":           "dpop",
-		"openid":                     "plain_oauth",
+		"openid":                     "openid_connect",
 		"authorization_request_type": "simple",
 		"grant_management":           "disabled",
 	}

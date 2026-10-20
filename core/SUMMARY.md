@@ -8,7 +8,7 @@ and [`localauth/`](../localauth/SUMMARY.md) (username/password) and
 
 ## Contents
 - **stores.go** — Store interfaces: `RefreshTokenStore` (`RecordAccessToken` + `RevokeTokenFamily` returning the family's access tokens, RFC 7009 §2.1), `APIKeyStore`
-- **tokens.go** — `RefreshToken`, `IssuedAccessToken` (+ `AppendIssuedAccessToken` / `LiveIssuedAccessTokens` pruning helpers), `APIKey`, `TokenPair`, `TokenRequest`, `TokenError`, error vars, expiry constants, `GenerateSecureToken`, `GenerateAPIKeyID`, `GenerateAPIKeySecret`
+- **tokens.go** — `RefreshToken`, `IssuedAccessToken` (+ `AppendIssuedAccessToken` / `LiveIssuedAccessTokens` pruning helpers), `APIKey`, `TokenPair` (with `IDToken` for OIDC), `TokenRequest`, `TokenError`, error vars, expiry constants, `GenerateSecureToken`, `GenerateAPIKeyID`, `GenerateAPIKeySecret`
 - **scopes.go** — Scope constants (`ScopeRead`, etc.), `GetUserScopesFunc`, `ParseScopes`, `JoinScopes`, `IntersectScopes`, `UnionScopes`
 - **context.go** — `GetUserIDFromContext()`, `SetUserIDInContext()`, `DefaultUserParamName`
 - **authorization_details.go** — `AuthorizationDetail` struct (RFC 9396), custom JSON marshal/unmarshal with extension flattening, `ValidateAll()`, `FilterByType()`, `ErrInvalidAuthorizationDetails`
@@ -16,7 +16,8 @@ and [`localauth/`](../localauth/SUMMARY.md) (username/password) and
 - **ratelimiter.go** — `RateLimiter` interface and `InMemoryRateLimiter` (token-bucket); also `AccountLockout` for tracking failed login attempts and temporary account lockouts
 - **client_ip.go** — `ClientIP(r, TrustedProxies)` is the address rate limits key on: the TCP peer, or the forwarded client when the peer is a configured proxy (X-Forwarded-For walked right to left). `ParseTrustedProxies` takes CIDRs or addresses. Issue 88.
 - **device_authorization.go** — `DeviceAuthorization`, `DeviceAuthorizationStore` interface + `InMemoryDeviceAuthorizationStore`, `UpperUserCode` normalization helper (RFC 8628)
-- **authorization_code.go** — `AuthorizationCode`, `AuthorizationCodeStore` interface + `InMemoryAuthorizationCodeStore`, `ErrAuthorizationCodeNotFound` sentinel (RFC 6749 §4.1). Redemption marks a code used (`ConsumeAuthorizationCode`, `ErrAuthorizationCodeUsed`) and records the tokens it minted (`RecordAuthorizationCodeTokens`); the record is kept until that access token expires so a reused code revokes them (RFC 6749 §4.1.2, issue 429)
+- **oidc_claims.go** — `ScopeOpenID`, `OIDCScopeClaims` (the OIDC Core §5.4 scope → claims table) and `FilterClaimsByScope` (#339)
+- **authorization_code.go** — `AuthorizationCode` (with the OIDC `Nonce` and `AuthTime` it carries to the ID token), `AuthorizationCodeStore` interface + `InMemoryAuthorizationCodeStore`, `ErrAuthorizationCodeNotFound` sentinel (RFC 6749 §4.1). Redemption marks a code used (`ConsumeAuthorizationCode`, `ErrAuthorizationCodeUsed`) and records the tokens it minted (`RecordAuthorizationCodeTokens`); the record is kept until that access token expires so a reused code revokes them (RFC 6749 §4.1.2, issue 429)
 
 ## What moved out (and where)
 - `User`, `BasicUser`, `Identity`, `Channel`, `IdentityKey`, `HandleUserFunc`, `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`, `AuthError`, `AuthErrorHandler`, `ErrCode*`, `DetectUsernameType`, `CredentialsValidator`, `LinkedChannels` → [`accounts/`](../accounts/SUMMARY.md)

@@ -65,6 +65,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for rationale and [docs/ROADMAP
 | `GET /.well-known/oauth-protected-resource` | `NewProtectedResourceHandler` | RFC 9728 |
 | `POST /apps/dcr` | `DCRHandler` | RFC 7591 |
 | `GET / PUT / DELETE /apps/dcr/{client_id}` | `DCRManagementHandler` | RFC 7592 |
+| `id_token` from `POST /api/token` (`authorization_code` with `openid`) + `GET / POST /userinfo` | `IDTokenIssuer` + `OneAuth.UserinfoHTTPHandler` (`apiauth/oidc*.go`), opt-in via `OneAuthConfig.OIDC` | OIDC Core 1.0 |
 | AS-initiated `POST <backchannel_logout_uri>` with `logout_token` | `BCLDispatcher` + `LogoutTokenIssuer` | OIDC Back-Channel Logout 1.0 |
 | `POST /device/authorize` + `POST /api/token` (`grant_type=…:device_code`) | `DeviceAuthorizationHandler` + `DeviceCodeGranter` | RFC 8628 |
 | `GET / POST /authorize` + `POST /api/token` (`grant_type=authorization_code`) | `AuthorizationHandler` + `AuthorizeVerificationHandler` + `AuthorizationCodeGranter` (via `MountAuthorize`) | RFC 6749 §4.1 + RFC 7636 (PKCE S256) + RFC 9207 (`iss` on redirect) |
@@ -150,6 +151,8 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - **The reference server's own TLS is BCP 195** (`serverTLSConfig` in `cmd/oneauth-server/tls.go`): TLS 1.2 minimum, and on 1.2 only the four ECDHE + AES-GCM suites. A test client pinned to a CBC or ChaCha20 suite on TLS 1.2 fails the handshake.
 - **Client assertions allow 10 seconds of clock skew** (`ClientAssertionClockSkew`, FAPI 2.0 §5.3.2.1) on `iat`, `nbf` and `exp`, and `iat` is checked against the clock. A test expecting an assertion expired by a few seconds to fail needs it more than 10 seconds past `exp`.
 - **A concurrent GORM test on sqlite needs one connection.** Each pooled connection to `:memory:` opens its own empty database, so goroutines past the first fail with "no such table". Set `SetMaxOpenConns(1)` for sqlite only, as `stores/gorm/refreshtoken_access_tokens_test.go` does, and let `make testpg` exercise a real pool.
+- **OIDC needs an asymmetric key.** `NewOneAuth` panics when `OneAuthConfig.OIDC` is set with an HS256 secret, and the reference server refuses `code_flow.oidc` without `jwt.signing_alg` RS256 or ES256. ID tokens carry a `typ: ID` claim; a new ID-token-like JWT kind needs a marker too, or it validates as an access token.
+- **A browser session's subject is the user ID.** `localauth` passes `user_id` to `HandleUser` since issue 339, and the reference server's session cookie uses it as `sub`. Before that, codes from `/authorize` named the user by login name while the password grant used the ID; a custom `HandleUser` that builds a session should read `user_id` too.
 - **httptest URL needed before mount.** When a handler config requires the server's base URL (e.g., RFC 8628 `VerificationURI`), use `httptest.NewUnstartedServer(mux)` → read `server.URL` → mount → `server.Start()`. Avoids post-hoc handler mutation. Pattern in `tests/e2e/device_flow_test.go`.
 
 ## Issues and missions
