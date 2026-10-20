@@ -66,6 +66,9 @@ func (s *fakeRefreshStore) RevokeSubjectTokens(_ context.Context, _ *core.Revoke
 func (s *fakeRefreshStore) RevokeTokenFamily(_ context.Context, _ *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
 	return &core.RevokeTokenFamilyResponse{}, nil
 }
+func (s *fakeRefreshStore) RecordAccessToken(_ context.Context, _ *core.RecordAccessTokenRequest) (*core.RecordAccessTokenResponse, error) {
+	return &core.RecordAccessTokenResponse{}, nil
+}
 func (s *fakeRefreshStore) CleanupExpiredTokens(_ context.Context, _ *core.CleanupExpiredTokensRequest) (*core.CleanupExpiredTokensResponse, error) {
 	return &core.CleanupExpiredTokensResponse{}, nil
 }

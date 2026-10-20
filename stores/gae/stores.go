@@ -814,6 +814,10 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 	if entity.AuthorizationDetails != nil {
 		json.Unmarshal(entity.AuthorizationDetails, &authzDetails)
 	}
+	var accessTokens []core.IssuedAccessToken
+	if entity.AccessTokens != nil {
+		json.Unmarshal(entity.AccessTokens, &accessTokens)
+	}
 
 	rt := &core.RefreshToken{
 		TokenHash:            entity.Key.Name,
@@ -829,6 +833,7 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 		ExpiresAt:            entity.ExpiresAt,
 		LastUsedAt:           entity.LastUsedAt,
 		Revoked:              entity.Revoked,
+		AccessTokens:         accessTokens,
 	}
 	if !entity.RevokedAt.IsZero() {
 		rt.RevokedAt = &entity.RevokedAt
@@ -1064,41 +1069,102 @@ func (s *RefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.R
 	return &core.RevokeSubjectTokensResponse{}, nil
 }
 
-// RevokeTokenFamily revokes every active token in a rotation lineage. Called
-// by RotateRefreshToken's reuse-attack path (also addressable from admin
-// tooling). Like RevokeSubjectTokens, runs outside a transaction — the
-// family can have more entities than a single transaction permits.
+// RecordAccessToken appends the access token to req.Token's entity inside
+// a transaction and reports the entity's Revoked flag read in it.
+// Datastore's optimistic concurrency makes this atomic against the
+// per-entity transactions in RevokeTokenFamily: whichever commits second
+// sees the other's write. A missing token is core.ErrTokenNotFound
+// (datastore.ErrNoSuchEntity mapped).
+func (s *RefreshTokenStore) RecordAccessToken(ctx context.Context, req *core.RecordAccessTokenRequest) (*core.RecordAccessTokenResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RecordAccessToken: req is required")
+	}
+	key := s.namespacedKey(KindRefreshToken, s.hashToken(req.Token))
+	var revoked bool
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		var entity RefreshTokenEntity
+		if err := tx.Get(key, &entity); err != nil {
+			if err == datastore.ErrNoSuchEntity {
+				return core.ErrTokenNotFound
+			}
+			return err
+		}
+		revoked = entity.Revoked
+		var list []core.IssuedAccessToken
+		if entity.AccessTokens != nil {
+			json.Unmarshal(entity.AccessTokens, &list)
+		}
+		list = core.AppendIssuedAccessToken(list,
+			core.IssuedAccessToken{TokenID: req.TokenID, ExpiresAt: req.ExpiresAt}, time.Now())
+		b, err := json.Marshal(list)
+		if err != nil {
+			return err
+		}
+		entity.AccessTokens = b
+		_, err = tx.Put(key, &entity)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &core.RecordAccessTokenResponse{Revoked: revoked}, nil
+}
+
+// RevokeTokenFamily revokes every active token in a rotation lineage and
+// returns the unexpired access tokens recorded on any member, revoked
+// earlier or not. Called on reuse detection and RFC 7009 revocation (also
+// addressable from admin tooling). The family can have more entities than
+// one transaction permits, so each member is revoked in its own
+// transaction, which keeps it atomic against RecordAccessToken on that
+// member. A member that fails partway leaves the rest unrevoked; the
+// error is returned and a retry finishes the job.
 func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("RevokeTokenFamily: req is required")
 	}
 	query := datastore.NewQuery(KindRefreshToken).
 		FilterField("family", "=", req.Family).
-		FilterField("revoked", "=", false)
+		KeysOnly()
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
 	}
+	keys, err := s.client.GetAll(ctx, query, nil)
+	if err != nil {
+		return nil, err
+	}
 
-	now := time.Now()
-	it := s.client.Run(ctx, query)
-	for {
-		var entity RefreshTokenEntity
-		key, err := it.Next(&entity)
-		if err == iterator.Done {
-			break
-		}
+	var issued []core.IssuedAccessToken
+	for _, key := range keys {
+		var live []core.IssuedAccessToken
+		_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+			live = nil
+			var entity RefreshTokenEntity
+			if err := tx.Get(key, &entity); err != nil {
+				if err == datastore.ErrNoSuchEntity {
+					return nil
+				}
+				return err
+			}
+			now := time.Now()
+			var list []core.IssuedAccessToken
+			if entity.AccessTokens != nil {
+				json.Unmarshal(entity.AccessTokens, &list)
+			}
+			live = core.LiveIssuedAccessTokens(list, now)
+			if entity.Revoked {
+				return nil
+			}
+			entity.Revoked = true
+			entity.RevokedAt = now
+			_, err := tx.Put(key, &entity)
+			return err
+		})
 		if err != nil {
 			return nil, err
 		}
-
-		entity.Key = key
-		entity.Revoked = true
-		entity.RevokedAt = now
-		if _, err := s.client.Put(ctx, key, &entity); err != nil {
-			return nil, err
-		}
+		issued = append(issued, live...)
 	}
-	return &core.RevokeTokenFamilyResponse{}, nil
+	return &core.RevokeTokenFamilyResponse{AccessTokens: issued}, nil
 }
 
 // GetSubjectTokens returns every active (non-revoked) refresh token for

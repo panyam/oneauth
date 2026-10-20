@@ -169,6 +169,12 @@ type PasswordGrantResponse struct {
 	ExpiresIn            int64
 	GrantedScopes        []string
 	AuthorizationDetails []core.AuthorizationDetail
+
+	// TokenID and ExpiresAt are the access token's `jti` and `exp`, so the
+	// caller that pairs it with a refresh token can record it there and
+	// revoking the refresh token blacklists it (RFC 7009 §2.1).
+	TokenID   string
+	ExpiresAt time.Time
 }
 
 // PasswordGrantResult is the previous name of PasswordGrantResponse.

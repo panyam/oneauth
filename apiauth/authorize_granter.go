@@ -185,6 +185,10 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		if rtErr == nil && createResp != nil && createResp.Token != nil {
 			pair.RefreshToken = createResp.Token.Token
 			issued.RefreshFamily = createResp.Token.Family
+			if err := recordAccessToken(ctx, r.RefreshStore, r.Blacklist, pair.RefreshToken, tok.TokenID, tok.ExpiresAt); err != nil {
+				r.revoke(ctx, issued.TokenID, issued.TokenExpiresAt, issued.RefreshFamily)
+				return nil, serverError("record access token: " + err.Error())
+			}
 		}
 	}
 
@@ -222,7 +226,8 @@ func (r *authorizationCodeGranter) refuseReuse(ctx context.Context, code string)
 }
 
 // revoke blacklists an access token and revokes a refresh family, each
-// when there is one to revoke and a store to revoke it in.
+// when there is one to revoke and a store to revoke it in. Access tokens
+// minted later by refreshing that family are blacklisted with it.
 func (r *authorizationCodeGranter) revoke(ctx context.Context, tokenID string, expiresAt time.Time, family string) {
 	if tokenID != "" && r.Blacklist != nil {
 		if expiresAt.IsZero() {
@@ -230,9 +235,7 @@ func (r *authorizationCodeGranter) revoke(ctx context.Context, tokenID string, e
 		}
 		_ = r.Blacklist.Revoke(tokenID, expiresAt)
 	}
-	if family != "" && r.RefreshStore != nil {
-		_, _ = r.RefreshStore.RevokeTokenFamily(ctx, &core.RevokeTokenFamilyRequest{Family: family})
-	}
+	_ = revokeRefreshFamily(ctx, r.RefreshStore, r.Blacklist, family)
 }
 
 var _ AuthorizationCodeGranter = (*authorizationCodeGranter)(nil)

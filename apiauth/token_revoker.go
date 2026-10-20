@@ -48,6 +48,10 @@ func NewTokenRevoker(cfg TokenRevokerConfig) TokenRevoker {
 // 7009 §2.2 answers it like a success. A token issued to a client other
 // than req.ClientID returns ErrRevokeNotOwner and is left alone.
 //
+// Revoking a refresh token revokes its whole family and blacklists the
+// access tokens the family recorded (RFC 7009 §2.1), when a Blacklist is
+// configured.
+//
 // When the token resolves to a refresh token we capture its (subject, family,
 // client_id) before the revoke completes and fire OnTokenRevoked so BCL
 // dispatch can pick it up. Access-token blacklisting does not fire that hook
@@ -71,7 +75,12 @@ func (r *tokenRevoker) Revoke(ctx context.Context, req *RevokeRequest) (*RevokeR
 		if !ownedBy(rt.ClientID, req.ClientID) {
 			return nil, ErrRevokeNotOwner
 		}
-		if !rt.Revoked {
+		// RFC 7009 §2.1: the access tokens issued from the same grant go
+		// too. The family is the grant, so the whole of it is revoked,
+		// whichever member was presented.
+		if rt.Family != "" {
+			revokeRefreshFamily(ctx, r.refreshStore, r.blacklist, rt.Family)
+		} else if !rt.Revoked {
 			r.refreshStore.RevokeRefreshToken(ctx, &core.RevokeRefreshTokenRequest{Token: req.Token})
 		}
 	}

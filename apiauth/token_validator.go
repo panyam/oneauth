@@ -2,6 +2,7 @@ package apiauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -363,6 +364,7 @@ type jwtIssuer struct {
 	customClaims        CustomClaimsFunc
 	hooks               TokenHooks
 	disableRotation     bool
+	blacklist           core.TokenBlacklist
 }
 
 // resolveAudience returns the currently-configured aud claim value:
@@ -404,6 +406,12 @@ type JWTIssuerConfig struct {
 	// DisableRefreshTokenRotation mirrors
 	// OneAuthConfig.DisableRefreshTokenRotation.
 	DisableRefreshTokenRotation bool
+
+	// Blacklist receives the access tokens of a refresh family revoked on
+	// reuse detection (RFC 9700 §4.14.2). Without one the family's
+	// refresh tokens are revoked and its access tokens live until they
+	// expire.
+	Blacklist core.TokenBlacklist
 }
 
 // NewJWTIssuer creates a TokenIssuer that signs JWTs.
@@ -426,6 +434,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		customClaims:        cfg.CustomClaims,
 		hooks:               cfg.Hooks,
 		disableRotation:     cfg.DisableRefreshTokenRotation,
+		blacklist:           cfg.Blacklist,
 	}
 }
 
@@ -590,7 +599,7 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 
 	// Check if revoked — token reuse detection (theft)
 	if rt.Revoked {
-		i.refreshStore.RevokeTokenFamily(ctx, &core.RevokeTokenFamilyRequest{Family: rt.Family})
+		revokeRefreshFamily(ctx, i.refreshStore, i.blacklist, rt.Family)
 		return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
 	}
 	if rt.IsExpired() {
@@ -625,16 +634,18 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 	// off (FAPI 2.0 §5.3.2.1) the presented token stays live and the
 	// response carries no refresh_token, so the client keeps using it.
 	var newRefreshToken string
+	recordOn := req.RefreshToken
 	if !i.disableRotation {
 		rotResp, err := i.refreshStore.RotateRefreshToken(ctx, &core.RotateRefreshTokenRequest{OldToken: req.RefreshToken})
 		if err != nil {
 			if err == core.ErrTokenReused {
-				i.refreshStore.RevokeTokenFamily(ctx, &core.RevokeTokenFamilyRequest{Family: rt.Family})
+				revokeRefreshFamily(ctx, i.refreshStore, i.blacklist, rt.Family)
 				return nil, fmt.Errorf("invalid_grant: token reuse detected, all sessions revoked")
 			}
 			return nil, fmt.Errorf("server_error: %w", err)
 		}
 		newRefreshToken = rotResp.Token.Token
+		recordOn = newRefreshToken
 	}
 
 	// Create new access token (carry forward scopes + authorization_details)
@@ -645,6 +656,14 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		Confirmation:         confirmation,
 	})
 	if err != nil {
+		return nil, fmt.Errorf("server_error: %w", err)
+	}
+	// Recorded on the refresh token now in the client's hands, so
+	// revoking it (or its family) blacklists this access token too.
+	if err := recordAccessToken(ctx, i.refreshStore, i.blacklist, recordOn, tok.TokenID, tok.ExpiresAt); err != nil {
+		if errors.Is(err, errRefreshRevoked) {
+			return nil, fmt.Errorf("invalid_grant: refresh token was revoked")
+		}
 		return nil, fmt.Errorf("server_error: %w", err)
 	}
 

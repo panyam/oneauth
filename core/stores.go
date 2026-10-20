@@ -61,7 +61,29 @@ type RevokeTokenFamilyRequest struct {
 	Family string
 }
 
-type RevokeTokenFamilyResponse struct{}
+// RevokeTokenFamilyResponse carries the access tokens the family minted
+// that have not yet expired, from every generation, already-revoked ones
+// included, so the caller can blacklist them (RFC 7009 §2.1, RFC 9700
+// §4.14.2). The store has no blacklist of its own.
+type RevokeTokenFamilyResponse struct {
+	AccessTokens []IssuedAccessToken
+}
+
+// RecordAccessTokenRequest names an access token minted alongside (or
+// from) the refresh token Token.
+type RecordAccessTokenRequest struct {
+	Token     string
+	TokenID   string
+	ExpiresAt time.Time
+}
+
+// RecordAccessTokenResponse reports whether Token had been revoked when
+// the access token was recorded. When it had, the caller blacklists the
+// access token it just minted and refuses the grant: the revocation that
+// beat it never saw this token.
+type RecordAccessTokenResponse struct {
+	Revoked bool
+}
 
 type GetSubjectTokensRequest struct {
 	Subject string
@@ -97,7 +119,18 @@ type RefreshTokenStore interface {
 	// RevokeSubjectTokens revokes all refresh tokens belonging to a subject.
 	RevokeSubjectTokens(ctx context.Context, req *RevokeSubjectTokensRequest) (*RevokeSubjectTokensResponse, error)
 
-	// RevokeTokenFamily revokes all tokens in a family (theft detection).
+	// RecordAccessToken appends an access token's jti and expiry to the
+	// refresh token it was issued with, dropping entries that have
+	// expired, and reports Revoked read in the same atomic step. Paired
+	// with RevokeTokenFamily, whichever of the two runs second sees the
+	// other's write, so an access token minted while the family is being
+	// revoked is still caught. A missing token is ErrTokenNotFound.
+	RecordAccessToken(ctx context.Context, req *RecordAccessTokenRequest) (*RecordAccessTokenResponse, error)
+
+	// RevokeTokenFamily revokes all tokens in a family (theft detection,
+	// RFC 7009 revocation) and returns the access tokens the family
+	// recorded that have not expired. Revoking an empty or unknown family
+	// is not an error.
 	RevokeTokenFamily(ctx context.Context, req *RevokeTokenFamilyRequest) (*RevokeTokenFamilyResponse, error)
 
 	// GetSubjectTokens lists all active (non-revoked, non-expired) refresh
