@@ -230,6 +230,7 @@ Adding OIDC to a working OAuth AS is largely additive:
 | `at_hash` claim (id_token integrity binding to access_token) | **Implemented** (#339) | `tokenHash` in `apiauth/oidc.go` | Left half of SHA-256 for RS256 / ES256 |
 | ID token on the refresh grant | **Gap** (#453) | — | OIDC Core §12.2 allows one; it needs `auth_time` kept on the refresh token |
 | OIDC Discovery (`/.well-known/openid-configuration`) | **Implemented** | `apiauth.MountASMetadata` co-serves both paths | See [`OIDC_Discovery.md`](OIDC_Discovery.md) |
+| ID token verification in the client SDK (relying-party side) | **Implemented** (#453) | `client.VerifyIDToken` in `client/id_token.go`; `BrowserLoginRequest.VerifyIDToken` | The §3.1.3.7 checks against the JWKS discovery names: an asymmetric signature, `iss`, `aud`/`azp`, `exp`, `iat`, `nonce`, `at_hash`. Checked against Keycloak's ID tokens in `make testkcl` |
 | ID tokens refused as access tokens (resource-server side) | **Implemented** | `checkAccessTokenKind` in `apiauth/jwt_helpers.go` | Keycloak signs ID tokens with the same key, header and `aud` as its access tokens, and marks them with a `typ` claim of `ID`. Since 0.1.46 the validator refuses a token whose `typ` claim is anything but `Bearer` or `DPoP` |
 
 **Turning it on.** Set `OneAuthConfig.OIDC` with an RS256 or ES256
@@ -251,6 +252,24 @@ on the `ASServerMetadata` you mount, and set
 `AuthorizeMountConfig.AuthTimeFromRequest` if your session knows when the
 user logged in. The reference server does all of this under
 `code_flow.oidc: true`.
+
+**Verifying one in a Go client.** `LoginWithBrowser` with
+`VerifyIDToken: true` sends a fresh `nonce`, adds `openid` to the scopes,
+and refuses the login unless the token response carries an ID token that
+passes `client.VerifyIDToken`. The claims land on
+`ServerCredential.IDTokenClaims`:
+
+```go
+cred, err := client.NewAuthClient(issuerURL, store).LoginWithBrowser(ctx, &client.BrowserLoginRequest{
+    ClientID: clientID, Scopes: []string{"email"}, VerifyIDToken: true,
+})
+// cred.IDTokenClaims.Subject, .Email, .AuthTime, .Claims
+```
+
+It is opt-in because plenty of servers (oneauth without `OIDC` among them)
+accept the `openid` scope and return no ID token. A client holding an ID
+token from elsewhere calls `client.VerifyIDToken` directly, with a
+`keys.NewJWKSKeyStore` on the discovered `jwks_uri`.
 
 An ID token carries a `typ` claim of `ID`, the same marker Keycloak uses,
 so `checkAccessTokenKind` refuses it as an access token. OIDC defines no

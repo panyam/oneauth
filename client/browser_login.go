@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/tracing"
 )
 
@@ -134,6 +135,21 @@ type BrowserLoginRequest struct {
 	// error is returned (wrapped) from LoginWithBrowser; no token exchange
 	// is performed.
 	OnCallback func(ctx context.Context, params CallbackParams) error
+
+	// VerifyIDToken makes the login an OpenID Connect one. `openid` is
+	// added to Scopes if missing, a fresh `nonce` goes on the
+	// authorization request, and the token response must carry an ID
+	// token that passes VerifyIDToken against the AS's issuer and JWKS
+	// (from WithASMetadata, or discovered), the nonce and the access
+	// token. The verified claims land on ServerCredential.IDTokenClaims,
+	// and `sub` and `email` fill UserID and UserEmail. A missing or bad
+	// ID token fails the login with an error wrapping ErrInvalidIDToken.
+	//
+	// Off by default, since many servers accept `openid` without issuing
+	// an ID token, and a login that used to work would start failing.
+	//
+	// See: https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowAuth
+	VerifyIDToken bool
 }
 
 // CallbackParams carries the loopback-redirect query parameters that the
@@ -250,8 +266,8 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 	authEndpoint := cfg.AuthorizationEndpoint
 	tokenEndpoint := cfg.TokenEndpoint
 	var asMethods []string
+	var meta *ASMetadata
 	if authEndpoint == "" || tokenEndpoint == "" {
-		var meta *ASMetadata
 		// Prefer pre-populated AS metadata (set by WithASMetadata) over
 		// re-discovery. The CLI and other callers that already ran
 		// DiscoverAS with a path-bearing issuer URL — common for
@@ -300,6 +316,26 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		return nil, fmt.Errorf("token_endpoint not found")
 	}
 
+	// An ID token is checked against the issuer and keys discovery names,
+	// so a caller with explicit endpoints still needs the metadata.
+	nonce := ""
+	if cfg.VerifyIDToken {
+		if meta == nil {
+			if meta, err = c.idTokenMetadata(cfg.HTTPClient); err != nil {
+				return nil, err
+			}
+		}
+		if meta.Issuer == "" || meta.JWKSURI == "" {
+			return nil, fmt.Errorf("VerifyIDToken: AS metadata has no issuer or jwks_uri")
+		}
+		if !containsString(cfg.Scopes, "openid") {
+			cfg.Scopes = append(append([]string{}, cfg.Scopes...), "openid")
+		}
+		if nonce, err = generateState(); err != nil {
+			return nil, fmt.Errorf("failed to generate nonce: %w", err)
+		}
+	}
+
 	// Negotiate token endpoint auth method (#72). private_key_jwt
 	// (#158) is opt-in via cfg.ClientAssertion — when set, we skip the
 	// secret-based negotiation entirely.
@@ -314,7 +350,7 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 	if c.dpopKey != nil {
 		dpopJKT = c.dpopKey.Thumbprint()
 	}
-	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, cfg.Scopes, cfg.Resource, dpopJKT)
+	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, nonce, cfg.Scopes, cfg.Resource, dpopJKT)
 
 	// Open browser
 	openFn := cfg.OpenBrowser
@@ -387,6 +423,26 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 	})
 	if err != nil {
 		return nil, fmt.Errorf("token exchange failed: %w", err)
+	}
+
+	if cfg.VerifyIDToken {
+		if cred.IDToken == "" {
+			return nil, fmt.Errorf("%w: the token response has none", ErrInvalidIDToken)
+		}
+		claims, err := VerifyIDToken(ctx, &VerifyIDTokenRequest{
+			IDToken:     cred.IDToken,
+			Issuer:      meta.Issuer,
+			ClientID:    cfg.ClientID,
+			Keys:        keys.NewJWKSKeyStore(meta.JWKSURI, keys.WithHTTPClient(httpClient)),
+			Nonce:       nonce,
+			AccessToken: cred.AccessToken,
+		})
+		if err != nil {
+			return nil, err
+		}
+		cred.IDTokenClaims = claims
+		cred.UserID = claims.Subject
+		cred.UserEmail = claims.Email
 	}
 
 	// Store credential
@@ -487,18 +543,36 @@ func (c *AuthClient) exchangeCode(ctx context.Context, p exchangeCodeParams) (*S
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
 		ClientID:     p.ClientID,
+		IDToken:      tokenResp.IDToken,
 	}, nil
 }
 
+// idTokenMetadata finds the AS metadata VerifyIDToken needs when the
+// caller gave explicit endpoints: the cached metadata, or discovery.
+func (c *AuthClient) idTokenMetadata(httpClient *http.Client) (*ASMetadata, error) {
+	if c.cachedASMeta != nil {
+		return c.cachedASMeta, nil
+	}
+	var opts []DiscoveryOption
+	if httpClient != nil {
+		opts = append(opts, WithHTTPClientForDiscovery(httpClient))
+	}
+	meta, err := DiscoverAS(c.serverURL, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("VerifyIDToken needs the issuer and jwks_uri: discovery failed: %w", err)
+	}
+	return meta, nil
+}
+
 // buildAuthorizationURL constructs the full authorization URL with PKCE, state,
-// an optional resource indicator (RFC 8707), and an optional dpop_jkt
-// (RFC 9449 §10).
+// an optional OIDC nonce, an optional resource indicator (RFC 8707), and an
+// optional dpop_jkt (RFC 9449 §10).
 //
 // dpopJKT binds the authorization code to the client's DPoP key, so an
 // intercepted code cannot be redeemed with a different one. §10 is explicit
 // that this adds protection over PKCE alone only when the key is unique per
 // authorization request.
-func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state string, scopes []string, resource, dpopJKT string) string {
+func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state, nonce string, scopes []string, resource, dpopJKT string) string {
 	u, _ := url.Parse(endpoint)
 	q := u.Query()
 	q.Set("response_type", "code")
@@ -507,6 +581,9 @@ func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state str
 	q.Set("code_challenge", challenge)
 	q.Set("code_challenge_method", "S256")
 	q.Set("state", state)
+	if nonce != "" {
+		q.Set("nonce", nonce)
+	}
 	if len(scopes) > 0 {
 		q.Set("scope", strings.Join(scopes, " "))
 	}
