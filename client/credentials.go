@@ -23,6 +23,17 @@ type ServerCredential struct {
 	// client it was issued to (RFC 6749 §6). Empty in credentials stored
 	// by older SDK versions, where refresh falls back to "cli".
 	ClientID string `json:"client_id,omitempty"`
+
+	// IDToken is the OpenID Connect ID token from the code exchange, as
+	// received. LoginWithBrowser verifies it only with
+	// BrowserLoginRequest.VerifyIDToken set; otherwise treat it as
+	// unverified and pass it to VerifyIDToken before reading its claims.
+	IDToken string `json:"id_token,omitempty"`
+
+	// IDTokenClaims holds the verified ID token's claims when
+	// LoginWithBrowser ran with VerifyIDToken. It is not persisted, so a
+	// credential loaded from a store has it nil.
+	IDTokenClaims *IDTokenClaims `json:"-"`
 }
 
 // IsExpired returns true if the access token has expired

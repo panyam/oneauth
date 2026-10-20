@@ -75,6 +75,7 @@ type OAuth2TokenResponse struct {
 	RefreshToken         string `json:"refresh_token,omitempty"`
 	Scope                string `json:"scope,omitempty"`
 	AuthorizationDetails []any  `json:"authorization_details,omitempty"` // RFC 9396 (raw JSON)
+	IDToken              string `json:"id_token,omitempty"`              // OIDC Core §3.1.3.3
 	Error                string `json:"error,omitempty"`
 	ErrorDesc            string `json:"error_description,omitempty"`
 }
