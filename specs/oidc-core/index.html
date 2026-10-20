@@ -406,45 +406,57 @@ surface smaller.</li>
 <tbody>
 <tr>
 <td><code>/authorize</code> endpoint</td>
-<td><strong>Implemented</strong> (OAuth layer)</td>
+<td><strong>Implemented</strong></td>
 <td><code>apiauth/authorize.go</code> <code>AuthorizationHandler</code> (PR 297)</td>
-<td>Issues <code>code</code> only; no id_token issuance yet</td>
+<td><code>response_type=code</code> only; the ID token comes from the token endpoint</td>
 </tr>
 <tr>
 <td><code>id_token</code> issuance</td>
-<td><strong>Gap</strong> (#339)</td>
-<td>Only the <code>TokenTypeIDToken</code> constant in <code>apiauth/token_exchange_grant.go</code> exists (for 8693); no actual id_token mint anywhere</td>
-<td>The foundational OIDC piece; without it the rest is mostly moot</td>
+<td><strong>Implemented</strong> (#339)</td>
+<td><code>apiauth/oidc.go</code> <code>IDTokenIssuer</code> / <code>NewJWTIDTokenIssuer</code>, called by <code>authorizationCodeGranter</code></td>
+<td>Opt-in through <code>OneAuthConfig.OIDC</code>; issued when the granted scope includes <code>openid</code>. RS256 or ES256 only, and <code>NewOneAuth</code> panics on an HS256 secret (§10.1 would need the client&rsquo;s own secret)</td>
 </tr>
 <tr>
 <td><code>nonce</code> parameter handling</td>
-<td><strong>Gap</strong> (#339)</td>
-<td>No <code>nonce</code> references in <code>apiauth/authorize*.go</code> or <code>core/authorization_code.go</code></td>
-<td>Required for OIDC replay defense</td>
+<td><strong>Implemented</strong> (#339)</td>
+<td><code>AuthorizationRequest.Nonce</code> → <code>core.AuthorizationCode.Nonce</code> → the ID token</td>
+<td>Survives PAR (the pushed payload) and the consent form (a hidden input; a custom template must post it back)</td>
 </tr>
 <tr>
 <td><code>/userinfo</code> endpoint</td>
-<td><strong>Gap</strong> (#339)</td>
-<td><code>ASServerMetadata.UserinfoEndpoint</code> in <code>apiauth/as_metadata.go</code> is wired (advertises a URL) but no handler implements it</td>
-<td>Discovery-advertised; needs implementation</td>
+<td><strong>Implemented</strong> (#339)</td>
+<td><code>OneAuth.UserinfoHTTPHandler</code> in <code>apiauth/oidc_userinfo.go</code></td>
+<td>GET and POST, Bearer or DPoP through the caller&rsquo;s <code>APIMiddleware</code>; 403 <code>insufficient_scope</code> without <code>openid</code>. JSON only, no signed response</td>
 </tr>
 <tr>
 <td><code>openid</code>/<code>profile</code>/<code>email</code>/etc. scope-to-claims mapping</td>
-<td><strong>Gap</strong> (#339)</td>
-<td>No scope-aware claim selector</td>
-<td>Needed for both id_token and userinfo</td>
+<td><strong>Implemented</strong> (#339)</td>
+<td><code>OIDCConfig.UserClaims</code>, <code>core.FilterClaimsByScope</code> (the §5.4 table), <code>localauth.ProfileClaims</code></td>
+<td>One function feeds both the ID token and userinfo, so they agree</td>
 </tr>
 <tr>
-<td><code>auth_time</code>, <code>acr</code>, <code>amr</code> claims</td>
-<td><strong>Gap</strong></td>
+<td><code>auth_time</code> claim</td>
+<td><strong>Implemented</strong> (#339)</td>
+<td><code>AuthorizeMountConfig.AuthTimeFromRequest</code> → <code>core.AuthorizationCode.AuthTime</code></td>
+<td>Left out when the deployment does not say when the user logged in</td>
+</tr>
+<tr>
+<td><code>acr</code>, <code>amr</code>, <code>prompt</code>, <code>max_age</code>, <code>claims</code> parameter</td>
+<td><strong>Gap</strong> (#453)</td>
 <td>—</td>
-<td>Needed for OIDC step-up auth</td>
+<td>Re-authentication and step-up</td>
 </tr>
 <tr>
 <td><code>at_hash</code> claim (id_token integrity binding to access_token)</td>
-<td><strong>Gap</strong></td>
+<td><strong>Implemented</strong> (#339)</td>
+<td><code>tokenHash</code> in <code>apiauth/oidc.go</code></td>
+<td>Left half of SHA-256 for RS256 / ES256</td>
+</tr>
+<tr>
+<td>ID token on the refresh grant</td>
+<td><strong>Gap</strong> (#453)</td>
 <td>—</td>
-<td>Required when issuing id_token + access_token together</td>
+<td>OIDC Core §12.2 allows one; it needs <code>auth_time</code> kept on the refresh token</td>
 </tr>
 <tr>
 <td>OIDC Discovery (<code>/.well-known/openid-configuration</code>)</td>
@@ -460,23 +472,25 @@ surface smaller.</li>
 </tr>
 </tbody>
 </table>
-<p><strong>Implementation sketch.</strong> OIDC Core is the single largest <em>implementable</em><br />
-gap in OneAuth, tracked in #339. The foundation (<code>/authorize</code>, JWKS, AS metadata, DCR) is<br />
-all in place; what&rsquo;s missing is the identity-layer plumbing:</p>
-<ol>
-<li><strong><code>IDTokenIssuer</code> interface</strong> alongside <code>TokenIssuer</code>. Signs id_tokens<br />
-with the same JWKS-published keys; emits required claims (<code>iss</code>,<br />
-<code>sub</code>, <code>aud</code>, <code>exp</code>, <code>iat</code>, <code>nonce</code>, <code>at_hash</code>).</li>
-<li><strong>Scope-driven claim selector</strong> that maps <code>openid profile email</code> → set<br />
-of claims. Configurable per-deployment via a <code>ClaimMapping</code> hook.</li>
-<li><strong><code>/userinfo</code> handler</strong> that bearer-auths and returns the same claim<br />
-set the id_token would have carried.</li>
-<li><strong><code>nonce</code> storage + echo</strong> in the authorization code record.</li>
-<li><strong><code>UserSession</code> tracking</strong> for <code>auth_time</code> and (eventually) for OIDC<br />
-front-channel logout and session management.</li>
-</ol>
-<p>This unblocks downstream work (CIBA, full FAPI 2.0 conformance, broader<br />
-OIDC ecosystem interop).</p>
+<p><strong>Turning it on.</strong> Set <code>OneAuthConfig.OIDC</code> with an RS256 or ES256<br />
+signing key, and pass <code>localauth.ProfileClaims(users, identities)</code> (or your<br />
+own function) as <code>UserClaims</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>oa <span style="color:#000;font-weight:bold">:=</span> apiauth.<span style="color:#900;font-weight:bold">NewOneAuth</span>(apiauth.OneAuthConfig{
+</span></span><span style="display:flex;"><span>    SigningKey: priv, SigningAlg: <span style="color:#d14">&#34;ES256&#34;</span>, VerifyKey: <span style="color:#000;font-weight:bold">&amp;</span>priv.PublicKey,
+</span></span><span style="display:flex;"><span>    Issuer: issuerURL, AuthorizationCodeStore: codes,
+</span></span><span style="display:flex;"><span>    OIDC: <span style="color:#000;font-weight:bold">&amp;</span>apiauth.OIDCConfig{UserClaims: localauth.<span style="color:#900;font-weight:bold">ProfileClaims</span>(users, identities)},
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;GET /userinfo&#34;</span>, oa.<span style="color:#900;font-weight:bold">UserinfoHTTPHandler</span>(resourceMiddleware))
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;POST /userinfo&#34;</span>, oa.<span style="color:#900;font-weight:bold">UserinfoHTTPHandler</span>(resourceMiddleware))
+</span></span></code></pre><p>Advertise <code>userinfo_endpoint</code> and <code>id_token_signing_alg_values_supported</code><br />
+on the <code>ASServerMetadata</code> you mount, and set<br />
+<code>AuthorizeMountConfig.AuthTimeFromRequest</code> if your session knows when the<br />
+user logged in. The reference server does all of this under<br />
+<code>code_flow.oidc: true</code>.</p>
+<p>An ID token carries a <code>typ</code> claim of <code>ID</code>, the same marker Keycloak uses,<br />
+so <code>checkAccessTokenKind</code> refuses it as an access token. OIDC defines no<br />
+marker of its own, and without one an ID token signed with the AS key would<br />
+open any resource the AS protects.</p>
 <h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
 <ul>
 <li><a href="OIDC_Discovery.md">OIDC Discovery 1.0</a> — the discovery doc with OIDC-specific fields</li>
