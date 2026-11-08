@@ -107,7 +107,15 @@ type APIMiddleware struct {
 	// the first time the query-param fallback path actually executes.
 	legacyQueryParamBearerWarning sync.Once
 
-	// Error handling
+	// OnAuthError, when set, writes the response for a refused request
+	// instead of the default 401 (403 for insufficient_scope) with a
+	// WWW-Authenticate challenge and a JSON body. It is then responsible for
+	// the status, the challenge and any DPoP-Nonce header.
+	//
+	// err is an *AuthError for every failure the token and binding checks
+	// detect, so errors.As gives the RFC 6750 or RFC 9449 code. A missing
+	// authorization_details type from RequireAuthorizationDetails arrives as
+	// a plain error.
 	OnAuthError func(w http.ResponseWriter, r *http.Request, err error)
 
 	// Blacklist enables immediate access token revocation. When set,
@@ -693,7 +701,7 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (*TokenInfo, error
 		}
 	}
 
-	clientID, _ := claims["client_id"].(string)
+	clientID := tokenClientID(claims)
 	tokenID, _ := claims["jti"].(string)
 	var expiresAt, issuedAt time.Time
 	if exp, err := claims.GetExpirationTime(); err == nil && exp != nil {

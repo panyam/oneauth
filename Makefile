@@ -744,9 +744,9 @@ testkcl:
 	fi
 	@if ! curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; then \
 		echo "Starting RAR test server..."; \
-		go run -buildvcs=false ./cmd/oneauth-server/ \
+		$(RAR_ENV) go run -buildvcs=false ./cmd/oneauth-server/ \
 			--config cmd/oneauth-server/deploy-examples/rar-test.yaml > /dev/null 2>&1 & \
-		until curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; do sleep 1; done; \
+		$(RAR_WAIT); \
 		echo "RAR test server ready."; \
 	fi
 	cd tests/keycloak && \
@@ -770,16 +770,27 @@ testkcl:
 RAR_PORT := 8181
 RAR_PID_FILE := /tmp/oneauth-rar-test.pid
 
+# rar-test.yaml reads its port, public_url and issuer from these, so a
+# RAR_PORT override moves the server as well as the health check.
+RAR_ENV = RAR_ISSUER_PORT=$(RAR_PORT) RAR_ISSUER_PUBLIC_URL=http://localhost:$(RAR_PORT) JWT_ISSUER=http://localhost:$(RAR_PORT)
+
+# Waits up to 120s, since go run compiles first. A server that can't bind,
+# such as when another process holds RAR_PORT, fails here instead of hanging.
+RAR_WAIT = n=0; until curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; do \
+		n=$$((n+1)); if [ $$n -ge 120 ]; then \
+			echo "RAR test server did not answer on :$(RAR_PORT) within 120s. Is the port taken? lsof -iTCP:$(RAR_PORT) -sTCP:LISTEN"; exit 1; \
+		fi; sleep 1; done
+
 # Start RAR test server (oneauth-server with rar-test.yaml config)
 uprar:
 	@if [ -f $(RAR_PID_FILE) ] && kill -0 $$(cat $(RAR_PID_FILE)) 2>/dev/null; then \
 		echo "RAR test server already running (pid $$(cat $(RAR_PID_FILE)))"; \
 	else \
 		echo "Starting RAR test server on port $(RAR_PORT)..."; \
-		go run -buildvcs=false ./cmd/oneauth-server/ \
+		$(RAR_ENV) go run -buildvcs=false ./cmd/oneauth-server/ \
 			--config cmd/oneauth-server/deploy-examples/rar-test.yaml & \
 		echo $$! > $(RAR_PID_FILE); \
-		until curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; do sleep 1; done; \
+		$(RAR_WAIT); \
 		echo "RAR test server ready (pid $$(cat $(RAR_PID_FILE)))"; \
 		echo "  Discovery: http://localhost:$(RAR_PORT)/.well-known/openid-configuration"; \
 	fi
