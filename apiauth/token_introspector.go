@@ -62,6 +62,9 @@ func (ti *tokenIntrospector) Introspect(ctx context.Context, req *IntrospectRequ
 	result := &IntrospectionResult{
 		Active: true,
 		Sub:    info.Subject,
+		// From the verified token, so it agrees with TokenInfo.ClientID,
+		// including the azp fallback.
+		ClientID: info.ClientID,
 		// RFC 7662 §2.2: the RFC 6749 §7.1 type, as the token response said.
 		TokenType: tokenTypeFor(info.Confirmation),
 		// Sender-constraint travels with the introspection response so a
@@ -91,9 +94,6 @@ func (ti *tokenIntrospector) Introspect(ctx context.Context, req *IntrospectRequ
 		}
 		if v, ok := rawClaims["aud"]; ok {
 			result.Aud = v
-		}
-		if v, ok := rawClaims["client_id"].(string); ok {
-			result.ClientID = v
 		}
 	}
 

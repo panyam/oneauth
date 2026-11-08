@@ -616,8 +616,9 @@ type TokenInfo struct {
 	// RFC 9449 §7.2 exists to close.
 	Confirmation *core.Confirmation
 
-	// ClientID is the token's client_id claim, empty when the grant had no
-	// client. TokenID is its jti, ExpiresAt its exp and IssuedAt its iat.
+	// ClientID is the token's client_id claim, or its azp claim when it has
+	// no client_id, as Keycloak's user tokens don't. It is empty when the
+	// grant had no client. TokenID is its jti, ExpiresAt its exp and IssuedAt its iat.
 	// All four come from the verified token (or the introspection response),
 	// so callers acting on them never need to re-parse it unverified: a
 	// revocation, an audit record, or a connection that has to end at exp.

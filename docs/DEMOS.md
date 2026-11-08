@@ -100,7 +100,7 @@ Pick the one that fits your client constraints. The OneAuth library exposes the 
 
 A token that arrives inside the connection (option 2, or a fresh token for re-auth on a long-lived socket) has no HTTP request around it. Validate it with `APIMiddleware.ValidateBearer`. It runs the same checks as `ValidateToken` and returns an `*apiauth.AuthError` carrying the RFC 6750 code. `TokenInfo.ExpiresAt` gives the moment to close the connection, so there's no need to re-parse the token.
 
-A DPoP-bound token is refused there unless the request supplies `ConfirmBinding`, since a frame carries no proof. When the upgrade itself was a DPoP request, the connection has already proven a key, and the check can compare against it:
+A DPoP-bound token is refused there unless the request supplies `ConfirmBinding`, since a frame carries no proof. When the upgrade itself was a DPoP request, the connection has already proven a key. `ConfirmBindingMatches` accepts a bound token only for that key, and refuses every bound token on a connection that opened with a plain bearer token:
 
 ```go
 // on upgrade, behind mw.ValidateToken
@@ -109,12 +109,7 @@ opened := apiauth.GetTokenInfoFromAPIContext(r.Context())
 // on a re-auth frame
 resp, err := mw.ValidateBearer(ctx, &apiauth.ValidateBearerRequest{
     Token: frame.Token,
-    ConfirmBinding: func(_ context.Context, cnf *core.Confirmation) error {
-        if !cnf.Equal(opened.Confirmation) {
-            return errors.New("token is bound to another key")
-        }
-        return nil
-    },
+    ConfirmBinding: apiauth.ConfirmBindingMatches(opened.Confirmation),
 })
 ```
 

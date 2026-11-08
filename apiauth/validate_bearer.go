@@ -94,3 +94,24 @@ func (m *APIMiddleware) ValidateBearer(ctx context.Context, req *ValidateBearerR
 	}
 	return &ValidateBearerResponse{Info: info}, nil
 }
+
+// ConfirmBindingMatches returns a ConfirmBinding check that accepts a bound
+// token only when its cnf names the key in proven. A host passes the
+// Confirmation its channel already established, typically the TokenInfo of
+// a WebSocket upgrade request that ValidateToken checked with a DPoP proof.
+//
+// A nil or empty proven means the channel proved no key, as when it opened
+// with a plain bearer token. Every bound token is then refused, since
+// nothing on the channel shows the sender holds the key. A refusal reaches
+// the caller of ValidateBearer as an *AuthError with Code "invalid_token"
+// and Scheme TokenTypeDPoP.
+func ConfirmBindingMatches(proven *core.Confirmation) func(context.Context, *core.Confirmation) error {
+	return func(_ context.Context, cnf *core.Confirmation) error {
+		// Equal never matches an empty Confirmation against a key, so an
+		// unproven channel refuses every bound token.
+		if !proven.Equal(cnf) {
+			return errors.New("token is bound to a different key than this channel proved")
+		}
+		return nil
+	}
+}

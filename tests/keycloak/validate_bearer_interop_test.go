@@ -32,8 +32,8 @@ func claimTime(t *testing.T, claims map[string]any, name string) time.Time {
 }
 
 // The times and jti on TokenInfo equal the claims Keycloak put in the token.
-// ClientID equals client_id when Keycloak sends one, and is empty when it
-// names the client only in azp.
+// ClientID equals client_id when Keycloak sends one, and azp when it names
+// the client only there, as it does for a password-grant token.
 func TestKeycloakValidateBearer_TokenInfoMatchesClaims(t *testing.T) {
 	skipIfKeycloakNotRunning(t)
 	_, mw := newKeycloakBackedResource(t)
@@ -50,8 +50,11 @@ func TestKeycloakValidateBearer_TokenInfoMatchesClaims(t *testing.T) {
 	jti, _ := claims["jti"].(string)
 	assert.Equal(t, jti, info.TokenID)
 	clientID, _ := claims["client_id"].(string)
+	if clientID == "" {
+		clientID, _ = claims["azp"].(string)
+	}
+	assert.Equal(t, confidentialClientID, clientID, "Keycloak names the client in client_id or azp")
 	assert.Equal(t, clientID, info.ClientID)
-	t.Logf("Keycloak password-grant token: client_id=%q azp=%v jti=%q", clientID, claims["azp"], jti)
 }
 
 func TestKeycloakValidateBearer_DPoPBoundToken(t *testing.T) {

@@ -195,7 +195,7 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 		}
 	}
 
-	clientID, _ := claims["client_id"].(string)
+	clientID := tokenClientID(claims)
 	tokenID, _ := claims["jti"].(string)
 	var expiresAt time.Time
 	if exp, err := claims.GetExpirationTime(); err == nil && exp != nil {
@@ -217,6 +217,19 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 		ExpiresAt:            expiresAt,
 		IssuedAt:             issuedAt,
 	}}, nil
+}
+
+// tokenClientID is the client a verified access token was issued to. It is
+// the `client_id` claim (RFC 9068 §2.2) when present, else `azp`. Keycloak
+// names a user token's client only in `azp`, and revocation ownership treats
+// a token with no client as anyone's, so dropping `azp` would let any
+// client revoke such a token.
+func tokenClientID(claims jwt.MapClaims) string {
+	if v, _ := claims["client_id"].(string); v != "" {
+		return v
+	}
+	v, _ := claims["azp"].(string)
+	return v
 }
 
 // confirmationFromClaims reads the RFC 7800 `cnf` claim. A token with no

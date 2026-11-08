@@ -15,7 +15,6 @@ package e2e_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +25,6 @@ import (
 
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/client"
-	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 )
 
@@ -63,13 +61,8 @@ func newChannelServer(t *testing.T) *channelServer {
 // token only for the key the opening request proved.
 func (cs *channelServer) reauth(token string) (*apiauth.ValidateBearerResponse, error) {
 	return cs.mw.ValidateBearer(context.Background(), &apiauth.ValidateBearerRequest{
-		Token: token,
-		ConfirmBinding: func(_ context.Context, cnf *core.Confirmation) error {
-			if !cnf.Equal(cs.opened.Confirmation) {
-				return errors.New("token is bound to a different key than this channel")
-			}
-			return nil
-		},
+		Token:          token,
+		ConfirmBinding: apiauth.ConfirmBindingMatches(cs.opened.Confirmation),
 	})
 }
 
