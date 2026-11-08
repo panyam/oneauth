@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"go.opentelemetry.io/otel/trace"
@@ -50,6 +51,7 @@ const (
 	contextKeyAuthType             apiContextKey = "api_auth_type" // "jwt" or "api_key"
 	contextKeyCustomClaims         apiContextKey = "api_custom_claims"
 	contextKeyAuthorizationDetails apiContextKey = "api_authorization_details" // RFC 9396
+	contextKeyTokenInfo            apiContextKey = "api_token_info"
 )
 
 // APIMiddleware validates Bearer tokens (JWT or API key) and exposes
@@ -227,6 +229,17 @@ func GetAuthorizationDetailsFromContext(ctx context.Context) []core.Authorizatio
 	return nil
 }
 
+// GetTokenInfoFromAPIContext returns the whole TokenInfo the middleware
+// validated for this request, including ExpiresAt, IssuedAt, ClientID and
+// TokenID, which have no accessor of their own. It returns nil outside a
+// handler wrapped by ValidateToken, RequireScopes,
+// RequireAuthorizationDetails or an authenticated Optional. Treat the
+// result as read-only: handlers further down the chain share it.
+func GetTokenInfoFromAPIContext(ctx context.Context) *TokenInfo {
+	info, _ := ctx.Value(contextKeyTokenInfo).(*TokenInfo)
+	return info
+}
+
 // ValidateToken validates Bearer tokens (JWT or API key) and sets
 // user info in the request context for downstream handlers.
 func (m *APIMiddleware) ValidateToken(next http.Handler) http.Handler {
@@ -253,7 +266,7 @@ func (m *APIMiddleware) RequireScopes(requiredScopes ...string) func(http.Handle
 
 			if !core.ContainsAllScopes(info.Scopes, requiredScopes) {
 				// RFC 6750 §3.1: 403 with the scope the request needs.
-				m.handleAuthError(w, r, &authError{
+				m.handleAuthError(w, r, &AuthError{
 					Scheme:      schemeOf(info),
 					Code:        "insufficient_scope",
 					Description: fmt.Sprintf("requires scope %s", strings.Join(requiredScopes, " ")),
@@ -323,7 +336,7 @@ func (m *APIMiddleware) RequireAuthorizationDetails(requiredTypes ...string) fun
 //     which is the downgrade §7.2 closes; without this check a thief simply
 //     drops the DPoP header and the binding buys nothing
 //
-// Failures return *authError so the caller can emit the right
+// Failures return *AuthError so the caller can emit the right
 // WWW-Authenticate challenge.
 func (m *APIMiddleware) validateRequest(r *http.Request) (*TokenInfo, error) {
 	scheme, token, err := m.credentials(r)
@@ -332,21 +345,15 @@ func (m *APIMiddleware) validateRequest(r *http.Request) (*TokenInfo, error) {
 	}
 
 	if scheme == TokenTypeDPoP && m.DPoP == nil {
-		return nil, &authError{
+		return nil, &AuthError{
 			Scheme:      TokenTypeBearer,
 			Code:        "invalid_request",
 			Description: "this resource server does not support the DPoP scheme",
 		}
 	}
 
-	info, err := m.authenticate(r, scheme, token)
+	info, err := m.authenticateToken(r.Context(), scheme, token)
 	if err != nil {
-		// A token was presented and refused: RFC 6750 §3.1 has the
-		// challenge say invalid_token.
-		var ae *authError
-		if !errors.As(err, &ae) {
-			err = &authError{Scheme: scheme, Code: "invalid_token", Description: "the access token is invalid", err: err}
-		}
 		return nil, err
 	}
 
@@ -384,12 +391,12 @@ func (m *APIMiddleware) credentials(r *http.Request) (scheme, token string, err 
 	if authHeader == "" {
 		// No credentials at all: the challenge carries no error code, per
 		// RFC 6750 §3.1 and RFC 9449 §7.2.
-		return "", "", &authError{err: fmt.Errorf("missing authorization header")}
+		return "", "", &AuthError{Err: fmt.Errorf("missing authorization header")}
 	}
 
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) != 2 {
-		return "", "", &authError{Code: "invalid_request", Description: "malformed authorization header"}
+		return "", "", &AuthError{Code: "invalid_request", Description: "malformed authorization header"}
 	}
 
 	switch {
@@ -398,14 +405,29 @@ func (m *APIMiddleware) credentials(r *http.Request) (scheme, token string, err 
 	case strings.EqualFold(parts[0], TokenTypeDPoP):
 		scheme = TokenTypeDPoP
 	default:
-		return "", "", &authError{Code: "invalid_request", Description: "unsupported authorization scheme"}
+		return "", "", &AuthError{Code: "invalid_request", Description: "unsupported authorization scheme"}
 	}
 
 	token = strings.TrimSpace(parts[1])
 	if token == "" {
-		return "", "", &authError{Scheme: scheme, Code: "invalid_token", Description: "empty token"}
+		return "", "", &AuthError{Scheme: scheme, Code: "invalid_token", Description: "empty token"}
 	}
 	return scheme, token, nil
+}
+
+// authenticateToken runs authenticate and turns any refusal into an
+// *AuthError. A token was presented and refused, so RFC 6750 §3.1 has the
+// challenge say invalid_token.
+func (m *APIMiddleware) authenticateToken(ctx context.Context, scheme, token string) (*TokenInfo, error) {
+	info, err := m.authenticate(ctx, scheme, token)
+	if err != nil {
+		var ae *AuthError
+		if !errors.As(err, &ae) {
+			err = &AuthError{Scheme: scheme, Code: "invalid_token", Description: "the access token is invalid", Err: err}
+		}
+		return nil, err
+	}
+	return info, nil
 }
 
 // authenticate resolves the token to a TokenInfo via the API-key store, local
@@ -415,36 +437,36 @@ func (m *APIMiddleware) credentials(r *http.Request) (scheme, token string, err 
 // API keys carry no `cnf`, so there is nothing for a proof to be checked
 // against, and honoring the request would tell the client it holds a
 // sender-constrained credential when it does not.
-func (m *APIMiddleware) authenticate(r *http.Request, scheme, token string) (*TokenInfo, error) {
+func (m *APIMiddleware) authenticate(ctx context.Context, scheme, token string) (*TokenInfo, error) {
 	if strings.HasPrefix(token, "oa_") && m.APIKeyStore != nil {
 		if scheme == TokenTypeDPoP {
-			return nil, &authError{
+			return nil, &AuthError{
 				Scheme:      TokenTypeDPoP,
 				Code:        "invalid_token",
 				Description: "API keys cannot be presented under the DPoP scheme",
 			}
 		}
-		info, err := m.validateAPIKey(r.Context(), token)
+		info, err := m.validateAPIKey(ctx, token)
 		if err != nil {
-			return nil, &authError{Scheme: scheme, Code: "invalid_token", err: err}
+			return nil, &AuthError{Scheme: scheme, Code: "invalid_token", Err: err}
 		}
 		return info, nil
 	}
 
-	info, jwtErr := m.validateJWT(r.Context(), token)
+	info, jwtErr := m.validateJWT(ctx, token)
 	if jwtErr == nil {
 		return info, nil
 	}
 
 	if m.Introspection != nil {
-		info, introspectErr := m.Introspection.ValidateInfo(r.Context(), token)
+		info, introspectErr := m.Introspection.ValidateInfo(ctx, token)
 		if introspectErr != nil {
-			return nil, &authError{Scheme: scheme, Code: "invalid_token", err: introspectErr}
+			return nil, &AuthError{Scheme: scheme, Code: "invalid_token", Err: introspectErr}
 		}
 		return info, nil
 	}
 
-	return nil, &authError{Scheme: scheme, Code: "invalid_token", err: jwtErr}
+	return nil, &AuthError{Scheme: scheme, Code: "invalid_token", Err: jwtErr}
 }
 
 // enforceBinding applies RFC 9449 §7 once the token itself is known good.
@@ -462,14 +484,14 @@ func (m *APIMiddleware) enforceBinding(r *http.Request, scheme, token string, in
 
 	if scheme == TokenTypeBearer {
 		if m.RequireDPoP {
-			return &authError{
+			return &AuthError{
 				Scheme:      TokenTypeDPoP,
 				Code:        "invalid_token",
 				Description: "this resource requires a DPoP-bound access token",
 			}
 		}
 		if !info.Confirmation.IsEmpty() {
-			return &authError{
+			return &AuthError{
 				Scheme:      TokenTypeDPoP,
 				Code:        "invalid_token",
 				Description: "DPoP-bound token presented as a bearer token",
@@ -484,7 +506,7 @@ func (m *APIMiddleware) enforceBinding(r *http.Request, scheme, token string, in
 		// 401 with the DPoP scheme, and carries the nonce to use next.
 		var nonceErr *NonceRequiredError
 		if errors.As(err, &nonceErr) {
-			return &authError{
+			return &AuthError{
 				Scheme:      TokenTypeDPoP,
 				Code:        ErrorUseDPoPNonce,
 				Description: nonceErr.Error(),
@@ -496,18 +518,18 @@ func (m *APIMiddleware) enforceBinding(r *http.Request, scheme, token string, in
 		if ge != nil {
 			description = ge.Description
 		}
-		return &authError{Scheme: TokenTypeDPoP, Code: "invalid_dpop_proof", Description: description}
+		return &AuthError{Scheme: TokenTypeDPoP, Code: "invalid_dpop_proof", Description: description}
 	}
 
 	if info.Confirmation.IsEmpty() {
-		return &authError{
+		return &AuthError{
 			Scheme:      TokenTypeDPoP,
 			Code:        "invalid_token",
 			Description: "token is not bound to a DPoP key",
 		}
 	}
 	if !info.Confirmation.Equal(proven) {
-		return &authError{
+		return &AuthError{
 			Scheme:      TokenTypeDPoP,
 			Code:        "invalid_token",
 			Description: "Invalid DPoP key binding",
@@ -671,6 +693,16 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (*TokenInfo, error
 		}
 	}
 
+	clientID, _ := claims["client_id"].(string)
+	tokenID, _ := claims["jti"].(string)
+	var expiresAt, issuedAt time.Time
+	if exp, err := claims.GetExpirationTime(); err == nil && exp != nil {
+		expiresAt = exp.Time
+	}
+	if iat, err := claims.GetIssuedAt(); err == nil && iat != nil {
+		issuedAt = iat.Time
+	}
+
 	return &TokenInfo{
 		Subject:              userID,
 		Scopes:               scopes,
@@ -678,6 +710,10 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (*TokenInfo, error
 		CustomClaims:         customClaims,
 		AuthType:             "jwt",
 		Confirmation:         confirmationFromClaims(claims),
+		ClientID:             clientID,
+		TokenID:              tokenID,
+		ExpiresAt:            expiresAt,
+		IssuedAt:             issuedAt,
 	}, nil
 }
 
@@ -694,20 +730,37 @@ func (m *APIMiddleware) validateAPIKey(ctx context.Context, fullKey string) (*To
 		}
 	}()
 
-	return &TokenInfo{Subject: apiKey.Subject, Scopes: apiKey.Scopes, AuthType: "api_key"}, nil
+	info := &TokenInfo{Subject: apiKey.Subject, Scopes: apiKey.Scopes, AuthType: "api_key"}
+	if apiKey.ExpiresAt != nil {
+		info.ExpiresAt = *apiKey.ExpiresAt
+	}
+	return info, nil
 }
 
-// authError is a failed authentication plus the WWW-Authenticate challenge it
-// should produce. Scheme names which authentication scheme the challenge
-// carries error information for, and is empty when the request presented no
-// credentials at all, since RFC 6750 §3.1 says a challenge to a request that
-// tried nothing must not report an error.
+// AuthError is a failed authentication plus the WWW-Authenticate challenge it
+// should produce. ValidateBearer returns it, and OnAuthError receives it for
+// every failure the middleware itself detects, so callers read the code with
+// errors.As instead of parsing the message.
 //
+// Scheme names the authentication scheme the challenge carries error
+// information for. It is TokenTypeBearer, or TokenTypeDPoP when the failure
+// concerns a key binding. It is empty when the request presented no
+// credentials at all, since RFC 6750 §3.1 says a challenge to a request that
+// tried nothing must not report an error. Code is the RFC 6750 §3.1 or
+// RFC 9449 error code: "invalid_request", "invalid_token",
+// "insufficient_scope", "invalid_dpop_proof" or "use_dpop_nonce".
+// Description is the client-facing summary that goes into the challenge.
+//
+// See: https://www.rfc-editor.org/rfc/rfc6750#section-3.1
 // See: https://www.rfc-editor.org/rfc/rfc9449#section-7.1
-type authError struct {
+type AuthError struct {
 	Scheme      string
 	Code        string
 	Description string
+
+	// Err is the underlying validation failure, when there is one. Error
+	// returns its message ahead of Description, and Unwrap returns it.
+	Err error
 
 	// nonce, when set, is handed back in the DPoP-Nonce header so the
 	// client can retry immediately (RFC 9449 §9).
@@ -716,17 +769,15 @@ type authError struct {
 	// scope, set with insufficient_scope, is the scope the request needs
 	// (RFC 6750 §3).
 	scope string
-
-	err error
 }
 
 // Error renders the message callers see in logs and in the JSON body. The
 // wrapped error is preferred when present because it carries the specific
 // validation failure; Description is the client-facing summary.
-func (e *authError) Error() string {
+func (e *AuthError) Error() string {
 	switch {
-	case e.err != nil:
-		return e.err.Error()
+	case e.Err != nil:
+		return e.Err.Error()
 	case e.Description != "":
 		return e.Description
 	default:
@@ -734,7 +785,8 @@ func (e *authError) Error() string {
 	}
 }
 
-func (e *authError) Unwrap() error { return e.err }
+// Unwrap returns Err, so errors.Is reaches the underlying failure.
+func (e *AuthError) Unwrap() error { return e.Err }
 
 func (m *APIMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request, err error) {
 	if m.OnAuthError != nil {
@@ -745,7 +797,7 @@ func (m *APIMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request, 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("WWW-Authenticate", m.challenge(err))
 	status := http.StatusUnauthorized
-	var nonceErr *authError
+	var nonceErr *AuthError
 	if errors.As(err, &nonceErr) {
 		if nonceErr.nonce != "" {
 			w.Header().Set(DPoPNonceHeader, nonceErr.nonce)
@@ -779,7 +831,7 @@ func (m *APIMiddleware) challenge(err error) string {
 		bearerChallenge += `, resource_metadata="` + sanitizeChallengeValue(m.ResourceMetadataURL) + `"`
 	}
 
-	var ae *authError
+	var ae *AuthError
 	hasScheme := errors.As(err, &ae) && ae.Scheme != ""
 	var params []string
 	if hasScheme && ae.Code != "" {
@@ -831,6 +883,7 @@ func setAuthContext(ctx context.Context, info *TokenInfo) context.Context {
 	if info.CustomClaims != nil {
 		ctx = context.WithValue(ctx, contextKeyCustomClaims, info.CustomClaims)
 	}
+	ctx = context.WithValue(ctx, contextKeyTokenInfo, info)
 	ctx = core.SetSubjectInContext(ctx, info.Subject)
 	return ctx
 }

@@ -201,6 +201,10 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 	if exp, err := claims.GetExpirationTime(); err == nil && exp != nil {
 		expiresAt = exp.Time
 	}
+	var issuedAt time.Time
+	if iat, err := claims.GetIssuedAt(); err == nil && iat != nil {
+		issuedAt = iat.Time
+	}
 	return &ValidateTokenResponse{Info: &TokenInfo{
 		Subject:              userID,
 		Scopes:               scopes,
@@ -211,6 +215,7 @@ func (v *jwtValidator) ValidateToken(ctx context.Context, req *ValidateTokenRequ
 		ClientID:             clientID,
 		TokenID:              tokenID,
 		ExpiresAt:            expiresAt,
+		IssuedAt:             issuedAt,
 	}}, nil
 }
 

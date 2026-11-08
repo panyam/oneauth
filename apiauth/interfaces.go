@@ -617,12 +617,18 @@ type TokenInfo struct {
 	Confirmation *core.Confirmation
 
 	// ClientID is the token's client_id claim, empty when the grant had no
-	// client. TokenID is its jti and ExpiresAt its exp. All three come from
-	// the verified token, so callers acting on them (revocation, auditing)
-	// never need to re-parse it unverified.
+	// client. TokenID is its jti, ExpiresAt its exp and IssuedAt its iat.
+	// All four come from the verified token (or the introspection response),
+	// so callers acting on them never need to re-parse it unverified: a
+	// revocation, an audit record, or a connection that has to end at exp.
+	//
+	// Each is the zero value when the token does not carry it. An API key
+	// has no jti or iat, and its ExpiresAt is zero when the key never
+	// expires.
 	ClientID  string
 	TokenID   string
 	ExpiresAt time.Time
+	IssuedAt  time.Time
 }
 
 // Note: IntrospectionResult is defined in introspection_client.go.
