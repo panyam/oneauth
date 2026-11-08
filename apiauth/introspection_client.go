@@ -234,13 +234,22 @@ func (v *IntrospectionValidator) ValidateInfo(ctx context.Context, token string)
 		customClaims["aud"] = result.Aud
 	}
 
-	return &TokenInfo{
+	info := &TokenInfo{
 		Subject:      result.Sub,
 		Scopes:       scopes,
 		CustomClaims: customClaims,
 		AuthType:     "introspection",
 		Confirmation: result.Cnf,
-	}, nil
+		ClientID:     result.ClientID,
+		TokenID:      result.Jti,
+	}
+	if result.Exp != 0 {
+		info.ExpiresAt = time.Unix(result.Exp, 0)
+	}
+	if result.Iat != 0 {
+		info.IssuedAt = time.Unix(result.Iat, 0)
+	}
+	return info, nil
 }
 
 // getCached returns a cached result if it exists and hasn't expired.

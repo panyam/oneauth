@@ -7,7 +7,8 @@ JWT-based API authentication built around the transport-agnostic `OneAuth` core.
 - **token_endpoint.go** — `TokenEndpointHandler` serves `POST /api/token`. Parses form, dispatches grant_type, delegates flow to the right interface on OneAuth. Owns rate limiting + AuthHooks firing + refresh-token creation with device info
 - **sessions_http.go** — `SessionsHandler` for `/api/logout`, `/api/logout-all`, `/api/sessions`. Constructed via `oa.SessionsHTTPHandler()`
 - **apikeys.go** — `APIKeysHandler` for `GET/POST /api/keys`, `DELETE /api/keys/{id}`. Constructed via `oa.APIKeysHTTPHandler(store, getScopes)`
-- **middleware.go** — `APIMiddleware` (`ValidateToken`, `RequireScopes`, `Optional`, `RequireAuthorizationDetails`), RFC 6750 challenges (`invalid_token` only when a token was presented, 403 `insufficient_scope` with `scope`, `resource_metadata` from `ResourceMetadataURL`), context helpers (`GetSubjectFromAPIContext`, `GetScopesFromAPIContext`, `GetAuthTypeFromAPIContext`, `GetCustomClaimsFromContext`, `GetAuthorizationDetailsFromContext`)
+- **middleware.go** — `APIMiddleware` (`ValidateToken`, `RequireScopes`, `Optional`, `RequireAuthorizationDetails`), RFC 6750 challenges (`invalid_token` only when a token was presented, 403 `insufficient_scope` with `scope`, `resource_metadata` from `ResourceMetadataURL`), context helpers (`GetTokenInfoFromAPIContext`, `GetSubjectFromAPIContext`, `GetScopesFromAPIContext`, `GetAuthTypeFromAPIContext`, `GetCustomClaimsFromContext`, `GetAuthorizationDetailsFromContext`). Failures are `*AuthError` (`Scheme`, `Code`, `Description`, `Err`), which `OnAuthError` receives too
+- **validate_bearer.go** — `APIMiddleware.ValidateBearer(ctx, *ValidateBearerRequest)`: validates a token with no HTTP request around it (a WebSocket re-auth frame) with the same checks as `ValidateToken`, returning `*AuthError` on failure. A `cnf`-bound token passes only through the caller's `ConfirmBinding`, since there is no proof to check (issue 456)
 - **rar_claims.go** — `parseAuthorizationDetailsFromClaims` + the map-extraction helpers used by middleware to surface RFC 9396 details on the context
 - **grant_errors.go** — `*GrantError` typed error + factories (`invalidRequest`, `invalidGrant`, `invalidClient`, `unsupportedGrantType`, `serverError`). Granters return these; `TokenEndpointHandler.writeError` maps them to RFC 6749 §5.2 JSON responses
 - **authorize_granter.go** — `AuthorizationCodeGranter` impl (RFC 6749 §4.1.3 redemption). Decoupled deps: code store, AppStore, ClientAuthenticator, TokenIssuer, RefreshStore
@@ -38,7 +39,7 @@ All transport-agnostic interfaces in this package follow the gRPC-shape conventi
 The legacy `APIAuth` god struct was retired in #298. Every consumer now constructs `apiauth.NewOneAuth(apiauth.OneAuthConfig{...})` and wires HTTP handlers via the per-concern factory methods on the returned `*OneAuth`.
 
 The `OneAuth` struct composes focused interfaces for all auth operations without HTTP:
-- **interfaces.go** — `TokenIssuer`, `TokenValidator`, `TokenIntrospector`, `TokenRevoker`, `ClientAuthenticator`, `TokenInfo`
+- **interfaces.go** — `TokenIssuer`, `TokenValidator`, `TokenIntrospector`, `TokenRevoker`, `ClientAuthenticator`, `TokenInfo` (`ExpiresAt`, `IssuedAt`, `ClientID`, `TokenID` filled on the validator, inline JWT and introspection paths; `ExpiresAt` for an expiring API key)
 - **hooks.go** — `Hooks` (grouped: `TokenHooks`, `AuthHooks`, `ClientHooks`, `SecurityHooks`)
 - **token_validator.go** — `jwtValidator` + `jwtIssuer` implementations
 - **token_introspector.go** — `tokenIntrospector` (delegates to `TokenValidator`; `NewTokenIntrospectorWithRefreshStore` adds refresh tokens). `token_type` is `Bearer` / `DPoP`.

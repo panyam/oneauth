@@ -77,7 +77,7 @@ const ws = new WebSocket("wss://relay.example/ws", [`bearer.${jwt}`]);
 proto := r.Header.Get("Sec-WebSocket-Protocol")
 for _, part := range strings.Split(proto, ",") {
     if t, ok := strings.CutPrefix(strings.TrimSpace(part), "bearer."); ok {
-        // validate t via APIMiddleware-style flow, then accept upgrade
+        // validate t with mw.ValidateBearer, then accept upgrade
     }
 }
 ```
@@ -97,6 +97,26 @@ The client POSTs to a regular HTTP endpoint (`POST /ws/ticket`) with `Authorizat
 **Pros:** simplest for embedded clients that can't do subprotocol negotiation. **Cons:** the ticket *is* a URL query carry — but it's connection-scoped, single-use, and short-lived, mitigating the leak surface that motivated OAuth 2.1 §5.4.
 
 Pick the one that fits your client constraints. The OneAuth library exposes the validation primitives (`APIMiddleware.ValidateToken`, `IntrospectionValidator`) any of these patterns can call.
+
+A token that arrives inside the connection (option 2, or a fresh token for re-auth on a long-lived socket) has no HTTP request around it. Validate it with `APIMiddleware.ValidateBearer`. It runs the same checks as `ValidateToken` and returns an `*apiauth.AuthError` carrying the RFC 6750 code. `TokenInfo.ExpiresAt` gives the moment to close the connection, so there's no need to re-parse the token.
+
+A DPoP-bound token is refused there unless the request supplies `ConfirmBinding`, since a frame carries no proof. When the upgrade itself was a DPoP request, the connection has already proven a key, and the check can compare against it:
+
+```go
+// on upgrade, behind mw.ValidateToken
+opened := apiauth.GetTokenInfoFromAPIContext(r.Context())
+
+// on a re-auth frame
+resp, err := mw.ValidateBearer(ctx, &apiauth.ValidateBearerRequest{
+    Token: frame.Token,
+    ConfirmBinding: func(_ context.Context, cnf *core.Confirmation) error {
+        if !cnf.Equal(opened.Confirmation) {
+            return errors.New("token is bound to another key")
+        }
+        return nil
+    },
+})
+```
 
 #### Manual Walkthrough
 
