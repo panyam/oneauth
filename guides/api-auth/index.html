@@ -330,7 +330,14 @@ The client SDK&rsquo;s <code>ClientCredentialsToken</code> now sends form-encode
 </span></span><span style="display:flex;"><span>        tenantID <span style="color:#000;font-weight:bold">:=</span> custom[<span style="color:#d14">&#34;tenant_id&#34;</span>].(<span style="color:#458;font-weight:bold">string</span>)
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre><h2 id="api-key-management">API Key Management <a class="anchor" href="#api-key-management">¶</a></h2>
+</span></span></code></pre><h3 id="refusing-connect-and-grpc-calls">Refusing Connect and gRPC calls <a class="anchor" href="#refusing-connect-and-grpc-calls">¶</a></h3>
+<p>By default a refused request gets a 401 (403 for <code>insufficient_scope</code>) with a <code>WWW-Authenticate</code> challenge and a JSON body. gRPC and gRPC-Web clients map the status to <code>unauthenticated</code> or <code>permission_denied</code>, but they read the refusal as a transport error. The message says &ldquo;HTTP status 401 Unauthorized&rdquo; and the challenge is lost.</p>
+<p>For a Connect handler, set <code>OnAuthError</code> from <code>github.com/panyam/oneauth/grpc/connectauth</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>mw <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIMiddleware{KeyStore: keyStore}
+</span></span><span style="display:flex;"><span>mw.OnAuthError = connectauth.<span style="color:#900;font-weight:bold">OnAuthError</span>(mw)
+</span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(path, mw.<span style="color:#900;font-weight:bold">ValidateToken</span>(connectHandler))
+</span></span></code></pre><p>A Connect, gRPC or gRPC-Web call then gets a proper error in its own protocol, with the reason as its message and the challenge still in <code>WWW-Authenticate</code>. Any other request gets the default response. A custom <code>OnAuthError</code> can do the same for another protocol: call <code>mw.SetAuthErrorHeaders(w, err)</code> for the challenge and status, write the body, and hand everything else to <code>mw.WriteAuthError</code>.</p>
+<h2 id="api-key-management">API Key Management <a class="anchor" href="#api-key-management">¶</a></h2>
 <h3 id="create-api-key">Create API Key <a class="anchor" href="#create-api-key">¶</a></h3>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">POST /api/keys
 </span></span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
