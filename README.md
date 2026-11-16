@@ -96,7 +96,7 @@ Every package has a `DESIGN.md` (rich) and `SUMMARY.md` (LLM-friendly index). Th
 | [`oauth2/`](oauth2/DESIGN.md) | Google / GitHub social-login providers with PKCE |
 | [`saml/`](saml/DESIGN.md) | SAML 2.0 SP adapter (POC) |
 | [`client/`](client/DESIGN.md) | Client SDK — discovery, browser/CLI/M2M login, token cache, auto-refresh |
-| [`grpc/`](grpc/DESIGN.md) | Auth context propagation across HTTP↔gRPC boundary |
+| [`grpc/`](grpc/DESIGN.md) | Auth context propagation across HTTP↔gRPC boundary, and `connectauth` for refusing Connect / gRPC / gRPC-Web calls in their own protocol |
 | [`stores/fs`](stores/fs/DESIGN.md) · [`stores/gorm`](stores/gorm/DESIGN.md) · [`stores/gae`](stores/gae/DESIGN.md) | Backend implementations of every store interface |
 | [`testutil/`](testutil/DESIGN.md) | In-process RS256 AS + JWKS + DCR fixture for downstream tests |
 

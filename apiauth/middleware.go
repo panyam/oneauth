@@ -791,24 +791,46 @@ func (m *APIMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request, 
 		m.OnAuthError(w, r, err)
 		return
 	}
+	m.WriteAuthError(w, r, err)
+}
 
+// WriteAuthError writes the middleware's default refusal: the headers from
+// SetAuthErrorHeaders, then the status and a JSON body with "error" and
+// "error_description". An OnAuthError that handles only some requests (one
+// protocol, say) calls it for the rest, so those clients see exactly what
+// they would without OnAuthError.
+func (m *APIMiddleware) WriteAuthError(w http.ResponseWriter, r *http.Request, err error) {
+	status := m.SetAuthErrorHeaders(w, err)
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("WWW-Authenticate", m.challenge(err))
-	status := http.StatusUnauthorized
-	var nonceErr *AuthError
-	if errors.As(err, &nonceErr) {
-		if nonceErr.nonce != "" {
-			w.Header().Set(DPoPNonceHeader, nonceErr.nonce)
-		}
-		if nonceErr.Code == "insufficient_scope" {
-			status = http.StatusForbidden
-		}
-	}
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error":             "unauthorized",
 		"error_description": err.Error(),
 	})
+}
+
+// SetAuthErrorHeaders sets the headers a refusal of err carries, and returns
+// the HTTP status the middleware would answer with. It sets the
+// WWW-Authenticate challenge (RFC 6750 §3, RFC 9449 §7.1) and, when the
+// failure asks the client to retry with a server nonce, DPoP-Nonce. The
+// status is 403 for insufficient_scope and 401 for everything else.
+//
+// An OnAuthError that writes its own body calls this first, so the challenge
+// and nonce still reach the client. It doesn't write the status, since a
+// protocol such as gRPC answers 200 and reports the refusal elsewhere.
+func (m *APIMiddleware) SetAuthErrorHeaders(w http.ResponseWriter, err error) int {
+	w.Header().Set("WWW-Authenticate", m.challenge(err))
+	status := http.StatusUnauthorized
+	var ae *AuthError
+	if errors.As(err, &ae) {
+		if ae.nonce != "" {
+			w.Header().Set(DPoPNonceHeader, ae.nonce)
+		}
+		if ae.Code == "insufficient_scope" {
+			status = http.StatusForbidden
+		}
+	}
+	return status
 }
 
 // challenge builds the WWW-Authenticate value for a failed request.

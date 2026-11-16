@@ -206,6 +206,20 @@ func protectedHandler(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
+### Refusing Connect and gRPC calls
+
+By default a refused request gets a 401 (403 for `insufficient_scope`) with a `WWW-Authenticate` challenge and a JSON body. gRPC and gRPC-Web clients map the status to `unauthenticated` or `permission_denied`, but they read the refusal as a transport error. The message says "HTTP status 401 Unauthorized" and the challenge is lost.
+
+For a Connect handler, set `OnAuthError` from `github.com/panyam/oneauth/grpc/connectauth`:
+
+```go
+mw := &apiauth.APIMiddleware{KeyStore: keyStore}
+mw.OnAuthError = connectauth.OnAuthError(mw)
+mux.Handle(path, mw.ValidateToken(connectHandler))
+```
+
+A Connect, gRPC or gRPC-Web call then gets a proper error in its own protocol, with the reason as its message and the challenge still in `WWW-Authenticate`. Any other request gets the default response. A custom `OnAuthError` can do the same for another protocol: call `mw.SetAuthErrorHeaders(w, err)` for the challenge and status, write the body, and hand everything else to `mw.WriteAuthError`.
+
 ## API Key Management
 
 ### Create API Key

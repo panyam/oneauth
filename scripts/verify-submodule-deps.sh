@@ -28,6 +28,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SUBMODULES=(
     "stores/gorm"
     "stores/gae"
+    "grpc"
     "cmd/demo-hostapp"
     "cmd/oneauth-server"
     "cmd/demo-resource-server"
