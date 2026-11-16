@@ -5,22 +5,18 @@ go 1.26.9
 replace github.com/panyam/oneauth => ../..
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/panyam/oneauth v0.0.0-00010101000000-000000000000
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 )
 
 require (
 	github.com/alexedwards/scs/v2 v2.8.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	go.opentelemetry.io/otel v1.45.0 // indirect
-	go.opentelemetry.io/otel/trace v1.45.0 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
+	go.opentelemetry.io/otel v1.47.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
