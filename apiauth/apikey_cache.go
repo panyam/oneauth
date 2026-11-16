@@ -63,6 +63,7 @@ type apiKeyCache struct {
 }
 
 type apiKeyCacheEntry struct {
+	keyID   string // the store's APIKey.KeyID, never parsed from a request
 	fullKey string
 	info    TokenInfo
 	until   time.Time
@@ -98,29 +99,29 @@ func apiKeyID(fullKey string) (string, bool) {
 	return parts[0] + "_" + parts[1], true
 }
 
-// get returns a copy of the cached TokenInfo when fullKey matches a live
-// entry.
-func (c *apiKeyCache) get(fullKey string) (*TokenInfo, bool) {
+// get returns a copy of the cached TokenInfo and the store's key ID when
+// fullKey matches a live entry.
+func (c *apiKeyCache) get(fullKey string) (*TokenInfo, string, bool) {
 	keyID, ok := apiKeyID(fullKey)
 	if !ok {
-		return nil, false
+		return nil, "", false
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e, ok := c.entries[keyID]
 	if !ok {
-		return nil, false
+		return nil, "", false
 	}
 	if !c.now().Before(e.until) {
 		delete(c.entries, keyID)
-		return nil, false
+		return nil, "", false
 	}
 	if subtle.ConstantTimeCompare([]byte(e.fullKey), []byte(fullKey)) != 1 {
-		return nil, false
+		return nil, "", false
 	}
 	info := e.info
 	info.Scopes = append([]string(nil), e.info.Scopes...)
-	return &info, true
+	return &info, e.keyID, true
 }
 
 // put caches a key the store just validated. An entry never outlives the
@@ -142,7 +143,7 @@ func (c *apiKeyCache) put(fullKey string, apiKey *core.APIKey, info *TokenInfo) 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sweepLocked(now)
-	e := &apiKeyCacheEntry{fullKey: fullKey, info: *info, until: until}
+	e := &apiKeyCacheEntry{keyID: apiKey.KeyID, fullKey: fullKey, info: *info, until: until}
 	e.info.Scopes = append([]string(nil), info.Scopes...)
 	c.entries[keyID] = e
 }
@@ -208,8 +209,8 @@ func (m *APIMiddleware) InvalidateAPIKey(keyID string) {
 func (m *APIMiddleware) validateAPIKey(ctx context.Context, fullKey string) (*TokenInfo, error) {
 	cache := m.apiKeyCacheFor()
 	if cache != nil {
-		if info, ok := cache.get(fullKey); ok {
-			if keyID, _ := apiKeyID(fullKey); cache.shouldRecordUse(keyID) {
+		if info, keyID, ok := cache.get(fullKey); ok {
+			if cache.shouldRecordUse(keyID) {
 				m.recordAPIKeyUse(keyID)
 			}
 			return info, nil
