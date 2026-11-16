@@ -84,6 +84,13 @@ type APIMiddleware struct {
 	// API key validation (optional)
 	APIKeyStore core.APIKeyStore
 
+	// APIKeyCache, when non-nil, serves recently validated API keys from
+	// memory instead of calling APIKeyStore.ValidateAPIKey (a bcrypt compare)
+	// on every request, and throttles last-used writes. A revoked key then
+	// keeps working for up to its TTL unless InvalidateAPIKey is called.
+	// Nil validates every request against the store. See APIKeyCacheConfig.
+	APIKeyCache *APIKeyCacheConfig
+
 	// Token header configuration
 	AuthHeader string // Defaults to "Authorization"
 
@@ -180,6 +187,9 @@ type APIMiddleware struct {
 	// validatorOnce ensures the lazy validator is built only once.
 	validatorOnce sync.Once
 	lazyValidator TokenValidator
+
+	apiKeyCacheOnce sync.Once
+	apiKeyCacheImpl *apiKeyCache
 }
 
 // GetSubjectFromAPIContext retrieves the authenticated subject (RFC 7519
@@ -723,26 +733,6 @@ func (m *APIMiddleware) validateJWTInline(tokenString string) (*TokenInfo, error
 		ExpiresAt:            expiresAt,
 		IssuedAt:             issuedAt,
 	}, nil
-}
-
-func (m *APIMiddleware) validateAPIKey(ctx context.Context, fullKey string) (*TokenInfo, error) {
-	validateResp, err := m.APIKeyStore.ValidateAPIKey(ctx, &core.ValidateAPIKeyRequest{FullKey: fullKey})
-	if err != nil {
-		return nil, fmt.Errorf("invalid API key: %w", err)
-	}
-	apiKey := validateResp.APIKey
-
-	go func() {
-		if _, err := m.APIKeyStore.UpdateAPIKeyLastUsed(context.Background(), &core.UpdateAPIKeyLastUsedRequest{KeyID: apiKey.KeyID}); err != nil {
-			log.Printf("Failed to update API key last used: %v", err)
-		}
-	}()
-
-	info := &TokenInfo{Subject: apiKey.Subject, Scopes: apiKey.Scopes, AuthType: "api_key"}
-	if apiKey.ExpiresAt != nil {
-		info.ExpiresAt = *apiKey.ExpiresAt
-	}
-	return info, nil
 }
 
 // AuthError is a failed authentication plus the WWW-Authenticate challenge it

@@ -256,6 +256,19 @@ curl https://api.example.com/endpoint \
 
 The middleware automatically detects API keys (by prefix) vs JWTs.
 
+### Caching validated keys
+
+Each API key check runs a bcrypt compare in the store, which takes tens of milliseconds. A client that sends many small requests pays that on every one. Set `APIKeyCache` to serve a key from memory once it has validated:
+
+```go
+mw := &apiauth.APIMiddleware{
+    APIKeyStore: apiKeyStore,
+    APIKeyCache: &apiauth.APIKeyCacheConfig{}, // TTL and LastUsedInterval default to a minute
+}
+```
+
+A revoked key then keeps working until its entry ages out, at most `TTL`. If the revocation runs in the same process, call `mw.InvalidateAPIKey(keyID)` afterwards and the key is refused at once. An entry never outlives the key's own `ExpiresAt`. The store's `LastUsedAt` is written at most once per key per `LastUsedInterval`. Without `APIKeyCache`, every request goes to the store, as before.
+
 ## Scopes
 
 OneAuth provides built-in scopes (in `core`):
