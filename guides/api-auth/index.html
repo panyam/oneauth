@@ -357,6 +357,13 @@ The client SDK&rsquo;s <code>ClientCredentialsToken</code> now sends form-encode
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>curl https://api.example.com/endpoint <span style="color:#d14">\
 </span></span></span><span style="display:flex;"><span><span style="color:#d14"></span>  -H <span style="color:#d14">&#34;Authorization: Bearer oa_abc123...xyz789&#34;</span>
 </span></span></code></pre><p>The middleware automatically detects API keys (by prefix) vs JWTs.</p>
+<h3 id="caching-validated-keys">Caching validated keys <a class="anchor" href="#caching-validated-keys">¶</a></h3>
+<p>Each API key check runs a bcrypt compare in the store, which takes tens of milliseconds. A client that sends many small requests pays that on every one. Set <code>APIKeyCache</code> to serve a key from memory once it has validated:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>mw <span style="color:#000;font-weight:bold">:=</span> <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIMiddleware{
+</span></span><span style="display:flex;"><span>    APIKeyStore: apiKeyStore,
+</span></span><span style="display:flex;"><span>    APIKeyCache: <span style="color:#000;font-weight:bold">&amp;</span>apiauth.APIKeyCacheConfig{}, <span style="color:#998;font-style:italic">// TTL and LastUsedInterval default to a minute
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><p>A revoked key then keeps working until its entry ages out, at most <code>TTL</code>. If the revocation runs in the same process, call <code>mw.InvalidateAPIKey(keyID)</code> afterwards and the key is refused at once. An entry never outlives the key&rsquo;s own <code>ExpiresAt</code>. The store&rsquo;s <code>LastUsedAt</code> is written at most once per key per <code>LastUsedInterval</code>. Without <code>APIKeyCache</code>, every request goes to the store, as before.</p>
 <h2 id="scopes">Scopes <a class="anchor" href="#scopes">¶</a></h2>
 <p>OneAuth provides built-in scopes (in <code>core</code>):</p>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">const</span> (
