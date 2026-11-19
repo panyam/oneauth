@@ -39,6 +39,7 @@ var standardClaims = map[string]bool{
 var issuanceReservedClaims = map[string]bool{
 	"nbf": true, "scope": true, "azp": true, "sid": true,
 	"act": true, "may_act": true,
+	UserinfoClaimsClaim: true,
 }
 
 // Context keys for API authentication. Unexported so callers go

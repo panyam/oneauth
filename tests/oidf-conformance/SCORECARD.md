@@ -12,8 +12,8 @@ Test module: `oidcc-discovery-endpoint-verification`
 
 | Metric | Count |
 |---|---|
-| Total checks observed | 31 |
-| Passing | 31 |
+| Total checks observed | 32 |
+| Passing | 32 |
 | Known gaps (expected-fail in manifest) | 0 |
 | Regressions (failed but NOT in manifest) | 0 |
 | Ratchet-up available (in manifest but passed) | 0 |
@@ -24,6 +24,7 @@ Test module: `oidcc-discovery-endpoint-verification`
 |---|---|---|---|
 | `CheckDiscEndpointAllEndpointsAreHttps` | PASS | — |  |
 | `CheckDiscEndpointAuthorizationEndpoint` | PASS | — |  |
+| `CheckDiscEndpointClaimsParameterSupported` | PASS | — |  |
 | `CheckDiscEndpointDiscoveryUrl` | PASS | — |  |
 | `CheckDiscEndpointIssuer` | PASS | — |  |
 | `CheckDiscEndpointIssuerIsValidUrl` | PASS | — |  |

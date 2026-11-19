@@ -156,13 +156,15 @@
 - suite: oidf
   plan: fapi2-security-profile-final-test-plan
   test: fapi2-security-profile-final-test-claims-parameter-identity-claims
-  status: expected-skip
-  issue: 453
+  status: expected-warning
+  evidence: names that are not known
+  issue: 480
   owner: panyam
   reason: |
-    The harness skips this module because the discovery document does not
-    advertise claims_parameter_supported; the OIDC `claims` request
-    parameter is not implemented yet.
+    Discovery advertises claims_parameter_supported and the ID token
+    carries every requested claim the user has, but also oneauth's typ: ID
+    marker claim, which the harness doesn't know. Whether that marker
+    stays is issue 480's decision, as for the happy-flow module.
   expires: 2027-12-31
 
 # -----------------------------------------------------------------------------
@@ -214,71 +216,28 @@
 
 - suite: oidf
   plan: oidcc-basic-certification-test-plan
-  test: oidcc-userinfo-post-body
-  status: expected-warning
-  evidence: access tokens passed in the POST body
-  issue: 481
-  owner: panyam
-  reason: |
-    /userinfo refuses the access token as an access_token form parameter
-    (RFC 6750 §2.2).
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
   test: oidcc-scope-profile
   status: expected-warning
   evidence: doesn't contain all scope items
-  issue: 481
+  issue: 480
   owner: panyam
   reason: |
-    The signed-up user has no profile data, so userinfo returns no
-    profile-scope claims.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-scope-address
-  status: expected-skip
-  issue: 481
-  owner: panyam
-  reason: |
-    scopes_supported lists neither address nor phone, so the harness skips
-    the module.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-scope-phone
-  status: expected-skip
-  issue: 481
-  owner: panyam
-  reason: |
-    scopes_supported lists neither address nor phone, so the harness skips
-    the module.
+    Userinfo returns every profile claim the user gave at signup,
+    but not updated_at: oneauth's user records don't expose when the
+    profile last changed.
   expires: 2027-12-31
 
 - suite: oidf
   plan: oidcc-basic-certification-test-plan
   test: oidcc-scope-all
-  status: expected-skip
-  issue: 481
-  owner: panyam
-  reason: |
-    scopes_supported lists neither address nor phone, so the harness skips
-    the module.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-claims-essential
   status: expected-warning
-  evidence: name not found in userinfo
-  issue: 453
+  evidence: doesn't contain all scope items
+  issue: 480
   owner: panyam
   reason: |
-    The claims parameter isn't implemented, and the user has no name, so
-    userinfo lacks the essential name claim (with #481).
+    Userinfo returns every profile claim and address and phone the user gave at signup,
+    but not updated_at: oneauth's user records don't expose when the
+    profile last changed.
   expires: 2027-12-31
 
 - suite: oidf
@@ -286,7 +245,7 @@
   test: oidcc-ensure-request-with-acr-values-succeeds
   status: expected-warning
   evidence: SHOULD' return an acr claim
-  issue: 453
+  issue: 485
   owner: panyam
   reason: |
     acr is not supported yet, so the ID token has no acr claim.

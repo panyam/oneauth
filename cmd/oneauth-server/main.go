@@ -77,6 +77,9 @@ func main() {
 	if err := checkPKCE(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
+	if err := checkSignup(cfg); err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
 	if err := checkFAPI2(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
@@ -174,7 +177,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		EmailSender:         &localauth.ConsoleEmailSender{},
 		TokenStore:          stores.tokenStore,
 		BaseURL:             fmt.Sprintf("http://localhost:%s", cfg.Server.Port),
-		SignupPolicy:        &localauth.PolicyEmailOnly,
+		SignupPolicy:        signupPolicy(cfg),
 		HandleUser:          makeHandleUser(cfg),
 		VerifyEmail:         localauth.NewVerifyEmailFunc(stores.identityStore, stores.tokenStore),
 		UpdatePassword:      localauth.NewUpdatePasswordFunc(stores.identityStore, stores.channelStore),
@@ -934,6 +937,15 @@ func buildPushedStore(cfg *Config, sharedDB *gorm.DB) (core.PushedAuthorizationR
 	default:
 		return nil, fmt.Errorf("unknown code_flow.store type: %s (want memory, fs, gorm or gae)", sc.Type)
 	}
+}
+
+// signupPolicy is localauth.PolicyEmailOnly plus the profile claims
+// signup.profile_claims lists. It copies the shared policy rather than
+// changing it.
+func signupPolicy(cfg *Config) *localauth.SignupPolicy {
+	p := localauth.PolicyEmailOnly
+	p.ProfileClaims = cfg.Signup.ProfileClaims
+	return &p
 }
 
 // buildConsentStore builds the ConsentStore for code_flow.consent on the

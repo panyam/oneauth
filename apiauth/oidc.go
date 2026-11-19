@@ -81,6 +81,11 @@ type CreateIDTokenRequest struct {
 	// AuthTime is reported as `auth_time` when non-zero.
 	AuthTime time.Time
 
+	// RequestedClaims are claim names the §5.5 `claims` request parameter
+	// asked to have in the ID token. Each one the user has is added,
+	// whatever Scopes grant.
+	RequestedClaims []string
+
 	// AccessToken is the access token issued alongside, hashed into
 	// `at_hash` (§3.1.3.6) when non-empty, so the client can tell that the
 	// two came from the same response.
@@ -168,18 +173,11 @@ func (i *jwtIDTokenIssuer) CreateIDToken(ctx context.Context, req *CreateIDToken
 		return nil, fmt.Errorf("oidc: client_id is required (it is the ID token's aud)")
 	}
 
-	claims := jwt.MapClaims{}
-	if i.userClaims != nil {
-		extra, err := i.userClaims(ctx, req.Subject, req.Scopes)
-		if err != nil {
-			return nil, fmt.Errorf("oidc: user claims: %w", err)
-		}
-		for k, v := range extra {
-			if !idTokenReservedClaims[k] {
-				claims[k] = v
-			}
-		}
+	extra, err := collectUserClaims(ctx, i.userClaims, req.Subject, req.Scopes, req.RequestedClaims)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: user claims: %w", err)
 	}
+	claims := jwt.MapClaims(extra)
 
 	now := time.Now()
 	expiresAt := now.Add(i.expiry)
@@ -235,20 +233,51 @@ func atHashSupported(alg string) bool {
 var _ IDTokenIssuer = (*jwtIDTokenIssuer)(nil)
 
 // userinfoClaims builds a userinfo response (OIDC Core §5.3.2): `sub`
-// plus whatever UserClaims returns for the token's scopes.
-func userinfoClaims(ctx context.Context, userClaims UserClaimsFunc, subject string, scopes []string) (map[string]any, error) {
-	out := map[string]any{}
-	if userClaims != nil {
-		extra, err := userClaims(ctx, subject, scopes)
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range extra {
-			if !idTokenReservedClaims[k] {
-				out[k] = v
-			}
-		}
+// plus the claims the token's scopes grant and the ones its `claims`
+// request named.
+func userinfoClaims(ctx context.Context, userClaims UserClaimsFunc, subject string, scopes, requested []string) (map[string]any, error) {
+	out, err := collectUserClaims(ctx, userClaims, subject, scopes, requested)
+	if err != nil {
+		return nil, err
 	}
 	out["sub"] = subject
+	return out, nil
+}
+
+// standardClaimScopes are the OIDC Core §5.4 scopes, which together grant
+// every standard claim.
+var standardClaimScopes = []string{"profile", "email", "address", "phone"}
+
+// collectUserClaims returns the claims UserClaims grants for scopes, plus
+// each claim in requested that the user has (the §5.5 `claims`
+// parameter). A requested claim is looked up by asking UserClaims for
+// every standard scope, so a UserClaimsFunc needs no change to serve it.
+// Reserved claims never come from UserClaims.
+func collectUserClaims(ctx context.Context, userClaims UserClaimsFunc, subject string, scopes, requested []string) (map[string]any, error) {
+	out := map[string]any{}
+	if userClaims == nil {
+		return out, nil
+	}
+	extra, err := userClaims(ctx, subject, scopes)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range extra {
+		if !idTokenReservedClaims[k] {
+			out[k] = v
+		}
+	}
+	if len(requested) == 0 {
+		return out, nil
+	}
+	all, err := userClaims(ctx, subject, standardClaimScopes)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range requested {
+		if v, ok := all[name]; ok && !idTokenReservedClaims[name] {
+			out[name] = v
+		}
+	}
 	return out, nil
 }

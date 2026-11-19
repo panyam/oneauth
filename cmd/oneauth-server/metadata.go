@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/panyam/oneauth/localauth"
 
 	"github.com/panyam/oneauth/apiauth"
 )
@@ -38,6 +39,8 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 			// id_token_signing_alg_values_supported REQUIRED.
 			meta.UserinfoEndpoint = baseURL + "/userinfo"
 			meta.IDTokenSigningAlgValuesSupported = []string{cfg.JWT.SigningAlg}
+			// OIDC Core §5.5: authorize and the tokens honour `claims`.
+			meta.ClaimsParameterSupported = true
 		}
 		if cfg.CodeFlow.PAR.Enabled {
 			meta.PushedAuthorizationRequestEndpoint = baseURL + "/par"
@@ -108,6 +111,15 @@ func checkFAPI2(cfg *Config) error {
 	}
 	if pkcePolicy(cfg) != apiauth.PKCERequired {
 		return fmt.Errorf("fapi2 needs code_flow.pkce: required: FAPI 2.0 §5.3.2.2 requires PKCE from every client")
+	}
+	return nil
+}
+
+// checkSignup refuses a signup.profile_claims entry that isn't a standard
+// OIDC profile claim, at startup rather than on every signup.
+func checkSignup(cfg *Config) error {
+	if _, err := localauth.ParseSignupProfile(nil, cfg.Signup.ProfileClaims); err != nil {
+		return fmt.Errorf("signup.profile_claims: %w", err)
 	}
 	return nil
 }

@@ -116,6 +116,10 @@ type authorizeConsentData struct {
 	CodeChallengeMethod string
 	DPoPJKT             string
 	Nonce               string
+	// Claims round-trips the OIDC `claims` parameter, so Approve issues a
+	// code that still carries it. Custom consent templates must post it
+	// back too.
+	Claims string
 	// RequestURI round-trips a pushed request (RFC 9126) through the
 	// form, so Approve resolves the stored payload instead of re-reading
 	// the other hidden inputs as a fresh request. Custom consent
@@ -197,6 +201,7 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		CodeChallengeMethod: req.CodeChallengeMethod,
 		DPoPJKT:             req.DPoPJKT,
 		Nonce:               req.Nonce,
+		Claims:              req.Claims,
 		RequestURI:          req.RequestURI,
 		CSRFToken:           h.csrfToken(r),
 		ActionURL:           r.URL.Path,
@@ -471,6 +476,7 @@ var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent"
     <input type="hidden" name="code_challenge_method" value="{{.CodeChallengeMethod}}">
     {{if .DPoPJKT}}<input type="hidden" name="dpop_jkt" value="{{.DPoPJKT}}">{{end}}
     {{if .Nonce}}<input type="hidden" name="nonce" value="{{.Nonce}}">{{end}}
+    {{if .Claims}}<input type="hidden" name="claims" value="{{.Claims}}">{{end}}
     {{if .RequestURI}}<input type="hidden" name="request_uri" value="{{.RequestURI}}">{{end}}
     <button type="submit" name="action" value="approve">Approve</button>
     <button type="submit" name="action" value="deny">Deny</button>

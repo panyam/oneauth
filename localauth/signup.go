@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -257,6 +258,8 @@ func (a *LocalAuth) parseSignupForm(r *http.Request) (*Credentials, *accounts.Au
 	passwordField := a.getPasswordField()
 
 	var username, email, phone, password string
+	profileValues := url.Values{}
+	profileNames := a.getSignupPolicy().ProfileClaims
 
 	if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") ||
 		strings.HasPrefix(contentType, "multipart/form-data") {
@@ -267,6 +270,9 @@ func (a *LocalAuth) parseSignupForm(r *http.Request) (*Credentials, *accounts.Au
 		email = r.FormValue(emailField)
 		phone = r.FormValue(phoneField)
 		password = r.FormValue(passwordField)
+		for _, name := range profileNames {
+			profileValues.Set(name, r.FormValue(name))
+		}
 	} else {
 		var data map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil || data == nil {
@@ -284,6 +290,16 @@ func (a *LocalAuth) parseSignupForm(r *http.Request) (*Credentials, *accounts.Au
 		if pw, ok := data[passwordField].(string); ok {
 			password = pw
 		}
+		for _, name := range profileNames {
+			if v, ok := data[name].(string); ok {
+				profileValues.Set(name, v)
+			}
+		}
+	}
+	profile, err := ParseSignupProfile(profileValues, profileNames)
+	if err != nil {
+		log.Printf("localauth: signup: %v", err)
+		return nil, accounts.NewAuthError("server_error", "Signup is misconfigured", "")
 	}
 
 	creds := &Credentials{
@@ -297,6 +313,44 @@ func (a *LocalAuth) parseSignupForm(r *http.Request) (*Credentials, *accounts.Au
 	if phone != "" {
 		creds.Phone = &phone
 	}
+	if len(profile) > 0 {
+		creds.Profile = profile
+	}
 
 	return creds, nil
+}
+
+// signupProfileClaims are the OIDC Core §5.1 claims SignupPolicy.ProfileClaims
+// may name: the profile scope's claims and address. Email and phone have
+// their own signup fields, and preferred_username comes from the username.
+var signupProfileClaims = map[string]bool{
+	"name": true, "given_name": true, "family_name": true, "middle_name": true,
+	"nickname": true, "profile": true, "picture": true, "website": true,
+	"gender": true, "birthdate": true, "zoneinfo": true, "locale": true,
+	"address": true,
+}
+
+// ParseSignupProfile returns the standard profile claims among values,
+// keeping only the names in allowed and skipping empty values. An
+// `address` value becomes the address claim's `formatted` member, since
+// that claim is a JSON object (OIDC Core §5.1.1). It returns an error when
+// allowed names something other than a standard profile claim, so a
+// deployment can't let users set arbitrary profile keys such as a role.
+func ParseSignupProfile(values url.Values, allowed []string) (map[string]any, error) {
+	out := map[string]any{}
+	for _, name := range allowed {
+		if !signupProfileClaims[name] {
+			return nil, fmt.Errorf("SignupPolicy.ProfileClaims: %q is not a standard OIDC profile claim", name)
+		}
+		v := strings.TrimSpace(values.Get(name))
+		if v == "" {
+			continue
+		}
+		if name == "address" {
+			out[name] = map[string]any{"formatted": v}
+		} else {
+			out[name] = v
+		}
+	}
+	return out, nil
 }

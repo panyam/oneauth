@@ -63,7 +63,7 @@ func main() {
 	case "fapi2":
 		s := fapi2.Setup{
 			Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, Scope: "openid read",
-			User: oidfplan.User{Email: "fapi2-user@example.com", Password: "fapi2-exercise-password"},
+			User: oidfplan.User{Email: "fapi2-user@example.com", Password: "fapi2-exercise-password", Profile: oidfplan.StandardProfile()},
 		}
 		if err := fapi2.Prepare(ctx, hc, *serverURL, &s); err != nil {
 			log.Fatal(err)
@@ -75,7 +75,7 @@ func main() {
 	case "oidcc":
 		s := oidcc.Setup{
 			Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, Scope: oidcc.Scope,
-			User: oidfplan.User{Email: "oidcc-user@example.com", Password: "oidcc-exercise-password"},
+			User: oidcc.ExerciseUser(),
 		}
 		if err := oidcc.Prepare(ctx, hc, *serverURL, &s); err != nil {
 			log.Fatal(err)

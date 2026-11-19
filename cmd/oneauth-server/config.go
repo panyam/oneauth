@@ -21,6 +21,7 @@ type Config struct {
 	TLS        TLSConfig        `yaml:"tls"`
 	DeviceFlow DeviceFlowConfig `yaml:"device_flow"`
 	CodeFlow   CodeFlowConfig   `yaml:"code_flow"`
+	Signup     SignupConfig     `yaml:"signup"`
 	DPoP       DPoPServerConfig `yaml:"dpop"`
 
 	// FAPI2 runs the FAPI 2.0 Security Profile (OneAuthConfig.FAPI2). It
@@ -86,6 +87,14 @@ type CodeFlowConfig struct {
 	// since ID tokens are verified against the JWKS; the server refuses to
 	// start otherwise.
 	OIDC bool `yaml:"oidc"`
+}
+
+// SignupConfig configures the signup form.
+type SignupConfig struct {
+	// ProfileClaims lists the standard OIDC profile claims a user may give
+	// at signup, such as name or address, for userinfo and ID tokens to
+	// hand out. Empty accepts none. See localauth.SignupPolicy.ProfileClaims.
+	ProfileClaims []string `yaml:"profile_claims"`
 }
 
 // ConsentConfig configures remembered consent at /authorize.
@@ -372,6 +381,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if len(cfg.JWT.ScopesSupported) == 0 {
 		cfg.JWT.ScopesSupported = defaultScopesSupported()
+		if cfg.CodeFlow.OIDC {
+			cfg.JWT.ScopesSupported = append(cfg.JWT.ScopesSupported, "address", "phone")
+		}
 	}
 	if len(cfg.JWT.ClaimsSupported) == 0 {
 		cfg.JWT.ClaimsSupported = defaultClaimsSupported()
@@ -407,9 +419,12 @@ func defaultClaimsSupported() []string {
 
 // oidcClaimsSupported lists the ID token and userinfo claims the server
 // adds under code_flow.oidc: the ones every ID token can carry, and the
-// profile claims localauth.ProfileClaims maps.
+// profile claims localauth.ProfileClaims maps, including the standard
+// profile claims a user can give at signup (signup.profile_claims).
 func oidcClaimsSupported() []string {
-	return []string{"nonce", "auth_time", "at_hash", "preferred_username", "email", "email_verified", "phone_number", "phone_number_verified"}
+	return []string{"nonce", "auth_time", "at_hash", "preferred_username", "email", "email_verified", "phone_number", "phone_number_verified",
+		"name", "given_name", "family_name", "middle_name", "nickname", "profile", "picture", "website",
+		"gender", "birthdate", "zoneinfo", "locale", "address"}
 }
 
 // configFromEnv builds a Config purely from environment variables.

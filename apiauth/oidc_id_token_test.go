@@ -43,10 +43,17 @@ type oidcFixture struct {
 // newOIDCFixture builds an ES256 AS with OIDC on. userClaims may be nil.
 func newOIDCFixture(t *testing.T, userClaims apiauth.UserClaimsFunc) *oidcFixture {
 	t.Helper()
+	return newOIDCFixtureWith(t, userClaims, nil)
+}
+
+// newOIDCFixtureWith is newOIDCFixture with a hook that edits the config
+// before NewOneAuth runs.
+func newOIDCFixtureWith(t *testing.T, userClaims apiauth.UserClaimsFunc, edit func(*apiauth.OneAuthConfig)) *oidcFixture {
+	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	codes := core.NewInMemoryAuthorizationCodeStore()
-	fx := newAPIAuthFixture(apiauth.OneAuthConfig{
+	cfg := apiauth.OneAuthConfig{
 		SigningKey:             key,
 		SigningAlg:             "ES256",
 		VerifyKey:              &key.PublicKey,
@@ -55,7 +62,11 @@ func newOIDCFixture(t *testing.T, userClaims apiauth.UserClaimsFunc) *oidcFixtur
 		RefreshStore:           newInMemoryRefreshStore(),
 		AuthorizationCodeStore: codes,
 		OIDC:                   &apiauth.OIDCConfig{UserClaims: userClaims},
-	}, nil)
+	}
+	if edit != nil {
+		edit(&cfg)
+	}
+	fx := newAPIAuthFixture(cfg, nil)
 	return &oidcFixture{apiAuthFixture: fx, codes: codes, key: key}
 }
 

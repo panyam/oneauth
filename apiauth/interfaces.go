@@ -74,6 +74,11 @@ type CreateAccessTokenRequest struct {
 	// plain bearer token, which is what every caller that does not
 	// implement RFC 9449 passes.
 	Confirmation *core.Confirmation
+
+	// UserinfoClaims are claim names the OIDC Core §5.5 `claims` request
+	// parameter asked userinfo for. A JWT issuer carries them in the
+	// UserinfoClaimsClaim claim. Empty adds nothing.
+	UserinfoClaims []string
 }
 
 // CreateAccessTokenResponse is the output of TokenIssuer.CreateAccessToken.

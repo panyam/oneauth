@@ -46,3 +46,8 @@ code_flow:
   # prompt=none succeeds only for a request an earlier approval covers.
   consent:
     remember: true
+
+# The exercise user signs up with these standard OIDC profile claims
+# (oidfplan.StandardProfile), so the modules that ask for claims find them.
+signup:
+  profile_claims: [name, given_name, family_name, middle_name, nickname, profile, picture, website, gender, birthdate, zoneinfo, locale, address]
