@@ -60,8 +60,8 @@ jobs:
       - name: Test (OIDF conformance tooling)
         run: cd tests/oidf-conformance && GOWORK=off go test -count=1 ./...
 
-  # The root module's tests on Windows. No -race, since the race detector
-  # needs cgo there. Sub-modules aren't covered yet. See issue 502.
+  # Every module's tests on Windows. No -race, since the race detector
+  # needs cgo there. See issues 502 and 505.
   windows:
     runs-on: windows-latest
     steps:
@@ -73,6 +73,15 @@ jobs:
 
       - name: Test (core)
         run: go test -count=1 -short ./...
+
+      - name: Test (sub-modules)
+        shell: bash
+        run: |
+          for mod in stores/gorm stores/gae grpc oauth2 cmd/oneauth-server; do
+            echo "Testing $mod..."
+            (cd $mod && go test -count=1 -short ./...) || fail=1
+          done
+          exit ${fail:-0}
 
   # The GAE store tests skip without DATASTORE_PROJECT_ID, so the test job
   # above never runs them. The emulator needs --consistency=1.0, and a
