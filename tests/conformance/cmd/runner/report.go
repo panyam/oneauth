@@ -88,7 +88,7 @@ func writeReport(path, pkg string, results []Result, manifest map[string]Entry, 
 		for _, row := range rows {
 			ident := row.entry.ID
 			if ident == "" {
-				ident = row.entry.Plan + "/" + row.entry.Test
+				ident = row.entry.planName() + "/" + row.entry.Test
 			}
 			marker := ""
 			if row.expired {

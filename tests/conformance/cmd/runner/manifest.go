@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -21,34 +22,48 @@ import (
 //     plan:  dynamic-op-basic
 //     test:  dcr-rejects-non-https-redirect-uri
 //
+//     or Plans instead of Plan, for a module several OIDF plans share
+//     with the same outcome:
+//     plans: [oidcc-dynamic-certification-test-plan, oidcc-test-plan-none]
+//
 // Status is the expected outcome; a passing test should not be in the
 // manifest at all. Go-native entries can only be "expected-fail". External
 // entries may also be "expected-review", "expected-skip" or
 // "expected-warning", which the FAPI 2.0 and OIDC Basic OP plans use for
 // whole modules the harness ends in REVIEW, skips, or passes with a
-// warning; their adapter (tests/oidf-conformance/oidfplan.Judge) reads
-// Evidence for those.
+// warning, and "expected-manual" for a module that needs a person at the
+// harness, which the exercise doesn't run. Their adapter
+// (tests/oidf-conformance/oidfplan.Judge) reads Evidence for those.
 type Entry struct {
-	Suite    string `yaml:"suite"`
-	ID       string `yaml:"id,omitempty"`
-	Plan     string `yaml:"plan,omitempty"`
-	Test     string `yaml:"test,omitempty"`
-	Status   string `yaml:"status"`
-	Evidence string `yaml:"evidence,omitempty"`
-	Issue    int    `yaml:"issue"`
-	Owner    string `yaml:"owner"`
-	Reason   string `yaml:"reason"`
-	Expires  string `yaml:"expires"`
+	Suite    string   `yaml:"suite"`
+	ID       string   `yaml:"id,omitempty"`
+	Plan     string   `yaml:"plan,omitempty"`
+	Plans    []string `yaml:"plans,omitempty"`
+	Test     string   `yaml:"test,omitempty"`
+	Status   string   `yaml:"status"`
+	Evidence string   `yaml:"evidence,omitempty"`
+	Issue    int      `yaml:"issue"`
+	Owner    string   `yaml:"owner"`
+	Reason   string   `yaml:"reason"`
+	Expires  string   `yaml:"expires"`
 }
 
 // Key returns the runner's lookup key for this entry.
 // Go-native entries: "<suite>::<id>"
-// External entries:  "<suite>::<plan>::<test>"
+// External entries:  "<suite>::<plan>::<test>", with Plans joined by commas
 func (e Entry) Key() string {
 	if e.ID != "" {
 		return e.Suite + "::" + e.ID
 	}
-	return e.Suite + "::" + e.Plan + "::" + e.Test
+	return e.Suite + "::" + e.planName() + "::" + e.Test
+}
+
+// planName is Plan, or Plans joined by commas.
+func (e Entry) planName() string {
+	if len(e.Plans) > 0 {
+		return strings.Join(e.Plans, ",")
+	}
+	return e.Plan
 }
 
 // Validate checks that an entry has all required fields and a parseable
@@ -57,17 +72,20 @@ func (e Entry) Validate() error {
 	if e.Suite == "" {
 		return fmt.Errorf("suite is required")
 	}
-	if e.ID == "" && (e.Plan == "" || e.Test == "") {
+	if e.Plan != "" && len(e.Plans) > 0 {
+		return fmt.Errorf("set plan or plans, not both")
+	}
+	if e.ID == "" && (e.planName() == "" || e.Test == "") {
 		return fmt.Errorf("must set either id (Go-native) or both plan+test (external suite)")
 	}
-	if e.ID != "" && (e.Plan != "" || e.Test != "") {
+	if e.ID != "" && (e.planName() != "" || e.Test != "") {
 		return fmt.Errorf("id is set; plan/test must be empty (cannot mix shapes)")
 	}
 	switch {
 	case e.Status == "expected-fail":
-	case e.ID == "" && (e.Status == "expected-review" || e.Status == "expected-skip" || e.Status == "expected-warning"):
+	case e.ID == "" && (e.Status == "expected-review" || e.Status == "expected-skip" || e.Status == "expected-warning" || e.Status == "expected-manual"):
 	case e.ID == "":
-		return fmt.Errorf("status must be \"expected-fail\", \"expected-review\", \"expected-skip\" or \"expected-warning\" (got %q)", e.Status)
+		return fmt.Errorf("status must be \"expected-fail\", \"expected-review\", \"expected-skip\", \"expected-warning\" or \"expected-manual\" (got %q)", e.Status)
 	default:
 		return fmt.Errorf("status must be \"expected-fail\" (got %q)", e.Status)
 	}

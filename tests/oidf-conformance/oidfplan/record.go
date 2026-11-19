@@ -12,6 +12,8 @@ import (
 // same facts as the exercise's printed lines: each module's outcome, the
 // known-gaps.yaml entry it was judged against, and the verdict.
 type PlanRecord struct {
+	// Plan is the run's Plan.ManifestKey: the harness plan name, with the
+	// variant appended for a plan run more than once.
 	Plan    string            `json:"plan"`
 	Variant map[string]string `json:"variant,omitempty"`
 	PlanID  string            `json:"plan_id,omitempty"`
@@ -44,7 +46,7 @@ type ModuleRecord struct {
 // manifest entries it was judged against, using Judge, so the record and
 // the printed summary always agree.
 func NewPlanRecord(plan Plan, planID string, results []ModuleResult, expected map[string]Expectation) PlanRecord {
-	rec := PlanRecord{Plan: plan.Name, Variant: plan.Variant, PlanID: planID, Counts: map[string]int{}}
+	rec := PlanRecord{Plan: plan.ManifestKey(), Variant: plan.Variant, PlanID: planID, Counts: map[string]int{}}
 	byModule := map[string]ModuleResult{}
 	for _, r := range results {
 		byModule[r.Module] = r

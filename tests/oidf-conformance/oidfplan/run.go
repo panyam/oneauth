@@ -98,7 +98,8 @@ type ModuleResult struct {
 	// Status is the harness status (FINISHED, INTERRUPTED, WAITING, ...),
 	// or TIMEOUT when the module didn't finish in time.
 	Status string
-	// Result is PASSED, FAILED, WARNING, REVIEW, SKIPPED or UNKNOWN.
+	// Result is PASSED, FAILED, WARNING, REVIEW, SKIPPED or UNKNOWN from
+	// the harness, or ResultManual for a module RunPlan didn't run.
 	Result string
 	// FirstFailure is the first FAILURE message in the module's log.
 	FirstFailure string
@@ -111,12 +112,35 @@ type ModuleResult struct {
 	Err        error
 }
 
+// StatusNotRun and ResultManual mark a module RunPlan left out because it
+// needs a person at the harness (StatusExpectedManual).
+const (
+	StatusNotRun = "NOT RUN"
+	ResultManual = "MANUAL"
+)
+
 // Plan is one harness test plan as an exercise runs it: its name, the
 // variant oneauth implements, and the JSON config the harness takes.
 type Plan struct {
-	Name    string
+	Name string
+	// Key names the run in known-gaps.yaml (an entry's plan) and in its run
+	// record. Empty means Name. A plan run with several variants, such as
+	// oidcc-test-plan once per client auth method, gives each run its own
+	// Key so their entries and records stay apart.
+	Key     string
 	Variant map[string]string
 	Config  any
+	// Manual are modules RunPlan records as ResultManual without running
+	// them, usually ManualModules of the plan's expectations.
+	Manual map[string]bool
+}
+
+// ManifestKey is p.Key, or p.Name when Key is empty.
+func (p Plan) ManifestKey() string {
+	if p.Key != "" {
+		return p.Key
+	}
+	return p.Name
 }
 
 // RunPlan creates the plan and runs each of its modules in turn, giving each
@@ -137,13 +161,22 @@ func RunPlan(ctx context.Context, h *harness.Client, p Plan, perModule time.Dura
 		if !strings.Contains(m.TestModule, only) {
 			continue
 		}
-		r := runModule(ctx, h, planID, m, perModule)
+		r := runOrRecord(ctx, h, planID, m, p.Manual, perModule)
 		results = append(results, r)
 		if progress != nil {
 			progress(r)
 		}
 	}
 	return planID, results, nil
+}
+
+// runOrRecord runs m, or records it as manual without touching the
+// harness when manual lists it.
+func runOrRecord(ctx context.Context, h *harness.Client, planID string, m harness.PlanModule, manual map[string]bool, timeout time.Duration) ModuleResult {
+	if manual[m.TestModule] {
+		return ModuleResult{Module: m.TestModule, Status: StatusNotRun, Result: ResultManual}
+	}
+	return runModule(ctx, h, planID, m, timeout)
 }
 
 func runModule(ctx context.Context, h *harness.Client, planID string, m harness.PlanModule, timeout time.Duration) ModuleResult {
