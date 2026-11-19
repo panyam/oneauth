@@ -149,6 +149,10 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 	// DCR builds registration_client_uri from this, never from a request's
 	// Host header.
 	registrar.IssuerBaseURL = publicBaseURL(cfg)
+	registrar.AllowPrivateJWKSHosts = cfg.AdminAuth.AllowPrivateClientHosts
+	if cfg.AdminAuth.AllowPrivateClientHosts {
+		log.Printf("WARNING: admin_auth.allow_private_client_hosts is on. Clients can make this server fetch from private addresses; use it only for test harnesses.")
+	}
 	registrationAuth, err := buildRegistrationAuth(cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Invalid server config: %w", err)
@@ -233,7 +237,12 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 	}
 
 	// Build OneAuth (the transport-independent core) + handlers.
+	clientCAs, err := clientFetchRootCAs(cfg.AdminAuth.ClientFetchCAFile)
+	if err != nil {
+		log.Fatal(err)
+	}
 	oaCfg := apiauth.OneAuthConfig{
+		ClientJWKSFetcher:      &apiauth.ClientJWKSFetcher{AllowPrivateHosts: cfg.AdminAuth.AllowPrivateClientHosts, RootCAs: clientCAs},
 		AppStore:               flowAppStore,
 		DeviceAuthStore:        deviceStore,
 		AuthorizationCodeStore: codeStore,

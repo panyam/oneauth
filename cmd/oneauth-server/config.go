@@ -305,6 +305,18 @@ type AdminAuthConfig struct {
 	// §3), without the admin key. Each must be at least 32 bytes. List the
 	// new token beside the old one to rotate.
 	DCRInitialAccessTokens []string `yaml:"dcr_initial_access_tokens"`
+
+	// AllowPrivateClientHosts lets a client register a jwks_uri on a
+	// loopback or private address, and lets the server fetch it. For test
+	// harnesses only (the OIDF harness resolves to 127.0.0.1): in
+	// production it would let any client make the server send requests
+	// into its own network (CWE-918).
+	AllowPrivateClientHosts bool `yaml:"allow_private_client_hosts"`
+
+	// ClientFetchCAFile is a PEM file of extra CAs to trust when fetching a
+	// client's jwks_uri, beside the system roots. For a test harness with a
+	// self-signed certificate. Empty trusts only the system roots.
+	ClientFetchCAFile string `yaml:"client_fetch_ca_file"`
 }
 
 type APIKeyConfig struct {
