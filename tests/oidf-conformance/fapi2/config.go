@@ -1,8 +1,8 @@
-// Package fapi2 sets up and runs the OpenID Foundation's FAPI 2.0 Security
-// Profile plan (fapi2-security-profile-final-test-plan) against
-// cmd/oneauth-server. It is the FAPI 2.0 mission's exercise (issue 98,
-// issue 433): register the clients the plan needs, build the plan config,
-// run every module, and report each module's result.
+// Package fapi2 defines the OpenID Foundation's FAPI 2.0 Security Profile
+// plan (fapi2-security-profile-final-test-plan) as oneauth runs it: the
+// clients it registers, the variant, the plan config and the browser
+// automation. oidfplan runs it. It is the FAPI 2.0 mission's exercise
+// (issue 98, issue 433).
 //
 // The plan config here is pure (PlanConfig, BrowserAutomation, ...); the
 // network side is in run.go.
@@ -17,6 +17,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+
+	"github.com/panyam/oneauth/tests/oidf-conformance/oidfplan"
 )
 
 // PlanName is the harness plan this exercise runs.
@@ -62,12 +64,6 @@ type RegisteredClient struct {
 	Key ClientKey
 }
 
-// User is the account the browser automation logs in as.
-type User struct {
-	Email    string
-	Password string
-}
-
 // Setup is everything the plan config needs.
 type Setup struct {
 	// Alias names the plan in the harness and forms its redirect URI.
@@ -80,7 +76,7 @@ type Setup struct {
 	// Scope is registered for both clients and requested by the plan.
 	Scope   string
 	Clients [2]RegisteredClient
-	User    User
+	User    oidfplan.User
 }
 
 // PlanVariant is FAPI 2.0 as oneauth implements it: private_key_jwt client
@@ -133,34 +129,14 @@ func RegistrationRequest(key ClientKey, redirectURI, scope string) map[string]an
 	}
 }
 
-// BrowserTask is one harness browser-automation entry: when the harness's
-// headless browser is sent to a URL matching Match, it runs Tasks in order.
-// The harness uses the first entry that matches. MatchLimit, when set, is how
-// many visits the entry handles before the harness moves on to the next
-// match.
-type BrowserTask struct {
-	Match      string        `json:"match"`
-	MatchLimit int           `json:"match-limit,omitempty"`
-	Tasks      []BrowserStep `json:"tasks"`
-}
-
-// BrowserStep runs Commands when the current page matches Match. Each
-// command is the harness's [action, locator type, locator, value...] form.
-type BrowserStep struct {
-	Task     string  `json:"task"`
-	Match    string  `json:"match"`
-	Optional bool    `json:"optional,omitempty"`
-	Commands [][]any `json:"commands"`
-}
-
 // BrowserAutomation logs in on oneauth's login page, approves on its consent
 // page, and waits for the harness callback to finish. Login is optional
 // because the browser may already have a session. ModuleBrowsers lists the
 // modules that need something else.
-func BrowserAutomation(s Setup) []BrowserTask {
-	return []BrowserTask{{
+func BrowserAutomation(s Setup) []oidfplan.BrowserTask {
+	return []oidfplan.BrowserTask{{
 		Match: s.IssuerURL + "/authorize*",
-		Tasks: []BrowserStep{loginStep(s), consentStep(s, "approve"), callbackStep()},
+		Tasks: []oidfplan.BrowserStep{oidfplan.LoginStep(s.IssuerURL, s.User), oidfplan.ConsentStep(s.IssuerURL, "approve"), oidfplan.CallbackStep()},
 	}}
 }
 
@@ -181,31 +157,31 @@ func BrowserAutomation(s Setup) []BrowserTask {
 //   - par-ensure-reused-request-uri-prior-to-auth-completion-succeeds sends
 //     the browser to the same /authorize URL twice and refuses a login on the
 //     first visit, so the first visit only loads the page.
-func ModuleBrowsers(s Setup) map[string][]BrowserTask {
+func ModuleBrowsers(s Setup) map[string][]oidfplan.BrowserTask {
 	authorize := s.IssuerURL + "/authorize*"
-	errorPage := BrowserTask{
+	errorPage := oidfplan.BrowserTask{
 		Match: authorize,
-		Tasks: []BrowserStep{loginStep(s), {
+		Tasks: []oidfplan.BrowserStep{oidfplan.LoginStep(s.IssuerURL, s.User), {
 			Task: "Error page", Match: authorize, Commands: [][]any{
 				{"wait", "id", "authorize-error", 10, "Authorization error", "update-image-placeholder"},
 			},
 		}},
 	}
-	firstVisitOnly := func(b BrowserTask) BrowserTask {
+	firstVisitOnly := func(b oidfplan.BrowserTask) oidfplan.BrowserTask {
 		b.MatchLimit = 1
 		return b
 	}
-	browsers := map[string][]BrowserTask{
+	browsers := map[string][]oidfplan.BrowserTask{
 		"fapi2-security-profile-final-user-rejects-authentication": {{
 			Match: authorize,
-			Tasks: []BrowserStep{loginStep(s), consentStep(s, "deny"), callbackStep()},
+			Tasks: []oidfplan.BrowserStep{oidfplan.LoginStep(s.IssuerURL, s.User), oidfplan.ConsentStep(s.IssuerURL, "deny"), oidfplan.CallbackStep()},
 		}},
 		"fapi2-security-profile-final-par-attempt-reuse-request_uri": {
 			firstVisitOnly(BrowserAutomation(s)[0]),
 			errorPage,
 		},
 		"fapi2-security-profile-final-par-ensure-reused-request-uri-prior-to-auth-completion-succeeds": {
-			firstVisitOnly(BrowserTask{Match: authorize, Tasks: []BrowserStep{}}),
+			firstVisitOnly(oidfplan.BrowserTask{Match: authorize, Tasks: []oidfplan.BrowserStep{}}),
 			BrowserAutomation(s)[0],
 		},
 	}
@@ -214,31 +190,9 @@ func ModuleBrowsers(s Setup) map[string][]BrowserTask {
 		"fapi2-security-profile-final-par-attempt-to-use-expired-request_uri",
 		"fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client",
 	} {
-		browsers[m] = []BrowserTask{errorPage}
+		browsers[m] = []oidfplan.BrowserTask{errorPage}
 	}
 	return browsers
-}
-
-func loginStep(s Setup) BrowserStep {
-	return BrowserStep{Task: "Login", Match: s.IssuerURL + "/auth/login*", Optional: true, Commands: [][]any{
-		{"text", "name", "username", s.User.Email},
-		{"text", "name", "password", s.User.Password},
-		{"click", "xpath", "//button[@type='submit']"},
-	}}
-}
-
-// consentStep clicks the consent page's button with the given value,
-// approve or deny.
-func consentStep(s Setup, action string) BrowserStep {
-	return BrowserStep{Task: "Consent", Match: s.IssuerURL + "/authorize*", Commands: [][]any{
-		{"click", "xpath", "//button[@value='" + action + "']"},
-	}}
-}
-
-func callbackStep() BrowserStep {
-	return BrowserStep{Task: "Verify Complete", Match: "*/test/*/callback*", Commands: [][]any{
-		{"wait", "id", "submission_complete", 10},
-	}}
 }
 
 // PlanConfig is the JSON configuration the harness takes for PlanName.

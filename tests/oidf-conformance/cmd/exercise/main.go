@@ -1,13 +1,16 @@
-// Command exercise runs the FAPI 2.0 mission's exercise (issue 98): it
-// registers two clients and a user with a running cmd/oneauth-server,
-// creates the OIDF fapi2-security-profile-final-test-plan in a running
-// harness, runs every module, and prints one line per module.
+// Command exercise runs one OIDF conformance plan against a running
+// cmd/oneauth-server: it registers the plan's user and clients, creates the
+// plan in a running harness, runs every module, and prints one line per
+// module. -plan picks the plan:
 //
-// `make exercise-fapi2` starts the harness and the server and runs this;
-// see scripts/exercise-fapi2.sh. Each module is judged against its entry in
-// tests/conformance/known-gaps.yaml (fapi2.Judge), and the command exits 1
-// on any REGRESSION or RATCHET-UP, the same verdicts that fail
-// TestOIDF_FAPI2_SecurityProfile.
+//	fapi2  fapi2-security-profile-final-test-plan (mission 98)
+//	oidcc  oidcc-basic-certification-test-plan (mission 477)
+//
+// `make exercise-fapi2` and `make exercise-oidcc` start the harness and a
+// server and run this; see scripts/exercise-oidf.sh. Each module is judged
+// against its entry in tests/conformance/known-gaps.yaml (oidfplan.Judge),
+// and the command exits 1 on any REGRESSION or RATCHET-UP, the same
+// verdicts that fail the plan's go test in `make testoidf`.
 package main
 
 import (
@@ -26,27 +29,24 @@ import (
 
 	"github.com/panyam/oneauth/tests/oidf-conformance/fapi2"
 	"github.com/panyam/oneauth/tests/oidf-conformance/harness"
+	"github.com/panyam/oneauth/tests/oidf-conformance/oidcc"
+	"github.com/panyam/oneauth/tests/oidf-conformance/oidfplan"
 )
 
 func main() {
+	planFlag := flag.String("plan", "fapi2", "plan to run: fapi2 or oidcc")
 	harnessURL := flag.String("harness", "https://localhost.emobix.co.uk:8443", "OIDF harness origin")
 	serverURL := flag.String("server", "https://localhost:8889", "oneauth-server as this machine reaches it")
 	issuerURL := flag.String("issuer", "https://host.docker.internal:8889", "oneauth-server as the harness container reaches it (its public_url)")
 	caFile := flag.String("ca", "certs/ca.crt", "CA that signed the server's TLS certificate")
-	alias := flag.String("alias", "oneauth-fapi2", "plan alias; also forms the redirect URI")
+	alias := flag.String("alias", "", "plan alias, which also forms the redirect URI (default oneauth-<plan>)")
 	manifest := flag.String("manifest", "../conformance/known-gaps.yaml", "known-gaps.yaml the run is judged against")
 	only := flag.String("module", "", "run only the modules whose names contain this")
 	perModule := flag.Duration("module-timeout", 90*time.Second, "how long one module may run")
 	flag.Parse()
 
-	expected, err := fapi2.LoadExpectations(*manifest)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for m := range expected {
-		if !strings.Contains(m, *only) {
-			delete(expected, m)
-		}
+	if *alias == "" {
+		*alias = "oneauth-" + *planFlag
 	}
 	ca, err := os.ReadFile(*caFile)
 	if err != nil {
@@ -57,30 +57,61 @@ func main() {
 	hc := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}}
 	ctx := context.Background()
 
-	s := fapi2.Setup{
-		Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, Scope: "openid read",
-		User: fapi2.User{Email: "fapi2-user@example.com", Password: "fapi2-exercise-password"},
+	var plan oidfplan.Plan
+	var prefix string
+	switch *planFlag {
+	case "fapi2":
+		s := fapi2.Setup{
+			Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, Scope: "openid read",
+			User: oidfplan.User{Email: "fapi2-user@example.com", Password: "fapi2-exercise-password"},
+		}
+		if err := fapi2.Prepare(ctx, hc, *serverURL, &s); err != nil {
+			log.Fatal(err)
+		}
+		for i, c := range s.Clients {
+			fmt.Printf("registered client %d: %s\n", i+1, c.ID)
+		}
+		plan, prefix = fapi2.Plan(s), "fapi2-security-profile-final-"
+	case "oidcc":
+		s := oidcc.Setup{
+			Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, Scope: oidcc.Scope,
+			User: oidfplan.User{Email: "oidcc-user@example.com", Password: "oidcc-exercise-password"},
+		}
+		if err := oidcc.Prepare(ctx, hc, *serverURL, &s); err != nil {
+			log.Fatal(err)
+		}
+		for i, c := range s.Clients {
+			fmt.Printf("registered client %d: %s\n", i+1, c.ID)
+		}
+		fmt.Printf("registered client_secret_post client: %s\n", s.PostClient.ID)
+		plan, prefix = oidcc.Plan(s), oidcc.ModulePrefix
+	default:
+		log.Fatalf("unknown -plan %q: want fapi2 or oidcc", *planFlag)
 	}
-	if err := fapi2.Prepare(ctx, hc, *serverURL, &s); err != nil {
+
+	expected, err := oidfplan.LoadExpectations(*manifest, plan.Name)
+	if err != nil {
 		log.Fatal(err)
 	}
-	for i, c := range s.Clients {
-		fmt.Printf("registered client %d: %s\n", i+1, c.ID)
+	for m := range expected {
+		if !strings.Contains(m, *only) {
+			delete(expected, m)
+		}
 	}
 
 	h := harness.New(*harnessURL)
-	fmt.Printf("\n%s (%s)\n", fapi2.PlanName, variantString())
-	planID, results, err := fapi2.RunPlan(ctx, h, s, *perModule, *only, func(r fapi2.ModuleResult) {
-		one := map[string]fapi2.Expectation{}
+	fmt.Printf("\n%s (%s)\n", plan.Name, variantString(plan.Variant))
+	planID, results, err := oidfplan.RunPlan(ctx, h, plan, *perModule, *only, func(r oidfplan.ModuleResult) {
+		one := map[string]oidfplan.Expectation{}
 		if e, ok := expected[r.Module]; ok {
 			one[r.Module] = e
 		}
-		v := fapi2.Judge([]fapi2.ModuleResult{r}, one)[0]
+		v := oidfplan.Judge([]oidfplan.ModuleResult{r}, one)[0]
 		mark := ""
-		if v.Kind != fapi2.VerdictOK {
+		if v.Kind != oidfplan.VerdictOK {
 			mark = string(v.Kind)
 		}
-		fmt.Printf("  %-8s %-26s %-11s %s\n", orDash(r.Result), r.Status, mark, strings.TrimPrefix(r.Module, "fapi2-security-profile-final-"))
+		fmt.Printf("  %-8s %-26s %-11s %s\n", orDash(r.Result), r.Status, mark, strings.TrimPrefix(r.Module, prefix))
 		if v.Detail != "" {
 			fmt.Printf("           %s\n", v.Detail)
 		}
@@ -89,6 +120,9 @@ func main() {
 		}
 		if r.FirstFailure != "" {
 			fmt.Printf("           %.200s\n", r.FirstFailure)
+		}
+		if r.Result == "WARNING" && len(r.Warnings) > 0 {
+			fmt.Printf("           warning: %.200s\n", r.Warnings[0])
 		}
 		if r.Err != nil {
 			fmt.Printf("           %v\n", r.Err)
@@ -103,8 +137,8 @@ func main() {
 		counts[orDash(r.Result)]++
 	}
 	bad := 0
-	for _, v := range fapi2.Judge(results, expected) {
-		if v.Kind != fapi2.VerdictOK {
+	for _, v := range oidfplan.Judge(results, expected) {
+		if v.Kind != oidfplan.VerdictOK {
 			bad++
 			if !ran(results, v.Module) {
 				fmt.Printf("  %s %s: %s\n", v.Kind, v.Module, v.Detail)
@@ -125,7 +159,7 @@ func pageText(html string) string {
 	return strings.Join(strings.Fields(tag.ReplaceAllString(html, " ")), " ")
 }
 
-func ran(results []fapi2.ModuleResult, module string) bool {
+func ran(results []oidfplan.ModuleResult, module string) bool {
 	for _, r := range results {
 		if r.Module == module {
 			return true
@@ -134,9 +168,9 @@ func ran(results []fapi2.ModuleResult, module string) bool {
 	return false
 }
 
-func variantString() string {
+func variantString(variant map[string]string) string {
 	var parts []string
-	for k, v := range fapi2.PlanVariant() {
+	for k, v := range variant {
 		parts = append(parts, k+"="+v)
 	}
 	sort.Strings(parts)

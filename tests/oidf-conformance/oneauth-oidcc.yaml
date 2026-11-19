@@ -1,0 +1,45 @@
+# cmd/oneauth-server for mission 477's exercise: the OpenID Connect Basic OP
+# certification plan. Served over TLS at the host name the OIDF harness
+# container uses, on 8890 so it can run beside the discovery baseline (8888)
+# and the FAPI 2.0 server (8889). `make exercise-oidcc` starts it.
+
+server:
+  port: 8890
+  host: 0.0.0.0
+  public_url: https://host.docker.internal:8890
+
+tls:
+  enabled: true
+  cert: tests/oidf-conformance/certs/server.crt
+  key: tests/oidf-conformance/certs/server.key
+
+keystore:
+  type: memory
+
+user_stores:
+  type: memory
+
+jwt:
+  # Empty follows public_url, which is what the harness checks iss against.
+  issuer: ""
+  # The Basic OP profile expects RS256 ID tokens (OIDC Core §15.1).
+  signing_alg: RS256
+  # A fresh key per run; the exercise starts a new server each time.
+  ephemeral_signing_key: true
+  secret_key: ${JWT_SECRET_KEY:-oidf-oidcc-exercise-session-secret-32b}
+
+admin_auth:
+  type: none    # the exercise registers its clients through open DCR
+  allow_open: true
+
+# The harness logs the same user in once per module, dozens of times a
+# minute; the default 10 a minute throttles it partway through the plan.
+rate_limit:
+  login_per_minute: 600
+
+code_flow:
+  enabled: true
+  oidc: true
+  # OIDC Core lets a confidential client omit PKCE, and the Basic OP plan's
+  # clients send it in only one module.
+  pkce: optional_for_confidential
