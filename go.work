@@ -18,3 +18,19 @@ use (
 	./tests/keycloak
 	./tests/oidf-conformance
 )
+
+// BEGIN release-managed replaces (scripts/workspace-replace.sh)
+replace (
+	github.com/panyam/oneauth v0.3.6 => ./
+	github.com/panyam/oneauth/cmd/demo-hostapp v0.3.6 => ./cmd/demo-hostapp
+	github.com/panyam/oneauth/cmd/demo-resource-server v0.3.6 => ./cmd/demo-resource-server
+	github.com/panyam/oneauth/cmd/oneauth v0.3.6 => ./cmd/oneauth
+	github.com/panyam/oneauth/cmd/oneauth-server v0.3.6 => ./cmd/oneauth-server
+	github.com/panyam/oneauth/grpc v0.3.6 => ./grpc
+	github.com/panyam/oneauth/oauth2 v0.3.6 => ./oauth2
+	github.com/panyam/oneauth/saml v0.3.6 => ./saml
+	github.com/panyam/oneauth/sshkeys v0.3.6 => ./sshkeys
+	github.com/panyam/oneauth/stores/gae v0.3.6 => ./stores/gae
+	github.com/panyam/oneauth/stores/gorm v0.3.6 => ./stores/gorm
+)
+// END release-managed replaces

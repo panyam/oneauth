@@ -24,7 +24,7 @@ Each package has a `SUMMARY.md`. Subsystem gotchas live in a `CLAUDE.md` beside 
 | `docs/site/` | Docsite | [docs/site/CLAUDE.md](docs/site/CLAUDE.md) |
 | `examples/` | 10 progressive examples with demokit | [examples/README.md](examples/README.md) |
 
-Go workspace with sub-modules for heavy backends (`go.work`). Sub-modules have `replace` directives for local dev and need `GOWORK=off` outside the workspace. Consumer guide: [docs/MIGRATION.md](docs/MIGRATION.md).
+Go workspace with sub-modules for heavy backends (`go.work`). Published `go.mod` files carry no `replace` directives, so every command is `go install`-able; `go.work` and its release-managed `replace` block make the checkout build as one workspace. `GOWORK=off` builds a sub-module against the tagged versions it requires. Consumer guide: [docs/MIGRATION.md](docs/MIGRATION.md).
 
 ## Build & test
 
@@ -37,7 +37,7 @@ make testpg / testds  # GORM on Postgres, GAE on the Datastore emulator
 make testgh        # outbound against real GitHub (never in CI; see outbound/CLAUDE.md)
 make testall       # Everything + report
 make fmt / fmtcheck / vulncheck
-make tag V=v0.0.X && make pushtag V=v0.0.X
+make release V=vX.Y.Z  # then make pushrelease / verify-install
 ```
 
 ## Architecture decisions
@@ -65,7 +65,7 @@ Rationale in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Shipped vs in flight 
 - **gofmt is a CI gate** for every tracked `.go` file in every module. `make fmt` fixes it, and the cleanup commit is in `.git-blame-ignore-revs`.
 - **Keep the `go` directive in lock-step** across `go.work` and every module, since stdlib CVEs need it. `make vulncheck` is the gate.
 - **CodeQL reports errors as PR checks.** It flags `ParseUnverified` on request input even after verification elsewhere, and SHA-256 over a field named like a secret. Take claims from the validator's `TokenInfo`, and compare keys directly.
-- **A sub-module can only use root code that is in a root tag.** Sub-modules require a tagged root (`verify-submodule-deps`), so new root API used by `stores/gorm` or `stores/gae` ships as: merge root, tag, then `make bump-root V=...` in the sub-module PR.
+- **Every module releases on one tag.** `make release V=vX` writes one commit that sets every `github.com/panyam/oneauth*` require to `vX` and tags all modules on it; `make pushrelease` and `make verify-install` follow. Between releases the requires name the last tag, and `verify-submodule-deps` (part of `make test`) fails on drift or on a `replace` in a published `go.mod`. New root API can be used by a sub-module in the same PR.
 - **Local `main` can be locked by another worktree.** Cut branches from `origin/main` (`git checkout -b feat/X origin/main`).
 
 ## Issues, gaps, memories

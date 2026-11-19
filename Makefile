@@ -2,11 +2,6 @@
 test: lint verify-submodule-deps
 	go test -v ./...
 
-# Verify that sub-module go.mod files require a real, tagged version of the
-# root module. Catches the v0.0.0 placeholder and multi-bump staleness.
-# See CLAUDE.md "Releasing Sub-Modules" for the release order.
-verify-submodule-deps:
-	@bash scripts/verify-submodule-deps.sh
 
 # Run ALL tests: unit tests → e2e (in-process) → secrets scan -> Keycloak
 test-hard: tallmods e2e secrets testkcl
@@ -452,6 +447,9 @@ testds:
 	DATASTORE_EMULATOR_HOST=localhost:$(DS_PORT) \
 	DATASTORE_PROJECT_ID=$(DS_PROJECT) \
 	go test -v ./stores/gae/...
+	cd cmd/oneauth-server && DATASTORE_EMULATOR_HOST=localhost:$(DS_PORT) \
+	DATASTORE_PROJECT_ID=$(DS_PROJECT) \
+	go test -v -run 'GAE' .
 
 # Real Datastore configuration
 # Override via command line: make testrealDS DS_REAL_PROJECT=other-project
@@ -901,30 +899,33 @@ tidy:
 # Alias for consistency with other projects (mcpkit uses this name).
 tidy-all: tidy
 
-# Bump each sub-module's require github.com/panyam/oneauth to a specific tag.
-# Usage: make bump-root V=v0.0.70
+# Release: one commit that sets every github.com/panyam/oneauth* require
+# in every published go.mod to V, tagged as V on the root and every
+# sub-module. See scripts/release.sh.
 #
-# Only touches the root self-reference. Cross-sub-module references
-# (e.g. stores/gorm referenced from cmd/oneauth-server) have their own
-# independent timelines and must be bumped manually when needed.
-bump-root:
-	@if [ -z "$(V)" ]; then echo "Usage: make bump-root V=v0.0.70"; exit 1; fi
-	@for mod in $(SUBMODULES); do \
-		if [ ! -f "$$mod/go.mod" ]; then continue; fi; \
-		if ! grep -q "github.com/panyam/oneauth v" "$$mod/go.mod"; then continue; fi; \
-		echo "==> $$mod/go.mod: require github.com/panyam/oneauth $(V)"; \
-		(cd $$mod && go mod edit -require=github.com/panyam/oneauth@$(V)) || exit 1; \
-	done
-	@$(MAKE) -s tidy
-	@$(MAKE) -s verify-submodule-deps
+#   make release V=v0.3.7        # local release commit + tags
+#   make pushrelease V=v0.3.7    # push main and the tags
+#   make verify-install V=v0.3.7 # go install the commands from the proxy
+release:
+	@if [ -z "$(V)" ]; then echo "Usage: make release V=vX.Y.Z"; exit 1; fi
+	@bash scripts/release.sh $(V)
 
-# Live smoke test against real GitHub (outbound/live_github_test.go).
-# Never in CI. PAT checks run with GH_PERSONAL_TOKEN; App checks need
-# ONEAUTH_GH_APP_ID, ONEAUTH_GH_INSTALLATION_ID and ONEAUTH_GH_APP_KEY_FILE;
-# add ONEAUTH_GH_LIVE_DEVICE=1 plus ONEAUTH_GH_CLIENT_ID / _SECRET for the
-# interactive device-flow check. See docs/OUTBOUND_CREDENTIALS.md.
-testgh:
-	ONEAUTH_GH_LIVE=1 go test -count=1 -v -run TestLiveGitHub ./outbound/
+pushrelease:
+	@if [ -z "$(V)" ]; then echo "Usage: make pushrelease V=vX.Y.Z"; exit 1; fi
+	git push origin main
+	@$(MAKE) -s pushtag V=$(V)
+
+# Installs every command at V with no workspace, as a user would. The
+# module proxy can take a minute to see new tags.
+verify-install:
+	@if [ -z "$(V)" ]; then echo "Usage: make verify-install V=vX.Y.Z"; exit 1; fi
+	@tmp=$$(mktemp -d); for c in $(CMDS); do \
+		echo "==> go install github.com/panyam/oneauth/$$c@$(V)"; \
+		(cd $$tmp && GOWORK=off GOFLAGS= GOBIN=$$tmp/bin go install github.com/panyam/oneauth/$$c@$(V)) || exit 1; \
+	done; ls $$tmp/bin; rm -rf $$tmp
+
+verify-submodule-deps:
+	@bash scripts/verify-submodule-deps.sh
 
 # Dep count for core module
 deps:
@@ -978,6 +979,6 @@ audit: vulncheck secrets
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
 	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 deploygae gaelogs integ docs \
-	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root testgh \
+	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

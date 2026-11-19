@@ -3,7 +3,7 @@ module github.com/panyam/oneauth/sshkeys
 go 1.26.9
 
 require (
-	github.com/panyam/oneauth v0.3.5
+	github.com/panyam/oneauth v0.3.6
 	golang.org/x/crypto v0.57.0
 )
 
@@ -15,5 +15,3 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 )
-
-replace github.com/panyam/oneauth => ../
