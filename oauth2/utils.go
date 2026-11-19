@@ -36,22 +36,7 @@ func OauthRedirector(oauthConfig *oauth2.Config) func(w http.ResponseWriter, r *
 // Use only for OAuth providers that don't support PKCE.
 func OauthRedirectorNoPKCE(oauthConfig *oauth2.Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		callbackURL := r.URL.Query().Get("callbackURL")
-		if callbackURL != "" {
-			http.SetCookie(w, &http.Cookie{
-				Name:     "oauthCallbackURL",
-				Value:    callbackURL,
-				Path:     "/",
-				Expires:  time.Now().Add(24 * time.Hour),
-				MaxAge:   120,
-				HttpOnly: true,
-				Secure:   true,
-				SameSite: http.SameSiteLaxMode,
-			})
-		}
-		oauthState := generateStateOauthCookie(w)
-		u := oauthConfig.AuthCodeURL(oauthState)
-		http.Redirect(w, r, u, http.StatusFound)
+		oauthRedirectNoPKCE(oauthConfig, w, r)
 	}
 }
 
@@ -59,36 +44,52 @@ func OauthRedirectorNoPKCE(oauthConfig *oauth2.Config) func(w http.ResponseWrite
 // Its cookies are Secure, which browsers also accept on http://localhost.
 func OauthRedirectorWithPKCE(oauthConfig *oauth2.Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Create oauthState cookie and callback url cookie so we know where to redirect back to
-		callbackURL := r.URL.Query().Get("callbackURL")
-		if callbackURL != "" {
-			http.SetCookie(w, &http.Cookie{
-				Name:     "oauthCallbackURL",
-				Value:    callbackURL,
-				Path:     "/",
-				Expires:  time.Now().Add(24 * time.Hour),
-				MaxAge:   120, // keep this short
-				HttpOnly: true,
-				Secure:   true,
-				SameSite: http.SameSiteLaxMode,
-			})
-		}
-		oauthState := generateStateOauthCookie(w)
-
-		// PKCE: generate code_verifier, store in cookie, send challenge in auth URL
-		verifier, err := GenerateCodeVerifier()
-		if err != nil {
-			log.Printf("PKCE: failed to generate code verifier: %v", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		SetPKCECookie(w, verifier)
-		challenge := computeCodeChallenge(verifier)
-
-		u := oauthConfig.AuthCodeURL(oauthState,
-			oauth2.SetAuthURLParam("code_challenge", challenge),
-			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-		)
-		http.Redirect(w, r, u, http.StatusFound)
+		oauthRedirectWithPKCE(oauthConfig, w, r)
 	}
+}
+
+// setCallbackCookie remembers ?callbackURL= so the callback knows where to
+// send the person afterwards.
+func setCallbackCookie(w http.ResponseWriter, r *http.Request) {
+	callbackURL := r.URL.Query().Get("callbackURL")
+	if callbackURL == "" {
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauthCallbackURL",
+		Value:    callbackURL,
+		Path:     "/",
+		Expires:  time.Now().Add(24 * time.Hour),
+		MaxAge:   120, // keep this short
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func oauthRedirectNoPKCE(oauthConfig *oauth2.Config, w http.ResponseWriter, r *http.Request, opts ...oauth2.AuthCodeOption) {
+	setCallbackCookie(w, r)
+	oauthState := generateStateOauthCookie(w)
+	http.Redirect(w, r, oauthConfig.AuthCodeURL(oauthState, opts...), http.StatusFound)
+}
+
+func oauthRedirectWithPKCE(oauthConfig *oauth2.Config, w http.ResponseWriter, r *http.Request, opts ...oauth2.AuthCodeOption) {
+	setCallbackCookie(w, r)
+	oauthState := generateStateOauthCookie(w)
+
+	// PKCE: generate code_verifier, store in cookie, send challenge in auth URL
+	verifier, err := GenerateCodeVerifier()
+	if err != nil {
+		log.Printf("PKCE: failed to generate code verifier: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	SetPKCECookie(w, verifier)
+	challenge := computeCodeChallenge(verifier)
+
+	opts = append(opts,
+		oauth2.SetAuthURLParam("code_challenge", challenge),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+	)
+	http.Redirect(w, r, oauthConfig.AuthCodeURL(oauthState, opts...), http.StatusFound)
 }
