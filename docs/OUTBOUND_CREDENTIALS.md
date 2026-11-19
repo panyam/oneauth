@@ -102,7 +102,7 @@ err := tokens.Revoke(ctx, userID)
 ```
 
 - `GitHubRevoker` calls `DELETE /applications/{client_id}/token`, which revokes the access token and its refresh token. With `RevokeGrant` it calls `/grant` instead. That also removes the person's authorization of the app and every token it gave them, so their next connect shows the consent screen again.
-- Only GitHub's 204 counts as revoked. GitHub answers 404 for wrong client credentials too, so a 404 is an error. A refused revoke keeps the record, so the app can retry.
+- Only GitHub's 204 counts as revoked. GitHub answers 404 both for a token that's already revoked and for wrong client credentials, so a 404 is an error. A refused revoke keeps the record, so the app can retry.
 - A second `Revoke` finds no record and returns nil without calling GitHub.
 - A record that won't open is kept and its error returned, since the token may still be live. `Delete` removes it anyway.
 - `Revoke` holds the per-subject lock, so a refresh in the same process can't write a token back after it.
@@ -165,7 +165,11 @@ Setting up the App takes a few minutes in the browser, under Settings, then Deve
 - Install the App on the two fixture repos only. The installation ID is the number at the end of the URL after installing.
 - Export `ONEAUTH_GH_APP_ID`, `ONEAUTH_GH_INSTALLATION_ID` and `ONEAUTH_GH_APP_KEY_FILE`. For the device-flow check, also export `ONEAUTH_GH_CLIENT_ID` and `ONEAUTH_GH_CLIENT_SECRET`.
 
-The first run already corrected the fake. GitHub answers 404 "Integration not found" for an App ID it doesn't know, before it looks at the signature. The fake used to answer 401 there.
+The live runs corrected the fake in three places, each now pinned by a unit test:
+
+- GitHub answers 404 "Integration not found" for an App ID it doesn't know, before it looks at the signature. A known App with the wrong key gets 401 "A JSON web token could not be decoded".
+- A refresh kills the previous access token at once, not only the refresh token. So a replica holding the old access token gets 401 from GitHub as soon as another replica refreshes, and it has to read the store again.
+- Revoking an already-revoked token answers 404 Not Found, the same status as wrong client credentials.
 
 ## Where a secret can and cannot end up
 

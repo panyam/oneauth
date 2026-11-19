@@ -77,8 +77,9 @@ func (u *UserTokens) Revoke(ctx context.Context, subject string) error {
 // the person's authorization of the app and every token it issued to
 // them, so the next connect shows the consent screen again.
 //
-// Only 204 counts as success. GitHub also answers 404 for wrong client
-// credentials, so a 404 is an error rather than "already revoked".
+// Only 204 counts as success. GitHub answers 404 both for a token that is
+// already revoked and for wrong client credentials (checked by make
+// testgh), so a 404 can't be read as "already revoked" and is an error.
 // UserTokens.Revoke stays idempotent anyway, since it deletes the record
 // after a revoke and finds nothing to revoke the second time.
 //

@@ -255,3 +255,23 @@ func TestUserTokens_ScopeSurvivesStorage(t *testing.T) {
 		t.Fatalf("scope = %v", got.Extra("scope"))
 	}
 }
+
+// GitHub invalidates the previous access token as soon as it is refreshed
+// (seen in make testgh), so the fake does too.
+// See: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens
+func TestStoredUserToken_RefreshKillsPreviousAccessToken(t *testing.T) {
+	gh := githubtest.New(t)
+	u := newUserTokens(t, gh, outbound.NewMemoryUserTokenStore())
+	old := gh.IssueUserToken("alice")
+	stale := *old
+	stale.Expiry = time.Now().Add(-time.Second)
+	if err := u.Save(context.Background(), "alice", &stale); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := u.TokenSource("alice").Token(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := gh.ValidUserToken(old.AccessToken); ok {
+		t.Fatal("previous access token still live after refresh")
+	}
+}
