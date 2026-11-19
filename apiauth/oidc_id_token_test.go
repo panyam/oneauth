@@ -74,6 +74,13 @@ func newOIDCFixtureWith(t *testing.T, userClaims apiauth.UserClaimsFunc, edit fu
 // scopes, nonce and auth_time.
 func seedOIDCCode(t *testing.T, codes core.AuthorizationCodeStore, scopes []string, nonce string, authTime time.Time) {
 	t.Helper()
+	seedOIDCCodeAsking(t, codes, scopes, nonce, authTime, nil)
+}
+
+// seedOIDCCodeAsking is seedOIDCCode for a code whose authorization
+// request asked for idTokenClaims by name (OIDC Core §5.5).
+func seedOIDCCodeAsking(t *testing.T, codes core.AuthorizationCodeStore, scopes []string, nonce string, authTime time.Time, idTokenClaims []string) {
+	t.Helper()
 	_, err := codes.CreateAuthorizationCode(context.Background(), &core.CreateAuthorizationCodeRequest{
 		Code: &core.AuthorizationCode{
 			Code:                "code-1",
@@ -85,6 +92,7 @@ func seedOIDCCode(t *testing.T, codes core.AuthorizationCodeStore, scopes []stri
 			CodeChallengeMethod: core.CodeChallengeMethodS256,
 			Nonce:               nonce,
 			AuthTime:            authTime,
+			IDTokenClaims:       idTokenClaims,
 			IssuedAt:            time.Now(),
 			ExpiresAt:           time.Now().Add(time.Minute),
 		},
@@ -181,7 +189,9 @@ func TestOIDC_UserClaimsCannotOverrideRegisteredClaims(t *testing.T) {
 	fx := newOIDCFixture(t, func(_ context.Context, subject string, scopes []string) (map[string]any, error) {
 		return map[string]any{"email": subject + "@example.com", "sub": "mallory", "aud": "other-client", "nonce": "forged", "azp": "other-client", "jti": "forged"}, nil
 	})
-	seedOIDCCode(t, fx.codes, []string{"openid", "email"}, "n-2", time.Time{})
+	// Scope claims stay in userinfo (OIDC Core §5.4), so the request asks
+	// for them by name, the reserved ones included.
+	seedOIDCCodeAsking(t, fx.codes, []string{"openid", "email"}, "n-2", time.Time{}, []string{"email", "sub", "aud", "nonce", "azp", "jti"})
 
 	claims := verifyIDToken(t, fx, redeemOIDC(t, fx)["id_token"].(string))
 	assert.Equal(t, authcodeTestSubject+"@example.com", claims["email"])

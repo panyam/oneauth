@@ -52,6 +52,11 @@ type GORMUser struct {
 func (u *GORMUser) Id() string              { return u.model.ID }
 func (u *GORMUser) Profile() map[string]any { return u.model.Profile }
 
+// LastUpdated reports when the user record last changed, which
+// localauth.ProfileClaims returns as OIDC's updated_at claim. It
+// implements accounts.LastUpdatedUser.
+func (u *GORMUser) LastUpdated() time.Time { return u.model.UpdatedAt }
+
 // UserStore implements accounts.UserStore using GORM
 type UserStore struct {
 	db *gorm.DB

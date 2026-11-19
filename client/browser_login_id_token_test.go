@@ -36,9 +36,10 @@ type oidcMockAS struct {
 	nonceOverride string
 	omitIDToken   bool
 
-	mu        sync.Mutex
-	sentNonce string
-	sentScope string
+	mu         sync.Mutex
+	sentNonce  string
+	sentScope  string
+	sentClaims string
 }
 
 func newOIDCMockAS(t *testing.T) *oidcMockAS {
@@ -67,7 +68,7 @@ func newOIDCMockAS(t *testing.T) *oidcMockAS {
 	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		as.mu.Lock()
-		as.sentNonce, as.sentScope = q.Get("nonce"), q.Get("scope")
+		as.sentNonce, as.sentScope, as.sentClaims = q.Get("nonce"), q.Get("scope"), q.Get("claims")
 		as.mu.Unlock()
 		http.Redirect(w, r, q.Get("redirect_uri")+"?code=c-453&state="+url.QueryEscape(q.Get("state")), http.StatusFound)
 	})
@@ -161,4 +162,37 @@ func TestLoginWithBrowser_IDTokenKeptUnverifiedByDefault(t *testing.T) {
 	assert.NotEmpty(t, cred.IDToken)
 	assert.Nil(t, cred.IDTokenClaims)
 	assert.Empty(t, cred.UserID)
+}
+
+// An OIDC provider following OIDC Core §5.4 puts scope claims in
+// userinfo, not the ID token. VerifyIDToken asks for the claims
+// IDTokenClaims reads by name (§5.5), so they still arrive in the ID
+// token; a provider that ignores the request sends them anyway.
+// See: https://openid.net/specs/openid-connect-core-1_0.html#ClaimsParameter
+func TestLoginWithBrowser_VerifyIDTokenAsksForTheProfileClaims(t *testing.T) {
+	as := newOIDCMockAS(t)
+	_, err := as.login(t, true)
+	require.NoError(t, err)
+	as.mu.Lock()
+	sent := as.sentClaims
+	as.mu.Unlock()
+	var req map[string]map[string]any
+	require.NoError(t, json.Unmarshal([]byte(sent), &req), "claims %q", sent)
+	assert.ElementsMatch(t, []string{"email", "email_verified", "name", "preferred_username"}, mapKeys(req["id_token"]))
+	assert.NotContains(t, req, "userinfo")
+
+	as = newOIDCMockAS(t)
+	_, err = as.login(t, false)
+	require.NoError(t, err)
+	as.mu.Lock()
+	assert.Empty(t, as.sentClaims, "a plain OAuth login sends no claims request")
+	as.mu.Unlock()
+}
+
+func mapKeys(m map[string]any) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }

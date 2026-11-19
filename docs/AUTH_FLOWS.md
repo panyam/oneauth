@@ -1090,7 +1090,7 @@ sequenceDiagram
 
 DPoP attaches to every journey rather than one. It binds the issued token to a key the client holds, so a token that leaks is useless to whoever leaked it: presenting it requires signing a fresh proof per request.
 
-Two halves have to be in place for that to mean anything, and the order matters. An authorization server can issue bound tokens while the resource servers still accept them as ordinary bearer tokens, which RFC 9449 §7.2 both predicts and permits. Enforce at the resource servers first.
+Two halves have to be in place for that to mean anything, and the order matters. A resource server without `APIMiddleware.DPoP` refuses a bound token, since it can't check the proof (issue 486). So wire DPoP at the resource servers first, or tokens the authorization server binds stop working there.
 
 ```mermaid
 sequenceDiagram

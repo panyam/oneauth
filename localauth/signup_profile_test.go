@@ -116,3 +116,28 @@ func TestSignup_ProfileClaimsMustBeStandard(t *testing.T) {
 		assert.Error(t, err, name)
 	}
 }
+
+// updated_at (OIDC Core §5.1) comes from when the user record last
+// changed, as unix seconds, for stores whose users report it
+// (accounts.LastUpdatedUser). It belongs to the profile scope.
+// See: https://github.com/panyam/oneauth/issues/480
+func TestProfileClaims_UpdatedAtFromTheUserRecord(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	users, identities := fs.NewFSUserStore(dir), fs.NewFSIdentityStore(dir)
+	email := "ada@example.com"
+	user, err := localauth.NewCreateUserFunc(users, identities, fs.NewFSChannelStore(dir))(&localauth.Credentials{Username: "ada", Email: &email, Password: "password123"})
+	require.NoError(t, err)
+	resp, err := users.GetUserById(ctx, &accounts.GetUserByIDRequest{UserID: user.Id()})
+	require.NoError(t, err)
+	stamped, ok := resp.User.(accounts.LastUpdatedUser)
+	require.True(t, ok, "FS users report when they last changed")
+
+	got, err := localauth.ProfileClaims(users, identities)(ctx, user.Id(), []string{"profile"})
+	require.NoError(t, err)
+	assert.Equal(t, stamped.LastUpdated().Unix(), got["updated_at"])
+
+	got, err = localauth.ProfileClaims(users, identities)(ctx, user.Id(), []string{"email"})
+	require.NoError(t, err)
+	assert.NotContains(t, got, "updated_at", "updated_at needs the profile scope")
+}

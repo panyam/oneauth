@@ -158,13 +158,13 @@
   test: fapi2-security-profile-final-test-claims-parameter-identity-claims
   status: expected-warning
   evidence: names that are not known
-  issue: 480
+  issue: 339
   owner: panyam
   reason: |
     Discovery advertises claims_parameter_supported and the ID token
     carries every requested claim the user has, but also oneauth's typ: ID
-    marker claim, which the harness doesn't know. Whether that marker
-    stays is issue 480's decision, as for the happy-flow module.
+    marker claim, which the harness doesn't know. Issue 339 kept the
+    marker, as for the happy-flow module.
   expires: 2027-12-31
 
 # -----------------------------------------------------------------------------
@@ -182,62 +182,13 @@
   test: oidcc-server
   status: expected-warning
   evidence: non-requested claim 'typ'
-  issue: 480
+  issue: 339
   owner: panyam
   reason: |
     The ID token carries oneauth's typ: ID marker claim, which stops it
-    validating as an access token. Whether it stays or moves to the JOSE
-    header is #480's decision.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-scope-email
-  status: expected-warning
-  evidence: Unexpectedly found email in id_token
-  issue: 480
-  owner: panyam
-  reason: |
-    The email claim the email scope asked for is in the ID token as well as
-    userinfo; OIDC Core §5.4 puts it in userinfo when an access token is
-    issued.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-alternate-happy-flow
-  status: expected-warning
-  evidence: Unexpectedly found email in id_token
-  issue: 480
-  owner: panyam
-  reason: |
-    Same as scope-email: email in the ID token.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-scope-profile
-  status: expected-warning
-  evidence: doesn't contain all scope items
-  issue: 480
-  owner: panyam
-  reason: |
-    Userinfo returns every profile claim the user gave at signup,
-    but not updated_at: oneauth's user records don't expose when the
-    profile last changed.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-scope-all
-  status: expected-warning
-  evidence: doesn't contain all scope items
-  issue: 480
-  owner: panyam
-  reason: |
-    Userinfo returns every profile claim and address and phone the user gave at signup,
-    but not updated_at: oneauth's user records don't expose when the
-    profile last changed.
+    validating as an access token. Issue 339 kept it as a claim: a JOSE
+    typ header other than JWT is refused by common relying-party
+    libraries. Issue 480 confirmed that, so the warning stays.
   expires: 2027-12-31
 
 - suite: oidf

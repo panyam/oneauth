@@ -32,8 +32,10 @@ const IDTokenTypeClaim = "ID"
 const DefaultIDTokenExpiry = 15 * time.Minute
 
 // UserClaimsFunc returns the claims about subject that scopes allow a
-// client to see. It backs both the ID token and the userinfo endpoint, so
-// the two report the same claims for the same grant. Claims named like a
+// client to see. Userinfo serves what it returns for the token's scopes.
+// The ID token carries only the claims the authorization request asked
+// for by name (OIDC Core §5.4, §5.5), which are looked up by calling it
+// with every standard scope. Claims named like a
 // registered ID token claim (iss, sub, aud, exp, iat, nonce, auth_time,
 // at_hash, azp, typ) are ignored.
 //
@@ -71,8 +73,9 @@ type CreateIDTokenRequest struct {
 	// §2). Required.
 	ClientID string
 
-	// Scopes is the granted scope set, passed to UserClaims to choose the
-	// claims.
+	// Scopes is the granted scope set. It no longer chooses the ID token's
+	// claims: an access token is issued beside the ID token, so OIDC Core
+	// §5.4 sends scope claims to userinfo. Kept for issuers that need it.
 	Scopes []string
 
 	// Nonce is echoed as the `nonce` claim when non-empty (§3.1.3.6).
@@ -173,7 +176,10 @@ func (i *jwtIDTokenIssuer) CreateIDToken(ctx context.Context, req *CreateIDToken
 		return nil, fmt.Errorf("oidc: client_id is required (it is the ID token's aud)")
 	}
 
-	extra, err := collectUserClaims(ctx, i.userClaims, req.Subject, req.Scopes, req.RequestedClaims)
+	// OIDC Core §5.4: an access token is always issued beside this ID
+	// token, so scope claims come from userinfo, and the ID token carries
+	// only the claims the request asked for by name (§5.5).
+	extra, err := collectUserClaims(ctx, i.userClaims, req.Subject, nil, req.RequestedClaims)
 	if err != nil {
 		return nil, fmt.Errorf("oidc: user claims: %w", err)
 	}
@@ -258,13 +264,15 @@ func collectUserClaims(ctx context.Context, userClaims UserClaimsFunc, subject s
 	if userClaims == nil {
 		return out, nil
 	}
-	extra, err := userClaims(ctx, subject, scopes)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range extra {
-		if !idTokenReservedClaims[k] {
-			out[k] = v
+	if len(scopes) > 0 {
+		extra, err := userClaims(ctx, subject, scopes)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range extra {
+			if !idTokenReservedClaims[k] {
+				out[k] = v
+			}
 		}
 	}
 	if len(requested) == 0 {
