@@ -299,16 +299,21 @@ func TestDPoPResource_BearerOnlyChallengeUnchanged(t *testing.T) {
 	assert.Equal(t, `Bearer realm="api"`, rr.Header().Get("WWW-Authenticate"))
 }
 
-// A DPoP-unaware resource server accepts a bound token as a bearer token,
-// which RFC 9449 §7.2 both predicts and permits. Asserted so the security
-// consequence is visible: issuing bound tokens is not protection until every
-// resource server enforces them.
-func TestDPoPResource_ValidatorNotWiredAcceptsBoundTokenAsBearer(t *testing.T) {
+// RFC 9449 §7.2 expects a DPoP-unaware resource server to accept a bound
+// token as a bearer token. oneauth's middleware reads `cnf` even without a
+// validator, so it refuses the token instead: it can't check the proof
+// that would make using it legitimate, and accepting it would let a
+// stolen bound token through. Until issue 486 this test asserted the
+// acceptance.
+// See: https://github.com/panyam/oneauth/issues/486
+func TestDPoPResource_ValidatorNotWiredRefusesABoundToken(t *testing.T) {
 	fx := newRSFixture(t, func(m *apiauth.APIMiddleware) { m.DPoP = nil })
 
 	rr := fx.call("Bearer", fx.mintToken(t, "some-thumbprint"), "")
 
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Header().Get("WWW-Authenticate"), `, error="invalid_token"`)
+	assert.Equal(t, http.StatusOK, fx.call("Bearer", fx.mintToken(t, ""), "").Code, "an unbound token still works")
 }
 
 // The access token and its `ath` published in RFC 9449 Figures 13 and 14.

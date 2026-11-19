@@ -145,11 +145,13 @@ type APIMiddleware struct {
 	// against the token's `cnf.jkt`, and refuses a bound token presented
 	// under the Bearer scheme (§7.2 downgrade).
 	//
-	// Nil keeps the middleware bearer-only, in which case a bound token is
-	// accepted as an ordinary bearer token — which is what RFC 9449 §7.2
-	// says a DPoP-unaware resource server will do, and why a deployment
-	// that issues bound tokens should wire this everywhere before relying
-	// on the binding.
+	// Nil keeps the middleware bearer-only. It still reads a token's
+	// `cnf`, and refuses a bound token with 401 invalid_token, since it
+	// can't check the proof that would make using one legitimate. RFC
+	// 9449 §7.2 expects a DPoP-unaware resource server to accept the
+	// token as Bearer, which would let a stolen bound token through, so a
+	// deployment that issues bound tokens wires this on every resource
+	// server that should accept them (issue 486).
 	//
 	// Build one with NewDPoPProofValidator, setting DPoPConfig.BaseURL to
 	// this resource server's externally-visible scheme and host.
@@ -498,6 +500,16 @@ func (m *APIMiddleware) authenticate(ctx context.Context, scheme, token string) 
 // token theft.
 func (m *APIMiddleware) enforceBinding(r *http.Request, scheme, token string, info *TokenInfo) error {
 	if m.DPoP == nil {
+		// Without a validator no proof can be checked, so a bound token
+		// can't be used here at all. Accepting it as Bearer would let a
+		// stolen bound token through (RFC 9449 §7.2, issue 486).
+		if !info.Confirmation.IsEmpty() {
+			return &AuthError{
+				Scheme:      TokenTypeBearer,
+				Code:        "invalid_token",
+				Description: "DPoP-bound token, and this resource server does not accept DPoP",
+			}
+		}
 		return nil
 	}
 

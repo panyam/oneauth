@@ -151,7 +151,7 @@ Closes #336 across four PRs: the authorization server binds tokens to a client k
 
 **Design notes.** The binding travels as `core.Confirmation`, a struct rather than a bare thumbprint string, so RFC 8705 mTLS adds `x5t#S256` as a field instead of a second parameter on every issuance path. The shared `TokenBindingValidator` seam stays unbuilt until #335 shows the second shape — an interface with one implementation is a guess about the second.
 
-**Rollout order matters.** A resource server with `APIMiddleware.DPoP` nil accepts a bound token as an ordinary bearer token, which RFC 9449 §7.2 both predicts and permits. Enforce at the resource servers first, then issue bound tokens; the reverse order gives a window where the binding protects nothing.
+**Rollout order matters.** A resource server with `APIMiddleware.DPoP` nil refuses a bound token with 401, since it can't check the proof (issue 486). Wire DPoP at the resource servers first, then issue bound tokens; the reverse order gives a window where bound tokens fail there.
 
 **One trap the client work surfaced.** A DPoP proof is single-use and its `ath` names one token, so any retry-after-refresh path has to mint a fresh proof rather than resend the one already sent. Against a single-node server with an in-memory `jti` store, reusing it looks fine, which is what makes it easy to ship.
 
