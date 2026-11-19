@@ -345,45 +345,17 @@
 - suite: oidf
   plans:
     - oidcc-dynamic-certification-test-plan
-    - oidcc-test-plan-private_key_jwt
-  test: oidcc-refresh-token-rp-key-rotation
-  status: expected-fail
-  evidence: dynamic registration endpoint returned an unexpected http status
-  issue: 507
-  owner: panyam
-  reason: |
-    The module registers its client with jwks_uri, which dynamic
-    registration refuses (issue 507).
-  expires: 2027-12-31
-
-- suite: oidf
-  plans:
-    - oidcc-dynamic-certification-test-plan
-    - oidcc-test-plan-private_key_jwt
-  test: oidcc-registration-jwks-uri
-  status: expected-fail
-  evidence: dynamic registration endpoint returned an unexpected http status
-  issue: 507
-  owner: panyam
-  reason: |
-    Dynamic registration takes an inline jwks, not jwks_uri, so the
-    registration is refused with invalid_client_metadata (issue 507).
-  expires: 2027-12-31
-
-- suite: oidf
-  plans:
-    - oidcc-dynamic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
   test: oidcc-registration-logo-uri
   status: expected-review
-  evidence: Authorize OIDF Conformance Test
+  evidence: 'id="client-logo"'
   issue: 507
   owner: panyam
   reason: |
-    The harness asks for a screenshot of the consent page with the client's
-    logo. oneauth's consent page shows only the client name (issue 507).
+    The harness asks a person to check the consent page shows the client's
+    logo. It does (issue 507), and the evidence checks the captured page.
   expires: 2027-12-31
 
 - suite: oidf
@@ -394,13 +366,12 @@
     - oidcc-test-plan-private_key_jwt
   test: oidcc-registration-policy-uri
   status: expected-review
-  evidence: Authorize OIDF Conformance Test
+  evidence: 'id="client-policy"'
   issue: 507
   owner: panyam
   reason: |
-    The harness asks for a screenshot of the consent page with a link to
-    the client's policy. oneauth's consent page shows only the client name
-    (issue 507).
+    The harness asks a person to check the consent page shows the client's
+    link to its policy. It does (issue 507), and the evidence checks the captured page.
   expires: 2027-12-31
 
 - suite: oidf
@@ -441,13 +412,12 @@
     - oidcc-test-plan-private_key_jwt
   test: oidcc-registration-tos-uri
   status: expected-review
-  evidence: Authorize OIDF Conformance Test
+  evidence: 'id="client-tos"'
   issue: 507
   owner: panyam
   reason: |
-    The harness asks for a screenshot of the consent page with a link to
-    the client's terms. oneauth's consent page shows only the client name
-    (issue 507).
+    The harness asks a person to check the consent page shows the client's
+    link to its terms. It does (issue 507), and the evidence checks the captured page.
   expires: 2027-12-31
 
 - suite: oidf
