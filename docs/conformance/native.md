@@ -1,6 +1,6 @@
 # Go-native conformance report
 
-Generated: 2026-11-19 10:55:54 UTC  
+Generated: 2026-11-19 22:17:16 UTC  
 Package pattern: `./...`
 
 ## Summary
@@ -11,7 +11,7 @@ Package pattern: `./...`
 | Passing | 26 |
 | Failing | 0 |
 | Skipped (forbidden) | 0 |
-| Known gaps in manifest | 14 |
+| Known gaps in manifest | 30 |
 | Gapped tests observed | 0 |
 | Ratchet issues | 0 |
 
@@ -26,11 +26,27 @@ Package pattern: `./...`
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-par-attempt-to-use-expired-request_uri` | 98 | panyam | expected-review |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client` | 98 | panyam | expected-review |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-test-claims-parameter-identity-claims` | 339 | panyam | expected-warning |
-| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan/oidcc-ensure-registered-redirect-uri` | 477 | panyam | expected-review |
-| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan/oidcc-ensure-request-object-with-redirect-uri` | 338 | panyam | expected-review |
-| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan/oidcc-ensure-request-with-acr-values-succeeds` | 485 | panyam | expected-warning |
-| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan/oidcc-max-age-1` | 477 | panyam | expected-review |
-| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan/oidcc-prompt-login` | 477 | panyam | expected-review |
-| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan/oidcc-server` | 339 | panyam | expected-warning |
-| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan/oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | 338 | panyam | expected-skip |
+| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-ensure-request-object-with-redirect-uri` | 338 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-server` | 339 | panyam | expected-warning |
+| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-ensure-registered-redirect-uri` | 477 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-ensure-request-with-acr-values-succeeds` | 485 | panyam | expected-warning |
+| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-max-age-1` | 477 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-prompt-login` | 477 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | 338 | panyam | expected-skip |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-discovery-endpoint-verification` | 493 | panyam | expected-fail |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-ensure-redirect-uri-in-authorization-request` | 493 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-idtoken-unsigned` | 493 | panyam | expected-skip |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-redirect-uri-query-added` | 493 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-redirect-uri-query-mismatch` | 493 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-logo-uri` | 507 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-policy-uri` | 507 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-sector-bad` | 507 | panyam | expected-skip |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-sector-uri` | 507 | panyam | expected-skip |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-tos-uri` | 507 | panyam | expected-review |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-request-uri-signed-rs256` | 338 | panyam | expected-fail |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-request-uri-unsigned` | 338 | panyam | expected-fail |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-server-rotate-keys` | 507 | panyam | expected-manual |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-userinfo-rs256` | 485 | panyam | expected-fail |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-private_key_jwt/oidcc-refresh-token-rp-key-rotation` | 507 | panyam | expected-fail |
+| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-private_key_jwt/oidcc-registration-jwks-uri` | 507 | panyam | expected-fail |
 
