@@ -408,7 +408,46 @@
 </tr>
 </tbody>
 </table>
-<p>Still open: the OIDF workflow in CI is manual-only (#290), and PS256 (#330) would let the RS256 module run.</p>
+<p>Still open: the OIDF workflow in CI is manual-only, and PS256 (#330) would let the RS256 module run.</p>
+<h2 id="oidf-openid-connect-basic-op-run-mission-477--complete">OIDF OpenID Connect Basic OP run (mission #477) ✅ COMPLETE <a class="anchor" href="#oidf-openid-connect-basic-op-run-mission-477--complete">¶</a></h2>
+<p>The OpenID Foundation&rsquo;s <code>oidcc-basic-certification-test-plan</code> runs against <code>cmd/oneauth-server</code> with <code>tests/oidf-conformance/oneauth-oidcc.yaml</code> (<code>make exercise-oidcc</code>), and <code>make testoidf</code> enforces it beside FAPI 2.0. The harness runs 35 of the plan&rsquo;s 38 modules for the static-client variant: 28 pass and none fail. Four end in REVIEW (the second login page for <code>prompt=login</code> / <code>max_age</code>, and oneauth&rsquo;s error pages), the <code>typ: ID</code> claim and the missing <code>acr</code> are recorded warnings, and the request-object module reports oneauth&rsquo;s refusal as SKIPPED.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Delivery</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>482</td>
+<td>The exercise, a shared <code>oidfplan</code> runner, and an opt-in PKCE policy for confidential clients</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>483</td>
+<td><code>/authorize</code> takes POSTed requests and refuses request objects</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>484</td>
+<td><code>prompt</code>, <code>max_age</code>, and remembered consent (<code>core.ConsentStore</code>)</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>487</td>
+<td>The <code>claims</code> parameter, the userinfo token in a form body, profile claims from signup</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>488</td>
+<td>Scope claims leave the ID token, <code>updated_at</code>, no bound tokens without DPoP</td>
+<td>Merged</td>
+</tr>
+</tbody>
+</table>
+<p>Next, from the mission&rsquo;s &ldquo;not in this mission&rdquo; list: the OIDF Config, Dynamic, Form Post and logout plans. Still open: <code>acr</code> / <code>amr</code> and the other leftovers in #485, and JAR (#338).</p>
 <hr />
 <h2 id="execution-order">Execution Order <a class="anchor" href="#execution-order">¶</a></h2>
 <pre><code class="language-mermaid">flowchart TD
