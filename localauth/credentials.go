@@ -22,6 +22,13 @@ type SignupPolicy struct {
 	EnforceEmailUnique    bool   // Check IdentityStore? (default: true)
 	MinPasswordLength     int    // Minimum password (default: 8)
 	UsernamePattern       string // Regex for username (default: ^[a-zA-Z0-9_-]{3,20}$)
+
+	// ProfileClaims names the OIDC Core §5.1 profile claims signup accepts
+	// from the form or JSON body, such as "name" or "address", stored in
+	// the user's profile for ProfileClaims to hand out. Empty accepts none.
+	// Only the profile scope's claims and address may be listed; see
+	// ParseSignupProfile.
+	ProfileClaims []string
 }
 
 // DefaultSignupPolicy returns a sensible default signup policy.
@@ -101,6 +108,11 @@ type Credentials struct {
 	Email    *string // Optional for signup
 	Phone    *string // Optional for signup
 	Password string  // Required
+
+	// Profile holds standard OIDC profile claims given at signup (see
+	// SignupPolicy.ProfileClaims). NewCreateUserFunc stores them in the
+	// user's profile, under the account fields it sets itself.
+	Profile map[string]any
 }
 
 // SignupValidator validates credentials during signup.

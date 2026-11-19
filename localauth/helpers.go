@@ -43,9 +43,13 @@ func NewCreateUserFunc(userStore accounts.UserStore, identityStore accounts.Iden
 		}
 
 		userId := generateSecureUserId()
-		profile := map[string]any{
-			"username": creds.Username,
+		profile := map[string]any{}
+		for k, v := range creds.Profile {
+			if k != "username" && k != "email" && k != "phone" {
+				profile[k] = v
+			}
 		}
+		profile["username"] = creds.Username
 		if creds.Email != nil {
 			profile["email"] = *creds.Email
 		}

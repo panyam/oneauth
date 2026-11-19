@@ -55,6 +55,11 @@ func ProfileClaims(users accounts.UserStore, identities accounts.IdentityStore) 
 			claims["phone_number"] = v
 			claims["phone_number_verified"] = verified["phone:"+v]
 		}
+		for name := range signupProfileClaims {
+			if v, ok := profile[name]; ok && v != nil && v != "" {
+				claims[name] = v
+			}
+		}
 		return core.FilterClaimsByScope(claims, scopes), nil
 	}
 }
