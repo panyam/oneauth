@@ -148,6 +148,25 @@ GitHub Apps ignore OAuth scopes. A user token from an App carries the App's perm
 
 `InstallationCalls()`, `RefreshCalls()`, `RevokeCalls()` and `LastJWTClaims()` let a test assert cache hits and claim values. Consumers' tests use it the same way, as they use `keystoretest`.
 
+### Against real GitHub
+
+`make testgh` runs `outbound/live_github_test.go` against github.com. It is never part of `make test` or CI, and each check skips until its env vars exist. It reads two private fixture repos, `panyam/oneauth-smoke-a` and `-b`, whose READMEs carry a marker line (`ONEAUTH_GH_TEST_REPOS` names others).
+
+- With only `GH_PERSONAL_TOKEN` set, it reads both repos through `Static` and checks that GitHub's refusals reach callers as `GitHubAPIError`.
+- With a GitHub App configured, it lists the installation's repos and reads them. It checks the cache and `Invalidate`, and that a token narrowed to one repo gets 404 on the other.
+- With `ONEAUTH_GH_LIVE_DEVICE=1`, it signs you in by device flow, forces a refresh, checks the refresh token rotated, and revokes.
+
+Setting up the App takes a few minutes in the browser, under Settings, then Developer settings, then GitHub Apps, then New:
+
+- The homepage URL can be any URL, such as this repo's. Leave the callback URL empty and "Request user authorization (OAuth) during installation" unticked, because device flow needs no redirect. If you later want the browser flow, register `http://127.0.0.1/callback`. GitHub ignores the port on loopback redirects, so a local listener on any port works and no domain or hosting is needed.
+- Untick the webhook's "Active" box.
+- Grant Repository contents read-only, tick "Enable Device Flow", and keep "Expire user authorization tokens" on so user tokens come with refresh tokens.
+- Generate a private key and keep it outside the repo. Generate a client secret for the device-flow check.
+- Install the App on the two fixture repos only. The installation ID is the number at the end of the URL after installing.
+- Export `ONEAUTH_GH_APP_ID`, `ONEAUTH_GH_INSTALLATION_ID` and `ONEAUTH_GH_APP_KEY_FILE`. For the device-flow check, also export `ONEAUTH_GH_CLIENT_ID` and `ONEAUTH_GH_CLIENT_SECRET`.
+
+The first run already corrected the fake. GitHub answers 404 "Integration not found" for an App ID it doesn't know, before it looks at the signature. The fake used to answer 401 there.
+
 ## Where a secret can and cannot end up
 
 | Secret | Can be in | Must not be in |

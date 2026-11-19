@@ -192,3 +192,18 @@ func TestParseRSAPrivateKeyPEM(t *testing.T) {
 		t.Fatal("non-PEM accepted")
 	}
 }
+
+// Real GitHub answers 404 "Integration not found" for an App ID it doesn't
+// know, before checking the signature (seen in make testgh), so the fake
+// does too.
+func TestInstallation_UnknownAppIs404(t *testing.T) {
+	gh := githubtest.New(t)
+	src := newInstallation(t, gh)
+	src.AppID = "999999"
+
+	_, err := src.Token()
+	var ge *outbound.GitHubAPIError
+	if !errors.As(err, &ge) || ge.StatusCode != http.StatusNotFound || ge.Message != "Integration not found" {
+		t.Fatalf("want 404 Integration not found, got %v", err)
+	}
+}

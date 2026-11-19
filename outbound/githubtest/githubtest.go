@@ -214,7 +214,9 @@ func (s *Server) handleInstallationToken(w http.ResponseWriter, r *http.Request)
 	}
 	iss, _ := claims["iss"].(string)
 	if iss != s.AppID {
-		apiError(w, http.StatusUnauthorized, "'Issuer' claim ('iss') must be an Integer")
+		// Real GitHub looks the App up by iss and answers 404 for one it
+		// doesn't know (seen in the live smoke test).
+		apiError(w, http.StatusNotFound, "Integration not found")
 		return
 	}
 	iat, _ := claims.GetIssuedAt()
