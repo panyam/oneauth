@@ -5,6 +5,29 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.9
+
+The whole repo's tests now run on Windows. That run found two bugs in the FS stores, and this release fixes both. It also adds `make conformance`, which runs every conformance suite from one command and publishes a report. One change alters what a consumer sees, and it's listed under contract changes.
+
+### Contract changes
+
+- **FS stores refuse a key whose file holds another key (issue 505, PR 506).** The FS stores turn `/`, `\` and `:` in a key into `_` to build a file name. So user ID `a/b` used to read, overwrite or delete the record for `a_b`. On Windows and on a default macOS volume, `Alice` did the same to `alice`. The user, username, app, key, kid and API key stores now check the key inside the file before they read, write or delete it, and return `fs.ErrKeyCollision` when it differs. The identity and channel stores already did this (issue 88).
+
+### FS stores on Windows (issues 502 and 505, PRs 503 and 506)
+
+- The identity store put `:` in file names, which Windows refuses, so every identity write failed. File names on Windows now map `<>:"|?*` and control characters to `_`.
+- A file name that is a Windows device name (`CON`, `NUL`, `COM1` and the rest) gets a `_` in front. Windows 10 and Server 2022 open `CON.json` as the console.
+- `safeName` refused `/etc/passwd` on Unix but not on Windows, because `filepath.IsAbs` there wants a drive letter. It now refuses any key that starts with `/` or `\` on every OS.
+- CI runs every module's tests on Windows.
+
+### make conformance (issues 490, 491, 492, PR 504)
+
+- `make conformance` runs every suite listed in `conformance/suites.yaml` and prints one line per suite. `SUITE=<name>` runs one suite.
+- Each run merges into `docs/conformance/report.json` and `REPORT.md`. The docsite shows it on a "Latest run" page, and the README links it.
+- A suite whose tests all skip reports SKIP with the reason, not PASS.
+- Every wait for a server or container has a time limit and prints the process's log if it dies.
+- `docs/CONFORMANCE.md` has a table that says which of the OIDF suite's 81 plans apply to oneauth.
+
 ## Version 0.3.8
 
 Most of this release moves `/authorize`, the ID token and userinfo closer to OIDC Core, driven by the OIDF Basic OP plan that `make exercise-oidcc` now runs. It also fixes `file:` secret refs on Windows, which agni needs. Two changes alter what a consumer sees, and both are listed under contract changes.
