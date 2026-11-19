@@ -193,3 +193,20 @@ func TestRevoke_RefreshRacingADisconnectReturnsNotFound(t *testing.T) {
 		t.Fatal("refresh revived a deleted record")
 	}
 }
+
+// GitHub answers 404 for revoking a token that is already revoked (seen in
+// make testgh), the same status as for wrong client credentials. The fake
+// matches, and Revoke never sends a second revoke to find out.
+func TestRevoke_AlreadyRevokedTokenIs404(t *testing.T) {
+	gh := githubtest.New(t)
+	tok := gh.IssueUserToken("alice")
+	r := &outbound.GitHubRevoker{ClientID: gh.ClientID, ClientSecret: gh.ClientSecret, BaseURL: gh.URL}
+	if _, err := r.RevokeToken(context.Background(), &outbound.RevokeTokenRequest{Token: tok}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := r.RevokeToken(context.Background(), &outbound.RevokeTokenRequest{Token: tok})
+	var ge *outbound.GitHubAPIError
+	if !errors.As(err, &ge) || ge.StatusCode != http.StatusNotFound {
+		t.Fatalf("want 404, got %v", err)
+	}
+}

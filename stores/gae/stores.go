@@ -1069,6 +1069,15 @@ func (s *RefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.R
 	return &core.RevokeSubjectTokensResponse{}, nil
 }
 
+// contendedTxAttempts is the transaction attempt limit for writes that
+// race on one refresh-token entity by design: concurrent RecordAccessToken
+// calls for tokens issued together, and RevokeTokenFamily against them.
+// Datastore's default of 3 lets the fourth of several concurrent writers
+// fail with ErrConcurrentTransaction and drop its access token from the
+// family, which revocation then misses. The client backs off between
+// attempts, so a higher limit costs latency only under contention.
+const contendedTxAttempts = 10
+
 // RecordAccessToken appends the access token to req.Token's entity inside
 // a transaction and reports the entity's Revoked flag read in it.
 // Datastore's optimistic concurrency makes this atomic against the
@@ -1103,7 +1112,7 @@ func (s *RefreshTokenStore) RecordAccessToken(ctx context.Context, req *core.Rec
 		entity.AccessTokens = b
 		_, err = tx.Put(key, &entity)
 		return err
-	})
+	}, datastore.MaxAttempts(contendedTxAttempts))
 	if err != nil {
 		return nil, err
 	}
@@ -1158,7 +1167,7 @@ func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.Rev
 			entity.RevokedAt = now
 			_, err := tx.Put(key, &entity)
 			return err
-		})
+		}, datastore.MaxAttempts(contendedTxAttempts))
 		if err != nil {
 			return nil, err
 		}

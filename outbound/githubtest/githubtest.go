@@ -214,7 +214,9 @@ func (s *Server) handleInstallationToken(w http.ResponseWriter, r *http.Request)
 	}
 	iss, _ := claims["iss"].(string)
 	if iss != s.AppID {
-		apiError(w, http.StatusUnauthorized, "'Issuer' claim ('iss') must be an Integer")
+		// Real GitHub looks the App up by iss and answers 404 for one it
+		// doesn't know (seen in the live smoke test).
+		apiError(w, http.StatusNotFound, "Integration not found")
 		return
 	}
 	iat, _ := claims.GetIssuedAt()
@@ -241,7 +243,8 @@ func (s *Server) handleInstallationToken(w http.ResponseWriter, r *http.Request)
 }
 
 // handleOAuthToken serves the refresh grant. Like GitHub, it answers
-// errors with 200 and an "error" field, and a refresh token works once.
+// errors with 200 and an "error" field, a refresh token works once, and
+// the access token it replaces stops working.
 func (s *Server) handleOAuthToken(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	s.mu.Lock()
@@ -262,6 +265,13 @@ func (s *Server) handleOAuthToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.refreshTokens, r.PostForm.Get("refresh_token"))
+	// GitHub kills the previous access token as soon as it is refreshed
+	// (seen in the live smoke test).
+	for at, g := range s.userTokens {
+		if g.refresh == r.PostForm.Get("refresh_token") {
+			delete(s.userTokens, at)
+		}
+	}
 	tok := s.issueUserLocked(subject)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"access_token":  tok.AccessToken,
@@ -275,8 +285,9 @@ func (s *Server) handleOAuthToken(w http.ResponseWriter, r *http.Request) {
 // handleRevoke serves DELETE /applications/{client_id}/token and /grant.
 // It needs the app's client ID and secret as basic auth. /token revokes
 // the access token and its refresh token; /grant revokes every token
-// issued to that person. Success is 204. An unknown token is 422, as
-// GitHub's docs list for a validation failure.
+// issued to that person. Success is 204. An unknown or already-revoked
+// token is 404, as on real GitHub (seen in the live smoke test), which is
+// also the answer for wrong client credentials.
 func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -292,7 +303,7 @@ func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	g, ok := s.userTokens[body.AccessToken]
 	if !ok {
-		apiError(w, http.StatusUnprocessableEntity, "Validation Failed")
+		apiError(w, http.StatusNotFound, "Not Found")
 		return
 	}
 	if strings.HasSuffix(r.URL.Path, "/grant") {

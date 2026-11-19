@@ -918,6 +918,14 @@ bump-root:
 	@$(MAKE) -s tidy
 	@$(MAKE) -s verify-submodule-deps
 
+# Live smoke test against real GitHub (outbound/live_github_test.go).
+# Never in CI. PAT checks run with GH_PERSONAL_TOKEN; App checks need
+# ONEAUTH_GH_APP_ID, ONEAUTH_GH_INSTALLATION_ID and ONEAUTH_GH_APP_KEY_FILE;
+# add ONEAUTH_GH_LIVE_DEVICE=1 plus ONEAUTH_GH_CLIENT_ID / _SECRET for the
+# interactive device-flow check. See docs/OUTBOUND_CREDENTIALS.md.
+testgh:
+	ONEAUTH_GH_LIVE=1 go test -count=1 -v -run TestLiveGitHub ./outbound/
+
 # Dep count for core module
 deps:
 	@echo "Direct: $$(grep -c '^\t' go.mod) | Transitive: $$(go list -m all 2>/dev/null | wc -l | tr -d ' ')"
@@ -970,6 +978,6 @@ audit: vulncheck secrets
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
 	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 deploygae gaelogs integ docs \
-	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root \
+	setup-tools setup-hooks setup ball tallmods tidy tidy-all bump-root testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all
