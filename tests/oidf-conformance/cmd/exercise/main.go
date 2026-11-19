@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -132,20 +133,21 @@ func main() {
 		log.Fatalf("create the plan: %v", err)
 	}
 
-	counts := map[string]int{}
-	for _, r := range results {
-		counts[orDash(r.Result)]++
-	}
-	bad := 0
-	for _, v := range oidfplan.Judge(results, expected) {
-		if v.Kind != oidfplan.VerdictOK {
-			bad++
-			if !ran(results, v.Module) {
-				fmt.Printf("  %s %s: %s\n", v.Kind, v.Module, v.Detail)
-			}
+	rec := oidfplan.NewPlanRecord(plan, planID, results, expected)
+	for _, m := range rec.Modules {
+		if m.Verdict != string(oidfplan.VerdictOK) && !ran(results, m.Module) {
+			fmt.Printf("  %s %s: %s\n", m.Verdict, m.Module, m.Note)
 		}
 	}
-	fmt.Printf("\n%d modules: %v, %d against known-gaps.yaml\nplan: %s/plan-detail.html?plan=%s\n", len(results), counts, bad, *harnessURL, planID)
+	// `make conformance` sets CONFORMANCE_RESULTS_DIR and reads the record
+	// back for the committed conformance report.
+	if dir := os.Getenv("CONFORMANCE_RESULTS_DIR"); dir != "" {
+		if err := oidfplan.WritePlanRecord(filepath.Join(dir, plan.Name+".json"), rec); err != nil {
+			log.Printf("write the run record: %v", err)
+		}
+	}
+	bad := rec.Against
+	fmt.Printf("\n%d modules: %v, %d against known-gaps.yaml\nplan: %s/plan-detail.html?plan=%s\n", len(results), rec.Counts, bad, *harnessURL, planID)
 	if bad > 0 {
 		os.Exit(1)
 	}

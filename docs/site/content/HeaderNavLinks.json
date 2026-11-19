@@ -23,6 +23,7 @@
     "url": "conformance/",
     "children": [
       { "name": "Overview",          "url": "conformance/" },
+      { "name": "Latest run",        "url": "conformance/report/" },
       { "name": "OIDF scorecard",    "url": "conformance/oidf/" },
       { "name": "Go-native ratchet", "url": "conformance/native/" },
       { "name": "Keycloak interop",  "url": "conformance/keycloak/" },

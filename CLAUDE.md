@@ -32,7 +32,8 @@ Go workspace with sub-modules for heavy backends (`go.work`). Published `go.mod`
 make test          # Unit tests
 make e2e           # E2E tests (in-process)
 make testkcl       # Keycloak + RAR interop (auto-starts Docker)
-make testoidf      # OIDF FAPI 2.0 plan
+make testoidf      # OIDF FAPI 2.0 + Basic OP plans
+make conformance   # every suite in conformance/suites.yaml, one line each (SUITE=x for one)
 make testpg / testds  # GORM on Postgres, GAE on the Datastore emulator
 make testgh        # outbound against real GitHub (never in CI; see outbound/CLAUDE.md)
 make testall       # Everything + report

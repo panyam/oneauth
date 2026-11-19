@@ -55,15 +55,10 @@ go build -buildvcs=false -o "/tmp/oneauth-$plan-server" ./cmd/oneauth-server
 server_pid=$!
 trap 'kill $server_pid 2>/dev/null || true' EXIT
 
-for _ in $(seq 1 30); do
-  curl -sf --cacert "$ca" -o /dev/null "$server/.well-known/openid-configuration" && break
-  if ! kill -0 "$server_pid" 2>/dev/null; then
-    echo "oneauth-server exited at startup; log follows:" >&2
-    cat "$logfile" >&2
-    exit 2
-  fi
-  sleep 1
-done
+# Fails if the server exits or hasn't answered within 60 seconds, rather
+# than going on to drive a plan against nothing.
+"$(dirname "$0")/wait-for.sh" 60 "oneauth-server ($plan)" --pid "$server_pid" --log "$logfile" -- \
+  --cacert "$ca" "$server/.well-known/openid-configuration" || exit 2
 
 if [[ "${1:-}" == --go-test ]]; then
   shift

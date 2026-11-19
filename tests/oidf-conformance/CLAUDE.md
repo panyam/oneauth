@@ -7,3 +7,4 @@
 - **The OIDF workflow is `workflow_dispatch` only and has never run**, so there is no CI baseline for it.
 - **Read a module's harness log through the plan ID the run prints** (`/api/plan/<id>`, then `/api/log/<instance>`). Picking the newest instance by plan start time can return an older run's module.
 - **`expected-review` evidence is matched against the page's raw HTML**, so markup inside a phrase (`Sign in to the <strong>Auth Server</strong>`) breaks the match. Pick an unbroken string such as `Login</h1>`.
+- **Never run these targets with `GOWORK=off` in the environment.** `go run ./cmd/oneauth-server` then can't find the package, since outside the workspace it isn't in the root module. The conformance runner drops `GOWORK` for that reason, and every server and container wait goes through `scripts/wait-for.sh`, which fails with the server's log instead of hanging.

@@ -90,6 +90,8 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 
 ### 2.1 What we run today
 
+`make conformance` runs every external and cross-spec suite registered in `conformance/suites.yaml` and prints one line per suite (mission 489). `SUITE=<name>` runs one, and each log goes to `test-reports/conformance/<name>.log`. A gating suite's failure fails the run; an info suite is only reported. `make test` checks that the registry and `conformance/Makefile` agree.
+
 | Suite | Location | Specs covered |
 |---|---|---|
 | Keycloak interop | `tests/keycloak/` | RFC 6749/7517/7662/7009/8414, OIDC Discovery, RFC 9396 (RAR), as a resource server validating Keycloak tokens. Also DPoP-bound tokens, accepted under `DPoP` and refused as Bearer (0.1.38); refresh requests sent to both servers and compared, and `LoginWithBrowser` against Keycloak (0.1.42); Keycloak ID tokens refused as access tokens (0.1.46); revocation parity for cross-client and missing-token requests (0.1.54). Runs in CI through `keycloak-interop.yml` on PRs touching `apiauth/`, `client/`, `keys/`, `core/`, `cmd/oneauth-server/` or `tests/keycloak/`, and on pushes to main (PR 390). |
@@ -100,18 +102,102 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 | OIDF FAPI 2.0 plan | `tests/oidf-conformance/fapi2/` | `fapi2-security-profile-final-test-plan` through `make testoidf` (and `make exercise-fapi2`); whole-module `expected-review` / `expected-skip` entries in `known-gaps.yaml`. Local only, like the discovery plan. |
 | OIDF OIDC Basic OP plan | `tests/oidf-conformance/oidcc/` | `oidcc-basic-certification-test-plan` through `make testoidf` (and `make exercise-oidcc`), mission 477; whole-module entries in `known-gaps.yaml` like FAPI 2.0. Local only. |
 
-### 2.2 Suites to adopt (Tier 1)
+### 2.2 OIDF plans: which apply
+
+The OpenID Foundation suite offers 81 plans (the harness's `/api/plan/available`, November 2026). Each one runs in `make conformance`, is owed by mission 489, needs a feature oneauth doesn't have, belongs to a separate mission, or doesn't apply. Plans that test a relying party (`*-client-*`) would test the client SDK, not the server.
+
+| Plan | Modules | Status | Why, or where it's tracked |
+|---|---|---|---|
+| `fapi2-security-profile-final-test-plan` | 68 | Runs | `SUITE=oidf-fapi2` (`make testoidf`), mission 98 |
+| `oidcc-basic-certification-test-plan` | 38 | Runs | `SUITE=oidf-basic-op` (`make testoidf`), mission 477 |
+| `oidcc-config-certification-test-plan` | 1 | Runs | `make conformance SUITE=oidf-config` (`make testoidf`) |
+| `oidcc-dynamic-certification-test-plan` | 23 | Owed | #493: the harness registers its own clients through DCR |
+| `oidcc-test-plan` | 55 | Owed | #494: run it, or close it as covered by Basic and Dynamic |
+| `fapi-ciba-id1-test-plan` | 71 | Needs a feature | CIBA: #341 |
+| `fapi1-advanced-final-brazil-dcr-test-plan` | 18 | Needs a feature | Open Finance Brasil profile: #161 |
+| `fapi1-advanced-final-test-plan` | 69 | Needs a feature | FAPI 1 Advanced: PS256 (#330), JARM (#409), mTLS-bound tokens (#335) |
+| `fapi2-message-signing-final-test-plan` | 86 | Needs a feature | JAR (#338), JARM (#409) and HTTP Message Signatures (#152) |
+| `fapi2-message-signing-id1-test-plan` | 80 | Needs a feature | JAR (#338), JARM (#409) and HTTP Message Signatures (#152) |
+| `fapi2-security-profile-final-brazil-dcr-test-plan` | 17 | Needs a feature | Open Finance Brasil profile: #161 |
+| `fapi2-security-profile-id2-brazil-dcr-test-plan` | 17 | Needs a feature | Open Finance Brasil profile: #161 |
+| `oidcc-3rdparty-init-login-certification-test-plan` | 2 | Needs a feature | Third-party-initiated login (`initiate_login_uri`, OIDC Core §4): not filed |
+| `oidcc-backchannel-rp-initiated-logout-certification-test-plan` | 2 | Needs a feature | RP-initiated logout, session management, front-channel logout: #340 (back-channel logout tokens exist; the plans start from `end_session_endpoint`) |
+| `oidcc-formpost-basic-certification-test-plan` | 38 | Needs a feature | `response_mode=form_post`, #500 |
+| `oidcc-frontchannel-rp-initiated-logout-certification-test-plan` | 2 | Needs a feature | RP-initiated logout, session management, front-channel logout: #340 (back-channel logout tokens exist; the plans start from `end_session_endpoint`) |
+| `oidcc-rp-initiated-logout-certification-test-plan` | 11 | Needs a feature | RP-initiated logout, session management, front-channel logout: #340 (back-channel logout tokens exist; the plans start from `end_session_endpoint`) |
+| `oidcc-session-management-certification-test-plan` | 2 | Needs a feature | RP-initiated logout, session management, front-channel logout: #340 (back-channel logout tokens exist; the plans start from `end_session_endpoint`) |
+| `fapi-ciba-id1-client-test-plan` | 34 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `fapi1-advanced-final-client-test-plan` | 28 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `fapi2-message-signing-final-client-test-plan` | 35 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `fapi2-message-signing-id1-client-test-plan` | 32 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `fapi2-security-profile-final-brazil-client-test-plan` | 33 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `fapi2-security-profile-final-client-test-plan` | 27 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `fapi2-security-profile-id2-brazil-client-test-plan` | 32 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `fapi2-security-profile-id2-client-test-plan` | 24 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-back-channel-logout-rp-basic` | 8 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-back-channel-logout-rp-hybrid` | 8 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-back-channel-logout-rp-implicit` | 8 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-basic-certification-test-plan` | 14 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-config-certification-test-plan` | 6 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-dynamic-certification-test-plan` | 12 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-formpost-basic-certification-test-plan` | 14 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-formpost-hybrid-certification-test-plan` | 18 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-formpost-implicit-certification-test-plan` | 15 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-front-channel-logout-rp-basic` | 1 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-front-channel-logout-rp-hybrid` | 1 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-front-channel-logout-rp-implicit` | 1 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-hybrid-certification-test-plan` | 18 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-implicit-certification-test-plan` | 15 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-logout-test-plan` | 14 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-refreshtoken-test-plan` | 3 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-rp-initiated-logout-rp-basic` | 3 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-rp-initiated-logout-rp-hybrid` | 3 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-rp-initiated-logout-rp-implicit` | 3 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-rp-session-management-rp-basic` | 1 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-rp-session-management-rp-hybrid` | 1 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-rp-session-management-rp-implicit` | 1 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-test-3rd-party-init-login-test-plan` | 1 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `oidcc-client-test-plan` | 39 | Separate mission | Tests a relying party: the client SDK against the OIDF RP plans, a future mission (not filed) |
+| `authzen-pdp-action-search-test-plan` | 22 | Not applicable | AuthZEN policy decision point: oneauth is not a PDP |
+| `authzen-pdp-evaluation-test-plan` | 33 | Not applicable | AuthZEN policy decision point: oneauth is not a PDP |
+| `authzen-pdp-evaluations-comprehensive-test-plan` | 26 | Not applicable | AuthZEN policy decision point: oneauth is not a PDP |
+| `authzen-pdp-evaluations-test-plan` | 23 | Not applicable | AuthZEN policy decision point: oneauth is not a PDP |
+| `authzen-pdp-resource-search-test-plan` | 20 | Not applicable | AuthZEN policy decision point: oneauth is not a PDP |
+| `authzen-pdp-subject-search-test-plan` | 25 | Not applicable | AuthZEN policy decision point: oneauth is not a PDP |
+| `ekyc-test-plan-oidccore` | 12 | Not applicable | eKYC and Identity Assurance (verified claims): not in scope |
+| `fapi2-security-profile-id2-test-plan` | 67 | Not applicable | Implementer's Draft 2, superseded by the final profile oneauth runs |
+| `oid4vci-1_0-issuer-haip-test-plan` | 61 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vci-1_0-issuer-test-plan` | 21 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vci-1_0-wallet-haip-test-plan` | 15 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vci-1_0-wallet-test-plan` | 5 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vp-1final-verifier-haip-test-plan` | 15 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vp-1final-verifier-test-plan` | 15 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vp-1final-wallet-haip-test-plan` | 20 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vp-1final-wallet-test-plan` | 21 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vp-id2-verifier-test-plan` | 1 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vp-id2-wallet-test-plan` | 4 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vp-id3-verifier-test-plan` | 1 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oid4vp-id3-wallet-test-plan` | 4 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
+| `oidcc-formpost-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
+| `oidcc-formpost-implicit-certification-test-plan` | 31 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
+| `oidcc-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
+| `oidcc-implicit-certification-test-plan` | 31 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
+| `openid-federation-deployed-entity-test-plan` | 5 | Not applicable | OpenID Federation: not in scope |
+| `openid-federation-entity-joined-to-test-federation-op-test-plan` | 20 | Not applicable | OpenID Federation: not in scope |
+| `openid-federation-entity-joined-to-test-federation-rp-test-plan` | 10 | Not applicable | OpenID Federation: not in scope |
+| `openid-ssf-receiver-caep-test-plan` | 12 | Not applicable | Shared Signals (SSF / CAEP): not in scope |
+| `openid-ssf-receiver-test-plan` | 15 | Not applicable | Shared Signals (SSF / CAEP): not in scope |
+| `openid-ssf-transmitter-caep-test-plan` | 28 | Not applicable | Shared Signals (SSF / CAEP): not in scope |
+| `openid-ssf-transmitter-test-plan` | 36 | Not applicable | Shared Signals (SSF / CAEP): not in scope |
+
+### 2.3 Suites to adopt (Tier 1)
 
 #### OpenID Foundation Conformance Suite
 
 - **Repo:** [gitlab.com/openid/conformance-suite](https://gitlab.com/openid/conformance-suite) (Apache 2.0; GitHub mirror at `openid-certification/conformance-suite` is read-only)
 - **Runs as:** Docker Compose stack (Java + Spring Boot + MongoDB + httpd). Uses `localhost.emobix.co.uk:8443` (resolves to 127.0.0.1, ships a real cert chain) so callbacks can be HTTPS.
 - **Drives in CI** via the suite's published Python wrapper (headless). The harness, server config and baselines are checked into our repo at `tests/oidf-conformance/`.
-- **Plans we run:**
-  - **Config OP** — validates `/.well-known/openid-configuration` required fields (RFC 8414 + OIDC Discovery)
-  - **Dynamic OP** — exercises `POST /apps/dcr` (RFC 7591), required response fields, error envelopes
-  - **Basic OP**, the RFC 6749 token endpoint (partial fit; many assertions assume `authorization_code` + ID token. OneAuth issues `authorization_code` but not ID tokens yet (#339), so the ID-token assertions will be expected-fail in `known-gaps.yaml`.)
-  - **Connect_RP** plans (Basic/Hybrid/Form Post) — exercise the `client/AuthClient` SDK against a fake OP. Real fit.
+- **Plans:** see §2.2. Config, Basic OP and FAPI 2.0 run today; Dynamic (#493) and the catch-all `oidcc-test-plan` (#494) are owed.
 
 OIDF cert (the paid logo) is **not** a goal. We run the tests; we do not submit results.
 
@@ -119,13 +205,16 @@ OIDF cert (the paid logo) is **not** a goal. We run the tests; we do not submit 
 
 - **Repo:** [github.com/modelcontextprotocol/conformance](https://github.com/modelcontextprotocol/conformance)
 - **Runs as:** `npx @modelcontextprotocol/conformance` (Node toolchain in CI).
-- **Plans we run:**
-  - `auth/basic-dcr` — RFC 7591 from a fresh client's perspective
-  - `auth/basic-metadata-var1` — RFC 9728 PRM discovery (currently the only public conformance test for RFC 9728)
+- **Plans:** the server auth suite (`conformance server --suite auth`: RFC 9728 protected-resource metadata, RFC 8414 AS metadata, RFC 6750 Bearer enforcement) against oneauth-server is #495, reusing mcpkit's `testconf-auth-server` setup. The authorization-server suite is proposed upstream (`modelcontextprotocol/conformance` issue 208) and not implemented yet (#496). The client scenarios (`auth/basic-dcr`, `auth/basic-metadata-var1`) test a client, so they go with the SDK.
 
 This is also the suite that surfaced bug 74 (`TokenEndpointAuthMethods` negotiation with explicit endpoints), per the "Fix auth method negotiation with explicit endpoints" entry in `docs/ROADMAP.md`. Worth running on every PR.
 
-### 2.3 Self-written suites (filling public gaps)
+#### OAuch
+
+- **Repo:** [github.com/DistriNet/OAuch](https://github.com/DistriNet/OAuch), an analyzer for OAuth 2.0 authorization servers that checks best practices and known threats rather than certifying conformance.
+- **Plan:** run it against the reference server and triage each finding into a ticket or an accepted reason (#497), as an info suite in `make conformance`.
+
+### 2.4 Self-written suites (filling public gaps)
 
 These RFCs have no public conformance tooling. We write them as transport-agnostic Go test fixtures so they can be pointed at OneAuth, Keycloak, or any third-party server.
 
@@ -137,7 +226,7 @@ These RFCs have no public conformance tooling. We write them as transport-agnost
 | RFC 9396 (RAR) | extracted from `tests/keycloak/rar_interop_test.go` | Currently part of Keycloak suite; pull into a stand-alone fixture. Candidate to publish as `oneauth-rar-conformance` for the wider ecosystem — there is a real public gap here. |
 | RFC 8414 dual-path | `tests/conformance/as_metadata/` | Asserts `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration` return identical content where they overlap. OIDF only checks the OIDC path. |
 
-### 2.4 Explicitly out of scope
+### 2.5 Explicitly out of scope
 
 FAPI 1.0, FAPI-CIBA, OpenID Federation, OID4VCI, EUDI Wallet, regional Open Banking profiles. The OIDF suite has plans for all of these; we will not run them.
 
