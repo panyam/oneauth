@@ -196,6 +196,74 @@ func validateClientMetadata(method string, grantTypes, redirectURIs []string) er
 	return nil
 }
 
+// validateHTTPSMetadataURI checks one URL-valued client metadata field
+// (field names it in errors): absolute https with a host, no fragment, and,
+// unless allowPrivate, not a loopback or private IP literal. A host name
+// that resolves to a private address is caught when the AS dials it, by the
+// fetcher's dial-time guard. Empty is valid: the field is optional.
+func validateHTTPSMetadataURI(field, raw string, allowPrivate bool) error {
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("%w: %s: %v", ErrInvalidClientMetadata, field, err)
+	}
+	if u.Scheme != "https" || u.Host == "" {
+		return fmt.Errorf("%w: %s must be an absolute https URL", ErrInvalidClientMetadata, field)
+	}
+	if u.Fragment != "" || strings.Contains(raw, "#") {
+		return fmt.Errorf("%w: %s must not contain a fragment", ErrInvalidClientMetadata, field)
+	}
+	if ip := net.ParseIP(u.Hostname()); ip != nil && !allowPrivate && isPrivateOrSpecialIP(ip) {
+		return fmt.Errorf("%w: %s may not be a loopback / private / link-local address", ErrInvalidClientMetadata, field)
+	}
+	return nil
+}
+
+// validateKeyMetadata checks the key-related metadata for authMethod:
+// jwks_uri only for private_key_jwt and never beside jwks (RFC 7591 §2),
+// private_key_jwt with one of the two, and token_endpoint_auth_signing_alg
+// asymmetric when set.
+func validateKeyMetadata(authMethod string, md *DCRRequest, allowPrivate bool) error {
+	if md.JWKSURI != "" && authMethod != "private_key_jwt" {
+		return fmt.Errorf("%w: jwks_uri is only for token_endpoint_auth_method private_key_jwt", ErrInvalidClientMetadata)
+	}
+	if md.JWKSURI != "" && md.JWKS != nil {
+		return fmt.Errorf("%w: jwks and jwks_uri must not both be present (RFC 7591 §2)", ErrInvalidClientMetadata)
+	}
+	if err := validateHTTPSMetadataURI("jwks_uri", md.JWKSURI, allowPrivate); err != nil {
+		return err
+	}
+	if alg := md.TokenEndpointAuthSigningAlg; alg != "" && !asymmetricJWSAlgs[alg] {
+		return fmt.Errorf("%w: token_endpoint_auth_signing_alg %q must be an asymmetric algorithm", ErrInvalidClientMetadata, alg)
+	}
+	return nil
+}
+
+// asymmetricJWSAlgs are the algorithms a private_key_jwt client may pin
+// with token_endpoint_auth_signing_alg (RFC 7518 §3.1). Wider than
+// utils.IsAsymmetricAlg, which covers only the algorithms oneauth stores
+// keys for: a jwks_uri client's keys are never stored.
+var asymmetricJWSAlgs = map[string]bool{
+	"RS256": true, "RS384": true, "RS512": true,
+	"PS256": true, "PS384": true, "PS512": true,
+	"ES256": true, "ES384": true, "ES512": true,
+	"EdDSA": true,
+}
+
+// validateDisplayURIs checks logo_uri, policy_uri and tos_uri. They are
+// public pages the user's browser loads, so a private host is refused even
+// when allowPrivate is set for fetched URIs.
+func validateDisplayURIs(md *DCRRequest) error {
+	for field, v := range map[string]string{"logo_uri": md.LogoURI, "policy_uri": md.PolicyURI, "tos_uri": md.TOSURI} {
+		if err := validateHTTPSMetadataURI(field, v, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // isPrivateOrSpecialIP reports whether ip is in any address range that an
 // authenticated client should not be able to make the AS POST to. The
 // dispatcher's dialer applies the same predicate at connect time.
@@ -263,6 +331,13 @@ type AppRegistrar struct {
 	// BCLDispatcher.AllowPrivateHosts or the dial-time guard still blocks.
 	AllowPrivateBCLHosts bool
 
+	// AllowPrivateJWKSHosts opts in to a jwks_uri on a loopback or private
+	// IP literal, for the same reason and with the same default as
+	// AllowPrivateBCLHosts. The fetcher that dials jwks_uri
+	// (apiauth.ClientJWKSFetcher) has its own AllowPrivateHosts guard,
+	// which must also be on.
+	AllowPrivateJWKSHosts bool
+
 	mu   sync.RWMutex
 	apps map[string]*core.AppRegistration
 }
@@ -309,7 +384,9 @@ func NewAppRegistrarWithStore(keyStore keys.KeyStorage, auth AdminAuth, store co
 // and persists the resulting core.AppRegistration. Returns an error mapped by
 // the wrapper:
 //
-//   - ErrInvalidClientMetadata: missing JWKS for private_key_jwt, or invalid JWK → HTTP 400
+//   - ErrInvalidClientMetadata: private_key_jwt without jwks or jwks_uri,
+//     both at once, an invalid JWK, a jwks_uri or display URI that isn't
+//     https, or a symmetric token_endpoint_auth_signing_alg → HTTP 400
 //   - other errors (KeyStore failures, RNG failures): bubble up → HTTP 500
 //
 // ctx is currently unused but threaded through for cancellation / deadline
@@ -330,15 +407,28 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	if err := validateClientMetadata(authMethod, md.GrantTypes, md.RedirectURIs); err != nil {
 		return nil, err
 	}
+	if err := validateKeyMetadata(authMethod, md, h.AllowPrivateJWKSHosts); err != nil {
+		return nil, err
+	}
+	if err := validateDisplayURIs(md); err != nil {
+		return nil, err
+	}
 
 	// Determine signing algorithm from the requested auth method. Default
 	// HS256 (symmetric) when the client doesn't ask for private_key_jwt.
+	// A jwks_uri client stores no key. Its SigningAlg is RS256, which marks
+	// it asymmetric for code that reads SigningAlg; the algorithm its
+	// assertions may use is TokenEndpointAuthSigningAlg and its keys.
 	signingAlg := "HS256"
 	if md.TokenEndpointAuthMethod == "private_key_jwt" {
-		if md.JWKS == nil || len(md.JWKS.Keys) == 0 {
-			return nil, ErrInvalidClientMetadata
+		switch {
+		case md.JWKSURI != "":
+			signingAlg = "RS256"
+		case md.JWKS == nil || len(md.JWKS.Keys) == 0:
+			return nil, fmt.Errorf("%w: private_key_jwt needs jwks or jwks_uri", ErrInvalidClientMetadata)
+		default:
+			signingAlg = md.JWKS.Keys[0].Alg
 		}
-		signingAlg = md.JWKS.Keys[0].Alg
 		if signingAlg == "" {
 			signingAlg = "RS256"
 		}
@@ -375,9 +465,17 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		BackchannelLogoutSessionRequired:   md.BackchannelLogoutSessionRequired,
 		DPoPBoundAccessTokens:              md.DPoPBoundAccessTokens,
 		RequirePushedAuthorizationRequests: md.RequirePushedAuthorizationRequests,
+		JWKSURI:                            md.JWKSURI,
+		TokenEndpointAuthSigningAlg:        md.TokenEndpointAuthSigningAlg,
+		LogoURI:                            md.LogoURI,
+		PolicyURI:                          md.PolicyURI,
+		TOSURI:                             md.TOSURI,
 	}
 
-	if utils.IsAsymmetricAlg(signingAlg) {
+	if md.JWKSURI != "" {
+		// Keys are fetched from jwks_uri at authentication time; nothing to
+		// store, and no client_secret.
+	} else if utils.IsAsymmetricAlg(signingAlg) {
 		// Asymmetric: convert JWK → PEM and store.
 		jwk := md.JWKS.Keys[0]
 		pubKey, _, err := utils.JWKToPublicKey(jwk)
@@ -429,6 +527,11 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		BackchannelLogoutSessionRequired:   md.BackchannelLogoutSessionRequired,
 		DPoPBoundAccessTokens:              md.DPoPBoundAccessTokens,
 		RequirePushedAuthorizationRequests: md.RequirePushedAuthorizationRequests,
+		JWKSURI:                            md.JWKSURI,
+		TokenEndpointAuthSigningAlg:        md.TokenEndpointAuthSigningAlg,
+		LogoURI:                            md.LogoURI,
+		PolicyURI:                          md.PolicyURI,
+		TOSURI:                             md.TOSURI,
 	}
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, fmt.Errorf("persist registration: %w", err)
@@ -661,6 +764,11 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 			BackchannelLogoutSessionRequired:   reg.BackchannelLogoutSessionRequired,
 			DPoPBoundAccessTokens:              reg.DPoPBoundAccessTokens,
 			RequirePushedAuthorizationRequests: reg.RequirePushedAuthorizationRequests,
+			JWKSURI:                            reg.JWKSURI,
+			TokenEndpointAuthSigningAlg:        reg.TokenEndpointAuthSigningAlg,
+			LogoURI:                            reg.LogoURI,
+			PolicyURI:                          reg.PolicyURI,
+			TOSURI:                             reg.TOSURI,
 		},
 	}, nil
 }
@@ -721,6 +829,17 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if err := validateClientMetadata(effectiveAuthMethod(reg.TokenEndpointAuthMethod), md.GrantTypes, md.RedirectURIs); err != nil {
 		return nil, err
 	}
+	if err := validateDisplayURIs(md); err != nil {
+		return nil, err
+	}
+	// A jwks_uri client may move its jwks_uri. Switching between inline
+	// keys and jwks_uri would re-key the client, which update doesn't do.
+	if (md.JWKSURI != "") != (reg.JWKSURI != "") && md.JWKSURI != "" {
+		return nil, fmt.Errorf("%w: jwks_uri can't be added to a client registered with inline keys", ErrInvalidClientMetadata)
+	}
+	if err := validateHTTPSMetadataURI("jwks_uri", md.JWKSURI, h.AllowPrivateJWKSHosts); err != nil {
+		return nil, err
+	}
 
 	newToken, err := generateRegistrationAccessToken()
 	if err != nil {
@@ -746,6 +865,12 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	reg.BackchannelLogoutSessionRequired = md.BackchannelLogoutSessionRequired
 	reg.DPoPBoundAccessTokens = md.DPoPBoundAccessTokens
 	reg.RequirePushedAuthorizationRequests = md.RequirePushedAuthorizationRequests
+	if md.JWKSURI != "" {
+		reg.JWKSURI = md.JWKSURI
+	}
+	reg.LogoURI = md.LogoURI
+	reg.PolicyURI = md.PolicyURI
+	reg.TOSURI = md.TOSURI
 
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, err
@@ -768,6 +893,11 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 			BackchannelLogoutSessionRequired:   reg.BackchannelLogoutSessionRequired,
 			DPoPBoundAccessTokens:              reg.DPoPBoundAccessTokens,
 			RequirePushedAuthorizationRequests: reg.RequirePushedAuthorizationRequests,
+			JWKSURI:                            reg.JWKSURI,
+			TokenEndpointAuthSigningAlg:        reg.TokenEndpointAuthSigningAlg,
+			LogoURI:                            reg.LogoURI,
+			PolicyURI:                          reg.PolicyURI,
+			TOSURI:                             reg.TOSURI,
 		},
 	}, nil
 }
