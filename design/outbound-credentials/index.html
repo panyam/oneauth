@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Credentials an app uses to call third-party APIs: GitHub App installation tokens, people&#39;s stored tokens refreshed and sealed at rest, and static secrets read from a reference.">
+    <title>Outbound credentials · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+                <li><a href="/oneauth/conformance/security-audit/">Security audit</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/outbound-credentials/">Outbound credentials</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>Outbound credentials</h1>
+        
+        <p class="lead">Credentials an app uses to call third-party APIs: GitHub App installation tokens, people&#39;s stored tokens refreshed and sealed at rest, and static secrets read from a reference.</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/OUTBOUND_CREDENTIALS.md"><code>docs/OUTBOUND_CREDENTIALS.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="outbound-credentials">Outbound credentials <a class="anchor" href="#outbound-credentials">¶</a></h1>
+<p>Picture an app that mounts a person&rsquo;s private GitHub repo and reads it every few minutes, long after the person closed the tab. The app needs a GitHub credential that is still valid with nobody present. The rest of oneauth signs people in to the app. The <code>outbound</code> package covers the other direction: the app calling someone else&rsquo;s API, as itself or for one of its users.</p>
+<p>Issue #467 tracks this work. The first consumer is goapplib&rsquo;s connections design (panyam/goapplib#153), which keeps the connection record and decides which mounts use which credential. oneauth supplies the credentials.</p>
+<h2 id="the-three-sources">The three sources <a class="anchor" href="#the-three-sources">¶</a></h2>
+<p>Each source is an <code>oauth2.TokenSource</code>. <code>oauth2.NewClient(ctx, src)</code> turns one into an <code>*http.Client</code>, and SDKs that take a client or a token source use it directly.</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>For</th>
+<th>Lifetime</th>
+<th>Where the secret lives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GitHubAppInstallation</code></td>
+<td>The app acting as a GitHub App installation (server scope)</td>
+<td>1 hour, cached</td>
+<td>The App&rsquo;s private key, loaded by the caller</td>
+</tr>
+<tr>
+<td><code>StoredUserToken</code></td>
+<td>The app acting for one person who connected their account</td>
+<td>8 hours, refreshed</td>
+<td>Sealed in a <code>UserTokenStore</code></td>
+</tr>
+<tr>
+<td><code>Static</code></td>
+<td>A personal access token or other fixed secret</td>
+<td>No expiry</td>
+<td>An env var or a mounted file, named by a <code>SecretRef</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="github-app-installation-tokens">GitHub App installation tokens <a class="anchor" href="#github-app-installation-tokens">¶</a></h3>
+<p><code>GitHubAppInstallation{AppID, InstallationID, Key}</code> signs a JWT with the App&rsquo;s RSA key and posts it to <code>/app/installations/{id}/access_tokens</code>. GitHub answers with a token that lasts an hour. The source caches it and fetches a new one five minutes before it expires (<code>DefaultRefreshBefore</code>).</p>
+<ul>
+<li>The JWT has <code>iat</code> 60 seconds in the past, to absorb clock drift, and <code>exp</code> nine minutes ahead. GitHub refuses anything over ten minutes. <code>iss</code> is the App ID or the App&rsquo;s Client ID; GitHub accepts either.</li>
+<li><code>NewGitHubAppInstallation</code> takes the key as PEM. GitHub&rsquo;s settings page downloads PKCS#1 (<code>RSA PRIVATE KEY</code>), and <code>utils.ParsePrivateKeyPEM</code> reads only PKCS#8, so <code>ParseRSAPrivateKeyPEM</code> reads both. Keys under 2048 bits are refused, as everywhere else in oneauth.</li>
+<li>Concurrent callers share one fetch. The cache holds a mutex across the exchange, so twenty goroutines starting at once make one request.</li>
+<li>The handed-out token&rsquo;s <code>Expiry</code> is five minutes before GitHub&rsquo;s. <code>oauth2.NewClient</code> wraps a source in a <code>ReuseTokenSource</code>, which keeps a token until ten seconds before <code>Expiry</code>. Without the shift, the margin would be lost whenever the source is used that way. GitHub&rsquo;s own expiry is in <code>tok.Extra(&quot;expires_at&quot;)</code>.</li>
+<li><code>Repositories</code> and <code>Permissions</code> narrow a token below the installation&rsquo;s grant, using the fields GitHub&rsquo;s request body accepts. A mount over one repo can ask for <code>contents: read</code> on that repo only.</li>
+<li><code>BaseURL</code> defaults to <code>https://api.github.com</code>. GitHub Enterprise Server uses <code>https://HOST/api/v3</code>, and tests point it at the fake.</li>
+<li><code>Invalidate</code> drops the cache. Call it when an API answers 401 to a token that should still be live, for example after the installation was suspended and restored.</li>
+</ul>
+<h3 id="stored-user-tokens">Stored user tokens <a class="anchor" href="#stored-user-tokens">¶</a></h3>
+<p>A person connects their account through <code>oauth2.GithubOAuth2</code>. The provider hands <code>HandleUserFunc</code> an <code>oauth2.Token</code>, and the app saves it:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>tokens, _ <span style="color:#000;font-weight:bold">:=</span> outbound.<span style="color:#900;font-weight:bold">NewUserTokens</span>(<span style="color:#d14">&#34;github&#34;</span>, store, masterKeyHex, githubOAuthConfig)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// In HandleUserFunc, after the connect flow:
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>tokens.<span style="color:#900;font-weight:bold">Save</span>(ctx, userID, token)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Later, from any replica:
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>client <span style="color:#000;font-weight:bold">:=</span> oauth2.<span style="color:#900;font-weight:bold">NewClient</span>(ctx, tokens.<span style="color:#900;font-weight:bold">TokenSource</span>(userID))
+</span></span></code></pre><p>Each <code>Token</code> call reads the store, opens the record, and returns the token when it has more than five minutes left. Otherwise it refreshes the token with its refresh token, writes the result back, and returns it.</p>
+<p>Errors a caller acts on:</p>
+<ul>
+<li><code>ErrUserTokenNotFound</code>: the person never connected, or disconnected.</li>
+<li><code>ErrReconnect</code>: the token expired with no refresh token, or the provider refused the refresh token. The app sends the person through the connect flow again.</li>
+<li><code>keys.ErrSealedOpen</code> (wrapped): the record doesn&rsquo;t open. The master key changed, or someone copied the ciphertext from another person&rsquo;s record.</li>
+</ul>
+<p><code>accounts.Channel.Credentials</code> could hold a token too, but it stores a plain map with no encryption, and <code>SaveChannel</code> doesn&rsquo;t check <code>Version</code>. Both matter here, so user tokens get their own store.</p>
+<h4 id="refresh-races">Refresh races <a class="anchor" href="#refresh-races">¶</a></h4>
+<p>GitHub&rsquo;s refresh tokens are single-use. Refreshing hands back a new refresh token, and the old one stops working at once. Suppose two replicas find the same token expired and both refresh. GitHub accepts the first request and refuses the second with <code>bad_refresh_token</code>. If the replicas wrote blindly, the store could end up holding a refresh token GitHub has already retired, and the person would have to reconnect at the next expiry.</p>
+<p><code>UserTokenStore.PutUserToken</code> is a compare-and-swap on <code>Version</code>, and <code>StoredUserToken</code> uses it like this:</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant A as Replica A
+    participant B as Replica B
+    participant S as UserTokenStore
+    participant G as GitHub
+    A-&gt;&gt;S: Get (version 1, expired)
+    B-&gt;&gt;S: Get (version 1, expired)
+    A-&gt;&gt;G: refresh with R1
+    G--&gt;&gt;A: new token, R2
+    B-&gt;&gt;G: refresh with R1
+    G--&gt;&gt;B: bad_refresh_token
+    A-&gt;&gt;S: Put, expected version 1
+    S--&gt;&gt;A: ok, version 2
+    B-&gt;&gt;S: poll until a version newer than 1 appears
+    S--&gt;&gt;B: version 2, fresh
+    Note over B: B returns the token A stored
+</code></pre>
+<ul>
+<li>The refresh that wins writes with the version it read. A write from a stale version fails with <code>ErrVersionConflict</code>, and the writer reads the stored token instead of overwriting it.</li>
+<li>A refresh that GitHub refuses doesn&rsquo;t mean the person has to reconnect yet. The winner may still be writing. The loser polls the store for up to <code>RaceWait</code> (two seconds by default) for a newer fresh version, and returns that. Only then does it answer <code>ErrReconnect</code>.</li>
+<li>Within one process, a mutex per subject serializes refreshes, so one replica never races itself.</li>
+</ul>
+<p><code>usertokentest.RunAll</code> checks a backend for this contract. One of its tests races sixteen writers from the same version and expects one success and fifteen conflicts.</p>
+<h4 id="backends">Backends <a class="anchor" href="#backends">¶</a></h4>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Compare-and-swap scope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outbound.MemoryUserTokenStore</code></td>
+<td>One process. For tests and single-process tools.</td>
+</tr>
+<tr>
+<td><code>stores/fs.FSUserTokenStore</code></td>
+<td>One process. A mutex covers check and rename, but two processes sharing the directory can both pass the check.</td>
+</tr>
+<tr>
+<td>GORM, GAE</td>
+<td>Not yet written. Replicas that refresh tokens need one of these.</td>
+</tr>
+</tbody>
+</table>
+<p>The FS store names each file by a SHA-256 of provider and subject. Two keys never share a file, and no subject can steer the path.</p>
+<h3 id="static-secrets">Static secrets <a class="anchor" href="#static-secrets">¶</a></h3>
+<p><code>Static</code> wraps a personal access token or another fixed bearer secret. It reads the secret from a <code>SecretRef</code> on every call, so rotating a mounted file needs no restart.</p>
+<p>A <code>SecretRef</code> names where a secret lives and never holds it:</p>
+<ul>
+<li><code>env:NAME</code> reads the environment variable <code>NAME</code>.</li>
+<li><code>file:/abs/path</code> reads the file. The path must be absolute.</li>
+</ul>
+<p><code>ParseSecretRef</code> refuses anything else, including a bare value. A token pasted into config fails at startup, and the error doesn&rsquo;t repeat it. <code>NewStatic</code> also resolves the reference once, so a missing secret fails at startup rather than on the first API call. Cloud secret managers are a later addition; their reference will be another prefix.</p>
+<h2 id="encryption-at-rest">Encryption at rest <a class="anchor" href="#encryption-at-rest">¶</a></h2>
+<p><code>keys.Sealer</code> holds the AES-256-GCM code that used to be private to <code>EncryptedKeyStorage</code>. Both key stores and <code>UserTokens</code> now use it.</p>
+<ul>
+<li>The output format is unchanged: <code>oaenc1:</code>, a random 12-byte nonce, then ciphertext and tag. Records written before this change still open.</li>
+<li>The AES key comes from the 64-hex-character master key through HKDF-SHA256 with a purpose label. The key stores use <code>oneauth-keystore-encryption-v1</code> (<code>keys.KeyStorePurpose</code>), as before. User tokens use <code>oneauth-outbound-user-token-v1</code>. One master key can serve both without the two sharing an AES key.</li>
+<li>Every seal carries associated data naming its record. For user tokens that is <code>oneauth-user-token</code>, the provider and the subject. A ciphertext copied into another person&rsquo;s record fails to open.</li>
+</ul>
+<h2 id="asking-for-more-scopes-later">Asking for more scopes later <a class="anchor" href="#asking-for-more-scopes-later">¶</a></h2>
+<p><code>GithubOAuth2</code> still asks for <code>read:user</code> and <code>user:email</code> by default. Two additions change that:</p>
+<ul>
+<li><code>SetScopes(...)</code> replaces the default for every login.</li>
+<li><code>AllowedExtraScopes</code> lists scopes a login link may add with <code>?scope=</code>. A person who signed in with the default scopes can later follow the provider&rsquo;s login path with <code>?scope=repo</code> added, and grant <code>repo</code>. A requested scope outside the list answers 400, so a crafted link can&rsquo;t ask for <code>delete_repo</code>. With the list empty, any <code>?scope=</code> is refused.</li>
+</ul>
+<p>Both live on <code>BaseOAuth2</code>, so the Google provider has them too.</p>
+<p>GitHub Apps ignore OAuth scopes. A user token from an App carries the App&rsquo;s permissions, limited to the repos the person installed it on. With an App, asking for more means sending the person to the App&rsquo;s installation page to add repos. That flow belongs to the consumer, since it depends on which repos the mount wants.</p>
+<h2 id="testing-with-the-fake-github">Testing with the fake GitHub <a class="anchor" href="#testing-with-the-fake-github">¶</a></h2>
+<p><code>outbound/githubtest</code> starts an <code>httptest.Server</code> that behaves like the parts of GitHub these sources touch:</p>
+<ul>
+<li><code>POST /app/installations/{id}/access_tokens</code> checks the JWT as GitHub does (RS256 only, the App&rsquo;s key, <code>iss</code>, at most ten minutes of life, not expired) and issues an installation token.</li>
+<li><code>POST /login/oauth/access_token</code> serves the refresh grant. Refresh tokens are single-use, and errors come back as 200 with an <code>error</code> field, as on GitHub.</li>
+<li><code>GET /installation/repositories</code> and <code>GET /user</code> answer 200 only for a live token of the matching kind, so a test can check a token works.</li>
+</ul>
+<p><code>InstallationCalls()</code>, <code>RefreshCalls()</code> and <code>LastJWTClaims()</code> let a test assert cache hits and claim values. Consumers&rsquo; tests use it the same way, as they use <code>keystoretest</code>.</p>
+<h2 id="where-a-secret-can-and-cannot-end-up">Where a secret can and cannot end up <a class="anchor" href="#where-a-secret-can-and-cannot-end-up">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Secret</th>
+<th>Can be in</th>
+<th>Must not be in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>App private key</td>
+<td>Memory, a mounted file, an <code>EncryptedKeyStorage</code> record</td>
+<td>Config files, logs, errors</td>
+</tr>
+<tr>
+<td>App JWT</td>
+<td>Memory, the <code>Authorization</code> header to GitHub</td>
+<td>Logs, errors (<code>GitHubAPIError</code> carries only GitHub&rsquo;s message)</td>
+</tr>
+<tr>
+<td>Installation token</td>
+<td>Memory (the cache), outgoing requests</td>
+<td>Any store, logs</td>
+</tr>
+<tr>
+<td>User access and refresh tokens</td>
+<td>Memory, a sealed <code>UserTokenStore</code> record, outgoing requests</td>
+<td>Plaintext in any store, <code>accounts.Channel</code>, logs, errors (<code>ErrReconnect</code> names the error code, never the token)</td>
+</tr>
+<tr>
+<td>PAT</td>
+<td>Its env var or file, memory, outgoing requests</td>
+<td>Config (a <code>SecretRef</code> names it instead), errors (<code>ErrSecretMissing</code> names the reference)</td>
+</tr>
+</tbody>
+</table>
+<p>Some limits:</p>
+<ul>
+<li>A process with the master key and store access can open every user token. The master key belongs in a secret manager or a mounted file, apart from the store.</li>
+<li><code>Delete</code> removes a stored token but doesn&rsquo;t revoke it at GitHub. A disconnect flow that must cut access at once also calls GitHub&rsquo;s token revocation endpoint.</li>
+<li><code>oauth2.Token</code> values are in memory unencrypted while in use, like any credential an HTTP client sends.</li>
+</ul>
+<h2 id="not-here">Not here <a class="anchor" href="#not-here">¶</a></h2>
+<p>goapplib&rsquo;s storage module keeps the connection record. It decides which mounts use which connection, whether a connection signs in for one person or as the server, and how it is configured. It builds one of these sources per connection.</p>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>
