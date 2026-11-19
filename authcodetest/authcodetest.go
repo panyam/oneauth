@@ -1,7 +1,6 @@
 // Package authcodetest provides a shared contract test suite for all
 // core.AuthorizationCodeStore implementations (RFC 6749 §4.1). Each
-// backend — in-memory, fs (follow-up), gorm (follow-up), gae
-// (follow-up) — exercises the same behavioral scenarios by handing
+// backend (in-memory, fs, gorm, gae) exercises the same behavioral scenarios by handing
 // this package a Factory closure and calling RunAll. Mirrors the
 // existing deviceauthtest precedent.
 //
@@ -58,6 +57,7 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("ReuseBeforeRecord", func(t *testing.T) { TestReuseBeforeRecord(t, factory) })
 	t.Run("CleanupKeepsUsedUntilTokenExpiry", func(t *testing.T) { TestCleanupKeepsUsedUntilTokenExpiry(t, factory) })
 	t.Run("OIDCFieldsRoundTrip", func(t *testing.T) { TestOIDCFieldsRoundTrip(t, factory) })
+	t.Run("ConcurrentConsumeOneWins", func(t *testing.T) { TestConcurrentConsumeOneWins(t, factory) })
 }
 
 func newCode() *core.AuthorizationCode {

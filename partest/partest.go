@@ -49,6 +49,7 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("Delete", func(t *testing.T) { TestDelete(t, factory) })
 	t.Run("CleanupExpired", func(t *testing.T) { TestCleanupExpired(t, factory) })
 	t.Run("RestartPersists", func(t *testing.T) { TestRestartPersists(t, factory) })
+	t.Run("ConcurrentConsumeOneWins", func(t *testing.T) { TestConcurrentConsumeOneWins(t, factory) })
 }
 
 const testRequestURI = core.PushedRequestURIPrefix + "abc123"

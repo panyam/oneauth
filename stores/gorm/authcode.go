@@ -15,7 +15,10 @@ import (
 // AuthorizationCodeModel is the GORM model for RFC 6749 §4.1
 // authorization codes. Schema notes:
 //
-//   - Code is the primary key (256-bit hex; unique by construction).
+//   - Code is the primary key. New rows hold core.AtRestKey(code), the
+//     SHA-256 digest, so a copy of the table can't redeem a code; rows
+//     written before that hold the plaintext, and lookups match either
+//     (see codeKeys).
 //   - ClientID is indexed so a future "revoke all codes for client X"
 //     operation (if needed) stays cheap.
 //   - ExpiresAt is indexed so CleanupExpired's range scan stays
@@ -94,14 +97,16 @@ func (s *AuthorizationCodeStore) CreateAuthorizationCode(ctx context.Context, re
 	// lookup hits the primary key.
 	var existing int64
 	if err := s.db.WithContext(ctx).Model(&AuthorizationCodeModel{}).
-		Where("code = ?", c.Code).Count(&existing).Error; err != nil {
+		Where("code IN ?", codeKeys(c.Code)).Count(&existing).Error; err != nil {
 		return nil, err
 	}
 	if existing > 0 {
 		return nil, errors.New("CreateAuthorizationCode: code collision")
 	}
 
-	if err := s.db.WithContext(ctx).Create(authCodeToModel(c)).Error; err != nil {
+	m := authCodeToModel(c)
+	m.Code = core.AtRestKey(c.Code)
+	if err := s.db.WithContext(ctx).Create(m).Error; err != nil {
 		return nil, err
 	}
 	return &core.CreateAuthorizationCodeResponse{}, nil
@@ -116,13 +121,13 @@ func (s *AuthorizationCodeStore) GetAuthorizationCode(ctx context.Context, req *
 		return nil, core.ErrAuthorizationCodeNotFound
 	}
 	var model AuthorizationCodeModel
-	if err := s.db.WithContext(ctx).First(&model, "code = ?", req.Code).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "code IN ?", codeKeys(req.Code)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, core.ErrAuthorizationCodeNotFound
 		}
 		return nil, err
 	}
-	return &core.GetAuthorizationCodeResponse{Code: modelToAuthCode(&model)}, nil
+	return &core.GetAuthorizationCodeResponse{Code: modelToAuthCode(&model, req.Code)}, nil
 }
 
 // ConsumeAuthorizationCode marks an unused code used. The conditional
@@ -141,22 +146,22 @@ func (s *AuthorizationCodeStore) ConsumeAuthorizationCode(ctx context.Context, r
 	used := false
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
-		res := tx.Model(&AuthorizationCodeModel{}).Where("code = ? AND used_at IS NULL", req.Code).Update("used_at", now)
+		res := tx.Model(&AuthorizationCodeModel{}).Where("code IN ? AND used_at IS NULL", codeKeys(req.Code)).Update("used_at", now)
 		if res.Error != nil {
 			return res.Error
 		}
 		if res.RowsAffected == 1 {
-			if err := tx.First(&model, "code = ?", req.Code).Error; err != nil {
+			if err := tx.First(&model, "code IN ?", codeKeys(req.Code)).Error; err != nil {
 				return err
 			}
 			model.UsedAt = nil
 			return nil
 		}
 		used = true
-		if err := tx.Model(&AuthorizationCodeModel{}).Where("code = ?", req.Code).Update("reuse_detected", true).Error; err != nil {
+		if err := tx.Model(&AuthorizationCodeModel{}).Where("code IN ?", codeKeys(req.Code)).Update("reuse_detected", true).Error; err != nil {
 			return err
 		}
-		return tx.First(&model, "code = ?", req.Code).Error
+		return tx.First(&model, "code IN ?", codeKeys(req.Code)).Error
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -164,7 +169,7 @@ func (s *AuthorizationCodeStore) ConsumeAuthorizationCode(ctx context.Context, r
 		}
 		return nil, err
 	}
-	resp := &core.ConsumeAuthorizationCodeResponse{Code: modelToAuthCode(&model)}
+	resp := &core.ConsumeAuthorizationCodeResponse{Code: modelToAuthCode(&model, req.Code)}
 	if used {
 		return resp, core.ErrAuthorizationCodeUsed
 	}
@@ -182,14 +187,14 @@ func (s *AuthorizationCodeStore) RecordAuthorizationCodeTokens(ctx context.Conte
 	}
 	var model AuthorizationCodeModel
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&AuthorizationCodeModel{}).Where("code = ?", req.Code).Updates(map[string]any{
+		if err := tx.Model(&AuthorizationCodeModel{}).Where("code IN ?", codeKeys(req.Code)).Updates(map[string]any{
 			"issued_token_id":         req.TokenID,
 			"issued_token_expires_at": nullableTime(req.TokenExpiresAt),
 			"issued_refresh_family":   req.RefreshFamily,
 		}).Error; err != nil {
 			return err
 		}
-		return tx.First(&model, "code = ?", req.Code).Error
+		return tx.First(&model, "code IN ?", codeKeys(req.Code)).Error
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -210,7 +215,7 @@ func (s *AuthorizationCodeStore) DeleteAuthorizationCode(ctx context.Context, re
 	if req == nil || req.Code == "" {
 		return nil, core.ErrAuthorizationCodeNotFound
 	}
-	result := s.db.WithContext(ctx).Delete(&AuthorizationCodeModel{}, "code = ?", req.Code)
+	result := s.db.WithContext(ctx).Delete(&AuthorizationCodeModel{}, "code IN ?", codeKeys(req.Code))
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -258,10 +263,21 @@ func authCodeToModel(c *core.AuthorizationCode) *AuthorizationCodeModel {
 	}
 }
 
-// modelToAuthCode maps the GORM model back to the public struct.
-func modelToAuthCode(m *AuthorizationCodeModel) *core.AuthorizationCode {
+// codeKeys is what a code may be stored under: core.AtRestKey for rows
+// written since codes were hashed at rest, or the plaintext for rows from
+// before. Matching both lets an upgrade proceed with codes in flight: an
+// unused code lives 60 seconds, and a used one is kept until its access
+// token expires so reuse can still revoke it. The plaintext case can go
+// once no deployment has rows older than that.
+func codeKeys(code string) []string {
+	return []string{core.AtRestKey(code), code}
+}
+
+// modelToAuthCode maps the GORM model back to the public struct. The row
+// holds only the digest, so the code comes from the caller's request.
+func modelToAuthCode(m *AuthorizationCodeModel, code string) *core.AuthorizationCode {
 	return &core.AuthorizationCode{
-		Code:                 m.Code,
+		Code:                 code,
 		ClientID:             m.ClientID,
 		RedirectURI:          m.RedirectURI,
 		Scopes:               m.Scopes,
