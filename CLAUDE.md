@@ -14,7 +14,7 @@ Each package has a `SUMMARY.md`. Subsystem gotchas live in a `CLAUDE.md` beside 
 | `apiauth/` | Token endpoint, authorize, DPoP, OIDC, introspection, revocation; standards table | [apiauth/CLAUDE.md](apiauth/CLAUDE.md) |
 | `localauth/` / `httpauth/` | Signup/login/reset; middleware, CSRF, sessions | [localauth](localauth/CLAUDE.md), [httpauth](httpauth/CLAUDE.md) |
 | `client/` | SDK (`AuthClient`, browser login, discovery) | [client/CLAUDE.md](client/CLAUDE.md) |
-| `outbound/` | Token sources for third-party APIs (GitHub App, stored user tokens, static secrets) | [docs/OUTBOUND_CREDENTIALS.md](docs/OUTBOUND_CREDENTIALS.md) |
+| `outbound/` | Token sources for third-party APIs (GitHub App, stored user tokens, static secrets) | [outbound/CLAUDE.md](outbound/CLAUDE.md) |
 | `stores/` | FS, GORM, GAE backends | [stores/CLAUDE.md](stores/CLAUDE.md) |
 | `*test/` | Shared contract suites; every backend runs `RunAll(t, factory)` | |
 | `sshkeys/` | Ed25519 SSH keypairs (own go.mod) | |
@@ -33,6 +33,8 @@ make test          # Unit tests
 make e2e           # E2E tests (in-process)
 make testkcl       # Keycloak + RAR interop (auto-starts Docker)
 make testoidf      # OIDF FAPI 2.0 plan
+make testpg / testds  # GORM on Postgres, GAE on the Datastore emulator
+make testgh        # outbound against real GitHub (never in CI; see outbound/CLAUDE.md)
 make testall       # Everything + report
 make fmt / fmtcheck / vulncheck
 make tag V=v0.0.X && make pushtag V=v0.0.X
@@ -63,6 +65,7 @@ Rationale in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Shipped vs in flight 
 - **gofmt is a CI gate** for every tracked `.go` file in every module. `make fmt` fixes it, and the cleanup commit is in `.git-blame-ignore-revs`.
 - **Keep the `go` directive in lock-step** across `go.work` and every module, since stdlib CVEs need it. `make vulncheck` is the gate.
 - **CodeQL reports errors as PR checks.** It flags `ParseUnverified` on request input even after verification elsewhere, and SHA-256 over a field named like a secret. Take claims from the validator's `TokenInfo`, and compare keys directly.
+- **A sub-module can only use root code that is in a root tag.** Sub-modules require a tagged root (`verify-submodule-deps`), so new root API used by `stores/gorm` or `stores/gae` ships as: merge root, tag, then `make bump-root V=...` in the sub-module PR.
 - **Local `main` can be locked by another worktree.** Cut branches from `origin/main` (`git checkout -b feat/X origin/main`).
 
 ## Issues, gaps, memories

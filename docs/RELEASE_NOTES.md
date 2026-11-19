@@ -5,6 +5,32 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.6
+
+This release gives `outbound` user tokens stores that replicas can share, and a way to revoke a token when a person disconnects. It also adds a live smoke test against real GitHub, which corrected our fake GitHub in three places. The sub-modules now require root v0.3.5, so `stores/gorm` and `stores/gae` can use `outbound`.
+
+### User-token stores for replicas (issue 468, PR 470)
+
+- **`stores/gorm.UserTokenStore`** does compare-and-swap in one SQL statement: an insert with `ON CONFLICT DO NOTHING`, or an update `WHERE version = ?`. Its table is `outbound_user_tokens`, added to `AutoMigrate`.
+- **`stores/gae.GAEUserTokenStore`** does the read, compare and write in one Datastore transaction, under kind `OutboundUserToken`.
+- Both pass `usertokentest.RunAll` on Postgres and on the Datastore emulator.
+
+### Revoke on disconnect (PR 470)
+
+- **`UserTokens.Revoke`** revokes a person's token at the provider through a `TokenRevoker`, then deletes the record. Any failure keeps the record, so it can be retried.
+- **`outbound.GitHubRevoker`** calls `DELETE /applications/{client_id}/token`, or `/grant` with `RevokeGrant` to remove the whole authorization. Only a 204 counts, since GitHub answers 404 both for an already-revoked token and for wrong client credentials.
+- **Behaviour change:** a refresh that loses a race with `Delete` or `Revoke` now answers `ErrUserTokenNotFound`. Before, it handed out the token it had just refreshed.
+
+### Live GitHub smoke test (PR 471)
+
+- **`make testgh`** runs `outbound` against github.com. It never runs in `make test` or CI. It covers a PAT, App installation tokens, a token narrowed to one repo, caching, refusals, and an opt-in device-flow refresh-and-revoke. Setup is in `docs/OUTBOUND_CREDENTIALS.md` and needs no callback URL.
+- **`outbound/githubtest` now matches real GitHub** for an unknown App ID (404 "Integration not found"), for refresh (the previous access token stops working) and for revoking twice (404). Consumers' tests that reused an access token after a refresh will now see it refused, as GitHub would.
+
+### Fixes
+
+- **GAE refresh-token store kept every concurrent access token** (PR 471). `RecordAccessToken` and the per-member transaction in `RevokeTokenFamily` now allow 10 attempts rather than Datastore's default 3. Before, about one run in 70 of five concurrent records lost one, and family revocation then missed it.
+- **The GORM Postgres test helper closes the connection it uses to create a schema** (PR 470). It used to leak one per test until `make testpg` hit Postgres's client limit.
+
 ## Version 0.3.5
 
 This release adds `outbound/`, for an app calling someone else's API as itself or for one of its users. goapplib's storage mounts over private GitHub repos are the first consumer. The sub-modules still require the root at v0.3.4. The next release bumps them, together with the GORM and GAE user-token stores (issue 468).

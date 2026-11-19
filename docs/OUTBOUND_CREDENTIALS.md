@@ -188,6 +188,11 @@ Some limits:
 - The per-subject lock covers one process. A replica that refreshes while another revokes can't write its token back, since an update to a deleted record is a conflict, and it answers `ErrUserTokenNotFound`. The token it got from GitHub is never stored or handed out. After a `/token` revoke that token is still live at GitHub until it expires, though. A `/grant` revoke kills it too, so use `RevokeGrant` when that matters.
 - `oauth2.Token` values are in memory unencrypted while in use, like any credential an HTTP client sends.
 
+## Later
+
+- **S3 and GCS.** The server's own cloud identity as a source, and a `SecretRef` prefix for cloud secret managers. They likely want a sub-module, since the cloud SDKs are heavy. Nothing needs them yet, and goapplib's storage mounts are the expected first consumer.
+- **`make testgh` in CI.** Checks 1 to 5 could run as a `workflow_dispatch` job with the App's key as a repo secret. For now the manual run is the gate, which keeps the key out of CI.
+
 ## Not here
 
 goapplib's storage module keeps the connection record. It decides which mounts use which connection, whether a connection signs in for one person or as the server, and how it is configured. It builds one of these sources per connection.
