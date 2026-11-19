@@ -15,7 +15,7 @@ import (
 func TestLoadExpectations_RepositoryManifest(t *testing.T) {
 	got, err := oidfplan.LoadExpectations(filepath.Join("..", "..", "conformance", "known-gaps.yaml"), PlanName)
 	require.NoError(t, err)
-	assert.Len(t, got, 17)
+	assert.Len(t, got, 16)
 	for _, e := range got {
 		if e.Status == oidfplan.StatusExpectedReview {
 			assert.Contains(t, ModuleBrowsers(testSetup()), e.Module, "a REVIEW module needs a browser override")

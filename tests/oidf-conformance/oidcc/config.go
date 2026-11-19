@@ -100,6 +100,13 @@ func BrowserAutomation(s Setup) []oidfplan.BrowserTask {
 //   - ensure-registered-redirect-uri: an unregistered redirect URI gets
 //     oneauth's error page, never a redirect; the browser fills the
 //     module's screenshot placeholder with it.
+//   - unsigned-request-object-supported-correctly-or-rejected-as-unsupported:
+//     oneauth refuses request objects with request_not_supported at the
+//     redirect URI (OIDC Core §6.1), so the browser goes straight to the
+//     harness callback, as for response-type-missing.
+//   - ensure-request-object-with-redirect-uri: the outer redirect_uri is
+//     unregistered, and oneauth doesn't read the one inside the request
+//     object, so it shows its error page.
 //   - prompt-login and max-age-1: the second authorization must show the
 //     login page again. The browser captures it for the screenshot
 //     placeholder and logs in. If oneauth skips the login, that step meets
@@ -123,10 +130,12 @@ func ModuleBrowsers(s Setup) map[string][]oidfplan.BrowserTask {
 		},
 	}}}
 	return map[string][]oidfplan.BrowserTask{
-		PlanModule("response-type-missing"):          {{Match: authorize, Tasks: []oidfplan.BrowserStep{oidfplan.CallbackStep()}}},
-		PlanModule("ensure-registered-redirect-uri"): {errorPage},
-		PlanModule("prompt-login"):                   {firstVisitOnly, secondLogin},
-		PlanModule("max-age-1"):                      {firstVisitOnly, secondLogin},
+		PlanModule("response-type-missing"):                                                  {{Match: authorize, Tasks: []oidfplan.BrowserStep{oidfplan.CallbackStep()}}},
+		PlanModule("ensure-registered-redirect-uri"):                                         {errorPage},
+		PlanModule("ensure-request-object-with-redirect-uri"):                                {errorPage},
+		PlanModule("unsigned-request-object-supported-correctly-or-rejected-as-unsupported"): {{Match: authorize, Tasks: []oidfplan.BrowserStep{oidfplan.CallbackStep()}}},
+		PlanModule("prompt-login"):                                                           {firstVisitOnly, secondLogin},
+		PlanModule("max-age-1"):                                                              {firstVisitOnly, secondLogin},
 	}
 }
 
