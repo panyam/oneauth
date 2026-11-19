@@ -173,6 +173,7 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 		RedirectOverride:      cfg.RedirectOverride,
 		Expiry:                cfg.Expiry,
 		AllowPlainPKCE:        cfg.OneAuth.AllowPlainPKCE,
+		PKCEPolicy:            cfg.OneAuth.PKCEPolicy,
 		PushedStore:           cfg.PushedStore,
 		RequirePushedRequests: cfg.RequirePushedRequests,
 	}

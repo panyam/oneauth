@@ -69,6 +69,12 @@ type CodeFlowConfig struct {
 	// the same store backend as the codes.
 	PAR PARConfig `yaml:"par"`
 
+	// PKCE says which clients must send a PKCE code_challenge: required
+	// (the default, OAuth 2.1) or optional_for_confidential, which lets a
+	// client registered with a confidential auth method omit it, as
+	// OpenID Connect Core allows. fapi2 needs required.
+	PKCE string `yaml:"pkce"`
+
 	// OIDC turns on OpenID Connect Core: an `openid` code grant returns an
 	// ID token, GET / POST /userinfo serves the user's profile claims, and
 	// discovery advertises both. It needs jwt.signing_alg RS256 or ES256,

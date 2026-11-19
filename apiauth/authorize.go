@@ -151,6 +151,10 @@ type AuthorizationHandler struct {
 	// Per capability-gating umbrella #344.
 	AllowPlainPKCE bool
 
+	// PKCEPolicy says which clients may omit code_challenge; see
+	// PKCEPolicy. MountAuthorize copies OneAuthConfig.PKCEPolicy here.
+	PKCEPolicy PKCEPolicy
+
 	// allowPlainPKCEWarning fires once per AuthorizationHandler
 	// instance the first time a plain code_challenge is accepted at
 	// runtime. Surfaces the OAuth 2.0 escape hatch to operators who
@@ -319,40 +323,8 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 		return req, false, "unsupported_response_type", "only response_type=code is supported"
 	}
 
-	if req.CodeChallenge == "" {
-		// OAuth 2.1 mandates PKCE for all clients; even pre-2.1 we
-		// require it because public clients cannot prove identity
-		// without it.
-		return req, false, "invalid_request", "code_challenge is required (PKCE)"
-	}
-	if req.CodeChallengeMethod == "" {
-		// RFC 7636 §4.3 defaults to "plain" when omitted. We require
-		// the method to be sent explicitly so the client's intent is
-		// unambiguous on the wire — and so a misconfigured client
-		// doesn't accidentally pick the weaker method.
-		return req, false, "invalid_request", "code_challenge_method is required"
-	}
-	switch req.CodeChallengeMethod {
-	case core.CodeChallengeMethodS256:
-		// OAuth 2.1 §7.5 mandated default; always accepted. The challenge
-		// is a base64url SHA-256, so exactly 43 characters (RFC 7636 §4.2).
-		if !s256Challenge.MatchString(req.CodeChallenge) {
-			return req, false, "invalid_request", "code_challenge is not a base64url SHA-256 (43 characters)"
-		}
-	case core.CodeChallengeMethodPlain:
-		if !pkceVerifierShape.MatchString(req.CodeChallenge) {
-			return req, false, "invalid_request", "code_challenge must be 43 to 128 unreserved characters"
-		}
-		if !h.AllowPlainPKCE {
-			return req, false, "invalid_request", "only S256 PKCE is supported (set OneAuthConfig.AllowPlainPKCE to permit plain for OAuth 2.0 fleets)"
-		}
-		h.allowPlainPKCEWarning.Do(func() {
-			log.Printf("apiauth.AuthorizationHandler: LEGACY OAuth 2.0 PATH — code_challenge_method=plain accepted. " +
-				"OAuth 2.1 §7.5 retired plain; the challenge equals the verifier, so any leaked authorization " +
-				"request equals a leaked verifier. Disable by leaving OneAuthConfig.AllowPlainPKCE false.")
-		})
-	default:
-		return req, false, "invalid_request", fmt.Sprintf("unsupported code_challenge_method=%q", req.CodeChallengeMethod)
+	if code, desc := h.validatePKCE(ctx, req); code != "" {
+		return req, false, code, desc
 	}
 
 	// The client's registered scope bounds what it can ask for (RFC 6749
@@ -369,6 +341,54 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 	req.Scope = core.JoinScopes(scopes)
 
 	return req, false, "", ""
+}
+
+// validatePKCE checks the request's code_challenge and method (RFC 7636)
+// and returns an OAuth error code and description, or two empty strings
+// when the request may go ahead. A request without a challenge goes ahead
+// only under PKCEOptionalForConfidential, from a registered confidential
+// client.
+func (h *AuthorizationHandler) validatePKCE(ctx context.Context, req *AuthorizationRequest) (errCode, errDescription string) {
+	if req.CodeChallenge == "" {
+		// OAuth 2.1 mandates PKCE for all clients, and that is the
+		// default. PKCEOptionalForConfidential lets a registered
+		// confidential client omit it, as OIDC Core allows; the code grant
+		// then requires that client to authenticate.
+		if h.PKCEPolicy == PKCEOptionalForConfidential && req.CodeChallengeMethod == "" && h.isConfidentialClient(ctx, req.ClientID) {
+			return "", ""
+		}
+		return "invalid_request", "code_challenge is required (PKCE)"
+	}
+	if req.CodeChallengeMethod == "" {
+		// RFC 7636 §4.3 defaults to "plain" when omitted. We require
+		// the method to be sent explicitly so the client's intent is
+		// unambiguous on the wire — and so a misconfigured client
+		// doesn't accidentally pick the weaker method.
+		return "invalid_request", "code_challenge_method is required"
+	}
+	switch req.CodeChallengeMethod {
+	case core.CodeChallengeMethodS256:
+		// OAuth 2.1 §7.5 mandated default; always accepted. The challenge
+		// is a base64url SHA-256, so exactly 43 characters (RFC 7636 §4.2).
+		if !s256Challenge.MatchString(req.CodeChallenge) {
+			return "invalid_request", "code_challenge is not a base64url SHA-256 (43 characters)"
+		}
+	case core.CodeChallengeMethodPlain:
+		if !pkceVerifierShape.MatchString(req.CodeChallenge) {
+			return "invalid_request", "code_challenge must be 43 to 128 unreserved characters"
+		}
+		if !h.AllowPlainPKCE {
+			return "invalid_request", "only S256 PKCE is supported (set OneAuthConfig.AllowPlainPKCE to permit plain for OAuth 2.0 fleets)"
+		}
+		h.allowPlainPKCEWarning.Do(func() {
+			log.Printf("apiauth.AuthorizationHandler: LEGACY OAuth 2.0 PATH — code_challenge_method=plain accepted. " +
+				"OAuth 2.1 §7.5 retired plain; the challenge equals the verifier, so any leaked authorization " +
+				"request equals a leaked verifier. Disable by leaving OneAuthConfig.AllowPlainPKCE false.")
+		})
+	default:
+		return "invalid_request", fmt.Sprintf("unsupported code_challenge_method=%q", req.CodeChallengeMethod)
+	}
+	return "", ""
 }
 
 // s256Challenge is a base64url-encoded SHA-256 without padding (RFC 7636
@@ -476,6 +496,20 @@ func (h *AuthorizationHandler) ErrorRedirect(req *AuthorizationRequest, errCode,
 		h.RedirectOverride(values)
 	}
 	return appendQuery(req.RedirectURI, values)
+}
+
+// isConfidentialClient reports whether clientID is registered in AppStore
+// with a confidential token_endpoint_auth_method. With no AppStore, or a
+// lookup that fails, it reports false, so PKCE stays required.
+func (h *AuthorizationHandler) isConfidentialClient(ctx context.Context, clientID string) bool {
+	if h.AppStore == nil || clientID == "" {
+		return false
+	}
+	resp, err := h.AppStore.GetApp(ctx, &core.GetAppRequest{ClientID: clientID})
+	if err != nil || resp == nil || resp.App == nil {
+		return false
+	}
+	return isConfidentialAuthMethod(resp.App.TokenEndpointAuthMethod)
 }
 
 func (h *AuthorizationHandler) validateRedirectURI(ctx context.Context, clientID, redirectURI string) error {

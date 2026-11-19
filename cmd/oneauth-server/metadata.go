@@ -106,5 +106,26 @@ func checkFAPI2(cfg *Config) error {
 	if cfg.CodeFlow.Enabled && !cfg.CodeFlow.PAR.Enabled {
 		return fmt.Errorf("fapi2 with code_flow needs code_flow.par.enabled: FAPI 2.0 §5.3.2.2 accepts authorization requests only through PAR")
 	}
+	if pkcePolicy(cfg) != apiauth.PKCERequired {
+		return fmt.Errorf("fapi2 needs code_flow.pkce: required: FAPI 2.0 §5.3.2.2 requires PKCE from every client")
+	}
 	return nil
+}
+
+// checkPKCE refuses a code_flow.pkce value the server doesn't know.
+func checkPKCE(cfg *Config) error {
+	switch cfg.CodeFlow.PKCE {
+	case "", "required", string(apiauth.PKCEOptionalForConfidential):
+		return nil
+	}
+	return fmt.Errorf("code_flow.pkce must be required or optional_for_confidential, got %q", cfg.CodeFlow.PKCE)
+}
+
+// pkcePolicy maps code_flow.pkce to the apiauth policy; checkPKCE has
+// already refused anything else.
+func pkcePolicy(cfg *Config) apiauth.PKCEPolicy {
+	if cfg.CodeFlow.PKCE == string(apiauth.PKCEOptionalForConfidential) {
+		return apiauth.PKCEOptionalForConfidential
+	}
+	return apiauth.PKCERequired
 }

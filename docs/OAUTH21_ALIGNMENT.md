@@ -12,7 +12,7 @@ The library has a full authorization endpoint (`apiauth.MountAuthorize`, PR 297)
 
 | # | OAuth 2.1 requirement | OneAuth state | Verdict | Action |
 |---|---|---|---|---|
-| 1 | PKCE required for all authorization code flows | `/authorize` refuses a request without `code_challenge` and checks its shape; the token endpoint requires `code_verifier`, checks its shape and verifies it. The client SDK sends S256 and refuses an AS that doesn't advertise it. | **Compliant.** | None. |
+| 1 | PKCE required for all authorization code flows | `/authorize` refuses a request without `code_challenge` and checks its shape; the token endpoint requires `code_verifier`, checks its shape and verifies it. The client SDK sends S256 and refuses an AS that doesn't advertise it. | **Compliant by default.** `OneAuthConfig.PKCEPolicy = PKCEOptionalForConfidential` (issue 290) lets registered confidential clients omit it, as OIDC Core allows. | None. |
 | 2 | Implicit grant removed | `/authorize` accepts only `response_type=code`. The reference server advertises `response_types_supported: ["code"]`, and only with `code_flow` on. | **Compliant.** | None. |
 | 3 | ROPC removed (no `grant_type=password`) | The token endpoint answers `unsupported_grant_type` while `OneAuthConfig.PasswordGranter` is nil, and always under `FAPI2`. | **Compliant by default.** Opt-in retained for OAuth 2.0 deployments. | The reference server wires the granter outside `fapi2`; it has no config switch for it yet. |
 | 4 | Exact redirect URI matching (no wildcards, no substring) | `/authorize` compares against the client's registered URIs with `RedirectURIMatches`. A loopback `http` redirect matches on any port (RFC 8252 §7.3). With no client registry, `/authorize` refuses every request unless `AllowAnyRedirectURI` is set. | **Compliant.** | None. |
@@ -31,6 +31,8 @@ OAuth 2.1 requires PKCE from every client, public and confidential, on the autho
 On the server, `AuthorizationHandler.ValidateValues` (`apiauth/authorize.go`) refuses a request without `code_challenge` with `invalid_request`. Since 0.1.49 it also checks the RFC 7636 shape: an S256 challenge is exactly 43 base64url characters, and a plain challenge 43 to 128 unreserved characters. At the token endpoint, `authorizationCodeGranter.AuthorizationCodeGrant` (`apiauth/authorize_granter.go`) requires `code_verifier`, refuses one outside the 43 to 128 character shape, and compares it with `core.VerifyPKCE`.
 
 On the client, `AuthClient.LoginWithBrowser` (`client/browser_login.go`) refuses an AS whose metadata lacks `S256` in `code_challenge_methods_supported`, and `buildAuthorizationURL` always sends `code_challenge_method=S256`.
+
+An OpenID Connect provider has to accept confidential clients that send no PKCE, since OIDC Core and OAuth 2.0 allow them to (the OIDF Basic OP plan's clients send it in one module of 38). `OneAuthConfig.PKCEPolicy = PKCEOptionalForConfidential`, or `code_flow.pkce: optional_for_confidential` on the reference server, allows that for clients registered with a confidential `token_endpoint_auth_method`. The code grant then redeems such a code only for a client that authenticated, and refuses a `code_verifier` sent for it, the PKCE downgrade RFC 9700 §2.1.1 warns about. Public clients still need PKCE, and `FAPI2` refuses the setting.
 
 ### 2. Implicit grant: compliant
 
