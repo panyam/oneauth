@@ -413,6 +413,18 @@ surface smaller.</li>
 <td><code>response_type=code</code> only; the ID token comes from the token endpoint</td>
 </tr>
 <tr>
+<td>Authorization request by POST (§3.1.2.1)</td>
+<td><strong>Implemented</strong> (#478)</td>
+<td><code>postedAuthorizationRequest</code> in <code>apiauth/authorize_mount.go</code></td>
+<td>A POST without <code>action</code> is sent to <code>GET /authorize</code> with a 303, ahead of the CSRF middleware; the consent form&rsquo;s own POST always carries <code>action</code></td>
+</tr>
+<tr>
+<td><code>request</code> / <code>request_uri</code> parameters (§6)</td>
+<td><strong>Refused</strong> (#479)</td>
+<td><code>AuthorizationHandler.ValidateValues</code>, <code>ParseAndValidate</code></td>
+<td><code>request_not_supported</code> and <code>request_uri_not_supported</code> at the redirect URI, with <code>state</code>, as §6.1 and §6.2 allow an OP that doesn&rsquo;t support them. A <code>request_uri</code> from oneauth&rsquo;s own <code>/par</code> still resolves. Request objects themselves are JAR, see <a href="RFC_9101.md"><code>RFC_9101.md</code></a></td>
+</tr>
+<tr>
 <td><code>id_token</code> issuance</td>
 <td><strong>Implemented</strong> (#339)</td>
 <td><code>apiauth/oidc.go</code> <code>IDTokenIssuer</code> / <code>NewJWTIDTokenIssuer</code>, called by <code>authorizationCodeGranter</code></td>

@@ -374,14 +374,14 @@ for non-repudiation.</li>
 <tr>
 <td><code>request</code> parameter at <code>/authorize</code></td>
 <td><strong>Gap</strong></td>
-<td><code>apiauth/authorize.go</code> <code>AuthorizationHandler.ParseAndValidate</code> does not read <code>request</code>; it reads <code>request_uri</code> (for PAR) and otherwise only <code>client_id</code> / <code>redirect_uri</code> / <code>response_type</code> / <code>scope</code> / <code>state</code> / <code>code_challenge</code> / <code>code_challenge_method</code> / <code>dpop_jkt</code></td>
+<td><code>apiauth/authorize.go</code> <code>AuthorizationHandler.ValidateValues</code> refuses it with <code>request_not_supported</code> (OIDC Core §6.1, #479)</td>
 <td>Tracked under #338</td>
 </tr>
 <tr>
 <td><code>request_uri</code> parameter at <code>/authorize</code></td>
 <td><strong>Partial</strong></td>
 <td><code>AuthorizationHandler.ParseAndValidate</code> → <code>resolvePushedRequest</code></td>
-<td>Works for references issued by oneauth&rsquo;s own <code>/par</code> since 0.1.38 (see <a href="RFC_9126.md"><code>RFC_9126.md</code></a>). Fetching a request object from a client-hosted URL, and signed request objects in general, are the gap (#338)</td>
+<td>Works for references issued by oneauth&rsquo;s own <code>/par</code> since 0.1.38 (see <a href="RFC_9126.md"><code>RFC_9126.md</code></a>). Any other reference gets <code>request_uri_not_supported</code> (#479). Fetching a request object from a client-hosted URL, and signed request objects in general, are the gap (#338)</td>
 </tr>
 <tr>
 <td>Request JWT signature validation</td>
