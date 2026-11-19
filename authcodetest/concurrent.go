@@ -1,6 +1,7 @@
 package authcodetest
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -22,15 +23,25 @@ func TestConcurrentConsumeOneWins(t *testing.T, factory Factory) {
 	createCode(t, s, newCode())
 
 	const n = 8
-	var wg sync.WaitGroup
+	var wg, ready sync.WaitGroup
 	errs := make([]error, n)
+	start := make(chan struct{})
 	for i := range n {
 		wg.Add(1)
+		ready.Add(1)
 		go func() {
 			defer wg.Done()
+			// A read first gives a pooled backend one live connection per
+			// goroutine, so the consumes overlap instead of queuing on
+			// connection setup.
+			_, _ = s.GetAuthorizationCode(context.Background(), &core.GetAuthorizationCodeRequest{Code: "code-abc"})
+			ready.Done()
+			<-start
 			_, errs[i] = consume(s, "code-abc")
 		}()
 	}
+	ready.Wait()
+	close(start)
 	wg.Wait()
 
 	wins, used := 0, 0

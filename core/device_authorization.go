@@ -212,13 +212,18 @@ type DeviceAuthorizationStore interface {
 	GetByDeviceCode(ctx context.Context, req *GetByDeviceCodeRequest) (*GetByDeviceCodeResponse, error)
 
 	// GetByUserCode returns the authorization for the given user_code (case-
-	// insensitive comparison), or ErrDeviceAuthorizationNotFound.
+	// insensitive comparison), or ErrDeviceAuthorizationNotFound. Its
+	// DeviceCode is empty: persistent stores keep only
+	// AtRestKey(device_code), so a copy of the store can't poll for tokens,
+	// and nothing reached by user_code can recover the code (issue 473).
 	GetByUserCode(ctx context.Context, req *GetByUserCodeRequest) (*GetByUserCodeResponse, error)
 
 	// ApproveDeviceAuthorization transitions a pending authorization to
 	// approved and binds the subject + scopes that the user consented to.
 	// Returns ErrDeviceAuthorizationNotFound when no pending record matches
-	// user_code.
+	// user_code, so of racing approvals and denials exactly one succeeds.
+	// The returned authorization's DeviceCode is empty, as for
+	// GetByUserCode.
 	ApproveDeviceAuthorization(ctx context.Context, req *ApproveDeviceAuthorizationRequest) (*ApproveDeviceAuthorizationResponse, error)
 
 	// DenyDeviceAuthorization transitions a pending authorization to
@@ -312,6 +317,7 @@ func (s *InMemoryDeviceAuthorizationStore) GetByUserCode(_ context.Context, req 
 		return nil, ErrDeviceAuthorizationNotFound
 	}
 	clone := *a
+	clone.DeviceCode = ""
 	return &GetByUserCodeResponse{Authorization: &clone}, nil
 }
 
@@ -335,6 +341,7 @@ func (s *InMemoryDeviceAuthorizationStore) ApproveDeviceAuthorization(_ context.
 		a.Scopes = req.GrantedScopes
 	}
 	clone := *a
+	clone.DeviceCode = ""
 	return &ApproveDeviceAuthorizationResponse{Authorization: &clone}, nil
 }
 

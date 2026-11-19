@@ -15,7 +15,10 @@ import (
 // DeviceAuthorizationModel is the GORM model for RFC 8628 device
 // authorization records. Schema notes:
 //
-//   - DeviceCode is the primary key (256-bit hex; unique by construction).
+//   - DeviceCode is the primary key. New rows hold core.AtRestKey of the
+//     device code, so a copy of the table can't poll for tokens; rows
+//     written before issue 473 hold the plaintext, and lookups match
+//     either (see deviceCodeKeys).
 //   - UserCodeUpper is the normalized form (upper-case, dashes/spaces
 //     stripped) and carries the only index for the user_code lookup
 //     path. Storing a denormalized column instead of a functional index
@@ -91,7 +94,7 @@ func (s *DeviceAuthStore) CreateDeviceAuthorization(ctx context.Context, req *co
 	// indexes and the table is small in practice.
 	var existingDC int64
 	if err := s.db.WithContext(ctx).Model(&DeviceAuthorizationModel{}).
-		Where("device_code = ?", a.DeviceCode).Count(&existingDC).Error; err != nil {
+		Where("device_code IN ?", deviceCodeKeys(a.DeviceCode)).Count(&existingDC).Error; err != nil {
 		return nil, err
 	}
 	if existingDC > 0 {
@@ -107,6 +110,7 @@ func (s *DeviceAuthStore) CreateDeviceAuthorization(ctx context.Context, req *co
 	}
 
 	model := deviceAuthToModel(a)
+	model.DeviceCode = core.AtRestKey(a.DeviceCode)
 	model.UserCodeUpper = upper
 	if err := s.db.WithContext(ctx).Create(model).Error; err != nil {
 		return nil, err
@@ -123,13 +127,15 @@ func (s *DeviceAuthStore) GetByDeviceCode(ctx context.Context, req *core.GetByDe
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
 	var model DeviceAuthorizationModel
-	if err := s.db.WithContext(ctx).First(&model, "device_code = ?", req.DeviceCode).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "device_code IN ?", deviceCodeKeys(req.DeviceCode)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, core.ErrDeviceAuthorizationNotFound
 		}
 		return nil, err
 	}
-	return &core.GetByDeviceCodeResponse{Authorization: modelToDeviceAuth(&model)}, nil
+	a := modelToDeviceAuth(&model)
+	a.DeviceCode = req.DeviceCode
+	return &core.GetByDeviceCodeResponse{Authorization: a}, nil
 }
 
 // GetByUserCode returns the authorization for the given user_code
@@ -146,40 +152,59 @@ func (s *DeviceAuthStore) GetByUserCode(ctx context.Context, req *core.GetByUser
 		}
 		return nil, err
 	}
-	return &core.GetByUserCodeResponse{Authorization: modelToDeviceAuth(&model)}, nil
+	a := modelToDeviceAuth(&model)
+	a.DeviceCode = ""
+	return &core.GetByUserCodeResponse{Authorization: a}, nil
 }
 
 // ApproveDeviceAuthorization transitions a pending authorization to
-// approved and binds the subject + scopes. Returns
-// ErrDeviceAuthorizationNotFound when no pending record matches
-// user_code (already approved, already denied, expired-and-cleaned,
-// or never existed all look identical — no info leak).
+// approved and binds the subject + scopes. The UPDATE is conditional on
+// status = pending, so of racing approvals and denials exactly one sees a
+// row affected; a read-then-Save let an approval overwrite a denial that
+// landed in between (issue 473). Returns ErrDeviceAuthorizationNotFound
+// when no pending record matches user_code (already approved, already
+// denied, expired-and-cleaned, or never existed all look identical, so
+// nothing leaks). The returned authorization's DeviceCode is empty.
 func (s *DeviceAuthStore) ApproveDeviceAuthorization(ctx context.Context, req *core.ApproveDeviceAuthorizationRequest) (*core.ApproveDeviceAuthorizationResponse, error) {
 	if req == nil || req.UserCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
 	upper := core.UpperUserCode(req.UserCode)
+	pending := string(core.DeviceAuthorizationStatusPending)
 
+	cols := []string{"status", "approved_subject"}
+	if req.GrantedScopes != nil {
+		cols = append(cols, "scopes")
+	}
 	var model DeviceAuthorizationModel
-	tx := s.db.WithContext(ctx).Where(
-		"user_code_upper = ? AND status = ?",
-		upper, string(core.DeviceAuthorizationStatusPending),
-	).First(&model)
-	if tx.Error != nil {
-		if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// A model value (not a map) so Scopes goes through its JSON
+		// serializer; Select limits the write to these columns.
+		res := tx.Model(&DeviceAuthorizationModel{}).
+			Where("user_code_upper = ? AND status = ?", upper, pending).
+			Select(cols).
+			Updates(&DeviceAuthorizationModel{
+				Status:          string(core.DeviceAuthorizationStatusApproved),
+				ApprovedSubject: req.ApprovedSubject,
+				Scopes:          req.GrantedScopes,
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return core.ErrDeviceAuthorizationNotFound
+		}
+		return tx.Where("user_code_upper = ?", upper).First(&model).Error
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, core.ErrDeviceAuthorizationNotFound
 		}
-		return nil, tx.Error
-	}
-	model.Status = string(core.DeviceAuthorizationStatusApproved)
-	model.ApprovedSubject = req.ApprovedSubject
-	if req.GrantedScopes != nil {
-		model.Scopes = req.GrantedScopes
-	}
-	if err := s.db.WithContext(ctx).Save(&model).Error; err != nil {
 		return nil, err
 	}
-	return &core.ApproveDeviceAuthorizationResponse{Authorization: modelToDeviceAuth(&model)}, nil
+	a := modelToDeviceAuth(&model)
+	a.DeviceCode = ""
+	return &core.ApproveDeviceAuthorizationResponse{Authorization: a}, nil
 }
 
 // DenyDeviceAuthorization transitions a pending authorization to
@@ -211,7 +236,7 @@ func (s *DeviceAuthStore) UpdatePollingState(ctx context.Context, req *core.Upda
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
 	var model DeviceAuthorizationModel
-	if err := s.db.WithContext(ctx).First(&model, "device_code = ?", req.DeviceCode).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "device_code IN ?", deviceCodeKeys(req.DeviceCode)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, core.ErrDeviceAuthorizationNotFound
 		}
@@ -225,7 +250,9 @@ func (s *DeviceAuthStore) UpdatePollingState(ctx context.Context, req *core.Upda
 	if err := s.db.WithContext(ctx).Save(&model).Error; err != nil {
 		return nil, err
 	}
-	return &core.UpdatePollingStateResponse{Authorization: modelToDeviceAuth(&model)}, nil
+	a := modelToDeviceAuth(&model)
+	a.DeviceCode = req.DeviceCode
+	return &core.UpdatePollingStateResponse{Authorization: a}, nil
 }
 
 // DeleteDeviceAuthorization removes the authorization. Used by the
@@ -236,7 +263,7 @@ func (s *DeviceAuthStore) DeleteDeviceAuthorization(ctx context.Context, req *co
 	if req == nil || req.DeviceCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
-	result := s.db.WithContext(ctx).Delete(&DeviceAuthorizationModel{}, "device_code = ?", req.DeviceCode)
+	result := s.db.WithContext(ctx).Delete(&DeviceAuthorizationModel{}, "device_code IN ?", deviceCodeKeys(req.DeviceCode))
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -256,6 +283,14 @@ func (s *DeviceAuthStore) CleanupExpired(ctx context.Context, _ *core.CleanupExp
 		return nil, result.Error
 	}
 	return &core.CleanupExpiredDeviceAuthsResponse{Removed: int(result.RowsAffected)}, nil
+}
+
+// deviceCodeKeys is what a device code may be stored under: its
+// core.AtRestKey digest, or the plaintext for rows written before issue
+// 473. A device authorization lives about ten minutes, so the plaintext
+// case only matters across an upgrade.
+func deviceCodeKeys(deviceCode string) []string {
+	return []string{core.AtRestKey(deviceCode), deviceCode}
 }
 
 // deviceAuthToModel maps the public struct onto the GORM model.
