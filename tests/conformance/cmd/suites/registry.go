@@ -27,6 +27,10 @@ type Suite struct {
 	Needs    []string `yaml:"needs"`
 	Tracking string   `yaml:"tracking"`
 	Note     string   `yaml:"note"`
+	// Plan names the OIDF plan an exercise suite runs. The exercise writes
+	// its run record to <results dir>/<plan>.json, and the report shows
+	// the plan's modules.
+	Plan string `yaml:"plan"`
 	// Timeout bounds one run of the suite, as a Go duration ("15m").
 	// Empty uses DefaultTimeout.
 	Timeout string `yaml:"timeout"`

@@ -1,3 +1,5 @@
+//go:build !windows
+
 package main
 
 import (
@@ -10,14 +12,14 @@ import (
 )
 
 // runMake runs `make -C dir target` in its own process group, with GOWORK
-// removed from its environment (suiteEnv). When ctx is done it kills the
+// removed from its environment (suiteEnv) and extraEnv added. When ctx is done it kills the
 // whole group, so a suite's background servers and containers' clients
 // don't outlive its timeout, and waits up to five seconds for the output
 // to drain.
-func runMake(ctx context.Context, dir, target string, w io.Writer) error {
+func runMake(ctx context.Context, dir, target string, w io.Writer, extraEnv ...string) error {
 	cmd := exec.Command("make", "-C", dir, target)
 	cmd.Stdout, cmd.Stderr = w, w
-	cmd.Env = suiteEnv(os.Environ())
+	cmd.Env = append(suiteEnv(os.Environ()), extraEnv...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// A child that escapes the group kill and keeps the output pipe open
 	// can't hold Wait past this.
@@ -40,9 +42,4 @@ func runMake(ctx context.Context, dir, target string, w io.Writer) error {
 		}
 		return ctx.Err()
 	}
-}
-
-// processGone reports whether no process with this pid exists.
-func processGone(pid string) bool {
-	return exec.Command("kill", "-0", pid).Run() != nil
 }

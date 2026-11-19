@@ -172,3 +172,59 @@ func TestWriteFailures_ShowsTheLogTail(t *testing.T) {
 	assert.NotContains(t, out, "line 15\n", "only the last 15 lines")
 	assert.Equal(t, 1, strings.Count(out, "--- "), "passing suites print nothing")
 }
+
+// An OIDF suite's run record is read back from the results directory and
+// attached to its result, and a stale record from an earlier run is not.
+func TestRun_AttachesThePlanRecord(t *testing.T) {
+	dir := t.TempDir()
+	reg := &Registry{Suites: []Suite{{Name: "oidf-basic-op", Kind: KindGating, Covers: "x", Plan: "p"}}}
+	stale := dir + "/p.json"
+	require.NoError(t, os.WriteFile(stale, []byte(`{"plan":"p","against":9}`), 0o644))
+	r := &Runner{
+		Make: func(_ context.Context, _ string, _ io.Writer) error {
+			return os.WriteFile(stale, []byte(`{"plan":"p","counts":{"PASSED":3},"against":0}`), 0o644)
+		},
+		Getenv:  func(string) string { return "" },
+		Logs:    dir,
+		Results: dir,
+	}
+	results, ok := r.Run(reg, "")
+	require.True(t, ok)
+	require.NotNil(t, results[0].Plan)
+	assert.Equal(t, 3, results[0].Plan.Counts["PASSED"])
+
+	r.Make = func(_ context.Context, _ string, _ io.Writer) error { return errors.New("died before writing") }
+	results, _ = r.Run(reg, "")
+	assert.Nil(t, results[0].Plan, "a record left by an earlier run is removed first")
+}
+
+const allSkippedLog = `=== RUN   TestAuthlete_OIDCDiscovery
+    interop_test.go:55: Authlete AS discovery returned status 500 (run 'make upauthlete')
+--- SKIP: TestAuthlete_OIDCDiscovery (0.07s)
+=== RUN   TestAuthlete_RARRoundTrip
+    interop_test.go:90: Authlete AS discovery returned status 500 (run 'make upauthlete')
+--- SKIP: TestAuthlete_RARRoundTrip (0.06s)
+PASS
+ok  	github.com/panyam/oneauth/tests/authlete	0.512s
+ok  	github.com/panyam/oneauth/tests/authlete/provisioner	(cached)
+`
+
+// A suite whose every test skipped proved nothing, so it is SKIP with the
+// first skip's reason, not PASS. The Authlete suite did this when its
+// server answered discovery with a 500.
+func TestRun_EveryTestSkippedIsASkip(t *testing.T) {
+	reg := &Registry{Suites: []Suite{{Name: "authlete", Kind: KindInfo, Covers: "x"}}}
+	r := &Runner{Make: fakeMake(map[string]string{"conf-authlete": allSkippedLog}, nil), Getenv: func(string) string { return "set" }, Logs: t.TempDir()}
+	results, ok := r.Run(reg, "")
+	require.True(t, ok)
+	assert.Equal(t, ResultSkip, results[0].Result)
+	assert.Equal(t, "every test skipped: Authlete AS discovery returned status 500 (run 'make upauthlete')", results[0].Detail)
+}
+
+// A go test suite's summary counts its tests instead of quoting the last
+// package line.
+func TestSummaryLine_CountsGoTests(t *testing.T) {
+	out := "--- PASS: TestA (0.01s)\n    --- PASS: TestA/sub (0.00s)\n--- SKIP: TestB (0.00s)\n--- PASS: TestC (0.02s)\nok  \tpkg/one\t0.1s\nok  \tpkg/two\t(cached)\n"
+	assert.Equal(t, "go test: 2 passed, 1 skipped, 0 failed (top-level tests)", summaryLine(out))
+	assert.Equal(t, "ok  \tpkg\t1.2s", summaryLine("ok  \tpkg\t1.2s\n"), "without -v there are no test lines, so the package line stands")
+}

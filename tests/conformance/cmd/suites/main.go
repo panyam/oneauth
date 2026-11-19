@@ -11,7 +11,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -19,6 +22,9 @@ func main() {
 	makeDir := flag.String("make-dir", "../../conformance", "directory holding the conf-* targets")
 	logs := flag.String("logs", "../../test-reports/conformance", "directory for per-suite logs")
 	only := flag.String("suite", "", "run only this suite")
+	reportJSON := flag.String("report-json", "../../docs/conformance/report.json", "the committed report data, merged with this run")
+	reportMD := flag.String("report-md", "../../docs/conformance/REPORT.md", "the committed report, rendered from -report-json")
+	renderOnly := flag.Bool("render-only", false, "re-render -report-md from -report-json and exit, running nothing")
 	flag.Parse()
 
 	reg, err := LoadRegistry(*registry)
@@ -28,18 +34,42 @@ func main() {
 	if problems := reg.Validate(); len(problems) > 0 {
 		fail(fmt.Errorf("conformance/suites.yaml:\n  %s", strings.Join(problems, "\n  ")))
 	}
+	prev, err := LoadReport(*reportJSON)
+	if err != nil {
+		fail(err)
+	}
 
+	// Without a run, follow the registry (new suites appear as not run,
+	// removed ones drop out) and re-render, so a registry change needs no
+	// Docker to keep the stale check passing.
+	if *renderOnly {
+		if err := SaveReport(Merge(prev, reg, nil, time.Now(), commitID()), *reportJSON, *reportMD); err != nil {
+			fail(err)
+		}
+		return
+	}
+
+	resultsDir, err := filepath.Abs(*logs)
+	if err != nil {
+		fail(err)
+	}
 	r := &Runner{
 		Make: func(ctx context.Context, target string, w io.Writer) error {
 			fmt.Fprintf(os.Stderr, "=== %s (log: %s)\n", target, *logs)
-			return runMake(ctx, *makeDir, target, w)
+			return runMake(ctx, *makeDir, target, w, "CONFORMANCE_RESULTS_DIR="+resultsDir)
 		},
-		Getenv: os.Getenv,
-		Logs:   *logs,
+		Getenv:  os.Getenv,
+		Logs:    *logs,
+		Results: resultsDir,
 	}
 	results, ok := r.Run(reg, *only)
 	if *only != "" && len(results) == 0 {
 		fail(fmt.Errorf("no suite named %q in %s", *only, *registry))
+	}
+
+	rep := Merge(prev, reg, results, time.Now(), commitID())
+	if err := SaveReport(rep, *reportJSON, *reportMD); err != nil {
+		fail(err)
 	}
 	fmt.Println()
 	WriteTable(os.Stdout, results)
@@ -47,6 +77,20 @@ func main() {
 	if !ok {
 		os.Exit(1)
 	}
+}
+
+// commitID is the checkout's short commit, with "-dirty" when the tree has
+// uncommitted changes, or "unknown" outside git.
+func commitID() string {
+	out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
+	if err != nil {
+		return "unknown"
+	}
+	id := strings.TrimSpace(string(out))
+	if st, err := exec.Command("git", "status", "--porcelain", "--untracked-files=no").Output(); err == nil && len(strings.TrimSpace(string(st))) > 0 {
+		id += "-dirty"
+	}
+	return id
 }
 
 func fail(err error) {

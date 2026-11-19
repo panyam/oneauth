@@ -16,6 +16,8 @@ const (
 	ResultPass = "PASS"
 	ResultFail = "FAIL"
 	ResultSkip = "SKIP"
+	// ResultNotRun marks a registered suite the report has no run for.
+	ResultNotRun = "not run"
 )
 
 // Result is one suite's outcome. Detail is the suite's own summary line
@@ -25,6 +27,9 @@ type Result struct {
 	Result string
 	Detail string
 	Log    string
+	// Plan is an OIDF suite's run record, nil for other suites or when
+	// the exercise didn't write one.
+	Plan *PlanRecord
 }
 
 // Runner runs registered suites. Make runs a conformance/Makefile target
@@ -35,6 +40,9 @@ type Runner struct {
 	Make   func(ctx context.Context, target string, w io.Writer) error
 	Getenv func(string) string
 	Logs   string
+	// Results is the directory OIDF exercises write their run records to
+	// (CONFORMANCE_RESULTS_DIR). Empty skips reading them.
+	Results string
 }
 
 // Run runs every suite, or only the one named by only, in registry order.
@@ -71,12 +79,25 @@ func (r *Runner) runOne(s Suite) Result {
 	if err != nil {
 		return Result{Suite: s, Result: ResultFail, Detail: err.Error()}
 	}
+	recordPath := ""
+	if s.Plan != "" && r.Results != "" {
+		recordPath = filepath.Join(r.Results, s.Plan+".json")
+		_ = os.Remove(recordPath)
+	}
 	var out strings.Builder
 	ctx, cancel := context.WithTimeout(context.Background(), s.RunTimeout())
 	defer cancel()
 	runErr := r.Make(ctx, s.Target(), io.MultiWriter(f, &out))
 	f.Close()
 	res := Result{Suite: s, Result: ResultPass, Detail: summaryLine(out.String()), Log: logPath}
+	// A suite whose every test skipped proved nothing: report why, as a
+	// skip, rather than a pass.
+	if c := countGoTests(out.String()); runErr == nil && c.total() > 0 && c.skipped == c.total() {
+		res.Result, res.Detail = ResultSkip, "every test skipped: "+c.firstSkip
+	}
+	if recordPath != "" {
+		res.Plan = readPlanRecord(recordPath)
+	}
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
 		res.Result = ResultFail
@@ -127,23 +148,70 @@ func WriteFailures(w io.Writer, results []Result) {
 }
 
 // summaryPatterns are the summary lines the registered suites print: the
-// OIDF exercise's per-plan total, the native ratchet's verdict, and go
-// test's package result.
+// OIDF exercise's per-plan total, the native ratchet's verdict, and, for
+// go test without -v, its package result.
 var summaryPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\d+ modules: map\[[^\]]*\], \d+ against known-gaps\.yaml`),
 	regexp.MustCompile(`ratchet OK.*`),
 	regexp.MustCompile(`(?m)^(ok|FAIL)\s+\S+.*$`),
 }
 
-// summaryLine returns the last line in out matching a summary pattern,
-// trying the patterns in order, or "".
+// summaryLine returns the suite's summary: the OIDF total or the ratchet
+// verdict when present, else the count of go test's top-level tests when
+// it ran with -v, else the last package line, or "".
 func summaryLine(out string) string {
-	for _, p := range summaryPatterns {
+	for _, p := range summaryPatterns[:2] {
 		if all := p.FindAllString(out, -1); len(all) > 0 {
 			return strings.TrimSpace(all[len(all)-1])
 		}
 	}
+	if c := countGoTests(out); c.total() > 0 {
+		return fmt.Sprintf("go test: %d passed, %d skipped, %d failed (top-level tests)", c.passed, c.skipped, c.failed)
+	}
+	if all := summaryPatterns[2].FindAllString(out, -1); len(all) > 0 {
+		return strings.TrimSpace(all[len(all)-1])
+	}
 	return ""
+}
+
+// goTestCounts are go test -v's top-level results. Subtests are indented
+// and not counted.
+type goTestCounts struct {
+	passed, skipped, failed int
+	firstSkip               string
+}
+
+func (c goTestCounts) total() int { return c.passed + c.skipped + c.failed }
+
+var goTestLine = regexp.MustCompile(`^--- (PASS|SKIP|FAIL): `)
+
+// countGoTests counts go test -v's top-level result lines in out, and
+// keeps the first skip's reason: the indented line that precedes it.
+func countGoTests(out string) goTestCounts {
+	var c goTestCounts
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
+		m := goTestLine.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		switch m[1] {
+		case "PASS":
+			c.passed++
+		case "FAIL":
+			c.failed++
+		case "SKIP":
+			c.skipped++
+			if c.firstSkip == "" && i > 0 {
+				reason := strings.TrimSpace(lines[i-1])
+				if j := strings.Index(reason, ": "); j >= 0 && strings.Contains(reason[:j], ".go:") {
+					reason = reason[j+2:]
+				}
+				c.firstSkip = reason
+			}
+		}
+	}
+	return c
 }
 
 // WriteTable writes a header and one line per result.

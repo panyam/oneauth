@@ -16,6 +16,8 @@
 #   timeout:  Go duration bounding one run (default 20m). On expiry the runner
 #             kills the suite's process group, reports it FAIL "timed out",
 #             and goes on to the next suite.
+#   plan:     for an OIDF exercise, the plan it runs; its module results
+#             appear in docs/conformance/REPORT.md. Optional.
 #   tracking: the issue the suite belongs to, plain text. Optional.
 #   note:     one line of context. Optional.
 #
@@ -42,6 +44,7 @@ suites:
     kind: gating
     timeout: 30m
     covers: OIDF fapi2-security-profile-final-test-plan, every module judged against known-gaps.yaml
+    plan: fapi2-security-profile-final-test-plan
     source: tests/oidf-conformance/fapi2
     needs: [docker]
     tracking: "mission 98"
@@ -50,6 +53,7 @@ suites:
     kind: gating
     timeout: 20m
     covers: OIDF oidcc-basic-certification-test-plan, every module judged against known-gaps.yaml
+    plan: oidcc-basic-certification-test-plan
     source: tests/oidf-conformance/oidcc
     needs: [docker]
     tracking: "mission 477"

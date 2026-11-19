@@ -67,8 +67,18 @@ func writeReport(path, pkg string, results []Result, manifest map[string]Entry, 
 		exp, _ := time.Parse("2006-01-02", e.Expires)
 		rows = append(rows, gapRow{key: k, entry: e, expired: exp.Before(today)})
 	}
+	// Expiry first, then suite and test, so entries that share a date
+	// come out in the same order on every run and the committed report
+	// changes only when the manifest does.
 	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].entry.Expires < rows[j].entry.Expires
+		a, b := rows[i].entry, rows[j].entry
+		if a.Expires != b.Expires {
+			return a.Expires < b.Expires
+		}
+		if a.Suite != b.Suite {
+			return a.Suite < b.Suite
+		}
+		return rows[i].key < rows[j].key
 	})
 
 	if len(rows) > 0 {

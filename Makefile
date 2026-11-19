@@ -8,6 +8,11 @@ test: lint verify-submodule-deps conformance-check
 conformance:
 	$(MAKE) -C conformance test $(if $(SUITE),SUITE=$(SUITE))
 
+# Re-renders docs/conformance/REPORT.md from report.json without running
+# any suite.
+conformance-report:
+	$(MAKE) -C conformance report
+
 # The conformance runner's own tests, including the drift check between
 # conformance/suites.yaml and conformance/Makefile.
 conformance-check:
@@ -658,7 +663,7 @@ testauthlete:
 	fi
 	AUTHLETE_AS_URL=http://localhost:$(AUTH_PORT) \
 	AUTHLETE_API_SERVER=$(AUTH_API_SERVER) \
-		go test -v ./tests/authlete/...
+		go test -v -count=1 ./tests/authlete/...
 
 # =============================================================================
 # OIDF conformance harness (issue 197)
@@ -1020,7 +1025,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc testoidf testoidf-config oidf-discovery-up conformance conformance-check deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

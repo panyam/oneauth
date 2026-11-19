@@ -1,8 +1,11 @@
+//go:build !windows
+
 package main
 
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -62,4 +65,9 @@ func TestRunMake_ReportsAFailingTarget(t *testing.T) {
 	err := runMake(context.Background(), dir, "bad", &out)
 	assert.Error(t, err)
 	assert.Contains(t, out.String(), "nope")
+}
+
+// processGone reports whether no process with this pid exists.
+func processGone(pid string) bool {
+	return exec.Command("kill", "-0", pid).Run() != nil
 }
