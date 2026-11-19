@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -51,6 +52,34 @@ type clientAuthenticator struct {
 	keyLookup keys.KeyLookup
 	jtiStore  JTIStore
 	appStore  core.AppRegistrationStore
+	jwks      *ClientJWKSFetcher
+}
+
+// ClientAuthenticatorOptions configures NewClientAuthenticatorWithOptions.
+// Every field is optional.
+type ClientAuthenticatorOptions struct {
+	// AppStore binds the presented auth method to the registered one
+	// (issue 360), and is where a client's jwks_uri is found. Without it,
+	// a jwks_uri client can't authenticate.
+	AppStore core.AppRegistrationStore
+	// JTIStore records assertion jtis for replay protection. Nil means an
+	// in-memory store, which a multi-node deployment should replace.
+	JTIStore JTIStore
+	// JWKSFetcher fetches the key sets of clients registered with
+	// jwks_uri. Nil means a default ClientJWKSFetcher, which refuses
+	// private addresses.
+	JWKSFetcher *ClientJWKSFetcher
+}
+
+// NewClientAuthenticatorWithOptions is NewClientAuthenticator with every
+// optional dependency, including the fetcher for jwks_uri clients
+// (issue 507).
+func NewClientAuthenticatorWithOptions(kl keys.KeyLookup, opts ClientAuthenticatorOptions) ClientAuthenticator {
+	a := newClientAuthenticator(kl, opts.AppStore, opts.JTIStore).(*clientAuthenticator)
+	if opts.JWKSFetcher != nil {
+		a.jwks = opts.JWKSFetcher
+	}
+	return a
 }
 
 // NewClientAuthenticator creates a ClientAuthenticator backed by a
@@ -83,7 +112,7 @@ func newClientAuthenticator(kl keys.KeyLookup, appStore core.AppRegistrationStor
 	if jti == nil {
 		jti = NewInMemoryJTIStore()
 	}
-	return &clientAuthenticator{keyLookup: kl, jtiStore: jti, appStore: appStore}
+	return &clientAuthenticator{keyLookup: kl, jtiStore: jti, appStore: appStore, jwks: &ClientJWKSFetcher{}}
 }
 
 // AuthenticateClient verifies the supplied client credentials. When
@@ -106,7 +135,7 @@ func (a *clientAuthenticator) AuthenticateClient(ctx context.Context, req *Authe
 	var resp *AuthenticateClientResponse
 	var err error
 	if req.ClientAssertion != "" {
-		resp, err = a.authenticateAssertion(req)
+		resp, err = a.authenticateAssertion(ctx, req)
 	} else {
 		resp, err = a.authenticateSecret(req)
 	}
@@ -208,7 +237,7 @@ func (a *clientAuthenticator) authenticateSecret(req *AuthenticateClientRequest)
 //     assertion lifetime (exp - iat) MUST NOT exceed
 //     MaxClientAssertionLifetime.
 //   - jti MUST NOT have been seen within the assertion lifetime.
-func (a *clientAuthenticator) authenticateAssertion(req *AuthenticateClientRequest) (*AuthenticateClientResponse, error) {
+func (a *clientAuthenticator) authenticateAssertion(ctx context.Context, req *AuthenticateClientRequest) (*AuthenticateClientResponse, error) {
 	if req.ClientAssertionType != ClientAssertionTypeJWTBearer {
 		return nil, fmt.Errorf("%w: client_assertion_type must be %s", errInvalidClient, ClientAssertionTypeJWTBearer)
 	}
@@ -248,24 +277,15 @@ func (a *clientAuthenticator) authenticateAssertion(req *AuthenticateClientReque
 		return nil, fmt.Errorf("%w: client_id form param does not match assertion iss/sub", errInvalidClient)
 	}
 
-	keyResp, err := a.keyLookup.GetKey(context.Background(), &keys.GetKeyRequest{ClientID: clientID})
-	if err != nil || keyResp == nil || keyResp.Record == nil {
-		return nil, errInvalidClient
-	}
-	rec := keyResp.Record
-	// Both HS* (client_secret_jwt) and RS*/ES*/PS* (private_key_jwt)
-	// flow through the same verification path — utils.DecodeVerifyKey
-	// returns the raw HMAC bytes for symmetric algs and the parsed
-	// public-key object for asymmetric ones.
-	verifyKey, err := utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
+	verifyKey, alg, err := a.assertionKey(ctx, clientID, unverified.Header)
 	if err != nil {
-		return nil, fmt.Errorf("%w: cannot decode client key: %v", errInvalidClient, err)
+		return nil, err
 	}
 
 	// Lock the alg to what the client registered. Without this an
 	// attacker could swap RS256 for HS256 and use the public key as
 	// the HMAC secret (algorithm-confusion, CVE-2016-10555 class).
-	verifyParser := jwt.NewParser(jwt.WithValidMethods([]string{rec.Algorithm}), jwt.WithLeeway(ClientAssertionClockSkew), jwt.WithIssuedAt())
+	verifyParser := jwt.NewParser(jwt.WithValidMethods([]string{alg}), jwt.WithLeeway(ClientAssertionClockSkew), jwt.WithIssuedAt())
 	verified, err := verifyParser.Parse(req.ClientAssertion, func(t *jwt.Token) (interface{}, error) {
 		return verifyKey, nil
 	})
@@ -339,8 +359,68 @@ func (a *clientAuthenticator) authenticateAssertion(req *AuthenticateClientReque
 	}
 
 	method := "private_key_jwt"
-	if !utils.IsAsymmetricAlg(rec.Algorithm) {
+	if strings.HasPrefix(alg, "HS") {
 		method = "client_secret_jwt"
 	}
 	return &AuthenticateClientResponse{ClientID: clientID, Method: method}, nil
+}
+
+// assertionKey returns the key that verifies clientID's assertion and the
+// one algorithm it may use. A client registered with jwks_uri gets its key
+// from jwksAssertionKey. Any other client has one stored key, whose
+// registered algorithm is the only one allowed. Both HS* (client_secret_jwt)
+// and RS*/ES*/PS* (private_key_jwt) stored keys go through
+// utils.DecodeVerifyKey, which returns the raw HMAC bytes for symmetric
+// algs and the parsed public key for asymmetric ones.
+func (a *clientAuthenticator) assertionKey(ctx context.Context, clientID string, header map[string]any) (any, string, error) {
+	if a.appStore != nil {
+		if app, err := a.appStore.GetApp(ctx, &core.GetAppRequest{ClientID: clientID}); err == nil && app != nil && app.App != nil && app.App.JWKSURI != "" {
+			return a.jwksAssertionKey(ctx, app.App, header)
+		}
+	}
+	keyResp, err := a.keyLookup.GetKey(ctx, &keys.GetKeyRequest{ClientID: clientID})
+	if err != nil || keyResp == nil || keyResp.Record == nil {
+		return nil, "", errInvalidClient
+	}
+	rec := keyResp.Record
+	verifyKey, err := utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: cannot decode client key: %v", errInvalidClient, err)
+	}
+	return verifyKey, rec.Algorithm, nil
+}
+
+// jwksAssertionKey picks app's key from its jwks_uri by the assertion's
+// kid (issue 507), refetching once when the kid is unknown so a rotated key
+// is found. The algorithm is the header's, but only if the key's type can
+// verify it (algFitsKey) and it matches token_endpoint_auth_signing_alg
+// when the client registered one. So the header chooses among the
+// algorithms the client's key allows, never outside them.
+func (a *clientAuthenticator) jwksAssertionKey(ctx context.Context, app *core.AppRegistration, header map[string]any) (any, string, error) {
+	kid, _ := header["kid"].(string)
+	alg, _ := header["alg"].(string)
+	set, err := a.jwks.Keys(ctx, app.JWKSURI, false)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %v", errInvalidClient, err)
+	}
+	jwk, err := selectClientJWK(set, kid)
+	if errors.Is(err, errNoClientKey) {
+		if set, err = a.jwks.Keys(ctx, app.JWKSURI, true); err == nil {
+			jwk, err = selectClientJWK(set, kid)
+		}
+	}
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %v", errInvalidClient, err)
+	}
+	if !algFitsKey(alg, jwk) {
+		return nil, "", fmt.Errorf("%w: assertion alg %q can't be verified with the client's %s key", errInvalidClient, alg, jwk.Kty)
+	}
+	if app.TokenEndpointAuthSigningAlg != "" && alg != app.TokenEndpointAuthSigningAlg {
+		return nil, "", fmt.Errorf("%w: assertion alg %q is not the registered token_endpoint_auth_signing_alg", errInvalidClient, alg)
+	}
+	pub, _, err := utils.JWKToPublicKey(jwk)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: client key: %v", errInvalidClient, err)
+	}
+	return pub, alg, nil
 }

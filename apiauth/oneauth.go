@@ -178,6 +178,11 @@ type OneAuthConfig struct {
 	// (KeyStore-based secret + private_key_jwt assertion validation).
 	Authenticator ClientAuthenticator
 
+	// ClientJWKSFetcher fetches the key sets of private_key_jwt clients
+	// registered with jwks_uri (issue 507), for the default authenticator.
+	// Nil means a default ClientJWKSFetcher, which dials no private address.
+	ClientJWKSFetcher *ClientJWKSFetcher
+
 	// AcceptedAudiences is the set of URLs the token endpoint will
 	// accept as the `aud` claim of a private_key_jwt / client_secret_jwt
 	// client assertion. Typically the token endpoint URL plus the AS
@@ -400,7 +405,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	if authenticator == nil {
 		// Bind the presented client-auth method to the registered
 		// token_endpoint_auth_method when an AppStore is wired (issue 360).
-		authenticator = NewClientAuthenticatorWithAppStore(cfg.KeyStore, cfg.AppStore)
+		authenticator = NewClientAuthenticatorWithOptions(cfg.KeyStore, ClientAuthenticatorOptions{AppStore: cfg.AppStore, JWKSFetcher: cfg.ClientJWKSFetcher})
 	}
 	if cfg.FAPI2 {
 		authenticator = &fapiClientAuthenticator{inner: authenticator}
