@@ -23,9 +23,11 @@ import (
 //
 // Status is the expected outcome; a passing test should not be in the
 // manifest at all. Go-native entries can only be "expected-fail". External
-// entries may also be "expected-review" or "expected-skip", which the FAPI 2.0
-// plan uses for whole modules the harness ends in REVIEW or skips; its
-// adapter (tests/oidf-conformance/fapi2.Judge) reads Evidence for those.
+// entries may also be "expected-review", "expected-skip" or
+// "expected-warning", which the FAPI 2.0 and OIDC Basic OP plans use for
+// whole modules the harness ends in REVIEW, skips, or passes with a
+// warning; their adapter (tests/oidf-conformance/oidfplan.Judge) reads
+// Evidence for those.
 type Entry struct {
 	Suite    string `yaml:"suite"`
 	ID       string `yaml:"id,omitempty"`
@@ -63,9 +65,9 @@ func (e Entry) Validate() error {
 	}
 	switch {
 	case e.Status == "expected-fail":
-	case e.ID == "" && (e.Status == "expected-review" || e.Status == "expected-skip"):
+	case e.ID == "" && (e.Status == "expected-review" || e.Status == "expected-skip" || e.Status == "expected-warning"):
 	case e.ID == "":
-		return fmt.Errorf("status must be \"expected-fail\", \"expected-review\" or \"expected-skip\" (got %q)", e.Status)
+		return fmt.Errorf("status must be \"expected-fail\", \"expected-review\", \"expected-skip\" or \"expected-warning\" (got %q)", e.Status)
 	default:
 		return fmt.Errorf("status must be \"expected-fail\" (got %q)", e.Status)
 	}

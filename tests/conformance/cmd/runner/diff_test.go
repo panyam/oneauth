@@ -231,6 +231,18 @@ func TestEntry_Validate(t *testing.T) {
 			wantErr: "",
 		},
 		{
+			// The FAPI 2.0 and OIDC Basic plans record warnings this way
+			// (oidfplan.StatusExpectedWarning); the runner must accept them.
+			name:    "external expected-warning ok",
+			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-warning", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			wantErr: "",
+		},
+		{
+			name:    "go-native expected-warning refused",
+			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-warning", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			wantErr: "expected-fail",
+		},
+		{
 			name:    "go-native expected-skip refused",
 			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-skip", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "expected-fail",
