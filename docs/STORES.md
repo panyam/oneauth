@@ -331,3 +331,13 @@ Four single-use or fast-changing records share one shape: every backend runs a s
 - **Atomic within one process only** for memory and FS (a mutex). Replicas need GORM (a conditional `UPDATE` or a transaction) or GAE (a Datastore transaction).
 - **Codes, request URIs and device codes are hashed at rest.** FS, GORM and GAE key each record by `core.AtRestKey(value)`, a SHA-256 digest, and leave the plaintext out of the stored record, so a copy of the store can't redeem a code or poll for a device's tokens. Records written before hashing keep working across an upgrade (issues 382, 473). A device lookup by user code returns `DeviceCode` empty.
 - **The reference server** picks the code and pushed-request backend with `code_flow.store.type` (`memory`, `fs`, `gorm`, `gae`); PAR always uses the code store's backend.
+
+## Consent grants
+
+`core.ConsentStore` keeps one grant per (subject, client_id), so `/authorize` can skip the consent screen for a request an earlier approval covers, including an OIDC `prompt=none` request. A save replaces the stored grant, and the caller merges scopes. The store returns an expired grant and leaves the decision to `ConsentGrant.Covers`.
+
+| Store | Memory | FS | GORM | GAE | Contract suite |
+|---|---|---|---|---|---|
+| `core.ConsentStore` (OIDC Core §3.1.2.1) | `core` | `FSConsentStore` | `ConsentStore` | `GAEConsentStore` | `consenttest.RunAll` |
+
+FS names each file by a SHA-256 of subject and client_id, and GAE names each entity the same way, so any characters in either ID are safe. GORM keys the `consents` table on (subject, client_id) and saves with one upsert statement.

@@ -36,6 +36,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&AuthorizationCodeModel{},
 		&PushedAuthorizationRequestModel{},
 		&UserTokenModel{},
+		&ConsentModel{},
 	)
 }
 
