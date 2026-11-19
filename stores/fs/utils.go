@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -24,8 +25,10 @@ func safeName(input string) (string, error) {
 		return "", fmt.Errorf("name contains null byte")
 	}
 
-	// Reject absolute paths
-	if filepath.IsAbs(input) {
+	// Reject absolute paths. A leading "/" or "\" counts on every OS: on
+	// Windows filepath.IsAbs says no to "/etc/passwd", since it has no drive,
+	// but the path is still rooted.
+	if filepath.IsAbs(input) || strings.HasPrefix(input, "/") || strings.HasPrefix(input, `\`) {
 		return "", fmt.Errorf("name is an absolute path")
 	}
 
@@ -47,7 +50,26 @@ func safeName(input string) (string, error) {
 		return "", fmt.Errorf("name contains path traversal sequence")
 	}
 
-	return safe, nil
+	return osFileName(safe), nil
+}
+
+// windowsReserved holds the characters Windows refuses in a file name.
+const windowsReserved = `<>:"|?*`
+
+// osFileName replaces the characters the host OS refuses in a file name
+// with "_". On Unix it returns name unchanged, so existing stores keep their
+// file names. On Windows two names can fold to one file, and the stores that
+// take user-chosen keys check for that with ErrKeyCollision. See issue 502.
+func osFileName(name string) string {
+	if runtime.GOOS != "windows" {
+		return name
+	}
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || strings.ContainsRune(windowsReserved, r) {
+			return '_'
+		}
+		return r
+	}, name)
 }
 
 // writeAtomicFile writes data to a file atomically by writing to a temp file first

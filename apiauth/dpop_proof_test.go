@@ -21,9 +21,11 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -70,6 +72,10 @@ type proofOpts struct {
 	signMethod jwt.SigningMethod
 }
 
+// proofJTISeq numbers test proofs. A jti built from time.Now() repeated on
+// Windows, whose clock is coarse enough for two proofs to share a reading.
+var proofJTISeq atomic.Int64
+
 // newProofSigner returns an ES256 key plus a proof factory bound to it, so
 // every proof in a test shares one client key the way a real client would.
 func newProofSigner(t *testing.T) (*ecdsa.PrivateKey, func(proofOpts) string) {
@@ -106,7 +112,7 @@ func newProof(t *testing.T, key any, o proofOpts) string {
 		delete(claims, "htu")
 	}
 	if !o.omitJTI {
-		claims["jti"] = firstNonEmpty(o.jti, "jti-"+time.Now().Format(time.RFC3339Nano))
+		claims["jti"] = firstNonEmpty(o.jti, fmt.Sprintf("jti-%d", proofJTISeq.Add(1)))
 	}
 	iat := o.iat
 	if iat.IsZero() {
