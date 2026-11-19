@@ -5,10 +5,11 @@ The app calling someone else's API, as itself or for one of its users. Each sour
 ## Contents
 - **installation.go** — `GitHubAppInstallation`: signs the App JWT (RS256, 9-minute life), trades it for an installation token, caches it until 5 minutes before expiry, one fetch for concurrent callers. `ParseRSAPrivateKeyPEM` reads GitHub's PKCS#1 keys. `GitHubAPIError` carries GitHub's message only.
 - **usertoken.go** — `UserTokens` (per provider: `Save`, `Delete`, `TokenSource`) and `StoredUserToken`: sealed with `keys.Sealer`, refreshed and written back with compare-and-swap, waits `RaceWait` for another replica's refresh before `ErrReconnect`.
-- **usertoken_store.go** — `UserTokenStore` interface (gRPC shape, CAS on `Version`), `ErrUserTokenNotFound`, `ErrVersionConflict`, `MemoryUserTokenStore`. FS backend: `stores/fs.FSUserTokenStore`. Contract suite: `usertokentest.RunAll`.
+- **usertoken_store.go** — `UserTokenStore` interface (gRPC shape, CAS on `Version`), `ErrUserTokenNotFound`, `ErrVersionConflict`, `MemoryUserTokenStore`. Backends: `stores/fs.FSUserTokenStore` (one process), `stores/gorm.UserTokenStore` and `stores/gae.GAEUserTokenStore` (replicas). Contract suite: `usertokentest.RunAll`.
+- **revoke.go** — `TokenRevoker`, `UserTokens.Revoke` (revoke at the provider, then delete; keeps the record on any failure), `GitHubRevoker` (`/token` or, with `RevokeGrant`, `/grant`; only 204 succeeds), `ErrNoRevoker`.
 - **secretref.go** — `SecretRef` (`env:NAME`, `file:/abs/path`); a bare value is refused. Package doc.
 - **static.go** — `Static`: a fixed secret from a `SecretRef`, read on every call.
-- **githubtest/** — fake GitHub: checks App JWTs, issues installation tokens and single-use-refresh user tokens, and serves `/user` and `/installation/repositories` for live tokens.
+- **githubtest/** — fake GitHub: checks App JWTs, issues installation tokens and single-use-refresh user tokens, revokes tokens and grants, and serves `/user` and `/installation/repositories` for live tokens.
 
 ## Dependencies
 `keys/` (Sealer), `utils/` (RSA key size), `golang.org/x/oauth2`, `golang-jwt/v5`.

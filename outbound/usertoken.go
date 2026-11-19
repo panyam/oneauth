@@ -49,6 +49,10 @@ type UserTokens struct {
 	// means DefaultRefreshBefore.
 	RefreshBefore time.Duration
 
+	// Revoker revokes a token at the provider for Revoke. Nil means
+	// Revoke answers ErrNoRevoker; Delete works either way.
+	Revoker TokenRevoker
+
 	// RaceWait is how long a replica whose refresh the provider refused
 	// waits for another replica's refreshed token to appear in the store
 	// before answering ErrReconnect. The winner's write follows its
@@ -104,8 +108,8 @@ func (u *UserTokens) Save(ctx context.Context, subject string, tok *oauth2.Token
 	return ErrVersionConflict
 }
 
-// Delete removes subject's token: the person disconnected. It doesn't
-// revoke the token at the provider.
+// Delete removes subject's token without revoking it at the provider.
+// Revoke does both.
 func (u *UserTokens) Delete(ctx context.Context, subject string) error {
 	_, err := u.Store.DeleteUserToken(ctx, &DeleteUserTokenRequest{Provider: u.Provider, Subject: subject})
 	return err
@@ -141,7 +145,8 @@ func (s *StoredUserToken) Token() (*oauth2.Token, error) {
 //     master key, or was moved from another person's record.
 //
 // When the refresh races another replica's, the loser returns the
-// winner's stored token. The returned Expiry is RefreshBefore ahead of the
+// winner's stored token. When it races a Delete or Revoke, it returns
+// ErrUserTokenNotFound and the record stays deleted. The returned Expiry is RefreshBefore ahead of the
 // provider's, as for GitHubAppInstallation.
 func (s *StoredUserToken) TokenContext(ctx context.Context) (*oauth2.Token, error) {
 	u := s.tokens
@@ -178,7 +183,13 @@ func (s *StoredUserToken) TokenContext(ctx context.Context) (*oauth2.Token, erro
 	}
 	_, err = u.Store.PutUserToken(ctx, &PutUserTokenRequest{Provider: u.Provider, Subject: s.subject, Sealed: sealed, ExpectedVersion: ver})
 	if errors.Is(err, ErrVersionConflict) {
-		if again, _, lerr := u.load(ctx, s.subject); lerr == nil && u.fresh(again) {
+		again, _, lerr := u.load(ctx, s.subject)
+		switch {
+		case errors.Is(lerr, ErrUserTokenNotFound):
+			// The record was deleted mid-refresh: the person disconnected,
+			// so they don't get the token we just refreshed.
+			return nil, ErrUserTokenNotFound
+		case lerr == nil && u.fresh(again):
 			return u.handOut(again), nil
 		}
 		// The winner's token is unusable; ours is live, so use it.
