@@ -310,7 +310,8 @@ func TestPAR_RequestURIRejectedWhenPARIsNotConfigured(t *testing.T) {
 
 	_, errCode, description := fx.authorize(t, core.PushedRequestURIPrefix+"anything", parClientID)
 
-	assert.Equal(t, "invalid_request", errCode)
+	// OIDC Core §6.2 names this error.
+	assert.Equal(t, "request_uri_not_supported", errCode)
 	assert.Contains(t, description, "not supported")
 }
 

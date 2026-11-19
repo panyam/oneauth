@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // AuthorizeMountConfig configures MountAuthorize. Mirrors the
@@ -125,6 +126,12 @@ type AuthorizeMountConfig struct {
 //	GET  /authorize  → AuthorizeVerificationHandler.Consent (browser form)
 //	POST /authorize  → AuthorizeVerificationHandler.Decide  (browser form)
 //
+// A POST without an `action` field is an authorization request sent by
+// POST (OIDC Core §3.1.2.1), not a consent decision. It gets a 303 to
+// GET /authorize with the same parameters, before BrowserMiddleware runs,
+// so CSRF protection still covers every consent decision. A custom
+// consent template must therefore post `action` (approve or deny).
+//
 // Both routes share the same backing AuthorizeVerificationHandler and,
 // when cfg.BrowserMiddleware is non-nil, are wrapped with it.
 //
@@ -195,7 +202,7 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 		wrap = func(h http.Handler) http.Handler { return h }
 	}
 	mux.Handle("GET /authorize", wrap(http.HandlerFunc(verifier.Consent)))
-	mux.Handle("POST /authorize", wrap(http.HandlerFunc(verifier.Decide)))
+	mux.Handle("POST /authorize", postedAuthorizationRequest(wrap(http.HandlerFunc(verifier.Decide))))
 
 	if cfg.PushedStore != nil {
 		mux.Handle("POST /par", &PARHandler{
@@ -208,4 +215,25 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 			AcceptedAudiences: cfg.OneAuth.AcceptedAudiences,
 		})
 	}
+}
+
+// postedAuthorizationRequest sends a POST without an `action` field to
+// GET /authorize with the same parameters, and passes every other POST to
+// decide. The consent form always posts `action`, and an authorization
+// request never does, so `action` tells the two apart. The redirect skips
+// decide's CSRF check, which is safe because it only replays the request
+// as the GET that any site can already send.
+func postedAuthorizationRequest(decide http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpauth.CapRequestBody(nil, r)
+		if err := r.ParseForm(); err != nil {
+			writeOAuthError(w, http.StatusBadRequest, "invalid_request", "could not parse form body")
+			return
+		}
+		if r.PostForm.Has("action") {
+			decide.ServeHTTP(w, r)
+			return
+		}
+		http.Redirect(w, r, r.URL.Path+"?"+r.PostForm.Encode(), http.StatusSeeOther)
+	})
 }

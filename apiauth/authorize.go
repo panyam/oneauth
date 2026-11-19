@@ -206,6 +206,14 @@ func (h *AuthorizationHandler) ParseAndValidate(r *http.Request) (req *Authoriza
 	}
 
 	requestURI := strings.TrimSpace(values.Get("request_uri"))
+	if requestURI != "" && (h.PushedStore == nil || !strings.HasPrefix(requestURI, core.PushedRequestURIPrefix)) {
+		// OIDC Core §6.2: oneauth resolves only the references its own
+		// PAR endpoint issued. When the outer parameters name a registered
+		// redirect URI, the client hears request_uri_not_supported there,
+		// with its state; otherwise the page shows it.
+		req, displayErr, _, _ = h.validateClientAndRedirect(r.Context(), values)
+		return req, displayErr, "request_uri_not_supported", "request_uri is not supported here: this server resolves only references from its own pushed authorization request endpoint"
+	}
 	if requestURI == "" {
 		if h.RequirePushedRequests {
 			return nil, true, "invalid_request", "this server accepts authorization requests only through the pushed authorization request endpoint (RFC 9126)"
@@ -288,6 +296,50 @@ func (h *AuthorizationHandler) resolvePushedRequest(ctx context.Context, request
 // from a pushed request as it would any other"), and sharing the function
 // is what keeps the two from drifting.
 func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Values) (req *AuthorizationRequest, displayErr bool, errCode, errDescription string) {
+	req, displayErr, errCode, errDescription = h.validateClientAndRedirect(ctx, values)
+	// OIDC Core §6.1: oneauth doesn't support request objects. Refusing
+	// one, rather than ignoring it, keeps the client from losing the
+	// object's state and nonce. The error goes to the redirect URI when
+	// the outer parameters name a registered one, as §6.1 expects.
+	if values.Has("request") {
+		return req, displayErr, "request_not_supported", "this server does not support request objects (the request parameter)"
+	}
+	if errCode != "" {
+		return req, displayErr, errCode, errDescription
+	}
+
+	// From here on, errors flow back to the client via the redirect
+	// (§4.1.2.1 "MAY include state" — preserved by the caller).
+	if req.ResponseType != "code" {
+		return req, false, "unsupported_response_type", "only response_type=code is supported"
+	}
+
+	if code, desc := h.validatePKCE(ctx, req); code != "" {
+		return req, false, code, desc
+	}
+
+	// The client's registered scope bounds what it can ask for (RFC 6749
+	// §3.3), the same rule the token endpoint applies, and asking for
+	// nothing gets the registered default.
+	reg, gErr := clientRegistration(ctx, h.AppStore, req.ClientID)
+	if gErr != nil {
+		return req, true, gErr.Code, "could not load the client registration"
+	}
+	scopes, gErr := grantScopes(reg, req.Scopes())
+	if gErr != nil {
+		return req, false, gErr.Code, gErr.Description
+	}
+	req.Scope = core.JoinScopes(scopes)
+
+	return req, false, "", ""
+}
+
+// validateClientAndRedirect reads the request's parameters and checks the
+// two that decide where an error may go: client_id, and a redirect_uri
+// registered for it. Every failure is a display error (displayErr true),
+// since RFC 6749 §4.1.2.1 forbids redirecting to an unchecked redirect
+// URI, so a caller may report its own error with the displayErr it gets.
+func (h *AuthorizationHandler) validateClientAndRedirect(ctx context.Context, values url.Values) (req *AuthorizationRequest, displayErr bool, errCode, errDescription string) {
 	req = &AuthorizationRequest{
 		ClientID:            strings.TrimSpace(values.Get("client_id")),
 		RedirectURI:         strings.TrimSpace(values.Get("redirect_uri")),
@@ -316,30 +368,6 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 	if err := h.validateRedirectURI(ctx, req.ClientID, req.RedirectURI); err != nil {
 		return req, true, "unauthorized_client", err.Error()
 	}
-
-	// From here on, errors flow back to the client via the redirect
-	// (§4.1.2.1 "MAY include state" — preserved by the caller).
-	if req.ResponseType != "code" {
-		return req, false, "unsupported_response_type", "only response_type=code is supported"
-	}
-
-	if code, desc := h.validatePKCE(ctx, req); code != "" {
-		return req, false, code, desc
-	}
-
-	// The client's registered scope bounds what it can ask for (RFC 6749
-	// §3.3), the same rule the token endpoint applies, and asking for
-	// nothing gets the registered default.
-	reg, gErr := clientRegistration(ctx, h.AppStore, req.ClientID)
-	if gErr != nil {
-		return req, true, gErr.Code, "could not load the client registration"
-	}
-	scopes, gErr := grantScopes(reg, req.Scopes())
-	if gErr != nil {
-		return req, false, gErr.Code, gErr.Description
-	}
-	req.Scope = core.JoinScopes(scopes)
-
 	return req, false, "", ""
 }
 
