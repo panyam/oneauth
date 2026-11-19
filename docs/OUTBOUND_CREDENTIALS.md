@@ -1,6 +1,6 @@
 # Outbound credentials
 
-Picture an app that mounts a person's private GitHub repo and reads it every few minutes, long after the person closed the tab. The app needs a GitHub credential that stays valid with nobody present. The rest of oneauth signs people in to the app. The `outbound` package covers the other direction: the app calling someone else's API, as itself or for one of its users.
+Picture an app that mounts a person's private GitHub repo and reads it every few minutes, long after the person closed the tab. The app needs a GitHub credential that is still valid with nobody present. The rest of oneauth signs people in to the app. The `outbound` package covers the other direction: the app calling someone else's API, as itself or for one of its users.
 
 Issue #467 tracks this work. The first consumer is goapplib's connections design (panyam/goapplib#153), which keeps the connection record and decides which mounts use which credential. oneauth supplies the credentials.
 
@@ -149,4 +149,4 @@ Some limits:
 
 ## Not here
 
-The connection record stays in goapplib's storage module: which mounts use which connection, whether it signs in for one person or as the server, and how it is configured. That module builds one of these sources per connection.
+goapplib's storage module keeps the connection record. It decides which mounts use which connection, whether a connection signs in for one person or as the server, and how it is configured. It builds one of these sources per connection.
