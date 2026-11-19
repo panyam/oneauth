@@ -60,8 +60,8 @@ jobs:
       - name: Test (OIDF conformance tooling)
         run: cd tests/oidf-conformance && GOWORK=off go test -count=1 ./...
 
-  # Packages that handle OS paths, tested on Windows. The rest of the
-  # module isn't expected to pass there yet. See issue 499.
+  # The root module's tests on Windows. No -race, since the race detector
+  # needs cgo there. Sub-modules aren't covered yet. See issue 502.
   windows:
     runs-on: windows-latest
     steps:
@@ -71,8 +71,8 @@ jobs:
         with:
           go-version: '1.26'
 
-      - name: Test (outbound)
-        run: go test -count=1 ./outbound/...
+      - name: Test (core)
+        run: go test -count=1 -short ./...
 
   # The GAE store tests skip without DATASTORE_PROJECT_ID, so the test job
   # above never runs them. The emulator needs --consistency=1.0, and a
