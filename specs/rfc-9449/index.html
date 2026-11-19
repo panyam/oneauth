@@ -549,10 +549,11 @@ URL:</p>
 </span></span><span style="display:flex;"><span>    BaseURL: <span style="color:#d14">&#34;https://rs.example.com&#34;</span>, <span style="color:#998;font-style:italic">// htu is this plus each request path
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>})
 </span></span><span style="display:flex;"><span>mw.RequireDPoP = <span style="color:#000;font-weight:bold">true</span> <span style="color:#998;font-style:italic">// optional: refuse bearer presentations outright
-</span></span></span></code></pre><p>Until a resource server wires that, it accepts a bound token as an ordinary<br />
-bearer token, which RFC 9449 §7.2 both predicts and permits. Issuing bound<br />
-tokens is therefore not protection on its own; the binding starts constraining<br />
-anyone only once the resource servers check it.</p>
+</span></span></span></code></pre><p>RFC 9449 §7.2 expects a DPoP-unaware resource server to accept a bound token<br />
+as a bearer token. <code>APIMiddleware</code> reads a token&rsquo;s <code>cnf</code> even with <code>DPoP</code> nil,<br />
+so it refuses a bound token instead, with 401 <code>invalid_token</code>: it can&rsquo;t check<br />
+the proof, and accepting the token would let a stolen one through (issue 486).<br />
+Wire DPoP at a resource server before clients send it bound tokens.</p>
 <p><strong>Nonces are opt-in, and deliberately so.</strong> RFC 9449 §8 puts the decision of<br />
 <em>when</em> to demand one out of scope. Demanding one on every request costs every<br />
 client an extra round trip on first contact and breaks any client that has not<br />

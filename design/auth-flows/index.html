@@ -1285,7 +1285,7 @@ Result: User can now login TWO ways:
 </code></pre>
 <h3 id="modifier-rfc-9449-dpop">Modifier: RFC 9449 DPoP <a class="anchor" href="#modifier-rfc-9449-dpop">¶</a></h3>
 <p>DPoP attaches to every journey rather than one. It binds the issued token to a key the client holds, so a token that leaks is useless to whoever leaked it: presenting it requires signing a fresh proof per request.</p>
-<p>Two halves have to be in place for that to mean anything, and the order matters. An authorization server can issue bound tokens while the resource servers still accept them as ordinary bearer tokens, which RFC 9449 §7.2 both predicts and permits. Enforce at the resource servers first.</p>
+<p>Two halves have to be in place for that to mean anything, and the order matters. A resource server without <code>APIMiddleware.DPoP</code> refuses a bound token, since it can&rsquo;t check the proof (issue 486). So wire DPoP at the resource servers first, or tokens the authorization server binds stop working there.</p>
 <pre><code class="language-mermaid">sequenceDiagram
     autonumber
     participant C as Client&lt;br/&gt;holds a key pair

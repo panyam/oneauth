@@ -446,7 +446,7 @@ surface smaller.</li>
 <td><code>openid</code>/<code>profile</code>/<code>email</code>/<code>address</code>/<code>phone</code> scope-to-claims mapping</td>
 <td><strong>Implemented</strong> (#339, #481)</td>
 <td><code>OIDCConfig.UserClaims</code>, <code>core.FilterClaimsByScope</code> (the §5.4 table), <code>localauth.ProfileClaims</code></td>
-<td>One function feeds both the ID token and userinfo, so they agree. <code>ProfileClaims</code> hands out any standard claim the profile holds; signup stores the ones <code>SignupPolicy.ProfileClaims</code> lists (server: <code>signup.profile_claims</code>). <code>updated_at</code> is not emitted yet (#480)</td>
+<td>Userinfo serves the scope claims. The ID token carries only the claims the request asked for by name, since an access token is always issued beside it (§5.4, #480); the client SDK asks for the ones <code>IDTokenClaims</code> reads. <code>ProfileClaims</code> hands out any standard claim the profile holds, and <code>updated_at</code> when the user store reports <code>accounts.LastUpdatedUser</code>; signup stores the claims <code>SignupPolicy.ProfileClaims</code> lists (server: <code>signup.profile_claims</code>)</td>
 </tr>
 <tr>
 <td><code>auth_time</code> claim</td>
