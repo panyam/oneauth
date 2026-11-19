@@ -30,6 +30,11 @@ type authorizationCodeGranter struct {
 	// IDTokens mints the OIDC ID token for a code granted the "openid"
 	// scope. Nil issues none, which is what an AS without OIDC does.
 	IDTokens IDTokenIssuer
+
+	// PKCEPolicy decides whether a code issued without a code_challenge
+	// can be redeemed at all. Under PKCERequired it can't, whatever path
+	// stored it.
+	PKCEPolicy PKCEPolicy
 }
 
 // NewAuthorizationCodeGranter constructs an AuthorizationCodeGranter
@@ -70,12 +75,6 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 	}
 	if req.Code == "" {
 		return nil, invalidRequest("code is required")
-	}
-	if req.CodeVerifier == "" {
-		// RFC 7636 §4.6 answers a failed PKCE check with invalid_grant,
-		// and a missing verifier is one; Keycloak and the OIDF FAPI 2.0
-		// plan agree.
-		return nil, invalidGrant("code_verifier is required (PKCE)")
 	}
 	if req.RedirectURI == "" {
 		return nil, invalidRequest("redirect_uri is required")
@@ -125,13 +124,8 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 	if entry.RedirectURI != req.RedirectURI {
 		return nil, invalidGrant("redirect_uri does not match the authorization request")
 	}
-	// RFC 7636 §4.1: 43 to 128 unreserved characters. A shorter one would
-	// verify against its own challenge but be guessable.
-	if !pkceVerifierShape.MatchString(req.CodeVerifier) {
-		return nil, invalidGrant("code_verifier must be 43 to 128 unreserved characters")
-	}
-	if !core.VerifyPKCE(entry.CodeChallengeMethod, entry.CodeChallenge, req.CodeVerifier) {
-		return nil, invalidGrant("PKCE verification failed")
+	if gErr := checkPKCE(entry, req.CodeVerifier, authedID, r.PKCEPolicy); gErr != nil {
+		return nil, gErr
 	}
 
 	// RFC 9449 §10: a code issued against a `dpop_jkt` is redeemable
@@ -265,3 +259,43 @@ func (r *authorizationCodeGranter) revoke(ctx context.Context, tokenID string, e
 }
 
 var _ AuthorizationCodeGranter = (*authorizationCodeGranter)(nil)
+
+// checkPKCE checks the token request's code_verifier against the code it
+// redeems (RFC 7636 §4.6). authedID is the client the request
+// authenticated as, empty when it didn't.
+//
+// A code issued with a challenge needs a matching verifier. A code issued
+// without one is redeemable only under PKCEOptionalForConfidential, and
+// then needs the opposite: no verifier at all, since a verifier sent for a
+// code that had no challenge is a PKCE downgrade attempt (RFC 9700
+// §2.1.1), and an authenticated client, since client authentication is
+// what protects that code.
+func checkPKCE(entry *core.AuthorizationCode, verifier, authedID string, policy PKCEPolicy) error {
+	if entry.CodeChallenge == "" {
+		if policy != PKCEOptionalForConfidential {
+			return invalidGrant("code_verifier is required (PKCE)")
+		}
+		if verifier != "" {
+			return invalidGrant("code_verifier sent, but the authorization request had no code_challenge")
+		}
+		if authedID == "" {
+			return invalidGrant("code_verifier is required (PKCE)")
+		}
+		return nil
+	}
+	if verifier == "" {
+		// RFC 7636 §4.6 answers a failed PKCE check with invalid_grant,
+		// and a missing verifier is one; Keycloak and the OIDF FAPI 2.0
+		// plan agree.
+		return invalidGrant("code_verifier is required (PKCE)")
+	}
+	// RFC 7636 §4.1: 43 to 128 unreserved characters. A shorter one would
+	// verify against its own challenge but be guessable.
+	if !pkceVerifierShape.MatchString(verifier) {
+		return invalidGrant("code_verifier must be 43 to 128 unreserved characters")
+	}
+	if !core.VerifyPKCE(entry.CodeChallengeMethod, entry.CodeChallenge, verifier) {
+		return invalidGrant("PKCE verification failed")
+	}
+	return nil
+}

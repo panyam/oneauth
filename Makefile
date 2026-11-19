@@ -693,9 +693,10 @@ oidflogs:
 # the harness + AS if not already running, then runs the discovery
 # test wrapper which drives the harness via REST and diffs results
 # against tests/conformance/known-gaps.yaml (external-suite entries).
-# The FAPI 2.0 plan (issue 98) runs in the same go test, against a fresh
-# FAPI server on :8889 that scripts/exercise-fapi2.sh --go-test starts
-# and stops. The full run takes a while (46 modules).
+# The FAPI 2.0 plan (issue 98) and the OIDC Basic OP plan (mission 477)
+# each run against a fresh server that scripts/exercise-oidf.sh <plan>
+# --go-test starts and stops (:8889 and :8890). The full run takes a while
+# (52 + 38 modules).
 testoidf:
 	@if ! curl -ksf -o /dev/null https://localhost.emobix.co.uk:8443/; then \
 		echo "OIDF harness not running — starting it..."; \
@@ -706,7 +707,8 @@ testoidf:
 		go run -buildvcs=false ./cmd/oneauth-server --config $(OIDF_AS_CONFIG) > /dev/null 2>&1 & \
 		until curl -sf --cacert tests/oidf-conformance/certs/ca.crt -o /dev/null https://localhost:8888/.well-known/openid-configuration; do sleep 1; done; \
 	fi
-	./scripts/exercise-fapi2.sh --go-test
+	./scripts/exercise-oidf.sh fapi2 --go-test
+	./scripts/exercise-oidf.sh oidcc --go-test
 
 # The FAPI 2.0 mission's exercise (issue 98): runs the OIDF
 # fapi2-security-profile-final-test-plan against oneauth-server on :8889 and
@@ -715,7 +717,14 @@ testoidf:
 # same check `make testoidf` runs. MODULE=<substring> runs only matching
 # modules.
 exercise-fapi2:
-	./scripts/exercise-fapi2.sh $(if $(MODULE),-module $(MODULE))
+	./scripts/exercise-oidf.sh fapi2 $(if $(MODULE),-module $(MODULE))
+
+# Mission 477's exercise: runs the OIDF oidcc-basic-certification-test-plan
+# against oneauth-server on :8890 and prints one line per module, judged
+# against tests/conformance/known-gaps.yaml like exercise-fapi2.
+# MODULE=<substring> runs only matching modules.
+exercise-oidcc:
+	./scripts/exercise-oidf.sh oidcc $(if $(MODULE),-module $(MODULE))
 
 # =============================================================================
 # Conformance ratchet — see docs/CONFORMANCE.md
@@ -987,7 +996,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

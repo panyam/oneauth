@@ -33,6 +33,7 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 
 **Test fixtures**
 - **Hand-minted test tokens need `exp`, and HMAC secrets need 32 bytes.** The validator requires `exp` and refuses an empty key; a helper minting without `exp` gets a 401 that looks like a key mismatch.
+- **PKCE is required from every client by default.** `OneAuthConfig.PKCEPolicy = PKCEOptionalForConfidential` lets registered confidential clients omit it (OIDC Core); their code then redeems only for an authenticated client and refuses a `code_verifier`. Without an `AppStore` PKCE stays required, and `FAPI2` panics on the setting.
 - **PKCE values must have the RFC 7636 shape**: an S256 `code_challenge` is exactly 43 base64url characters, a `code_verifier` 43 to 128 unreserved characters. Fixtures like `"wrong-verifier"` fail on shape first.
 - **httptest URL before mount.** When a handler needs the base URL (RFC 8628 `VerificationURI`), use `httptest.NewUnstartedServer(mux)`, read `server.URL`, mount, then `Start()`. See `tests/e2e/device_flow_test.go`.
 - **DCR needs `AppRegistrar.IssuerBaseURL` off loopback**, or a non-loopback `Host` gets a 500. httptest fixtures post with `Host: example.com`, so DCR tests set `IssuerBaseURL = "http://example.com"`.

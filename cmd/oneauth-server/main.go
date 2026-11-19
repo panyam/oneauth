@@ -74,6 +74,9 @@ func main() {
 	if err := checkSigningSecret(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
+	if err := checkPKCE(cfg); err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
 	if err := checkFAPI2(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
@@ -237,6 +240,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		SigningAlg:             "HS256",
 		Issuer:                 cfg.JWT.Issuer,
 		FAPI2:                  cfg.FAPI2,
+		PKCEPolicy:             pkcePolicy(cfg),
 		// Client assertions name the issuer or one of these endpoints as
 		// aud (RFC 7523 §3). Fixed from public_url rather than derived from
 		// each request, which behind a TLS proxy would say http.

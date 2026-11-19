@@ -1,4 +1,4 @@
-package fapi2
+package oidfplan
 
 import (
 	"os"
@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// fapiPlan is the plan these fixtures use; any plan name works the same.
+const fapiPlan = "fapi2-security-profile-final-test-plan"
 
 const errorPage = `<h1 id="authorize-error">Authorization error</h1>
 <p><strong>invalid_request</strong>: request_uri has already been used</p>`
@@ -81,20 +84,20 @@ func TestLoadExpectations_KeepsOnlyThisPlansEntries(t *testing.T) {
   status: expected-fail
   issue: 1
 - suite: oidf
-  plan: `+PlanName+`
+  plan: `+fapiPlan+`
   test: fapi2-security-profile-final-par-attempt-reuse-request_uri
   status: expected-review
   evidence: request_uri has already been used
   issue: 98
   reason: the error page is the refusal
 - suite: oidf
-  plan: `+PlanName+`
+  plan: `+fapiPlan+`
   test: fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails
   status: expected-skip
   issue: 330
 `), 0o644))
 
-	got, err := LoadExpectations(path)
+	got, err := LoadExpectations(path, fapiPlan)
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	reuse := got["fapi2-security-profile-final-par-attempt-reuse-request_uri"]
@@ -108,13 +111,13 @@ func TestLoadExpectations_RefusesAReviewWithoutEvidence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "known-gaps.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 - suite: oidf
-  plan: `+PlanName+`
+  plan: `+fapiPlan+`
   test: some-module
   status: expected-review
   issue: 98
 `), 0o644))
 
-	_, err := LoadExpectations(path)
+	_, err := LoadExpectations(path, fapiPlan)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "evidence")
 }
@@ -123,29 +126,13 @@ func TestLoadExpectations_RefusesAWarningWithoutEvidence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "known-gaps.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 - suite: oidf
-  plan: `+PlanName+`
+  plan: `+fapiPlan+`
   test: some-module
   status: expected-warning
   issue: 339
 `), 0o644))
 
-	_, err := LoadExpectations(path)
+	_, err := LoadExpectations(path, fapiPlan)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "evidence")
-}
-
-// The real manifest has to load, and every entry has to name a module this
-// plan's config knows how to drive.
-func TestLoadExpectations_RepositoryManifest(t *testing.T) {
-	got, err := LoadExpectations(filepath.Join("..", "..", "conformance", "known-gaps.yaml"))
-	require.NoError(t, err)
-	assert.Equal(t, StatusExpectedSkip, got["fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails"].Status)
-	reviews := 0
-	for _, e := range got {
-		if e.Status == StatusExpectedReview {
-			reviews++
-			assert.Contains(t, ModuleBrowsers(testSetup(t)), e.Module, "a REVIEW module needs an error-page browser override")
-		}
-	}
-	assert.Equal(t, 4, reviews)
 }

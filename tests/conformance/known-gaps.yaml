@@ -164,3 +164,215 @@
     advertise claims_parameter_supported; the OIDC `claims` request
     parameter is not implemented yet.
   expires: 2027-12-31
+
+# -----------------------------------------------------------------------------
+# OpenID Connect Basic OP certification plan (mission issue 477)
+# -----------------------------------------------------------------------------
+# Enforced by tests/oidf-conformance/oidcc_plan_test.go through
+# oidfplan.Judge, with the same whole-module statuses as the FAPI 2.0 plan
+# above. `make exercise-oidcc` prints the run. The baseline is the first
+# run after PKCE became optional for confidential clients (issue 290): 18
+# of 35 modules pass, and every entry below names the ticket that removes
+# it. The harness leaves out the two ID-token-algorithm modules and the
+# request_uri module for this plan's static-client variant.
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-server
+  status: expected-warning
+  evidence: non-requested claim 'typ'
+  issue: 480
+  owner: panyam
+  reason: |
+    The ID token carries oneauth's typ: ID marker claim, which stops it
+    validating as an access token. Whether it stays or moves to the JOSE
+    header is #480's decision.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-scope-email
+  status: expected-warning
+  evidence: Unexpectedly found email in id_token
+  issue: 480
+  owner: panyam
+  reason: |
+    The email claim the email scope asked for is in the ID token as well as
+    userinfo; OIDC Core §5.4 puts it in userinfo when an access token is
+    issued.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-alternate-happy-flow
+  status: expected-warning
+  evidence: Unexpectedly found email in id_token
+  issue: 480
+  owner: panyam
+  reason: |
+    Same as scope-email: email in the ID token.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-userinfo-post-body
+  status: expected-warning
+  evidence: access tokens passed in the POST body
+  issue: 481
+  owner: panyam
+  reason: |
+    /userinfo refuses the access token as an access_token form parameter
+    (RFC 6750 §2.2).
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-scope-profile
+  status: expected-warning
+  evidence: doesn't contain all scope items
+  issue: 481
+  owner: panyam
+  reason: |
+    The signed-up user has no profile data, so userinfo returns no
+    profile-scope claims.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-scope-address
+  status: expected-skip
+  issue: 481
+  owner: panyam
+  reason: |
+    scopes_supported lists neither address nor phone, so the harness skips
+    the module.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-scope-phone
+  status: expected-skip
+  issue: 481
+  owner: panyam
+  reason: |
+    scopes_supported lists neither address nor phone, so the harness skips
+    the module.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-scope-all
+  status: expected-skip
+  issue: 481
+  owner: panyam
+  reason: |
+    scopes_supported lists neither address nor phone, so the harness skips
+    the module.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-claims-essential
+  status: expected-warning
+  evidence: name not found in userinfo
+  issue: 453
+  owner: panyam
+  reason: |
+    The claims parameter isn't implemented, and the user has no name, so
+    userinfo lacks the essential name claim (with #481).
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-ensure-request-with-acr-values-succeeds
+  status: expected-warning
+  evidence: SHOULD' return an acr claim
+  issue: 453
+  owner: panyam
+  reason: |
+    acr is not supported yet, so the ID token has no acr claim.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-prompt-login
+  status: expected-fail
+  evidence: Unexpected URL for non-optional task
+  issue: 453
+  owner: panyam
+  reason: |
+    prompt=login isn't honoured, so the second authorization skips the
+    login page and the browser override meets the consent page instead.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-max-age-1
+  status: expected-fail
+  evidence: Unexpected URL for non-optional task
+  issue: 453
+  owner: panyam
+  reason: |
+    max_age isn't honoured, so the second authorization skips the login
+    page, as for prompt-login.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-prompt-none-not-logged-in
+  status: expected-fail
+  evidence: was expected to return an error but did not
+  issue: 453
+  owner: panyam
+  reason: |
+    prompt=none isn't honoured, so a request with no session shows the
+    login page instead of returning login_required.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-ensure-post-request-succeeds
+  status: expected-fail
+  evidence: Unable to locate a node using //button[@value='approve']
+  issue: 478
+  owner: panyam
+  reason: |
+    POST /authorize is the consent form's decision, so an authorization
+    request sent by POST lands on an error page.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported
+  status: expected-fail
+  evidence: State was passed in request, but is missing from response
+  issue: 479
+  owner: panyam
+  reason: |
+    /authorize ignores the request parameter instead of refusing it with
+    request_not_supported, so the request object's state is lost.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-ensure-request-object-with-redirect-uri
+  status: expected-fail
+  evidence: Unable to locate a node using //button[@value='approve']
+  issue: 479
+  owner: panyam
+  reason: |
+    Same root cause: a request object isn't refused with
+    request_not_supported.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-ensure-registered-redirect-uri
+  status: expected-review
+  evidence: unknown client_id or redirect_uri
+  issue: 477
+  owner: panyam
+  reason: |
+    An unregistered redirect URI gets oneauth's error page, never a
+    redirect (RFC 6749 §4.1.2.1). The harness asks for a screenshot of it.
+  expires: 2027-12-31

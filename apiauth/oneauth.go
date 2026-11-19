@@ -62,6 +62,9 @@ type OneAuth struct {
 	// every config call site.
 	AllowPlainPKCE bool
 
+	// PKCEPolicy mirrors OneAuthConfig.PKCEPolicy, for MountAuthorize.
+	PKCEPolicy PKCEPolicy
+
 	// AcceptedAudiences is the set of URLs the token endpoint will
 	// accept as the `aud` claim of a private_key_jwt / client_secret_jwt
 	// client assertion (OIDC Core §9). Echoed into the granters so they
@@ -211,6 +214,13 @@ type OneAuthConfig struct {
 	// Per capability-gating umbrella #344.
 	AllowPlainPKCE bool
 
+	// PKCEPolicy says which clients must send a PKCE code_challenge. The
+	// zero value, PKCERequired, requires it from every client (OAuth 2.1).
+	// PKCEOptionalForConfidential lets registered confidential clients
+	// omit it, as OpenID Connect Core and OAuth 2.0 allow. FAPI2 requires
+	// PKCE, so NewOneAuth panics when FAPI2 is set with any other policy.
+	PKCEPolicy PKCEPolicy
+
 	// Device authorization grant (RFC 8628). When DeviceAuthStore is
 	// non-nil the token endpoint accepts grant_type=...:device_code.
 	DeviceAuthStore core.DeviceAuthorizationStore
@@ -301,6 +311,13 @@ type OneAuthConfig struct {
 // NewOneAuth creates a fully wired OneAuth instance.
 // All implementations receive only the interfaces they need.
 func NewOneAuth(cfg OneAuthConfig) *OneAuth {
+	if !cfg.PKCEPolicy.Valid() {
+		panic("apiauth: NewOneAuth: unknown PKCEPolicy " + string(cfg.PKCEPolicy))
+	}
+	if cfg.FAPI2 && cfg.PKCEPolicy != PKCERequired {
+		// FAPI 2.0 Security Profile §5.3.2.2 requires PKCE with S256.
+		panic("apiauth: NewOneAuth: FAPI2 requires PKCE, so PKCEPolicy must be PKCERequired")
+	}
 	if cfg.FAPI2 {
 		// FAPI 2.0 Security Profile §5.3.2.1: sender-constrained tokens
 		// only, no refresh-token rotation, and the issuer as the sole
@@ -418,6 +435,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 			cfg.Blacklist,
 		)
 		g.IDTokens = idTokens
+		g.PKCEPolicy = cfg.PKCEPolicy
 		authCodeGranter = g
 	}
 	var deviceGranter DeviceCodeGranter
@@ -473,6 +491,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		DeviceAuthStore:          cfg.DeviceAuthStore,
 		AppStore:                 cfg.AppStore,
 		AllowPlainPKCE:           cfg.AllowPlainPKCE,
+		PKCEPolicy:               cfg.PKCEPolicy,
 		AcceptedAudiences:        cfg.AcceptedAudiences,
 		DPoP:                     cfg.DPoP,
 		RequireDPoP:              cfg.RequireDPoP,

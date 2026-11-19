@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/panyam/oneauth/tests/oidf-conformance/oidfplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,14 +14,14 @@ const modulePrefix = "fapi2-security-profile-final-"
 // planOverrides round-trips PlanConfig through JSON, as the harness receives
 // it, and returns its per-module overrides.
 func planOverrides(t *testing.T) map[string]struct {
-	Browser []BrowserTask `json:"browser"`
+	Browser []oidfplan.BrowserTask `json:"browser"`
 } {
 	t.Helper()
 	raw, err := json.Marshal(PlanConfig(testSetup(t)))
 	require.NoError(t, err)
 	var cfg struct {
 		Override map[string]struct {
-			Browser []BrowserTask `json:"browser"`
+			Browser []oidfplan.BrowserTask `json:"browser"`
 		} `json:"override"`
 	}
 	require.NoError(t, json.Unmarshal(raw, &cfg))
@@ -80,7 +81,7 @@ func TestModuleBrowsers_ReuseRequestURIApprovesThenExpectsTheErrorPage(t *testin
 	assertErrorPageScript(t, browser[1])
 }
 
-func assertErrorPageScript(t *testing.T, b BrowserTask) {
+func assertErrorPageScript(t *testing.T, b oidfplan.BrowserTask) {
 	t.Helper()
 	assert.Equal(t, []string{"Login", "Error page"}, taskNames(b))
 	errorPage := b.Tasks[1]
@@ -110,7 +111,7 @@ func keys[V any](m map[string]V) []string {
 	return out
 }
 
-func taskNames(b BrowserTask) []string {
+func taskNames(b oidfplan.BrowserTask) []string {
 	var out []string
 	for _, s := range b.Tasks {
 		out = append(out, s.Task)

@@ -1,4 +1,4 @@
-package fapi2
+package oidfplan
 
 import (
 	"fmt"
@@ -9,9 +9,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Manifest statuses for this plan's entries in tests/conformance/known-gaps.yaml.
-// Unlike the discovery plan, whose entries name single checks, these name a
-// whole module (the entry's `test` is the module name).
+// Manifest statuses for a plan's whole-module entries in
+// tests/conformance/known-gaps.yaml. Unlike the discovery plan, whose entries
+// name single checks, these name a whole module (the entry's `test` is the
+// module name).
 const (
 	// StatusExpectedFail is a module that fails today for a tracked reason.
 	// An entry's Evidence, when set, must appear in the module's first
@@ -31,7 +32,7 @@ const (
 	StatusExpectedWarning = "expected-warning"
 )
 
-// Expectation is one known-gaps.yaml entry for PlanName.
+// Expectation is one known-gaps.yaml entry for a plan's module.
 type Expectation struct {
 	Module   string
 	Status   string
@@ -41,11 +42,11 @@ type Expectation struct {
 }
 
 // LoadExpectations reads the known-gaps.yaml manifest at path and returns
-// its entries for PlanName, keyed by module name. Entries for other plans
+// its OIDF entries for plan, keyed by module name. Entries for other plans
 // and suites are ignored. An entry with an unknown status, or an
 // expected-review entry without evidence, is an error rather than being
 // skipped, since a typo there would otherwise hide the module.
-func LoadExpectations(path string) (map[string]Expectation, error) {
+func LoadExpectations(path, plan string) (map[string]Expectation, error) {
 	buf, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read manifest: %w", err)
@@ -64,7 +65,7 @@ func LoadExpectations(path string) (map[string]Expectation, error) {
 	}
 	out := map[string]Expectation{}
 	for _, e := range entries {
-		if e.Suite != "oidf" || e.Plan != PlanName {
+		if e.Suite != "oidf" || e.Plan != plan {
 			continue
 		}
 		switch e.Status {

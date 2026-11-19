@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/panyam/oneauth/tests/oidf-conformance/oidfplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +24,7 @@ func testSetup(t *testing.T) Setup {
 		IssuerURL:  "https://host.docker.internal:8889",
 		Scope:      "read",
 		Clients:    [2]RegisteredClient{{ID: "c1", Key: k1}, {ID: "c2", Key: k2}},
-		User:       User{Email: "fapi@example.com", Password: "fapi-password-1"},
+		User:       oidfplan.User{Email: "fapi@example.com", Password: "fapi-password-1"},
 	}
 }
 
