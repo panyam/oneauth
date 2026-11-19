@@ -85,7 +85,9 @@ func setupPostgresDB(t *testing.T, dbName string) *gorm.DB {
 	schema := sanitizeSchemaName(t.Name())
 	sqlDB, _ := db.DB()
 	sqlDB.Exec("CREATE SCHEMA IF NOT EXISTS " + schema)
-	sqlDB.Exec("SET search_path TO " + schema)
+	// This connection only creates the schema. Leaving it open leaked one
+	// connection per test until the suite hit Postgres's client limit.
+	sqlDB.Close()
 
 	// Re-open with search_path set
 	dsnWithSchema := dsn + " search_path=" + schema

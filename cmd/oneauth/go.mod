@@ -4,7 +4,7 @@ go 1.26.9
 
 require (
 	github.com/mdp/qrterminal/v3 v3.2.1
-	github.com/panyam/oneauth v0.3.3
+	github.com/panyam/oneauth v0.3.5
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.12.1
 )

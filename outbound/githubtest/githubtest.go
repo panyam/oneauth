@@ -1,7 +1,8 @@
 // Package githubtest is a fake GitHub for tests of code using
 // outbound.GitHubAppInstallation and outbound.StoredUserToken. It checks a
 // GitHub App's JWT the way GitHub does, issues installation tokens and
-// rotating user tokens, and answers a bearer-protected endpoint for each
+// rotating user tokens, revokes them as the OAuth app endpoints do, and
+// answers a bearer-protected endpoint for each
 // kind of token, so a test can check that a token it was handed works.
 //
 // Consumers' tests can use it too, as keystoretest and appstoretest are
@@ -62,12 +63,14 @@ type Server struct {
 	refreshTokens      map[string]string    // refresh token -> subject; deleted on use
 	installationCalls  int
 	refreshCalls       int
+	revokeCalls        int
 	lastJWTClaims      jwt.MapClaims
 }
 
 type userGrant struct {
 	subject string
 	expiry  time.Time
+	refresh string
 }
 
 // New starts a fake with a fresh 2048-bit App key, App ID "12345" and
@@ -95,6 +98,8 @@ func New(t testing.TB) *Server {
 	mux.HandleFunc("POST /login/oauth/access_token", s.handleOAuthToken)
 	mux.HandleFunc("GET /installation/repositories", s.handleInstallationRepos)
 	mux.HandleFunc("GET /user", s.handleUser)
+	mux.HandleFunc("DELETE /applications/{client_id}/token", s.handleRevoke)
+	mux.HandleFunc("DELETE /applications/{client_id}/grant", s.handleRevoke)
 	s.Server = httptest.NewServer(mux)
 	t.Cleanup(s.Close)
 	return s
@@ -151,6 +156,13 @@ func (s *Server) RefreshCalls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.refreshCalls
+}
+
+// RevokeCalls is how many revoke requests arrived, accepted or not.
+func (s *Server) RevokeCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.revokeCalls
 }
 
 // LastJWTClaims returns the claims of the last App JWT the fake accepted.
@@ -260,6 +272,47 @@ func (s *Server) handleOAuthToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleRevoke serves DELETE /applications/{client_id}/token and /grant.
+// It needs the app's client ID and secret as basic auth. /token revokes
+// the access token and its refresh token; /grant revokes every token
+// issued to that person. Success is 204. An unknown token is 422, as
+// GitHub's docs list for a validation failure.
+func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.revokeCalls++
+	id, secret, ok := r.BasicAuth()
+	if !ok || id != s.ClientID || secret != s.ClientSecret || r.PathValue("client_id") != s.ClientID {
+		apiError(w, http.StatusNotFound, "Not Found")
+		return
+	}
+	var body struct {
+		AccessToken string `json:"access_token"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	g, ok := s.userTokens[body.AccessToken]
+	if !ok {
+		apiError(w, http.StatusUnprocessableEntity, "Validation Failed")
+		return
+	}
+	if strings.HasSuffix(r.URL.Path, "/grant") {
+		for tok, other := range s.userTokens {
+			if other.subject == g.subject {
+				delete(s.userTokens, tok)
+			}
+		}
+		for rt, subject := range s.refreshTokens {
+			if subject == g.subject {
+				delete(s.refreshTokens, rt)
+			}
+		}
+	} else {
+		delete(s.userTokens, body.AccessToken)
+		delete(s.refreshTokens, g.refresh)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleInstallationRepos(w http.ResponseWriter, r *http.Request) {
 	tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !s.ValidInstallationToken(tok) {
@@ -288,7 +341,7 @@ func (s *Server) issueUserLocked(subject string) *oauth2.Token {
 		RefreshToken: "ghr_" + randHex(),
 		Expiry:       s.now().Add(s.UserTokenTTL),
 	}
-	s.userTokens[tok.AccessToken] = userGrant{subject: subject, expiry: tok.Expiry}
+	s.userTokens[tok.AccessToken] = userGrant{subject: subject, expiry: tok.Expiry, refresh: tok.RefreshToken}
 	s.refreshTokens[tok.RefreshToken] = subject
 	return tok
 }

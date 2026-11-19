@@ -87,9 +87,25 @@ sequenceDiagram
 |---|---|
 | `outbound.MemoryUserTokenStore` | One process. For tests and single-process tools. |
 | `stores/fs.FSUserTokenStore` | One process. A mutex covers check and rename, but two processes sharing the directory can both pass the check. |
-| GORM, GAE | Not yet written. Replicas that refresh tokens need one of these. |
+| `stores/gorm.UserTokenStore` | Every replica sharing the database. Each write is one statement: an insert with `ON CONFLICT DO NOTHING`, or an update `WHERE version = ?`. No row affected is a conflict. |
+| `stores/gae.GAEUserTokenStore` | Every replica sharing the Datastore. Get, compare and Put run in one transaction, and a transaction that loses after Datastore's retries is a conflict too. |
 
-The FS store names each file by a SHA-256 of provider and subject. Two keys never share a file, and no subject can steer the path.
+Replicas that refresh tokens need the GORM or GAE store. The FS and GAE stores name each record by a SHA-256 of provider and subject, so two keys never share a record and no subject can steer a path.
+
+#### Disconnecting
+
+`Delete` drops the stored token and leaves it working at GitHub. `Revoke` revokes it first, through `UserTokens.Revoker`:
+
+```go
+tokens.Revoker = &outbound.GitHubRevoker{ClientID: id, ClientSecret: secret}
+err := tokens.Revoke(ctx, userID)
+```
+
+- `GitHubRevoker` calls `DELETE /applications/{client_id}/token`, which revokes the access token and its refresh token. With `RevokeGrant` it calls `/grant` instead. That also removes the person's authorization of the app and every token it gave them, so their next connect shows the consent screen again.
+- Only GitHub's 204 counts as revoked. GitHub answers 404 for wrong client credentials too, so a 404 is an error. A refused revoke keeps the record, so the app can retry.
+- A second `Revoke` finds no record and returns nil without calling GitHub.
+- A record that won't open is kept and its error returned, since the token may still be live. `Delete` removes it anyway.
+- `Revoke` holds the per-subject lock, so a refresh in the same process can't write a token back after it.
 
 ### Static secrets
 
@@ -126,10 +142,11 @@ GitHub Apps ignore OAuth scopes. A user token from an App carries the App's perm
 `outbound/githubtest` starts an `httptest.Server` that behaves like the parts of GitHub these sources touch:
 
 - `POST /app/installations/{id}/access_tokens` checks the JWT as GitHub does (RS256 only, the App's key, `iss`, at most ten minutes of life, not expired) and issues an installation token.
+- `DELETE /applications/{client_id}/token` and `/grant` revoke a token or a person's whole grant, with the app's client credentials as basic auth.
 - `POST /login/oauth/access_token` serves the refresh grant. Refresh tokens are single-use, and errors come back as 200 with an `error` field, as on GitHub.
 - `GET /installation/repositories` and `GET /user` answer 200 only for a live token of the matching kind, so a test can check a token works.
 
-`InstallationCalls()`, `RefreshCalls()` and `LastJWTClaims()` let a test assert cache hits and claim values. Consumers' tests use it the same way, as they use `keystoretest`.
+`InstallationCalls()`, `RefreshCalls()`, `RevokeCalls()` and `LastJWTClaims()` let a test assert cache hits and claim values. Consumers' tests use it the same way, as they use `keystoretest`.
 
 ## Where a secret can and cannot end up
 
@@ -144,7 +161,8 @@ GitHub Apps ignore OAuth scopes. A user token from an App carries the App's perm
 Some limits:
 
 - A process with the master key and store access can open every user token. The master key belongs in a secret manager or a mounted file, apart from the store.
-- `Delete` removes a stored token but doesn't revoke it at GitHub. A disconnect flow that must cut access at once also calls GitHub's token revocation endpoint.
+- `Delete` removes a stored token but doesn't revoke it at GitHub. A disconnect that must cut access at once calls `Revoke`.
+- The per-subject lock covers one process. A replica that refreshes while another revokes can't write its token back, since an update to a deleted record is a conflict, and it answers `ErrUserTokenNotFound`. The token it got from GitHub is never stored or handed out. After a `/token` revoke that token is still live at GitHub until it expires, though. A `/grant` revoke kills it too, so use `RevokeGrant` when that matters.
 - `oauth2.Token` values are in memory unencrypted while in use, like any credential an HTTP client sends.
 
 ## Not here

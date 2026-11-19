@@ -3,6 +3,35 @@
 > Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at
 > 0.1.37. Use `git log v0.1.<n-1>..v0.1.<n>` for anything in that range.
 
+> 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
+
+## Version 0.3.5
+
+This release adds `outbound/`, for an app calling someone else's API as itself or for one of its users. goapplib's storage mounts over private GitHub repos are the first consumer. The sub-modules still require the root at v0.3.4. The next release bumps them, together with the GORM and GAE user-token stores (issue 468).
+
+### Outbound credentials (issue 467, PR 469)
+
+- **`outbound.GitHubAppInstallation`** signs a GitHub App's JWT (RS256, nine-minute life), trades it for an installation token, and caches it until five minutes before expiry. Concurrent callers share one fetch. It reads GitHub's PKCS#1 App keys, and `BaseURL` points it at GitHub Enterprise.
+- **`outbound.UserTokens` / `StoredUserToken`** keep a person's token sealed in a `UserTokenStore`, and refresh it with a compare-and-swap write. GitHub's refresh tokens are single-use, so a replica that loses a refresh race waits for the winner's token instead of overwriting it with a dead one. The errors to act on are `ErrUserTokenNotFound` and `ErrReconnect`.
+- **`outbound.Static`** reads a personal access token from a `SecretRef` (`env:NAME` or `file:/abs/path`) on every call. A bare value is refused.
+- **`outbound.MemoryUserTokenStore`**, **`stores/fs.FSUserTokenStore`** and the **`usertokentest.RunAll`** contract suite. Both stores do compare-and-swap within one process only.
+- **`outbound/githubtest`** is a fake GitHub for tests. It checks App JWTs, issues installation tokens and single-use refresh tokens, and serves `/user` and `/installation/repositories` for live tokens.
+- Design and threat notes: `docs/OUTBOUND_CREDENTIALS.md`, published under Design.
+
+### Keys
+
+- **`keys.Sealer`** is the AES-256-GCM `oaenc1:` format, moved out of `EncryptedKeyStorage` so other stores can use it. It takes an HKDF purpose label and per-record AAD. The key stores keep `KeyStorePurpose`, so existing records open unchanged.
+
+### GitHub and Google providers (`oauth2` sub-module)
+
+- **`SetScopes` / `Scopes`** replace the default login scopes.
+- **`AllowedExtraScopes`** lets a login link add scopes with `?scope=`, for example `repo` on a later connect.
+- **Behaviour change:** a `?scope=` value that isn't on the list now gets 400, where before it was ignored. This applies to both providers, since they share `BaseOAuth2`. It ships in `oauth2/v0.3.5`.
+
+### Docs
+
+- Root `CLAUDE.md` is down from 30.9k to 5.2k characters. Subsystem gotchas now sit in a `CLAUDE.md` beside the code they cover.
+
 ## Version 0.2.5
 
 The OIDF FAPI 2.0 Security Profile plan now runs clean against the
