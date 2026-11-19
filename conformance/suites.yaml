@@ -16,8 +16,10 @@
 #   timeout:  Go duration bounding one run (default 20m). On expiry the runner
 #             kills the suite's process group, reports it FAIL "timed out",
 #             and goes on to the next suite.
-#   plan:     for an OIDF exercise, the plan it runs; its module results
-#             appear in docs/conformance/REPORT.md. Optional.
+#   plan:     for an OIDF exercise, the run's known-gaps.yaml plan key: the
+#             harness plan name, or <plan>-<variant> for a plan run once per
+#             variant. Its module results appear in
+#             docs/conformance/REPORT.md. Optional.
 #   tracking: the issue the suite belongs to, plain text. Optional.
 #   note:     one line of context. Optional.
 #
@@ -57,6 +59,43 @@ suites:
     source: tests/oidf-conformance/oidcc
     needs: [docker]
     tracking: "mission 477"
+
+  - name: oidf-dynamic-op
+    kind: gating
+    timeout: 20m
+    covers: OIDF oidcc-dynamic-certification-test-plan, the harness registering its own clients through RFC 7591
+    plan: oidcc-dynamic-certification-test-plan
+    source: tests/oidf-conformance/oidcdyn
+    needs: [docker]
+    tracking: "issue 493"
+
+  - name: oidf-tp-post
+    kind: gating
+    timeout: 25m
+    covers: OIDF oidcc-test-plan with client_secret_post clients
+    plan: oidcc-test-plan-client_secret_post
+    source: tests/oidf-conformance/oidcdyn
+    needs: [docker]
+    tracking: "issue 494"
+
+  - name: oidf-tp-secret-jwt
+    kind: gating
+    timeout: 25m
+    covers: OIDF oidcc-test-plan with client_secret_jwt clients
+    plan: oidcc-test-plan-client_secret_jwt
+    source: tests/oidf-conformance/oidcdyn
+    needs: [docker]
+    tracking: "issue 494"
+
+  - name: oidf-tp-private-key-jwt
+    kind: gating
+    timeout: 25m
+    covers: OIDF oidcc-test-plan with private_key_jwt clients
+    plan: oidcc-test-plan-private_key_jwt
+    source: tests/oidf-conformance/oidcdyn
+    needs: [docker]
+    tracking: "issue 494"
+
 
   - name: keycloak
     kind: gating

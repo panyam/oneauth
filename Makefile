@@ -727,13 +727,17 @@ oidflogs:
 # the harness + AS if not already running, then runs the discovery
 # test wrapper which drives the harness via REST and diffs results
 # against tests/conformance/known-gaps.yaml (external-suite entries).
-# The FAPI 2.0 plan (issue 98) and the OIDC Basic OP plan (mission 477)
-# each run against a fresh server that scripts/exercise-oidf.sh <plan>
-# --go-test starts and stops (:8889 and :8890). The full run takes a while
-# (52 + 38 modules).
+# The FAPI 2.0 plan (issue 98), the OIDC Basic OP plan (mission 477), the
+# Dynamic OP plan (issue 493) and oidcc-test-plan once per client auth method
+# (issue 494) each run against a fresh server that scripts/exercise-oidf.sh
+# <plan> --go-test starts and stops (:8889 to :8892). The full run takes a
+# while (52 + 38 + 23 + 3 x about 52 modules).
+OIDCCTP_AUTH_TYPES := client_secret_post client_secret_jwt private_key_jwt
 testoidf: oidf-discovery-up
 	./scripts/exercise-oidf.sh fapi2 --go-test
 	./scripts/exercise-oidf.sh oidcc --go-test
+	./scripts/exercise-oidf.sh oidcdyn --go-test
+	@set -e; for a in $(OIDCCTP_AUTH_TYPES); do AUTH=$$a ./scripts/exercise-oidf.sh oidcctp --go-test; done
 
 # The OIDF Config plan alone: the discovery document checked against the
 # server on :8888, with its per-check scorecard. `make testoidf` runs it too.
@@ -772,6 +776,18 @@ exercise-fapi2:
 # MODULE=<substring> runs only matching modules.
 exercise-oidcc:
 	./scripts/exercise-oidf.sh oidcc $(if $(MODULE),-module $(MODULE))
+
+# Issue 493: the OIDF Dynamic OP plan on :8891, where the harness registers
+# its own clients. MODULE=<substring> as above.
+exercise-oidcdyn:
+	./scripts/exercise-oidf.sh oidcdyn $(if $(MODULE),-module $(MODULE))
+
+# Issue 494: oidcc-test-plan on :8892 with AUTH's client auth method, or each
+# of OIDCCTP_AUTH_TYPES in turn when AUTH is unset. MODULE=<substring> as above.
+exercise-oidcctp:
+	@set -e; for a in $(or $(AUTH),$(OIDCCTP_AUTH_TYPES)); do \
+		AUTH=$$a ./scripts/exercise-oidf.sh oidcctp $(if $(MODULE),-module $(MODULE)); \
+	done
 
 # =============================================================================
 # Conformance ratchet — see docs/CONFORMANCE.md
@@ -1043,7 +1059,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

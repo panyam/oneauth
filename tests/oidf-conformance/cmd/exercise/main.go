@@ -3,8 +3,10 @@
 // plan in a running harness, runs every module, and prints one line per
 // module. -plan picks the plan:
 //
-//	fapi2  fapi2-security-profile-final-test-plan (mission 98)
-//	oidcc  oidcc-basic-certification-test-plan (mission 477)
+//	fapi2    fapi2-security-profile-final-test-plan (mission 98)
+//	oidcc    oidcc-basic-certification-test-plan (mission 477)
+//	oidcdyn  oidcc-dynamic-certification-test-plan (issue 493)
+//	oidcctp  oidcc-test-plan with -auth's client auth method (issue 494)
 //
 // `make exercise-fapi2` and `make exercise-oidcc` start the harness and a
 // server and run this; see scripts/exercise-oidf.sh. Each module is judged
@@ -31,11 +33,13 @@ import (
 	"github.com/panyam/oneauth/tests/oidf-conformance/fapi2"
 	"github.com/panyam/oneauth/tests/oidf-conformance/harness"
 	"github.com/panyam/oneauth/tests/oidf-conformance/oidcc"
+	"github.com/panyam/oneauth/tests/oidf-conformance/oidcdyn"
 	"github.com/panyam/oneauth/tests/oidf-conformance/oidfplan"
 )
 
 func main() {
-	planFlag := flag.String("plan", "fapi2", "plan to run: fapi2 or oidcc")
+	planFlag := flag.String("plan", "fapi2", "plan to run: fapi2, oidcc, oidcdyn or oidcctp")
+	authType := flag.String("auth", "", "oidcctp only: the client auth method to run oidcc-test-plan with")
 	harnessURL := flag.String("harness", "https://localhost.emobix.co.uk:8443", "OIDF harness origin")
 	serverURL := flag.String("server", "https://localhost:8889", "oneauth-server as this machine reaches it")
 	issuerURL := flag.String("issuer", "https://host.docker.internal:8889", "oneauth-server as the harness container reaches it (its public_url)")
@@ -48,6 +52,9 @@ func main() {
 
 	if *alias == "" {
 		*alias = "oneauth-" + *planFlag
+		if *authType != "" {
+			*alias += "-" + strings.ReplaceAll(*authType, "_", "-")
+		}
 	}
 	ca, err := os.ReadFile(*caFile)
 	if err != nil {
@@ -86,11 +93,22 @@ func main() {
 		}
 		fmt.Printf("registered client_secret_post client: %s\n", s.PostClient.ID)
 		plan, prefix = oidcc.Plan(s), oidcc.ModulePrefix
+	case "oidcdyn", "oidcctp":
+		s := oidcdyn.Setup{Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, User: oidcdyn.ExerciseUser()}
+		if err := oidfplan.SignUp(ctx, hc, *serverURL, s.User); err != nil {
+			log.Fatalf("sign up the browser user: %v", err)
+		}
+		plan, prefix = oidcdyn.DynamicPlan(s), oidcc.ModulePrefix
+		if *planFlag == "oidcctp" {
+			if plan, err = oidcdyn.TestPlan(s, *authType); err != nil {
+				log.Fatal(err)
+			}
+		}
 	default:
-		log.Fatalf("unknown -plan %q: want fapi2 or oidcc", *planFlag)
+		log.Fatalf("unknown -plan %q: want fapi2, oidcc, oidcdyn or oidcctp", *planFlag)
 	}
 
-	expected, err := oidfplan.LoadExpectations(*manifest, plan.Name)
+	expected, err := oidfplan.LoadExpectations(*manifest, plan.ManifestKey())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -99,9 +117,10 @@ func main() {
 			delete(expected, m)
 		}
 	}
+	plan.Manual = oidfplan.ManualModules(expected)
 
 	h := harness.New(*harnessURL)
-	fmt.Printf("\n%s (%s)\n", plan.Name, variantString(plan.Variant))
+	fmt.Printf("\n%s (%s)\n", plan.ManifestKey(), variantString(plan.Variant))
 	planID, results, err := oidfplan.RunPlan(ctx, h, plan, *perModule, *only, func(r oidfplan.ModuleResult) {
 		one := map[string]oidfplan.Expectation{}
 		if e, ok := expected[r.Module]; ok {
@@ -142,7 +161,7 @@ func main() {
 	// `make conformance` sets CONFORMANCE_RESULTS_DIR and reads the record
 	// back for the committed conformance report.
 	if dir := os.Getenv("CONFORMANCE_RESULTS_DIR"); dir != "" {
-		if err := oidfplan.WritePlanRecord(filepath.Join(dir, plan.Name+".json"), rec); err != nil {
+		if err := oidfplan.WritePlanRecord(filepath.Join(dir, plan.ManifestKey()+".json"), rec); err != nil {
 			log.Printf("write the run record: %v", err)
 		}
 	}
