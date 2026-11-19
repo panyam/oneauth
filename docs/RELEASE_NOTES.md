@@ -5,6 +5,43 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.8
+
+Most of this release moves `/authorize`, the ID token and userinfo closer to OIDC Core, driven by the OIDF Basic OP plan that `make exercise-oidcc` now runs. It also fixes `file:` secret refs on Windows, which agni needs. Two changes alter what a consumer sees, and both are listed under contract changes.
+
+### Contract changes
+
+- **The ID token no longer carries scope claims (issue 480, PR 488).** A request for `scope=openid email` used to put `email` in the ID token as well as userinfo. OIDC Core §5.4 sends those claims to userinfo, so the ID token now carries only claims the request asks for by name with the `claims` parameter. The client SDK's `LoginWithBrowser` with `VerifyIDToken` asks for the four claims `IDTokenClaims` reads, so SDK users keep them. Other clients that read profile claims from the ID token should call userinfo or send `claims`.
+- **An `APIMiddleware` without `DPoP` refuses DPoP-bound tokens (issue 486, PR 488).** A token with `cnf.jkt` sent as Bearer used to pass, so a stolen bound token worked at any resource server that hadn't wired DPoP. It now gets 401 `invalid_token`.
+
+### OIDC at /authorize (PRs 483, 484)
+
+- `POST /authorize` without an `action` field gets a 303 to `GET /authorize` with the same parameters, as OIDC Core §3.1.2.1 requires. The consent form always posts `action`, so its decisions still go through CSRF.
+- A `request` parameter gets `request_not_supported`, and a `request_uri` that oneauth's own `/par` didn't issue gets `request_uri_not_supported`. Before, `/authorize` ignored both and used the outer parameters.
+- `prompt=login`, and a login older than `max_age`, send the user through the login page once. `prompt=none` never shows a page and answers `login_required` or `consent_required` at the redirect URI.
+- `core.ConsentStore` remembers consent, with memory, FS, GORM and GAE backends. Set `AuthorizeMountConfig.ConsentStore`, or `code_flow.consent.remember` on the reference server, and a request covered by earlier consent skips the consent screen unless it sends `prompt=consent`.
+
+### Claims and userinfo (PRs 487, 488)
+
+- `/authorize` accepts the OIDC `claims` parameter (§5.5). The ID token and userinfo add the claims it names, and discovery advertises `claims_parameter_supported`.
+- Userinfo accepts the access token as a form-encoded `access_token` on POST (RFC 6750 §2.2). Sending it in the header as well is 400 `invalid_request`.
+- Signup accepts the standard profile claims a deployment lists (`SignupPolicy.ProfileClaims`, or `signup.profile_claims`), and `localauth.ProfileClaims` hands them out by scope. The server lists `address` and `phone` in `scopes_supported`.
+- Userinfo returns `updated_at` under `profile` through the optional `accounts.LastUpdatedUser` interface. The FS, GORM and GAE user types implement it.
+
+### PKCE policy for confidential clients (PR 482)
+
+- `OneAuthConfig.PKCEPolicy = PKCEOptionalForConfidential` (`code_flow.pkce: optional_for_confidential`) lets registered confidential clients omit PKCE, as OIDC Core allows. The default still requires PKCE from every client.
+
+### Windows file secret refs (issue 499, PR 501)
+
+- `outbound.ParseSecretRef` accepts any path `filepath.IsAbs` accepts, so `file:C:\secrets\app.pem` works on Windows. A path starting with `/` still works on every OS. CI runs the `outbound` tests on Windows.
+
+### Conformance and release tooling (PRs 475, 476, 482)
+
+- `make exercise-oidcc` runs the OIDF Basic OP plan against the reference server and judges each module against `known-gaps.yaml`. `make testoidf` runs it after FAPI 2.0.
+- `make pushrelease` records the new version's `go.sum` hashes before pushing main, so v0.3.7's `missing go.sum entry` doesn't recur. `verify-submodule-deps` fails when they're missing.
+- The reference server's tests run the device flow end to end on FS, Postgres and GAE stores.
+
 ## Version 0.3.7
 
 This is the first release cut with `make release`. Every module is tagged v0.3.7 on one commit and requires every other oneauth module at v0.3.7, and the commands are `go install`-able. The release also adds FS and GAE stores for authorization codes and pushed requests, and hashes every single-use credential at rest.
