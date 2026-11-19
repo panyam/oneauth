@@ -181,9 +181,10 @@ func TestRestartPersists(t *testing.T, factory Factory) {
 
 // TestOIDCFieldsRoundTrip pins that the OIDC request state a code carries
 // to the token endpoint survives the backend: the nonce the ID token
-// echoes, and the auth_time it reports. A backend dropping either issues
-// ID tokens a client rejects (OIDC Core §3.1.3.7) or misreports when the
-// user logged in.
+// echoes, the auth_time it reports, and the claims the `claims` request
+// parameter asked for (§5.5). A backend dropping any of them issues ID
+// tokens a client rejects (OIDC Core §3.1.3.7), misreports when the user
+// logged in, or leaves out claims the client asked for by name.
 //
 // See: https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 func TestOIDCFieldsRoundTrip(t *testing.T, factory Factory) {
@@ -192,12 +193,16 @@ func TestOIDCFieldsRoundTrip(t *testing.T, factory Factory) {
 	c := newCode()
 	c.Nonce = "n-0S6_WzA2Mj"
 	c.AuthTime = authTime
+	c.IDTokenClaims = []string{"name", "email"}
+	c.UserinfoClaims = []string{"address"}
 	createCode(t, s, c)
 
 	g, err := s.GetAuthorizationCode(context.Background(), &core.GetAuthorizationCodeRequest{Code: c.Code})
 	require.NoError(t, err)
 	assert.Equal(t, "n-0S6_WzA2Mj", g.Code.Nonce)
 	assert.True(t, authTime.Equal(g.Code.AuthTime), "auth_time %v, want %v", g.Code.AuthTime, authTime)
+	assert.Equal(t, []string{"name", "email"}, g.Code.IDTokenClaims)
+	assert.Equal(t, []string{"address"}, g.Code.UserinfoClaims)
 
 	unset := newCode()
 	unset.Code = "code-no-oidc"
@@ -205,4 +210,6 @@ func TestOIDCFieldsRoundTrip(t *testing.T, factory Factory) {
 	g, err = s.GetAuthorizationCode(context.Background(), &core.GetAuthorizationCodeRequest{Code: unset.Code})
 	require.NoError(t, err)
 	assert.True(t, g.Code.AuthTime.IsZero(), "an unknown auth_time stays zero")
+	assert.Empty(t, g.Code.IDTokenClaims)
+	assert.Empty(t, g.Code.UserinfoClaims)
 }

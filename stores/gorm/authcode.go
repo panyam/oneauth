@@ -41,7 +41,9 @@ type AuthorizationCodeModel struct {
 	CodeChallengeMethod  string                     `gorm:"size:16"`
 	DPoPJKT              string                     `gorm:"size:64"` // RFC 9449 §10 dpop_jkt; empty = code not key-bound
 	AuthorizationDetails []core.AuthorizationDetail `gorm:"serializer:json"`
-	Nonce                string                     `gorm:"size:512"` // OIDC nonce, echoed into the ID token
+	Nonce                string                     `gorm:"size:512"`        // OIDC nonce, echoed into the ID token
+	IDTokenClaims        []string                   `gorm:"serializer:json"` // OIDC claims parameter, ID token part
+	UserinfoClaims       []string                   `gorm:"serializer:json"` // OIDC claims parameter, userinfo part
 	AuthTime             *time.Time                 // OIDC auth_time; NULL when unknown
 	IssuedAt             time.Time                  `gorm:"autoCreateTime"`
 	ExpiresAt            time.Time                  `gorm:"not null;index"`
@@ -252,6 +254,8 @@ func authCodeToModel(c *core.AuthorizationCode) *AuthorizationCodeModel {
 		DPoPJKT:              c.DPoPJKT,
 		AuthorizationDetails: c.AuthorizationDetails,
 		Nonce:                c.Nonce,
+		IDTokenClaims:        c.IDTokenClaims,
+		UserinfoClaims:       c.UserinfoClaims,
 		AuthTime:             nullableTime(c.AuthTime),
 		IssuedAt:             c.IssuedAt,
 		ExpiresAt:            c.ExpiresAt,
@@ -287,6 +291,8 @@ func modelToAuthCode(m *AuthorizationCodeModel, code string) *core.Authorization
 		DPoPJKT:              m.DPoPJKT,
 		AuthorizationDetails: m.AuthorizationDetails,
 		Nonce:                m.Nonce,
+		IDTokenClaims:        m.IDTokenClaims,
+		UserinfoClaims:       m.UserinfoClaims,
 		AuthTime:             derefTime(m.AuthTime),
 		IssuedAt:             m.IssuedAt,
 		ExpiresAt:            m.ExpiresAt,

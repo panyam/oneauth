@@ -101,6 +101,14 @@ type AuthorizationCode struct {
 	// the client sent none.
 	Nonce string `json:"nonce,omitempty"`
 
+	// IDTokenClaims and UserinfoClaims are the claim names the OIDC Core
+	// §5.5 `claims` request parameter asked for, one list per place it
+	// can ask: the ID token, and userinfo. The ID token issued for this
+	// code adds the first; the access token carries the second to the
+	// userinfo endpoint. Empty when the client sent no `claims`.
+	IDTokenClaims  []string `json:"id_token_claims,omitempty"`
+	UserinfoClaims []string `json:"userinfo_claims,omitempty"`
+
 	// AuthTime is when the user last authenticated, the ID token's
 	// `auth_time` claim (OIDC Core §2). Zero when the deployment does not
 	// know, in which case the claim is left out.
