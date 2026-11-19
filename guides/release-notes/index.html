@@ -194,6 +194,29 @@
 <blockquote>
 <p>0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.</p>
 </blockquote>
+<h2 id="version-037">Version 0.3.7 <a class="anchor" href="#version-037">¶</a></h2>
+<p>This is the first release cut with <code>make release</code>. Every module is tagged v0.3.7 on one commit and requires every other oneauth module at v0.3.7, and the commands are <code>go install</code>-able. The release also adds FS and GAE stores for authorization codes and pushed requests, and hashes every single-use credential at rest.</p>
+<h3 id="release-process-pr-472">Release process (PR 472) <a class="anchor" href="#release-process-pr-472">¶</a></h3>
+<ul>
+<li><code>make release V=vX.Y.Z</code> writes one commit that sets every <code>github.com/panyam/oneauth*</code> require to the new version, then tags the root and all ten sub-modules on it. <code>make pushrelease</code> and <code>make verify-install</code> follow. <code>bump-root</code> is gone.</li>
+<li>Published <code>go.mod</code> files no longer carry <code>replace</code> directives, so <code>go install github.com/panyam/oneauth/cmd/oneauth-server@v0.3.7</code> works. Local development uses <code>go.work</code>.</li>
+<li><code>cmd/oneauth-server</code> and <code>cmd/demo-resource-server</code> had required <code>stores/gorm</code> and <code>stores/gae</code> at v0.1.33. They now track the release.</li>
+</ul>
+<h3 id="fs-and-gae-stores-for-the-code-flow-and-par-issue-382-pr-472">FS and GAE stores for the code flow and PAR (issue 382, PR 472) <a class="anchor" href="#fs-and-gae-stores-for-the-code-flow-and-par-issue-382-pr-472">¶</a></h3>
+<ul>
+<li><code>stores/fs.FSAuthorizationCodeStore</code>, <code>stores/fs.FSPushedAuthorizationRequestStore</code>, <code>stores/gae.GAEAuthorizationCodeStore</code> and <code>stores/gae.GAEPushedAuthorizationRequestStore</code>. A deployment on FS or Datastore no longer needs SQL for the code flow.</li>
+<li>The reference server accepts <code>code_flow.store.type: fs</code> and <code>gae</code>, and PAR uses the same backend.</li>
+</ul>
+<h3 id="single-use-credentials-hashed-at-rest-prs-472-474">Single-use credentials hashed at rest (PRs 472, 474) <a class="anchor" href="#single-use-credentials-hashed-at-rest-prs-472-474">¶</a></h3>
+<ul>
+<li>Authorization codes, pushed <code>request_uri</code>s and RFC 8628 device codes are stored under <code>core.AtRestKey</code>, a SHA-256 digest, in the FS, GORM and GAE stores. A copy of a store can&rsquo;t redeem a code or poll for a device&rsquo;s tokens. Records written by earlier versions keep working.</li>
+<li><strong>Contract change:</strong> device lookups by user code (<code>GetByUserCode</code>, and <code>ApproveDeviceAuthorization</code>&rsquo;s response) return <code>DeviceCode</code> empty, since no store can recover it.</li>
+</ul>
+<h3 id="fixes">Fixes <a class="anchor" href="#fixes">¶</a></h3>
+<ul>
+<li><strong>GORM device approval can&rsquo;t override a denial</strong> (PR 474). Approve read the row and then saved it, so a racing denial could be overwritten and both callers told they succeeded. That happened in half of 300 races on Postgres. It&rsquo;s now an update conditional on the status still being pending.</li>
+<li>The shared store race tests (<code>authcodetest</code>, <code>partest</code>, <code>deviceauthtest</code>, <code>usertokentest</code>) now make their calls overlap. They release the goroutines together after a warm-up read. Without that, they passed while the GORM bug was there.</li>
+</ul>
 <h2 id="version-036">Version 0.3.6 <a class="anchor" href="#version-036">¶</a></h2>
 <p>This release gives <code>outbound</code> user tokens stores that replicas can share, and a way to revoke a token when a person disconnects. It also adds a live smoke test against real GitHub, which corrected our fake GitHub in three places. The sub-modules now require root v0.3.5, so <code>stores/gorm</code> and <code>stores/gae</code> can use <code>outbound</code>.</p>
 <h3 id="user-token-stores-for-replicas-issue-468-pr-470">User-token stores for replicas (issue 468, PR 470) <a class="anchor" href="#user-token-stores-for-replicas-issue-468-pr-470">¶</a></h3>
@@ -213,7 +236,7 @@
 <li><strong><code>make testgh</code></strong> runs <code>outbound</code> against github.com. It never runs in <code>make test</code> or CI. It covers a PAT, App installation tokens, a token narrowed to one repo, caching, refusals, and an opt-in device-flow refresh-and-revoke. Setup is in <code>docs/OUTBOUND_CREDENTIALS.md</code> and needs no callback URL.</li>
 <li><strong><code>outbound/githubtest</code> now matches real GitHub</strong> for an unknown App ID (404 &ldquo;Integration not found&rdquo;), for refresh (the previous access token stops working) and for revoking twice (404). Consumers&rsquo; tests that reused an access token after a refresh will now see it refused, as GitHub would.</li>
 </ul>
-<h3 id="fixes">Fixes <a class="anchor" href="#fixes">¶</a></h3>
+<h3 id="fixes-1">Fixes <a class="anchor" href="#fixes-1">¶</a></h3>
 <ul>
 <li><strong>GAE refresh-token store kept every concurrent access token</strong> (PR 471). <code>RecordAccessToken</code> and the per-member transaction in <code>RevokeTokenFamily</code> now allow 10 attempts rather than Datastore&rsquo;s default 3. Before, about one run in 70 of five concurrent records lost one, and family revocation then missed it.</li>
 <li><strong>The GORM Postgres test helper closes the connection it uses to create a schema</strong> (PR 470). It used to leak one per test until <code>make testpg</code> hit Postgres&rsquo;s client limit.</li>
