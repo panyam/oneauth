@@ -405,6 +405,51 @@
 </span></span><span style="display:flex;"><span>    })
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre><p>The suite covers Save/Get/List/Delete contracts, overwrite, persistence (read-after-write), and a full-fields round-trip (catches serialization bugs in slice-typed columns like <code>RedirectURIs</code> and <code>GrantTypes</code>).</p>
+<h2 id="authorization-codes-pushed-requests-and-user-tokens">Authorization codes, pushed requests and user tokens <a class="anchor" href="#authorization-codes-pushed-requests-and-user-tokens">¶</a></h2>
+<p>Three single-use or fast-changing records share one shape: every backend runs a shared contract suite, and every persistent backend needs an atomic check-and-mark so a code, a pushed <code>request_uri</code> or a refreshed token is spent once across racing requests.</p>
+<table>
+<thead>
+<tr>
+<th>Store</th>
+<th>Memory</th>
+<th>FS</th>
+<th>GORM</th>
+<th>GAE</th>
+<th>Contract suite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>core.AuthorizationCodeStore</code> (RFC 6749 §4.1)</td>
+<td><code>core</code></td>
+<td><code>FSAuthorizationCodeStore</code></td>
+<td><code>AuthorizationCodeStore</code></td>
+<td><code>GAEAuthorizationCodeStore</code></td>
+<td><code>authcodetest.RunAll</code></td>
+</tr>
+<tr>
+<td><code>core.PushedAuthorizationRequestStore</code> (RFC 9126)</td>
+<td><code>core</code></td>
+<td><code>FSPushedAuthorizationRequestStore</code></td>
+<td><code>PushedAuthorizationRequestStore</code></td>
+<td><code>GAEPushedAuthorizationRequestStore</code></td>
+<td><code>partest.RunAll</code></td>
+</tr>
+<tr>
+<td><code>outbound.UserTokenStore</code></td>
+<td><code>outbound</code></td>
+<td><code>FSUserTokenStore</code></td>
+<td><code>UserTokenStore</code></td>
+<td><code>GAEUserTokenStore</code></td>
+<td><code>usertokentest.RunAll</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Atomic within one process only</strong> for memory and FS (a mutex). Replicas need GORM (a conditional <code>UPDATE</code> or a transaction) or GAE (a Datastore transaction).</li>
+<li><strong>Codes and request URIs are hashed at rest.</strong> FS, GORM and GAE key each record by <code>core.AtRestKey(value)</code>, a SHA-256 digest, and leave the plaintext out of the stored record, so a copy of the store can&rsquo;t redeem anything. GORM also matches plaintext keys on lookup, so rows written before hashing keep working across an upgrade (issue 382).</li>
+<li><strong>The reference server</strong> picks the code and pushed-request backend with <code>code_flow.store.type</code> (<code>memory</code>, <code>fs</code>, <code>gorm</code>, <code>gae</code>); PAR always uses the code store&rsquo;s backend.</li>
+</ul>
 
 
     </div>
