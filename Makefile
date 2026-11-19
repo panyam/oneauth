@@ -381,6 +381,11 @@ testpg:
 	ONEAUTH_TEST_PGUSER=$(PG_USER) \
 	ONEAUTH_TEST_PGPASSWORD=$(PG_PASSWORD) \
 	go test -v ./stores/gorm/...
+	cd cmd/oneauth-server && ONEAUTH_TEST_PGDB=$(PG_DB) \
+	ONEAUTH_TEST_PGPORT=$(PG_PORT) \
+	ONEAUTH_TEST_PGUSER=$(PG_USER) \
+	ONEAUTH_TEST_PGPASSWORD=$(PG_PASSWORD) \
+	go test -v -run 'GORM' .
 
 # =============================================================================
 # Datastore emulator configuration
