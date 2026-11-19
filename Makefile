@@ -904,16 +904,20 @@ tidy-all: tidy
 # sub-module. See scripts/release.sh.
 #
 #   make release V=v0.3.7        # local release commit + tags
-#   make pushrelease V=v0.3.7    # push main and the tags
+#   make pushrelease V=v0.3.7    # push the tags, record their sums, push main
 #   make verify-install V=v0.3.7 # go install the commands from the proxy
 release:
 	@if [ -z "$(V)" ]; then echo "Usage: make release V=vX.Y.Z"; exit 1; fi
 	@bash scripts/release.sh $(V)
 
+# Pushes the tags first, then records V's go.sum hashes (only possible
+# once the tags are published) and pushes main with both commits, so CI
+# never runs on a release commit whose go.sum files lack V.
 pushrelease:
 	@if [ -z "$(V)" ]; then echo "Usage: make pushrelease V=vX.Y.Z"; exit 1; fi
-	git push origin main
 	@$(MAKE) -s pushtag V=$(V)
+	@bash scripts/record-release-sums.sh $(V)
+	git push origin main
 
 # Installs every command at V with no workspace, as a user would. The
 # module proxy can take a minute to see new tags.

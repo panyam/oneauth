@@ -65,7 +65,7 @@ Rationale in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Shipped vs in flight 
 - **gofmt is a CI gate** for every tracked `.go` file in every module. `make fmt` fixes it, and the cleanup commit is in `.git-blame-ignore-revs`.
 - **Keep the `go` directive in lock-step** across `go.work` and every module, since stdlib CVEs need it. `make vulncheck` is the gate.
 - **CodeQL reports errors as PR checks.** It flags `ParseUnverified` on request input even after verification elsewhere, and SHA-256 over a field named like a secret. Take claims from the validator's `TokenInfo`, and compare keys directly.
-- **Every module releases on one tag.** `make release V=vX` writes one commit that sets every `github.com/panyam/oneauth*` require to `vX` and tags all modules on it; `make pushrelease` and `make verify-install` follow. Between releases the requires name the last tag, and `verify-submodule-deps` (part of `make test`) fails on drift or on a `replace` in a published `go.mod`. New root API can be used by a sub-module in the same PR.
+- **Every module releases on one tag.** `make release V=vX` writes one commit that sets every `github.com/panyam/oneauth*` require to `vX` and tags all modules on it; `make pushrelease` pushes the tags, records their `go.sum` hashes (a release commit can't hold them), then pushes main; `make verify-install` follows. Between releases the requires name the last tag, and `verify-submodule-deps` (part of `make test`) fails on drift or on a `replace` in a published `go.mod`. New root API can be used by a sub-module in the same PR.
 - **Local `main` can be locked by another worktree.** Cut branches from `origin/main` (`git checkout -b feat/X origin/main`).
 
 ## Issues, gaps, memories
