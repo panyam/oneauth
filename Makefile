@@ -1,6 +1,17 @@
 
-test: lint verify-submodule-deps
+test: lint verify-submodule-deps conformance-check
 	go test -v ./...
+
+# Every external and cross-spec conformance suite in conformance/suites.yaml,
+# one summary line each (mission 489). SUITE=<name> runs one. Logs go to
+# test-reports/conformance/<name>.log.
+conformance:
+	$(MAKE) -C conformance test $(if $(SUITE),SUITE=$(SUITE))
+
+# The conformance runner's own tests, including the drift check between
+# conformance/suites.yaml and conformance/Makefile.
+conformance-check:
+	cd tests/conformance && GOWORK=off go test -count=1 ./cmd/...
 
 
 # Run ALL tests: unit tests → e2e (in-process) → secrets scan -> Keycloak
@@ -505,7 +516,7 @@ upkcl:
 		-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
 		$(KC_IMAGE) start-dev --features=dpop --import-realm
 	@echo "Waiting for Keycloak to be ready (~15s)..."
-	@until curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; do sleep 2; done
+	@./scripts/wait-for.sh 180 "Keycloak on :$(KC_PORT)" -- http://localhost:$(KC_PORT)/realms/oneauth-test
 	@echo ""
 	@echo "Keycloak is running!"
 	@echo "  Admin console: http://localhost:$(KC_PORT)/admin (admin/admin)"
@@ -598,7 +609,7 @@ upauthlete: authlete-image
 		-v $(PWD)/$(AUTH_FRONTEND_DIR)/authlete.properties.runtime:/authlete/app/authlete.properties \
 		$(AUTH_IMAGE)
 	@echo "Waiting for AS to be ready (Jetty warmup ~30s)..."
-	@until curl -sf http://localhost:$(AUTH_PORT)/.well-known/openid-configuration > /dev/null 2>&1; do sleep 3; done
+	@./scripts/wait-for.sh 180 "Authlete-backed AS on :$(AUTH_PORT)" -- http://localhost:$(AUTH_PORT)/.well-known/openid-configuration
 	@echo ""
 	@echo "Authlete-backed AS is running!"
 	@echo "  Discovery: http://localhost:$(AUTH_PORT)/.well-known/openid-configuration"
@@ -668,7 +679,7 @@ upoidf:
 	@echo "Starting OIDF conformance suite (mongo + nginx + server)..."
 	@docker compose -f $(OIDF_COMPOSE) up -d
 	@echo "Waiting for harness UI..."
-	@until curl -ksf -o /dev/null https://localhost.emobix.co.uk:8443/; do sleep 2; done
+	@./scripts/wait-for.sh 300 "OIDF harness" -- -k https://localhost.emobix.co.uk:8443/
 	@echo ""
 	@echo "OIDF conformance suite is running!"
 	@echo "  UI:     https://localhost.emobix.co.uk:8443/"
@@ -697,18 +708,31 @@ oidflogs:
 # each run against a fresh server that scripts/exercise-oidf.sh <plan>
 # --go-test starts and stops (:8889 and :8890). The full run takes a while
 # (52 + 38 modules).
-testoidf:
+testoidf: oidf-discovery-up
+	./scripts/exercise-oidf.sh fapi2 --go-test
+	./scripts/exercise-oidf.sh oidcc --go-test
+
+# The OIDF Config plan alone: the discovery document checked against the
+# server on :8888, with its per-check scorecard. `make testoidf` runs it too.
+testoidf-config: oidf-discovery-up
+	cd tests/oidf-conformance && GOWORK=off go test -count=1 -run '^TestOIDF_OIDCC_ConfigCert_Discovery$$' .
+
+# Starts the OIDF harness and the discovery server on :8888 when they aren't
+# answering. The server stays up afterwards (tests/oidf-conformance/CLAUDE.md),
+# and its output goes to OIDF_DISCOVERY_LOG, which wait-for.sh prints when
+# it doesn't come up.
+OIDF_DISCOVERY_LOG ?= /tmp/oneauth-oidf-discovery.log
+oidf-discovery-up:
 	@if ! curl -ksf -o /dev/null https://localhost.emobix.co.uk:8443/; then \
 		echo "OIDF harness not running — starting it..."; \
 		$(MAKE) upoidf; \
 	fi
 	@if ! curl -sf --cacert tests/oidf-conformance/certs/ca.crt -o /dev/null https://localhost:8888/.well-known/openid-configuration; then \
 		echo "oneauth-server not running on :8888 — starting it in the background..."; \
-		go run -buildvcs=false ./cmd/oneauth-server --config $(OIDF_AS_CONFIG) > /dev/null 2>&1 & \
-		until curl -sf --cacert tests/oidf-conformance/certs/ca.crt -o /dev/null https://localhost:8888/.well-known/openid-configuration; do sleep 1; done; \
+		go run -buildvcs=false ./cmd/oneauth-server --config $(OIDF_AS_CONFIG) > $(OIDF_DISCOVERY_LOG) 2>&1 & \
+		./scripts/wait-for.sh 180 "oneauth-server on :8888" --pid $$! --log $(OIDF_DISCOVERY_LOG) -- \
+			--cacert tests/oidf-conformance/certs/ca.crt https://localhost:8888/.well-known/openid-configuration || exit 1; \
 	fi
-	./scripts/exercise-oidf.sh fapi2 --go-test
-	./scripts/exercise-oidf.sh oidcc --go-test
 
 # The FAPI 2.0 mission's exercise (issue 98): runs the OIDF
 # fapi2-security-profile-final-test-plan against oneauth-server on :8889 and
@@ -751,7 +775,7 @@ testkcl:
 			-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
 			$(KC_IMAGE) start-dev --features=dpop --import-realm; \
 		echo "Waiting for Keycloak to be ready (~15s)..."; \
-		until curl -sf http://localhost:$(KC_PORT)/realms/oneauth-test > /dev/null 2>&1; do sleep 2; done; \
+		./scripts/wait-for.sh 180 "Keycloak on :$(KC_PORT)" -- http://localhost:$(KC_PORT)/realms/oneauth-test || exit 1; \
 		echo "Keycloak ready."; \
 	fi
 	@if ! curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; then \
@@ -996,7 +1020,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc testoidf testoidf-config oidf-discovery-up conformance conformance-check deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

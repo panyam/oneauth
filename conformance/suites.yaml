@@ -1,0 +1,70 @@
+# The external and cross-spec conformance suites `make conformance` runs.
+#
+# Each entry names a `conf-<name>` target in conformance/Makefile, which
+# delegates to the suite's own target in the root Makefile. The runner
+# (tests/conformance/cmd/suites) runs them in order, writes each log to
+# test-reports/conformance/<name>.log, and prints one line per suite.
+#
+# Schema:
+#   name:     suite name; its Makefile target is conf-<name>
+#   kind:     gating (a failure fails `make conformance`) or info (reported,
+#             never fails the run)
+#   covers:   what the suite checks, one line
+#   source:   where its tests live
+#   needs:    prerequisites. "docker" is informational; "env:VAR" makes the
+#             runner skip the suite, with the reason, when VAR is unset
+#   timeout:  Go duration bounding one run (default 20m). On expiry the runner
+#             kills the suite's process group, reports it FAIL "timed out",
+#             and goes on to the next suite.
+#   tracking: the issue the suite belongs to, plain text. Optional.
+#   note:     one line of context. Optional.
+#
+# The drift check (tests/conformance/cmd/suites, run by `make test`) fails
+# when this file and conformance/Makefile disagree.
+
+suites:
+  - name: native
+    kind: gating
+    timeout: 10m
+    covers: Go-native fixtures for RFC 8414 AS metadata, client authentication and RFC 7662 introspection, against known-gaps.yaml
+    source: tests/conformance
+    needs: []
+
+  - name: oidf-config
+    kind: gating
+    timeout: 10m
+    covers: OIDF oidcc-config-certification-test-plan, the discovery document check by check
+    source: tests/oidf-conformance (TestOIDF_OIDCC_ConfigCert_Discovery)
+    needs: [docker]
+    note: The plan's one module; its per-check scorecard is tests/oidf-conformance/SCORECARD.md.
+
+  - name: oidf-fapi2
+    kind: gating
+    timeout: 30m
+    covers: OIDF fapi2-security-profile-final-test-plan, every module judged against known-gaps.yaml
+    source: tests/oidf-conformance/fapi2
+    needs: [docker]
+    tracking: "mission 98"
+
+  - name: oidf-basic-op
+    kind: gating
+    timeout: 20m
+    covers: OIDF oidcc-basic-certification-test-plan, every module judged against known-gaps.yaml
+    source: tests/oidf-conformance/oidcc
+    needs: [docker]
+    tracking: "mission 477"
+
+  - name: keycloak
+    kind: gating
+    timeout: 15m
+    covers: Interop with a live Keycloak, as resource server and as client (tokens, DPoP, RAR, ID tokens)
+    source: tests/keycloak
+    needs: [docker]
+
+  - name: authlete
+    kind: info
+    timeout: 15m
+    covers: Interop with Authlete's java-oauth-server as the authorization server
+    source: tests/authlete
+    needs: [docker, "env:AUTHLETE_CLIENTID", "env:AUTHLETE_CLIENTSECRET"]
+    note: Needs an Authlete service account, so it skips on a machine without one.
