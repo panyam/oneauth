@@ -12,6 +12,8 @@
 #      indirect, names EXPECTED: the version being released when RELEASING
 #      is set (make release), otherwise the latest root tag.
 #   3. go.work's release-managed replace block names EXPECTED too.
+#   4. Outside a release, each published go.sum has EXPECTED's hashes, so
+#      the module builds with GOWORK=off.
 #
 # A release commit sets every such require to the version it is about to
 # tag, so stores/gorm@vX requires oneauth@vX and cmd/oneauth-server@vX
@@ -74,6 +76,27 @@ for sub in "${PUBLISHED[@]}"; do
         inblock && $1 ~ /^github\.com\/panyam\/oneauth/ { print $1, $2 }
     ' "$gomod")
 done
+
+# 4. Between releases, each published go.sum holds hashes for EXPECTED, so
+#    the module builds outside the workspace. A release in progress
+#    (RELEASING set) can't have them yet; record-release-sums.sh adds them
+#    after the tags are pushed.
+if [ -z "${RELEASING:-}" ]; then
+    for sub in "${PUBLISHED[@]}"; do
+        while read -r module; do
+            [ -z "$module" ] && continue
+            if ! grep -q "^$module $EXPECTED h1:" "$REPO_ROOT/$sub/go.sum" 2>/dev/null; then
+                echo "FAIL: $sub/go.sum has no hash for $module $EXPECTED; run scripts/record-release-sums.sh $EXPECTED"
+                fail=1
+            fi
+        done < <(awk -v v="$EXPECTED" '
+            /^require[[:space:]]+github\.com\/panyam\/oneauth[^[:space:]]*[[:space:]]+v/ { print $2; next }
+            /^require[[:space:]]*\(/ { inblock = 1; next }
+            inblock && /^\)/ { inblock = 0; next }
+            inblock && $1 ~ /^github\.com\/panyam\/oneauth/ && $0 !~ /\/\/ indirect/ { print $1 }
+        ' "$REPO_ROOT/$sub/go.mod")
+    done
+fi
 
 # 3. go.work's managed replace block maps EXPECTED to this checkout, so
 #    the workspace builds even before EXPECTED is tagged.
