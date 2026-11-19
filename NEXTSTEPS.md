@@ -5,9 +5,9 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- No active mission. #477 closed: the OIDF Basic OP plan runs in `make testoidf` with 28 of 35 modules passing and none failing. Next mission is a `/retriage` pick; the user wants more conformance suites (the OIDF Config, Dynamic, Form Post and logout plans first, then a survey of what else exists). JARM (#409) is parked, next ready #410.
+- Active mission: #489, every applicable external conformance suite (OIDF plans, the MCP conformance framework, OAuch), run from `make conformance`, reported on the docsite and linked from the README. 0/10 tickets; next ready #490 (`conformance/` with a suite registry, mcpkit's layout, orchestration only) and #491 (the 81-plan OIDF applicability table). The exercise doesn't exist until #490. JARM (#409) is parked, next ready #410.
 - No open threads. Last release v0.3.7; seven merges since, so a release is due (see Across threads).
-- This run: closed mission #477 after PRs #482, #483, #484, #487, #488; dropped the #453 line (closed, leftovers in #485).
+- This run: closed mission #477 (PRs #482, #483, #484, #487, #488) and started #489 with tickets #490 to #498; moved #243 onto it.
 
 ## Across threads
 
