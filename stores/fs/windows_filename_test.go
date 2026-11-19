@@ -51,3 +51,31 @@ func TestSafeName_WindowsReservedCharacters(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "a_b_c_d_e_f_g", got)
 }
+
+// Windows opens CON, NUL, COM1 and the rest as devices, with or without an
+// extension, so osFileName puts "_" in front of them.
+func TestSafeName_WindowsDeviceNames(t *testing.T) {
+	for in, want := range map[string]string{
+		"con":     "_con",
+		"NUL":     "_NUL",
+		"com1":    "_com1",
+		"lpt9.x":  "_lpt9.x",
+		"aux ":    "_aux ",
+		"console": "console",
+		"com10":   "com10",
+	} {
+		got, err := safeName(in)
+		require.NoError(t, err, in)
+		assert.Equal(t, want, got, in)
+	}
+}
+
+func TestFSUserStore_WindowsDeviceNameRoundTrips(t *testing.T) {
+	ctx := context.Background()
+	s := NewFSUserStore(t.TempDir())
+	_, err := s.CreateUser(ctx, &accounts.CreateUserRequest{UserID: "CON"})
+	require.NoError(t, err)
+	got, err := s.GetUserById(ctx, &accounts.GetUserByIDRequest{UserID: "CON"})
+	require.NoError(t, err)
+	assert.Equal(t, "CON", got.User.Id())
+}
