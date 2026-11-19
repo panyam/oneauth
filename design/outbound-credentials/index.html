@@ -309,7 +309,7 @@
 </span></span><span style="display:flex;"><span>err <span style="color:#000;font-weight:bold">:=</span> tokens.<span style="color:#900;font-weight:bold">Revoke</span>(ctx, userID)
 </span></span></code></pre><ul>
 <li><code>GitHubRevoker</code> calls <code>DELETE /applications/{client_id}/token</code>, which revokes the access token and its refresh token. With <code>RevokeGrant</code> it calls <code>/grant</code> instead. That also removes the person&rsquo;s authorization of the app and every token it gave them, so their next connect shows the consent screen again.</li>
-<li>Only GitHub&rsquo;s 204 counts as revoked. GitHub answers 404 for wrong client credentials too, so a 404 is an error. A refused revoke keeps the record, so the app can retry.</li>
+<li>Only GitHub&rsquo;s 204 counts as revoked. GitHub answers 404 both for a token that&rsquo;s already revoked and for wrong client credentials, so a 404 is an error. A refused revoke keeps the record, so the app can retry.</li>
 <li>A second <code>Revoke</code> finds no record and returns nil without calling GitHub.</li>
 <li>A record that won&rsquo;t open is kept and its error returned, since the token may still be live. <code>Delete</code> removes it anyway.</li>
 <li><code>Revoke</code> holds the per-subject lock, so a refresh in the same process can&rsquo;t write a token back after it.</li>
@@ -346,6 +346,28 @@
 <li><code>GET /installation/repositories</code> and <code>GET /user</code> answer 200 only for a live token of the matching kind, so a test can check a token works.</li>
 </ul>
 <p><code>InstallationCalls()</code>, <code>RefreshCalls()</code>, <code>RevokeCalls()</code> and <code>LastJWTClaims()</code> let a test assert cache hits and claim values. Consumers&rsquo; tests use it the same way, as they use <code>keystoretest</code>.</p>
+<h3 id="against-real-github">Against real GitHub <a class="anchor" href="#against-real-github">¶</a></h3>
+<p><code>make testgh</code> runs <code>outbound/live_github_test.go</code> against github.com. It is never part of <code>make test</code> or CI, and each check skips until its env vars exist. It reads two private fixture repos, <code>panyam/oneauth-smoke-a</code> and <code>-b</code>, whose READMEs carry a marker line (<code>ONEAUTH_GH_TEST_REPOS</code> names others).</p>
+<ul>
+<li>With only <code>GH_PERSONAL_TOKEN</code> set, it reads both repos through <code>Static</code> and checks that GitHub&rsquo;s refusals reach callers as <code>GitHubAPIError</code>.</li>
+<li>With a GitHub App configured, it lists the installation&rsquo;s repos and reads them. It checks the cache and <code>Invalidate</code>, and that a token narrowed to one repo gets 404 on the other.</li>
+<li>With <code>ONEAUTH_GH_LIVE_DEVICE=1</code>, it signs you in by device flow, forces a refresh, checks the refresh token rotated, and revokes.</li>
+</ul>
+<p>Setting up the App takes a few minutes in the browser, under Settings, then Developer settings, then GitHub Apps, then New:</p>
+<ul>
+<li>The homepage URL can be any URL, such as this repo&rsquo;s. Leave the callback URL empty and &ldquo;Request user authorization (OAuth) during installation&rdquo; unticked, because device flow needs no redirect. If you later want the browser flow, register <code>http://127.0.0.1/callback</code>. GitHub ignores the port on loopback redirects, so a local listener on any port works and no domain or hosting is needed.</li>
+<li>Untick the webhook&rsquo;s &ldquo;Active&rdquo; box.</li>
+<li>Grant Repository contents read-only, tick &ldquo;Enable Device Flow&rdquo;, and keep &ldquo;Expire user authorization tokens&rdquo; on so user tokens come with refresh tokens.</li>
+<li>Generate a private key and keep it outside the repo. Generate a client secret for the device-flow check.</li>
+<li>Install the App on the two fixture repos only. The installation ID is the number at the end of the URL after installing.</li>
+<li>Export <code>ONEAUTH_GH_APP_ID</code>, <code>ONEAUTH_GH_INSTALLATION_ID</code> and <code>ONEAUTH_GH_APP_KEY_FILE</code>. For the device-flow check, also export <code>ONEAUTH_GH_CLIENT_ID</code> and <code>ONEAUTH_GH_CLIENT_SECRET</code>.</li>
+</ul>
+<p>The live runs corrected the fake in three places, each now pinned by a unit test:</p>
+<ul>
+<li>GitHub answers 404 &ldquo;Integration not found&rdquo; for an App ID it doesn&rsquo;t know, before it looks at the signature. A known App with the wrong key gets 401 &ldquo;A JSON web token could not be decoded&rdquo;.</li>
+<li>A refresh kills the previous access token at once, not only the refresh token. So a replica holding the old access token gets 401 from GitHub as soon as another replica refreshes, and it has to read the store again.</li>
+<li>Revoking an already-revoked token answers 404 Not Found, the same status as wrong client credentials.</li>
+</ul>
 <h2 id="where-a-secret-can-and-cannot-end-up">Where a secret can and cannot end up <a class="anchor" href="#where-a-secret-can-and-cannot-end-up">¶</a></h2>
 <table>
 <thead>
