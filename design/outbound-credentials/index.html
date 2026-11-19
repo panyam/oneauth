@@ -319,7 +319,7 @@
 <p>A <code>SecretRef</code> names where a secret lives and never holds it:</p>
 <ul>
 <li><code>env:NAME</code> reads the environment variable <code>NAME</code>.</li>
-<li><code>file:/abs/path</code> reads the file. The path must be absolute.</li>
+<li><code>file:PATH</code> reads the file. The path must be absolute for the host OS: <code>/run/secrets/pat</code>, or <code>C:\secrets\pat</code> on Windows. A path starting with <code>/</code> is accepted everywhere.</li>
 </ul>
 <p><code>ParseSecretRef</code> refuses anything else, including a bare value. A token pasted into config fails at startup, and the error doesn&rsquo;t repeat it. <code>NewStatic</code> also resolves the reference once, so a missing secret fails at startup rather than on the first API call. Cloud secret managers are a later addition; their reference will be another prefix.</p>
 <h2 id="encryption-at-rest">Encryption at rest <a class="anchor" href="#encryption-at-rest">¶</a></h2>
