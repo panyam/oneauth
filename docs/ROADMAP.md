@@ -192,7 +192,21 @@ The OpenID Foundation's `fapi2-security-profile-final-test-plan` runs against `c
 | 447 | Plan judged against `known-gaps.yaml` inside `make testoidf` | Merged |
 | 441 | `fapi2` signs ES256; ephemeral keys follow `signing_alg` | Merged |
 
-Still open: the OIDF workflow in CI is manual-only (#290), and PS256 (#330) would let the RS256 module run.
+Still open: the OIDF workflow in CI is manual-only, and PS256 (#330) would let the RS256 module run.
+
+## OIDF OpenID Connect Basic OP run (mission #477) ✅ COMPLETE
+
+The OpenID Foundation's `oidcc-basic-certification-test-plan` runs against `cmd/oneauth-server` with `tests/oidf-conformance/oneauth-oidcc.yaml` (`make exercise-oidcc`), and `make testoidf` enforces it beside FAPI 2.0. The harness runs 35 of the plan's 38 modules for the static-client variant: 28 pass and none fail. Four end in REVIEW (the second login page for `prompt=login` / `max_age`, and oneauth's error pages), the `typ: ID` claim and the missing `acr` are recorded warnings, and the request-object module reports oneauth's refusal as SKIPPED.
+
+| # | Delivery | Status |
+|---|---|---|
+| 482 | The exercise, a shared `oidfplan` runner, and an opt-in PKCE policy for confidential clients | Merged |
+| 483 | `/authorize` takes POSTed requests and refuses request objects | Merged |
+| 484 | `prompt`, `max_age`, and remembered consent (`core.ConsentStore`) | Merged |
+| 487 | The `claims` parameter, the userinfo token in a form body, profile claims from signup | Merged |
+| 488 | Scope claims leave the ID token, `updated_at`, no bound tokens without DPoP | Merged |
+
+Next, from the mission's "not in this mission" list: the OIDF Config, Dynamic, Form Post and logout plans. Still open: `acr` / `amr` and the other leftovers in #485, and JAR (#338).
 
 ---
 

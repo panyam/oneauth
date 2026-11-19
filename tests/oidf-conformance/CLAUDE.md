@@ -5,3 +5,5 @@
 - **`make testoidf` reuses whatever answers on `:8888`.** It starts the discovery server with `go run` only when nothing listens, and leaves it running, so a server from another checkout or an older build gets tested. `pkill -f oneauth-server.yaml` before running from a different worktree or after changing server code.
 - **The harness bind-mounts `certs/` from the checkout that ran `make upoidf`.** Run `make downoidf` before removing that worktree, or the harness loses its truststore. MongoDB lives in the `oidf-conformance_mongo-data` volume, and nginx answers as `localhost.emobix.co.uk` inside the compose network.
 - **The OIDF workflow is `workflow_dispatch` only and has never run**, so there is no CI baseline for it.
+- **Read a module's harness log through the plan ID the run prints** (`/api/plan/<id>`, then `/api/log/<instance>`). Picking the newest instance by plan start time can return an older run's module.
+- **`expected-review` evidence is matched against the page's raw HTML**, so markup inside a phrase (`Sign in to the <strong>Auth Server</strong>`) breaks the match. Pick an unbroken string such as `Login</h1>`.
