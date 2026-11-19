@@ -3,6 +3,7 @@ package apiauth
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -56,4 +57,60 @@ func lookupClientName(ctx context.Context, store core.AppRegistrationStore, clie
 		return clientID
 	}
 	return resp.App.ClientName
+}
+
+// lookupClientDisplayURIs returns the client's registered logo_uri,
+// policy_uri and tos_uri, or empty strings when the client or store is
+// missing. Registration accepts only https URLs for these (issue 507), so
+// the consent page can put them in an <img src> and two links.
+func lookupClientDisplayURIs(ctx context.Context, store core.AppRegistrationStore, clientID string) (logo, policy, tos string) {
+	if store == nil || clientID == "" {
+		return "", "", ""
+	}
+	resp, err := store.GetApp(ctx, &core.GetAppRequest{ClientID: clientID})
+	if err != nil || resp == nil || resp.App == nil {
+		return "", "", ""
+	}
+	return httpsOnly(resp.App.LogoURI), httpsOnly(resp.App.PolicyURI), httpsOnly(resp.App.TOSURI)
+}
+
+// httpsOnly returns raw if it is an absolute https URL, else "". It guards
+// the consent page against a registration stored before validation existed.
+func httpsOnly(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return ""
+	}
+	return raw
+}
+
+// allowImageOrigin adds logoURI's origin to the img-src directive of the
+// response's Content-Security-Policy, so the client's logo loads on the
+// consent page and nothing else does. A policy without img-src gets one
+// copied from default-src. A response without a policy, or a policy that
+// restricts neither, already allows the image and is left alone.
+func allowImageOrigin(h http.Header, logoURI string) {
+	csp := h.Get("Content-Security-Policy")
+	u, err := url.Parse(logoURI)
+	if csp == "" || err != nil || u.Host == "" {
+		return
+	}
+	origin := u.Scheme + "://" + u.Host
+	directives := strings.Split(csp, ";")
+	defaultSrc := ""
+	for i, d := range directives {
+		name, value, _ := strings.Cut(strings.TrimSpace(d), " ")
+		switch name {
+		case "img-src":
+			directives[i] = " img-src " + strings.TrimSpace(value) + " " + origin
+			h.Set("Content-Security-Policy", strings.TrimSpace(strings.Join(directives, ";")))
+			return
+		case "default-src":
+			defaultSrc = strings.TrimSpace(value)
+		}
+	}
+	if defaultSrc == "" {
+		return
+	}
+	h.Set("Content-Security-Policy", strings.TrimSpace(csp)+"; img-src "+defaultSrc+" "+origin)
 }

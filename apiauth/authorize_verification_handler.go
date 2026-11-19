@@ -106,8 +106,14 @@ type AuthorizeTemplates struct {
 // permissions; the Hidden fields round-trip the request back through
 // the form so Decide can re-validate.
 type authorizeConsentData struct {
-	ClientID            string
-	ClientName          string
+	ClientID   string
+	ClientName string
+	// LogoURI, PolicyURI and TOSURI are the client's registered display
+	// metadata (OIDC Registration §2), each an https URL or empty. A
+	// custom template should show them, so the user sees who is asking.
+	LogoURI             string
+	PolicyURI           string
+	TOSURI              string
 	RedirectURI         string
 	Scopes              []string
 	State               string
@@ -206,7 +212,11 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		CSRFToken:           h.csrfToken(r),
 		ActionURL:           r.URL.Path,
 	}
+	data.LogoURI, data.PolicyURI, data.TOSURI = lookupClientDisplayURIs(r.Context(), h.AppStore, req.ClientID)
 	httpauth.DenyFraming(w)
+	if data.LogoURI != "" {
+		allowImageOrigin(w.Header(), data.LogoURI)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.consentTemplate().Execute(w, data); err != nil {
 		http.Error(w, "render consent", http.StatusInternalServerError)
@@ -454,8 +464,13 @@ func (h *AuthorizeVerificationHandler) errorTemplate() *template.Template {
 var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent").Parse(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Authorize {{.ClientName}}</title></head>
 <body>
+  {{if .LogoURI}}<img id="client-logo" src="{{.LogoURI}}" alt="{{.ClientName}} logo" width="64" height="64" referrerpolicy="no-referrer">{{end}}
   <h1>Authorize {{.ClientName}}</h1>
   <p>The application <code>{{.ClientName}}</code> ({{.ClientID}}) is requesting access on your behalf.</p>
+  {{if or .PolicyURI .TOSURI}}<p>
+    {{if .PolicyURI}}<a id="client-policy" href="{{.PolicyURI}}" rel="noopener noreferrer" target="_blank">{{.ClientName}} privacy policy</a>{{end}}
+    {{if .TOSURI}}<a id="client-tos" href="{{.TOSURI}}" rel="noopener noreferrer" target="_blank">{{.ClientName}} terms of service</a>{{end}}
+  </p>{{end}}
   <p>It will return you to <code>{{.RedirectURI}}</code> after you approve.</p>
   {{if .Scopes}}
   <p>Scopes requested:</p>
