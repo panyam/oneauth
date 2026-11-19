@@ -47,6 +47,13 @@ type AppRegistrationModel struct {
 
 	// RFC 9126 §6 require_pushed_authorization_requests (issue 88).
 	RequirePushedAuthorizationRequests bool `gorm:"not null;default:false"`
+
+	// OIDC Registration §2 metadata (issue 507).
+	JWKSURI                     string `gorm:"column:jwks_uri;size:512"`
+	TokenEndpointAuthSigningAlg string `gorm:"size:16"`
+	LogoURI                     string `gorm:"size:512"`
+	PolicyURI                   string `gorm:"size:512"`
+	TOSURI                      string `gorm:"column:tos_uri;size:512"`
 }
 
 func (AppRegistrationModel) TableName() string {
@@ -156,6 +163,11 @@ func appRegistrationToModel(app *core.AppRegistration) *AppRegistrationModel {
 		BackchannelLogoutSessionRequired:   app.BackchannelLogoutSessionRequired,
 		DPoPBoundAccessTokens:              app.DPoPBoundAccessTokens,
 		RequirePushedAuthorizationRequests: app.RequirePushedAuthorizationRequests,
+		JWKSURI:                            app.JWKSURI,
+		TokenEndpointAuthSigningAlg:        app.TokenEndpointAuthSigningAlg,
+		LogoURI:                            app.LogoURI,
+		PolicyURI:                          app.PolicyURI,
+		TOSURI:                             app.TOSURI,
 	}
 }
 
@@ -180,6 +192,11 @@ func modelToAppRegistration(m *AppRegistrationModel) *core.AppRegistration {
 		BackchannelLogoutSessionRequired:   m.BackchannelLogoutSessionRequired,
 		DPoPBoundAccessTokens:              m.DPoPBoundAccessTokens,
 		RequirePushedAuthorizationRequests: m.RequirePushedAuthorizationRequests,
+		JWKSURI:                            m.JWKSURI,
+		TokenEndpointAuthSigningAlg:        m.TokenEndpointAuthSigningAlg,
+		LogoURI:                            m.LogoURI,
+		PolicyURI:                          m.PolicyURI,
+		TOSURI:                             m.TOSURI,
 	}
 }
 

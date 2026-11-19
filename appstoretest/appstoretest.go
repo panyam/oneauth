@@ -222,6 +222,12 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 		BackchannelLogoutSessionRequired:   true,
 		DPoPBoundAccessTokens:              true,
 		RequirePushedAuthorizationRequests: true,
+
+		JWKSURI:                     "https://full.example/jwks.json",
+		TokenEndpointAuthSigningAlg: "PS256",
+		LogoURI:                     "https://full.example/logo.png",
+		PolicyURI:                   "https://full.example/privacy",
+		TOSURI:                      "https://full.example/terms",
 	}
 
 	saveApp(t, s, app)
@@ -272,5 +278,16 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	}
 	if !got.RequirePushedAuthorizationRequests {
 		t.Errorf("RequirePushedAuthorizationRequests=false, want true")
+	}
+	// Losing jwks_uri locks a private_key_jwt client out after a restart,
+	// since it has no stored key (issue 507).
+	if got.JWKSURI != "https://full.example/jwks.json" {
+		t.Errorf("JWKSURI=%q", got.JWKSURI)
+	}
+	if got.TokenEndpointAuthSigningAlg != "PS256" {
+		t.Errorf("TokenEndpointAuthSigningAlg=%q", got.TokenEndpointAuthSigningAlg)
+	}
+	if got.LogoURI != "https://full.example/logo.png" || got.PolicyURI != "https://full.example/privacy" || got.TOSURI != "https://full.example/terms" {
+		t.Errorf("logo/policy/tos = %q %q %q", got.LogoURI, got.PolicyURI, got.TOSURI)
 	}
 }

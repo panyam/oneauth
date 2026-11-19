@@ -49,6 +49,13 @@ type AppRegistrationEntity struct {
 
 	// RFC 9126 §6 require_pushed_authorization_requests (issue 88).
 	RequirePushedAuthorizationRequests bool `datastore:"require_pushed_authorization_requests,noindex"`
+
+	// OIDC Registration §2 metadata (issue 507).
+	JWKSURI                     string `datastore:"jwks_uri,noindex"`
+	TokenEndpointAuthSigningAlg string `datastore:"token_endpoint_auth_signing_alg,noindex"`
+	LogoURI                     string `datastore:"logo_uri,noindex"`
+	PolicyURI                   string `datastore:"policy_uri,noindex"`
+	TOSURI                      string `datastore:"tos_uri,noindex"`
 }
 
 // GAEAppStore implements core.AppRegistrationStore using Google Cloud Datastore.
@@ -177,6 +184,11 @@ func appRegToEntity(key *datastore.Key, app *core.AppRegistration) *AppRegistrat
 		BackchannelLogoutSessionRequired:   app.BackchannelLogoutSessionRequired,
 		DPoPBoundAccessTokens:              app.DPoPBoundAccessTokens,
 		RequirePushedAuthorizationRequests: app.RequirePushedAuthorizationRequests,
+		JWKSURI:                            app.JWKSURI,
+		TokenEndpointAuthSigningAlg:        app.TokenEndpointAuthSigningAlg,
+		LogoURI:                            app.LogoURI,
+		PolicyURI:                          app.PolicyURI,
+		TOSURI:                             app.TOSURI,
 	}
 }
 
@@ -201,6 +213,11 @@ func entityToAppReg(e *AppRegistrationEntity) *core.AppRegistration {
 		BackchannelLogoutSessionRequired:   e.BackchannelLogoutSessionRequired,
 		DPoPBoundAccessTokens:              e.DPoPBoundAccessTokens,
 		RequirePushedAuthorizationRequests: e.RequirePushedAuthorizationRequests,
+		JWKSURI:                            e.JWKSURI,
+		TokenEndpointAuthSigningAlg:        e.TokenEndpointAuthSigningAlg,
+		LogoURI:                            e.LogoURI,
+		PolicyURI:                          e.PolicyURI,
+		TOSURI:                             e.TOSURI,
 	}
 }
 
