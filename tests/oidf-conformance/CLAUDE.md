@@ -1,0 +1,6 @@
+# tests/oidf-conformance — OIDF harness gotchas
+
+- **`make testoidf` runs the whole FAPI 2.0 plan**, 52 modules (`openid_connect` variant, issue 339) against a fresh server on `:8889`. It takes a while and refuses to run while something holds that port. A module that should end in REVIEW, be skipped or warn needs a whole-module `expected-review`, `expected-skip` or `expected-warning` entry in `tests/conformance/known-gaps.yaml` (review and warning need `evidence`); anything else must pass. `make exercise-fapi2 MODULE=<substring>` runs one module.
+- **`make testoidf` reuses whatever answers on `:8888`.** It starts the discovery server with `go run` only when nothing listens, and leaves it running, so a server from another checkout or an older build gets tested. `pkill -f oneauth-server.yaml` before running from a different worktree or after changing server code.
+- **The harness bind-mounts `certs/` from the checkout that ran `make upoidf`.** Run `make downoidf` before removing that worktree, or the harness loses its truststore. MongoDB lives in the `oidf-conformance_mongo-data` volume, and nginx answers as `localhost.emobix.co.uk` inside the compose network.
+- **The OIDF workflow is `workflow_dispatch` only and has never run**, so there is no CI baseline for it.
