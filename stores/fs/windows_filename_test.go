@@ -51,3 +51,22 @@ func TestSafeName_WindowsReservedCharacters(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "a_b_c_d_e_f_g", got)
 }
+
+// Windows 10 and Server 2022 open CON, NUL, COM1 and the rest as devices,
+// even with an extension, so osFileName puts "_" in front of them. Windows
+// 11 and Server 2025 allow "CON.json", so a store round-trip can't show it.
+func TestSafeName_WindowsDeviceNames(t *testing.T) {
+	for in, want := range map[string]string{
+		"con":     "_con",
+		"NUL":     "_NUL",
+		"com1":    "_com1",
+		"lpt9.x":  "_lpt9.x",
+		"aux ":    "_aux ",
+		"console": "console",
+		"com10":   "com10",
+	} {
+		got, err := safeName(in)
+		require.NoError(t, err, in)
+		assert.Equal(t, want, got, in)
+	}
+}

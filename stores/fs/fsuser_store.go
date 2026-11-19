@@ -20,7 +20,9 @@ type FSUser struct {
 	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
-func (u *FSUser) Id() string              { return u.UserId }
+func (u *FSUser) Id() string { return u.UserId }
+
+func fsUserID(u *FSUser) string           { return u.UserId }
 func (u *FSUser) Profile() map[string]any { return u.UserProfile }
 
 // LastUpdated reports when the user record last changed, which
@@ -70,19 +72,14 @@ func (s *FSUserStore) GetUserById(ctx context.Context, req *accounts.GetUserByID
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	user, err := readKeyed(path, req.UserID, fsUserID)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("user not found: %s", req.UserID)
-		}
 		return nil, err
 	}
-
-	var user FSUser
-	if err := json.Unmarshal(data, &user); err != nil {
-		return nil, err
+	if user == nil {
+		return nil, fmt.Errorf("user not found: %s", req.UserID)
 	}
-	return &accounts.GetUserByIDResponse{User: &user}, nil
+	return &accounts.GetUserByIDResponse{User: user}, nil
 }
 
 func (s *FSUserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest) (*accounts.SaveUserResponse, error) {
@@ -108,6 +105,9 @@ func (s *FSUserStore) SaveUser(ctx context.Context, req *accounts.SaveUserReques
 
 	path, err := s.getUserPath(fsUser.UserId)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkOwner(path, fsUser.UserId, fsUserID); err != nil {
 		return nil, err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {

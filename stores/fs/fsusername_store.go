@@ -48,23 +48,17 @@ func (s *FSUsernameStore) readUsername(normalizedUsername string) (*FSUsername, 
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var username FSUsername
-	if err := json.Unmarshal(data, &username); err != nil {
-		return nil, err
-	}
-	return &username, nil
+	return readKeyed(path, normalizedUsername, fsUsernameKey)
 }
+
+func fsUsernameKey(u *FSUsername) string { return u.NormalizedUsername }
 
 func (s *FSUsernameStore) writeUsername(username *FSUsername) error {
 	path, err := s.getUsernamePath(username.NormalizedUsername)
 	if err != nil {
+		return err
+	}
+	if err := checkOwner(path, username.NormalizedUsername, fsUsernameKey); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
@@ -140,6 +134,9 @@ func (s *FSUsernameStore) ReleaseUsername(ctx context.Context, req *accounts.Rel
 	normalized := s.normalizeUsername(req.Username)
 	path, err := s.getUsernamePath(normalized)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkOwner(path, normalized, fsUsernameKey); err != nil {
 		return nil, err
 	}
 

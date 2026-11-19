@@ -83,6 +83,9 @@ func (s *FSAPIKeyStore) saveKey(key *core.APIKey) error {
 	if err != nil {
 		return err
 	}
+	if err := checkOwner(path, key.KeyID, apiKeyID); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
@@ -111,21 +114,17 @@ func (s *FSAPIKeyStore) getKeyUnsafe(keyID string) (*core.APIKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	apiKey, err := readKeyed(path, keyID, apiKeyID)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, core.ErrAPIKeyNotFound
-		}
 		return nil, err
 	}
-
-	var apiKey core.APIKey
-	if err := json.Unmarshal(data, &apiKey); err != nil {
-		return nil, err
+	if apiKey == nil {
+		return nil, core.ErrAPIKeyNotFound
 	}
-
-	return &apiKey, nil
+	return apiKey, nil
 }
+
+func apiKeyID(k *core.APIKey) string { return k.KeyID }
 
 func (s *FSAPIKeyStore) ValidateAPIKey(ctx context.Context, req *core.ValidateAPIKeyRequest) (*core.ValidateAPIKeyResponse, error) {
 	s.mu.RLock()

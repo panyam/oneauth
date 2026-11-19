@@ -47,6 +47,8 @@ func (s *FSKidStore) getKidPath(kid string) (string, error) {
 	return filepath.Join(s.getKidDir(), safeKid+".json"), nil
 }
 
+func kidEntryKid(e *fsKidEntry) string { return e.Kid }
+
 func isExpired(t time.Time) bool {
 	return !t.IsZero() && time.Now().After(t)
 }
@@ -68,6 +70,9 @@ func (s *FSKidStore) Add(ctx context.Context, req *keys.AddKidRequest) (*keys.Ad
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if err := checkOwner(path, req.Kid, kidEntryKid); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(s.getKidDir(), 0700); err != nil {
 		return nil, err
 	}
@@ -100,6 +105,9 @@ func (s *FSKidStore) Remove(ctx context.Context, req *keys.RemoveKidRequest) (*k
 	if err != nil {
 		return nil, err
 	}
+	if err := checkOwner(path, req.Kid, kidEntryKid); err != nil {
+		return nil, err
+	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -121,18 +129,11 @@ func (s *FSKidStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidReque
 	if err != nil {
 		return nil, keys.ErrKidNotFound
 	}
-	data, err := os.ReadFile(path)
+	entry, err := readKeyed(path, req.Kid, kidEntryKid)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, keys.ErrKidNotFound
-		}
 		return nil, err
 	}
-	var entry fsKidEntry
-	if err := json.Unmarshal(data, &entry); err != nil {
-		return nil, err
-	}
-	if isExpired(entry.ExpiresAt) {
+	if entry == nil || isExpired(entry.ExpiresAt) {
 		return nil, keys.ErrKidNotFound
 	}
 	return &keys.GetKeyByKidResponse{Record: &keys.KeyRecord{
