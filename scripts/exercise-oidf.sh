@@ -4,8 +4,12 @@
 #
 #   fapi2  fapi2-security-profile-final-test-plan, mission 98, on :8889
 #          with tests/oidf-conformance/oneauth-fapi2.yaml
-#   oidcc  oidcc-basic-certification-test-plan, mission 477, on :8890
-#          with tests/oidf-conformance/oneauth-oidcc.yaml
+#   oidcc    oidcc-basic-certification-test-plan, mission 477, on :8890
+#            with tests/oidf-conformance/oneauth-oidcc.yaml
+#   oidcdyn  oidcc-dynamic-certification-test-plan, issue 493, on :8891
+#            with the same config
+#   oidcctp  oidcc-test-plan, issue 494, on :8892 with the same config;
+#            AUTH=<client auth method> picks the variant
 #
 #   1. start the OIDF harness (make upoidf) unless it's already up
 #   2. start oneauth-server with the plan's config on https://localhost:<port>
@@ -32,7 +36,11 @@ case "$plan" in
   # covers only its own plan, since the rest already ran.
   fapi2) port=8889 config=tests/oidf-conformance/oneauth-fapi2.yaml gotest=. ;;
   oidcc) port=8890 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_BasicOP$' ;;
-  *) echo "usage: $0 fapi2|oidcc [--go-test] [args...]" >&2; exit 2 ;;
+  oidcdyn) port=8891 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_DynamicOP$' ;;
+  oidcctp)
+    port=8892 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_TestPlan$'
+    if [[ -z "${AUTH:-}" ]]; then echo "oidcctp needs AUTH=<client auth method>" >&2; exit 2; fi ;;
+  *) echo "usage: $0 fapi2|oidcc|oidcdyn|oidcctp [--go-test] [args...]" >&2; exit 2 ;;
 esac
 shift
 
@@ -51,7 +59,7 @@ if curl -sf --cacert "$ca" -o /dev/null "$server/.well-known/openid-configuratio
 fi
 
 go build -buildvcs=false -o "/tmp/oneauth-$plan-server" ./cmd/oneauth-server
-"/tmp/oneauth-$plan-server" --config "$config" >"$logfile" 2>&1 &
+OIDCC_PORT=$port "/tmp/oneauth-$plan-server" --config "$config" >"$logfile" 2>&1 &
 server_pid=$!
 trap 'kill $server_pid 2>/dev/null || true' EXIT
 
@@ -62,10 +70,10 @@ trap 'kill $server_pid 2>/dev/null || true' EXIT
 
 if [[ "${1:-}" == --go-test ]]; then
   shift
-  (cd tests/oidf-conformance && GOWORK=off go test -count=1 -v -timeout 90m -run "$gotest" ./... "$@")
+  (cd tests/oidf-conformance && OIDF_AUTH_TYPE=${AUTH:-} GOWORK=off go test -count=1 -v -timeout 90m -run "$gotest" ./... "$@")
   exit
 fi
 
 (cd tests/oidf-conformance && GOWORK=off go run ./cmd/exercise -plan "$plan" \
   -harness "$harness" -server "$server" -issuer "https://host.docker.internal:$port" \
-  -ca certs/ca.crt "$@")
+  -ca certs/ca.crt ${AUTH:+-auth "$AUTH"} "$@")

@@ -178,44 +178,62 @@
 # static-client variant, so 35 of the plan's 38 modules run.
 
 - suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-server
-  status: expected-warning
-  evidence: non-requested claim 'typ'
-  issue: 339
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-discovery-endpoint-verification
+  status: expected-fail
+  evidence: mandatory to implement response_types for dynamic
+  issue: 493
   owner: panyam
   reason: |
-    The ID token carries oneauth's typ: ID marker claim, which stops it
-    validating as an access token. Issue 339 kept it as a claim: a JOSE
-    typ header other than JWT is refused by common relying-party
-    libraries. Issue 480 confirmed that, so the warning stays.
+    OIDC Core §15.2 requires a Dynamic OP to support the id_token and
+    id_token token response types. Those are implicit flows, which RFC
+    9700 and OAuth 2.1 drop, and oneauth won't add them
+    (docs/CONFORMANCE.md §2.3).
   expires: 2027-12-31
 
 - suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-ensure-request-with-acr-values-succeeds
-  status: expected-warning
-  evidence: SHOULD' return an acr claim
-  issue: 485
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-ensure-redirect-uri-in-authorization-request
+  status: expected-review
+  evidence: redirect_uri is required
+  issue: 493
   owner: panyam
   reason: |
-    acr is not supported yet, so the ID token has no acr claim.
+    A request without redirect_uri gets oneauth's error page (OIDC Core
+    §3.1.2.1 makes it required), and the harness asks for a screenshot.
   expires: 2027-12-31
 
 - suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported
-  status: expected-skip
-  issue: 338
+  plans:
+    - oidcc-basic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-ensure-registered-redirect-uri
+  status: expected-review
+  evidence: unknown client_id or redirect_uri
+  issue: 477
   owner: panyam
   reason: |
-    oneauth refuses request objects with request_not_supported (OIDC Core
-    §6.1), and the harness reports that rejection as SKIPPED. Supporting
-    request objects is JAR, issue 338.
+    An unregistered redirect URI gets oneauth's error page, never a
+    redirect (RFC 6749 §4.1.2.1). The harness asks for a screenshot of it.
   expires: 2027-12-31
 
 - suite: oidf
-  plan: oidcc-basic-certification-test-plan
+  plans:
+    - oidcc-basic-certification-test-plan
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
   test: oidcc-ensure-request-object-with-redirect-uri
   status: expected-review
   evidence: request_not_supported
@@ -229,19 +247,57 @@
   expires: 2027-12-31
 
 - suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-ensure-registered-redirect-uri
-  status: expected-review
-  evidence: unknown client_id or redirect_uri
-  issue: 477
+  plans:
+    - oidcc-basic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-ensure-request-with-acr-values-succeeds
+  status: expected-warning
+  evidence: "SHOULD' return an acr claim"
+  issue: 485
   owner: panyam
   reason: |
-    An unregistered redirect URI gets oneauth's error page, never a
-    redirect (RFC 6749 §4.1.2.1). The harness asks for a screenshot of it.
+    acr is not supported yet, so the ID token has no acr claim.
   expires: 2027-12-31
 
 - suite: oidf
-  plan: oidcc-basic-certification-test-plan
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-idtoken-unsigned
+  status: expected-skip
+  issue: 493
+  owner: panyam
+  reason: |
+    oneauth never issues unsigned ID tokens (alg none), so discovery
+    doesn't offer it and the harness skips the module.
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-basic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-max-age-1
+  status: expected-review
+  evidence: "Login</h1>"
+  issue: 477
+  owner: panyam
+  reason: |
+    A login older than max_age sends the user back to the login page
+    (issue 453), and the harness asks for a screenshot of it.
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-basic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
   test: oidcc-prompt-login
   status: expected-review
   evidence: "Login</h1>"
@@ -253,13 +309,242 @@
   expires: 2027-12-31
 
 - suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-max-age-1
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-redirect-uri-query-added
   status: expected-review
-  evidence: "Login</h1>"
-  issue: 477
+  evidence: unknown client_id or redirect_uri
+  issue: 493
   owner: panyam
   reason: |
-    A login older than max_age sends the user back to the login page
-    (issue 453), and the harness asks for a screenshot of it.
+    The redirect_uri adds a query the registered one doesn't have, so it
+    doesn't match. oneauth shows its error page, and the harness asks for a
+    screenshot of it.
   expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-redirect-uri-query-mismatch
+  status: expected-review
+  evidence: unknown client_id or redirect_uri
+  issue: 493
+  owner: panyam
+  reason: |
+    The redirect_uri's query differs from the registered one, so it doesn't
+    match. oneauth shows its error page, and the harness asks for a
+    screenshot of it.
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-refresh-token-rp-key-rotation
+  status: expected-fail
+  evidence: dynamic registration endpoint returned an unexpected http status
+  issue: 507
+  owner: panyam
+  reason: |
+    The module registers its client with jwks_uri, which dynamic
+    registration refuses (issue 507).
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-registration-jwks-uri
+  status: expected-fail
+  evidence: dynamic registration endpoint returned an unexpected http status
+  issue: 507
+  owner: panyam
+  reason: |
+    Dynamic registration takes an inline jwks, not jwks_uri, so the
+    registration is refused with invalid_client_metadata (issue 507).
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-registration-logo-uri
+  status: expected-review
+  evidence: Authorize OIDF Conformance Test
+  issue: 507
+  owner: panyam
+  reason: |
+    The harness asks for a screenshot of the consent page with the client's
+    logo. oneauth's consent page shows only the client name (issue 507).
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-registration-policy-uri
+  status: expected-review
+  evidence: Authorize OIDF Conformance Test
+  issue: 507
+  owner: panyam
+  reason: |
+    The harness asks for a screenshot of the consent page with a link to
+    the client's policy. oneauth's consent page shows only the client name
+    (issue 507).
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-registration-sector-bad
+  status: expected-skip
+  issue: 507
+  owner: panyam
+  reason: |
+    oneauth has no pairwise subject identifiers, so discovery lists only
+    the public subject type and the harness skips the module (issue 507).
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-registration-sector-uri
+  status: expected-skip
+  issue: 507
+  owner: panyam
+  reason: |
+    oneauth has no pairwise subject identifiers, so discovery lists only
+    the public subject type and the harness skips the module (issue 507).
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-registration-tos-uri
+  status: expected-review
+  evidence: Authorize OIDF Conformance Test
+  issue: 507
+  owner: panyam
+  reason: |
+    The harness asks for a screenshot of the consent page with a link to
+    the client's terms. oneauth's consent page shows only the client name
+    (issue 507).
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-request-uri-signed-rs256
+  status: expected-fail
+  evidence: request_object_signing_alg_values_supported
+  issue: 338
+  owner: panyam
+  reason: |
+    oneauth doesn't support request objects, so discovery has no
+    request_object_signing_alg_values_supported. That's JAR, issue 338.
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-request-uri-unsigned
+  status: expected-fail
+  evidence: expected to succeed, but the server returned an error
+  issue: 338
+  owner: panyam
+  reason: |
+    oneauth refuses request_uri with request_uri_not_supported. Request
+    objects by reference are JAR, issue 338.
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-basic-certification-test-plan
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-server
+  status: expected-warning
+  evidence: "non-requested claim 'typ'"
+  issue: 339
+  owner: panyam
+  reason: |
+    The ID token carries oneauth's typ: ID marker claim, which stops it
+    validating as an access token. Issue 339 kept it as a claim: a JOSE
+    typ header other than JWT is refused by common relying-party
+    libraries. Issue 480 confirmed that, so the warning stays.
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-server-rotate-keys
+  status: expected-manual
+  issue: 507
+  owner: panyam
+  reason: |
+    The module waits for a person to rotate the server's signing keys and
+    press Start, so the exercise records it without running it.
+    Automating the rotation is issue 507.
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-basic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported
+  status: expected-skip
+  issue: 338
+  owner: panyam
+  reason: |
+    oneauth refuses request objects with request_not_supported (OIDC Core
+    §6.1), and the harness reports that rejection as SKIPPED. Supporting
+    request objects is JAR, issue 338.
+  expires: 2027-12-31
+
+- suite: oidf
+  plans:
+    - oidcc-dynamic-certification-test-plan
+    - oidcc-test-plan-client_secret_post
+    - oidcc-test-plan-client_secret_jwt
+    - oidcc-test-plan-private_key_jwt
+  test: oidcc-userinfo-rs256
+  status: expected-fail
+  evidence: userinfo_signing_alg_values_supported
+  issue: 485
+  owner: panyam
+  reason: |
+    Signed userinfo responses aren't supported yet (issue 485).
+  expires: 2027-12-31
+

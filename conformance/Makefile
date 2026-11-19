@@ -10,7 +10,8 @@
 
 ROOT := ..
 
-.PHONY: test report conf-native conf-oidf-config conf-oidf-fapi2 conf-oidf-basic-op conf-keycloak conf-authlete
+.PHONY: test report conf-native conf-oidf-config conf-oidf-fapi2 conf-oidf-basic-op conf-oidf-dynamic-op \
+	conf-oidf-tp-post conf-oidf-tp-secret-jwt conf-oidf-tp-private-key-jwt conf-keycloak conf-authlete
 
 RUNNER = cd $(ROOT)/tests/conformance && GOWORK=off go run ./cmd/suites \
 		-registry ../../conformance/suites.yaml \
@@ -37,6 +38,18 @@ conf-oidf-fapi2:
 
 conf-oidf-basic-op:
 	$(MAKE) -C $(ROOT) exercise-oidcc
+
+conf-oidf-dynamic-op:
+	$(MAKE) -C $(ROOT) exercise-oidcdyn
+
+conf-oidf-tp-post:
+	$(MAKE) -C $(ROOT) exercise-oidcctp AUTH=client_secret_post
+
+conf-oidf-tp-secret-jwt:
+	$(MAKE) -C $(ROOT) exercise-oidcctp AUTH=client_secret_jwt
+
+conf-oidf-tp-private-key-jwt:
+	$(MAKE) -C $(ROOT) exercise-oidcctp AUTH=private_key_jwt
 
 conf-keycloak:
 	$(MAKE) -C $(ROOT) testkcl

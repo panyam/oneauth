@@ -559,7 +559,7 @@ kcllogs:
 #   AUTHLETE_CLIENTSECRET  — paired client_secret
 #
 # Optional:
-#   AUTHLETE_API_SERVER    — Authlete cloud endpoint; defaults to https://api.authlete.com
+#   AUTH_API_SERVER        — the Authlete cluster your service is on; defaults to https://us.authlete.com
 #
 # Tests skip cleanly when these are unset, so the suite stays safe under
 # the default `go test ./...` invocation.
@@ -568,7 +568,10 @@ AUTH_PORT := 8280
 AUTH_FRONTEND_REF := 799440548fb8
 AUTH_FRONTEND_DIR := tests/authlete/.frontend
 AUTH_IMAGE := oneauth-test/authlete-frontend:$(AUTH_FRONTEND_REF)
-AUTH_API_SERVER ?= https://api.authlete.com
+# A V3 service lives on one regional cluster (us, jp, eu or br.authlete.com),
+# and the others answer 404 or 403 for it. upauthlete writes api_version=V3,
+# so api.authlete.com doesn't work here. Override for a non-US service.
+AUTH_API_SERVER ?= https://us.authlete.com
 
 # Clone upstream authlete/java-oauth-server at the pinned commit (idempotent).
 $(AUTH_FRONTEND_DIR):
@@ -598,6 +601,13 @@ upauthlete: authlete-image
 	@if [ -z "$$AUTHLETE_SERVICEID" ] || [ -z "$$AUTHLETE_ACCESS_TOKEN" ]; then \
 		echo "Error: AUTHLETE_SERVICEID and AUTHLETE_ACCESS_TOKEN must be exported"; \
 		echo "  Get them from https://console.authlete.com/"; \
+		exit 1; \
+	fi
+	@code=$$(curl -s -o /dev/null -w '%{http_code}' --oauth2-bearer "$$AUTHLETE_ACCESS_TOKEN" \
+		"$(AUTH_API_SERVER)/api/$$AUTHLETE_SERVICEID/service/configuration"); \
+	if [ "$$code" != 200 ]; then \
+		echo "Error: $(AUTH_API_SERVER) answered $$code for service $$AUTHLETE_SERVICEID."; \
+		echo "  Set AUTH_API_SERVER to the cluster your service is on (https://us|jp|eu|br.authlete.com)."; \
 		exit 1; \
 	fi
 	@echo "Generating authlete.properties from env..."
@@ -652,11 +662,19 @@ authlete-deprovision:
 	fi
 	AUTHLETE_API_SERVER=$(AUTH_API_SERVER) go run -buildvcs=false ./tests/authlete/cmd/deprovision/
 
-# Run Authlete interop tests (starts container if not running).
+# Run Authlete interop tests. Starts the container if it isn't running, and
+# restarts one whose discovery fails (a stale config, or a bind mount from a
+# removed worktree). With AUTHLETE_AS_URL set, a broken AS fails the tests
+# rather than skipping them.
 testauthlete:
 	@if [ -z "$$AUTHLETE_CLIENTID" ] || [ -z "$$AUTHLETE_CLIENTSECRET" ]; then \
 		echo "Error: AUTHLETE_CLIENTID and AUTHLETE_CLIENTSECRET must be exported for tests"; \
 		exit 1; \
+	fi
+	@if docker ps --format '{{.Names}}' | grep -q '^$(AUTH_CONTAINER_NAME)$$' && \
+		! curl -sf -o /dev/null http://localhost:$(AUTH_PORT)/.well-known/openid-configuration; then \
+		echo "The Authlete container is running but its discovery fails; restarting it."; \
+		docker stop $(AUTH_CONTAINER_NAME) >/dev/null; \
 	fi
 	@if ! docker ps --format '{{.Names}}' | grep -q '^$(AUTH_CONTAINER_NAME)$$'; then \
 		$(MAKE) upauthlete; \
@@ -709,13 +727,17 @@ oidflogs:
 # the harness + AS if not already running, then runs the discovery
 # test wrapper which drives the harness via REST and diffs results
 # against tests/conformance/known-gaps.yaml (external-suite entries).
-# The FAPI 2.0 plan (issue 98) and the OIDC Basic OP plan (mission 477)
-# each run against a fresh server that scripts/exercise-oidf.sh <plan>
-# --go-test starts and stops (:8889 and :8890). The full run takes a while
-# (52 + 38 modules).
+# The FAPI 2.0 plan (issue 98), the OIDC Basic OP plan (mission 477), the
+# Dynamic OP plan (issue 493) and oidcc-test-plan once per client auth method
+# (issue 494) each run against a fresh server that scripts/exercise-oidf.sh
+# <plan> --go-test starts and stops (:8889 to :8892). The full run takes a
+# while (52 + 38 + 23 + 3 x about 52 modules).
+OIDCCTP_AUTH_TYPES := client_secret_post client_secret_jwt private_key_jwt
 testoidf: oidf-discovery-up
 	./scripts/exercise-oidf.sh fapi2 --go-test
 	./scripts/exercise-oidf.sh oidcc --go-test
+	./scripts/exercise-oidf.sh oidcdyn --go-test
+	@set -e; for a in $(OIDCCTP_AUTH_TYPES); do AUTH=$$a ./scripts/exercise-oidf.sh oidcctp --go-test; done
 
 # The OIDF Config plan alone: the discovery document checked against the
 # server on :8888, with its per-check scorecard. `make testoidf` runs it too.
@@ -754,6 +776,18 @@ exercise-fapi2:
 # MODULE=<substring> runs only matching modules.
 exercise-oidcc:
 	./scripts/exercise-oidf.sh oidcc $(if $(MODULE),-module $(MODULE))
+
+# Issue 493: the OIDF Dynamic OP plan on :8891, where the harness registers
+# its own clients. MODULE=<substring> as above.
+exercise-oidcdyn:
+	./scripts/exercise-oidf.sh oidcdyn $(if $(MODULE),-module $(MODULE))
+
+# Issue 494: oidcc-test-plan on :8892 with AUTH's client auth method, or each
+# of OIDCCTP_AUTH_TYPES in turn when AUTH is unset. MODULE=<substring> as above.
+exercise-oidcctp:
+	@set -e; for a in $(or $(AUTH),$(OIDCCTP_AUTH_TYPES)); do \
+		AUTH=$$a ./scripts/exercise-oidf.sh oidcctp $(if $(MODULE),-module $(MODULE)); \
+	done
 
 # =============================================================================
 # Conformance ratchet — see docs/CONFORMANCE.md
@@ -1025,7 +1059,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

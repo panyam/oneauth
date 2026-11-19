@@ -3,6 +3,7 @@ package oidfplan
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -30,6 +31,11 @@ const (
 	// contain it, and every other warning must come from the same check,
 	// so a warning from anywhere else is still a regression.
 	StatusExpectedWarning = "expected-warning"
+	// StatusExpectedManual is a module that needs a person at the harness
+	// partway through, such as rotating the server's signing keys and then
+	// pressing Start. The exercise doesn't run it and records it with
+	// Result ResultManual. Removing the entry makes the exercise run it.
+	StatusExpectedManual = "expected-manual"
 )
 
 // Expectation is one known-gaps.yaml entry for a plan's module.
@@ -42,7 +48,8 @@ type Expectation struct {
 }
 
 // LoadExpectations reads the known-gaps.yaml manifest at path and returns
-// its OIDF entries for plan, keyed by module name. Entries for other plans
+// its OIDF entries for plan (a Plan.ManifestKey), keyed by module name. An
+// entry applies when its plan is plan or its plans list names it. Entries for other plans
 // and suites are ignored. An entry with an unknown status, or an
 // expected-review entry without evidence, is an error rather than being
 // skipped, since a typo there would otherwise hide the module.
@@ -52,24 +59,25 @@ func LoadExpectations(path, plan string) (map[string]Expectation, error) {
 		return nil, fmt.Errorf("read manifest: %w", err)
 	}
 	var entries []struct {
-		Suite    string `yaml:"suite"`
-		Plan     string `yaml:"plan"`
-		Test     string `yaml:"test"`
-		Status   string `yaml:"status"`
-		Evidence string `yaml:"evidence"`
-		Issue    int    `yaml:"issue"`
-		Reason   string `yaml:"reason"`
+		Suite    string   `yaml:"suite"`
+		Plan     string   `yaml:"plan"`
+		Plans    []string `yaml:"plans"`
+		Test     string   `yaml:"test"`
+		Status   string   `yaml:"status"`
+		Evidence string   `yaml:"evidence"`
+		Issue    int      `yaml:"issue"`
+		Reason   string   `yaml:"reason"`
 	}
 	if err := yaml.Unmarshal(buf, &entries); err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
 	out := map[string]Expectation{}
 	for _, e := range entries {
-		if e.Suite != "oidf" || e.Plan != plan {
+		if e.Suite != "oidf" || (e.Plan != plan && !slices.Contains(e.Plans, plan)) {
 			continue
 		}
 		switch e.Status {
-		case StatusExpectedFail, StatusExpectedSkip:
+		case StatusExpectedFail, StatusExpectedSkip, StatusExpectedManual:
 		case StatusExpectedReview:
 			if e.Evidence == "" {
 				return nil, fmt.Errorf("manifest entry %s: expected-review needs evidence, the text the captured page must show", e.Test)
@@ -84,6 +92,18 @@ func LoadExpectations(path, plan string) (map[string]Expectation, error) {
 		out[e.Test] = Expectation{Module: e.Test, Status: e.Status, Evidence: e.Evidence, Issue: e.Issue, Reason: strings.TrimSpace(e.Reason)}
 	}
 	return out, nil
+}
+
+// ManualModules is the set of modules expected lists as
+// StatusExpectedManual, which RunPlan records without running.
+func ManualModules(expected map[string]Expectation) map[string]bool {
+	out := map[string]bool{}
+	for m, e := range expected {
+		if e.Status == StatusExpectedManual {
+			out[m] = true
+		}
+	}
+	return out
 }
 
 // VerdictKind is how one module's result compares to the manifest.
@@ -154,6 +174,7 @@ func judgeOne(r ModuleResult, e Expectation, listed bool) Verdict {
 		StatusExpectedReview:  "REVIEW",
 		StatusExpectedSkip:    "SKIPPED",
 		StatusExpectedWarning: "WARNING",
+		StatusExpectedManual:  ResultManual,
 	}[e.Status], ""
 	switch e.Status {
 	case StatusExpectedFail:

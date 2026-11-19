@@ -1,12 +1,13 @@
-# cmd/oneauth-server for mission 477's exercise: the OpenID Connect Basic OP
-# certification plan. Served over TLS at the host name the OIDF harness
-# container uses, on 8890 so it can run beside the discovery baseline (8888)
-# and the FAPI 2.0 server (8889). `make exercise-oidcc` starts it.
+# cmd/oneauth-server for the OpenID Connect OP plans: Basic OP (mission 477,
+# on 8890), Dynamic OP (issue 493, on 8891) and oidcc-test-plan (issue 494,
+# on 8892). OIDCC_PORT picks the port; scripts/exercise-oidf.sh sets it. Each
+# runs over TLS at the host name the OIDF harness container uses, beside the
+# discovery baseline (8888) and the FAPI 2.0 server (8889).
 
 server:
-  port: 8890
+  port: ${OIDCC_PORT:-8890}
   host: 0.0.0.0
-  public_url: https://host.docker.internal:8890
+  public_url: https://host.docker.internal:${OIDCC_PORT:-8890}
 
 tls:
   enabled: true

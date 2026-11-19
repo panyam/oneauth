@@ -16,6 +16,8 @@ package authlete_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -115,27 +117,56 @@ func introspectorClientSecret() string {
 	return defaultIntrospectorClientSecret
 }
 
-// skipIfAuthleteNotConfigured skips the test unless:
-//   - AUTHLETE_CLIENTID and AUTHLETE_CLIENTSECRET are set in env, AND
-//   - the AS frontend at AUTHLETE_AS_URL responds to discovery.
+// skipIfAuthleteNotConfigured skips the test unless AUTHLETE_CLIENTID and
+// AUTHLETE_CLIENTSECRET are set and the AS at AUTHLETE_AS_URL serves
+// discovery. A bare `go test ./...` on a machine without an Authlete
+// account or container stays green, as with tests/keycloak.
 //
-// This is the same "skip when not running" pattern as tests/keycloak —
-// the suite must stay safe under `go test ./...` even on machines
-// without an Authlete account or a running container.
+// AUTHLETE_AS_URL set means the caller (make testauthlete) started the AS
+// for this run, so an AS that can't serve discovery fails the test
+// instead. A misconfigured container then shows up as a failure, not a
+// skip.
 func skipIfAuthleteNotConfigured(t *testing.T) {
 	t.Helper()
 	if authleteClientID() == "" || authleteClientSecret() == "" {
 		t.Skip("AUTHLETE_CLIENTID and AUTHLETE_CLIENTSECRET not set — run 'make testauthlete' with the env exported")
 	}
-	httpClient := &http.Client{Timeout: 3 * time.Second}
-	resp, err := httpClient.Get(authleteASURL() + "/.well-known/openid-configuration")
+	switch got, reason := authleteReadiness(&http.Client{Timeout: 3 * time.Second}, authleteASURL(), os.Getenv("AUTHLETE_AS_URL") != ""); got {
+	case notReadyFail:
+		t.Fatal(reason)
+	case notReadySkip:
+		t.Skip(reason)
+	}
+}
+
+// readiness is what a test does about the Authlete AS before it starts.
+type readiness int
+
+const (
+	ready readiness = iota
+	notReadySkip
+	notReadyFail
+)
+
+// authleteReadiness checks the AS at asURL serves discovery. A failure is
+// notReadyFail when promised (the caller started the AS for this run) and
+// notReadySkip otherwise. The reason carries the status and the start of
+// the body, where the frontend names the Authlete API call that failed.
+func authleteReadiness(hc *http.Client, asURL string, promised bool) (readiness, string) {
+	notReady := notReadySkip
+	if promised {
+		notReady = notReadyFail
+	}
+	resp, err := hc.Get(asURL + "/.well-known/openid-configuration")
 	if err != nil {
-		t.Skipf("Authlete AS not reachable at %s: %v (run 'make upauthlete')", authleteASURL(), err)
+		return notReady, fmt.Sprintf("Authlete AS not reachable at %s: %v (run 'make upauthlete')", asURL, err)
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Skipf("Authlete AS discovery returned status %d (run 'make upauthlete')", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 200))
+		return notReady, fmt.Sprintf("Authlete AS discovery at %s returned %d: %s (check AUTH_API_SERVER names your service's cluster)", asURL, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
+	return ready, ""
 }
 
 // discoverOIDC fetches the OpenID Connect discovery document from the

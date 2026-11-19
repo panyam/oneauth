@@ -22,7 +22,7 @@ import (
 )
 
 func main() {
-	apiServer := envOrDefault("AUTHLETE_API_SERVER", "https://api.authlete.com")
+	apiServer := envOrDefault("AUTHLETE_API_SERVER", "https://us.authlete.com")
 	serviceID := mustEnv("AUTHLETE_SERVICEID")
 	accessToken := mustEnv("AUTHLETE_ACCESS_TOKEN")
 	snapshotDir := envOrDefault("AUTHLETE_SNAPSHOT_DIR", "tests/authlete/.frontend")
