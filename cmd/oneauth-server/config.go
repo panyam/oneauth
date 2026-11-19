@@ -60,10 +60,9 @@ type CodeFlowConfig struct {
 	Expiry time.Duration `yaml:"expiry"`
 
 	// Store backs the AuthorizationCodeStore. memory (default) is
-	// fine for single-instance dev; production deployments choose a
-	// persistent backend once FS / GORM / GAE backends ship. Mirrors
-	// DeviceAuthStoreConfig so operators see one pattern across both
-	// grants.
+	// fine for single-instance dev; production deployments choose fs,
+	// gorm or gae. Mirrors DeviceAuthStoreConfig so operators see one
+	// pattern across both grants.
 	Store AuthorizationCodeStoreConfig `yaml:"store"`
 
 	// PAR serves RFC 9126 pushed authorization requests at POST /par, on
@@ -89,13 +88,16 @@ type PARConfig struct {
 	Required bool `yaml:"required"`
 }
 
-// AuthorizationCodeStoreConfig configures the AuthorizationCodeStore
-// backend. Mirrors DeviceAuthStoreConfig. memory + gorm are wired
-// today; fs / gae are deferred follow-ups under the same staging as
-// DeviceAuthStore (issues 269/270).
+// AuthorizationCodeStoreConfig configures the backend for authorization
+// codes, and for pushed requests when code_flow.par is on. Mirrors
+// DeviceAuthStoreConfig. memory, fs, gorm and gae are all supported (issue
+// 382); fs keeps compare-and-swap within one process, so replicas need
+// gorm or gae.
 type AuthorizationCodeStoreConfig struct {
-	Type string     `yaml:"type"` // memory (default), gorm (fs/gae follow-ups)
+	Type string     `yaml:"type"` // memory (default), fs, gorm, gae
+	FS   FSConfig   `yaml:"fs"`
 	GORM GORMConfig `yaml:"gorm"`
+	GAE  GAEConfig  `yaml:"gae"`
 }
 
 // DeviceFlowConfig toggles and configures the RFC 8628 Device

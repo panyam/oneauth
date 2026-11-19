@@ -4,7 +4,7 @@
 - **`buildServer(cfg)` is the whole server.** `main()` only loads config, runs startup checks and listens. Tests build the real handler with `buildServer` on `httptest.NewUnstartedServer` (its address gives `public_url`); `newLoginFixture` in `login_next_test.go` adds a user and a DCR client. Anything `NewOneAuth` reads (stores, `AppStore`, keys) must be in `OneAuthConfig`, since granters are built at construction (issue 438).
 - **Asymmetric signing.** `jwt.signing_alg=RS256` needs `jwt.private_key_path` or `jwt.ephemeral_signing_key: true`; neither fails loudly. Ephemeral keys match the algorithm and invalidate tokens on restart. `code_flow.oidc` needs RS256 or ES256.
 - **Deploy examples leave `jwt.issuer` empty** so it follows `public_url`; a pinned issuer disagrees with discovery once `PUBLIC_URL` is overridden. `rar-test.yaml` pins it on purpose for the Keycloak suite.
-- **PAR** is served with `code_flow.par.enabled` (`required` refuses direct `/authorize`), on the code store's backend (memory or gorm).
+- **PAR** is served with `code_flow.par.enabled` (`required` refuses direct `/authorize`), on the code store's backend (`code_flow.store.type`: memory, fs, gorm or gae).
 - **`fapi2: true`** needs `dpop.enabled`, `jwt.signing_alg: ES256` and, with `code_flow` on, PAR; the server refuses to start otherwise. `deploy-examples/fapi-dpop.yaml` runs the whole profile.
 - **TLS is BCP 195** (`serverTLSConfig` in `tls.go`): TLS 1.2 minimum, and on 1.2 only the four ECDHE + AES-GCM suites. A test client pinned to CBC or ChaCha20 on 1.2 fails the handshake.
 - **`make server-css` after changing template classes.** The prebuilt Tailwind stylesheet (`static/app.css`) is served under a `'self'`-only CSP, so a class unused at the last build has no style.
