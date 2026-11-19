@@ -194,6 +194,30 @@
 <blockquote>
 <p>0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.</p>
 </blockquote>
+<h2 id="version-036">Version 0.3.6 <a class="anchor" href="#version-036">¶</a></h2>
+<p>This release gives <code>outbound</code> user tokens stores that replicas can share, and a way to revoke a token when a person disconnects. It also adds a live smoke test against real GitHub, which corrected our fake GitHub in three places. The sub-modules now require root v0.3.5, so <code>stores/gorm</code> and <code>stores/gae</code> can use <code>outbound</code>.</p>
+<h3 id="user-token-stores-for-replicas-issue-468-pr-470">User-token stores for replicas (issue 468, PR 470) <a class="anchor" href="#user-token-stores-for-replicas-issue-468-pr-470">¶</a></h3>
+<ul>
+<li><strong><code>stores/gorm.UserTokenStore</code></strong> does compare-and-swap in one SQL statement: an insert with <code>ON CONFLICT DO NOTHING</code>, or an update <code>WHERE version = ?</code>. Its table is <code>outbound_user_tokens</code>, added to <code>AutoMigrate</code>.</li>
+<li><strong><code>stores/gae.GAEUserTokenStore</code></strong> does the read, compare and write in one Datastore transaction, under kind <code>OutboundUserToken</code>.</li>
+<li>Both pass <code>usertokentest.RunAll</code> on Postgres and on the Datastore emulator.</li>
+</ul>
+<h3 id="revoke-on-disconnect-pr-470">Revoke on disconnect (PR 470) <a class="anchor" href="#revoke-on-disconnect-pr-470">¶</a></h3>
+<ul>
+<li><strong><code>UserTokens.Revoke</code></strong> revokes a person&rsquo;s token at the provider through a <code>TokenRevoker</code>, then deletes the record. Any failure keeps the record, so it can be retried.</li>
+<li><strong><code>outbound.GitHubRevoker</code></strong> calls <code>DELETE /applications/{client_id}/token</code>, or <code>/grant</code> with <code>RevokeGrant</code> to remove the whole authorization. Only a 204 counts, since GitHub answers 404 both for an already-revoked token and for wrong client credentials.</li>
+<li><strong>Behaviour change:</strong> a refresh that loses a race with <code>Delete</code> or <code>Revoke</code> now answers <code>ErrUserTokenNotFound</code>. Before, it handed out the token it had just refreshed.</li>
+</ul>
+<h3 id="live-github-smoke-test-pr-471">Live GitHub smoke test (PR 471) <a class="anchor" href="#live-github-smoke-test-pr-471">¶</a></h3>
+<ul>
+<li><strong><code>make testgh</code></strong> runs <code>outbound</code> against github.com. It never runs in <code>make test</code> or CI. It covers a PAT, App installation tokens, a token narrowed to one repo, caching, refusals, and an opt-in device-flow refresh-and-revoke. Setup is in <code>docs/OUTBOUND_CREDENTIALS.md</code> and needs no callback URL.</li>
+<li><strong><code>outbound/githubtest</code> now matches real GitHub</strong> for an unknown App ID (404 &ldquo;Integration not found&rdquo;), for refresh (the previous access token stops working) and for revoking twice (404). Consumers&rsquo; tests that reused an access token after a refresh will now see it refused, as GitHub would.</li>
+</ul>
+<h3 id="fixes">Fixes <a class="anchor" href="#fixes">¶</a></h3>
+<ul>
+<li><strong>GAE refresh-token store kept every concurrent access token</strong> (PR 471). <code>RecordAccessToken</code> and the per-member transaction in <code>RevokeTokenFamily</code> now allow 10 attempts rather than Datastore&rsquo;s default 3. Before, about one run in 70 of five concurrent records lost one, and family revocation then missed it.</li>
+<li><strong>The GORM Postgres test helper closes the connection it uses to create a schema</strong> (PR 470). It used to leak one per test until <code>make testpg</code> hit Postgres&rsquo;s client limit.</li>
+</ul>
 <h2 id="version-035">Version 0.3.5 <a class="anchor" href="#version-035">¶</a></h2>
 <p>This release adds <code>outbound/</code>, for an app calling someone else&rsquo;s API as itself or for one of its users. goapplib&rsquo;s storage mounts over private GitHub repos are the first consumer. The sub-modules still require the root at v0.3.4. The next release bumps them, together with the GORM and GAE user-token stores (issue 468).</p>
 <h3 id="outbound-credentials-issue-467-pr-469">Outbound credentials (issue 467, PR 469) <a class="anchor" href="#outbound-credentials-issue-467-pr-469">¶</a></h3>
