@@ -66,6 +66,20 @@ jobs:
       - name: Test (conformance tooling)
         run: make conformance-check
 
+  # Packages that handle OS paths, tested on Windows. The rest of the
+  # module isn't expected to pass there yet. See issue 499.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.26'
+
+      - name: Test (outbound)
+        run: go test -count=1 ./outbound/...
+
   # The GAE store tests skip without DATASTORE_PROJECT_ID, so the test job
   # above never runs them. The emulator needs --consistency=1.0, and a
   # services: container can't take arguments, so make testds starts it.

@@ -7,7 +7,7 @@ The app calling someone else's API, as itself or for one of its users. Each sour
 - **usertoken.go** — `UserTokens` (per provider: `Save`, `Delete`, `TokenSource`) and `StoredUserToken`: sealed with `keys.Sealer`, refreshed and written back with compare-and-swap, waits `RaceWait` for another replica's refresh before `ErrReconnect`.
 - **usertoken_store.go** — `UserTokenStore` interface (gRPC shape, CAS on `Version`), `ErrUserTokenNotFound`, `ErrVersionConflict`, `MemoryUserTokenStore`. Backends: `stores/fs.FSUserTokenStore` (one process), `stores/gorm.UserTokenStore` and `stores/gae.GAEUserTokenStore` (replicas). Contract suite: `usertokentest.RunAll`.
 - **revoke.go** — `TokenRevoker`, `UserTokens.Revoke` (revoke at the provider, then delete; keeps the record on any failure), `GitHubRevoker` (`/token` or, with `RevokeGrant`, `/grant`; only 204 succeeds), `ErrNoRevoker`.
-- **secretref.go** — `SecretRef` (`env:NAME`, `file:/abs/path`); a bare value is refused. Package doc.
+- **secretref.go** — `SecretRef` (`env:NAME`, `file:PATH`, with PATH absolute for the host OS); a bare value is refused. Package doc.
 - **static.go** — `Static`: a fixed secret from a `SecretRef`, read on every call.
 - **githubtest/** — fake GitHub: checks App JWTs, issues installation tokens and single-use-refresh user tokens, revokes tokens and grants, and serves `/user` and `/installation/repositories` for live tokens.
 
