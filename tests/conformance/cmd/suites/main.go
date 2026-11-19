@@ -80,14 +80,17 @@ func main() {
 }
 
 // commitID is the checkout's short commit, with "-dirty" when the tree has
-// uncommitted changes, or "unknown" outside git.
+// uncommitted changes outside docs/conformance (the run's own output), or
+// "unknown" outside git.
 func commitID() string {
 	out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		return "unknown"
 	}
 	id := strings.TrimSpace(string(out))
-	if st, err := exec.Command("git", "status", "--porcelain", "--untracked-files=no").Output(); err == nil && len(strings.TrimSpace(string(st))) > 0 {
+	// The reports a run writes don't count: the run changes them itself.
+	st, err := exec.Command("git", "status", "--porcelain", "--untracked-files=no", "--", ".", ":(top,exclude)docs/conformance").Output()
+	if err == nil && len(strings.TrimSpace(string(st))) > 0 {
 		id += "-dirty"
 	}
 	return id
