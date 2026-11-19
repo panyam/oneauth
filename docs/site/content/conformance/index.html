@@ -3,7 +3,7 @@ title: "Conformance"
 description: "Overview of every conformance and interop suite OneAuth runs."
 ---
 
-<p>OneAuth runs four conformance / interop suites today, plus a hand-written security audit. Each has its own scorecard or audit document; this page is the index.</p>
+<p>OneAuth runs its conformance and interop suites from one command, <code>make conformance</code>, which reads the registry in <a href="{{ (json "SiteMetadata.json" "repository") }}/blob/main/conformance/suites.yaml"><code>conformance/suites.yaml</code></a> and prints one line per suite. Each suite has its own scorecard or audit document below, alongside a hand-written security audit; this page is the index. Which of the OpenID Foundation's 81 test plans apply to oneauth, and why the rest don't, is in the <a href="{{ (json "SiteMetadata.json" "repository") }}/blob/main/docs/CONFORMANCE.md#22-oidf-plans-which-apply">OIDF applicability table</a>.</p>
 
 <div class="pillars">
     <div class="pillar">
