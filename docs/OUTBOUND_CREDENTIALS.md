@@ -114,7 +114,7 @@ err := tokens.Revoke(ctx, userID)
 A `SecretRef` names where a secret lives and never holds it:
 
 - `env:NAME` reads the environment variable `NAME`.
-- `file:/abs/path` reads the file. The path must be absolute.
+- `file:PATH` reads the file. The path must be absolute for the host OS: `/run/secrets/pat`, or `C:\secrets\pat` on Windows. A path starting with `/` is accepted everywhere.
 
 `ParseSecretRef` refuses anything else, including a bare value. A token pasted into config fails at startup, and the error doesn't repeat it. `NewStatic` also resolves the reference once, so a missing secret fails at startup rather than on the first API call. Cloud secret managers are a later addition; their reference will be another prefix.
 
