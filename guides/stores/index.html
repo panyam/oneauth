@@ -458,6 +458,31 @@
 <li><strong>Codes, request URIs and device codes are hashed at rest.</strong> FS, GORM and GAE key each record by <code>core.AtRestKey(value)</code>, a SHA-256 digest, and leave the plaintext out of the stored record, so a copy of the store can&rsquo;t redeem a code or poll for a device&rsquo;s tokens. Records written before hashing keep working across an upgrade (issues 382, 473). A device lookup by user code returns <code>DeviceCode</code> empty.</li>
 <li><strong>The reference server</strong> picks the code and pushed-request backend with <code>code_flow.store.type</code> (<code>memory</code>, <code>fs</code>, <code>gorm</code>, <code>gae</code>); PAR always uses the code store&rsquo;s backend.</li>
 </ul>
+<h2 id="consent-grants">Consent grants <a class="anchor" href="#consent-grants">¶</a></h2>
+<p><code>core.ConsentStore</code> keeps one grant per (subject, client_id), so <code>/authorize</code> can skip the consent screen for a request an earlier approval covers, including an OIDC <code>prompt=none</code> request. A save replaces the stored grant, and the caller merges scopes. The store returns an expired grant and leaves the decision to <code>ConsentGrant.Covers</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Store</th>
+<th>Memory</th>
+<th>FS</th>
+<th>GORM</th>
+<th>GAE</th>
+<th>Contract suite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>core.ConsentStore</code> (OIDC Core §3.1.2.1)</td>
+<td><code>core</code></td>
+<td><code>FSConsentStore</code></td>
+<td><code>ConsentStore</code></td>
+<td><code>GAEConsentStore</code></td>
+<td><code>consenttest.RunAll</code></td>
+</tr>
+</tbody>
+</table>
+<p>FS names each file by a SHA-256 of subject and client_id, and GAE names each entity the same way, so any characters in either ID are safe. GORM keys the <code>consents</code> table on (subject, client_id) and saves with one upsert statement.</p>
 
 
     </div>

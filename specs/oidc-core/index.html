@@ -455,10 +455,22 @@ surface smaller.</li>
 <td>Left out when the deployment does not say when the user logged in</td>
 </tr>
 <tr>
-<td><code>acr</code>, <code>amr</code>, <code>prompt</code>, <code>max_age</code>, <code>claims</code> parameter</td>
+<td><code>prompt</code> and <code>max_age</code> (§3.1.2.1)</td>
+<td><strong>Implemented</strong> (#453)</td>
+<td><code>AuthorizeVerificationHandler.Consent</code>, <code>needsLogin</code>, <code>AuthorizationRequest.Prompt</code> / <code>MaxAge</code></td>
+<td><code>prompt=login</code> and an old login under <code>max_age</code> go back through the login page, whose return URL carries <code>oa_login_after</code> so the new login counts. <code>prompt=none</code> answers <code>login_required</code> or <code>consent_required</code> instead of a page. Both need <code>AuthorizeMountConfig.AuthTimeFromRequest</code>, and without it neither is enforced</td>
+</tr>
+<tr>
+<td>Remembered consent</td>
+<td><strong>Implemented</strong> (#453)</td>
+<td><code>core.ConsentStore</code> (memory, FS, GORM, GAE), <code>AuthorizeMountConfig.ConsentStore</code></td>
+<td>Approve records the scopes; a later request they cover skips the screen unless <code>prompt=consent</code>. <code>prompt=none</code> needs it to succeed. Server: <code>code_flow.consent.remember</code></td>
+</tr>
+<tr>
+<td><code>acr</code>, <code>amr</code>, <code>claims</code> parameter</td>
 <td><strong>Gap</strong> (#453)</td>
 <td>—</td>
-<td>Re-authentication and step-up</td>
+<td>Step-up, and claims requested by name</td>
 </tr>
 <tr>
 <td><code>at_hash</code> claim (id_token integrity binding to access_token)</td>
