@@ -101,6 +101,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 | OIDF discovery plan | `tests/oidf-conformance/` | `oidcc-config-certification-test-plan` through `make testoidf`. The OIDF workflow is `workflow_dispatch` only and has not run in CI yet. |
 | OIDF FAPI 2.0 plan | `tests/oidf-conformance/fapi2/` | `fapi2-security-profile-final-test-plan` through `make testoidf` (and `make exercise-fapi2`); whole-module `expected-review` / `expected-skip` entries in `known-gaps.yaml`. Local only, like the discovery plan. |
 | OIDF OIDC Basic OP plan | `tests/oidf-conformance/oidcc/` | `oidcc-basic-certification-test-plan` through `make testoidf` (and `make exercise-oidcc`), mission 477; whole-module entries in `known-gaps.yaml` like FAPI 2.0. Local only. |
+| OIDF Dynamic OP plan and `oidcc-test-plan` | `tests/oidf-conformance/oidcdyn/` | `oidcc-dynamic-certification-test-plan` (`make exercise-oidcdyn`, issue 493) and `oidcc-test-plan` once per client auth method (`make exercise-oidcctp AUTH=<method>`, issue 494), both through `make testoidf`. The harness registers its own clients through DCR. One `known-gaps.yaml` entry can name several plans with `plans:`. Local only. |
 
 ### 2.2 OIDF plans: which apply
 
@@ -111,8 +112,8 @@ The OpenID Foundation suite offers 81 plans (the harness's `/api/plan/available`
 | `fapi2-security-profile-final-test-plan` | 68 | Runs | `SUITE=oidf-fapi2` (`make testoidf`), mission 98 |
 | `oidcc-basic-certification-test-plan` | 38 | Runs | `SUITE=oidf-basic-op` (`make testoidf`), mission 477 |
 | `oidcc-config-certification-test-plan` | 1 | Runs | `make conformance SUITE=oidf-config` (`make testoidf`) |
-| `oidcc-dynamic-certification-test-plan` | 23 | Owed | #493: the harness registers its own clients through DCR |
-| `oidcc-test-plan` | 55 | Owed | #494: run it, or close it as covered by Basic and Dynamic |
+| `oidcc-dynamic-certification-test-plan` | 23 | Runs | `SUITE=oidf-dynamic-op` (`make testoidf`), issue 493. The harness registers its own clients through DCR |
+| `oidcc-test-plan` | 55 | Runs | `SUITE=oidf-tp-<method>` (`make testoidf`), issue 494: once each for `client_secret_post`, `client_secret_jwt` and `private_key_jwt`, which the Basic and Dynamic plans don't vary. `none` and `mtls` are left out (§2.3) |
 | `fapi-ciba-id1-test-plan` | 71 | Needs a feature | CIBA: #341 |
 | `fapi1-advanced-final-brazil-dcr-test-plan` | 18 | Needs a feature | Open Finance Brasil profile: #161 |
 | `fapi1-advanced-final-test-plan` | 69 | Needs a feature | FAPI 1 Advanced: PS256 (#330), JARM (#409), mTLS-bound tokens (#335) |
@@ -190,14 +191,33 @@ The OpenID Foundation suite offers 81 plans (the harness's `/api/plan/available`
 | `openid-ssf-transmitter-caep-test-plan` | 28 | Not applicable | Shared Signals (SSF / CAEP): not in scope |
 | `openid-ssf-transmitter-test-plan` | 36 | Not applicable | Shared Signals (SSF / CAEP): not in scope |
 
-### 2.3 Suites to adopt (Tier 1)
+### 2.3 What doesn't pass, and whether it should
+
+Every OIDF module that doesn't pass has a `known-gaps.yaml` entry. This table groups those entries by cause and gives each cause a verdict. **Roadmap** means oneauth should do it, and an issue tracks it. **Won't do** means the spec or the security advice argues against it. **Review** means the module passes once a person checks a screenshot. **Harness** means the module needs a person partway through.
+
+| Cause | Modules | Verdict |
+|---|---|---|
+| Implicit and hybrid response types | `discovery-endpoint-verification` fails in the Dynamic plan and `oidcc-test-plan`. OIDC Core §15.2 makes `id_token` and `id_token token` mandatory for a Dynamic OP. | Won't do. RFC 9700 §2.1.2 and OAuth 2.1 drop implicit, since it returns tokens in the URL, and FAPI 2.0 is code-only. So oneauth can't certify as a Dynamic OP. Basic OP is unaffected. |
+| Public clients without PKCE | `oidcc-test-plan`'s `none` variant sends public clients without PKCE, so every flow stops at `code_challenge is required`. The variant isn't run. | Won't do. RFC 9700 §2.1.1 and OAuth 2.1 require PKCE from public clients. |
+| Unsigned ID tokens (`alg: none`) | `idtoken-unsigned` is skipped | Won't do. |
+| The `typ: ID` claim in the ID token | `server` warns in every OIDC plan | Won't do, per issue 339. Relying-party libraries refuse a JOSE `typ` header other than `JWT`. |
+| Request objects and `request_uri` (JAR) | `request-uri-unsigned` and `request-uri-signed-rs256` fail. `unsigned-request-object-...` is skipped. `ensure-request-object-with-redirect-uri` ends in REVIEW on oneauth's refusal. | Roadmap, issue 338. FAPI 2.0 Message Signing and FAPI 1 need it too. |
+| Signed userinfo | `userinfo-rs256` fails | Roadmap, issue 485. |
+| `acr` | `ensure-request-with-acr-values-succeeds` warns | Roadmap, issue 485. |
+| `jwks_uri` in dynamic registration | `registration-jwks-uri` and `refresh-token-rp-key-rotation` fail. DCR takes an inline `jwks` only. | Roadmap, issue 507. Without it a `private_key_jwt` client re-registers to rotate keys. |
+| Client logo, policy and terms on the consent page | `registration-logo-uri`, `-policy-uri` and `-tos-uri` end in REVIEW, and the page doesn't show them | Roadmap, issue 507. OIDC Registration §2 says the OP SHOULD show them. |
+| Pairwise subject identifiers | `registration-sector-uri` and `-sector-bad` are skipped | Roadmap, issue 507, waiting on a deployment that needs it. |
+| Rotating the server's signing keys | `server-rotate-keys` waits for a person to rotate keys and press Start | Harness. It's `expected-manual`, so the exercise records it without running it. Automating it is issue 507. |
+| Error pages and re-login pages | `ensure-registered-redirect-uri`, `ensure-redirect-uri-in-authorization-request`, `redirect-uri-query-mismatch`, `redirect-uri-query-added`, `prompt-login` and `max-age-1` end in REVIEW | Review. oneauth shows the right page, and each entry's evidence checks the captured page says so. |
+
+### 2.4 Suites to adopt (Tier 1)
 
 #### OpenID Foundation Conformance Suite
 
 - **Repo:** [gitlab.com/openid/conformance-suite](https://gitlab.com/openid/conformance-suite) (Apache 2.0; GitHub mirror at `openid-certification/conformance-suite` is read-only)
 - **Runs as:** Docker Compose stack (Java + Spring Boot + MongoDB + httpd). Uses `localhost.emobix.co.uk:8443` (resolves to 127.0.0.1, ships a real cert chain) so callbacks can be HTTPS.
 - **Drives in CI** via the suite's published Python wrapper (headless). The harness, server config and baselines are checked into our repo at `tests/oidf-conformance/`.
-- **Plans:** see §2.2. Config, Basic OP and FAPI 2.0 run today; Dynamic (#493) and the catch-all `oidcc-test-plan` (#494) are owed.
+- **Plans:** see §2.2. Config, Basic OP, Dynamic OP, `oidcc-test-plan` and FAPI 2.0 run today. §2.3 says why each module that doesn't pass doesn't.
 
 OIDF cert (the paid logo) is **not** a goal. We run the tests; we do not submit results.
 
@@ -214,7 +234,7 @@ This is also the suite that surfaced bug 74 (`TokenEndpointAuthMethods` negotiat
 - **Repo:** [github.com/DistriNet/OAuch](https://github.com/DistriNet/OAuch), an analyzer for OAuth 2.0 authorization servers that checks best practices and known threats rather than certifying conformance.
 - **Plan:** run it against the reference server and triage each finding into a ticket or an accepted reason (#497), as an info suite in `make conformance`.
 
-### 2.4 Self-written suites (filling public gaps)
+### 2.5 Self-written suites (filling public gaps)
 
 These RFCs have no public conformance tooling. We write them as transport-agnostic Go test fixtures so they can be pointed at OneAuth, Keycloak, or any third-party server.
 
@@ -226,7 +246,7 @@ These RFCs have no public conformance tooling. We write them as transport-agnost
 | RFC 9396 (RAR) | extracted from `tests/keycloak/rar_interop_test.go` | Currently part of Keycloak suite; pull into a stand-alone fixture. Candidate to publish as `oneauth-rar-conformance` for the wider ecosystem — there is a real public gap here. |
 | RFC 8414 dual-path | `tests/conformance/as_metadata/` | Asserts `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration` return identical content where they overlap. OIDF only checks the OIDC path. |
 
-### 2.5 Explicitly out of scope
+### 2.6 Explicitly out of scope
 
 FAPI 1.0, FAPI-CIBA, OpenID Federation, OID4VCI, EUDI Wallet, regional Open Banking profiles. The OIDF suite has plans for all of these; we will not run them.
 
