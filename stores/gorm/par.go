@@ -23,6 +23,10 @@ import (
 // drop whatever this version of the server does not know about, which is
 // the RFC 9396 case PAR exists to carry.
 //
+// RequestURI holds core.AtRestKey(request_uri) for rows written since
+// request URIs were hashed at rest, and the plaintext for older rows;
+// lookups match either (see requestURIKeys).
+//
 // ClientID is indexed because operators reach for "what did this client
 // push" when debugging a flow, and ExpiresAt because the cleanup sweep
 // scans on it.
@@ -51,9 +55,19 @@ func pushedToModel(r *core.PushedAuthorizationRequest) *PushedAuthorizationReque
 	}
 }
 
-func modelToPushed(m *PushedAuthorizationRequestModel) *core.PushedAuthorizationRequest {
+// requestURIKeys is what a request_uri may be stored under:
+// core.AtRestKey for rows written since they were hashed at rest, or the
+// plaintext for rows from before. A pushed request lives about a minute,
+// so the plaintext case only matters across an upgrade.
+func requestURIKeys(uri string) []string {
+	return []string{core.AtRestKey(uri), uri}
+}
+
+// modelToPushed maps a row back to the public struct. The row holds only
+// the digest, so the request_uri comes from the caller's request.
+func modelToPushed(m *PushedAuthorizationRequestModel, uri string) *core.PushedAuthorizationRequest {
 	return &core.PushedAuthorizationRequest{
-		RequestURI: m.RequestURI,
+		RequestURI: uri,
 		ClientID:   m.ClientID,
 		Payload:    m.Payload,
 		Consumed:   m.Consumed,
@@ -95,14 +109,16 @@ func (s *PushedAuthorizationRequestStore) CreatePushedAuthorizationRequest(ctx c
 	// lookup.
 	var existing int64
 	if err := s.db.WithContext(ctx).Model(&PushedAuthorizationRequestModel{}).
-		Where("request_uri = ?", r.RequestURI).Count(&existing).Error; err != nil {
+		Where("request_uri IN ?", requestURIKeys(r.RequestURI)).Count(&existing).Error; err != nil {
 		return nil, err
 	}
 	if existing > 0 {
 		return nil, errors.New("CreatePushedAuthorizationRequest: request_uri collision")
 	}
 
-	if err := s.db.WithContext(ctx).Create(pushedToModel(r)).Error; err != nil {
+	m := pushedToModel(r)
+	m.RequestURI = core.AtRestKey(r.RequestURI)
+	if err := s.db.WithContext(ctx).Create(m).Error; err != nil {
 		return nil, err
 	}
 	return &core.CreatePushedAuthorizationRequestResponse{Request: r}, nil
@@ -117,13 +133,13 @@ func (s *PushedAuthorizationRequestStore) GetPushedAuthorizationRequest(ctx cont
 		return nil, core.ErrPushedRequestNotFound
 	}
 	var model PushedAuthorizationRequestModel
-	if err := s.db.WithContext(ctx).First(&model, "request_uri = ?", req.RequestURI).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&model, "request_uri IN ?", requestURIKeys(req.RequestURI)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, core.ErrPushedRequestNotFound
 		}
 		return nil, err
 	}
-	return &core.GetPushedAuthorizationRequestResponse{Request: modelToPushed(&model)}, nil
+	return &core.GetPushedAuthorizationRequestResponse{Request: modelToPushed(&model, req.RequestURI)}, nil
 }
 
 // ConsumePushedAuthorizationRequest marks the record redeemed, leaving the
@@ -136,7 +152,7 @@ func (s *PushedAuthorizationRequestStore) ConsumePushedAuthorizationRequest(ctx 
 		return nil, core.ErrPushedRequestNotFound
 	}
 	result := s.db.WithContext(ctx).Model(&PushedAuthorizationRequestModel{}).
-		Where("request_uri = ? AND consumed = ?", req.RequestURI, false).
+		Where("request_uri IN ? AND consumed = ?", requestURIKeys(req.RequestURI), false).
 		Update("consumed", true)
 	if result.Error != nil {
 		return nil, result.Error
@@ -145,7 +161,7 @@ func (s *PushedAuthorizationRequestStore) ConsumePushedAuthorizationRequest(ctx 
 		return &core.ConsumePushedAuthorizationRequestResponse{Consumed: true}, nil
 	}
 	var n int64
-	if err := s.db.WithContext(ctx).Model(&PushedAuthorizationRequestModel{}).Where("request_uri = ?", req.RequestURI).Count(&n).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&PushedAuthorizationRequestModel{}).Where("request_uri IN ?", requestURIKeys(req.RequestURI)).Count(&n).Error; err != nil {
 		return nil, err
 	}
 	if n == 0 {
@@ -161,7 +177,7 @@ func (s *PushedAuthorizationRequestStore) DeletePushedAuthorizationRequest(ctx c
 	if req == nil || req.RequestURI == "" {
 		return nil, core.ErrPushedRequestNotFound
 	}
-	result := s.db.WithContext(ctx).Where("request_uri = ?", req.RequestURI).
+	result := s.db.WithContext(ctx).Where("request_uri IN ?", requestURIKeys(req.RequestURI)).
 		Delete(&PushedAuthorizationRequestModel{})
 	if result.Error != nil {
 		return nil, result.Error

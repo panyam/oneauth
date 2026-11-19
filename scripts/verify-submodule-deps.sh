@@ -1,104 +1,90 @@
 #!/bin/bash
-# Verifies that oneauth sub-module go.mod files require a real, tagged version
-# of the root github.com/panyam/oneauth module — not the v0.0.0 placeholder
-# nor the ancient v0.0.39 stale value that existed before this check was added.
+# Verifies that every published oneauth module points at one version of
+# every other oneauth module, and that none of them can only build from a
+# checkout.
 #
-# Why: a sub-module's `require github.com/panyam/oneauth v0.0.0` works locally
-# thanks to the `replace ../..` directive, but downstream consumers cannot
-# `go get github.com/panyam/oneauth/stores/gorm@vX` because Go ignores replace
-# directives in non-main modules. The require line must point to a released
-# tag so the module graph resolves for external users.
+# Rules, for each published module (the root plus PUBLISHED below):
 #
-# Same pattern as mcpkit#189 — this script is a direct port.
+#   1. No `replace github.com/panyam/oneauth...` directive. Go refuses
+#      `go install <module>@<version>` for a module whose go.mod has one,
+#      and consumers ignore them anyway. Local development uses go.work.
+#   2. Every require of a github.com/panyam/oneauth* module, direct or
+#      indirect, names EXPECTED: the version being released when RELEASING
+#      is set (make release), otherwise the latest root tag.
+#   3. go.work's release-managed replace block names EXPECTED too.
 #
-# Failure modes this catches:
-# 1. require github.com/panyam/oneauth v0.0.0 — the placeholder bug
-# 2. require github.com/panyam/oneauth vX.Y.Z where X.Y.Z is more than 10
-#    patch versions behind the current root tag (stale after multi-bump)
-# 3. Inter-sub-module requires (e.g., stores/gorm referenced from
-#    cmd/oneauth-server) that lag the current root version
+# A release commit sets every such require to the version it is about to
+# tag, so stores/gorm@vX requires oneauth@vX and cmd/oneauth-server@vX
+# requires stores/gorm@vX. Between releases the requires keep naming the
+# last tag, and go.work builds the checkout as one workspace.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Sub-modules that are independently tagged and require the root module.
-# tests/keycloak is intentionally excluded — it's a test harness using
-# a zero pseudo-version, not published externally.
-SUBMODULES=(
+# Modules that are tagged and published. Test harnesses under tests/ and
+# docs/site are not, and keep their replace directives.
+PUBLISHED=(
     "stores/gorm"
     "stores/gae"
+    "saml"
     "grpc"
-    "cmd/demo-hostapp"
+    "oauth2"
+    "sshkeys"
+    "cmd/oneauth"
     "cmd/oneauth-server"
+    "cmd/demo-hostapp"
     "cmd/demo-resource-server"
 )
 
-# Current root tag — compute from git so the script stays correct as tags advance.
-# Falls back to an empty string if not in a git checkout (CI may inject it).
-CURRENT_ROOT_TAG="${ONEAUTH_ROOT_TAG:-}"
-if [ -z "$CURRENT_ROOT_TAG" ]; then
-    CURRENT_ROOT_TAG="$(cd "$REPO_ROOT" && git tag -l 'v*' --sort=-v:refname | head -1 2>/dev/null || true)"
+EXPECTED="${RELEASING:-}"
+if [ -z "$EXPECTED" ]; then
+    EXPECTED="$(cd "$REPO_ROOT" && git tag -l 'v*' --sort=-v:refname | head -1)"
+fi
+if [ -z "$EXPECTED" ]; then
+    echo "FAIL: no root tag found and RELEASING not set"
+    exit 1
 fi
 
 fail=0
-for sub in "${SUBMODULES[@]}"; do
+for sub in "${PUBLISHED[@]}"; do
     gomod="$REPO_ROOT/$sub/go.mod"
     if [ ! -f "$gomod" ]; then
-        echo "MISSING: $gomod not found"
+        echo "FAIL: $sub/go.mod not found"
         fail=1
         continue
     fi
 
-    # Extract all github.com/panyam/oneauth* direct requires (not indirect).
-    # Matches both single-line require and require-block entries.
-    requires="$(awk '
-        /^require[[:space:]]+github\.com\/panyam\/oneauth[^[:space:]]*[[:space:]]+v[0-9]/ {
-            print $2 " " $3
-        }
-        /^[[:space:]]+github\.com\/panyam\/oneauth[^[:space:]]*[[:space:]]+v[0-9]/ {
-            if ($0 !~ /\/\/ indirect/) {
-                print $1 " " $2
-            }
-        }
-    ' "$gomod")"
-
-    if [ -z "$requires" ]; then
-        echo "PASS: $sub has no direct require on github.com/panyam/oneauth* (skipping)"
-        continue
+    if grep -qE '^replace[[:space:]]+github\.com/panyam/oneauth|^[[:space:]]+github\.com/panyam/oneauth[^[:space:]]*[[:space:]]+=>' "$gomod"; then
+        echo "FAIL: $sub/go.mod replaces a oneauth module; go install $sub@vX would be refused. Use go.work instead."
+        fail=1
     fi
 
-    while IFS=' ' read -r module version; do
+    # Every require line naming a oneauth module, single-line or in a block.
+    while read -r module version; do
         [ -z "$module" ] && continue
-
-        if [ "$version" = "v0.0.0" ]; then
-            echo "FAIL: $sub requires $module v0.0.0 (placeholder)"
-            echo "      Bump to the current root tag. See CLAUDE.md 'Releasing Sub-Modules' for the release order."
+        if [ "$version" != "$EXPECTED" ]; then
+            echo "FAIL: $sub requires $module $version, want $EXPECTED"
             fail=1
-            continue
         fi
-
-        # Soft-warn if version looks ancient (v0.0.X where X < 50 and current > 60)
-        # This catches multi-bump staleness without being overly strict.
-        if [ -n "$CURRENT_ROOT_TAG" ]; then
-            case "$version" in
-                v0.0.[0-9] | v0.0.[0-3][0-9] | v0.0.4[0-9])
-                    case "$CURRENT_ROOT_TAG" in
-                        v0.0.[6-9][0-9] | v0.[1-9]* | v[1-9]*)
-                            echo "WARN: $sub requires $module $version (current root: $CURRENT_ROOT_TAG)"
-                            ;;
-                    esac
-                    ;;
-            esac
-        fi
-
-        echo "PASS: $sub requires $module $version"
-    done <<< "$requires"
+    done < <(awk '
+        /^require[[:space:]]+github\.com\/panyam\/oneauth[^[:space:]]*[[:space:]]+v/ { print $2, $3; next }
+        /^require[[:space:]]*\(/ { inblock = 1; next }
+        inblock && /^\)/ { inblock = 0; next }
+        inblock && $1 ~ /^github\.com\/panyam\/oneauth/ { print $1, $2 }
+    ' "$gomod")
 done
 
-if [ $fail -ne 0 ]; then
-    exit 1
+# 3. go.work's managed replace block maps EXPECTED to this checkout, so
+#    the workspace builds even before EXPECTED is tagged.
+if ! grep -q "github.com/panyam/oneauth $EXPECTED => ./" "$REPO_ROOT/go.work"; then
+    echo "FAIL: go.work's release-managed replace block doesn't name $EXPECTED; run scripts/workspace-replace.sh $EXPECTED"
+    fail=1
 fi
 
-echo ""
-echo "All sub-modules reference a real root version."
+if [ $fail -ne 0 ]; then
+    echo ""
+    echo "Fix by hand, or cut a release with: make release V=vX.Y.Z"
+    exit 1
+fi
+echo "All published modules require oneauth modules at $EXPECTED, with no replace directives."

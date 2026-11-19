@@ -866,34 +866,33 @@ func buildDeviceAuthStore(cfg *Config, sharedDB *gorm.DB) (core.DeviceAuthorizat
 }
 
 // buildAuthorizationCodeStore constructs the AuthorizationCodeStore
-// backing the RFC 6749 §4.1 code grant. Mirrors buildDeviceAuthStore.
-// memory + GORM backends are wired today; FS + GAE are deferred
-// follow-ups under the same staging as DeviceAuthStore (mirrors
-// device-flow's 117 → 269 → 270 progression).
+// backing the RFC 6749 §4.1 code grant, on code_flow.store. Mirrors
+// buildDeviceAuthStore.
 func buildAuthorizationCodeStore(cfg *Config, sharedDB *gorm.DB) (core.AuthorizationCodeStore, error) {
 	sc := cfg.CodeFlow.Store
 	switch sc.Type {
 	case "memory":
 		log.Println("Using in-memory AuthorizationCodeStore (authorization codes lost on restart)")
 		return core.NewInMemoryAuthorizationCodeStore(), nil
-
+	case "fs":
+		log.Printf("Using filesystem AuthorizationCodeStore at %s", sc.FS.Path)
+		return fsstore.NewFSAuthorizationCodeStore(sc.FS.Path), nil
 	case "gorm":
-		db := sharedDB
-		if db == nil || cfg.KeyStore.GORM.DSN != sc.GORM.DSN || cfg.KeyStore.GORM.Driver != sc.GORM.Driver {
-			fresh, err := openGORM(sc.GORM)
-			if err != nil {
-				return nil, err
-			}
-			db = fresh
-		}
-		if err := gormstore.AutoMigrate(db); err != nil {
+		db, err := codeFlowDB(cfg, sharedDB)
+		if err != nil {
 			return nil, err
 		}
 		log.Printf("Using GORM AuthorizationCodeStore (driver=%s)", sc.GORM.Driver)
 		return gormstore.NewAuthorizationCodeStore(db), nil
-
+	case "gae":
+		client, err := datastore.NewClient(context.Background(), sc.GAE.Project)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("Using GAE Datastore AuthorizationCodeStore (project=%s, namespace=%s)", sc.GAE.Project, sc.GAE.Namespace)
+		return gaestore.NewAuthorizationCodeStore(client, sc.GAE.Namespace), nil
 	default:
-		return nil, fmt.Errorf("unknown code_flow.store type: %s (memory and gorm are supported; fs/gae backends are tracked as follow-ups)", sc.Type)
+		return nil, fmt.Errorf("unknown code_flow.store type: %s (want memory, fs, gorm or gae)", sc.Type)
 	}
 }
 
@@ -905,22 +904,42 @@ func buildPushedStore(cfg *Config, sharedDB *gorm.DB) (core.PushedAuthorizationR
 	switch sc.Type {
 	case "memory":
 		return core.NewInMemoryPushedAuthorizationRequestStore(), nil
+	case "fs":
+		return fsstore.NewFSPushedAuthorizationRequestStore(sc.FS.Path), nil
 	case "gorm":
-		db := sharedDB
-		if db == nil || cfg.KeyStore.GORM.DSN != sc.GORM.DSN || cfg.KeyStore.GORM.Driver != sc.GORM.Driver {
-			fresh, err := openGORM(sc.GORM)
-			if err != nil {
-				return nil, err
-			}
-			db = fresh
-		}
-		if err := gormstore.AutoMigrate(db); err != nil {
+		db, err := codeFlowDB(cfg, sharedDB)
+		if err != nil {
 			return nil, err
 		}
 		return gormstore.NewPushedAuthorizationRequestStore(db), nil
+	case "gae":
+		client, err := datastore.NewClient(context.Background(), sc.GAE.Project)
+		if err != nil {
+			return nil, err
+		}
+		return gaestore.NewPushedAuthorizationRequestStore(client, sc.GAE.Namespace), nil
 	default:
-		return nil, fmt.Errorf("code_flow.par needs code_flow.store type memory or gorm, got %q", sc.Type)
+		return nil, fmt.Errorf("unknown code_flow.store type: %s (want memory, fs, gorm or gae)", sc.Type)
 	}
+}
+
+// codeFlowDB returns the database for code_flow.store type gorm: the key
+// store's when the DSN and driver match, a new connection otherwise. It
+// runs AutoMigrate, which covers both the code and pushed-request tables.
+func codeFlowDB(cfg *Config, sharedDB *gorm.DB) (*gorm.DB, error) {
+	sc := cfg.CodeFlow.Store
+	db := sharedDB
+	if db == nil || cfg.KeyStore.GORM.DSN != sc.GORM.DSN || cfg.KeyStore.GORM.Driver != sc.GORM.Driver {
+		fresh, err := openGORM(sc.GORM)
+		if err != nil {
+			return nil, err
+		}
+		db = fresh
+	}
+	if err := gormstore.AutoMigrate(db); err != nil {
+		return nil, err
+	}
+	return db, nil
 }
 
 func openGORM(cfg GORMConfig) (*gorm.DB, error) {

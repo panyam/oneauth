@@ -4,7 +4,7 @@ go 1.26.9
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/panyam/oneauth v0.3.5
+	github.com/panyam/oneauth v0.3.6
 	golang.org/x/oauth2 v0.36.0
 )
 
@@ -16,5 +16,3 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 )
-
-replace github.com/panyam/oneauth => ../..

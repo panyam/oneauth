@@ -210,7 +210,7 @@ sequenceDiagram
 - **`AppStore` returns a sentinel `*appStoreError`, not `errors.New`.** The wording (`"AppRegistration.ClientID required"`) is the contract — the shared `appstoretest` suite asserts on it. Don't change the message.
 - **All store methods route through `db.WithContext(ctx)`.** Caller cancellation propagates into the SQL driver — long-running queries die when the request context cancels. The `(ctx, *XRequest) → (*XResponse, error)` contract is project-wide (see root `CLAUDE.md` "gRPC-shape convention everywhere").
 - **Build tag `!wasm`.** Every file in this package is gated on `!wasm`, because GORM's SQL drivers won't compile to wasm. Consumers building for wasm must avoid importing this package; use the FS store or in-memory store instead.
-- **Sub-module isolation needs `GOWORK=off` outside the workspace.** `stores/gorm/` has its own `go.mod` precisely so `gorm.io/gorm` and the driver dependencies stay out of the main module. Local development uses the `replace ../..` directive in `go.work`; releases are tagged in lock-step via `make tag V=...`. Building this sub-module outside the workspace requires `GOWORK=off` so Go picks up the `replace` directive in the sub-module's own `go.mod`.
+- **Sub-module isolation.** `stores/gorm/` has its own `go.mod` so `gorm.io/gorm` and the driver dependencies stay out of the main module. Local development builds it through `go.work`; `make release` tags it on the same commit and version as the root, requiring the root at that version. `GOWORK=off` builds it against the tagged root it requires.
 
 ## Depends on
 

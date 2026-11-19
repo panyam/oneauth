@@ -4,7 +4,7 @@ go 1.26.9
 
 require (
 	cloud.google.com/go/datastore v1.21.0
-	github.com/panyam/oneauth v0.3.5
+	github.com/panyam/oneauth v0.3.6
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/crypto v0.57.0
 	google.golang.org/api v0.264.0
@@ -46,5 +46,3 @@ require (
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/panyam/oneauth => ../..

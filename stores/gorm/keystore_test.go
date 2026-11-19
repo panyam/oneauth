@@ -47,6 +47,14 @@ func setupSQLiteDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("Failed to open SQLite: %v", err)
 	}
+	// Each pooled connection to ":memory:" opens its own empty database,
+	// so a concurrent test's second goroutine finds no tables. One
+	// connection serializes them; make testpg exercises a real pool.
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB.SetMaxOpenConns(1)
 	if err := AutoMigrate(db); err != nil {
 		t.Fatalf("Failed to migrate: %v", err)
 	}

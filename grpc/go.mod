@@ -5,7 +5,7 @@ go 1.26.9
 require (
 	connectrpc.com/connect v1.21.1
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/panyam/oneauth v0.3.5
+	github.com/panyam/oneauth v0.3.6
 	github.com/stretchr/testify v1.12.1
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11
@@ -26,5 +26,3 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 )
-
-replace github.com/panyam/oneauth => ../
