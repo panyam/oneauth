@@ -21,18 +21,27 @@ func TestConcurrentConsumeOneWins(t *testing.T, factory Factory) {
 	create(t, s, newRequest())
 
 	const n = 8
-	var wg sync.WaitGroup
+	var wg, ready sync.WaitGroup
 	consumed := make([]bool, n)
 	errs := make([]error, n)
+	start := make(chan struct{})
 	for i := range n {
 		wg.Add(1)
+		ready.Add(1)
 		go func() {
 			defer wg.Done()
+			// A read first so each goroutine holds a live pooled connection
+			// and the consumes overlap.
+			_, _ = s.GetPushedAuthorizationRequest(context.Background(), &core.GetPushedAuthorizationRequestRequest{RequestURI: testRequestURI})
+			ready.Done()
+			<-start
 			resp, err := s.ConsumePushedAuthorizationRequest(context.Background(), &core.ConsumePushedAuthorizationRequestRequest{RequestURI: testRequestURI})
 			errs[i] = err
 			consumed[i] = err == nil && resp.Consumed
 		}()
 	}
+	ready.Wait()
+	close(start)
 	wg.Wait()
 
 	wins := 0

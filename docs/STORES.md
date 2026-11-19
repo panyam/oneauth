@@ -317,16 +317,17 @@ func TestMyAppStore(t *testing.T) {
 
 The suite covers Save/Get/List/Delete contracts, overwrite, persistence (read-after-write), and a full-fields round-trip (catches serialization bugs in slice-typed columns like `RedirectURIs` and `GrantTypes`).
 
-## Authorization codes, pushed requests and user tokens
+## Authorization codes, pushed requests, device authorizations and user tokens
 
-Three single-use or fast-changing records share one shape: every backend runs a shared contract suite, and every persistent backend needs an atomic check-and-mark so a code, a pushed `request_uri` or a refreshed token is spent once across racing requests.
+Four single-use or fast-changing records share one shape: every backend runs a shared contract suite, and every persistent backend needs an atomic check-and-mark so a code, a pushed `request_uri` or a refreshed token is spent once across racing requests.
 
 | Store | Memory | FS | GORM | GAE | Contract suite |
 |---|---|---|---|---|---|
 | `core.AuthorizationCodeStore` (RFC 6749 §4.1) | `core` | `FSAuthorizationCodeStore` | `AuthorizationCodeStore` | `GAEAuthorizationCodeStore` | `authcodetest.RunAll` |
 | `core.PushedAuthorizationRequestStore` (RFC 9126) | `core` | `FSPushedAuthorizationRequestStore` | `PushedAuthorizationRequestStore` | `GAEPushedAuthorizationRequestStore` | `partest.RunAll` |
 | `outbound.UserTokenStore` | `outbound` | `FSUserTokenStore` | `UserTokenStore` | `GAEUserTokenStore` | `usertokentest.RunAll` |
+| `core.DeviceAuthorizationStore` (RFC 8628) | `core` | `FSDeviceAuthorizationStore` | `DeviceAuthStore` | `GAEDeviceAuthStore` | `deviceauthtest.RunAll` |
 
 - **Atomic within one process only** for memory and FS (a mutex). Replicas need GORM (a conditional `UPDATE` or a transaction) or GAE (a Datastore transaction).
-- **Codes and request URIs are hashed at rest.** FS, GORM and GAE key each record by `core.AtRestKey(value)`, a SHA-256 digest, and leave the plaintext out of the stored record, so a copy of the store can't redeem anything. GORM also matches plaintext keys on lookup, so rows written before hashing keep working across an upgrade (issue 382).
+- **Codes, request URIs and device codes are hashed at rest.** FS, GORM and GAE key each record by `core.AtRestKey(value)`, a SHA-256 digest, and leave the plaintext out of the stored record, so a copy of the store can't redeem a code or poll for a device's tokens. Records written before hashing keep working across an upgrade (issues 382, 473). A device lookup by user code returns `DeviceCode` empty.
 - **The reference server** picks the code and pushed-request backend with `code_flow.store.type` (`memory`, `fs`, `gorm`, `gae`); PAR always uses the code store's backend.

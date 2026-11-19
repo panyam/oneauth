@@ -158,11 +158,18 @@ func TestConcurrentWritersOneWins(t *testing.T, factory Factory) {
 		t.Fatal(err)
 	}
 	var wins, conflicts atomic.Int32
-	var wg sync.WaitGroup
+	var wg, ready sync.WaitGroup
+	start := make(chan struct{})
 	for i := range 16 {
 		wg.Add(1)
+		ready.Add(1)
 		go func() {
 			defer wg.Done()
+			// A read first so each goroutine holds a live pooled connection
+			// and the writes overlap.
+			_, _ = s.GetUserToken(context.Background(), &outbound.GetUserTokenRequest{Provider: "github", Subject: "alice"})
+			ready.Done()
+			<-start
 			_, err := s.PutUserToken(context.Background(), &outbound.PutUserTokenRequest{Provider: "github", Subject: "alice", Sealed: []byte{byte(i)}, ExpectedVersion: 1})
 			switch {
 			case err == nil:
@@ -174,6 +181,8 @@ func TestConcurrentWritersOneWins(t *testing.T, factory Factory) {
 			}
 		}()
 	}
+	ready.Wait()
+	close(start)
 	wg.Wait()
 	if wins.Load() != 1 || conflicts.Load() != 15 {
 		t.Fatalf("wins=%d conflicts=%d, want 1 and 15", wins.Load(), conflicts.Load())

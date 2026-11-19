@@ -57,6 +57,8 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("DeleteRemovesUserCodeIndex", func(t *testing.T) { TestDeleteRemovesUserCodeIndex(t, factory) })
 	t.Run("CleanupExpired", func(t *testing.T) { TestCleanupExpired(t, factory) })
 	t.Run("RestartPersists", func(t *testing.T) { TestRestartPersists(t, factory) })
+	t.Run("UserCodeLookupsOmitDeviceCode", func(t *testing.T) { TestUserCodeLookupsOmitDeviceCode(t, factory) })
+	t.Run("ConcurrentApproveOrDenyOneWins", func(t *testing.T) { TestConcurrentApproveOrDenyOneWins(t, factory) })
 }
 
 // newAuth returns the canonical sample DeviceAuthorization used across
@@ -95,7 +97,8 @@ func TestCreateAndGet(t *testing.T, factory Factory) {
 
 	u, err := s.GetByUserCode(context.Background(), &core.GetByUserCodeRequest{UserCode: "wdjbmjht"})
 	require.NoError(t, err, "user_code lookup MUST be case- and dash-insensitive")
-	assert.Equal(t, "dc-abc", u.Authorization.DeviceCode)
+	assert.Equal(t, "client-x", u.Authorization.ClientID, "user_code lookup finds the same record")
+	assert.Empty(t, u.Authorization.DeviceCode, "a user_code lookup MUST NOT return the device_code; stores keep only its digest (issue 473)")
 }
 
 // TestNotFound pins that both lookup keys return ErrDeviceAuthorizationNotFound

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/datastore"
@@ -38,7 +39,7 @@ const KindDeviceAuthorization = "DeviceAuthorization"
 // matches what GAEAppStore already does for the same reason.
 type DeviceAuthorizationEntity struct {
 	Key               *datastore.Key `datastore:"__key__"`
-	DeviceCode        string         `datastore:"device_code,noindex"`
+	DeviceCode        string         `datastore:"device_code,noindex"` // empty since issue 473; set only on entities written before it
 	UserCode          string         `datastore:"user_code,noindex"`
 	UserCodeUpper     string         `datastore:"user_code_upper"`
 	ClientID          string         `datastore:"client_id,noindex"`
@@ -73,13 +74,39 @@ func NewDeviceAuthStore(client *datastore.Client, namespace string) *GAEDeviceAu
 	}
 }
 
-// deviceKey is the canonical key derivation for an entity. The
-// device_code is the entity name; the Kind + Namespace come from the
-// store. Used by every lookup-by-device_code path.
+// deviceKey is the key new entities are written under: the hex digest
+// from core.AtRestKey(device_code), so a copy of the datastore can't poll
+// for tokens (issue 473).
 func (s *GAEDeviceAuthStore) deviceKey(deviceCode string) *datastore.Key {
+	key := datastore.NameKey(KindDeviceAuthorization, strings.TrimPrefix(core.AtRestKey(deviceCode), "sha256:"), nil)
+	key.Namespace = s.namespace
+	return key
+}
+
+// legacyDeviceKey is the key entities written before issue 473 used: the
+// device code itself. A device authorization lives about ten minutes, so
+// this only matters across an upgrade.
+func (s *GAEDeviceAuthStore) legacyDeviceKey(deviceCode string) *datastore.Key {
 	key := datastore.NameKey(KindDeviceAuthorization, deviceCode, nil)
 	key.Namespace = s.namespace
 	return key
+}
+
+// findByDeviceCode returns the entity's key and value, trying the digest
+// key and then the legacy one. A missing entity is
+// core.ErrDeviceAuthorizationNotFound.
+func (s *GAEDeviceAuthStore) findByDeviceCode(ctx context.Context, deviceCode string) (*datastore.Key, *DeviceAuthorizationEntity, error) {
+	for _, key := range []*datastore.Key{s.deviceKey(deviceCode), s.legacyDeviceKey(deviceCode)} {
+		var e DeviceAuthorizationEntity
+		err := s.client.Get(ctx, key, &e)
+		if err == nil {
+			return key, &e, nil
+		}
+		if !errors.Is(err, datastore.ErrNoSuchEntity) {
+			return nil, nil, err
+		}
+	}
+	return nil, nil, core.ErrDeviceAuthorizationNotFound
 }
 
 // CreateDeviceAuthorization inserts a new authorization. Empty
@@ -140,20 +167,20 @@ func (s *GAEDeviceAuthStore) GetByDeviceCode(ctx context.Context, req *core.GetB
 	if req == nil || req.DeviceCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
-	var entity DeviceAuthorizationEntity
-	if err := s.client.Get(ctx, s.deviceKey(req.DeviceCode), &entity); err != nil {
-		if errors.Is(err, datastore.ErrNoSuchEntity) {
-			return nil, core.ErrDeviceAuthorizationNotFound
-		}
+	_, entity, err := s.findByDeviceCode(ctx, req.DeviceCode)
+	if err != nil {
 		return nil, err
 	}
-	return &core.GetByDeviceCodeResponse{Authorization: entityToDeviceAuth(&entity)}, nil
+	a := entityToDeviceAuth(entity)
+	a.DeviceCode = req.DeviceCode
+	return &core.GetByDeviceCodeResponse{Authorization: a}, nil
 }
 
 // GetByUserCode returns the authorization for the given user_code
 // (case- and dash-insensitive comparison), or
 // ErrDeviceAuthorizationNotFound. Query by the indexed user_code_upper
-// property — O(log n) at the Datastore tier.
+// property — O(log n) at the Datastore tier. DeviceCode is empty, as the
+// core.DeviceAuthorizationStore contract says.
 func (s *GAEDeviceAuthStore) GetByUserCode(ctx context.Context, req *core.GetByUserCodeRequest) (*core.GetByUserCodeResponse, error) {
 	if req == nil || req.UserCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
@@ -205,6 +232,7 @@ func (s *GAEDeviceAuthStore) ApproveDeviceAuthorization(ctx context.Context, req
 			return core.ErrDeviceAuthorizationNotFound
 		}
 		entity.Status = string(core.DeviceAuthorizationStatusApproved)
+		entity.DeviceCode = ""
 		entity.ApprovedSubject = req.ApprovedSubject
 		if req.GrantedScopes != nil {
 			entity.Scopes = req.GrantedScopes
@@ -214,7 +242,7 @@ func (s *GAEDeviceAuthStore) ApproveDeviceAuthorization(ctx context.Context, req
 		}
 		out = *entityToDeviceAuth(&entity)
 		return nil
-	})
+	}, datastore.MaxAttempts(contendedTxAttempts))
 	if txErr != nil {
 		return nil, txErr
 	}
@@ -249,11 +277,12 @@ func (s *GAEDeviceAuthStore) DenyDeviceAuthorization(ctx context.Context, req *c
 			return core.ErrDeviceAuthorizationNotFound
 		}
 		entity.Status = string(core.DeviceAuthorizationStatusDenied)
+		entity.DeviceCode = ""
 		if _, err := tx.Put(key, &entity); err != nil {
 			return err
 		}
 		return nil
-	})
+	}, datastore.MaxAttempts(contendedTxAttempts))
 	if txErr != nil {
 		return nil, txErr
 	}
@@ -268,7 +297,10 @@ func (s *GAEDeviceAuthStore) UpdatePollingState(ctx context.Context, req *core.U
 	if req == nil || req.DeviceCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
-	key := s.deviceKey(req.DeviceCode)
+	key, _, err := s.findByDeviceCode(ctx, req.DeviceCode)
+	if err != nil {
+		return nil, err
+	}
 
 	var out core.DeviceAuthorization
 	_, txErr := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
@@ -280,6 +312,7 @@ func (s *GAEDeviceAuthStore) UpdatePollingState(ctx context.Context, req *core.U
 			return err
 		}
 		entity.LastPolledAt = req.PolledAt.UnixNano()
+		entity.DeviceCode = ""
 		if req.SlowDown {
 			entity.IntervalSeconds += 5
 		}
@@ -292,6 +325,7 @@ func (s *GAEDeviceAuthStore) UpdatePollingState(ctx context.Context, req *core.U
 	if txErr != nil {
 		return nil, txErr
 	}
+	out.DeviceCode = req.DeviceCode
 	return &core.UpdatePollingStateResponse{Authorization: &out}, nil
 }
 
@@ -304,12 +338,8 @@ func (s *GAEDeviceAuthStore) DeleteDeviceAuthorization(ctx context.Context, req 
 	if req == nil || req.DeviceCode == "" {
 		return nil, core.ErrDeviceAuthorizationNotFound
 	}
-	key := s.deviceKey(req.DeviceCode)
-	var probe DeviceAuthorizationEntity
-	if err := s.client.Get(ctx, key, &probe); err != nil {
-		if errors.Is(err, datastore.ErrNoSuchEntity) {
-			return nil, core.ErrDeviceAuthorizationNotFound
-		}
+	key, _, err := s.findByDeviceCode(ctx, req.DeviceCode)
+	if err != nil {
 		return nil, err
 	}
 	if err := s.client.Delete(ctx, key); err != nil {
@@ -361,13 +391,13 @@ func (s *GAEDeviceAuthStore) findPendingByUserCodeTx(ctx context.Context, _ *dat
 	return keys[0], true, nil
 }
 
-// deviceAuthToEntity maps the public struct onto the Datastore entity.
+// deviceAuthToEntity maps the public struct onto the Datastore entity. It
+// leaves DeviceCode empty: the key holds the code's digest instead.
 // UserCodeUpper is populated by the caller (CreateDeviceAuthorization)
 // so the normalization rule lives in one place.
 func deviceAuthToEntity(key *datastore.Key, a *core.DeviceAuthorization) *DeviceAuthorizationEntity {
 	entity := &DeviceAuthorizationEntity{
 		Key:               key,
-		DeviceCode:        a.DeviceCode,
 		UserCode:          a.UserCode,
 		ClientID:          a.ClientID,
 		Scopes:            a.Scopes,
@@ -385,11 +415,11 @@ func deviceAuthToEntity(key *datastore.Key, a *core.DeviceAuthorization) *Device
 }
 
 // entityToDeviceAuth maps the Datastore entity back to the public
-// struct. A zero LastPolledAt round-trips to the zero time.Time
+// struct, with DeviceCode empty even for a legacy entity that still holds
+// it; callers that know the code fill it in. A zero LastPolledAt round-trips to the zero time.Time
 // (matching InMemory / FS / GORM semantics).
 func entityToDeviceAuth(e *DeviceAuthorizationEntity) *core.DeviceAuthorization {
 	return &core.DeviceAuthorization{
-		DeviceCode:        e.DeviceCode,
 		UserCode:          e.UserCode,
 		ClientID:          e.ClientID,
 		Scopes:            e.Scopes,
