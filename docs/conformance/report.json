@@ -1,0 +1,658 @@
+{
+  "suites": [
+    {
+      "name": "native",
+      "kind": "gating",
+      "covers": "Go-native fixtures for RFC 8414 AS metadata, client authentication and RFC 7662 introspection, against known-gaps.yaml",
+      "source": "tests/conformance",
+      "result": "PASS",
+      "detail": "ratchet OK — no diff against known-gaps.yaml",
+      "ran_at": "2026-11-19 11:00 UTC",
+      "commit": "9dafd3b"
+    },
+    {
+      "name": "oidf-config",
+      "kind": "gating",
+      "covers": "OIDF oidcc-config-certification-test-plan, the discovery document check by check",
+      "source": "tests/oidf-conformance (TestOIDF_OIDCC_ConfigCert_Discovery)",
+      "result": "PASS",
+      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.132s",
+      "ran_at": "2026-11-19 11:00 UTC",
+      "commit": "9dafd3b"
+    },
+    {
+      "name": "oidf-fapi2",
+      "kind": "gating",
+      "covers": "OIDF fapi2-security-profile-final-test-plan, every module judged against known-gaps.yaml",
+      "source": "tests/oidf-conformance/fapi2",
+      "tracking": "mission 98",
+      "result": "PASS",
+      "detail": "52 modules: map[PASSED:45 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-19 11:00 UTC",
+      "commit": "9dafd3b",
+      "plan": {
+        "plan": "fapi2-security-profile-final-test-plan",
+        "variant": {
+          "authorization_request_type": "simple",
+          "client_auth_type": "private_key_jwt",
+          "fapi_profile": "plain_fapi",
+          "grant_management": "disabled",
+          "openid": "openid_connect",
+          "sender_constrain": "dpop"
+        },
+        "plan_id": "S8xtBvE7oqQBi",
+        "counts": {
+          "PASSED": 45,
+          "REVIEW": 4,
+          "SKIPPED": 1,
+          "WARNING": 2
+        },
+        "against": 0,
+        "modules": [
+          {
+            "module": "fapi2-security-profile-final-access-token-type-header-case-sensitivity",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-attempt-reuse-authorization-code-after-one-second",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-check-dpop-proof-nbf-exp",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-discovery-end-point-verification",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-dpop-negative-tests",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-authorization-code-is-bound-to-client",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-authorization-request-with-64-char-nonce-success",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-authorization-request-with-long-nonce",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-authorization-request-with-long-state",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-authorization-request-without-nonce-success",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-authorization-request-without-state-success",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-client-assertion-in-token-endpoint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-client-assertion-with-exp-is-5-minutes-in-past-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-client-assertion-with-no-sub-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-client-assertion-with-wrong-aud-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-client-id-in-token-endpoint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-different-nonce-inside-and-outside-request-object",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-different-state-inside-and-outside-request-object",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-dpop-auth-code-binding-success",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-dpopproof-at-par-endpoint-binding-success",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-dpopproof-with-iat-10seconds-after-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-dpopproof-with-iat-10seconds-before-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-holder-of-key-required",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-invalid-client-assertions-fail",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-mismatched-dpop-jkt-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-other-scope-order-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-pkce-code-verifier-required",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-redirect-uri-in-authorization-request",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-request-object-without-redirect-uri-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-response-type-code-idtoken-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-response-type-token-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails",
+            "status": "FINISHED",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 330
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-token-endpoint-fails-with-expired-auth-code",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-token-endpoint-fails-with-mismatched-dpop-jkt",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-token-endpoint-fails-with-mismatched-dpop-proof-jkt",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 98
+          },
+          {
+            "module": "fapi2-security-profile-final-happy-flow",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 339,
+            "note": "EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ'"
+          },
+          {
+            "module": "fapi2-security-profile-final-incorrect-pkce-code-verifier-rejected",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-par-attempt-invalid-http-method",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-par-attempt-reuse-request_uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 98
+          },
+          {
+            "module": "fapi2-security-profile-final-par-attempt-to-use-expired-request_uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 98
+          },
+          {
+            "module": "fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 98
+          },
+          {
+            "module": "fapi2-security-profile-final-par-authorization-request-containing-request_uri-form-param",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-par-ensure-pkce-required",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-par-ensure-reused-request-uri-prior-to-auth-completion-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-par-plain-pkce-rejected",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-par-without-duplicate-parameters",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-plain-fapi-tolerate-unregistered-redirect-uri",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-refresh-token",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-state-only-outside-request-object-not-used",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "fapi2-security-profile-final-test-claims-parameter-identity-claims",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 339,
+            "note": "CheckForUnexpectedClaimsInIdToken: id_token includes claims with names that are not known. This may indicate the authorization server has misunderstood the spec, or it may be using extensions the test suite is unaware of."
+          },
+          {
+            "module": "fapi2-security-profile-final-user-rejects-authentication",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "name": "oidf-basic-op",
+      "kind": "gating",
+      "covers": "OIDF oidcc-basic-certification-test-plan, every module judged against known-gaps.yaml",
+      "source": "tests/oidf-conformance/oidcc",
+      "tracking": "mission 477",
+      "result": "PASS",
+      "detail": "35 modules: map[PASSED:28 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-19 11:00 UTC",
+      "commit": "9dafd3b",
+      "plan": {
+        "plan": "oidcc-basic-certification-test-plan",
+        "variant": {
+          "client_registration": "static_client",
+          "server_metadata": "discovery"
+        },
+        "plan_id": "Ns4Q7JIaNY1L5",
+        "counts": {
+          "PASSED": 28,
+          "REVIEW": 4,
+          "SKIPPED": 1,
+          "WARNING": 2
+        },
+        "against": 0,
+        "modules": [
+          {
+            "module": "oidcc-alternate-happy-flow",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-essential",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-codereuse",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-codereuse-30seconds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-page",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-popup",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-post-request-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-registered-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-ensure-request-object-with-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-ensure-request-with-acr-values-succeeds",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 485,
+            "note": "ValidateIdTokenACRClaimAgainstAcrValuesRequest: An acr value was requested using acr_values, so the server 'SHOULD' return an acr claim, but it did not."
+          },
+          {
+            "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-with-valid-pkce-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-without-nonce-succeeds-for-code-flow",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-id-token-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-login-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-max-age-1",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-max-age-10000",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-login",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-prompt-none-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-none-not-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-refresh-token",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-response-type-missing",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-address",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-all",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-email",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-phone",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-profile",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-server",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 339,
+            "note": "EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ'"
+          },
+          {
+            "module": "oidcc-server-client-secret-post",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ui-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
+            "status": "FINISHED",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-userinfo-get",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-userinfo-post-body",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-userinfo-post-header",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "name": "keycloak",
+      "kind": "gating",
+      "covers": "Interop with a live Keycloak, as resource server and as client (tokens, DPoP, RAR, ID tokens)",
+      "source": "tests/keycloak",
+      "result": "PASS",
+      "detail": "go test: 68 passed, 0 skipped, 0 failed (top-level tests)",
+      "ran_at": "2026-11-19 11:00 UTC",
+      "commit": "9dafd3b"
+    },
+    {
+      "name": "authlete",
+      "kind": "info",
+      "covers": "Interop with Authlete's java-oauth-server as the authorization server",
+      "source": "tests/authlete",
+      "result": "PASS",
+      "detail": "go test: 10 passed, 7 skipped, 0 failed (top-level tests)",
+      "ran_at": "2026-11-19 11:00 UTC",
+      "commit": "9dafd3b"
+    }
+  ]
+}

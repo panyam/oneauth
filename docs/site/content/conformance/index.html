@@ -7,6 +7,12 @@ description: "Overview of every conformance and interop suite OneAuth runs."
 
 <div class="pillars">
     <div class="pillar">
+        <h3><a href="{{ .Site.PathPrefix }}/conformance/report/">Latest run</a></h3>
+        <p><strong>Auto-regenerated.</strong> One line per suite with its last result, and when and at which commit it ran, then every module of each OIDF plan with its <code>known-gaps.yaml</code> entry. A suite skipped on a machine without its prerequisites keeps its last real result.</p>
+        <p><em>Updated by:</em> <code>make conformance</code></p>
+    </div>
+
+    <div class="pillar">
         <h3><a href="{{ .Site.PathPrefix }}/conformance/oidf/">OIDF conformance</a></h3>
         <p><strong>Auto-regenerated.</strong> The OpenID Foundation conformance suite's discovery plan run against <code>cmd/oneauth-server</code>. Per-check FAIL/WARN outcomes diffed against <a href="{{ (json "SiteMetadata.json" "repository") }}/blob/main/tests/conformance/known-gaps.yaml"><code>known-gaps.yaml</code></a>. Ratchet enforced — regressions and ratchet-ups both turn CI red.</p>
         <p><em>Updated by:</em> <code>make testoidf</code></p>
