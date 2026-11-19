@@ -3,6 +3,7 @@ package fs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,6 +63,9 @@ func (s *FSAppStore) SaveApp(ctx context.Context, req *core.SaveAppRequest) (*co
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if err := checkOwner(path, req.App.ClientID, appClientID); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(s.appsDir(), 0700); err != nil {
 		return nil, fmt.Errorf("create apps dir: %w", err)
 	}
@@ -93,19 +97,20 @@ func (s *FSAppStore) GetApp(ctx context.Context, req *core.GetAppRequest) (*core
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, core.ErrAppNotFound
-		}
+	app, err := readKeyed(path, req.ClientID, appClientID)
+	if errors.Is(err, ErrKeyCollision) {
 		return nil, err
 	}
-	var app core.AppRegistration
-	if err := json.Unmarshal(data, &app); err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", filepath.Base(path), err)
 	}
-	return &core.GetAppResponse{App: &app}, nil
+	if app == nil {
+		return nil, core.ErrAppNotFound
+	}
+	return &core.GetAppResponse{App: app}, nil
 }
+
+func appClientID(a *core.AppRegistration) string { return a.ClientID }
 
 // ListApps returns every registration in the store. Files that fail to
 // parse are skipped (with no error returned) so a single hand-corrupted
@@ -164,6 +169,9 @@ func (s *FSAppStore) DeleteApp(ctx context.Context, req *core.DeleteAppRequest) 
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, core.ErrAppNotFound
+	}
+	if err := checkOwner(path, req.ClientID, appClientID); err != nil {
+		return nil, err
 	}
 	if err := os.Remove(path); err != nil {
 		return nil, err

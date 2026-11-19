@@ -49,19 +49,17 @@ func (s *FSKeyStore) loadEntry(clientID string) (*fsKeyEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	entry, err := readKeyed(path, clientID, keyEntryClientID)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, keys.ErrKeyNotFound
-		}
 		return nil, err
 	}
-	var entry fsKeyEntry
-	if err := json.Unmarshal(data, &entry); err != nil {
-		return nil, err
+	if entry == nil {
+		return nil, keys.ErrKeyNotFound
 	}
-	return &entry, nil
+	return entry, nil
 }
+
+func keyEntryClientID(e *fsKeyEntry) string { return e.ClientID }
 
 func (s *FSKeyStore) PutKey(ctx context.Context, req *keys.PutKeyRequest) (*keys.PutKeyResponse, error) {
 	if req == nil || req.Record == nil {
@@ -81,6 +79,9 @@ func (s *FSKeyStore) PutKey(ctx context.Context, req *keys.PutKeyRequest) (*keys
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if err := checkOwner(path, rec.ClientID, keyEntryClientID); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(s.getKeyDir(), 0700); err != nil {
 		return nil, err
 	}
@@ -118,6 +119,9 @@ func (s *FSKeyStore) DeleteKey(ctx context.Context, req *keys.DeleteKeyRequest) 
 	}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, keys.ErrKeyNotFound
+	}
+	if err := checkOwner(path, req.ClientID, keyEntryClientID); err != nil {
+		return nil, err
 	}
 	if err := os.Remove(path); err != nil {
 		return nil, err

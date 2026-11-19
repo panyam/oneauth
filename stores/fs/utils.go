@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -56,20 +57,39 @@ func safeName(input string) (string, error) {
 // windowsReserved holds the characters Windows refuses in a file name.
 const windowsReserved = `<>:"|?*`
 
-// osFileName replaces the characters the host OS refuses in a file name
-// with "_". On Unix it returns name unchanged, so existing stores keep their
-// file names. On Windows two names can fold to one file, and the stores that
-// take user-chosen keys check for that with ErrKeyCollision. See issue 502.
+// windowsDeviceNames are the names Windows opens as a device, whatever
+// extension follows them, so "con.json" is the console.
+var windowsDeviceNames = map[string]bool{
+	"CON": true, "PRN": true, "AUX": true, "NUL": true,
+	"COM0": true, "COM1": true, "COM2": true, "COM3": true, "COM4": true,
+	"COM5": true, "COM6": true, "COM7": true, "COM8": true, "COM9": true,
+	"COM¹": true, "COM²": true, "COM³": true,
+	"LPT0": true, "LPT1": true, "LPT2": true, "LPT3": true, "LPT4": true,
+	"LPT5": true, "LPT6": true, "LPT7": true, "LPT8": true, "LPT9": true,
+	"LPT¹": true, "LPT²": true, "LPT³": true,
+}
+
+// osFileName makes name usable as a file name on the host OS. On Unix it
+// returns name unchanged, so existing stores keep their file names. On
+// Windows it replaces the characters Windows refuses with "_", and puts "_"
+// in front of a device name such as CON or COM1. Two names can then map to
+// one file, and the stores catch that with ErrKeyCollision. See issues 502
+// and 505.
 func osFileName(name string) string {
 	if runtime.GOOS != "windows" {
 		return name
 	}
-	return strings.Map(func(r rune) rune {
+	name = strings.Map(func(r rune) rune {
 		if r < 0x20 || strings.ContainsRune(windowsReserved, r) {
 			return '_'
 		}
 		return r
 	}, name)
+	stem, _, _ := strings.Cut(name, ".")
+	if windowsDeviceNames[strings.ToUpper(strings.TrimRight(stem, " "))] {
+		name = "_" + name
+	}
+	return name
 }
 
 // writeAtomicFile writes data to a file atomically by writing to a temp file first
@@ -107,9 +127,43 @@ func writeAtomicFile(path string, data []byte) error {
 	return nil
 }
 
-// ErrKeyCollision is returned by the FS identity and channel stores when the
-// file a key maps to holds a different key's record. File names are derived
-// from keys (filepath.Base, safeName), and two keys can map to one name;
-// returning or overwriting the other record would hand one account's
-// identity or credentials to another (CWE-706).
+// ErrKeyCollision is returned by an FS store when the file a key maps to
+// holds a different key's record. File names are derived from keys
+// (filepath.Base, safeName, osFileName), and a case-insensitive file system
+// also ignores letter case, so two keys can map to one file. Returning,
+// overwriting or deleting the other record would hand one account's
+// identity, credentials or keys to another (CWE-706).
 var ErrKeyCollision = errors.New("fs: key maps to a file that holds a different record")
+
+// readKeyed reads the JSON record at path and checks that keyOf returns want
+// for it. It returns (nil, nil) when no file exists, and ErrKeyCollision
+// when the file holds another key's record. Keys fold into one file name
+// through safeName and osFileName, and on a case-insensitive file system
+// (Windows, and macOS by default) through letter case too. See issue 505.
+func readKeyed[T any](path, want string, keyOf func(*T) string) (*T, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	rec := new(T)
+	if err := json.Unmarshal(data, rec); err != nil {
+		return nil, err
+	}
+	if keyOf(rec) != want {
+		return nil, ErrKeyCollision
+	}
+	return rec, nil
+}
+
+// checkOwner returns ErrKeyCollision when path holds another key's record,
+// so a write or a delete for want can't replace or remove it. A missing or
+// unreadable file is not a collision, and the caller may overwrite it.
+func checkOwner[T any](path, want string, keyOf func(*T) string) error {
+	if _, err := readKeyed(path, want, keyOf); errors.Is(err, ErrKeyCollision) {
+		return err
+	}
+	return nil
+}
