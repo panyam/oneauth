@@ -60,6 +60,9 @@ func ProfileClaims(users accounts.UserStore, identities accounts.IdentityStore) 
 				claims[name] = v
 			}
 		}
+		if u, ok := resp.User.(accounts.LastUpdatedUser); ok && !u.LastUpdated().IsZero() {
+			claims["updated_at"] = u.LastUpdated().Unix()
+		}
 		return core.FilterClaimsByScope(claims, scopes), nil
 	}
 }

@@ -37,7 +37,10 @@ func TestProfileClaims_ScopesChooseTheClaims(t *testing.T) {
 
 	got, err = claims(ctx, user.Id(), []string{"openid", "profile", "email", "phone"})
 	require.NoError(t, err)
+	stored, err := users.GetUserById(ctx, &accounts.GetUserByIDRequest{UserID: user.Id()})
+	require.NoError(t, err)
 	assert.Equal(t, map[string]any{
+		"updated_at":            stored.User.(accounts.LastUpdatedUser).LastUpdated().Unix(),
 		"preferred_username":    "ada",
 		"email":                 email,
 		"email_verified":        false,

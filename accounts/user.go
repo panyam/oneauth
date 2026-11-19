@@ -28,6 +28,16 @@ type User interface {
 	Profile() map[string]any
 }
 
+// LastUpdatedUser is a User that reports when its record last changed.
+// OIDC's updated_at claim (OIDC Core §5.1) reports it, so a user store
+// whose users implement it gets that claim from localauth.ProfileClaims.
+// It is optional, so User implementations that keep no timestamp still
+// satisfy User.
+type LastUpdatedUser interface {
+	User
+	LastUpdated() time.Time
+}
+
 // BasicUser is a simple implementation of the User interface.
 type BasicUser struct {
 	ID          string

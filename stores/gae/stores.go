@@ -48,6 +48,11 @@ type GAEUser struct {
 func (u *GAEUser) Id() string              { return u.UserID }
 func (u *GAEUser) Profile() map[string]any { return u.UserProfile }
 
+// LastUpdated reports when the user record last changed, which
+// localauth.ProfileClaims returns as OIDC's updated_at claim. It
+// implements accounts.LastUpdatedUser.
+func (u *GAEUser) LastUpdated() time.Time { return u.UpdatedAt }
+
 // UserStore implements accounts.UserStore using Google Cloud Datastore
 type UserStore struct {
 	client    *datastore.Client

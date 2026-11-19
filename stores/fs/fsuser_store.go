@@ -23,6 +23,11 @@ type FSUser struct {
 func (u *FSUser) Id() string              { return u.UserId }
 func (u *FSUser) Profile() map[string]any { return u.UserProfile }
 
+// LastUpdated reports when the user record last changed, which
+// localauth.ProfileClaims returns as OIDC's updated_at claim. It
+// implements accounts.LastUpdatedUser.
+func (u *FSUser) LastUpdated() time.Time { return u.UpdatedAt }
+
 // FSUserStore stores users as JSON files
 type FSUserStore struct {
 	StoragePath string
