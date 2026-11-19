@@ -41,7 +41,13 @@ func TestOIDCServer_CodeFlowIssuesAVerifiableIDToken(t *testing.T) {
 	assert.Contains(t, meta["claims_supported"], "email_verified")
 
 	before := time.Now().Add(-time.Second)
-	authorize := f.authorizePath() + "&" + url.Values{"scope": {"openid email"}, "nonce": {"n-server-339"}}.Encode()
+	// OIDC Core §5.4 sends scope claims to userinfo, so the ID token's
+	// email is asked for by name (§5.5, issue 480).
+	authorize := f.authorizePath() + "&" + url.Values{
+		"scope":  {"openid email"},
+		"nonce":  {"n-server-339"},
+		"claims": {`{"id_token":{"email":null,"email_verified":null}}`},
+	}.Encode()
 	tok := redeemCodeAt(t, f, approveCode(t, f, authorize))
 
 	// Verify the way a relying party would: the key comes from the JWKS

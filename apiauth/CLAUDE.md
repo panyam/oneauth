@@ -49,6 +49,7 @@ RFC 9396 (Rich Authorization Requests) supported on token endpoint, introspectio
 - **Token kinds are told apart by `typ` header, `type` claim and Keycloak's `typ` claim.** Logout tokens, ID-JAGs, `type: session` JWTs and ID tokens (`typ` claim `ID`) are refused as access tokens; a token with no `type` passes (Keycloak's access tokens have none). A new JWT kind signed with the AS key needs its own marker.
 - **A custom consent template must post `request_uri` back** (`authorizeConsentData.RequestURI`), or a pushed request loses its payload at Approve. It must also post `action`: a `POST /authorize` without it is taken as a new authorization request and sent to `GET /authorize` (#478). And `claims`, or the OIDC claims request is lost at Approve.
 - **`prompt=login` and `max_age` need `AuthTimeFromRequest`.** Without it they aren't enforced, rather than looping through login. A forced login's return URL carries `oa_login_after`, and a session at or after it counts (#453).
+- **An ID token carries no scope claims** (OIDC Core §5.4, #480). `email`, `name` and the rest come from userinfo, or from the ID token only when the request's `claims` parameter names them. A test reading them from the ID token asks by name.
 - **OIDC needs an asymmetric key.** `NewOneAuth` panics with `OIDC` set and an HS256 secret.
 
 **Behind a proxy**

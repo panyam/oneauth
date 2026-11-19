@@ -137,7 +137,8 @@ type BrowserLoginRequest struct {
 	OnCallback func(ctx context.Context, params CallbackParams) error
 
 	// VerifyIDToken makes the login an OpenID Connect one. `openid` is
-	// added to Scopes if missing, a fresh `nonce` goes on the
+	// added to Scopes if missing, a `claims` request asks for the claims
+	// IDTokenClaims reads to be put in the ID token, a fresh `nonce` goes on the
 	// authorization request, and the token response must carry an ID
 	// token that passes VerifyIDToken against the AS's issuer and JWKS
 	// (from WithASMetadata, or discovered), the nonce and the access
@@ -564,6 +565,14 @@ func (c *AuthClient) idTokenMetadata(httpClient *http.Client) (*ASMetadata, erro
 	return meta, nil
 }
 
+// idTokenClaimsRequest asks, by name, for the claims IDTokenClaims reads
+// to be put in the ID token (OIDC Core §5.5). A provider following §5.4
+// sends scope claims to userinfo rather than the ID token when it issues
+// an access token, which a code flow always does. LoginWithBrowser sends
+// it with every VerifyIDToken login, and a provider that ignores the
+// parameter sends what it would have anyway.
+const idTokenClaimsRequest = `{"id_token":{"email":null,"email_verified":null,"name":null,"preferred_username":null}}`
+
 // buildAuthorizationURL constructs the full authorization URL with PKCE, state,
 // an optional OIDC nonce, an optional resource indicator (RFC 8707), and an
 // optional dpop_jkt (RFC 9449 §10).
@@ -583,6 +592,7 @@ func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state, no
 	q.Set("state", state)
 	if nonce != "" {
 		q.Set("nonce", nonce)
+		q.Set("claims", idTokenClaimsRequest)
 	}
 	if len(scopes) > 0 {
 		q.Set("scope", strings.Join(scopes, " "))
