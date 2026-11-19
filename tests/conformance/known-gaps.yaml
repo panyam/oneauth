@@ -294,42 +294,6 @@
 
 - suite: oidf
   plan: oidcc-basic-certification-test-plan
-  test: oidcc-prompt-login
-  status: expected-fail
-  evidence: Unexpected URL for non-optional task
-  issue: 453
-  owner: panyam
-  reason: |
-    prompt=login isn't honoured, so the second authorization skips the
-    login page and the browser override meets the consent page instead.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-max-age-1
-  status: expected-fail
-  evidence: Unexpected URL for non-optional task
-  issue: 453
-  owner: panyam
-  reason: |
-    max_age isn't honoured, so the second authorization skips the login
-    page, as for prompt-login.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
-  test: oidcc-prompt-none-not-logged-in
-  status: expected-fail
-  evidence: was expected to return an error but did not
-  issue: 453
-  owner: panyam
-  reason: |
-    prompt=none isn't honoured, so a request with no session shows the
-    login page instead of returning login_required.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: oidcc-basic-certification-test-plan
   test: oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported
   status: expected-skip
   issue: 338
@@ -364,4 +328,28 @@
   reason: |
     An unregistered redirect URI gets oneauth's error page, never a
     redirect (RFC 6749 §4.1.2.1). The harness asks for a screenshot of it.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-prompt-login
+  status: expected-review
+  evidence: "Login</h1>"
+  issue: 477
+  owner: panyam
+  reason: |
+    prompt=login sends the logged-in user back to the login page (issue
+    453), and the harness asks for a screenshot of that second login page.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-basic-certification-test-plan
+  test: oidcc-max-age-1
+  status: expected-review
+  evidence: "Login</h1>"
+  issue: 477
+  owner: panyam
+  reason: |
+    A login older than max_age sends the user back to the login page
+    (issue 453), and the harness asks for a screenshot of it.
   expires: 2027-12-31

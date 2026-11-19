@@ -508,7 +508,16 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 				return nil, nil, fmt.Errorf("Failed to create PushedAuthorizationRequestStore: %w", err)
 			}
 		}
+		var consentStore core.ConsentStore
+		if cfg.CodeFlow.Consent.Remember {
+			consentStore, err = buildConsentStore(cfg, db)
+			if err != nil {
+				return nil, nil, fmt.Errorf("Failed to create ConsentStore: %w", err)
+			}
+		}
 		apiauth.MountAuthorize(mux, apiauth.AuthorizeMountConfig{
+			ConsentStore:          consentStore,
+			ConsentLifetime:       cfg.CodeFlow.Consent.Lifetime,
 			PushedStore:           pushedStore,
 			RequirePushedRequests: cfg.CodeFlow.PAR.Required,
 			OneAuth:               oa,
@@ -927,9 +936,35 @@ func buildPushedStore(cfg *Config, sharedDB *gorm.DB) (core.PushedAuthorizationR
 	}
 }
 
+// buildConsentStore builds the ConsentStore for code_flow.consent on the
+// code_flow.store backend, like buildPushedStore.
+func buildConsentStore(cfg *Config, sharedDB *gorm.DB) (core.ConsentStore, error) {
+	sc := cfg.CodeFlow.Store
+	switch sc.Type {
+	case "memory":
+		return core.NewInMemoryConsentStore(), nil
+	case "fs":
+		return fsstore.NewFSConsentStore(sc.FS.Path), nil
+	case "gorm":
+		db, err := codeFlowDB(cfg, sharedDB)
+		if err != nil {
+			return nil, err
+		}
+		return gormstore.NewConsentStore(db), nil
+	case "gae":
+		client, err := datastore.NewClient(context.Background(), sc.GAE.Project)
+		if err != nil {
+			return nil, err
+		}
+		return gaestore.NewConsentStore(client, sc.GAE.Namespace), nil
+	default:
+		return nil, fmt.Errorf("unknown code_flow.store type: %s (want memory, fs, gorm or gae)", sc.Type)
+	}
+}
+
 // codeFlowDB returns the database for code_flow.store type gorm: the key
 // store's when the DSN and driver match, a new connection otherwise. It
-// runs AutoMigrate, which covers both the code and pushed-request tables.
+// runs AutoMigrate, which covers the code, pushed-request and consent tables.
 func codeFlowDB(cfg *Config, sharedDB *gorm.DB) (*gorm.DB, error) {
 	sc := cfg.CodeFlow.Store
 	db := sharedDB

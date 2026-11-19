@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -68,11 +70,27 @@ type AuthorizationRequest struct {
 	// empty when the client sent none.
 	Nonce string
 
+	// Prompt is the OIDC Core §3.1.2.1 `prompt` parameter, split on
+	// spaces: "none", "login", "consent" or "select_account". Empty when
+	// the client sent none. ValidateValues refuses "none" alongside any
+	// other value.
+	Prompt []string
+
+	// MaxAge is the OIDC Core §3.1.2.1 `max_age` parameter: the most
+	// seconds since the user last logged in that the client accepts. Nil
+	// when the client sent none.
+	MaxAge *int64
+
 	// AuthTime is when the approving user last authenticated. It does not
 	// come from the request: the verification handler sets it from
 	// AuthTimeFromRequest before IssueCode, and the ID token reports it as
 	// `auth_time`. Zero leaves the claim out.
 	AuthTime time.Time
+}
+
+// HasPrompt reports whether the request's `prompt` includes value.
+func (r *AuthorizationRequest) HasPrompt(value string) bool {
+	return slices.Contains(r.Prompt, value)
 }
 
 // Scopes returns the request's scope claim split on the RFC 6749
@@ -315,6 +333,10 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 	}
 
 	if code, desc := h.validatePKCE(ctx, req); code != "" {
+		return req, false, code, desc
+	}
+
+	if code, desc := parsePromptAndMaxAge(req, values); code != "" {
 		return req, false, code, desc
 	}
 
@@ -654,3 +676,22 @@ type authorizeError struct{ msg string }
 func (e *authorizeError) Error() string { return e.msg }
 
 func newAuthorizeError(msg string) error { return &authorizeError{msg: msg} }
+
+// parsePromptAndMaxAge fills req.Prompt and req.MaxAge from the OIDC Core
+// §3.1.2.1 parameters. It refuses "none" combined with another prompt
+// value, which the spec calls an error, and a max_age that isn't a
+// non-negative integer.
+func parsePromptAndMaxAge(req *AuthorizationRequest, values url.Values) (errCode, errDescription string) {
+	req.Prompt = strings.Fields(values.Get("prompt"))
+	if slices.Contains(req.Prompt, "none") && len(req.Prompt) > 1 {
+		return "invalid_request", "prompt=none cannot be combined with other prompt values"
+	}
+	if raw := strings.TrimSpace(values.Get("max_age")); raw != "" {
+		n, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || n < 0 {
+			return "invalid_request", "max_age must be a non-negative integer"
+		}
+		req.MaxAge = &n
+	}
+	return "", ""
+}

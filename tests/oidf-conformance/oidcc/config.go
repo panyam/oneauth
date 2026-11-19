@@ -85,8 +85,17 @@ func RegistrationRequest(authMethod, redirectURI, scope string) map[string]any {
 func BrowserAutomation(s Setup) []oidfplan.BrowserTask {
 	return []oidfplan.BrowserTask{{
 		Match: s.IssuerURL + "/authorize*",
-		Tasks: []oidfplan.BrowserStep{oidfplan.LoginStep(s.IssuerURL, s.User), oidfplan.ConsentStep(s.IssuerURL, "approve"), oidfplan.CallbackStep()},
+		Tasks: []oidfplan.BrowserStep{oidfplan.LoginStep(s.IssuerURL, s.User), rememberedConsentStep(s), oidfplan.CallbackStep()},
 	}}
+}
+
+// rememberedConsentStep approves the consent page when it shows. The
+// server remembers consent (code_flow.consent), so once the user has
+// approved a client, later requests from it skip the page.
+func rememberedConsentStep(s Setup) oidfplan.BrowserStep {
+	step := oidfplan.ConsentStep(s.IssuerURL, "approve")
+	step.Optional = true
+	return step
 }
 
 // ModuleBrowsers is the browser automation for the modules the default
@@ -123,7 +132,7 @@ func ModuleBrowsers(s Setup) map[string][]oidfplan.BrowserTask {
 			{"text", "name", "password", s.User.Password},
 			{"click", "xpath", "//button[@type='submit']"},
 		},
-	}, oidfplan.ConsentStep(s.IssuerURL, "approve"), oidfplan.CallbackStep()}}
+	}, rememberedConsentStep(s), oidfplan.CallbackStep()}}
 	errorPage := oidfplan.BrowserTask{Match: authorize, Tasks: []oidfplan.BrowserStep{oidfplan.LoginStep(s.IssuerURL, s.User), {
 		Task: "Error page", Match: authorize, Commands: [][]any{
 			{"wait", "id", "authorize-error", 10, "Authorization error", "update-image-placeholder"},
