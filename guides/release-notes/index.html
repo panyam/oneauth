@@ -194,6 +194,41 @@
 <blockquote>
 <p>0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.</p>
 </blockquote>
+<h2 id="version-038">Version 0.3.8 <a class="anchor" href="#version-038">¶</a></h2>
+<p>Most of this release moves <code>/authorize</code>, the ID token and userinfo closer to OIDC Core, driven by the OIDF Basic OP plan that <code>make exercise-oidcc</code> now runs. It also fixes <code>file:</code> secret refs on Windows, which agni needs. Two changes alter what a consumer sees, and both are listed under contract changes.</p>
+<h3 id="contract-changes">Contract changes <a class="anchor" href="#contract-changes">¶</a></h3>
+<ul>
+<li><strong>The ID token no longer carries scope claims (issue 480, PR 488).</strong> A request for <code>scope=openid email</code> used to put <code>email</code> in the ID token as well as userinfo. OIDC Core §5.4 sends those claims to userinfo, so the ID token now carries only claims the request asks for by name with the <code>claims</code> parameter. The client SDK&rsquo;s <code>LoginWithBrowser</code> with <code>VerifyIDToken</code> asks for the four claims <code>IDTokenClaims</code> reads, so SDK users keep them. Other clients that read profile claims from the ID token should call userinfo or send <code>claims</code>.</li>
+<li><strong>An <code>APIMiddleware</code> without <code>DPoP</code> refuses DPoP-bound tokens (issue 486, PR 488).</strong> A token with <code>cnf.jkt</code> sent as Bearer used to pass, so a stolen bound token worked at any resource server that hadn&rsquo;t wired DPoP. It now gets 401 <code>invalid_token</code>.</li>
+</ul>
+<h3 id="oidc-at-authorize-prs-483-484">OIDC at /authorize (PRs 483, 484) <a class="anchor" href="#oidc-at-authorize-prs-483-484">¶</a></h3>
+<ul>
+<li><code>POST /authorize</code> without an <code>action</code> field gets a 303 to <code>GET /authorize</code> with the same parameters, as OIDC Core §3.1.2.1 requires. The consent form always posts <code>action</code>, so its decisions still go through CSRF.</li>
+<li>A <code>request</code> parameter gets <code>request_not_supported</code>, and a <code>request_uri</code> that oneauth&rsquo;s own <code>/par</code> didn&rsquo;t issue gets <code>request_uri_not_supported</code>. Before, <code>/authorize</code> ignored both and used the outer parameters.</li>
+<li><code>prompt=login</code>, and a login older than <code>max_age</code>, send the user through the login page once. <code>prompt=none</code> never shows a page and answers <code>login_required</code> or <code>consent_required</code> at the redirect URI.</li>
+<li><code>core.ConsentStore</code> remembers consent, with memory, FS, GORM and GAE backends. Set <code>AuthorizeMountConfig.ConsentStore</code>, or <code>code_flow.consent.remember</code> on the reference server, and a request covered by earlier consent skips the consent screen unless it sends <code>prompt=consent</code>.</li>
+</ul>
+<h3 id="claims-and-userinfo-prs-487-488">Claims and userinfo (PRs 487, 488) <a class="anchor" href="#claims-and-userinfo-prs-487-488">¶</a></h3>
+<ul>
+<li><code>/authorize</code> accepts the OIDC <code>claims</code> parameter (§5.5). The ID token and userinfo add the claims it names, and discovery advertises <code>claims_parameter_supported</code>.</li>
+<li>Userinfo accepts the access token as a form-encoded <code>access_token</code> on POST (RFC 6750 §2.2). Sending it in the header as well is 400 <code>invalid_request</code>.</li>
+<li>Signup accepts the standard profile claims a deployment lists (<code>SignupPolicy.ProfileClaims</code>, or <code>signup.profile_claims</code>), and <code>localauth.ProfileClaims</code> hands them out by scope. The server lists <code>address</code> and <code>phone</code> in <code>scopes_supported</code>.</li>
+<li>Userinfo returns <code>updated_at</code> under <code>profile</code> through the optional <code>accounts.LastUpdatedUser</code> interface. The FS, GORM and GAE user types implement it.</li>
+</ul>
+<h3 id="pkce-policy-for-confidential-clients-pr-482">PKCE policy for confidential clients (PR 482) <a class="anchor" href="#pkce-policy-for-confidential-clients-pr-482">¶</a></h3>
+<ul>
+<li><code>OneAuthConfig.PKCEPolicy = PKCEOptionalForConfidential</code> (<code>code_flow.pkce: optional_for_confidential</code>) lets registered confidential clients omit PKCE, as OIDC Core allows. The default still requires PKCE from every client.</li>
+</ul>
+<h3 id="windows-file-secret-refs-issue-499-pr-501">Windows file secret refs (issue 499, PR 501) <a class="anchor" href="#windows-file-secret-refs-issue-499-pr-501">¶</a></h3>
+<ul>
+<li><code>outbound.ParseSecretRef</code> accepts any path <code>filepath.IsAbs</code> accepts, so <code>file:C:\secrets\app.pem</code> works on Windows. A path starting with <code>/</code> still works on every OS. CI runs the <code>outbound</code> tests on Windows.</li>
+</ul>
+<h3 id="conformance-and-release-tooling-prs-475-476-482">Conformance and release tooling (PRs 475, 476, 482) <a class="anchor" href="#conformance-and-release-tooling-prs-475-476-482">¶</a></h3>
+<ul>
+<li><code>make exercise-oidcc</code> runs the OIDF Basic OP plan against the reference server and judges each module against <code>known-gaps.yaml</code>. <code>make testoidf</code> runs it after FAPI 2.0.</li>
+<li><code>make pushrelease</code> records the new version&rsquo;s <code>go.sum</code> hashes before pushing main, so v0.3.7&rsquo;s <code>missing go.sum entry</code> doesn&rsquo;t recur. <code>verify-submodule-deps</code> fails when they&rsquo;re missing.</li>
+<li>The reference server&rsquo;s tests run the device flow end to end on FS, Postgres and GAE stores.</li>
+</ul>
 <h2 id="version-037">Version 0.3.7 <a class="anchor" href="#version-037">¶</a></h2>
 <p>This is the first release cut with <code>make release</code>. Every module is tagged v0.3.7 on one commit and requires every other oneauth module at v0.3.7, and the commands are <code>go install</code>-able. The release also adds FS and GAE stores for authorization codes and pushed requests, and hashes every single-use credential at rest.</p>
 <h3 id="release-process-pr-472">Release process (PR 472) <a class="anchor" href="#release-process-pr-472">¶</a></h3>
