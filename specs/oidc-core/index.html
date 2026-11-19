@@ -438,15 +438,15 @@ surface smaller.</li>
 </tr>
 <tr>
 <td><code>/userinfo</code> endpoint</td>
-<td><strong>Implemented</strong> (#339)</td>
+<td><strong>Implemented</strong> (#339, #481)</td>
 <td><code>OneAuth.UserinfoHTTPHandler</code> in <code>apiauth/oidc_userinfo.go</code></td>
-<td>GET and POST, Bearer or DPoP through the caller&rsquo;s <code>APIMiddleware</code>; 403 <code>insufficient_scope</code> without <code>openid</code>. JSON only, no signed response</td>
+<td>GET and POST, Bearer or DPoP through the caller&rsquo;s <code>APIMiddleware</code>, or the token as a form-encoded <code>access_token</code> on POST (RFC 6750 §2.2); 403 <code>insufficient_scope</code> without <code>openid</code>. JSON only, no signed response</td>
 </tr>
 <tr>
-<td><code>openid</code>/<code>profile</code>/<code>email</code>/etc. scope-to-claims mapping</td>
-<td><strong>Implemented</strong> (#339)</td>
+<td><code>openid</code>/<code>profile</code>/<code>email</code>/<code>address</code>/<code>phone</code> scope-to-claims mapping</td>
+<td><strong>Implemented</strong> (#339, #481)</td>
 <td><code>OIDCConfig.UserClaims</code>, <code>core.FilterClaimsByScope</code> (the §5.4 table), <code>localauth.ProfileClaims</code></td>
-<td>One function feeds both the ID token and userinfo, so they agree</td>
+<td>One function feeds both the ID token and userinfo, so they agree. <code>ProfileClaims</code> hands out any standard claim the profile holds; signup stores the ones <code>SignupPolicy.ProfileClaims</code> lists (server: <code>signup.profile_claims</code>). <code>updated_at</code> is not emitted yet (#480)</td>
 </tr>
 <tr>
 <td><code>auth_time</code> claim</td>
@@ -467,10 +467,16 @@ surface smaller.</li>
 <td>Approve records the scopes; a later request they cover skips the screen unless <code>prompt=consent</code>. <code>prompt=none</code> needs it to succeed. Server: <code>code_flow.consent.remember</code></td>
 </tr>
 <tr>
-<td><code>acr</code>, <code>amr</code>, <code>claims</code> parameter</td>
-<td><strong>Gap</strong> (#453)</td>
+<td><code>claims</code> request parameter (§5.5)</td>
+<td><strong>Implemented</strong> (#453)</td>
+<td><code>parseClaimsParam</code> in <code>apiauth/authorize.go</code>, <code>core.AuthorizationCode.IDTokenClaims</code> / <code>UserinfoClaims</code>, <code>collectUserClaims</code></td>
+<td>Names asked for in <code>id_token</code> go into the ID token; names asked for in <code>userinfo</code> ride the access token&rsquo;s <code>oa_userinfo_claims</code> claim to userinfo. Every request is voluntary, so a missing <code>essential</code> claim is left out rather than refused. Survives PAR and the consent form (a custom template must post <code>claims</code> back). Discovery: <code>claims_parameter_supported</code></td>
+</tr>
+<tr>
+<td><code>acr</code>, <code>amr</code></td>
+<td><strong>Gap</strong></td>
 <td>—</td>
-<td>Step-up, and claims requested by name</td>
+<td>Step-up. The Basic OP plan warns without <code>acr</code></td>
 </tr>
 <tr>
 <td><code>at_hash</code> claim (id_token integrity binding to access_token)</td>
