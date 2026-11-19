@@ -36,7 +36,7 @@ func TestOIDF_OIDCC_BasicOP(t *testing.T) {
 	hc := &http.Client{Timeout: 30 * time.Second, Transport: probeTransport(t)}
 	s := oidcc.Setup{
 		Alias: "oneauth-oidcc", HarnessURL: harnessURL(), IssuerURL: envOr("OIDF_OIDCC_ISSUER", "https://host.docker.internal:8890"), Scope: oidcc.Scope,
-		User: oidfplan.User{Email: "oidcc-user@example.com", Password: "oidcc-exercise-password"},
+		User: oidcc.ExerciseUser(),
 	}
 	ctx := context.Background()
 	if err := oidcc.Prepare(ctx, hc, serverURL, &s); err != nil {

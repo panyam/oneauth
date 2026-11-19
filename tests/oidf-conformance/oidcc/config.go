@@ -177,3 +177,10 @@ func PlanConfig(s Setup) map[string]any {
 // modules ask for (the profile, email, address and phone claim scopes, and
 // offline_access for the refresh-token module).
 const Scope = "openid profile email address phone offline_access"
+
+// ExerciseUser is the user the Basic OP plan logs in as, with
+// oidfplan.StandardProfile so the scope modules find the claims in
+// userinfo.
+func ExerciseUser() oidfplan.User {
+	return oidfplan.User{Email: "oidcc-user@example.com", Password: "oidcc-exercise-password", Profile: oidfplan.StandardProfile()}
+}

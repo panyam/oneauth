@@ -44,7 +44,13 @@ func SignUp(ctx context.Context, hc *http.Client, serverURL string, u User) erro
 	if m == nil {
 		return fmt.Errorf("signup form has no csrf_token field (status %d)", resp.StatusCode)
 	}
-	form := url.Values{"csrf_token": {string(m[1])}, "email": {u.Email}, "password": {u.Password}}
+	form := url.Values{}
+	for k, v := range u.Profile {
+		form[k] = v
+	}
+	form.Set("csrf_token", string(m[1]))
+	form.Set("email", u.Email)
+	form.Set("password", u.Password)
 	req, _ = http.NewRequestWithContext(ctx, http.MethodPost, serverURL+"/auth/signup", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Origin", serverURL)
