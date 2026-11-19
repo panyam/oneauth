@@ -47,6 +47,11 @@ type ASServerMetadata struct {
 	// See: OpenID Connect Discovery 1.0 §3
 	ClaimsSupported []string `json:"claims_supported,omitempty"`
 
+	// ClaimsParameterSupported advertises the OIDC Core §5.5 `claims`
+	// request parameter (OIDC Discovery §3). MountAuthorize always parses
+	// it, so set this whenever OIDC is on.
+	ClaimsParameterSupported bool `json:"claims_parameter_supported,omitempty"`
+
 	ResponseTypesSupported   []string `json:"response_types_supported,omitempty"`
 	GrantTypesSupported      []string `json:"grant_types_supported,omitempty"`
 	TokenEndpointAuthMethods []string `json:"token_endpoint_auth_methods_supported,omitempty"`

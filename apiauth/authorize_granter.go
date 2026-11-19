@@ -160,6 +160,7 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		Scopes:               entry.Scopes,
 		AuthorizationDetails: entry.AuthorizationDetails,
 		Confirmation:         req.Confirmation,
+		UserinfoClaims:       entry.UserinfoClaims,
 	})
 	if err != nil {
 		return nil, serverError("create access token: " + err.Error())
@@ -182,12 +183,13 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 	// request by nonce.
 	if r.IDTokens != nil && core.ContainsScope(entry.Scopes, core.ScopeOpenID) {
 		idResp, err := r.IDTokens.CreateIDToken(ctx, &CreateIDTokenRequest{
-			Subject:     entry.Subject,
-			ClientID:    entry.ClientID,
-			Scopes:      entry.Scopes,
-			Nonce:       entry.Nonce,
-			AuthTime:    entry.AuthTime,
-			AccessToken: tok.Token,
+			Subject:         entry.Subject,
+			ClientID:        entry.ClientID,
+			Scopes:          entry.Scopes,
+			Nonce:           entry.Nonce,
+			AuthTime:        entry.AuthTime,
+			RequestedClaims: entry.IDTokenClaims,
+			AccessToken:     tok.Token,
 		})
 		if err != nil {
 			r.revoke(ctx, issued.TokenID, issued.TokenExpiresAt, "")

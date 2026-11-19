@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -69,6 +70,15 @@ type AuthorizationRequest struct {
 	// it to the token endpoint, which echoes it in the ID token. Optional;
 	// empty when the client sent none.
 	Nonce string
+
+	// Claims is the OIDC Core §5.5 `claims` parameter as sent, a JSON
+	// object. The consent form posts it back verbatim. IDTokenClaims and
+	// UserinfoClaims are the claim names it asks for in each place, which
+	// the code carries to the token endpoint. All empty when the client
+	// sent none.
+	Claims         string
+	IDTokenClaims  []string
+	UserinfoClaims []string
 
 	// Prompt is the OIDC Core §3.1.2.1 `prompt` parameter, split on
 	// spaces: "none", "login", "consent" or "select_account". Empty when
@@ -340,6 +350,10 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 		return req, false, code, desc
 	}
 
+	if code, desc := parseClaimsParam(req, values); code != "" {
+		return req, false, code, desc
+	}
+
 	// The client's registered scope bounds what it can ask for (RFC 6749
 	// §3.3), the same rule the token endpoint applies, and asking for
 	// nothing gets the registered default.
@@ -492,6 +506,8 @@ func (h *AuthorizationHandler) IssueCode(ctx context.Context, req *Authorization
 		CodeChallengeMethod: req.CodeChallengeMethod,
 		DPoPJKT:             req.DPoPJKT,
 		Nonce:               req.Nonce,
+		IDTokenClaims:       req.IDTokenClaims,
+		UserinfoClaims:      req.UserinfoClaims,
 		AuthTime:            req.AuthTime,
 		IssuedAt:            now,
 		ExpiresAt:           now.Add(expiry),
@@ -693,5 +709,50 @@ func parsePromptAndMaxAge(req *AuthorizationRequest, values url.Values) (errCode
 		}
 		req.MaxAge = &n
 	}
+	return "", ""
+}
+
+// parseClaimsParam reads the OIDC Core §5.5 `claims` parameter into
+// req.Claims, req.IDTokenClaims and req.UserinfoClaims. The value must be
+// a JSON object, and its "id_token" and "userinfo" members, when present,
+// objects whose members are null or objects (§5.5.1). Other members are
+// ignored. oneauth treats every requested claim as voluntary: it returns
+// the ones the user has, and never refuses a request over a missing
+// "essential" claim, which §5.5.1 allows.
+func parseClaimsParam(req *AuthorizationRequest, values url.Values) (errCode, errDescription string) {
+	raw := strings.TrimSpace(values.Get("claims"))
+	if raw == "" {
+		return "", ""
+	}
+	const bad = "claims must be a JSON object whose id_token and userinfo members map claim names to null or an object (OIDC Core §5.5)"
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &top); err != nil || top == nil {
+		return "invalid_request", bad
+	}
+	names := func(member string) ([]string, bool) {
+		m, ok := top[member]
+		if !ok || string(m) == "null" {
+			return nil, true
+		}
+		var requests map[string]json.RawMessage
+		if err := json.Unmarshal(m, &requests); err != nil || requests == nil {
+			return nil, false
+		}
+		out := make([]string, 0, len(requests))
+		for name, spec := range requests {
+			if t := strings.TrimSpace(string(spec)); t != "null" && !strings.HasPrefix(t, "{") {
+				return nil, false
+			}
+			out = append(out, name)
+		}
+		slices.Sort(out)
+		return out, true
+	}
+	idToken, ok1 := names("id_token")
+	userinfo, ok2 := names("userinfo")
+	if !ok1 || !ok2 {
+		return "invalid_request", bad
+	}
+	req.Claims, req.IDTokenClaims, req.UserinfoClaims = raw, idToken, userinfo
 	return "", ""
 }

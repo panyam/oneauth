@@ -1,11 +1,14 @@
 package apiauth
 
 import (
+	"context"
 	"encoding/json"
 	"log"
+	"mime"
 	"net/http"
 
 	"github.com/panyam/oneauth/core"
+	"github.com/panyam/oneauth/httpauth"
 )
 
 // UserinfoHTTPHandler returns the OIDC Core §5.3 userinfo endpoint. It
@@ -16,7 +19,10 @@ import (
 // middleware, with DPoP set when the AS issues DPoP-bound tokens, since a
 // bound token presented to a middleware without it is refused. Nil uses
 // HTTPMiddleware, which accepts Bearer tokens only. A token without the
-// "openid" scope gets 403 insufficient_scope (RFC 6750 §3.1).
+// "openid" scope gets 403 insufficient_scope (RFC 6750 §3.1). A POST may
+// send the token as a form-encoded `access_token` body parameter instead
+// (RFC 6750 §2.2). Userinfo adds the claims the token's §5.5 `claims`
+// request named (UserinfoClaimsClaim) to the ones its scopes grant.
 //
 // Panics when OIDC is off: there is nothing for the endpoint to serve.
 func (oa *OneAuth) UserinfoHTTPHandler(mw *APIMiddleware) http.Handler {
@@ -33,7 +39,7 @@ func (oa *OneAuth) UserinfoHTTPHandler(mw *APIMiddleware) http.Handler {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		claims, err := userinfoClaims(r.Context(), userClaims, GetSubjectFromAPIContext(r.Context()), GetScopesFromAPIContext(r.Context()))
+		claims, err := userinfoClaims(r.Context(), userClaims, GetSubjectFromAPIContext(r.Context()), GetScopesFromAPIContext(r.Context()), requestedUserinfoClaims(r.Context()))
 		if err != nil {
 			log.Printf("apiauth: userinfo: %v", err)
 			http.Error(w, "could not load user claims", http.StatusInternalServerError)
@@ -43,5 +49,58 @@ func (oa *OneAuth) UserinfoHTTPHandler(mw *APIMiddleware) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(claims)
 	})
-	return mw.RequireScopes(core.ScopeOpenID)(serve)
+	return formBodyAccessToken(mw.RequireScopes(core.ScopeOpenID)(serve))
+}
+
+// UserinfoClaimsClaim is the access-token claim that carries the claim
+// names the OIDC Core §5.5 `claims` parameter asked userinfo for. The code
+// grant sets it, and CustomClaimsFunc can't, so a client gets only what
+// it asked for at /authorize.
+const UserinfoClaimsClaim = "oa_userinfo_claims"
+
+// requestedUserinfoClaims reads UserinfoClaimsClaim from the validated
+// token in ctx.
+func requestedUserinfoClaims(ctx context.Context) []string {
+	raw, ok := GetCustomClaimsFromContext(ctx)[UserinfoClaimsClaim].([]any)
+	if !ok {
+		return nil
+	}
+	names := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			names = append(names, s)
+		}
+	}
+	return names
+}
+
+// formBodyAccessToken accepts the access token as a form-encoded
+// `access_token` body parameter on POST (RFC 6750 §2.2, which OIDC Core
+// §5.3.1 lists), by moving it to an Authorization: Bearer header for next.
+// Only a form body counts, and only on POST. A request that also sends an
+// Authorization header gets 400 invalid_request, since RFC 6750 §2 allows
+// one method per request. A DPoP-bound token sent this way is a Bearer
+// presentation, which the middleware refuses (RFC 9449 §7.2).
+func formBodyAccessToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err == nil && mt == "application/x-www-form-urlencoded" {
+				httpauth.CapRequestBody(nil, r)
+				if err := r.ParseForm(); err != nil {
+					http.Error(w, "could not parse form body", http.StatusBadRequest)
+					return
+				}
+				if token := r.PostForm.Get("access_token"); token != "" {
+					if r.Header.Get("Authorization") != "" {
+						w.Header().Set("WWW-Authenticate", `Bearer error="invalid_request", error_description="send the access token in one place only"`)
+						http.Error(w, "send the access token in one place only", http.StatusBadRequest)
+						return
+					}
+					r = r.Clone(r.Context())
+					r.Header.Set("Authorization", "Bearer "+token)
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

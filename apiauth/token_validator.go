@@ -490,6 +490,9 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	if req.ClientID != "" {
 		claims["client_id"] = req.ClientID
 	}
+	if len(req.UserinfoClaims) > 0 {
+		claims[UserinfoClaimsClaim] = req.UserinfoClaims
+	}
 	if !req.Confirmation.IsEmpty() {
 		claims["cnf"] = req.Confirmation
 	}
