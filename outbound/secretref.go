@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -24,7 +25,9 @@ import (
 // are accepted:
 //
 //	env:NAME      the environment variable NAME
-//	file:/path    the contents of the file at /path (a mounted secret)
+//	file:PATH     the contents of the file at PATH (a mounted secret)
+//
+// PATH is absolute: /run/secrets/app.pem, or C:\secrets\app.pem on Windows.
 //
 // Anything else is refused by ParseSecretRef, including a bare value, so a
 // token pasted into config fails at startup instead of being stored there.
@@ -38,13 +41,15 @@ type SecretRef struct {
 // reference and never the value.
 var ErrSecretMissing = errors.New("outbound: secret not found")
 
-// ParseSecretRef parses "env:NAME" or "file:/path". The file path must be
-// absolute, so a reference means the same thing whatever the working
-// directory is.
+// ParseSecretRef parses "env:NAME" or "file:PATH". PATH must start with
+// "/" or be absolute by filepath.IsAbs, so a reference means the same thing
+// whatever the working directory is. On Windows that admits C:\path and
+// \\server\share\path, and refuses C:path, which depends on the current
+// directory of drive C. A path starting with "/" is accepted on every OS.
 func ParseSecretRef(s string) (SecretRef, error) {
 	kind, name, ok := strings.Cut(strings.TrimSpace(s), ":")
 	if !ok || name == "" {
-		return SecretRef{}, fmt.Errorf("outbound: secret reference must be env:NAME or file:/path")
+		return SecretRef{}, fmt.Errorf("outbound: secret reference must be env:NAME or file:PATH")
 	}
 	switch kind {
 	case "env":
@@ -52,12 +57,12 @@ func ParseSecretRef(s string) (SecretRef, error) {
 			return SecretRef{}, fmt.Errorf("outbound: env secret reference has an invalid variable name")
 		}
 	case "file":
-		if !strings.HasPrefix(name, "/") {
+		if !strings.HasPrefix(name, "/") && !filepath.IsAbs(name) {
 			return SecretRef{}, fmt.Errorf("outbound: file secret reference %q must be an absolute path", "file:"+name)
 		}
 	default:
 		// The input may be the secret itself, so it is left out of the error.
-		return SecretRef{}, fmt.Errorf("outbound: secret reference must be env:NAME or file:/path")
+		return SecretRef{}, fmt.Errorf("outbound: secret reference must be env:NAME or file:PATH")
 	}
 	return SecretRef{kind: kind, name: name}, nil
 }
