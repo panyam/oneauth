@@ -7,7 +7,7 @@ Tests that prove OneAuth's `APIMiddleware`, `JWKSKeyStore`, and `IntrospectionVa
 Authlete is **not** a self-contained AS. The Docker container we run locally (`authlete/java-oauth-server`) is only the AS **frontend** — it serves the wire endpoints (`/api/token`, `/.well-known/openid-configuration`, etc.) and back-channels every actual token operation to Authlete's cloud REST API:
 
 ```
-test → java-oauth-server container → HTTPS → Authlete cloud (us.authlete.com / api.authlete.com)
+test → java-oauth-server container → HTTPS → Authlete cloud (the regional cluster your service is on, us.authlete.com by default)
        (frontend wire layer)                 (token engine, signing keys, client store, spec compliance)
 ```
 
@@ -28,8 +28,9 @@ export AUTHLETE_ACCESS_TOKEN=<service access token>
 export AUTHLETE_CLIENTID=<client alias if set, else numeric client ID>
 export AUTHLETE_CLIENTSECRET=<client secret>
 
-# Optional — defaults to https://api.authlete.com. Override for regional tenants:
-export AUTH_API_SERVER=https://us.authlete.com
+# Optional — the cluster your service is on. Defaults to https://us.authlete.com;
+# a service on another cluster gets 404 or 403 from this one:
+export AUTH_API_SERVER=https://eu.authlete.com
 
 make upauthlete         # clones + builds + runs the frontend container (~5–10 min first time)
 make authlete-provision # configures service for full PASS (issue 244, idempotent)
@@ -82,7 +83,7 @@ Result after `make authlete-provision`: **6 PASS + 1 SKIP** (the JWT-sub interop
 | `AUTHLETE_ACCESS_TOKEN` | Service Access Token (Bearer auth to Authlete cloud) | Container back-channel |
 | `AUTHLETE_CLIENTID` | OAuth client identifier — **alias if one is set, else numeric** | Tests (token endpoint) |
 | `AUTHLETE_CLIENTSECRET` | OAuth client secret | Tests (token + introspection) |
-| `AUTH_API_SERVER` | Authlete cloud base URL — defaults `https://api.authlete.com`; override for regions (`us.authlete.com`, `eu.authlete.com`, etc.) | Container back-channel |
+| `AUTH_API_SERVER` | Authlete cloud cluster your service is on. Defaults to `https://us.authlete.com`; set `jp`, `eu` or `br.authlete.com` for a service there. `upauthlete` checks it first and names the problem on a 404 or 403. | Container back-channel |
 | `AUTHLETE_AS_URL` | Frontend base URL — defaults `http://localhost:8280`; set by `make testauthlete` | Tests |
 
 ### Why "alias if set, else numeric" for `AUTHLETE_CLIENTID`

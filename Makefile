@@ -559,7 +559,7 @@ kcllogs:
 #   AUTHLETE_CLIENTSECRET  — paired client_secret
 #
 # Optional:
-#   AUTHLETE_API_SERVER    — Authlete cloud endpoint; defaults to https://api.authlete.com
+#   AUTH_API_SERVER        — the Authlete cluster your service is on; defaults to https://us.authlete.com
 #
 # Tests skip cleanly when these are unset, so the suite stays safe under
 # the default `go test ./...` invocation.
@@ -568,7 +568,10 @@ AUTH_PORT := 8280
 AUTH_FRONTEND_REF := 799440548fb8
 AUTH_FRONTEND_DIR := tests/authlete/.frontend
 AUTH_IMAGE := oneauth-test/authlete-frontend:$(AUTH_FRONTEND_REF)
-AUTH_API_SERVER ?= https://api.authlete.com
+# A V3 service lives on one regional cluster (us, jp, eu or br.authlete.com),
+# and the others answer 404 or 403 for it. upauthlete writes api_version=V3,
+# so api.authlete.com doesn't work here. Override for a non-US service.
+AUTH_API_SERVER ?= https://us.authlete.com
 
 # Clone upstream authlete/java-oauth-server at the pinned commit (idempotent).
 $(AUTH_FRONTEND_DIR):
@@ -598,6 +601,13 @@ upauthlete: authlete-image
 	@if [ -z "$$AUTHLETE_SERVICEID" ] || [ -z "$$AUTHLETE_ACCESS_TOKEN" ]; then \
 		echo "Error: AUTHLETE_SERVICEID and AUTHLETE_ACCESS_TOKEN must be exported"; \
 		echo "  Get them from https://console.authlete.com/"; \
+		exit 1; \
+	fi
+	@code=$$(curl -s -o /dev/null -w '%{http_code}' --oauth2-bearer "$$AUTHLETE_ACCESS_TOKEN" \
+		"$(AUTH_API_SERVER)/api/$$AUTHLETE_SERVICEID/service/configuration"); \
+	if [ "$$code" != 200 ]; then \
+		echo "Error: $(AUTH_API_SERVER) answered $$code for service $$AUTHLETE_SERVICEID."; \
+		echo "  Set AUTH_API_SERVER to the cluster your service is on (https://us|jp|eu|br.authlete.com)."; \
 		exit 1; \
 	fi
 	@echo "Generating authlete.properties from env..."
@@ -652,11 +662,19 @@ authlete-deprovision:
 	fi
 	AUTHLETE_API_SERVER=$(AUTH_API_SERVER) go run -buildvcs=false ./tests/authlete/cmd/deprovision/
 
-# Run Authlete interop tests (starts container if not running).
+# Run Authlete interop tests. Starts the container if it isn't running, and
+# restarts one whose discovery fails (a stale config, or a bind mount from a
+# removed worktree). With AUTHLETE_AS_URL set, a broken AS fails the tests
+# rather than skipping them.
 testauthlete:
 	@if [ -z "$$AUTHLETE_CLIENTID" ] || [ -z "$$AUTHLETE_CLIENTSECRET" ]; then \
 		echo "Error: AUTHLETE_CLIENTID and AUTHLETE_CLIENTSECRET must be exported for tests"; \
 		exit 1; \
+	fi
+	@if docker ps --format '{{.Names}}' | grep -q '^$(AUTH_CONTAINER_NAME)$$' && \
+		! curl -sf -o /dev/null http://localhost:$(AUTH_PORT)/.well-known/openid-configuration; then \
+		echo "The Authlete container is running but its discovery fails; restarting it."; \
+		docker stop $(AUTH_CONTAINER_NAME) >/dev/null; \
 	fi
 	@if ! docker ps --format '{{.Names}}' | grep -q '^$(AUTH_CONTAINER_NAME)$$'; then \
 		$(MAKE) upauthlete; \
