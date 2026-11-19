@@ -69,6 +69,11 @@ type CodeFlowConfig struct {
 	// the same store backend as the codes.
 	PAR PARConfig `yaml:"par"`
 
+	// Consent remembers each user's approvals on the same store backend as
+	// the codes, so a request an earlier approval covers skips the
+	// consent screen. OpenID Connect's prompt=none needs it to succeed.
+	Consent ConsentConfig `yaml:"consent"`
+
 	// PKCE says which clients must send a PKCE code_challenge: required
 	// (the default, OAuth 2.1) or optional_for_confidential, which lets a
 	// client registered with a confidential auth method omit it, as
@@ -81,6 +86,17 @@ type CodeFlowConfig struct {
 	// since ID tokens are verified against the JWKS; the server refuses to
 	// start otherwise.
 	OIDC bool `yaml:"oidc"`
+}
+
+// ConsentConfig configures remembered consent at /authorize.
+type ConsentConfig struct {
+	// Remember turns it on. Off shows the consent screen on every request
+	// and answers prompt=none with consent_required.
+	Remember bool `yaml:"remember"`
+
+	// Lifetime is how long an approval counts, in Go duration syntax.
+	// Zero uses apiauth.DefaultConsentLifetime (30 days).
+	Lifetime time.Duration `yaml:"lifetime"`
 }
 
 // PARConfig configures the pushed authorization request endpoint.

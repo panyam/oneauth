@@ -107,6 +107,16 @@ type AuthorizeMountConfig struct {
 	// package defaults — fine for first-light deployments and tests.
 	Templates *AuthorizeTemplates
 
+	// ConsentStore remembers approvals so a request an earlier one
+	// covers skips the consent screen, and prompt=none can succeed. Nil
+	// shows the screen every time. See
+	// AuthorizeVerificationHandler.ConsentStore.
+	ConsentStore core.ConsentStore
+
+	// ConsentLifetime is how long a remembered approval counts. Zero uses
+	// DefaultConsentLifetime.
+	ConsentLifetime time.Duration
+
 	// AutoApproveSubject short-circuits the consent screen for
 	// conformance fixtures. Empty disables auto-approve. NEVER set
 	// in production deployments.
@@ -195,6 +205,8 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 		LoginNextParam:       cfg.LoginNextParam,
 		Templates:            cfg.Templates,
 		AutoApproveSubject:   cfg.AutoApproveSubject,
+		ConsentStore:         cfg.ConsentStore,
+		ConsentLifetime:      cfg.ConsentLifetime,
 	}
 
 	wrap := cfg.BrowserMiddleware

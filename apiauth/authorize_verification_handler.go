@@ -1,8 +1,12 @@
 package apiauth
 
 import (
+	"context"
+	"errors"
 	"html/template"
+	"log"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -63,6 +67,18 @@ type AuthorizeVerificationHandler struct {
 	// Templates overrides the built-in HTML pages. Set any subset of
 	// fields; nil fields fall back to the package defaults.
 	Templates *AuthorizeTemplates
+
+	// ConsentStore remembers approvals. With it set, Approve records the
+	// user's consent for the client, and a later request it covers skips
+	// the consent screen, which lets `prompt=none` succeed (OIDC Core
+	// §3.1.2.1). `prompt=consent` shows the screen regardless. Nil shows
+	// the screen on every request and answers `prompt=none` with
+	// consent_required.
+	ConsentStore core.ConsentStore
+
+	// ConsentLifetime is how long a remembered approval counts. Zero uses
+	// DefaultConsentLifetime.
+	ConsentLifetime time.Duration
 
 	// AutoApproveSubject, when non-empty, short-circuits the consent
 	// screen and approves any well-formed request with this subject.
@@ -142,12 +158,31 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// OIDC Core §3.1.2.1: prompt=none must not show any page, so each
+	// place that would show one answers with an error instead.
 	subject := h.subject(r)
 	if subject == "" {
-		// Round-trip the full /authorize URL through the login flow
-		// so the user lands back here with their session ready.
-		next := r.URL.RequestURI()
-		http.Redirect(w, r, loginURLWithNext(h.LoginRedirectURL, h.LoginNextParam, next), http.StatusSeeOther)
+		if req.HasPrompt("none") {
+			h.redirectError(w, r, req, "login_required", "the user is not logged in")
+			return
+		}
+		h.redirectToLogin(w, r, req)
+		return
+	}
+	if h.needsLogin(r, req) {
+		if req.HasPrompt("none") {
+			h.redirectError(w, r, req, "login_required", "the request needs a more recent login")
+			return
+		}
+		h.redirectToLogin(w, r, req)
+		return
+	}
+	if !req.HasPrompt("consent") && h.consentRemembered(r.Context(), subject, req) {
+		h.issueAndRedirect(w, r, req, subject)
+		return
+	}
+	if req.HasPrompt("none") {
+		h.redirectError(w, r, req, "consent_required", "the user has not approved this client for these scopes")
 		return
 	}
 
@@ -211,7 +246,100 @@ func (h *AuthorizeVerificationHandler) Decide(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	h.rememberConsent(r.Context(), subject, req)
 	h.issueAndRedirect(w, r, req, subject)
+}
+
+// loginAfterParam carries, in the return URL of a login the handler
+// forced, the unix time it forced it. A session that started at or after
+// that time satisfies prompt=login and max_age, which is what stops the
+// handler sending the user round the login page again. The user can edit
+// it, but only to skip their own re-login; the ID token's auth_time still
+// reports when they really logged in, and OIDC Core §3.1.2.1 leaves
+// checking it against max_age to the client.
+const loginAfterParam = "oa_login_after"
+
+// DefaultConsentLifetime is how long a remembered approval counts when
+// ConsentLifetime is zero.
+const DefaultConsentLifetime = 30 * 24 * time.Hour
+
+// redirectToLogin sends the browser to the login page, with this
+// /authorize URL as the place to come back to. A login forced by
+// prompt=login or max_age stamps loginAfterParam on that URL.
+func (h *AuthorizeVerificationHandler) redirectToLogin(w http.ResponseWriter, r *http.Request, req *AuthorizationRequest) {
+	back := *r.URL
+	if req.HasPrompt("login") || req.MaxAge != nil {
+		q := back.Query()
+		q.Set(loginAfterParam, strconv.FormatInt(time.Now().Unix(), 10))
+		back.RawQuery = q.Encode()
+	}
+	http.Redirect(w, r, loginURLWithNext(h.LoginRedirectURL, h.LoginNextParam, back.RequestURI()), http.StatusSeeOther)
+}
+
+// needsLogin reports whether prompt=login or max_age asks for a more
+// recent login than the session has. Without AuthTimeFromRequest the
+// handler can't tell when the user logged in, so it enforces neither
+// rather than loop through the login page; the ID token then has no
+// auth_time, which tells the client.
+func (h *AuthorizeVerificationHandler) needsLogin(r *http.Request, req *AuthorizationRequest) bool {
+	if h.AuthTimeFromRequest == nil || (!req.HasPrompt("login") && req.MaxAge == nil) {
+		return false
+	}
+	authTime := h.AuthTimeFromRequest(r)
+	if after, err := strconv.ParseInt(r.URL.Query().Get(loginAfterParam), 10, 64); err == nil && !authTime.IsZero() && authTime.Unix() >= after {
+		return false
+	}
+	if req.HasPrompt("login") || authTime.IsZero() {
+		return true
+	}
+	return time.Since(authTime) > time.Duration(*req.MaxAge)*time.Second
+}
+
+// consentRemembered reports whether ConsentStore holds an unexpired
+// approval from subject that covers every scope the request asks for. A
+// store error counts as no approval, so the user sees the consent screen.
+func (h *AuthorizeVerificationHandler) consentRemembered(ctx context.Context, subject string, req *AuthorizationRequest) bool {
+	if h.ConsentStore == nil {
+		return false
+	}
+	resp, err := h.ConsentStore.GetConsent(ctx, &core.GetConsentRequest{Subject: subject, ClientID: req.ClientID})
+	if err != nil {
+		if !errors.Is(err, core.ErrConsentNotFound) {
+			log.Printf("apiauth: authorize: read consent: %v", err)
+		}
+		return false
+	}
+	return resp.Grant.Covers(req.Scopes(), time.Now())
+}
+
+// rememberConsent records that subject approved the request's client and
+// scopes, keeping any scopes an unexpired earlier approval covered. A
+// store error is logged and the approval goes ahead: the user only sees
+// the consent screen again next time.
+func (h *AuthorizeVerificationHandler) rememberConsent(ctx context.Context, subject string, req *AuthorizationRequest) {
+	if h.ConsentStore == nil {
+		return
+	}
+	now := time.Now()
+	scopes := req.Scopes()
+	if resp, err := h.ConsentStore.GetConsent(ctx, &core.GetConsentRequest{Subject: subject, ClientID: req.ClientID}); err == nil && !resp.Grant.IsExpired(now) {
+		for _, s := range resp.Grant.Scopes {
+			if !slices.Contains(scopes, s) {
+				scopes = append(scopes, s)
+			}
+		}
+	}
+	lifetime := h.ConsentLifetime
+	if lifetime <= 0 {
+		lifetime = DefaultConsentLifetime
+	}
+	_, err := h.ConsentStore.SaveConsent(ctx, &core.SaveConsentRequest{Grant: &core.ConsentGrant{
+		Subject: subject, ClientID: req.ClientID, Scopes: scopes,
+		GrantedAt: now, ExpiresAt: now.Add(lifetime),
+	}})
+	if err != nil {
+		log.Printf("apiauth: authorize: record consent: %v", err)
+	}
 }
 
 func (h *AuthorizeVerificationHandler) issueAndRedirect(w http.ResponseWriter, r *http.Request, req *AuthorizationRequest, subject string) {
