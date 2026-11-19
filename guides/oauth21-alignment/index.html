@@ -207,7 +207,7 @@
 <td>1</td>
 <td>PKCE required for all authorization code flows</td>
 <td><code>/authorize</code> refuses a request without <code>code_challenge</code> and checks its shape; the token endpoint requires <code>code_verifier</code>, checks its shape and verifies it. The client SDK sends S256 and refuses an AS that doesn&rsquo;t advertise it.</td>
-<td><strong>Compliant.</strong></td>
+<td><strong>Compliant by default.</strong> <code>OneAuthConfig.PKCEPolicy = PKCEOptionalForConfidential</code> (issue 290) lets registered confidential clients omit it, as OIDC Core allows.</td>
 <td>None.</td>
 </tr>
 <tr>
@@ -273,6 +273,7 @@
 <p>OAuth 2.1 requires PKCE from every client, public and confidential, on the authorization code flow.</p>
 <p>On the server, <code>AuthorizationHandler.ValidateValues</code> (<code>apiauth/authorize.go</code>) refuses a request without <code>code_challenge</code> with <code>invalid_request</code>. Since 0.1.49 it also checks the RFC 7636 shape: an S256 challenge is exactly 43 base64url characters, and a plain challenge 43 to 128 unreserved characters. At the token endpoint, <code>authorizationCodeGranter.AuthorizationCodeGrant</code> (<code>apiauth/authorize_granter.go</code>) requires <code>code_verifier</code>, refuses one outside the 43 to 128 character shape, and compares it with <code>core.VerifyPKCE</code>.</p>
 <p>On the client, <code>AuthClient.LoginWithBrowser</code> (<code>client/browser_login.go</code>) refuses an AS whose metadata lacks <code>S256</code> in <code>code_challenge_methods_supported</code>, and <code>buildAuthorizationURL</code> always sends <code>code_challenge_method=S256</code>.</p>
+<p>An OpenID Connect provider has to accept confidential clients that send no PKCE, since OIDC Core and OAuth 2.0 allow them to (the OIDF Basic OP plan&rsquo;s clients send it in one module of 38). <code>OneAuthConfig.PKCEPolicy = PKCEOptionalForConfidential</code>, or <code>code_flow.pkce: optional_for_confidential</code> on the reference server, allows that for clients registered with a confidential <code>token_endpoint_auth_method</code>. The code grant then redeems such a code only for a client that authenticated, and refuses a <code>code_verifier</code> sent for it, the PKCE downgrade RFC 9700 §2.1.1 warns about. Public clients still need PKCE, and <code>FAPI2</code> refuses the setting.</p>
 <h3 id="2-implicit-grant-compliant">2. Implicit grant: compliant <a class="anchor" href="#2-implicit-grant-compliant">¶</a></h3>
 <p><code>AuthorizationHandler.ValidateValues</code> answers any <code>response_type</code> other than <code>code</code> with <code>unsupported_response_type</code>. Since 0.1.51 the reference server&rsquo;s metadata (<code>serverASMetadata</code> in <code>cmd/oneauth-server/metadata.go</code>) lists <code>code</code> and RFC 9207 <code>iss</code> only when <code>code_flow</code> is enabled, and no longer advertises the <code>token</code> response type it used to list for its resource-token shape.</p>
 <h3 id="3-ropc-compliant-by-default-opt-in-retained">3. ROPC: compliant by default, opt-in retained <a class="anchor" href="#3-ropc-compliant-by-default-opt-in-retained">¶</a></h3>

@@ -318,6 +318,15 @@ It also rejects the <code>plain</code> method outright; only <code>S256</code> i
 under 2.1.</p>
 <p>This is the cleanest 2.0 → 2.1 tightening: same protocol surface, stricter<br />
 defaults.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<p><code>/authorize</code> requires an S256 <code>code_challenge</code> from every client by default<br />
+(<code>apiauth/authorize.go</code> <code>validatePKCE</code>), and the code grant verifies the<br />
+<code>code_verifier</code> (<code>apiauth/authorize_granter.go</code> <code>checkPKCE</code>).<br />
+<code>OneAuthConfig.PKCEPolicy = PKCEOptionalForConfidential</code> lets a client<br />
+registered with a confidential <code>token_endpoint_auth_method</code> omit PKCE, as<br />
+OpenID Connect Core and bare OAuth 2.0 allow. Its code then redeems only for<br />
+a client that authenticated, and a <code>code_verifier</code> sent for it is refused as<br />
+a downgrade attempt (RFC 9700 §2.1.1). <code>FAPI2</code> refuses the setting.</p>
 <h2 id="migration-path">Migration path <a class="anchor" href="#migration-path">¶</a></h2>
 <p>Most modern deployments are already most of the way there. The remaining<br />
 work, in order of difficulty:</p>
@@ -347,7 +356,7 @@ trusted OS — has gotten brittle as native-app guidance (RFC 8252) has<br />
 hardened. And under 2.1 the exception goes away entirely. The <em>only</em><br />
 reason to skip PKCE today is interop with an AS that doesn&rsquo;t support it<br />
 (and most do).</p>
-<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<h2 id="oneauth-status-1">OneAuth status <a class="anchor" href="#oneauth-status-1">¶</a></h2>
 <table>
 <thead>
 <tr>
