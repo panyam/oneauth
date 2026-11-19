@@ -22,7 +22,7 @@ func NewFSIdentityStore(storagePath string) *FSIdentityStore {
 
 func (s *FSIdentityStore) getIdentityPath(identityType, identityValue string) string {
 	key := accounts.IdentityKey(identityType, identityValue)
-	safeKey := filepath.Base(key)
+	safeKey := osFileName(filepath.Base(key))
 	return filepath.Join(s.StoragePath, "identities", safeKey+".json")
 }
 

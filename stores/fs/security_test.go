@@ -15,6 +15,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/panyam/oneauth/accounts"
@@ -341,6 +342,9 @@ func TestSecurity_PathTraversal_RefreshTokenStore_AlreadySafe(t *testing.T) {
 // with 0700 (owner-only access), not the default 0755 which allows other
 // users on the system to list directory contents.
 func TestSecurity_DirPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no Unix mode bits; access there is by ACL")
+	}
 	dir := t.TempDir()
 
 	// Create a user to trigger directory creation
@@ -362,6 +366,9 @@ func TestSecurity_DirPermissions(t *testing.T) {
 // 0600 (owner read/write only), not the umask default (typically 0644)
 // which allows other users to read sensitive data like password hashes.
 func TestSecurity_FilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no Unix mode bits; access there is by ACL")
+	}
 	dir := t.TempDir()
 
 	// Create a user file
@@ -382,6 +389,9 @@ func TestSecurity_FilePermissions(t *testing.T) {
 // TestSecurity_KeyFilePermissions verifies that key files containing
 // signing secrets are created with 0600 permissions.
 func TestSecurity_KeyFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no Unix mode bits; access there is by ACL")
+	}
 	dir := t.TempDir()
 	store := NewFSKeyStore(dir)
 

@@ -66,8 +66,8 @@ jobs:
       - name: Test (conformance tooling)
         run: make conformance-check
 
-  # Packages that handle OS paths, tested on Windows. The rest of the
-  # module isn't expected to pass there yet. See issue 499.
+  # Every module's tests on Windows. No -race, since the race detector
+  # needs cgo there. See issues 502 and 505.
   windows:
     runs-on: windows-latest
     steps:
@@ -77,8 +77,17 @@ jobs:
         with:
           go-version: '1.26'
 
-      - name: Test (outbound)
-        run: go test -count=1 ./outbound/...
+      - name: Test (core)
+        run: go test -count=1 -short ./...
+
+      - name: Test (sub-modules)
+        shell: bash
+        run: |
+          for mod in stores/gorm stores/gae grpc oauth2 cmd/oneauth-server; do
+            echo "Testing $mod..."
+            (cd $mod && go test -count=1 -short ./...) || fail=1
+          done
+          exit ${fail:-0}
 
   # The GAE store tests skip without DATASTORE_PROJECT_ID, so the test job
   # above never runs them. The emulator needs --consistency=1.0, and a
