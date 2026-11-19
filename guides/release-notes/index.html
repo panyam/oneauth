@@ -191,6 +191,34 @@
 <p>Versions 0.1.7 through 0.1.36 shipped tag-only; this file picks up again at<br />
 0.1.37. Use <code>git log v0.1.&lt;n-1&gt;..v0.1.&lt;n&gt;</code> for anything in that range.</p>
 </blockquote>
+<blockquote>
+<p>0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.</p>
+</blockquote>
+<h2 id="version-035">Version 0.3.5 <a class="anchor" href="#version-035">¶</a></h2>
+<p>This release adds <code>outbound/</code>, for an app calling someone else&rsquo;s API as itself or for one of its users. goapplib&rsquo;s storage mounts over private GitHub repos are the first consumer. The sub-modules still require the root at v0.3.4. The next release bumps them, together with the GORM and GAE user-token stores (issue 468).</p>
+<h3 id="outbound-credentials-issue-467-pr-469">Outbound credentials (issue 467, PR 469) <a class="anchor" href="#outbound-credentials-issue-467-pr-469">¶</a></h3>
+<ul>
+<li><strong><code>outbound.GitHubAppInstallation</code></strong> signs a GitHub App&rsquo;s JWT (RS256, nine-minute life), trades it for an installation token, and caches it until five minutes before expiry. Concurrent callers share one fetch. It reads GitHub&rsquo;s PKCS#1 App keys, and <code>BaseURL</code> points it at GitHub Enterprise.</li>
+<li><strong><code>outbound.UserTokens</code> / <code>StoredUserToken</code></strong> keep a person&rsquo;s token sealed in a <code>UserTokenStore</code>, and refresh it with a compare-and-swap write. GitHub&rsquo;s refresh tokens are single-use, so a replica that loses a refresh race waits for the winner&rsquo;s token instead of overwriting it with a dead one. The errors to act on are <code>ErrUserTokenNotFound</code> and <code>ErrReconnect</code>.</li>
+<li><strong><code>outbound.Static</code></strong> reads a personal access token from a <code>SecretRef</code> (<code>env:NAME</code> or <code>file:/abs/path</code>) on every call. A bare value is refused.</li>
+<li><strong><code>outbound.MemoryUserTokenStore</code></strong>, <strong><code>stores/fs.FSUserTokenStore</code></strong> and the <strong><code>usertokentest.RunAll</code></strong> contract suite. Both stores do compare-and-swap within one process only.</li>
+<li><strong><code>outbound/githubtest</code></strong> is a fake GitHub for tests. It checks App JWTs, issues installation tokens and single-use refresh tokens, and serves <code>/user</code> and <code>/installation/repositories</code> for live tokens.</li>
+<li>Design and threat notes: <code>docs/OUTBOUND_CREDENTIALS.md</code>, published under Design.</li>
+</ul>
+<h3 id="keys">Keys <a class="anchor" href="#keys">¶</a></h3>
+<ul>
+<li><strong><code>keys.Sealer</code></strong> is the AES-256-GCM <code>oaenc1:</code> format, moved out of <code>EncryptedKeyStorage</code> so other stores can use it. It takes an HKDF purpose label and per-record AAD. The key stores keep <code>KeyStorePurpose</code>, so existing records open unchanged.</li>
+</ul>
+<h3 id="github-and-google-providers-oauth2-sub-module">GitHub and Google providers (<code>oauth2</code> sub-module) <a class="anchor" href="#github-and-google-providers-oauth2-sub-module">¶</a></h3>
+<ul>
+<li><strong><code>SetScopes</code> / <code>Scopes</code></strong> replace the default login scopes.</li>
+<li><strong><code>AllowedExtraScopes</code></strong> lets a login link add scopes with <code>?scope=</code>, for example <code>repo</code> on a later connect.</li>
+<li><strong>Behaviour change:</strong> a <code>?scope=</code> value that isn&rsquo;t on the list now gets 400, where before it was ignored. This applies to both providers, since they share <code>BaseOAuth2</code>. It ships in <code>oauth2/v0.3.5</code>.</li>
+</ul>
+<h3 id="docs">Docs <a class="anchor" href="#docs">¶</a></h3>
+<ul>
+<li>Root <code>CLAUDE.md</code> is down from 30.9k to 5.2k characters. Subsystem gotchas now sit in a <code>CLAUDE.md</code> beside the code they cover.</li>
+</ul>
 <h2 id="version-025">Version 0.2.5 <a class="anchor" href="#version-025">¶</a></h2>
 <p>The OIDF FAPI 2.0 Security Profile plan now runs clean against the<br />
 reference server: 41 of 46 modules pass, the four that expect an error page<br />

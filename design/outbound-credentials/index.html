@@ -293,12 +293,27 @@
 <td>One process. A mutex covers check and rename, but two processes sharing the directory can both pass the check.</td>
 </tr>
 <tr>
-<td>GORM, GAE</td>
-<td>Not yet written. Replicas that refresh tokens need one of these.</td>
+<td><code>stores/gorm.UserTokenStore</code></td>
+<td>Every replica sharing the database. Each write is one statement: an insert with <code>ON CONFLICT DO NOTHING</code>, or an update <code>WHERE version = ?</code>. No row affected is a conflict.</td>
+</tr>
+<tr>
+<td><code>stores/gae.GAEUserTokenStore</code></td>
+<td>Every replica sharing the Datastore. Get, compare and Put run in one transaction, and a transaction that loses after Datastore&rsquo;s retries is a conflict too.</td>
 </tr>
 </tbody>
 </table>
-<p>The FS store names each file by a SHA-256 of provider and subject. Two keys never share a file, and no subject can steer the path.</p>
+<p>Replicas that refresh tokens need the GORM or GAE store. The FS and GAE stores name each record by a SHA-256 of provider and subject, so two keys never share a record and no subject can steer a path.</p>
+<h4 id="disconnecting">Disconnecting <a class="anchor" href="#disconnecting">¶</a></h4>
+<p><code>Delete</code> drops the stored token and leaves it working at GitHub. <code>Revoke</code> revokes it first, through <code>UserTokens.Revoker</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>tokens.Revoker = <span style="color:#000;font-weight:bold">&amp;</span>outbound.GitHubRevoker{ClientID: id, ClientSecret: secret}
+</span></span><span style="display:flex;"><span>err <span style="color:#000;font-weight:bold">:=</span> tokens.<span style="color:#900;font-weight:bold">Revoke</span>(ctx, userID)
+</span></span></code></pre><ul>
+<li><code>GitHubRevoker</code> calls <code>DELETE /applications/{client_id}/token</code>, which revokes the access token and its refresh token. With <code>RevokeGrant</code> it calls <code>/grant</code> instead. That also removes the person&rsquo;s authorization of the app and every token it gave them, so their next connect shows the consent screen again.</li>
+<li>Only GitHub&rsquo;s 204 counts as revoked. GitHub answers 404 for wrong client credentials too, so a 404 is an error. A refused revoke keeps the record, so the app can retry.</li>
+<li>A second <code>Revoke</code> finds no record and returns nil without calling GitHub.</li>
+<li>A record that won&rsquo;t open is kept and its error returned, since the token may still be live. <code>Delete</code> removes it anyway.</li>
+<li><code>Revoke</code> holds the per-subject lock, so a refresh in the same process can&rsquo;t write a token back after it.</li>
+</ul>
 <h3 id="static-secrets">Static secrets <a class="anchor" href="#static-secrets">¶</a></h3>
 <p><code>Static</code> wraps a personal access token or another fixed bearer secret. It reads the secret from a <code>SecretRef</code> on every call, so rotating a mounted file needs no restart.</p>
 <p>A <code>SecretRef</code> names where a secret lives and never holds it:</p>
@@ -326,10 +341,11 @@
 <p><code>outbound/githubtest</code> starts an <code>httptest.Server</code> that behaves like the parts of GitHub these sources touch:</p>
 <ul>
 <li><code>POST /app/installations/{id}/access_tokens</code> checks the JWT as GitHub does (RS256 only, the App&rsquo;s key, <code>iss</code>, at most ten minutes of life, not expired) and issues an installation token.</li>
+<li><code>DELETE /applications/{client_id}/token</code> and <code>/grant</code> revoke a token or a person&rsquo;s whole grant, with the app&rsquo;s client credentials as basic auth.</li>
 <li><code>POST /login/oauth/access_token</code> serves the refresh grant. Refresh tokens are single-use, and errors come back as 200 with an <code>error</code> field, as on GitHub.</li>
 <li><code>GET /installation/repositories</code> and <code>GET /user</code> answer 200 only for a live token of the matching kind, so a test can check a token works.</li>
 </ul>
-<p><code>InstallationCalls()</code>, <code>RefreshCalls()</code> and <code>LastJWTClaims()</code> let a test assert cache hits and claim values. Consumers&rsquo; tests use it the same way, as they use <code>keystoretest</code>.</p>
+<p><code>InstallationCalls()</code>, <code>RefreshCalls()</code>, <code>RevokeCalls()</code> and <code>LastJWTClaims()</code> let a test assert cache hits and claim values. Consumers&rsquo; tests use it the same way, as they use <code>keystoretest</code>.</p>
 <h2 id="where-a-secret-can-and-cannot-end-up">Where a secret can and cannot end up <a class="anchor" href="#where-a-secret-can-and-cannot-end-up">¶</a></h2>
 <table>
 <thead>
@@ -370,7 +386,8 @@
 <p>Some limits:</p>
 <ul>
 <li>A process with the master key and store access can open every user token. The master key belongs in a secret manager or a mounted file, apart from the store.</li>
-<li><code>Delete</code> removes a stored token but doesn&rsquo;t revoke it at GitHub. A disconnect flow that must cut access at once also calls GitHub&rsquo;s token revocation endpoint.</li>
+<li><code>Delete</code> removes a stored token but doesn&rsquo;t revoke it at GitHub. A disconnect that must cut access at once calls <code>Revoke</code>.</li>
+<li>The per-subject lock covers one process. A replica that refreshes while another revokes can&rsquo;t write its token back, since an update to a deleted record is a conflict, and it answers <code>ErrUserTokenNotFound</code>. The token it got from GitHub is never stored or handed out. After a <code>/token</code> revoke that token is still live at GitHub until it expires, though. A <code>/grant</code> revoke kills it too, so use <code>RevokeGrant</code> when that matters.</li>
 <li><code>oauth2.Token</code> values are in memory unencrypted while in use, like any credential an HTTP client sends.</li>
 </ul>
 <h2 id="not-here">Not here <a class="anchor" href="#not-here">¶</a></h2>
