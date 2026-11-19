@@ -5,6 +5,7 @@ package fs
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -209,6 +210,9 @@ func TestFSCredentialStore_SaveAndReload(t *testing.T) {
 
 // TestFSCredentialStore_FilePermissions verifies that the credentials file is written with 0600 permissions (owner-only read/write).
 func TestFSCredentialStore_FilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no Unix mode bits; access there is by ACL")
+	}
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "credentials.json")
 
