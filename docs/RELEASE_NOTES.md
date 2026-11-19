@@ -5,6 +5,31 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.7
+
+This is the first release cut with `make release`. Every module is tagged v0.3.7 on one commit and requires every other oneauth module at v0.3.7, and the commands are `go install`-able. The release also adds FS and GAE stores for authorization codes and pushed requests, and hashes every single-use credential at rest.
+
+### Release process (PR 472)
+
+- `make release V=vX.Y.Z` writes one commit that sets every `github.com/panyam/oneauth*` require to the new version, then tags the root and all ten sub-modules on it. `make pushrelease` and `make verify-install` follow. `bump-root` is gone.
+- Published `go.mod` files no longer carry `replace` directives, so `go install github.com/panyam/oneauth/cmd/oneauth-server@v0.3.7` works. Local development uses `go.work`.
+- `cmd/oneauth-server` and `cmd/demo-resource-server` had required `stores/gorm` and `stores/gae` at v0.1.33. They now track the release.
+
+### FS and GAE stores for the code flow and PAR (issue 382, PR 472)
+
+- `stores/fs.FSAuthorizationCodeStore`, `stores/fs.FSPushedAuthorizationRequestStore`, `stores/gae.GAEAuthorizationCodeStore` and `stores/gae.GAEPushedAuthorizationRequestStore`. A deployment on FS or Datastore no longer needs SQL for the code flow.
+- The reference server accepts `code_flow.store.type: fs` and `gae`, and PAR uses the same backend.
+
+### Single-use credentials hashed at rest (PRs 472, 474)
+
+- Authorization codes, pushed `request_uri`s and RFC 8628 device codes are stored under `core.AtRestKey`, a SHA-256 digest, in the FS, GORM and GAE stores. A copy of a store can't redeem a code or poll for a device's tokens. Records written by earlier versions keep working.
+- **Contract change:** device lookups by user code (`GetByUserCode`, and `ApproveDeviceAuthorization`'s response) return `DeviceCode` empty, since no store can recover it.
+
+### Fixes
+
+- **GORM device approval can't override a denial** (PR 474). Approve read the row and then saved it, so a racing denial could be overwritten and both callers told they succeeded. That happened in half of 300 races on Postgres. It's now an update conditional on the status still being pending.
+- The shared store race tests (`authcodetest`, `partest`, `deviceauthtest`, `usertokentest`) now make their calls overlap. They release the goroutines together after a warm-up read. Without that, they passed while the GORM bug was there.
+
 ## Version 0.3.6
 
 This release gives `outbound` user tokens stores that replicas can share, and a way to revoke a token when a person disconnects. It also adds a live smoke test against real GitHub, which corrected our fake GitHub in three places. The sub-modules now require root v0.3.5, so `stores/gorm` and `stores/gae` can use `outbound`.

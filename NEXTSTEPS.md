@@ -6,8 +6,8 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 ## At a glance
 
 - No open threads. No active mission. #98 (OIDF FAPI 2.0) closed 2026-10-18 after its last run @ 022cabb (41 of 46 passed, 4 REVIEW, 1 RS256 skip pending #330); `make testoidf` guards it. JARM (#409) is parked, next ready #410.
-- Outbound credentials (#467) shipped in v0.3.5 and v0.3.6 (PRs #469, #470, #471). goapplib#153 has the comment naming the types. #468 closed; S3/GCS sources and a `make testgh` CI job are noted under "Later" in `docs/OUTBOUND_CREDENTIALS.md`.
-- This run: dropped feat/467-outbound-credentials (PR #469 merged).
+- v0.3.7 is the first release cut with `make release` (one commit, every module on one tag, commands `go install`-able). If `make verify-install` ever fails, the release flow in `scripts/release.sh` is the place to look.
+- This run: nothing to prune; #382 (PR #472) and #473 (PR #474) merged and closed.
 
 ## Across threads
 
