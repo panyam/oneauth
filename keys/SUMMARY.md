@@ -5,6 +5,7 @@ JWT signing key management: storage interfaces, in-memory and encrypted backends
 ## Contents
 - **keystore.go** — `KeyRecord`, `KeyLookup`, `KeyStorage` interfaces, `InMemoryKeyStore`, error vars
 - **encrypted.go** — `EncryptedKeyStorage` decorator (AES-256-GCM at rest for HMAC secrets and private PEM blocks; public PEMs pass through plaintext for JWKS exposure). Records are `oaenc1:` + nonce + ciphertext with AAD binding client, alg and kid; anything that won't open is `ErrKeyDecrypt`. Plaintext secrets need `AllowLegacyPlaintext`, and `MigrateLegacy` rewrites old records (issue 88).
+- **sealer.go** — `Sealer`: the AES-256-GCM `oaenc1:` format with an HKDF purpose label and per-record AAD, shared by both encrypted stores and `outbound.UserTokens`. `KeyStorePurpose` is the label existing key-store records use; `ErrSealedOpen` covers every failure to open.
 - **encrypted_kid.go** — `EncryptedKidStorage`, the same encryption for `KidStorage`, so keys retired by a rotation stay encrypted during their grace period.
 - **kid.go** — `KidStorage` interface, `KidStore` (in-memory grace-period key retention), `CompositeKeyLookup`. Persistent `KidStorage` backends live in `stores/{fs,gorm,gae}`.
 - **jwks_handler.go** — `JWKSHandler` (serves `/.well-known/jwks.json`)

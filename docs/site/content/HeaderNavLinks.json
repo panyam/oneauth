@@ -51,6 +51,7 @@
       { "name": "Auth flows",     "url": "design/auth-flows/" },
       { "name": "Federated auth", "url": "design/federated-auth/" },
       { "name": "JWT signing",    "url": "design/jwt-signing/" },
+      { "name": "Outbound credentials", "url": "design/outbound-credentials/" },
       { "name": "Package summary", "url": "design/summary/" }
     ]
   },

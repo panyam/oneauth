@@ -3,19 +3,11 @@ package keys
 import (
 	"bytes"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"strings"
-
-	"golang.org/x/crypto/hkdf"
 )
 
 // EncryptedKeyStorage is a KeyStorage decorator that transparently encrypts
@@ -38,8 +30,8 @@ import (
 // The kid is computed from plaintext key material in PutKey before encryption,
 // so kid-based lookups work correctly even though the stored bytes are encrypted.
 type EncryptedKeyStorage struct {
-	inner KeyStorage
-	aead  cipher.AEAD
+	inner  KeyStorage
+	sealer *Sealer
 
 	// AllowLegacyPlaintext accepts encrypt-eligible records (HMAC secrets,
 	// private PEMs) that are stored in plaintext, as they were before
@@ -100,33 +92,11 @@ func (e *EncryptedKeyStorage) MigrateLegacy(ctx context.Context) (int, error) {
 // NewEncryptedKeyStorage creates an EncryptedKeyStorage wrapping inner.
 // masterKeyHex must be exactly 64 hex characters (32 bytes).
 func NewEncryptedKeyStorage(inner KeyStorage, masterKeyHex string) (*EncryptedKeyStorage, error) {
-	masterKeyHex = strings.TrimSpace(masterKeyHex)
-	if len(masterKeyHex) != 64 {
-		return nil, fmt.Errorf("master key must be 64 hex characters (32 bytes), got %d", len(masterKeyHex))
-	}
-
-	masterKey, err := hex.DecodeString(masterKeyHex)
+	sealer, err := NewSealer(masterKeyHex, KeyStorePurpose)
 	if err != nil {
-		return nil, fmt.Errorf("master key is not valid hex: %w", err)
+		return nil, err
 	}
-
-	hkdfReader := hkdf.New(sha256.New, masterKey, nil, []byte("oneauth-keystore-encryption-v1"))
-	derivedKey := make([]byte, 32)
-	if _, err := io.ReadFull(hkdfReader, derivedKey); err != nil {
-		return nil, fmt.Errorf("HKDF key derivation failed: %w", err)
-	}
-
-	block, err := aes.NewCipher(derivedKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
-	}
-
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %w", err)
-	}
-
-	return &EncryptedKeyStorage{inner: inner, aead: aead}, nil
+	return &EncryptedKeyStorage{inner: inner, sealer: sealer}, nil
 }
 
 // PutKey computes kid from plaintext, then encrypts HMAC secrets and PEM
@@ -285,24 +255,13 @@ func isPrivatePEM(b []byte) bool {
 // encrypt produces encV1Prefix, a random 12-byte nonce, then the
 // AES-256-GCM ciphertext of plaintext under aad.
 func (e *EncryptedKeyStorage) encrypt(plaintext, aad []byte) ([]byte, error) {
-	nonce := make([]byte, e.aead.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, fmt.Errorf("failed to generate nonce: %w", err)
-	}
-	out := append([]byte(nil), encV1Prefix...)
-	out = append(out, nonce...)
-	return e.aead.Seal(out, nonce, plaintext, aad), nil
+	return e.sealer.Seal(plaintext, aad)
 }
 
 // decrypt splits off the nonce and opens the AES-256-GCM ciphertext under
 // aad. The caller strips any format prefix first.
 func (e *EncryptedKeyStorage) decrypt(ciphertext, aad []byte) ([]byte, error) {
-	nonceSize := e.aead.NonceSize()
-	if len(ciphertext) < nonceSize {
-		return nil, fmt.Errorf("ciphertext too short: %d bytes, need at least %d", len(ciphertext), nonceSize)
-	}
-	nonce, ct := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	return e.aead.Open(nil, nonce, ct, aad)
+	return e.sealer.openRaw(ciphertext, aad)
 }
 
 // isHMACAlgorithm reports whether alg is an HMAC-based JWT signing algorithm.

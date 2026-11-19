@@ -2,9 +2,11 @@ package oauth2
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -28,6 +30,64 @@ type BaseOAuth2 struct {
 	// requires it for all clients. Set to true only for providers that
 	// don't support PKCE — a warning will be logged on startup.
 	DisablePKCE bool
+
+	// AllowedExtraScopes lists scopes a login link may add with ?scope=,
+	// on top of Scopes(). It is how an app asks for more on a later connect
+	// (for example GitHub's "repo" once a person connects a private repo).
+	// A requested scope outside this list answers 400, so a crafted link
+	// can't widen the grant. Empty means ?scope= is refused outright.
+	AllowedExtraScopes []string
+}
+
+// Scopes returns the scopes every login asks for.
+func (b *BaseOAuth2) Scopes() []string {
+	return append([]string(nil), b.oauthConfig.Scopes...)
+}
+
+// SetScopes replaces the scopes every login asks for. Call it before
+// serving; it isn't synchronized with requests in flight.
+func (b *BaseOAuth2) SetScopes(scopes ...string) {
+	b.oauthConfig.Scopes = append([]string(nil), scopes...)
+}
+
+// extraScopeOption reads ?scope= (space-separated) and returns an option
+// setting the scope parameter to Scopes() plus the requested ones, or nil
+// when none were requested. A scope not in AllowedExtraScopes is an error.
+func (b *BaseOAuth2) extraScopeOption(r *http.Request) (oauth2.AuthCodeOption, error) {
+	requested := strings.Fields(r.URL.Query().Get("scope"))
+	if len(requested) == 0 {
+		return nil, nil
+	}
+	scopes := b.Scopes()
+	for _, sc := range requested {
+		if slices.Contains(scopes, sc) {
+			continue
+		}
+		if !slices.Contains(b.AllowedExtraScopes, sc) {
+			return nil, fmt.Errorf("scope %q is not allowed", sc)
+		}
+		scopes = append(scopes, sc)
+	}
+	return oauth2.SetAuthURLParam("scope", strings.Join(scopes, " ")), nil
+}
+
+// redirect is the login handler. DisablePKCE is read per request, so it
+// can be set after construction.
+func (b *BaseOAuth2) redirect(w http.ResponseWriter, r *http.Request) {
+	opt, err := b.extraScopeOption(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	var opts []oauth2.AuthCodeOption
+	if opt != nil {
+		opts = append(opts, opt)
+	}
+	if b.DisablePKCE {
+		oauthRedirectNoPKCE(&b.oauthConfig, w, r, opts...)
+	} else {
+		oauthRedirectWithPKCE(&b.oauthConfig, w, r, opts...)
+	}
 }
 
 // SetHTTPClient sets the HTTP client used for OAuth requests.
@@ -95,10 +155,8 @@ func (b *BaseOAuth2) setupHandlers() {
 		log.Printf("WARNING: PKCE disabled for OAuth2 provider (client_id=%s). "+
 			"This is insecure for public clients (SPAs, mobile apps). "+
 			"See: https://datatracker.ietf.org/doc/html/rfc7636", b.ClientId)
-		b.mux.HandleFunc("/", OauthRedirectorNoPKCE(&b.oauthConfig))
-	} else {
-		b.mux.HandleFunc("/", OauthRedirectorWithPKCE(&b.oauthConfig))
 	}
+	b.mux.HandleFunc("/", b.redirect)
 
 	// An "easier" way to login by X if we already have the access tokens
 	// If the access tokens have expired then the user would have to re login

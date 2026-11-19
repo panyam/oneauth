@@ -45,6 +45,8 @@ oneauth/
 │   ├── fs/               # File-based stores (dev)
 │   ├── gorm/             # GORM SQL stores
 │   └── gae/              # Google Datastore stores
+├── outbound/             # Credentials for calling third-party APIs (GitHub App tokens, stored user tokens, static secrets)
+│   └── githubtest/       # Fake GitHub for tests
 ├── client/               # Client SDK for token management
 │   └── stores/fs/        # File-based credential store
 ├── cmd/oneauth-server/   # Reference server (config-driven, GAE/Docker/K8s)
@@ -55,6 +57,7 @@ oneauth/
 ├── deviceauthtest/       # Shared DeviceAuthorizationStore contract suite (RFC 8628)
 ├── keystoretest/         # Shared KeyStore test suite
 ├── kidstoretest/         # Shared KidStore contract suite
+├── usertokentest/        # Shared outbound.UserTokenStore contract suite
 ├── tests/integration/    # Integration tests (GAE + demo stack)
 ├── grpc/                 # gRPC utilities
 ├── oauth2/               # OAuth2 providers
