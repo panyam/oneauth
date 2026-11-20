@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -264,6 +265,89 @@ func validateDisplayURIs(md *DCRRequest) error {
 	return nil
 }
 
+// subjectSector settles md's subject type and the sector a pairwise sub is
+// derived from (OIDC Core §8.1, issue 507). A sector_identifier_uri must be
+// https, and its document, fetched with fetch, must list every redirect
+// URI; the sector is then its host. Without one, a pairwise client's
+// redirect URIs must share one host, which is the sector. The URI is
+// checked whenever it is sent, for a public client too (Registration §5).
+// Every refusal is ErrInvalidClientMetadata.
+func subjectSector(ctx context.Context, md *DCRRequest, pairwiseOn bool, fetch func(context.Context, string) ([]string, error)) (subjectType, sector string, err error) {
+	switch md.SubjectType {
+	case "", "public":
+		subjectType = "public"
+	case "pairwise":
+		if !pairwiseOn {
+			return "", "", fmt.Errorf("%w: subject_type pairwise is not supported", ErrInvalidClientMetadata)
+		}
+		subjectType = "pairwise"
+	default:
+		return "", "", fmt.Errorf("%w: subject_type %q is not supported", ErrInvalidClientMetadata, md.SubjectType)
+	}
+	if md.SectorIdentifierURI != "" {
+		if err := validateHTTPSMetadataURI("sector_identifier_uri", md.SectorIdentifierURI, true); err != nil {
+			return "", "", err
+		}
+		if fetch == nil {
+			return "", "", fmt.Errorf("%w: sector_identifier_uri is not supported", ErrInvalidClientMetadata)
+		}
+		listed, err := fetch(ctx, md.SectorIdentifierURI)
+		if err != nil {
+			return "", "", fmt.Errorf("%w: sector_identifier_uri: %v", ErrInvalidClientMetadata, err)
+		}
+		for _, r := range md.RedirectURIs {
+			if !slices.Contains(listed, r) {
+				return "", "", fmt.Errorf("%w: redirect_uri %s is not in the sector_identifier_uri document", ErrInvalidClientMetadata, r)
+			}
+		}
+		u, _ := url.Parse(md.SectorIdentifierURI)
+		return subjectType, u.Hostname(), nil
+	}
+	if subjectType != "pairwise" {
+		return subjectType, "", nil
+	}
+	if sector = redirectHost(md.RedirectURIs); sector == "" {
+		return "", "", fmt.Errorf("%w: a pairwise client whose redirect URIs span hosts needs a sector_identifier_uri", ErrInvalidClientMetadata)
+	}
+	return subjectType, sector, nil
+}
+
+// keepsSubjectSector refuses an update that would change the client's
+// subject type or sector, or, for a pairwise client registered without a
+// sector_identifier_uri, move a redirect URI off the sector's host. Each
+// would give the client's users new subs. Omitted fields keep their
+// registered values.
+func keepsSubjectSector(md *DCRRequest, reg *core.AppRegistration) error {
+	registered := reg.SubjectType
+	if registered == "" {
+		registered = "public"
+	}
+	if md.SubjectType != "" && md.SubjectType != registered {
+		return fmt.Errorf("%w: subject_type can't change after registration", ErrInvalidClientMetadata)
+	}
+	if md.SectorIdentifierURI != "" && md.SectorIdentifierURI != reg.SectorIdentifierURI {
+		return fmt.Errorf("%w: sector_identifier_uri can't change after registration", ErrInvalidClientMetadata)
+	}
+	if registered == "pairwise" && reg.SectorIdentifierURI == "" && redirectHost(md.RedirectURIs) != reg.SectorIdentifier {
+		return fmt.Errorf("%w: a pairwise client's redirect URIs must stay on %s", ErrInvalidClientMetadata, reg.SectorIdentifier)
+	}
+	return nil
+}
+
+// redirectHost is the host every URI in uris shares, or "" when they
+// don't share one or there are none.
+func redirectHost(uris []string) string {
+	host := ""
+	for _, raw := range uris {
+		u, err := url.Parse(raw)
+		if err != nil || u.Hostname() == "" || (host != "" && u.Hostname() != host) {
+			return ""
+		}
+		host = u.Hostname()
+	}
+	return host
+}
+
 // isPrivateOrSpecialIP reports whether ip is in any address range that an
 // authenticated client should not be able to make the AS POST to. The
 // dispatcher's dialer applies the same predicate at connect time.
@@ -337,6 +421,18 @@ type AppRegistrar struct {
 	// (apiauth.ClientJWKSFetcher) has its own AllowPrivateHosts guard,
 	// which must also be on.
 	AllowPrivateJWKSHosts bool
+
+	// PairwiseSubjects accepts subject_type pairwise (OIDC Core §8.1).
+	// Turn it on only with apiauth.OIDCConfig.PairwiseSalt set, which
+	// derives the subs. Off, a pairwise registration is refused.
+	PairwiseSubjects bool
+
+	// FetchSectorIdentifier fetches a sector_identifier_uri's JSON array
+	// of redirect URIs (OIDC Registration §5). It does the dialing, so it
+	// owns the SSRF policy; apiauth.ClientJWKSFetcher.SectorRedirectURIs is
+	// the usual one. Nil refuses any registration with a
+	// sector_identifier_uri.
+	FetchSectorIdentifier func(ctx context.Context, uri string) ([]string, error)
 
 	mu   sync.RWMutex
 	apps map[string]*core.AppRegistration
@@ -413,6 +509,10 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	if err := validateDisplayURIs(md); err != nil {
 		return nil, err
 	}
+	subjectType, sector, err := subjectSector(ctx, md, h.PairwiseSubjects, h.FetchSectorIdentifier)
+	if err != nil {
+		return nil, err
+	}
 
 	// Determine signing algorithm from the requested auth method. Default
 	// HS256 (symmetric) when the client doesn't ask for private_key_jwt.
@@ -470,6 +570,8 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		LogoURI:                            md.LogoURI,
 		PolicyURI:                          md.PolicyURI,
 		TOSURI:                             md.TOSURI,
+		SubjectType:                        subjectType,
+		SectorIdentifierURI:                md.SectorIdentifierURI,
 	}
 
 	if md.JWKSURI != "" {
@@ -532,6 +634,9 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		LogoURI:                            md.LogoURI,
 		PolicyURI:                          md.PolicyURI,
 		TOSURI:                             md.TOSURI,
+		SubjectType:                        subjectType,
+		SectorIdentifierURI:                md.SectorIdentifierURI,
+		SectorIdentifier:                   sector,
 	}
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, fmt.Errorf("persist registration: %w", err)
@@ -769,6 +874,8 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 			LogoURI:                            reg.LogoURI,
 			PolicyURI:                          reg.PolicyURI,
 			TOSURI:                             reg.TOSURI,
+			SubjectType:                        reg.SubjectType,
+			SectorIdentifierURI:                reg.SectorIdentifierURI,
 		},
 	}, nil
 }
@@ -840,6 +947,16 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if err := validateHTTPSMetadataURI("jwks_uri", md.JWKSURI, h.AllowPrivateJWKSHosts); err != nil {
 		return nil, err
 	}
+	if err := keepsSubjectSector(md, reg); err != nil {
+		return nil, err
+	}
+	if reg.SectorIdentifierURI != "" {
+		check := *md
+		check.SubjectType, check.SectorIdentifierURI = reg.SubjectType, reg.SectorIdentifierURI
+		if _, _, err := subjectSector(ctx, &check, true, h.FetchSectorIdentifier); err != nil {
+			return nil, err
+		}
+	}
 
 	newToken, err := generateRegistrationAccessToken()
 	if err != nil {
@@ -898,6 +1015,8 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 			LogoURI:                            reg.LogoURI,
 			PolicyURI:                          reg.PolicyURI,
 			TOSURI:                             reg.TOSURI,
+			SubjectType:                        reg.SubjectType,
+			SectorIdentifierURI:                reg.SectorIdentifierURI,
 		},
 	}, nil
 }
