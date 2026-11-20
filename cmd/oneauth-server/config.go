@@ -231,8 +231,15 @@ type KeyRotationConfig struct {
 }
 
 type JWTConfig struct {
-	SecretKey                 string   `yaml:"secret_key"`                  // Secret key for signing JWTs (HS256 mode only)
-	Issuer                    string   `yaml:"issuer"`                      // JWT issuer claim
+	SecretKey string `yaml:"secret_key"` // Secret key for signing JWTs (HS256 mode only)
+	Issuer    string `yaml:"issuer"`     // JWT issuer claim
+
+	// Audience is the `aud` of every access token this server issues, and
+	// the audience its own token validation requires. Set it to the one
+	// resource server the tokens are for, such as an MCP server's URL,
+	// which refuses a token whose aud isn't its own (RFC 7519 §4.1.3, MCP
+	// authorization spec). Empty leaves aud out (issue 495).
+	Audience                  string   `yaml:"audience"`
 	AuthorizationDetailsTypes []string `yaml:"authorization_details_types"` // RFC 9396 supported types (advertised in AS metadata)
 
 	// ScopesSupported populates the `scopes_supported` field in AS
