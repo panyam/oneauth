@@ -8,4 +8,5 @@
 - **`fapi2: true`** needs `dpop.enabled`, `jwt.signing_alg: ES256` and, with `code_flow` on, PAR; the server refuses to start otherwise. `deploy-examples/fapi-dpop.yaml` runs the whole profile.
 - **TLS is BCP 195** (`serverTLSConfig` in `tls.go`): TLS 1.2 minimum, and on 1.2 only the four ECDHE + AES-GCM suites. A test client pinned to CBC or ChaCha20 on 1.2 fails the handshake.
 - **`make server-css` after changing template classes.** The prebuilt Tailwind stylesheet (`static/app.css`) is served under a `'self'`-only CSP, so a class unused at the last build has no style.
+- **Security headers must let a real browser finish a flow.** No CSP `form-action` (it applies to the redirect back to the client), and `/authorize` and `/auth/` pages send COOP `unsafe-none` so popup logins keep their opener (`withSecurityHeaders` in `hardening.go`). The OIDF harness's browser ignores both, so only a real-Chrome run (OAuch, `docs/conformance/oauch.md`) catches a regression (issue 497).
 - **Client-assertion audiences** come from `public_url` via `OneAuthConfig.AcceptedAudiences`, since behind a TLS proxy `r.TLS` / `r.Host` are wrong.

@@ -5,11 +5,11 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- Active mission: #489, every applicable external conformance suite run from `make conformance`. 5/10 tickets closed. Next ready #495 (MCP conformance framework against oneauth-server), then #497 (OAuch) and #498 (`make testoidf` in CI). The exercise (`make conformance`) last ran for PR #504 at `9dafd3b`. PRs #503, #506, #509 and #512 merged since, none on the mission. JARM (#409) is parked, next ready #410.
-- No open threads. Last release v0.3.10 (the `oauth2` fixes for agni, PR #512).
-- This run: dropped the v0.3.8 release-notes reminder (shipped); no threads to merge.
+- Active mission: #489, every applicable external conformance suite run from `make conformance`. 9/13 tickets closed. Next ready #519 (OAuch's gaps: repeated parameters, client credentials in the URI, a redirect fragment), then #521 (MCP auth follow-ups) and #243. #496 waits on the upstream MCP AS suite. The OIDF plans now also run nightly in CI (`oidf-conformance.yml`); the run dispatched on main after PR #520 is 44665445346. The last full `make conformance` was for PR #515 at `0ddf191`, and PRs #517, #518, #520 and #522 merged since. JARM (#409) is parked, next ready #410.
+- No open threads. Release v0.3.11 is cut after this checkpoint (PRs #509 to #522).
+- This run: dropped the issue 88 follow-ups line (#421 and #451 closed); no branch threads to merge.
 
 ## Across threads
 
-- The issue 88 audit is closed; `docs/SECURITY_AUDIT.md` opens with its summary. Open follow-ups: #421 (retired keys in JWKS, waiting) and #451 (subject-wide revocation should blacklist access tokens too, P3, waiting).
 - Token-slice candidates not filed: real logout tokens / ID-JAGs at the middleware (e2e), GORM rotation under real Postgres concurrency, a test on the server's own `/api/revoke`, the SDK on 403.
+- OAuch runs by hand (`docs/conformance/oauch.md`). Rerun it after a change to security headers or the authorization pages, and update the `oauch` entry in `conformance/suites.yaml`.

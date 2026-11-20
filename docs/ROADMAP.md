@@ -210,6 +210,21 @@ Next, from the mission's "not in this mission" list: the OIDF Config, Dynamic, F
 
 ---
 
+## OIDC Dynamic OP features (issue 507) ✅ COMPLETE
+
+The OIDF Dynamic OP plan (mission #489) found what a Dynamic OP needs that oneauth lacked. Four PRs closed it, and the plan went from 5 passed and 6 failed to 11 passed and 3 failed. Both implicit response types now run as plans of their own.
+
+| # | Delivery | Status |
+|---|---|---|
+| 509 | `jwks_uri` for `private_key_jwt` clients (SSRF-guarded, refetch on an unknown `kid`), and the client's logo, policy and terms on the consent page | Merged |
+| 513 | Pairwise subject identifiers: `subject_type`, `sector_identifier_uri`, and a pairwise `sub` in ID tokens, userinfo and logout tokens | Merged |
+| 514 | Rotating the AS signing key at runtime (`RotatingSigningKey`, `POST /admin/signing-key/rotate`), and retired keys in the JWKS for their grace period (issue 421) | Merged |
+| 515 | The OIDC implicit flow, opt-in on both the server and the client, off by default | Merged |
+
+PR #520 then put every OIDF plan in nightly CI and ran OAuch once by hand (`docs/conformance/oauch.md`). That run found two headers that stopped real browsers finishing an authorization (CSP `form-action`, and COOP on the authorization pages). Its three remaining gaps are #519. Still open: JAR (issue 338) and mTLS (issue 335).
+
+---
+
 ## Execution Order
 
 ```mermaid

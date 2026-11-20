@@ -19,3 +19,4 @@
 - [feedback_live_test_corrects_fakes.md](feedback_live_test_corrects_fakes.md) — A fake written from docs shares our misreadings; one live run against the real service corrects it. Lesson from `make testgh` (PR #471, three fake fixes).
 - [feedback_race_tests_must_overlap.md](feedback_race_tests_must_overlap.md) — A race test passes while broken unless the calls overlap; warm the pool, release behind a barrier, and red-check on the real backend. Lesson from the GORM approve race (PR #474, green for 300 runs while broken).
 - [feedback_mutation_restore_from_copy.md](feedback_mutation_restore_from_copy.md) — Restore a mutated file from a saved copy, never `git checkout`, since it holds the PR's uncommitted change. Lesson from PR #487.
+- [Harness browser is not a browser](feedback_harness_browser_is_not_a_browser.md) — OIDF harness ignores CSP/COOP; check browser flows in real Chrome
