@@ -2279,6 +2279,302 @@
       }
     },
     {
+      "name": "mcp-auth-gosdk",
+      "kind": "gating",
+      "covers": "MCP server-auth scenarios (RFC 9728, RFC 8414, RFC 6750, RFC 7519 claims, scope step-up) through the official Go SDK, with oneauth's middleware as the resource server and oneauth-server as the AS",
+      "source": "tests/mcpauth (cmd/gosdk-fixture)",
+      "tracking": "issue 495",
+      "result": "PASS",
+      "detail": "23 modules: map[SKIPPED:4 SUCCESS:19], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 02:59 UTC",
+      "commit": "f3c2c08",
+      "plan": {
+        "plan": "mcp-auth-gosdk",
+        "counts": {
+          "SKIPPED": 4,
+          "SUCCESS": 19
+        },
+        "against": 0,
+        "modules": [
+          {
+            "module": "auth-enterprise-managed-jwt-bearer-grant-supported",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 521,
+            "note": "AS metadata does not advertise `urn:ietf:params:oauth:grant-type:jwt-bearer` in grant_types_supported — feature not yet supported by this fixture. Tracked by mcpkit issue 381. Will flip to SUCCESS when the AS adds the grant. Currently advertised: [\"password\",\"refresh_token\",\"client_credentials\",\"authorization_code\"]"
+          },
+          {
+            "module": "auth-enterprise-managed-token-exchange-flow-shape",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 521,
+            "note": "AUTH_SUBJECT_ASSERTION_TOKEN and/or AUTH_AS_TOKEN_ENDPOINT unset; cannot drive the token-exchange flow. Set both to enable this check (the test runner is responsible for obtaining a signed assertion from a trusted upstream IdP that the AS accepts, and for resolving the AS token endpoint URL — typically from the AS metadata `token_endpoint` field)."
+          },
+          {
+            "module": "auth-enterprise-managed-token-exchange-grant-supported",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 521,
+            "note": "AS metadata does not advertise `urn:ietf:params:oauth:grant-type:token-exchange` in grant_types_supported — feature not yet supported by this fixture. Tracked by mcpkit issue 381. Will flip to SUCCESS when the AS adds the grant. Currently advertised: [\"password\",\"refresh_token\",\"client_credentials\",\"authorization_code\"]"
+          },
+          {
+            "module": "auth-iss-param-as-metadata-advertises-support",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-iss-param-redirect-carries-iss",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 521,
+            "note": "Driving an auth code flow to verify `iss` in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCESS / FAILURE when the driver lands. Tracked alongside mcpkit issue 380."
+          },
+          {
+            "module": "auth-jwt-claims-expired-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-claims-wrong-audience-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-claims-wrong-issuer-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-malformed-token-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-no-token-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-tampered-token-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-valid-token-accepted",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-www-authenticate-shape",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-as-metadata",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-as-metadata-content-type",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-prm-content-type",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-prm-path-based",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-prm-root",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-insufficient-scope-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-scope-varies-by-tool",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-sufficient-scope-accepted",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-www-authenticate-advertises-scope",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-www-authenticate-error",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "name": "mcp-auth-mcpkit",
+      "kind": "gating",
+      "covers": "The same MCP server-auth scenarios through mcpkit and its ext/auth layer, with oneauth-server as the AS. A check failing only here points at mcpkit.",
+      "source": "tests/mcpauth (cmd/mcpkit-fixture)",
+      "tracking": "issue 495",
+      "result": "PASS",
+      "detail": "23 modules: map[SKIPPED:4 SUCCESS:19], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 02:59 UTC",
+      "commit": "f3c2c08",
+      "plan": {
+        "plan": "mcp-auth-mcpkit",
+        "counts": {
+          "SKIPPED": 4,
+          "SUCCESS": 19
+        },
+        "against": 0,
+        "modules": [
+          {
+            "module": "auth-enterprise-managed-jwt-bearer-grant-supported",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 521,
+            "note": "AS metadata does not advertise `urn:ietf:params:oauth:grant-type:jwt-bearer` in grant_types_supported — feature not yet supported by this fixture. Tracked by mcpkit issue 381. Will flip to SUCCESS when the AS adds the grant. Currently advertised: [\"password\",\"refresh_token\",\"client_credentials\",\"authorization_code\"]"
+          },
+          {
+            "module": "auth-enterprise-managed-token-exchange-flow-shape",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 521,
+            "note": "AUTH_SUBJECT_ASSERTION_TOKEN and/or AUTH_AS_TOKEN_ENDPOINT unset; cannot drive the token-exchange flow. Set both to enable this check (the test runner is responsible for obtaining a signed assertion from a trusted upstream IdP that the AS accepts, and for resolving the AS token endpoint URL — typically from the AS metadata `token_endpoint` field)."
+          },
+          {
+            "module": "auth-enterprise-managed-token-exchange-grant-supported",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 521,
+            "note": "AS metadata does not advertise `urn:ietf:params:oauth:grant-type:token-exchange` in grant_types_supported — feature not yet supported by this fixture. Tracked by mcpkit issue 381. Will flip to SUCCESS when the AS adds the grant. Currently advertised: [\"password\",\"refresh_token\",\"client_credentials\",\"authorization_code\"]"
+          },
+          {
+            "module": "auth-iss-param-as-metadata-advertises-support",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-iss-param-redirect-carries-iss",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 521,
+            "note": "Driving an auth code flow to verify `iss` in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCESS / FAILURE when the driver lands. Tracked alongside mcpkit issue 380."
+          },
+          {
+            "module": "auth-jwt-claims-expired-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-claims-wrong-audience-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-claims-wrong-issuer-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-malformed-token-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-no-token-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-tampered-token-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-valid-token-accepted",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-jwt-validation-www-authenticate-shape",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-as-metadata",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-as-metadata-content-type",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-prm-content-type",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-prm-path-based",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-oauth-discovery-prm-root",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-insufficient-scope-rejected",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-scope-varies-by-tool",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-sufficient-scope-accepted",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-www-authenticate-advertises-scope",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "auth-scope-step-up-www-authenticate-error",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          }
+        ]
+      }
+    },
+    {
       "name": "keycloak",
       "kind": "gating",
       "covers": "Interop with a live Keycloak, as resource server and as client (tokens, DPoP, RAR, ID tokens)",
