@@ -25,6 +25,14 @@
   </div>
 </div>
 
+{{if .ConnectedAppsURL}}
+<div class="bg-white shadow rounded-lg p-6 mb-8">
+  <h2 class="text-lg font-semibold mb-2">Connected Apps</h2>
+  <p class="text-sm text-gray-500 mb-2">See the apps you approved, and disconnect any you no longer use.</p>
+  <a href="{{.ConnectedAppsURL}}" class="text-indigo-600 hover:underline text-sm">Manage connected apps</a>
+</div>
+{{end}}
+
 <h2 class="text-xl font-semibold mb-2">Registered Apps</h2>
 <p class="text-sm text-gray-500">
   Registered apps are listed through the admin API (<code class="bg-gray-100 px-1 rounded">GET /apps</code> with the admin key),

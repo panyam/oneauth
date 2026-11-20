@@ -52,7 +52,7 @@ func init() {
 	pageTemplates = make(map[string]*template.Template)
 	pages := []string{
 		"index.html", "login.html", "signup.html", "dashboard.html",
-		"forgot_password.html", "reset_password.html",
+		"forgot_password.html", "reset_password.html", "connected_apps.html",
 	}
 	for _, page := range pages {
 		t := template.Must(template.ParseFS(templateFS, "templates/layout.html", "templates/"+page))
@@ -423,6 +423,10 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})))
 
+	// connectedAppsURL is set when the code flow remembers consent and
+	// its store can list grants, so the dashboard links the page.
+	var connectedAppsURL string
+
 	// Dashboard (requires auth cookie)
 	mux.Handle("GET /dashboard", csrf.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := getUserFromCookie(r, cfg.JWT.SecretKey)
@@ -436,6 +440,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		renderTemplate(w, "dashboard.html", map[string]any{
 			"Title": "Dashboard", "User": user, "UserID": userID,
 			"UserEmail": email, "CSRFField": httpauth.CSRFTemplateField(r),
+			"ConnectedAppsURL": connectedAppsURL,
 		})
 	})))
 
@@ -601,6 +606,19 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 			LoginRedirectURL:     "/auth/login",
 			BrowserMiddleware:    csrf.Protect,
 		})
+
+		// Remembered approvals get a page where the user can withdraw
+		// them (issue 516). It needs a store that can list a user's grants.
+		if lister, ok := consentStore.(core.ConsentLister); ok {
+			(&connectedApps{
+				lister:  lister,
+				apps:    flowAppStore,
+				revoker: oa.ClientAccessRevoker(consentStore),
+				subject: func(r *http.Request) string { return getUserIDFromCookie(r, cfg.JWT.SecretKey) },
+				user:    func(r *http.Request) string { return getUserFromCookie(r, cfg.JWT.SecretKey) },
+			}).mount(mux, csrf.Protect)
+			connectedAppsURL = connectedAppsPath
+		}
 
 		grantTypes = append(grantTypes, apiauth.AuthorizationCodeGrantType)
 		grantTypes = append(grantTypes, implicitGrantTypes(cfg)...)

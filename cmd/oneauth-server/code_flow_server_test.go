@@ -95,8 +95,14 @@ func TestCodeFlow_SubjectMatchesThePasswordGrant(t *testing.T) {
 // approveCode logs in from authorize, approves, and returns the code.
 func approveCode(t *testing.T, f *loginFixture, authorize string) string {
 	t.Helper()
+	return approveCodeAs(t, f, loginTestEmail, loginTestPassword, authorize)
+}
+
+// approveCodeAs is approveCode for another signed-up user.
+func approveCodeAs(t *testing.T, f *loginFixture, email, password, authorize string) string {
+	t.Helper()
 	resp := f.postForm(t, "/auth/login?next="+url.QueryEscape(authorize), "/auth/login", url.Values{
-		"username": {loginTestEmail}, "password": {loginTestPassword}, "next": {authorize},
+		"username": {email}, "password": {password}, "next": {authorize},
 	})
 	require.Equal(t, authorize, resp.Header.Get("Location"))
 
