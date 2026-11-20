@@ -196,9 +196,43 @@
 <blockquote>
 <p>0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.</p>
 </blockquote>
+<h2 id="version-0311">Version 0.3.11 <a class="anchor" href="#version-0311">¶</a></h2>
+<p>This release finishes what the OIDF Dynamic OP plan asked of oneauth: pairwise subjects, runtime signing-key rotation, and an opt-in implicit flow. It also makes logout cut off access tokens, issues ID tokens on the refresh grant, and fixes two security headers that stopped real browsers finishing an authorization with the reference server. The OIDF plans now run nightly in CI, and two MCP server-auth suites join <code>make conformance</code>.</p>
+<h3 id="contract-changes">Contract changes <a class="anchor" href="#contract-changes">¶</a></h3>
+<ul>
+<li><strong>Custom refresh-token stores should fill <code>RevokeSubjectTokensResponse</code> (PR 517).</strong> It now carries the unexpired access tokens of every revoked family, as <code>RevokeTokenFamilyResponse</code> already did. Logout-all and password reset blacklist them. A store that returns the empty struct still compiles, but its access tokens keep working until they expire.</li>
+<li><strong>New stored client and token fields (PRs 513, 515, 517).</strong> Apps gain <code>subject_type</code>, <code>sector_identifier_uri</code>, <code>response_types</code> and <code>userinfo_signed_response_alg</code>, and refresh tokens gain the login&rsquo;s OIDC context (<code>RefreshToken.OIDC</code>). GORM adds the columns through <code>AutoMigrate</code>, and GAE adds unindexed properties. Old rows read them as empty.</li>
+<li><strong>DCR echoes <code>response_types</code>, <code>[&quot;code&quot;]</code> by default (PR 515).</strong> A client that sends <code>response_types: [&quot;code&quot;]</code> with grant types lacking <code>authorization_code</code> is now refused, as RFC 7591 section 2.1 pairs them.</li>
+<li><strong>Reference server headers (PR 520).</strong> The CSP no longer has <code>form-action</code>, and <code>/authorize</code> and <code>/auth/</code> pages send <code>Cross-Origin-Opener-Policy: unsafe-none</code>. Every other page still sends <code>same-origin</code>.</li>
+</ul>
+<h3 id="oidc-dynamic-op-features-issue-507">OIDC Dynamic OP features (issue 507) <a class="anchor" href="#oidc-dynamic-op-features-issue-507">¶</a></h3>
+<ul>
+<li><strong>Pairwise subjects (PR 513).</strong> DCR accepts <code>subject_type: pairwise</code> and <code>sector_identifier_uri</code>. ID tokens, userinfo and back-channel logout tokens carry a per-sector <code>sub</code> from <code>OneAuth.SubjectForClient</code>. Access tokens and introspection keep the user&rsquo;s own ID.</li>
+<li><strong>Signing-key rotation (PR 514).</strong> <code>RotatingSigningKey</code> and <code>SigningKeySource</code> let the AS change its signing key while running, and the reference server exposes <code>POST /admin/signing-key/rotate</code>. The JWKS publishes retired keys for their grace period through <code>JWKSHandler.RetiredKeys</code> and <code>KidLister</code> (issue 421).</li>
+<li><strong>Implicit flow, off by default (PR 515).</strong> <code>OneAuthConfig.AllowImplicit</code>, or <code>code_flow.implicit</code> on the reference server, serves <code>id_token</code> and <code>id_token token</code> to clients registered for them. Tokens come back in the fragment with <code>at_hash</code> and a required <code>nonce</code>. FAPI 2.0 refuses it.</li>
+<li>In the OIDF Dynamic OP plan these took the code run from 5 passed to 12 passed. Both implicit response types run as plans of their own.</li>
+</ul>
+<h3 id="tokens-and-oidc-issues-451-and-485-pr-517">Tokens and OIDC (issues 451 and 485, PR 517) <a class="anchor" href="#tokens-and-oidc-issues-451-and-485-pr-517">¶</a></h3>
+<ul>
+<li>Logout, logout-all and password reset (<code>NewRevokeSessionsOnResetWithBlacklist</code>) blacklist the sessions&rsquo; access tokens.</li>
+<li>The refresh grant issues an ID token for an <code>openid</code> grant, repeating the login&rsquo;s <code>auth_time</code>, <code>acr</code>, <code>amr</code> and claims request. The SDK&rsquo;s automatic refresh keeps and verifies it.</li>
+<li>Signed userinfo for clients registered with <code>userinfo_signed_response_alg</code>, through the new <code>UserinfoSigner</code>.</li>
+<li><code>acr_values</code> at <code>/authorize</code>, an <code>AuthContextFromRequest</code> hook, and <code>acr</code> / <code>amr</code> in ID tokens. <code>oneauth token browser --verify-id-token</code> checks the ID token it receives.</li>
+</ul>
+<h3 id="reference-server">Reference server <a class="anchor" href="#reference-server">¶</a></h3>
+<ul>
+<li>In Chrome, consent and login couldn&rsquo;t redirect back to the client, because CSP <code>form-action 'self'</code> covers that redirect. Popup logins also lost their opener under COOP <code>same-origin</code>. Both are fixed (PR 520). The OIDF harness&rsquo;s browser enforces neither header.</li>
+<li><code>jwt.audience</code> stamps an <code>aud</code> on issued tokens (PR 522).</li>
+</ul>
+<h3 id="conformance">Conformance <a class="anchor" href="#conformance">¶</a></h3>
+<ul>
+<li>The OIDF workflow runs every plan nightly and on demand against the harness pinned at <code>release-v5.3.3</code> (PR 520, issue 498).</li>
+<li>One audited OAuch run is recorded as a new <code>manual</code> suite kind: 107 tests, 13 failed, each triaged in <code>docs/conformance/oauch.md</code> (PR 520, issue 497). Its gaps are issue 519.</li>
+<li>Two gating MCP server-auth suites, <code>mcp-auth-gosdk</code> and <code>mcp-auth-mcpkit</code>, run oneauth-server behind the official Go SDK and mcpkit (PR 522, issue 495).</li>
+</ul>
 <h2 id="version-0310">Version 0.3.10 <a class="anchor" href="#version-0310">¶</a></h2>
 <p>This release fixes the GitHub and Google sign-in providers in the <code>oauth2</code> module, which agni needs for Sign in with GitHub. It also lets a <code>private_key_jwt</code> client register a <code>jwks_uri</code> and puts the client&rsquo;s logo, policy and terms on the consent page. Two changes alter what a consumer sees, and both are listed under contract changes.</p>
-<h3 id="contract-changes">Contract changes <a class="anchor" href="#contract-changes">¶</a></h3>
+<h3 id="contract-changes-1">Contract changes <a class="anchor" href="#contract-changes-1">¶</a></h3>
 <ul>
 <li><strong>A userinfo answer other than 200 fails the sign-in (PR 512).</strong> GitHub answers a bad token with 401 and a JSON body, and that body used to reach <code>HandleUser</code> as the person&rsquo;s profile. The Google and GitHub callbacks now redirect to <code>AuthFailureUrl</code> instead. A fake provider in tests that answers 201 or similar will now fail.</li>
 <li><strong>Five new <code>app_registrations</code> columns (PR 509).</strong> GORM adds them through <code>AutoMigrate</code>, and GAE adds five unindexed properties. Old rows read them as empty.</li>
@@ -220,7 +254,7 @@
 </ul>
 <h2 id="version-039">Version 0.3.9 <a class="anchor" href="#version-039">¶</a></h2>
 <p>The whole repo&rsquo;s tests now run on Windows. That run found two bugs in the FS stores, and this release fixes both. It also adds <code>make conformance</code>, which runs every conformance suite from one command and publishes a report. One change alters what a consumer sees, and it&rsquo;s listed under contract changes.</p>
-<h3 id="contract-changes-1">Contract changes <a class="anchor" href="#contract-changes-1">¶</a></h3>
+<h3 id="contract-changes-2">Contract changes <a class="anchor" href="#contract-changes-2">¶</a></h3>
 <ul>
 <li><strong>FS stores refuse a key whose file holds another key (issue 505, PR 506).</strong> The FS stores turn <code>/</code>, <code>\</code> and <code>:</code> in a key into <code>_</code> to build a file name. So user ID <code>a/b</code> used to read, overwrite or delete the record for <code>a_b</code>. On Windows and on a default macOS volume, <code>Alice</code> did the same to <code>alice</code>. The user, username, app, key, kid and API key stores now check the key inside the file before they read, write or delete it, and return <code>fs.ErrKeyCollision</code> when it differs. The identity and channel stores already did this (issue 88).</li>
 </ul>
@@ -241,7 +275,7 @@
 </ul>
 <h2 id="version-038">Version 0.3.8 <a class="anchor" href="#version-038">¶</a></h2>
 <p>Most of this release moves <code>/authorize</code>, the ID token and userinfo closer to OIDC Core, driven by the OIDF Basic OP plan that <code>make exercise-oidcc</code> now runs. It also fixes <code>file:</code> secret refs on Windows, which agni needs. Two changes alter what a consumer sees, and both are listed under contract changes.</p>
-<h3 id="contract-changes-2">Contract changes <a class="anchor" href="#contract-changes-2">¶</a></h3>
+<h3 id="contract-changes-3">Contract changes <a class="anchor" href="#contract-changes-3">¶</a></h3>
 <ul>
 <li><strong>The ID token no longer carries scope claims (issue 480, PR 488).</strong> A request for <code>scope=openid email</code> used to put <code>email</code> in the ID token as well as userinfo. OIDC Core §5.4 sends those claims to userinfo, so the ID token now carries only claims the request asks for by name with the <code>claims</code> parameter. The client SDK&rsquo;s <code>LoginWithBrowser</code> with <code>VerifyIDToken</code> asks for the four claims <code>IDTokenClaims</code> reads, so SDK users keep them. Other clients that read profile claims from the ID token should call userinfo or send <code>claims</code>.</li>
 <li><strong>An <code>APIMiddleware</code> without <code>DPoP</code> refuses DPoP-bound tokens (issue 486, PR 488).</strong> A token with <code>cnf.jkt</code> sent as Bearer used to pass, so a stolen bound token worked at any resource server that hadn&rsquo;t wired DPoP. It now gets 401 <code>invalid_token</code>.</li>
