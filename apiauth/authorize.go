@@ -55,6 +55,12 @@ type AuthorizationRequest struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 
+	// ResponseMode is the `response_mode` parameter as sent: query,
+	// fragment or form_post, or empty for the response type's default
+	// (Multiple Response Type Encoding Practices §2.1). ValidateValues
+	// refuses any other value, and query for the implicit types.
+	ResponseMode string
+
 	// DPoPJKT is the RFC 9449 §10 `dpop_jkt` parameter: the RFC 7638
 	// thumbprint of the key the client will prove at the token
 	// endpoint. Optional; empty leaves the issued code unbound.
@@ -392,6 +398,10 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 		return req, false, "unsupported_response_type", "only response_type=code is supported"
 	}
 
+	if code, desc := h.checkResponseMode(req); code != "" {
+		return req, false, code, desc
+	}
+
 	// PKCE protects the code exchange, which the implicit flow doesn't
 	// have; its nonce binds the ID token instead.
 	if !implicit {
@@ -449,6 +459,7 @@ func (h *AuthorizationHandler) validateClientAndRedirect(ctx context.Context, va
 		State:               values.Get("state"),
 		CodeChallenge:       strings.TrimSpace(values.Get("code_challenge")),
 		CodeChallengeMethod: strings.TrimSpace(values.Get("code_challenge_method")),
+		ResponseMode:        strings.TrimSpace(values.Get("response_mode")),
 		DPoPJKT:             strings.TrimSpace(values.Get("dpop_jkt")),
 		Nonce:               values.Get("nonce"),
 		ACRValues:           strings.Fields(values.Get("acr_values")),
@@ -588,52 +599,45 @@ func (h *AuthorizationHandler) IssueCode(ctx context.Context, req *Authorization
 	return code, nil
 }
 
+// SuccessResponse builds the RFC 6749 §4.1.2 success response: code,
+// state when the request had one, and iss under EmitIssParameter (RFC
+// 9207), after RedirectOverride. Its Mode is the request's response mode.
+func (h *AuthorizationHandler) SuccessResponse(req *AuthorizationRequest, code string) *AuthorizationResponse {
+	return h.newResponse(req, url.Values{"code": {code}})
+}
+
 // SuccessRedirect composes the RFC 6749 §4.1.2 success redirect URL:
 //
 //	<redirect_uri>?code=<code>[&state=<state>][&iss=<iss>]
 //
-// Honors EmitIssParameter (RFC 9207) and RedirectOverride
-// (conformance hook).
+// The code goes in the fragment instead for response_mode=fragment. A
+// form_post request has no redirect URL, so SuccessRedirect returns an
+// error for one; use SuccessResponse.
 func (h *AuthorizationHandler) SuccessRedirect(req *AuthorizationRequest, code string) (string, error) {
-	values := url.Values{}
-	values.Set("code", code)
-	if req.State != "" {
-		values.Set("state", req.State)
+	return h.SuccessResponse(req, code).RedirectURL()
+}
+
+// ErrorResponse builds the RFC 6749 §4.1.2.1 error response: error,
+// error_description when given, state and iss, in the request's response
+// mode. That is the default for its response type when the request's own
+// response_mode was the problem.
+func (h *AuthorizationHandler) ErrorResponse(req *AuthorizationRequest, errCode, errDescription string) *AuthorizationResponse {
+	values := url.Values{"error": {errCode}}
+	if errDescription != "" {
+		values.Set("error_description", errDescription)
 	}
-	if h.EmitIssParameter && h.IssuerURL != "" {
-		values.Set("iss", h.IssuerURL)
-	}
-	if h.RedirectOverride != nil {
-		h.RedirectOverride(values)
-	}
-	return appendQuery(req.RedirectURI, values)
+	return h.newResponse(req, values)
 }
 
 // ErrorRedirect composes the RFC 6749 §4.1.2.1 error redirect URL:
 //
 //	<redirect_uri>?error=<code>[&error_description=...][&state=<state>][&iss=<iss>]
 //
-// Used by the verification handler to report user-deny and
-// post-validation failures.
+// The parameters go in the fragment for the implicit types or
+// response_mode=fragment. Like SuccessRedirect it returns an error for a
+// form_post request; use ErrorResponse.
 func (h *AuthorizationHandler) ErrorRedirect(req *AuthorizationRequest, errCode, errDescription string) (string, error) {
-	values := url.Values{}
-	values.Set("error", errCode)
-	if errDescription != "" {
-		values.Set("error_description", errDescription)
-	}
-	if req.State != "" {
-		values.Set("state", req.State)
-	}
-	if h.EmitIssParameter && h.IssuerURL != "" {
-		values.Set("iss", h.IssuerURL)
-	}
-	if h.RedirectOverride != nil {
-		h.RedirectOverride(values)
-	}
-	if h.isImplicit(req) {
-		return appendFragment(req.RedirectURI, values)
-	}
-	return appendQuery(req.RedirectURI, values)
+	return h.ErrorResponse(req, errCode, errDescription).RedirectURL()
 }
 
 // isConfidentialClient reports whether clientID is registered in AppStore

@@ -107,6 +107,13 @@ type AuthorizeTemplates struct {
 	// Error renders the §4.1.2.1 "MUST NOT redirect" error page (bad
 	// client_id / redirect_uri). Data: authorizeErrorData.
 	Error *template.Template
+
+	// FormPost renders a response_mode=form_post response: a form that
+	// POSTs the response to the client's redirect_uri. Data:
+	// authorizeFormPostData. The page is served under a nonce-only
+	// Content-Security-Policy, so its script needs
+	// nonce="{{.CSPNonce}}". It should keep a <noscript> submit button.
+	FormPost *template.Template
 }
 
 // authorizeConsentData drives the Consent template. ClientID +
@@ -119,13 +126,17 @@ type authorizeConsentData struct {
 	// LogoURI, PolicyURI and TOSURI are the client's registered display
 	// metadata (OIDC Registration §2), each an https URL or empty. A
 	// custom template should show them, so the user sees who is asking.
-	LogoURI             string
-	PolicyURI           string
-	TOSURI              string
-	RedirectURI         string
-	Scopes              []string
-	State               string
-	ResponseType        string
+	LogoURI      string
+	PolicyURI    string
+	TOSURI       string
+	RedirectURI  string
+	Scopes       []string
+	State        string
+	ResponseType string
+	// ResponseMode round-trips the `response_mode` parameter, so Approve
+	// and Deny answer in the mode the client asked for. Custom consent
+	// templates must post it back too.
+	ResponseMode        string
 	CodeChallenge       string
 	CodeChallengeMethod string
 	DPoPJKT             string
@@ -219,6 +230,7 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		Scopes:              req.Scopes(),
 		State:               req.State,
 		ResponseType:        req.ResponseType,
+		ResponseMode:        req.ResponseMode,
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
 		DPoPJKT:             req.DPoPJKT,
@@ -384,14 +396,13 @@ func (h *AuthorizeVerificationHandler) issueAndRedirect(w http.ResponseWriter, r
 		req.ACR, req.AMR = ac.ACR, ac.AMR
 	}
 	if h.Authorization.isImplicit(req) {
-		redirect, err := h.Authorization.ImplicitRedirect(r.Context(), req, subject)
+		resp, err := h.Authorization.ImplicitResponse(r.Context(), req, subject)
 		if err != nil {
 			log.Printf("apiauth: implicit: %v", err)
 			h.redirectError(w, r, req, "server_error", "could not issue the tokens")
 			return
 		}
-		noStore(w)
-		http.Redirect(w, r, redirect, http.StatusFound)
+		h.respond(w, r, resp, "server_error", "could not build redirect")
 		return
 	}
 	code, err := h.Authorization.IssueCode(r.Context(), req, subject, nil)
@@ -399,13 +410,7 @@ func (h *AuthorizeVerificationHandler) issueAndRedirect(w http.ResponseWriter, r
 		h.redirectError(w, r, req, "server_error", "could not issue authorization code")
 		return
 	}
-	redirect, err := h.Authorization.SuccessRedirect(req, code)
-	if err != nil {
-		h.renderError(w, r, "server_error", "could not build redirect")
-		return
-	}
-	noStore(w)
-	http.Redirect(w, r, redirect, http.StatusFound)
+	h.respond(w, r, h.Authorization.SuccessResponse(req, code), "server_error", "could not build redirect")
 }
 
 func (h *AuthorizeVerificationHandler) redirectError(w http.ResponseWriter, r *http.Request, req *AuthorizationRequest, errCode, errDescription string) {
@@ -413,11 +418,24 @@ func (h *AuthorizeVerificationHandler) redirectError(w http.ResponseWriter, r *h
 		h.renderError(w, r, errCode, errDescription)
 		return
 	}
-	redirect, err := h.Authorization.ErrorRedirect(req, errCode, errDescription)
-	if err != nil {
-		h.renderError(w, r, errCode, errDescription)
+	h.respond(w, r, h.Authorization.ErrorResponse(req, errCode, errDescription), errCode, errDescription)
+}
+
+// respond delivers an authorization response in its mode: a form page for
+// form_post, a 302 to the redirect URL otherwise. Either way it is
+// no-store, since it carries a code, tokens or state. When the redirect
+// URL can't be built, the user sees failCode and failDescription.
+func (h *AuthorizeVerificationHandler) respond(w http.ResponseWriter, r *http.Request, resp *AuthorizationResponse, failCode, failDescription string) {
+	if resp.Mode == ResponseModeFormPost {
+		h.writeFormPost(w, resp)
 		return
 	}
+	redirect, err := resp.RedirectURL()
+	if err != nil {
+		h.renderError(w, r, failCode, failDescription)
+		return
+	}
+	noStore(w)
 	http.Redirect(w, r, redirect, http.StatusFound)
 }
 
@@ -518,6 +536,7 @@ var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent"
     <input type="hidden" name="client_id" value="{{.ClientID}}">
     <input type="hidden" name="redirect_uri" value="{{.RedirectURI}}">
     <input type="hidden" name="response_type" value="{{.ResponseType}}">
+    {{if .ResponseMode}}<input type="hidden" name="response_mode" value="{{.ResponseMode}}">{{end}}
     <input type="hidden" name="scope" value="{{range $i, $s := .Scopes}}{{if $i}} {{end}}{{$s}}{{end}}">
     <input type="hidden" name="state" value="{{.State}}">
     <input type="hidden" name="code_challenge" value="{{.CodeChallenge}}">

@@ -56,20 +56,32 @@ func validateImplicit(req *AuthorizationRequest, reg *core.AppRegistration) (str
 //
 //	<redirect_uri>#[access_token=…&token_type=Bearer&expires_in=…&scope=…&]id_token=…[&state=…][&iss=…]
 //
-// The ID token carries the nonce, and at_hash when an access token is
-// issued. For "id_token" alone the scope's claims go in the ID token,
-// since no access token reaches userinfo (OIDC Core §5.4). No refresh
-// token is issued.
+// A form_post request has no redirect URL, so ImplicitRedirect returns an
+// error for one; use ImplicitResponse.
 func (h *AuthorizationHandler) ImplicitRedirect(ctx context.Context, req *AuthorizationRequest, subject string) (string, error) {
+	resp, err := h.ImplicitResponse(ctx, req, subject)
+	if err != nil {
+		return "", err
+	}
+	return resp.RedirectURL()
+}
+
+// ImplicitResponse mints the implicit flow's tokens for subject and builds
+// the success response, in the fragment unless the request asked for
+// form_post. The ID token carries the nonce, and at_hash when an access
+// token is issued. For "id_token" alone the scope's claims go in the ID
+// token, since no access token reaches userinfo (OIDC Core §5.4). No
+// refresh token is issued.
+func (h *AuthorizationHandler) ImplicitResponse(ctx context.Context, req *AuthorizationRequest, subject string) (*AuthorizationResponse, error) {
 	if !h.isImplicit(req) {
-		return "", fmt.Errorf("apiauth: ImplicitRedirect: not an implicit request")
+		return nil, fmt.Errorf("apiauth: ImplicitResponse: not an implicit request")
 	}
 	values := url.Values{}
 	var accessToken string
 	if req.ResponseType == ResponseTypeIDTokenToken {
 		at, err := h.Implicit.Issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{Subject: subject, Scopes: req.Scopes(), ClientID: req.ClientID, Audience: req.Resources})
 		if err != nil {
-			return "", fmt.Errorf("access token: %w", err)
+			return nil, fmt.Errorf("access token: %w", err)
 		}
 		accessToken = at.Token
 		values.Set("access_token", at.Token)
@@ -82,19 +94,10 @@ func (h *AuthorizationHandler) ImplicitRedirect(ctx context.Context, req *Author
 		AccessToken: accessToken, RequestedClaims: req.IDTokenClaims, ScopeClaims: accessToken == "",
 	})
 	if err != nil {
-		return "", fmt.Errorf("id token: %w", err)
+		return nil, fmt.Errorf("id token: %w", err)
 	}
 	values.Set("id_token", idt.Token)
-	if req.State != "" {
-		values.Set("state", req.State)
-	}
-	if h.EmitIssParameter && h.IssuerURL != "" {
-		values.Set("iss", h.IssuerURL)
-	}
-	if h.RedirectOverride != nil {
-		h.RedirectOverride(values)
-	}
-	return appendFragment(req.RedirectURI, values)
+	return h.newResponse(req, values), nil
 }
 
 // appendFragment sets values as base's fragment, replacing any it had

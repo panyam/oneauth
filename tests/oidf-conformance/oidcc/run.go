@@ -45,3 +45,13 @@ func Prepare(ctx context.Context, hc *http.Client, serverURL string, s *Setup) e
 func Plan(s Setup) oidfplan.Plan {
 	return oidfplan.Plan{Name: PlanName, Variant: PlanVariant(), Config: PlanConfig(s)}
 }
+
+// FormPostPlan is the Form Post Basic OP plan for s. The harness asks for
+// every response with response_mode=form_post, and oneauth answers with a
+// page that posts it to the harness callback, which the same browser
+// automation follows.
+func FormPostPlan(s Setup) oidfplan.Plan {
+	config := PlanConfig(s)
+	config["description"] = "oneauth OIDC Form Post Basic OP exercise (issue 500)"
+	return oidfplan.Plan{Name: FormPostPlanName, Variant: PlanVariant(), Config: config}
+}

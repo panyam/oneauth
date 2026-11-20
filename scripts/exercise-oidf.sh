@@ -6,6 +6,8 @@
 #          with tests/oidf-conformance/oneauth-fapi2.yaml
 #   oidcc    oidcc-basic-certification-test-plan, mission 477, on :8890
 #            with tests/oidf-conformance/oneauth-oidcc.yaml
+#   oidccfp  oidcc-formpost-basic-certification-test-plan, issue 500, on
+#            :8893 with the same config
 #   oidcdyn  oidcc-dynamic-certification-test-plan, issue 493, on :8891
 #            with the same config; RESPONSE_TYPE="id_token token" (or
 #            id_token) runs its implicit variant (issue 507)
@@ -37,11 +39,12 @@ case "$plan" in
   # covers only its own plan, since the rest already ran.
   fapi2) port=8889 config=tests/oidf-conformance/oneauth-fapi2.yaml gotest=. ;;
   oidcc) port=8890 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_BasicOP$' ;;
+  oidccfp) port=8893 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_FormPostBasicOP$' ;;
   oidcdyn) port=8891 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_DynamicOP$' ;;
   oidcctp)
     port=8892 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_TestPlan$'
     if [[ -z "${AUTH:-}" ]]; then echo "oidcctp needs AUTH=<client auth method>" >&2; exit 2; fi ;;
-  *) echo "usage: $0 fapi2|oidcc|oidcdyn|oidcctp [--go-test] [args...]" >&2; exit 2 ;;
+  *) echo "usage: $0 fapi2|oidcc|oidccfp|oidcdyn|oidcctp [--go-test] [args...]" >&2; exit 2 ;;
 esac
 shift
 

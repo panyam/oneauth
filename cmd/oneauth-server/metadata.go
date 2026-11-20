@@ -35,6 +35,7 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 		if cfg.CodeFlow.Implicit {
 			meta.ResponseTypesSupported = append(meta.ResponseTypesSupported, "id_token", "id_token token")
 		}
+		meta.ResponseModesSupported = responseModes(cfg)
 		iss := true
 		meta.AuthorizationResponseIssParameterSupported = &iss
 		meta.TokenEndpointAuthMethods = append(meta.TokenEndpointAuthMethods, "none")
@@ -121,6 +122,16 @@ func checkFAPI2(cfg *Config) error {
 		return fmt.Errorf("fapi2 needs code_flow.pkce: required: FAPI 2.0 §5.3.2.2 requires PKCE from every client")
 	}
 	return nil
+}
+
+// responseModes is response_modes_supported: the modes MountAuthorize
+// accepts. Fragment is there only with code_flow.implicit, as
+// AuthorizationHandler.ResponseModesSupported has it.
+func responseModes(cfg *Config) []string {
+	if cfg.CodeFlow.Implicit {
+		return []string{apiauth.ResponseModeQuery, apiauth.ResponseModeFragment, apiauth.ResponseModeFormPost}
+	}
+	return []string{apiauth.ResponseModeQuery, apiauth.ResponseModeFormPost}
 }
 
 // checkImplicit refuses code_flow.implicit without OIDC, since the
