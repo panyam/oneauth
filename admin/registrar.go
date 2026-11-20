@@ -167,6 +167,53 @@ var supportedGrantTypes = map[string]bool{
 	"urn:ietf:params:oauth:grant-type:token-exchange": true,
 }
 
+// grantTypeImplicit is the RFC 7591 §2 grant type of the implicit
+// response types. The token endpoint never sees it.
+const grantTypeImplicit = "implicit"
+
+// implicitResponseTypes are the OIDC Core §3.2 response types a server
+// with AllowImplicit accepts. Hybrid types (code id_token, ...) are not
+// supported.
+var implicitResponseTypes = map[string]bool{"id_token": true, "id_token token": true}
+
+// validateResponseTypes checks md's response_types and returns them, with
+// empty meaning ["code"]. Each is "code" or, with allowImplicit, an
+// implicit type. They must match grant_types as RFC 7591 §2.1 pairs them:
+// an implicit type needs the implicit grant, and a code the client asked
+// for needs authorization_code when grant_types is given. The implicit grant itself
+// needs allowImplicit and a redirect URI.
+func validateResponseTypes(md *DCRRequest, allowImplicit bool) ([]string, error) {
+	types := md.ResponseTypes
+	if len(types) == 0 {
+		types = []string{"code"}
+	}
+	implicitGrant := slices.Contains(md.GrantTypes, grantTypeImplicit)
+	if implicitGrant && !allowImplicit {
+		return nil, fmt.Errorf("%w: grant_type implicit is not supported", ErrInvalidClientMetadata)
+	}
+	for _, t := range types {
+		switch {
+		case t == "code":
+			// Only a response_types the client sent is paired: the
+			// default must not refuse a client_credentials-only client.
+			if len(md.ResponseTypes) > 0 && len(md.GrantTypes) > 0 && !slices.Contains(md.GrantTypes, "authorization_code") {
+				return nil, fmt.Errorf("%w: response_type code needs grant_type authorization_code", ErrInvalidClientMetadata)
+			}
+		case implicitResponseTypes[t]:
+			// The implicit grant it needs is refused without allowImplicit.
+			if !implicitGrant {
+				return nil, fmt.Errorf("%w: response_type %q needs grant_type implicit", ErrInvalidClientMetadata, t)
+			}
+		default:
+			return nil, fmt.Errorf("%w: response_type %q is not supported", ErrInvalidClientMetadata, t)
+		}
+	}
+	if implicitGrant && len(md.RedirectURIs) == 0 {
+		return nil, fmt.Errorf("%w: the implicit grant needs at least one redirect_uri", ErrInvalidRedirectURI)
+	}
+	return types, nil
+}
+
 // effectiveAuthMethod is the method stored and echoed for a registration:
 // the requested one, or RFC 7591 §2's default, client_secret_basic, so the
 // response and the stored registration always agree.
@@ -184,6 +231,9 @@ func validateClientMetadata(method string, grantTypes, redirectURIs []string) er
 		return fmt.Errorf("%w: token_endpoint_auth_method %q is not supported", ErrInvalidClientMetadata, method)
 	}
 	for _, g := range grantTypes {
+		if g == grantTypeImplicit {
+			continue // validateResponseTypes checks it, against AllowImplicit
+		}
 		if !supportedGrantTypes[g] {
 			return fmt.Errorf("%w: grant_type %q is not supported", ErrInvalidClientMetadata, g)
 		}
@@ -427,6 +477,12 @@ type AppRegistrar struct {
 	// derives the subs. Off, a pairwise registration is refused.
 	PairwiseSubjects bool
 
+	// AllowImplicit accepts the OIDC implicit response types "id_token"
+	// and "id_token token" with the "implicit" grant (issue 507). Turn it
+	// on only with apiauth.OneAuthConfig.AllowImplicit, which serves them.
+	// Off, a client asking for either is refused.
+	AllowImplicit bool
+
 	// FetchSectorIdentifier fetches a sector_identifier_uri's JSON array
 	// of redirect URIs (OIDC Registration §5). It does the dialing, so it
 	// owns the SSRF policy; apiauth.ClientJWKSFetcher.SectorRedirectURIs is
@@ -513,6 +569,10 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	if err != nil {
 		return nil, err
 	}
+	responseTypes, err := validateResponseTypes(md, h.AllowImplicit)
+	if err != nil {
+		return nil, err
+	}
 
 	// Determine signing algorithm from the requested auth method. Default
 	// HS256 (symmetric) when the client doesn't ask for private_key_jwt.
@@ -572,6 +632,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		TOSURI:                             md.TOSURI,
 		SubjectType:                        subjectType,
 		SectorIdentifierURI:                md.SectorIdentifierURI,
+		ResponseTypes:                      responseTypes,
 	}
 
 	if md.JWKSURI != "" {
@@ -637,6 +698,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		SubjectType:                        subjectType,
 		SectorIdentifierURI:                md.SectorIdentifierURI,
 		SectorIdentifier:                   sector,
+		ResponseTypes:                      responseTypes,
 	}
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, fmt.Errorf("persist registration: %w", err)
@@ -876,6 +938,7 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 			TOSURI:                             reg.TOSURI,
 			SubjectType:                        reg.SubjectType,
 			SectorIdentifierURI:                reg.SectorIdentifierURI,
+			ResponseTypes:                      reg.ResponseTypes,
 		},
 	}, nil
 }
@@ -950,6 +1013,10 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if err := keepsSubjectSector(md, reg); err != nil {
 		return nil, err
 	}
+	responseTypes, err := validateResponseTypes(md, h.AllowImplicit)
+	if err != nil {
+		return nil, err
+	}
 	if reg.SectorIdentifierURI != "" {
 		check := *md
 		check.SubjectType, check.SectorIdentifierURI = reg.SubjectType, reg.SectorIdentifierURI
@@ -986,6 +1053,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 		reg.JWKSURI = md.JWKSURI
 	}
 	reg.LogoURI = md.LogoURI
+	reg.ResponseTypes = responseTypes
 	reg.PolicyURI = md.PolicyURI
 	reg.TOSURI = md.TOSURI
 
@@ -1017,6 +1085,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 			TOSURI:                             reg.TOSURI,
 			SubjectType:                        reg.SubjectType,
 			SectorIdentifierURI:                reg.SectorIdentifierURI,
+			ResponseTypes:                      reg.ResponseTypes,
 		},
 	}, nil
 }
