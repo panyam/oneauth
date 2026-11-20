@@ -39,6 +39,13 @@ type RevokeClientAccessResponse struct {
 // invalid_grant, and its access tokens fail validation wherever the
 // validator checks Blacklist.
 //
+// Two things outlive the revoke briefly, bounded by their lifetimes
+// (issue 526). An authorization code issued before it can still be
+// redeemed until it expires, DefaultAuthorizationCodeExpiry (60 seconds)
+// by default. An access token issued without a refresh token, such as an
+// implicit one, was never recorded, so it can't be blacklisted and works
+// until it expires (core.TokenExpiryAccessToken, 15 minutes).
+//
 // Every field is optional, and a nil one skips that part. Build one with
 // OneAuth.ClientAccessRevoker to share the OneAuth's refresh store,
 // blacklist and hooks.
