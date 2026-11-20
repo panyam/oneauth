@@ -653,15 +653,25 @@ func (s *RefreshTokenStore) CleanupExpiredTokens(ctx context.Context, req *core.
 // APIKeyStore
 // =============================================================================
 
-// APIKeyStore implements core.APIKeyStore using GORM
+// APIKeyStore implements core.APIKeyStore using GORM. Every node reads
+// the same api_keys table, so a key minted or revoked through one node
+// takes effect on all of them.
 type APIKeyStore struct {
 	db *gorm.DB
 }
 
+// NewAPIKeyStore wraps an existing *gorm.DB. The caller runs AutoMigrate
+// (this package's covers the api_keys table) before first use.
 func NewAPIKeyStore(db *gorm.DB) *APIKeyStore {
 	return &APIKeyStore{db: db}
 }
 
+// CreateAPIKey mints a new key and inserts its row. FullKey is
+// "<keyID>_<secret>", and only the bcrypt hash of the secret is stored,
+// so the secret can never be read back. Callers must show FullKey to the
+// user at once; losing it means minting a new key. A nil ExpiresAt is a
+// key that never expires, stored as a NULL column. Database errors pass
+// through.
 func (s *APIKeyStore) CreateAPIKey(ctx context.Context, req *core.CreateAPIKeyRequest) (*core.CreateAPIKeyResponse, error) {
 	keyID, err := core.GenerateAPIKeyID()
 	if err != nil {
@@ -698,6 +708,9 @@ func (s *APIKeyStore) CreateAPIKey(ctx context.Context, req *core.CreateAPIKeyRe
 	return &core.CreateAPIKeyResponse{FullKey: fullKey, APIKey: model.ToAPIKey()}, nil
 }
 
+// GetAPIKeyByID returns the row for req.KeyID, or core.ErrAPIKeyNotFound
+// (gorm.ErrRecordNotFound maps to it). It does not check the secret,
+// revocation or expiry; ValidateAPIKey does the full check.
 func (s *APIKeyStore) GetAPIKeyByID(ctx context.Context, req *core.GetAPIKeyByIDRequest) (*core.GetAPIKeyByIDResponse, error) {
 	var model APIKeyModel
 	if err := s.db.WithContext(ctx).First(&model, "key_id = ?", req.KeyID).Error; err != nil {
@@ -709,6 +722,14 @@ func (s *APIKeyStore) GetAPIKeyByID(ctx context.Context, req *core.GetAPIKeyByID
 	return &core.GetAPIKeyByIDResponse{APIKey: model.ToAPIKey()}, nil
 }
 
+// ValidateAPIKey does the full check GetAPIKeyByID skips. It returns
+// core.ErrAPIKeyNotFound for a malformed key, an unknown key ID or a
+// wrong secret, collapsed on purpose so a probe can't tell them apart;
+// core.ErrTokenRevoked for a revoked key; and core.ErrTokenExpired for an
+// expired one. The FullKey format is "oa_<idTail>_<secret>", and any
+// other shape, empty parts included, is ErrAPIKeyNotFound. Revocation and
+// expiry are checked before the bcrypt compare, so a revoked or expired
+// key skips the hash.
 func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, req *core.ValidateAPIKeyRequest) (*core.ValidateAPIKeyResponse, error) {
 	parts := strings.SplitN(req.FullKey, "_", 3)
 	if len(parts) != 3 || parts[0] != "oa" || parts[1] == "" || parts[2] == "" {
@@ -742,6 +763,11 @@ func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, req *core.ValidateAPIK
 	return &core.ValidateAPIKeyResponse{APIKey: apiKey}, nil
 }
 
+// RevokeAPIKey sets revoked and revoked_at in one UPDATE, so a racing
+// ValidateAPIKey sees the key live or revoked, never half-updated.
+// Revoking twice succeeds and moves revoked_at to the second call. Unlike
+// the GAE store it does not report a missing key: an UPDATE that matches
+// no row returns nil, not core.ErrAPIKeyNotFound.
 func (s *APIKeyStore) RevokeAPIKey(ctx context.Context, req *core.RevokeAPIKeyRequest) (*core.RevokeAPIKeyResponse, error) {
 	now := time.Now()
 	if err := s.db.WithContext(ctx).Model(&APIKeyModel{}).
@@ -752,6 +778,10 @@ func (s *APIKeyStore) RevokeAPIKey(ctx context.Context, req *core.RevokeAPIKeyRe
 	return &core.RevokeAPIKeyResponse{}, nil
 }
 
+// ListSubjectAPIKeys returns every key of req.Subject, revoked and
+// expired ones included, using the index on subject. KeyHash is cleared
+// in the results, so a listing page never carries the bcrypt hash that
+// only validation needs. Order is unspecified.
 func (s *APIKeyStore) ListSubjectAPIKeys(ctx context.Context, req *core.ListSubjectAPIKeysRequest) (*core.ListSubjectAPIKeysResponse, error) {
 	var models []APIKeyModel
 	if err := s.db.WithContext(ctx).Where("subject = ?", req.Subject).Find(&models).Error; err != nil {
@@ -766,6 +796,9 @@ func (s *APIKeyStore) ListSubjectAPIKeys(ctx context.Context, req *core.ListSubj
 	return &core.ListSubjectAPIKeysResponse{APIKeys: keys}, nil
 }
 
+// UpdateAPIKeyLastUsed sets last_used_at to now. It is a best-effort
+// stamp for display: a missing key is not an error, and two racing
+// calls leave one of the two times.
 func (s *APIKeyStore) UpdateAPIKeyLastUsed(ctx context.Context, req *core.UpdateAPIKeyLastUsedRequest) (*core.UpdateAPIKeyLastUsedResponse, error) {
 	if err := s.db.WithContext(ctx).Model(&APIKeyModel{}).
 		Where("key_id = ?", req.KeyID).
