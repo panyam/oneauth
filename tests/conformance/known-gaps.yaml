@@ -451,13 +451,40 @@
 # run, so it needs an expected-skip entry like these.
 
 - suite: mcp
-  plans: [mcp-auth-gosdk, mcp-auth-mcpkit]
+  plans: [mcp-auth-gosdk, mcp-auth-mcpkit, mcp-auth-ts]
   test: auth-iss-param-redirect-carries-iss
   status: expected-skip
-  issue: 521
+  issue: 523
   owner: panyam
   reason: |
     The conformance framework has no OAuth flow driver yet, so it can't
     drive /authorize to see the RFC 9207 iss in the redirect. The AS does
     advertise it (auth-iss-param-as-metadata-advertises-support passes).
+  expires: 2027-12-31
+
+- suite: mcp
+  plan: mcp-auth-ts
+  test: auth-oauth-discovery-prm-root
+  status: expected-fail
+  evidence: got 404
+  issue: 523
+  owner: panyam
+  reason: |
+    The TypeScript SDK's mcpAuthMetadataRouter serves protected-resource
+    metadata only at the path-based URL, /.well-known/oauth-protected-
+    resource/mcp, which is where RFC 9728 §3.1 puts it for a resource with
+    a path. The scenario also asks for the root URL.
+  expires: 2027-12-31
+
+- suite: mcp
+  plan: mcp-auth-ts
+  test: auth-oauth-discovery-prm-content-type
+  status: expected-fail
+  evidence: got "text/html
+  issue: 523
+  owner: panyam
+  reason: |
+    Same cause as the prm-root entry: the check reads the root metadata
+    URL, which the TypeScript SDK doesn't serve, and gets Express's 404
+    page.
   expires: 2027-12-31

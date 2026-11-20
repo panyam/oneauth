@@ -137,6 +137,14 @@ suites:
     source: tests/mcpauth (cmd/mcpkit-fixture)
     needs: [node]
     tracking: "issue 495"
+  - name: mcp-auth-ts
+    kind: gating
+    timeout: 10m
+    covers: The same MCP server-auth scenarios through the official TypeScript SDK and its bearer middleware, with oneauth-server as the AS. An interop check, since the TS SDK answers the challenge checks.
+    plan: mcp-auth-ts
+    source: tests/mcpauth/ts-fixture
+    needs: [node]
+    tracking: "issue 521"
   - name: keycloak
     kind: gating
     timeout: 15m

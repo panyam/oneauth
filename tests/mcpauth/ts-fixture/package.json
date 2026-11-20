@@ -1,0 +1,21 @@
+{
+  "name": "oneauth-mcpauth-ts-fixture",
+  "private": true,
+  "type": "module",
+  "description": "MCP server on the official TypeScript SDK, with oneauth-server as its authorization server, for the MCP server-auth conformance suite (oneauth issue 521).",
+  "scripts": {
+    "start": "tsx server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "express": "5.3.0",
+    "express-rate-limit": "8.7.3",
+    "jose": "6.2.15",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15",
+    "@types/express": "5.0.3",
+    "@types/node": "22.19.1"
+  }
+}

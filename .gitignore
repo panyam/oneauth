@@ -59,3 +59,4 @@ cmd/oneauth-server/oneauth-server
 
 # Authlete interop scaffold — upstream java-oauth-server clone (issue 162)
 tests/authlete/.frontend/
+tests/mcpauth/ts-fixture/node_modules/
