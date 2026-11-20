@@ -89,4 +89,28 @@ func (k *EncryptedKidStorage) CleanExpired(ctx context.Context, req *CleanExpire
 	return k.inner.CleanExpired(ctx, req)
 }
 
+// ListKids lists through inner and decrypts each record, like GetKeyByKid.
+// It answers an error when inner doesn't implement KidLister, and
+// ErrKeyDecrypt when a record won't open.
+func (k *EncryptedKidStorage) ListKids(ctx context.Context, req *ListKidsRequest) (*ListKidsResponse, error) {
+	lister, ok := k.inner.(KidLister)
+	if !ok {
+		return nil, fmt.Errorf("ListKids: inner %T does not implement KidLister", k.inner)
+	}
+	resp, err := lister.ListKids(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	out := &ListKidsResponse{}
+	for _, r := range resp.Records {
+		rec, err := k.seal.openRecord(r, k.AllowLegacyPlaintext)
+		if err != nil {
+			return nil, err
+		}
+		out.Records = append(out.Records, rec)
+	}
+	return out, nil
+}
+
 var _ KidStorage = (*EncryptedKidStorage)(nil)
+var _ KidLister = (*EncryptedKidStorage)(nil)

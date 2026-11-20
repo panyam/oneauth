@@ -31,6 +31,46 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("CleanExpired", func(t *testing.T) { TestCleanExpired(t, factory) })
 	t.Run("AsymmetricKeyRoundTrip", func(t *testing.T) { TestAsymmetricKeyRoundTrip(t, factory) })
 	t.Run("Persistence", func(t *testing.T) { TestPersistence(t, factory) })
+	t.Run("ListKids", func(t *testing.T) { TestListKids(t, factory) })
+}
+
+// TestListKids checks keys.KidLister: every kid that GetKeyByKid would
+// return, and no expired one, so a JWKS endpoint can publish retired
+// public keys during their grace period (issue 421). A store that doesn't
+// implement KidLister skips it.
+func TestListKids(t *testing.T, factory Factory) {
+	ks := factory(t)
+	lister, ok := ks.(keys.KidLister)
+	if !ok {
+		t.Skip("store does not implement keys.KidLister")
+	}
+	ctx := context.Background()
+	addKid(t, ks, &keys.AddKidRequest{Kid: "live", Key: []byte("k-live"), Algorithm: "HS256", ClientID: "c1", ExpiresAt: time.Now().Add(time.Hour)})
+	addKid(t, ks, &keys.AddKidRequest{Kid: "forever", Key: []byte("k-forever"), Algorithm: "HS256", ClientID: "c2"})
+	addKid(t, ks, &keys.AddKidRequest{Kid: "gone", Key: []byte("k-gone"), Algorithm: "HS256", ClientID: "c3", ExpiresAt: time.Now().Add(-time.Minute)})
+
+	resp, err := lister.ListKids(ctx, &keys.ListKidsRequest{})
+	if err != nil {
+		t.Fatalf("ListKids: %v", err)
+	}
+	got := map[string]*keys.KeyRecord{}
+	for _, r := range resp.Records {
+		got[r.Kid] = r
+	}
+	if len(got) != 2 || got["live"] == nil || got["forever"] == nil {
+		t.Fatalf("ListKids kids = %v, want live and forever", keysOf(got))
+	}
+	if string(got["live"].Key.([]byte)) != "k-live" || got["live"].ClientID != "c1" || got["live"].Algorithm != "HS256" {
+		t.Errorf("live record = %+v", got["live"])
+	}
+}
+
+func keysOf(m map[string]*keys.KeyRecord) []string {
+	var out []string
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
 
 func TestAddAndGetByKid(t *testing.T, factory Factory) {

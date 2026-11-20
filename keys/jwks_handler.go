@@ -20,9 +20,13 @@ import (
 // JWKSHandler serves a JWKS (JSON Web Key Set) endpoint at /.well-known/jwks.json.
 // Only asymmetric keys (RS256/ES256) are included — HS256 secrets are never exposed.
 type JWKSHandler struct {
-	KeyStore    KeyStorage // needs ListKeyIDs() and GetKey()
-	KidStore    *KidStore  // optional: serves previous keys during grace period
-	CacheMaxAge int        // Cache-Control max-age in seconds (default: 3600)
+	KeyStore KeyStorage // needs ListKeyIDs() and GetKey()
+	KidStore *KidStore  // optional: serves previous keys during grace period
+	// RetiredKeys, when set, also serves previous keys during their grace
+	// period, from any kid store that lists (FS, GORM, GAE, encrypted), not
+	// just the in-memory KidStore (issue 421).
+	RetiredKeys KidLister
+	CacheMaxAge int // Cache-Control max-age in seconds (default: 3600)
 
 	// TracerProvider opts the handler into SEP-414 (W3C Trace Context)
 	// observability. When non-nil, every ServeHTTP call:
@@ -80,28 +84,32 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		keys = append(keys, jwk)
 	}
 
-	// Include previous asymmetric keys from KidStore (grace period entries)
-	if h.KidStore != nil {
-		kidsSeen := make(map[string]bool, len(keys))
-		for _, k := range keys {
-			kidsSeen[k.Kid] = true
+	// Include previous asymmetric keys still inside their grace period.
+	kidsSeen := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		kidsSeen[k.Kid] = true
+	}
+	for _, lister := range h.retiredListers() {
+		resp, err := lister.ListKids(ctx, &ListKidsRequest{})
+		if err != nil {
+			log.Printf("jwks: list retired keys: %v", err)
+			continue
 		}
-		h.KidStore.mu.RLock()
-		for kid, rec := range h.KidStore.records {
-			if rec.isExpired() || kidsSeen[kid] || !utils.IsAsymmetricAlg(rec.Algorithm) {
+		for _, rec := range resp.Records {
+			if kidsSeen[rec.Kid] || !utils.IsAsymmetricAlg(rec.Algorithm) {
 				continue
 			}
 			pubKey, err := utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 			if err != nil {
 				continue
 			}
-			jwk, err := utils.PublicKeyToJWK(kid, rec.Algorithm, pubKey)
+			jwk, err := utils.PublicKeyToJWK(rec.Kid, rec.Algorithm, pubKey)
 			if err != nil {
 				continue
 			}
+			kidsSeen[rec.Kid] = true
 			keys = append(keys, jwk)
 		}
-		h.KidStore.mu.RUnlock()
 	}
 
 	if keys == nil {
@@ -156,4 +164,16 @@ func etagMatches(header, etag string) bool {
 		}
 	}
 	return false
+}
+
+// retiredListers are the configured sources of retired keys.
+func (h *JWKSHandler) retiredListers() []KidLister {
+	var out []KidLister
+	if h.KidStore != nil {
+		out = append(out, h.KidStore)
+	}
+	if h.RetiredKeys != nil {
+		out = append(out, h.RetiredKeys)
+	}
+	return out
 }
