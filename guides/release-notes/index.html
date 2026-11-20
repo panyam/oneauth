@@ -196,9 +196,41 @@
 <blockquote>
 <p>0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.</p>
 </blockquote>
+<h2 id="version-0312">Version 0.3.12 <a class="anchor" href="#version-0312">¶</a></h2>
+<p>This release binds access tokens to the RFC 8707 resource a client names, on every grant. It closes the code findings from the OAuch run, adds <code>response_mode=form_post</code>, and lets a user withdraw consent from a connected-apps page. The FS refresh-token store stops keeping tokens in plaintext. Three OIDF plans (Form Post Basic, Implicit and Form Post Implicit) and a third MCP server-auth suite join <code>make conformance</code>.</p>
+<h3 id="contract-changes">Contract changes <a class="anchor" href="#contract-changes">¶</a></h3>
+<ul>
+<li><strong>Client credentials in the request URI get a 400 (PR 525).</strong> A <code>client_secret</code>, <code>client_assertion</code> or <code>client_assertion_type</code> in the query string of the token, PAR, introspection, revocation or device endpoint is <code>invalid_request</code>. Those endpoints read every other parameter from the body only.</li>
+<li><strong>A repeated parameter gets <code>invalid_request</code> (PR 525).</strong> It used to take the first value. <code>resource</code> and <code>audience</code> may still repeat. At <code>/authorize</code>, a repeated <code>client_id</code> or <code>redirect_uri</code> shows the error page.</li>
+<li><strong>Code redirects end in <code>#_=_</code> (PR 525),</strong> as RFC 9700 section 4.1.3 suggests.</li>
+<li><strong>An unknown <code>response_mode</code> gets <code>invalid_request</code> (PR 527).</strong> So does <code>query</code> for an implicit response type.</li>
+<li><strong><code>MountProtectedResource</code> with a path serves its metadata only at the path URL (PR 524).</strong> A resource with no path still gets the root URL. RFC 9728 section 3.3 makes a client discard the root copy of a pathed resource&rsquo;s document.</li>
+<li><strong>New stored fields (PR 527).</strong> <code>DeviceAuthorization.Resources</code> holds the device flow&rsquo;s resources, and GAE consent grants gain an indexed <code>subject</code>. GAE grants saved earlier get it on their next read, or all at once from <code>GAEConsentStore.BackfillConsentSubjects</code> (PR 528).</li>
+<li><strong>GORM <code>RevokeAPIKey</code> returns <code>ErrAPIKeyNotFound</code> for a missing key (PR 528),</strong> as FS and GAE already did.</li>
+<li><strong><code>error_description</code> text is mapped into RFC 6749&rsquo;s character set (PR 528).</strong> &ldquo;§&rdquo; becomes &ldquo;section&rdquo;, double quotes become single quotes, and other characters outside printable ASCII become <code>?</code>. Error codes are unchanged.</li>
+<li><strong>The FS refresh-token store keeps only hashes (PR 528).</strong> Files are named by <code>TokenHash</code>, and new records have an empty <code>token</code>. Older files still load and lose their plaintext on the next rotation or revocation.</li>
+</ul>
+<h3 id="resource-indicators-issues-521-and-523">Resource indicators (issues 521 and 523) <a class="anchor" href="#resource-indicators-issues-521-and-523">¶</a></h3>
+<ul>
+<li><code>OneAuthConfig.AllowedResources</code>, or <code>jwt.resources</code> on the reference server, lists the resource servers the AS issues tokens for (PR 524). A named resource becomes the access token&rsquo;s <code>aud</code>, and an unlisted one is <code>invalid_target</code>. With no list the AS ignores <code>resource</code>, as before.</li>
+<li>Client credentials, the code grant, refresh and implicit honor it (PR 524), and so do the device and password grants (PR 527). A code, device code or refresh token keeps its resources, and a later token request may narrow them but not widen them.</li>
+<li><code>trusted_assertion_issuers</code> on the reference server turns on the jwt-bearer and token-exchange grants, with a PEM key or JWKS URI per upstream IdP (PR 524).</li>
+</ul>
+<h3 id="authorization-endpoint-and-consent">Authorization endpoint and consent <a class="anchor" href="#authorization-endpoint-and-consent">¶</a></h3>
+<ul>
+<li><code>response_mode=form_post</code> answers with an auto-submitting form, for successes and errors, through consent and PAR (PR 527, issue 500). Discovery lists <code>response_modes_supported</code>. The page escapes every value and allows only its own script, by nonce.</li>
+<li>Users can withdraw consent at <code>/auth/connected-apps</code> on the reference server (PR 527, issue 516). Revoking ends the client&rsquo;s refresh-token families, blacklists their access tokens, fires <code>OnTokenRevoked</code>, and then deletes the grant. Library users get the same logic from <code>apiauth.ClientAccessRevoker</code> and the new optional <code>core.ConsentLister</code>. A code issued before the revoke still works for up to 60 seconds, and an unrecorded access token, such as an implicit one, for up to 15 minutes (PR 528).</li>
+<li>Implicit <code>id_token token</code> access tokens carry the OIDC <code>claims</code> request, so userinfo honors it (PR 528).</li>
+</ul>
+<h3 id="conformance">Conformance <a class="anchor" href="#conformance">¶</a></h3>
+<ul>
+<li>An OAuch rerun after PR 525 passes the four findings from issue 519. The finished run, with the timed tests, mitigates 33 of 40 threats (<code>docs/conformance/oauch.md</code>).</li>
+<li>New gating suites: <code>mcp-auth-ts</code> runs the MCP scenarios through the official TypeScript SDK (PR 524), and <code>oidf-formpost-basic</code> (PR 527), <code>oidf-implicit</code> and <code>oidf-formpost-implicit</code> (PR 528) run three more OIDF plans.</li>
+<li>The Makefile&rsquo;s Docker volume paths use <code>$(CURDIR)</code>, so <code>make conformance</code> mounts the real Keycloak realm (PR 528).</li>
+</ul>
 <h2 id="version-0311">Version 0.3.11 <a class="anchor" href="#version-0311">¶</a></h2>
 <p>This release finishes what the OIDF Dynamic OP plan asked of oneauth: pairwise subjects, runtime signing-key rotation, and an opt-in implicit flow. It also makes logout cut off access tokens, issues ID tokens on the refresh grant, and fixes two security headers that stopped real browsers finishing an authorization with the reference server. The OIDF plans now run nightly in CI, and two MCP server-auth suites join <code>make conformance</code>.</p>
-<h3 id="contract-changes">Contract changes <a class="anchor" href="#contract-changes">¶</a></h3>
+<h3 id="contract-changes-1">Contract changes <a class="anchor" href="#contract-changes-1">¶</a></h3>
 <ul>
 <li><strong>Custom refresh-token stores should fill <code>RevokeSubjectTokensResponse</code> (PR 517).</strong> It now carries the unexpired access tokens of every revoked family, as <code>RevokeTokenFamilyResponse</code> already did. Logout-all and password reset blacklist them. A store that returns the empty struct still compiles, but its access tokens keep working until they expire.</li>
 <li><strong>New stored client and token fields (PRs 513, 515, 517).</strong> Apps gain <code>subject_type</code>, <code>sector_identifier_uri</code>, <code>response_types</code> and <code>userinfo_signed_response_alg</code>, and refresh tokens gain the login&rsquo;s OIDC context (<code>RefreshToken.OIDC</code>). GORM adds the columns through <code>AutoMigrate</code>, and GAE adds unindexed properties. Old rows read them as empty.</li>
@@ -224,7 +256,7 @@
 <li>In Chrome, consent and login couldn&rsquo;t redirect back to the client, because CSP <code>form-action 'self'</code> covers that redirect. Popup logins also lost their opener under COOP <code>same-origin</code>. Both are fixed (PR 520). The OIDF harness&rsquo;s browser enforces neither header.</li>
 <li><code>jwt.audience</code> stamps an <code>aud</code> on issued tokens (PR 522).</li>
 </ul>
-<h3 id="conformance">Conformance <a class="anchor" href="#conformance">¶</a></h3>
+<h3 id="conformance-1">Conformance <a class="anchor" href="#conformance-1">¶</a></h3>
 <ul>
 <li>The OIDF workflow runs every plan nightly and on demand against the harness pinned at <code>release-v5.3.3</code> (PR 520, issue 498).</li>
 <li>One audited OAuch run is recorded as a new <code>manual</code> suite kind: 107 tests, 13 failed, each triaged in <code>docs/conformance/oauch.md</code> (PR 520, issue 497). Its gaps are issue 519.</li>
@@ -232,7 +264,7 @@
 </ul>
 <h2 id="version-0310">Version 0.3.10 <a class="anchor" href="#version-0310">¶</a></h2>
 <p>This release fixes the GitHub and Google sign-in providers in the <code>oauth2</code> module, which agni needs for Sign in with GitHub. It also lets a <code>private_key_jwt</code> client register a <code>jwks_uri</code> and puts the client&rsquo;s logo, policy and terms on the consent page. Two changes alter what a consumer sees, and both are listed under contract changes.</p>
-<h3 id="contract-changes-1">Contract changes <a class="anchor" href="#contract-changes-1">¶</a></h3>
+<h3 id="contract-changes-2">Contract changes <a class="anchor" href="#contract-changes-2">¶</a></h3>
 <ul>
 <li><strong>A userinfo answer other than 200 fails the sign-in (PR 512).</strong> GitHub answers a bad token with 401 and a JSON body, and that body used to reach <code>HandleUser</code> as the person&rsquo;s profile. The Google and GitHub callbacks now redirect to <code>AuthFailureUrl</code> instead. A fake provider in tests that answers 201 or similar will now fail.</li>
 <li><strong>Five new <code>app_registrations</code> columns (PR 509).</strong> GORM adds them through <code>AutoMigrate</code>, and GAE adds five unindexed properties. Old rows read them as empty.</li>
@@ -254,7 +286,7 @@
 </ul>
 <h2 id="version-039">Version 0.3.9 <a class="anchor" href="#version-039">¶</a></h2>
 <p>The whole repo&rsquo;s tests now run on Windows. That run found two bugs in the FS stores, and this release fixes both. It also adds <code>make conformance</code>, which runs every conformance suite from one command and publishes a report. One change alters what a consumer sees, and it&rsquo;s listed under contract changes.</p>
-<h3 id="contract-changes-2">Contract changes <a class="anchor" href="#contract-changes-2">¶</a></h3>
+<h3 id="contract-changes-3">Contract changes <a class="anchor" href="#contract-changes-3">¶</a></h3>
 <ul>
 <li><strong>FS stores refuse a key whose file holds another key (issue 505, PR 506).</strong> The FS stores turn <code>/</code>, <code>\</code> and <code>:</code> in a key into <code>_</code> to build a file name. So user ID <code>a/b</code> used to read, overwrite or delete the record for <code>a_b</code>. On Windows and on a default macOS volume, <code>Alice</code> did the same to <code>alice</code>. The user, username, app, key, kid and API key stores now check the key inside the file before they read, write or delete it, and return <code>fs.ErrKeyCollision</code> when it differs. The identity and channel stores already did this (issue 88).</li>
 </ul>
@@ -275,7 +307,7 @@
 </ul>
 <h2 id="version-038">Version 0.3.8 <a class="anchor" href="#version-038">¶</a></h2>
 <p>Most of this release moves <code>/authorize</code>, the ID token and userinfo closer to OIDC Core, driven by the OIDF Basic OP plan that <code>make exercise-oidcc</code> now runs. It also fixes <code>file:</code> secret refs on Windows, which agni needs. Two changes alter what a consumer sees, and both are listed under contract changes.</p>
-<h3 id="contract-changes-3">Contract changes <a class="anchor" href="#contract-changes-3">¶</a></h3>
+<h3 id="contract-changes-4">Contract changes <a class="anchor" href="#contract-changes-4">¶</a></h3>
 <ul>
 <li><strong>The ID token no longer carries scope claims (issue 480, PR 488).</strong> A request for <code>scope=openid email</code> used to put <code>email</code> in the ID token as well as userinfo. OIDC Core §5.4 sends those claims to userinfo, so the ID token now carries only claims the request asks for by name with the <code>claims</code> parameter. The client SDK&rsquo;s <code>LoginWithBrowser</code> with <code>VerifyIDToken</code> asks for the four claims <code>IDTokenClaims</code> reads, so SDK users keep them. Other clients that read profile claims from the ID token should call userinfo or send <code>claims</code>.</li>
 <li><strong>An <code>APIMiddleware</code> without <code>DPoP</code> refuses DPoP-bound tokens (issue 486, PR 488).</strong> A token with <code>cnf.jkt</code> sent as Bearer used to pass, so a stolen bound token worked at any resource server that hadn&rsquo;t wired DPoP. It now gets 401 <code>invalid_token</code>.</li>
