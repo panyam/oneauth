@@ -818,7 +818,7 @@ func (m *APIMiddleware) WriteAuthError(w http.ResponseWriter, r *http.Request, e
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error":             "unauthorized",
-		"error_description": err.Error(),
+		"error_description": core.OAuthErrorDescription(err.Error()),
 	})
 }
 
@@ -899,7 +899,7 @@ func (m *APIMiddleware) challenge(err error) string {
 // validation failures, and one carrying a stray quote would corrupt the whole
 // header rather than just its own parameter.
 func sanitizeChallengeValue(v string) string {
-	return strings.NewReplacer(`"`, "'", "\\", "/", "\r", " ", "\n", " ").Replace(v)
+	return core.OAuthErrorDescription(v)
 }
 
 // setAuthContext sets all standard auth context values on the request context.

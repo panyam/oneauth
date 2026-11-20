@@ -283,6 +283,6 @@ func writeOAuthError(w http.ResponseWriter, status int, errorCode, description s
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(core.TokenError{
 		Error:            errorCode,
-		ErrorDescription: description,
+		ErrorDescription: core.OAuthErrorDescription(description),
 	})
 }

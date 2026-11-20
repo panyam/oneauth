@@ -805,7 +805,7 @@ func (h *TokenEndpointHandler) writeError(w http.ResponseWriter, err error) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(core.TokenError{
 		Error:            ge.Code,
-		ErrorDescription: description,
+		ErrorDescription: core.OAuthErrorDescription(description),
 	})
 }
 

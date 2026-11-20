@@ -79,7 +79,7 @@ func (h *AuthorizationHandler) ImplicitResponse(ctx context.Context, req *Author
 	values := url.Values{}
 	var accessToken string
 	if req.ResponseType == ResponseTypeIDTokenToken {
-		at, err := h.Implicit.Issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{Subject: subject, Scopes: req.Scopes(), ClientID: req.ClientID, Audience: req.Resources})
+		at, err := h.Implicit.Issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{Subject: subject, Scopes: req.Scopes(), ClientID: req.ClientID, Audience: req.Resources, UserinfoClaims: req.UserinfoClaims})
 		if err != nil {
 			return nil, fmt.Errorf("access token: %w", err)
 		}

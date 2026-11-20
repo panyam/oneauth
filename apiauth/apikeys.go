@@ -225,6 +225,6 @@ func writeAPIErrorJSON(w http.ResponseWriter, code, description string, status i
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(core.TokenError{
 		Error:            code,
-		ErrorDescription: description,
+		ErrorDescription: core.OAuthErrorDescription(description),
 	})
 }

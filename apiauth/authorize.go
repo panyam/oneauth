@@ -624,7 +624,7 @@ func (h *AuthorizationHandler) SuccessRedirect(req *AuthorizationRequest, code s
 func (h *AuthorizationHandler) ErrorResponse(req *AuthorizationRequest, errCode, errDescription string) *AuthorizationResponse {
 	values := url.Values{"error": {errCode}}
 	if errDescription != "" {
-		values.Set("error_description", errDescription)
+		values.Set("error_description", core.OAuthErrorDescription(errDescription))
 	}
 	return h.newResponse(req, values)
 }
