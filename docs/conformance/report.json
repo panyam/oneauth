@@ -2332,7 +2332,7 @@
       "source": "tests/oauch (server config); OAuch has only a web UI",
       "tracking": "issue 497",
       "result": "manual",
-      "detail": "107 tests, 13 failed (6 test setup, 3 gaps in issue 519, 4 tracked or accepted); 30 of 36 relevant threats mitigated (docs/conformance/oauch.md)",
+      "detail": "107 tests, 13 failed (5 test setup, 4 gaps in issue 519, 4 tracked or accepted); 30 of 36 relevant threats mitigated (docs/conformance/oauch.md)",
       "ran_at": "2026-11-20",
       "commit": "c46fedf"
     }
