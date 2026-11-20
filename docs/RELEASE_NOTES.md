@@ -5,6 +5,40 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.12
+
+This release binds access tokens to the RFC 8707 resource a client names, on every grant. It closes the code findings from the OAuch run, adds `response_mode=form_post`, and lets a user withdraw consent from a connected-apps page. The FS refresh-token store stops keeping tokens in plaintext. Three OIDF plans (Form Post Basic, Implicit and Form Post Implicit) and a third MCP server-auth suite join `make conformance`.
+
+### Contract changes
+
+- **Client credentials in the request URI get a 400 (PR 525).** A `client_secret`, `client_assertion` or `client_assertion_type` in the query string of the token, PAR, introspection, revocation or device endpoint is `invalid_request`. Those endpoints read every other parameter from the body only.
+- **A repeated parameter gets `invalid_request` (PR 525).** It used to take the first value. `resource` and `audience` may still repeat. At `/authorize`, a repeated `client_id` or `redirect_uri` shows the error page.
+- **Code redirects end in `#_=_` (PR 525),** as RFC 9700 section 4.1.3 suggests.
+- **An unknown `response_mode` gets `invalid_request` (PR 527).** So does `query` for an implicit response type.
+- **`MountProtectedResource` with a path serves its metadata only at the path URL (PR 524).** A resource with no path still gets the root URL. RFC 9728 section 3.3 makes a client discard the root copy of a pathed resource's document.
+- **New stored fields (PR 527).** `DeviceAuthorization.Resources` holds the device flow's resources, and GAE consent grants gain an indexed `subject`. GAE grants saved earlier get it on their next read, or all at once from `GAEConsentStore.BackfillConsentSubjects` (PR 528).
+- **GORM `RevokeAPIKey` returns `ErrAPIKeyNotFound` for a missing key (PR 528),** as FS and GAE already did.
+- **`error_description` text is mapped into RFC 6749's character set (PR 528).** "§" becomes "section", double quotes become single quotes, and other characters outside printable ASCII become `?`. Error codes are unchanged.
+- **The FS refresh-token store keeps only hashes (PR 528).** Files are named by `TokenHash`, and new records have an empty `token`. Older files still load and lose their plaintext on the next rotation or revocation.
+
+### Resource indicators (issues 521 and 523)
+
+- `OneAuthConfig.AllowedResources`, or `jwt.resources` on the reference server, lists the resource servers the AS issues tokens for (PR 524). A named resource becomes the access token's `aud`, and an unlisted one is `invalid_target`. With no list the AS ignores `resource`, as before.
+- Client credentials, the code grant, refresh and implicit honor it (PR 524), and so do the device and password grants (PR 527). A code, device code or refresh token keeps its resources, and a later token request may narrow them but not widen them.
+- `trusted_assertion_issuers` on the reference server turns on the jwt-bearer and token-exchange grants, with a PEM key or JWKS URI per upstream IdP (PR 524).
+
+### Authorization endpoint and consent
+
+- `response_mode=form_post` answers with an auto-submitting form, for successes and errors, through consent and PAR (PR 527, issue 500). Discovery lists `response_modes_supported`. The page escapes every value and allows only its own script, by nonce.
+- Users can withdraw consent at `/auth/connected-apps` on the reference server (PR 527, issue 516). Revoking ends the client's refresh-token families, blacklists their access tokens, fires `OnTokenRevoked`, and then deletes the grant. Library users get the same logic from `apiauth.ClientAccessRevoker` and the new optional `core.ConsentLister`. A code issued before the revoke still works for up to 60 seconds, and an unrecorded access token, such as an implicit one, for up to 15 minutes (PR 528).
+- Implicit `id_token token` access tokens carry the OIDC `claims` request, so userinfo honors it (PR 528).
+
+### Conformance
+
+- An OAuch rerun after PR 525 passes the four findings from issue 519. The finished run, with the timed tests, mitigates 33 of 40 threats (`docs/conformance/oauch.md`).
+- New gating suites: `mcp-auth-ts` runs the MCP scenarios through the official TypeScript SDK (PR 524), and `oidf-formpost-basic` (PR 527), `oidf-implicit` and `oidf-formpost-implicit` (PR 528) run three more OIDF plans.
+- The Makefile's Docker volume paths use `$(CURDIR)`, so `make conformance` mounts the real Keycloak realm (PR 528).
+
 ## Version 0.3.11
 
 This release finishes what the OIDF Dynamic OP plan asked of oneauth: pairwise subjects, runtime signing-key rotation, and an opt-in implicit flow. It also makes logout cut off access tokens, issues ID tokens on the refresh grant, and fixes two security headers that stopped real browsers finishing an authorization with the reference server. The OIDF plans now run nightly in CI, and two MCP server-auth suites join `make conformance`.
