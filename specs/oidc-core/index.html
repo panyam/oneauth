@@ -412,7 +412,13 @@ surface smaller.</li>
 <td><code>/authorize</code> endpoint</td>
 <td><strong>Implemented</strong></td>
 <td><code>apiauth/authorize.go</code> <code>AuthorizationHandler</code> (PR 297)</td>
-<td><code>response_type=code</code> only; the ID token comes from the token endpoint</td>
+<td><code>response_type=code</code>, whose ID token comes from the token endpoint. Hybrid types are not supported</td>
+</tr>
+<tr>
+<td>Implicit flow (§3.2, <code>id_token</code>, <code>id_token token</code>)</td>
+<td><strong>Opt-in</strong></td>
+<td><code>apiauth/implicit.go</code> <code>ImplicitRedirect</code>; <code>OneAuthConfig.AllowImplicit</code></td>
+<td>Off by default: RFC 9700 §2.1.2 and OAuth 2.1 advise against it, since tokens pass through the browser&rsquo;s URL. With <code>AllowImplicit</code>, a client registered for the type gets its tokens in the redirect&rsquo;s fragment, never the query, with no code and no refresh token. <code>openid</code> and a <code>nonce</code> are required, the ID token carries <code>at_hash</code> beside an access token, and for <code>id_token</code> alone it carries the scope&rsquo;s claims (§5.4). FAPI 2.0 refuses it. Reference server: <code>code_flow.implicit</code> (issue 507)</td>
 </tr>
 <tr>
 <td>Authorization request by POST (§3.1.2.1)</td>

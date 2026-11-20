@@ -506,6 +506,12 @@ extensions to DCR or out-of-band provisioning.</li>
 <td><code>pairwise</code> needs <code>AppRegistrar.PairwiseSubjects</code>. The sector document is fetched through <code>AppRegistrar.FetchSectorIdentifier</code> (<code>ClientJWKSFetcher.SectorRedirectURIs</code>, with the jwks_uri guards) and must list every redirect URI, on update too. An update can&rsquo;t change the subject type or sector (issue 507)</td>
 </tr>
 <tr>
+<td><code>response_types</code> (§2)</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/registrar.go</code> <code>validateResponseTypes</code></td>
+<td>Default <code>[&quot;code&quot;]</code>. <code>id_token</code> and <code>id_token token</code> need <code>AppRegistrar.AllowImplicit</code> and the <code>implicit</code> grant type, and a <code>code</code> the client asks for needs <code>authorization_code</code>, as §2.1 pairs them (issue 507)</td>
+</tr>
+<tr>
 <td><code>software_statement</code> (§2.3)</td>
 <td><strong>Not implemented</strong></td>
 <td>—</td>
