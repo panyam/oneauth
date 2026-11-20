@@ -12,7 +12,10 @@ services:
         max-size: "500k"
         max-file: "5"
   nginx:
-    image: registry.gitlab.com/openid/conformance-suite/nginx:${IMAGE_TAG:-latest}
+    # Pinned by digest, as is the server image below, so CI and laptops run
+    # the same harness and a new release is a deliberate change: `latest`
+    # moved under CI once and changed which modules ran (issue 498).
+    image: ${OIDF_NGINX_IMAGE:-registry.gitlab.com/openid/conformance-suite/nginx@sha256:8114a77cf7433f48a02c192f398cc3a0606ddad65f0575e7158b6d69c140e350}
     ports:
      - "8443:8443"
     # A cert from certs/ca.crt in place of the image's self-signed one, so
@@ -36,7 +39,7 @@ services:
         max-size: "500k"
         max-file: "5"
   server:
-    image: registry.gitlab.com/openid/conformance-suite:${IMAGE_TAG:-latest}
+    image: ${OIDF_SERVER_IMAGE:-registry.gitlab.com/openid/conformance-suite@sha256:3e821b3ff5c341d494b166d5e46f523b0f81a3839e28dd2798dda0117b31c9d9}
     environment:
       BASE_URL: ${BASE_URL:-https://localhost.emobix.co.uk:8443}
       MONGODB_HOST: mongodb
