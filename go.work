@@ -16,6 +16,7 @@ use (
 	./tests/authlete
 	./tests/conformance
 	./tests/keycloak
+	./tests/mcpauth
 	./tests/oidf-conformance
 )
 
