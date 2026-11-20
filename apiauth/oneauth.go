@@ -133,6 +133,19 @@ type OneAuthConfig struct {
 	// key lookup.
 	VerifyKey any
 
+	// SigningKeySource, when set, supplies the signing key in place of
+	// SigningKey, SigningAlg and VerifyKey, read on every token, so the
+	// key can rotate while the server runs (RotatingSigningKey, issue 507).
+	// Access tokens, ID tokens and the validator's own key all follow it.
+	SigningKeySource SigningKeySource
+
+	// OwnKeyClientID is the KeyStore client_id the AS registers its own
+	// public keys under, current and retired. A token verified by a key
+	// with that client_id is the AS's own and skips the tenant check
+	// whichever client it names, so tokens signed before a rotation keep
+	// verifying through the KidStore. Empty exempts only the current key.
+	OwnKeyClientID string
+
 	// JWT configuration
 	Issuer       string        // JWT iss claim
 	Audience     string        // JWT aud claim (optional)
@@ -331,6 +344,10 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		cfg.DisableRefreshTokenRotation = true
 		cfg.AcceptedAudiences = []string{cfg.Issuer}
 	}
+	if cfg.SigningKeySource != nil {
+		cfg.SigningKey, cfg.SigningAlg = cfg.SigningKeySource.CurrentSigningKey()
+		cfg.VerifyKey, _ = verifyKeyAndKid(cfg.SigningKey, cfg.SigningAlg)
+	}
 	signingAlg := cfg.SigningAlg
 	if signingAlg == "" {
 		signingAlg = "HS256"
@@ -338,6 +355,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 
 	// Wire the issuer — needs signing config + client key lookup + refresh store
 	issuer := NewJWTIssuer(JWTIssuerConfig{
+		SigningKeySource:    cfg.SigningKeySource,
 		SigningKey:          cfg.SigningKey,
 		SigningAlg:          signingAlg,
 		Issuer:              cfg.Issuer,
@@ -375,15 +393,17 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		keyLookup = cfg.KidStore
 	}
 	validator := NewJWTValidator(JWTValidatorConfig{
-		KeyLookup:      keyLookup,
-		SigningKey:     validatorKey,
-		SigningAlg:     signingAlg,
-		Blacklist:      cfg.Blacklist,
-		Issuer:         cfg.Issuer,
-		Audience:       cfg.Audience,
-		AudienceFunc:   cfg.AudienceFunc,
-		Hooks:          cfg.Hooks.Security,
-		TracerProvider: cfg.TracerProvider,
+		SigningKeySource: cfg.SigningKeySource,
+		OwnKeyClientID:   cfg.OwnKeyClientID,
+		KeyLookup:        keyLookup,
+		SigningKey:       validatorKey,
+		SigningAlg:       signingAlg,
+		Blacklist:        cfg.Blacklist,
+		Issuer:           cfg.Issuer,
+		Audience:         cfg.Audience,
+		AudienceFunc:     cfg.AudienceFunc,
+		Hooks:            cfg.Hooks.Security,
+		TracerProvider:   cfg.TracerProvider,
 	})
 
 	// Wire the introspector — the validator, plus the refresh store so
@@ -415,11 +435,12 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	if cfg.OIDC != nil {
 		var err error
 		idTokens, err = NewJWTIDTokenIssuer(JWTIDTokenIssuerConfig{
-			SigningKey: cfg.SigningKey,
-			SigningAlg: signingAlg,
-			Issuer:     cfg.Issuer,
-			Expiry:     cfg.OIDC.IDTokenExpiry,
-			UserClaims: cfg.OIDC.UserClaims,
+			SigningKeySource: cfg.SigningKeySource,
+			SigningKey:       cfg.SigningKey,
+			SigningAlg:       signingAlg,
+			Issuer:           cfg.Issuer,
+			Expiry:           cfg.OIDC.IDTokenExpiry,
+			UserClaims:       cfg.OIDC.UserClaims,
 		})
 		if err != nil {
 			panic("apiauth: NewOneAuth: OIDC: " + err.Error())

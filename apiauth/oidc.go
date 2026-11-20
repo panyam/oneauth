@@ -120,6 +120,11 @@ type JWTIDTokenIssuerConfig struct {
 
 	// UserClaims supplies the claims beyond `sub`. Optional.
 	UserClaims UserClaimsFunc
+
+	// SigningKeySource, when set, supplies the key on every ID token in
+	// place of SigningKey, so it follows a rotation (RotatingSigningKey).
+	// SigningKey is still checked at construction.
+	SigningKeySource SigningKeySource
 }
 
 // jwtIDTokenIssuer implements IDTokenIssuer with the AS signing key.
@@ -129,6 +134,7 @@ type jwtIDTokenIssuer struct {
 	issuer     string
 	expiry     time.Duration
 	userClaims UserClaimsFunc
+	keySource  SigningKeySource
 }
 
 // NewJWTIDTokenIssuer returns an IDTokenIssuer that signs with the AS key.
@@ -156,6 +162,7 @@ func NewJWTIDTokenIssuer(cfg JWTIDTokenIssuerConfig) (IDTokenIssuer, error) {
 		issuer:     cfg.Issuer,
 		expiry:     expiry,
 		userClaims: cfg.UserClaims,
+		keySource:  cfg.SigningKeySource,
 	}, nil
 }
 
@@ -207,11 +214,12 @@ func (i *jwtIDTokenIssuer) CreateIDToken(ctx context.Context, req *CreateIDToken
 		claims["at_hash"] = h
 	}
 
+	signingKey := i.key() // once, so the kid and the signature match across a rotation
 	tok := jwt.NewWithClaims(i.method, claims)
-	if kid, err := utils.ComputeKid(i.signingKey, i.method.Alg()); err == nil {
+	if kid, err := utils.ComputeKid(signingKey, i.method.Alg()); err == nil {
 		tok.Header["kid"] = kid
 	}
-	signed, err := tok.SignedString(i.signingKey)
+	signed, err := tok.SignedString(signingKey)
 	if err != nil {
 		return nil, fmt.Errorf("oidc: sign ID token: %w", err)
 	}
@@ -288,4 +296,13 @@ func collectUserClaims(ctx context.Context, userClaims UserClaimsFunc, subject s
 		}
 	}
 	return out, nil
+}
+
+// key is the issuer's current signing key: its source's when it has one.
+func (i *jwtIDTokenIssuer) key() any {
+	if i.keySource != nil {
+		k, _ := i.keySource.CurrentSigningKey()
+		return k
+	}
+	return i.signingKey
 }

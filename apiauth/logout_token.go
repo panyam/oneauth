@@ -71,6 +71,7 @@ type jwtLogoutTokenIssuer struct {
 	signingAlg string
 	issuer     string
 	tokenTTL   time.Duration
+	keySource  SigningKeySource
 }
 
 // JWTLogoutTokenIssuerConfig configures a jwtLogoutTokenIssuer.
@@ -78,6 +79,10 @@ type JWTLogoutTokenIssuerConfig struct {
 	// SigningKey is the AS signing key. For HS256 pass []byte; for RS256/ES256
 	// pass the private key.
 	SigningKey any
+
+	// SigningKeySource, when set, supplies the key on every logout token
+	// in place of SigningKey, so it follows a rotation (RotatingSigningKey).
+	SigningKeySource SigningKeySource
 
 	// SigningAlg names the JWS algorithm (e.g. "RS256"). Empty falls back to
 	// HS256 when SigningKey is a []byte.
@@ -102,6 +107,7 @@ func NewJWTLogoutTokenIssuer(cfg JWTLogoutTokenIssuerConfig) LogoutTokenIssuer {
 		ttl = 2 * time.Minute
 	}
 	return &jwtLogoutTokenIssuer{
+		keySource:  cfg.SigningKeySource,
 		signingKey: cfg.SigningKey,
 		signingAlg: cfg.SigningAlg,
 		issuer:     cfg.Issuer,
@@ -117,6 +123,7 @@ func NewJWTLogoutTokenIssuer(cfg JWTLogoutTokenIssuerConfig) LogoutTokenIssuer {
 // emitted as `{<BCLEventType>: {}}` exactly — receivers test for the presence
 // of the URI key, not the value shape.
 func (i *jwtLogoutTokenIssuer) CreateLogoutToken(ctx context.Context, req *CreateLogoutTokenRequest) (*CreateLogoutTokenResponse, error) {
+	signingKey := i.key()
 	if req == nil {
 		return nil, fmt.Errorf("CreateLogoutTokenRequest is required")
 	}
@@ -152,7 +159,7 @@ func (i *jwtLogoutTokenIssuer) CreateLogoutToken(ctx context.Context, req *Creat
 
 	method, err := utils.SigningMethodForAlg(i.signingAlg)
 	if err != nil {
-		if _, ok := i.signingKey.([]byte); ok {
+		if _, ok := signingKey.([]byte); ok {
 			method = jwt.SigningMethodHS256
 		} else {
 			return nil, fmt.Errorf("logout_token: invalid signing alg: %w", err)
@@ -163,13 +170,22 @@ func (i *jwtLogoutTokenIssuer) CreateLogoutToken(ctx context.Context, req *Creat
 	// Per §2.4 the JWS header carries `typ=logout+jwt` so receivers can
 	// distinguish logout_tokens from access/id tokens before parsing claims.
 	tok.Header["typ"] = "logout+jwt"
-	if kid, kidErr := utils.ComputeKid(i.signingKey, method.Alg()); kidErr == nil {
+	if kid, kidErr := utils.ComputeKid(signingKey, method.Alg()); kidErr == nil {
 		tok.Header["kid"] = kid
 	}
 
-	signed, err := tok.SignedString(i.signingKey)
+	signed, err := tok.SignedString(signingKey)
 	if err != nil {
 		return nil, fmt.Errorf("logout_token: sign: %w", err)
 	}
 	return &CreateLogoutTokenResponse{Token: signed}, nil
+}
+
+// key is the issuer's current signing key: its source's when it has one.
+func (i *jwtLogoutTokenIssuer) key() any {
+	if i.keySource != nil {
+		k, _ := i.keySource.CurrentSigningKey()
+		return k
+	}
+	return i.signingKey
 }
