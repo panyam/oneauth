@@ -35,3 +35,19 @@ func TestLoadExpectations_FormPostManifest(t *testing.T) {
 		}
 	}
 }
+
+// The Implicit OP plans share the Basic OP and Form Post entries: the typ
+// warning, the REVIEW screenshots and the request-object module (issue
+// 526).
+func TestLoadExpectations_ImplicitManifests(t *testing.T) {
+	for _, plan := range []string{ImplicitPlanName, FormPostImplicitPlanName} {
+		got, err := oidfplan.LoadExpectations(filepath.Join("..", "..", "conformance", "known-gaps.yaml"), plan)
+		require.NoError(t, err)
+		assert.Len(t, got, 6, plan)
+		for _, e := range got {
+			if e.Status == oidfplan.StatusExpectedReview {
+				assert.Contains(t, ModuleBrowsers(testSetup()), e.Module, "a REVIEW module needs a browser override")
+			}
+		}
+	}
+}

@@ -1,6 +1,8 @@
 # cmd/oneauth-server for the OpenID Connect OP plans: Basic OP (mission 477,
 # on 8890), Dynamic OP (issue 493, on 8891), oidcc-test-plan (issue 494,
-# on 8892) and Form Post Basic OP (issue 500, on 8893). OIDCC_PORT picks the port; scripts/exercise-oidf.sh sets it. Each
+# on 8892), Form Post Basic OP (issue 500, on 8893), and Implicit OP and
+# Form Post Implicit OP (issue 526, on 8894 and 8896). OIDCC_PORT picks the
+# port; scripts/exercise-oidf.sh sets it. Each
 # runs over TLS at the host name the OIDF harness container uses, beside the
 # discovery baseline (8888) and the FAPI 2.0 server (8889).
 
@@ -65,7 +67,8 @@ code_flow:
   # every run anyway.
   pairwise_salt: oidf-exercise-pairwise-salt-not-a-secret
   # The opt-in implicit flow (issue 507), which an OIDC Dynamic OP must
-  # support (OIDC Core §15.2). Clients still have to register for it.
+  # support (OIDC Core §15.2). The Implicit OP plans need it too (issue
+  # 526). Clients still have to register for it.
   implicit: true
 
 # The exercise user signs up with these standard OIDC profile claims

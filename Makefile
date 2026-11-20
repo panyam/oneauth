@@ -729,10 +729,11 @@ oidflogs:
 # against tests/conformance/known-gaps.yaml (external-suite entries).
 # The FAPI 2.0 plan (issue 98), the OIDC Basic OP plan (mission 477), the
 # Dynamic OP plan (issue 493), oidcc-test-plan once per client auth method
-# (issue 494) and the Form Post Basic OP plan (issue 500) each run against a
-# fresh server that scripts/exercise-oidf.sh <plan> --go-test starts and
-# stops (:8889 to :8893). The full run takes a while (52 + 38 + 23 + 3 x
-# about 52 + 38 modules).
+# (issue 494), the Form Post Basic OP plan (issue 500) and the Implicit and
+# Form Post Implicit OP plans (issue 526) each run against a fresh server
+# that scripts/exercise-oidf.sh <plan> --go-test starts and stops (:8889 to
+# :8894, and :8896). The full run takes a while (52 + 38 + 23 + 3 x about
+# 52 + 38 + 2 x 31 modules).
 OIDCCTP_AUTH_TYPES := client_secret_post client_secret_jwt private_key_jwt
 testoidf: oidf-discovery-up
 	./scripts/exercise-oidf.sh fapi2 --go-test
@@ -742,6 +743,8 @@ testoidf: oidf-discovery-up
 	RESPONSE_TYPE="id_token token" ./scripts/exercise-oidf.sh oidcdyn --go-test
 	@set -e; for a in $(OIDCCTP_AUTH_TYPES); do AUTH=$$a ./scripts/exercise-oidf.sh oidcctp --go-test; done
 	./scripts/exercise-oidf.sh oidccfp --go-test
+	./scripts/exercise-oidf.sh oidcci --go-test
+	./scripts/exercise-oidf.sh oidccfpi --go-test
 
 # The OIDF Config plan alone: the discovery document checked against the
 # server on :8888, with its per-check scorecard. `make testoidf` runs it too.
@@ -785,6 +788,15 @@ exercise-oidcc:
 # with response_mode=form_post. MODULE=<substring> as above.
 exercise-oidccfp:
 	./scripts/exercise-oidf.sh oidccfp $(if $(MODULE),-module $(MODULE))
+
+# Issue 526: the OIDF Implicit OP plan on :8894 and the Form Post Implicit OP
+# plan on :8896, run with one static client registered for the implicit
+# response types. MODULE=<substring> as above.
+exercise-oidcci:
+	./scripts/exercise-oidf.sh oidcci $(if $(MODULE),-module $(MODULE))
+
+exercise-oidccfpi:
+	./scripts/exercise-oidf.sh oidccfpi $(if $(MODULE),-module $(MODULE))
 
 # Issue 493: the OIDF Dynamic OP plan on :8891, where the harness registers
 # its own clients. MODULE=<substring> as above. RESPONSE_TYPE="id_token" or
@@ -1076,7 +1088,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all
