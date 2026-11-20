@@ -112,6 +112,10 @@ func (h *DeviceAuthorizationHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "invalid form body")
 		return
 	}
+	if gErr := checkFormParams(r); gErr != nil {
+		writeOAuthError(w, gErr.Status, gErr.Code, gErr.Description)
+		return
+	}
 	// Resolve credentials across all three OAuth channels — Authorization:
 	// Basic (RFC 6749 §2.3.1), client_secret_post, and client_assertion
 	// (RFC 7521 §4.2) — via the shared extractor, so a client_secret_basic
@@ -120,7 +124,7 @@ func (h *DeviceAuthorizationHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 	// where extractClientCredentials finds no complete credential set.
 	creds, ok := extractClientCredentials(r, nil)
 	if !ok {
-		creds = &AuthenticateClientRequest{ClientID: r.FormValue("client_id")}
+		creds = &AuthenticateClientRequest{ClientID: r.PostForm.Get("client_id")}
 	}
 	clientID := creds.ClientID
 	if clientID == "" {
@@ -168,7 +172,7 @@ func (h *DeviceAuthorizationHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", "could not load the client registration")
 		return
 	}
-	scopes, gErr := grantScopes(reg, core.ParseScopes(r.FormValue("scope")))
+	scopes, gErr := grantScopes(reg, core.ParseScopes(r.PostForm.Get("scope")))
 	if gErr != nil {
 		writeOAuthError(w, gErr.Status, gErr.Code, gErr.Description)
 		return
@@ -178,7 +182,7 @@ func (h *DeviceAuthorizationHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		UserCode:          userCode,
 		ClientID:          clientID,
 		Scopes:            scopes,
-		RequestedAudience: r.FormValue("audience"),
+		RequestedAudience: r.PostForm.Get("audience"),
 		Status:            core.DeviceAuthorizationStatusPending,
 		CreatedAt:         now,
 		ExpiresAt:         now.Add(expiry),

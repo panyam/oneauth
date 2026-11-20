@@ -60,6 +60,10 @@ func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.errorResponse(w, "invalid_request", "malformed request body", http.StatusBadRequest)
 		return
 	}
+	if gErr := checkFormParams(r); gErr != nil {
+		h.errorResponse(w, gErr.Code, gErr.Description, gErr.Status)
+		return
+	}
 
 	creds, ok := extractClientCredentials(r, nil)
 	if !ok {
@@ -79,12 +83,12 @@ func (h *RevocationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// RFC 7009 §2.1: token is REQUIRED.
-	token := r.FormValue("token")
+	token := r.PostForm.Get("token")
 	if token == "" {
 		h.errorResponse(w, "invalid_request", "token parameter is required", http.StatusBadRequest)
 		return
 	}
-	hint := r.FormValue("token_type_hint")
+	hint := r.PostForm.Get("token_type_hint")
 
 	_, err = h.Revoker.Revoke(r.Context(), &RevokeRequest{Token: token, TokenTypeHint: hint, ClientID: authed.ClientID})
 	if errors.Is(err, ErrRevokeNotOwner) {
