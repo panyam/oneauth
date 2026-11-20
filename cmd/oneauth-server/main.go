@@ -602,18 +602,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 
 	apiauth.MountASMetadata(mux, asMeta)
 
-	secHeaders := httpauth.SecurityHeadersWithConfig(httpauth.SecurityHeadersConfig{
-		HSTSMaxAge:                31536000,
-		HSTSIncludeSubDomains:     true,
-		FrameOptions:              "DENY",
-		ContentSecurityPolicy:     serverCSP,
-		ReferrerPolicy:            "strict-origin-when-cross-origin",
-		PermissionsPolicy:         "camera=(), microphone=(), geolocation=()",
-		CrossOriginEmbedderPolicy: "credentialless",
-		CrossOriginOpenerPolicy:   "same-origin",
-		CrossOriginResourcePolicy: "same-origin",
-	})
-	return secHeaders(mux), stores.Cleanup, nil
+	return withSecurityHeaders(mux), stores.Cleanup, nil
 }
 
 // userStores holds all the store instances needed for auth.

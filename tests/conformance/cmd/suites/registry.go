@@ -12,11 +12,27 @@ import (
 )
 
 // Suite kinds. A gating suite's failure fails `make conformance`; an info
-// suite is reported and never fails the run.
+// suite is reported and never fails the run. A manual suite is run by a
+// person (OAuch has no API, issue 497): make conformance never runs it,
+// and its entry records the last run.
 const (
 	KindGating = "gating"
 	KindInfo   = "info"
+	KindManual = "manual"
 )
+
+// ManualRun is a manual suite's last run, as its suites.yaml entry records
+// it.
+type ManualRun struct {
+	// Date is when the run happened, YYYY-MM-DD.
+	Date string `yaml:"date"`
+	// Commit is the oneauth commit the run tested.
+	Commit string `yaml:"commit"`
+	// Result is the one-line outcome the report shows.
+	Result string `yaml:"result"`
+	// Doc is where the run is written up and its findings triaged.
+	Doc string `yaml:"doc"`
+}
 
 // Suite is one entry in conformance/suites.yaml.
 type Suite struct {
@@ -34,6 +50,9 @@ type Suite struct {
 	// Timeout bounds one run of the suite, as a Go duration ("15m").
 	// Empty uses DefaultTimeout.
 	Timeout string `yaml:"timeout"`
+	// LastRun records a manual suite's last run. Required for kind manual,
+	// and refused on any other kind.
+	LastRun *ManualRun `yaml:"last_run"`
 }
 
 // DefaultTimeout bounds a suite whose entry sets no timeout.
@@ -96,8 +115,14 @@ func (r *Registry) Validate() []string {
 			out = append(out, fmt.Sprintf("%q appears twice", s.Name))
 		}
 		seen[s.Name] = true
-		if s.Kind != KindGating && s.Kind != KindInfo {
-			out = append(out, fmt.Sprintf("%q: kind must be gating or info (got %q)", s.Name, s.Kind))
+		if s.Kind != KindGating && s.Kind != KindInfo && s.Kind != KindManual {
+			out = append(out, fmt.Sprintf("%q: kind must be gating, info or manual (got %q)", s.Name, s.Kind))
+		}
+		if s.Kind == KindManual && (s.LastRun == nil || s.LastRun.Date == "" || s.LastRun.Result == "") {
+			out = append(out, fmt.Sprintf("%q: a manual suite needs last_run with a date and a result", s.Name))
+		}
+		if s.Kind != KindManual && s.LastRun != nil {
+			out = append(out, fmt.Sprintf("%q: last_run is for manual suites only", s.Name))
 		}
 		if strings.TrimSpace(s.Covers) == "" {
 			out = append(out, fmt.Sprintf("%q: covers is empty", s.Name))
@@ -146,6 +171,9 @@ func Drift(r *Registry, targets []string) []string {
 	}
 	named := map[string]bool{}
 	for _, s := range r.Suites {
+		if s.Kind == KindManual {
+			continue // run by a person, so no target
+		}
 		named[s.Target()] = true
 		if !has[s.Target()] {
 			out = append(out, fmt.Sprintf("suite %q has no %s target in conformance/Makefile", s.Name, s.Target()))

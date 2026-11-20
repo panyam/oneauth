@@ -1,20 +1,28 @@
 name: OIDF Conformance
 
-# Manual trigger only — the OIDF harness is slow to bring up (Java app +
-# MongoDB + nginx, ~30-60s) and the discovery test produces structured
-# results meant for human review when the ratchet shifts. Not per-commit
-# material; matches the `testkcl` posture in keycloak-interop.yml.
-# Run via: Actions → OIDF Conformance → Run workflow
+# Every OpenID Foundation plan oneauth claims (FAPI 2.0, OIDC Basic OP,
+# Dynamic OP with code and the implicit types, oidcc-test-plan per client
+# auth method), each judged against tests/conformance/known-gaps.yaml. It
+# runs `make testoidf`, the same target as a laptop, so the two can't
+# drift (issue 498). A full run takes about 30 minutes, so it runs nightly
+# and on demand rather than per PR.
 on:
+  schedule:
+    - cron: "17 6 * * *"
   workflow_dispatch:
 
 # Read-only token by default; a job that needs more says so.
 permissions:
   contents: read
 
+concurrency:
+  group: oidf-conformance
+  cancel-in-progress: false
+
 jobs:
-  oidf-discovery:
+  testoidf:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -23,34 +31,25 @@ jobs:
         with:
           go-version: '1.26'
 
-      - name: Start OIDF conformance harness
-        run: |
-          docker compose -f tests/oidf-conformance/docker-compose-prebuilt.yml up -d
-          # Wait for the harness UI to come online — host.docker.internal
-          # needs to resolve (it does on Mac/Win Docker; on Linux CI we add the host gateway).
-          until curl -ksf -o /dev/null https://localhost.emobix.co.uk:8443/; do sleep 2; done
+      # make upoidf waits for the harness with scripts/wait-for.sh, which
+      # gives up after 300 seconds rather than hanging the job.
+      - name: Start the OIDF harness
+        run: make upoidf
 
-      - name: Start oneauth-server
-        run: |
-          # Backgrounded; the test waits for /.well-known to come online.
-          # On Linux CI Docker doesn't auto-resolve host.docker.internal, so
-          # we add the route here for the harness container.
-          docker network inspect bridge >/dev/null 2>&1
-          go run -buildvcs=false ./cmd/oneauth-server \
-            --config tests/oidf-conformance/oneauth-server.yaml > /tmp/oneauth-server.log 2>&1 &
-          until curl -sf -o /dev/null http://localhost:8888/.well-known/openid-configuration; do sleep 1; done
-          echo "AS ready."
+      - name: Run every OIDF plan
+        run: make testoidf
 
-      - name: Run OIDF conformance ratchet
-        env:
-          GOWORK: "off"
-        working-directory: tests/oidf-conformance
-        run: go test -v -count=1 ./...
-
-      - name: Capture oneauth-server logs on failure
+      - name: Show logs on failure
         if: failure()
         run: |
-          echo "=== oneauth-server log ==="
-          cat /tmp/oneauth-server.log || true
-          echo "=== harness server log ==="
+          for f in /tmp/oneauth-*.log; do echo "=== $f"; tail -n 100 "$f"; done
+          echo "=== harness server"
           docker compose -f tests/oidf-conformance/docker-compose-prebuilt.yml logs --tail=200 server || true
+
+      - name: Keep the server logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: oidf-server-logs
+          path: /tmp/oneauth-*.log
+          retention-days: 7

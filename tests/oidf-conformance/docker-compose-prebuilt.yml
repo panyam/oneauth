@@ -12,7 +12,13 @@ services:
         max-size: "500k"
         max-file: "5"
   nginx:
-    image: registry.gitlab.com/openid/conformance-suite/nginx:${IMAGE_TAG:-latest}
+    # Pinned to a release, as is the server image below, so CI and laptops
+    # run the same harness and an upgrade is a deliberate change. The
+    # registry's `latest` is older than the releases (April 2026), and a
+    # digest disappears when GitLab's cleanup removes it (issue 498).
+    # `curl -sk https://localhost.emobix.co.uk:8443/api/server` shows the
+    # running harness's tag.
+    image: registry.gitlab.com/openid/conformance-suite/nginx:${OIDF_HARNESS_TAG:-release-v5.3.3}
     ports:
      - "8443:8443"
     # A cert from certs/ca.crt in place of the image's self-signed one, so
@@ -36,7 +42,7 @@ services:
         max-size: "500k"
         max-file: "5"
   server:
-    image: registry.gitlab.com/openid/conformance-suite:${IMAGE_TAG:-latest}
+    image: registry.gitlab.com/openid/conformance-suite:${OIDF_HARNESS_TAG:-release-v5.3.3}
     environment:
       BASE_URL: ${BASE_URL:-https://localhost.emobix.co.uk:8443}
       MONGODB_HOST: mongodb
@@ -57,6 +63,11 @@ services:
         -Djavax.net.ssl.trustStoreType=JKS
     volumes:
      - ./certs:/oneauth-truststore:ro
+    # The harness reaches oneauth-server at host.docker.internal. Docker
+    # Desktop resolves that name itself; Docker on Linux (CI) needs this
+    # (issue 498).
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
     depends_on:
      - mongodb
     logging:

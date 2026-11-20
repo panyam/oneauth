@@ -98,7 +98,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 | RAR conformance | `tests/keycloak/rar_interop_test.go` | RFC 9396 round-trip — currently the most thorough public RAR interop test we know of |
 | In-process e2e | `tests/e2e/` | All endpoints end-to-end against `cmd/oneauth-server` |
 | Conformance ratchet | `tests/conformance/` | RFC 8414 dual-path (`as_metadata/`), RFC 7662 (`introspection/`), `private_key_jwt` (`client_auth/`); expected failures in `known-gaps.yaml`, run by `make testconformance` |
-| OIDF discovery plan | `tests/oidf-conformance/` | `oidcc-config-certification-test-plan` through `make testoidf`. The OIDF workflow is `workflow_dispatch` only and has not run in CI yet. |
+| OIDF discovery plan | `tests/oidf-conformance/` | `oidcc-config-certification-test-plan` through `make testoidf`. CI runs every OIDF plan nightly and on demand (`oidf-conformance.yml`, issue 498), against the harness release pinned in the compose file. |
 | OIDF FAPI 2.0 plan | `tests/oidf-conformance/fapi2/` | `fapi2-security-profile-final-test-plan` through `make testoidf` (and `make exercise-fapi2`); whole-module `expected-review` / `expected-skip` entries in `known-gaps.yaml`. Local only, like the discovery plan. |
 | OIDF OIDC Basic OP plan | `tests/oidf-conformance/oidcc/` | `oidcc-basic-certification-test-plan` through `make testoidf` (and `make exercise-oidcc`), mission 477; whole-module entries in `known-gaps.yaml` like FAPI 2.0. Local only. |
 | OIDF Dynamic OP plan and `oidcc-test-plan` | `tests/oidf-conformance/oidcdyn/` | `oidcc-dynamic-certification-test-plan` (`make exercise-oidcdyn`, issue 493) and `oidcc-test-plan` once per client auth method (`make exercise-oidcctp AUTH=<method>`, issue 494), both through `make testoidf`. The harness registers its own clients through DCR. One `known-gaps.yaml` entry can name several plans with `plans:`. Local only. |
@@ -227,7 +227,7 @@ This is also the suite that surfaced bug 74 (`TokenEndpointAuthMethods` negotiat
 #### OAuch
 
 - **Repo:** [github.com/DistriNet/OAuch](https://github.com/DistriNet/OAuch), an analyzer for OAuth 2.0 authorization servers that checks best practices and known threats rather than certifying conformance.
-- **Plan:** run it against the reference server and triage each finding into a ticket or an accepted reason (#497), as an info suite in `make conformance`.
+- **Runs:** by hand, since OAuch has only a web UI, as the `manual` suite `oauch` in `conformance/suites.yaml`. [`docs/conformance/oauch.md`](conformance/oauch.md) has the last run, each finding's verdict (a ticket, test setup, or an accepted reason) and the steps to run it again (issue 497).
 
 ### 2.5 Self-written suites (filling public gaps)
 

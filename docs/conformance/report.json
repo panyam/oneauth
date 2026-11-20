@@ -2297,6 +2297,17 @@
       "detail": "go test: 14 passed, 0 skipped, 4 failed (top-level tests)",
       "ran_at": "2026-11-20 02:17 UTC",
       "commit": "b7a710d"
+    },
+    {
+      "name": "oauch",
+      "kind": "manual",
+      "covers": "OAuch (DistriNet) checks the reference server against RFC 6749, 6750, 6819, 7009, 7636, 9700 and OIDC, and against their threat models",
+      "source": "tests/oauch (server config); OAuch has only a web UI",
+      "tracking": "issue 497",
+      "result": "manual",
+      "detail": "107 tests, 13 failed (5 test setup, 4 gaps in issue 519, 4 tracked or accepted); 30 of 36 relevant threats mitigated (docs/conformance/oauch.md)",
+      "ran_at": "2026-11-20",
+      "commit": "c46fedf"
     }
   ]
 }
