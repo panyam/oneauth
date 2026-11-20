@@ -45,6 +45,8 @@ type AuthorizationCodeModel struct {
 	IDTokenClaims        []string                   `gorm:"serializer:json"` // OIDC claims parameter, ID token part
 	UserinfoClaims       []string                   `gorm:"serializer:json"` // OIDC claims parameter, userinfo part
 	AuthTime             *time.Time                 // OIDC auth_time; NULL when unknown
+	ACR                  string                     `gorm:"size:256"`        // OIDC acr of the login
+	AMR                  []string                   `gorm:"serializer:json"` // OIDC amr of the login
 	IssuedAt             time.Time                  `gorm:"autoCreateTime"`
 	ExpiresAt            time.Time                  `gorm:"not null;index"`
 	UsedAt               *time.Time
@@ -257,6 +259,8 @@ func authCodeToModel(c *core.AuthorizationCode) *AuthorizationCodeModel {
 		IDTokenClaims:        c.IDTokenClaims,
 		UserinfoClaims:       c.UserinfoClaims,
 		AuthTime:             nullableTime(c.AuthTime),
+		ACR:                  c.ACR,
+		AMR:                  c.AMR,
 		IssuedAt:             c.IssuedAt,
 		ExpiresAt:            c.ExpiresAt,
 		UsedAt:               nullableTime(c.UsedAt),
@@ -294,6 +298,8 @@ func modelToAuthCode(m *AuthorizationCodeModel, code string) *core.Authorization
 		IDTokenClaims:        m.IDTokenClaims,
 		UserinfoClaims:       m.UserinfoClaims,
 		AuthTime:             derefTime(m.AuthTime),
+		ACR:                  m.ACR,
+		AMR:                  m.AMR,
 		IssuedAt:             m.IssuedAt,
 		ExpiresAt:            m.ExpiresAt,
 		UsedAt:               derefTime(m.UsedAt),

@@ -51,17 +51,5 @@ func revokeRefreshFamily(ctx context.Context, store core.RefreshTokenStore, blac
 }
 
 func blacklistAccessTokens(blacklist core.TokenBlacklist, tokens []core.IssuedAccessToken) {
-	if blacklist == nil {
-		return
-	}
-	for _, t := range tokens {
-		if t.TokenID == "" {
-			continue
-		}
-		expiresAt := t.ExpiresAt
-		if expiresAt.IsZero() {
-			expiresAt = time.Now().Add(core.TokenExpiryAccessToken)
-		}
-		_ = blacklist.Revoke(t.TokenID, expiresAt)
-	}
+	core.BlacklistIssuedAccessTokens(blacklist, tokens)
 }

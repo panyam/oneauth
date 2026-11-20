@@ -50,6 +50,14 @@ type AuthorizeVerificationHandler struct {
 	// the session records at login, such as the session cookie's `iat`.
 	AuthTimeFromRequest func(r *http.Request) time.Time
 
+	// AuthContextFromRequest says how the logged-in user authenticated,
+	// which becomes the ID token's `acr` and `amr` (OIDC Core §2).
+	// acrValues is the client's `acr_values` in preference order; return
+	// the first one the login meets, or the login's own class when it
+	// meets none (the parameter is a request, not a requirement). Nil
+	// leaves both claims out.
+	AuthContextFromRequest func(r *http.Request, acrValues []string) AuthContext
+
 	// CSRFTokenFromRequest returns the per-request CSRF token to
 	// embed in the rendered form. Wire `httpauth.CSRFToken`. Required.
 	CSRFTokenFromRequest func(r *http.Request) string
@@ -126,6 +134,10 @@ type authorizeConsentData struct {
 	// code that still carries it. Custom consent templates must post it
 	// back too.
 	Claims string
+	// ACRValues round-trips the OIDC `acr_values` parameter, space
+	// separated, so AuthContextFromRequest still sees it at Approve.
+	// Custom consent templates must post it back too.
+	ACRValues string
 	// RequestURI round-trips a pushed request (RFC 9126) through the
 	// form, so Approve resolves the stored payload instead of re-reading
 	// the other hidden inputs as a fresh request. Custom consent
@@ -208,6 +220,7 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		DPoPJKT:             req.DPoPJKT,
 		Nonce:               req.Nonce,
 		Claims:              req.Claims,
+		ACRValues:           strings.Join(req.ACRValues, " "),
 		RequestURI:          req.RequestURI,
 		CSRFToken:           h.csrfToken(r),
 		ActionURL:           r.URL.Path,
@@ -361,6 +374,10 @@ func (h *AuthorizeVerificationHandler) issueAndRedirect(w http.ResponseWriter, r
 	if h.AuthTimeFromRequest != nil {
 		req.AuthTime = h.AuthTimeFromRequest(r)
 	}
+	if h.AuthContextFromRequest != nil {
+		ac := h.AuthContextFromRequest(r, req.ACRValues)
+		req.ACR, req.AMR = ac.ACR, ac.AMR
+	}
 	if h.Authorization.isImplicit(req) {
 		redirect, err := h.Authorization.ImplicitRedirect(r.Context(), req, subject)
 		if err != nil {
@@ -503,6 +520,7 @@ var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent"
     {{if .DPoPJKT}}<input type="hidden" name="dpop_jkt" value="{{.DPoPJKT}}">{{end}}
     {{if .Nonce}}<input type="hidden" name="nonce" value="{{.Nonce}}">{{end}}
     {{if .Claims}}<input type="hidden" name="claims" value="{{.Claims}}">{{end}}
+    {{if .ACRValues}}<input type="hidden" name="acr_values" value="{{.ACRValues}}">{{end}}
     {{if .RequestURI}}<input type="hidden" name="request_uri" value="{{.RequestURI}}">{{end}}
     <button type="submit" name="action" value="approve">Approve</button>
     <button type="submit" name="action" value="deny">Deny</button>

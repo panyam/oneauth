@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/panyam/oneauth/localauth"
+	"slices"
 
 	"github.com/panyam/oneauth/apiauth"
 )
@@ -42,6 +43,10 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 			// id_token_signing_alg_values_supported REQUIRED.
 			meta.UserinfoEndpoint = baseURL + "/userinfo"
 			meta.IDTokenSigningAlgValuesSupported = []string{cfg.JWT.SigningAlg}
+			// OIDC Core §5.3.2: a client may register for signed
+			// userinfo, which the ID-token key signs.
+			meta.UserinfoSigningAlgValuesSupported = userinfoSigningAlgs(cfg)
+			meta.ACRValuesSupported = cfg.CodeFlow.ACRValues
 			// OIDC Core §5.5: authorize and the tokens honour `claims`.
 			meta.ClaimsParameterSupported = true
 		}
@@ -177,4 +182,30 @@ func subjectTypes(cfg *Config) []string {
 		return []string{"public", "pairwise"}
 	}
 	return []string{"public"}
+}
+
+// userinfoSigningAlgs is what the userinfo endpoint signs with: the ID
+// token's algorithm, when OIDC is on.
+func userinfoSigningAlgs(cfg *Config) []string {
+	if !cfg.CodeFlow.OIDC {
+		return nil
+	}
+	return []string{cfg.JWT.SigningAlg}
+}
+
+// authContext is the acr and amr of a password login at this server, for
+// a client that asked for acrValues (OIDC Core §3.1.2.1): the first of
+// them the server meets (code_flow.acr_values), or else its first class.
+func authContext(cfg *Config, acrValues []string) apiauth.AuthContext {
+	ac := apiauth.AuthContext{AMR: []string{"pwd"}}
+	for _, v := range acrValues {
+		if slices.Contains(cfg.CodeFlow.ACRValues, v) {
+			ac.ACR = v
+			return ac
+		}
+	}
+	if len(cfg.CodeFlow.ACRValues) > 0 {
+		ac.ACR = cfg.CodeFlow.ACRValues[0]
+	}
+	return ac
 }

@@ -360,11 +360,16 @@ func (s *TokenStore) DeleteSubjectTokens(ctx context.Context, req *localauth.Del
 // RefreshTokenStore
 // =============================================================================
 
-// RefreshTokenStore implements core.RefreshTokenStore using GORM
+// RefreshTokenStore implements core.RefreshTokenStore on a GORM database.
+// Rows are keyed by the SHA-256 of the token, and the raw token is never
+// stored. Methods that read and then write run in one transaction, so
+// they are atomic on any database GORM supports.
 type RefreshTokenStore struct {
 	db *gorm.DB
 }
 
+// NewRefreshTokenStore returns a store over db. The refresh_tokens table
+// comes from AutoMigrate.
 func NewRefreshTokenStore(db *gorm.DB) *RefreshTokenStore {
 	return &RefreshTokenStore{db: db}
 }
@@ -374,6 +379,9 @@ func (s *RefreshTokenStore) hashToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// CreateRefreshToken mints a token that starts a new family at
+// generation 1 and expires after core.TokenExpiryRefreshToken. The raw
+// token is only in the returned record; the row holds its hash.
 func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.CreateRefreshTokenRequest) (*core.CreateRefreshTokenResponse, error) {
 	token, err := core.GenerateSecureToken()
 	if err != nil {
@@ -396,6 +404,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 		Generation:      1,
 		Scopes:          req.Scopes,
 		ConfirmationJKT: jktFromConfirmation(req.Confirmation),
+		OIDC:            req.OIDC,
 		ExpiresAt:       now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt:      now,
 		Revoked:         false,
@@ -410,6 +419,9 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 	return &core.CreateRefreshTokenResponse{Token: rt}, nil
 }
 
+// GetRefreshToken returns the row for req.Token, revoked or expired ones
+// included, so callers can tell reuse from an unknown token. A missing
+// row is core.ErrTokenNotFound.
 func (s *RefreshTokenStore) GetRefreshToken(ctx context.Context, req *core.GetRefreshTokenRequest) (*core.GetRefreshTokenResponse, error) {
 	tokenHash := s.hashToken(req.Token)
 	var model RefreshTokenModel
@@ -425,6 +437,13 @@ func (s *RefreshTokenStore) GetRefreshToken(ctx context.Context, req *core.GetRe
 	return &core.GetRefreshTokenResponse{Token: rt}, nil
 }
 
+// RotateRefreshToken revokes req.OldToken and inserts its successor in
+// the same family at the next generation, in one transaction. The
+// successor keeps the family's expiry, scopes, binding and OIDC grant.
+// A missing row is core.ErrTokenNotFound and an expired one is
+// core.ErrTokenExpired. An already-revoked row is core.ErrTokenReused,
+// and so is losing the compare-and-set to a concurrent rotation; the
+// caller revokes the family either way.
 func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.RotateRefreshTokenRequest) (*core.RotateRefreshTokenResponse, error) {
 	oldHash := s.hashToken(req.OldToken)
 
@@ -478,6 +497,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			Scopes:               oldModel.Scopes,
 			AuthorizationDetails: oldModel.AuthorizationDetails,
 			ConfirmationJKT:      oldModel.ConfirmationJKT,
+			OIDC:                 oldModel.OIDC,
 			ExpiresAt:            oldModel.ExpiresAt, // the family's, not extended
 			LastUsedAt:           now,
 			Revoked:              false,
@@ -499,6 +519,9 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 	return &core.RotateRefreshTokenResponse{Token: newRefreshToken}, nil
 }
 
+// RevokeRefreshToken marks one row revoked. It is idempotent: a missing
+// or already-revoked token is not an error. Its family and recorded
+// access tokens are left alone; RevokeTokenFamily covers those.
 func (s *RefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.RevokeRefreshTokenRequest) (*core.RevokeRefreshTokenResponse, error) {
 	tokenHash := s.hashToken(req.Token)
 	now := time.Now()
@@ -510,14 +533,16 @@ func (s *RefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.Re
 	return &core.RevokeRefreshTokenResponse{}, nil
 }
 
+// RevokeSubjectTokens revokes the subject's live rows, then reads all of
+// the subject's rows for their unexpired access tokens, in one
+// transaction. It locks rows the same way RevokeTokenFamily does, so it
+// is atomic against RecordAccessToken.
 func (s *RefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.RevokeSubjectTokensRequest) (*core.RevokeSubjectTokensResponse, error) {
-	now := time.Now()
-	if err := s.db.WithContext(ctx).Model(&RefreshTokenModel{}).
-		Where("subject = ? AND revoked = ?", req.Subject, false).
-		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error; err != nil {
+	issued, err := s.revokeWhere(ctx, "subject = ?", req.Subject)
+	if err != nil {
 		return nil, err
 	}
-	return &core.RevokeSubjectTokensResponse{}, nil
+	return &core.RevokeSubjectTokensResponse{AccessTokens: issued}, nil
 }
 
 // RecordAccessToken appends the access token to req.Token's row and
@@ -560,16 +585,26 @@ func (s *RefreshTokenStore) RecordAccessToken(ctx context.Context, req *core.Rec
 // earlier has committed before the read and one that begins later sees
 // Revoked.
 func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.RevokeTokenFamilyRequest) (*core.RevokeTokenFamilyResponse, error) {
+	issued, err := s.revokeWhere(ctx, "family = ?", req.Family)
+	if err != nil {
+		return nil, err
+	}
+	return &core.RevokeTokenFamilyResponse{AccessTokens: issued}, nil
+}
+
+// revokeWhere revokes the live rows matching cond, then reads every
+// matching row, revoked earlier or not, for its unexpired access tokens.
+func (s *RefreshTokenStore) revokeWhere(ctx context.Context, cond string, arg any) ([]core.IssuedAccessToken, error) {
 	var issued []core.IssuedAccessToken
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 		if err := tx.Model(&RefreshTokenModel{}).
-			Where("family = ? AND revoked = ?", req.Family, false).
+			Where(cond+" AND revoked = ?", arg, false).
 			Updates(map[string]any{"revoked": true, "revoked_at": now}).Error; err != nil {
 			return err
 		}
 		var models []RefreshTokenModel
-		if err := tx.Where("family = ?", req.Family).Find(&models).Error; err != nil {
+		if err := tx.Where(cond, arg).Find(&models).Error; err != nil {
 			return err
 		}
 		for _, m := range models {
@@ -577,12 +612,12 @@ func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.Rev
 		}
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	return &core.RevokeTokenFamilyResponse{AccessTokens: issued}, nil
+	return issued, err
 }
 
+// GetSubjectTokens lists req.Subject's rows that are neither revoked nor
+// expired. Token is empty in each result, since the row holds only the
+// hash.
 func (s *RefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {
 	var models []RefreshTokenModel
 	if err := s.db.WithContext(ctx).Where("subject = ? AND revoked = ? AND expires_at > ?", req.Subject, false, time.Now()).
@@ -598,6 +633,9 @@ func (s *RefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetS
 	return &core.GetSubjectTokensResponse{Tokens: tokens}, nil
 }
 
+// CleanupExpiredTokens deletes expired rows, and rows revoked more than
+// 24 hours ago. The grace period keeps a recently revoked token, so
+// presenting it again still reads as reuse rather than as unknown.
 func (s *RefreshTokenStore) CleanupExpiredTokens(ctx context.Context, req *core.CleanupExpiredTokensRequest) (*core.CleanupExpiredTokensResponse, error) {
 	cutoff := time.Now().Add(-24 * time.Hour)
 	if err := s.db.WithContext(ctx).Delete(&RefreshTokenModel{},

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/panyam/oneauth/keys"
 	"io"
 	"net/http"
 	"net/url"
@@ -574,6 +575,48 @@ func (c *AuthClient) IsLoggedIn() bool {
 	return !cred.IsExpired()
 }
 
+// carryIDToken settles the ID token of a refreshed credential (OIDC Core
+// §12.2). A refresh that returns none keeps the login's ID token and
+// claims. A new one replaces it. If the login verified its ID token and
+// the client has the issuer and jwks_uri (WithASMetadata), the new one is
+// verified as well, against the new access token and without a nonce. It
+// must then name the same issuer and user, or the refresh fails with
+// ErrInvalidIDToken. Without that metadata the login's verified claims
+// are kept, since a refreshed ID token describes the same login.
+func (c *AuthClient) carryIDToken(old, refreshed *ServerCredential) error {
+	if refreshed.IDToken == "" {
+		refreshed.IDToken, refreshed.IDTokenClaims = old.IDToken, old.IDTokenClaims
+		return nil
+	}
+	if old.IDTokenClaims == nil {
+		return nil
+	}
+	meta := c.cachedASMeta
+	if meta == nil || meta.Issuer == "" || meta.JWKSURI == "" {
+		refreshed.IDTokenClaims = old.IDTokenClaims
+		return nil
+	}
+	// The base transport, not c.httpClient: its refreshTransport takes
+	// c.mu, which the refresh already holds.
+	httpClient := &http.Client{Transport: c.baseTransport}
+	claims, err := VerifyIDToken(context.Background(), &VerifyIDTokenRequest{
+		IDToken:     refreshed.IDToken,
+		Issuer:      meta.Issuer,
+		ClientID:    refreshed.ClientID,
+		Keys:        keys.NewJWKSKeyStore(meta.JWKSURI, keys.WithHTTPClient(httpClient)),
+		AccessToken: refreshed.AccessToken,
+	})
+	if err != nil {
+		return fmt.Errorf("refreshed ID token: %w", err)
+	}
+	if claims.Issuer != old.IDTokenClaims.Issuer || claims.Subject != old.IDTokenClaims.Subject {
+		return fmt.Errorf("%w: the refreshed ID token names %s at %s, not %s at %s (OIDC Core §12.2)",
+			ErrInvalidIDToken, claims.Subject, claims.Issuer, old.IDTokenClaims.Subject, old.IDTokenClaims.Issuer)
+	}
+	refreshed.IDTokenClaims = claims
+	return nil
+}
+
 // refreshTokenLocked refreshes the access token using the refresh token.
 // Caller must hold c.mu.
 //
@@ -618,6 +661,9 @@ func (c *AuthClient) refreshTokenLocked(cred *ServerCredential) error {
 	// Preserve user info from old credential
 	newCred.UserID = cred.UserID
 	newCred.UserEmail = cred.UserEmail
+	if err := c.carryIDToken(cred, newCred); err != nil {
+		return err
+	}
 
 	// Use new refresh token if provided, otherwise keep the old one
 	if newCred.RefreshToken == "" {
@@ -718,6 +764,7 @@ func (c *AuthClient) executeTokenRequest(req *http.Request) (*ServerCredential, 
 		RefreshToken: tokenResp.RefreshToken,
 		TokenType:    tokenResp.TokenType,
 		Scope:        tokenResp.Scope,
+		IDToken:      tokenResp.IDToken,
 		ExpiresAt:    expiresAt,
 		CreatedAt:    time.Now(),
 	}

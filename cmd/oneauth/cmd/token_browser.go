@@ -20,6 +20,7 @@ type browserFlags struct {
 	callbackPort int
 	noBrowser    bool
 	timeout      time.Duration
+	verifyID     bool
 }
 
 func newBrowserCommand(tf *tokenFlags) *cobra.Command {
@@ -33,7 +34,11 @@ HTTP server, opens the user's browser to the AS authorization endpoint,
 waits for the redirect, and exchanges the code at the token endpoint.
 
 With --no-browser, the auth URL is printed to stderr instead of opened —
-useful for SSH sessions where the browser lives on a different host.`,
+useful for SSH sessions where the browser lives on a different host.
+
+With --verify-id-token, the login is an OpenID Connect one: openid is
+added to the scopes, a nonce goes on the request, and the ID token must
+verify against the issuer's JWKS before the token is printed.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBrowser(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0], tf, bf)
@@ -46,6 +51,7 @@ useful for SSH sessions where the browser lives on a different host.`,
 	cmd.Flags().IntVar(&bf.callbackPort, "callback-port", 0, "loopback callback port (0 = pick a free port)")
 	cmd.Flags().BoolVar(&bf.noBrowser, "no-browser", false, "print the auth URL to stderr instead of opening a browser")
 	cmd.Flags().DurationVar(&bf.timeout, "timeout", 5*time.Minute, "how long to wait for the browser callback")
+	cmd.Flags().BoolVar(&bf.verifyID, "verify-id-token", false, "OpenID Connect login: require and verify an ID token (adds openid)")
 	_ = cmd.MarkFlagRequired("client-id")
 	return cmd
 }
@@ -59,23 +65,28 @@ func runBrowser(ctx context.Context, stdout, stderr io.Writer, issuer string, tf
 		return err
 	}
 
-	req := &client.BrowserLoginRequest{
-		ClientID:     bf.clientID,
-		ClientSecret: bf.clientSecret,
-		Scopes:       splitScopes(bf.scopes),
-		Resource:     bf.resource,
-		CallbackPort: bf.callbackPort,
-		Timeout:      bf.timeout,
-	}
-	if bf.noBrowser {
-		req.OpenBrowser = printAuthURL(stderr)
-	}
-
-	cred, err := ac.LoginWithBrowser(ctx, req)
+	cred, err := ac.LoginWithBrowser(ctx, browserLoginRequest(bf, stderr))
 	if err != nil {
 		return fmt.Errorf("browser login: %w", err)
 	}
 	return emit(stdout, tf.format, cred, issuerFromMeta(meta, issuer), time.Now())
+}
+
+// browserLoginRequest maps the flags onto the SDK request.
+func browserLoginRequest(bf *browserFlags, stderr io.Writer) *client.BrowserLoginRequest {
+	req := &client.BrowserLoginRequest{
+		ClientID:      bf.clientID,
+		ClientSecret:  bf.clientSecret,
+		Scopes:        splitScopes(bf.scopes),
+		Resource:      bf.resource,
+		CallbackPort:  bf.callbackPort,
+		Timeout:       bf.timeout,
+		VerifyIDToken: bf.verifyID,
+	}
+	if bf.noBrowser {
+		req.OpenBrowser = printAuthURL(stderr)
+	}
+	return req
 }
 
 // printAuthURL is the OpenBrowser hook used when --no-browser is set.

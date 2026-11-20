@@ -188,6 +188,8 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 			Scopes:          entry.Scopes,
 			Nonce:           entry.Nonce,
 			AuthTime:        entry.AuthTime,
+			ACR:             entry.ACR,
+			AMR:             entry.AMR,
 			RequestedClaims: entry.IDTokenClaims,
 			AccessToken:     tok.Token,
 		})
@@ -203,6 +205,7 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 			ClientID:     entry.ClientID,
 			Scopes:       entry.Scopes,
 			Confirmation: refreshConfirmation(authedID, req.Confirmation),
+			OIDC:         oidcGrantFor(entry, r.IDTokens != nil),
 		})
 		if rtErr == nil && createResp != nil && createResp.Token != nil {
 			pair.RefreshToken = createResp.Token.Token
@@ -300,4 +303,21 @@ func checkPKCE(entry *core.AuthorizationCode, verifier, authedID string, policy 
 		return invalidGrant("PKCE verification failed")
 	}
 	return nil
+}
+
+// oidcGrantFor is what the refresh token keeps of an OpenID Connect code
+// so a refresh can issue the ID token OIDC Core §12.2 describes. It is
+// nil when no ID token was issued for the code: a grant without "openid",
+// or an AS without OIDC.
+func oidcGrantFor(entry *core.AuthorizationCode, idTokens bool) *core.OIDCGrant {
+	if !idTokens || !core.ContainsScope(entry.Scopes, core.ScopeOpenID) {
+		return nil
+	}
+	return &core.OIDCGrant{
+		AuthTime:       entry.AuthTime,
+		ACR:            entry.ACR,
+		AMR:            entry.AMR,
+		IDTokenClaims:  entry.IDTokenClaims,
+		UserinfoClaims: entry.UserinfoClaims,
+	}
 }

@@ -23,6 +23,11 @@ type CreateRefreshTokenRequest struct {
 	// of that key may redeem it; rotation carries the binding forward.
 	// Nil issues a plain bearer refresh token.
 	Confirmation *Confirmation
+
+	// OIDC is the OpenID Connect login the grant came from, stored on
+	// the token so a refresh can issue an ID token (RefreshToken.OIDC).
+	// Nil for a grant without the "openid" scope.
+	OIDC *OIDCGrant
 }
 
 type CreateRefreshTokenResponse struct {
@@ -55,7 +60,14 @@ type RevokeSubjectTokensRequest struct {
 	Subject string
 }
 
-type RevokeSubjectTokensResponse struct{}
+// RevokeSubjectTokensResponse carries the unexpired access tokens
+// recorded on any of the subject's refresh tokens, already-revoked ones
+// included, so the caller can blacklist them. Logout-all and a password
+// reset then cut off live access tokens as well as refresh tokens
+// (RFC 7009 §2.1). The store has no blacklist of its own.
+type RevokeSubjectTokensResponse struct {
+	AccessTokens []IssuedAccessToken
+}
 
 type RevokeTokenFamilyRequest struct {
 	Family string
@@ -116,7 +128,10 @@ type RefreshTokenStore interface {
 	// RevokeRefreshToken marks a token as revoked.
 	RevokeRefreshToken(ctx context.Context, req *RevokeRefreshTokenRequest) (*RevokeRefreshTokenResponse, error)
 
-	// RevokeSubjectTokens revokes all refresh tokens belonging to a subject.
+	// RevokeSubjectTokens revokes all refresh tokens belonging to a
+	// subject and returns the access tokens any of them recorded that
+	// have not expired. Like RevokeTokenFamily it is atomic per token
+	// against RecordAccessToken. A subject with no tokens is not an error.
 	RevokeSubjectTokens(ctx context.Context, req *RevokeSubjectTokensRequest) (*RevokeSubjectTokensResponse, error)
 
 	// RecordAccessToken appends an access token's jti and expiry to the

@@ -202,8 +202,6 @@ Every OIDF module that doesn't pass has a `known-gaps.yaml` entry. This table gr
 | Unsigned ID tokens (`alg: none`) | `idtoken-unsigned` is skipped | Won't do. |
 | The `typ: ID` claim in the ID token | `server` warns in every OIDC plan | Won't do, per issue 339. Relying-party libraries refuse a JOSE `typ` header other than `JWT`. |
 | Request objects and `request_uri` (JAR) | `request-uri-unsigned` and `request-uri-signed-rs256` fail. `unsigned-request-object-...` is skipped. `ensure-request-object-with-redirect-uri` ends in REVIEW on oneauth's refusal. | Roadmap, issue 338. FAPI 2.0 Message Signing and FAPI 1 need it too. |
-| Signed userinfo | `userinfo-rs256` fails | Roadmap, issue 485. |
-| `acr` | `ensure-request-with-acr-values-succeeds` warns | Roadmap, issue 485. |
 | Client logo, policy and terms on the consent page | `registration-logo-uri`, `-policy-uri` and `-tos-uri` end in REVIEW | Review. The consent page shows them (issue 507), and each entry's evidence checks the captured page. |
 | Error pages and re-login pages | `ensure-registered-redirect-uri`, `ensure-redirect-uri-in-authorization-request`, `redirect-uri-query-mismatch`, `redirect-uri-query-added`, `prompt-login` and `max-age-1` end in REVIEW | Review. oneauth shows the right page, and each entry's evidence checks the captured page says so. |
 

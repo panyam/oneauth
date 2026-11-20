@@ -170,3 +170,23 @@ func TestImplicit_ConfigChecks(t *testing.T) {
 		NewOneAuth(OneAuthConfig{SigningKey: key, SigningAlg: "ES256", AllowImplicit: true, FAPI2: true, OIDC: &OIDCConfig{}})
 	}, "FAPI 2.0")
 }
+
+// The implicit flow's ID token reports acr and amr like the code flow's
+// (OIDC Core §2, issue 485), since both come from the same hook.
+func TestImplicit_IDTokenCarriesACRAndAMR(t *testing.T) {
+	fx := newImplicitFixture(t, true, ResponseTypeIDToken)
+	fx.mux = http.NewServeMux()
+	MountAuthorize(fx.mux, AuthorizeMountConfig{
+		OneAuth: fx.oa, IssuerURL: "https://as.example",
+		SubjectFromRequest:   func(*http.Request) string { return "alice" },
+		CSRFTokenFromRequest: func(*http.Request) string { return "csrf" },
+		AutoApproveSubject:   "alice",
+		AuthContextFromRequest: func(_ *http.Request, acrValues []string) AuthContext {
+			return AuthContext{ACR: "1", AMR: []string{"pwd"}}
+		},
+	})
+	_, frag := fx.authorize(t, ResponseTypeIDToken, "openid", "n-1")
+	claims := fx.idTokenClaims(t, frag.Get("id_token"))
+	assert.Equal(t, "1", claims["acr"])
+	assert.Equal(t, []any{"pwd"}, claims["amr"])
+}

@@ -255,7 +255,8 @@ type RefreshTokenModel struct {
 	LastUsedAt           time.Time
 	RevokedAt            *time.Time
 	Revoked              bool                   `gorm:"default:false;index"`
-	AccessTokens         IssuedAccessTokensJSON `gorm:"type:jsonb"` // RFC 7009 §2.1: blacklisted when the family is revoked
+	AccessTokens         IssuedAccessTokensJSON `gorm:"type:jsonb"`      // RFC 7009 §2.1: blacklisted when the family is revoked
+	OIDC                 *core.OIDCGrant        `gorm:"serializer:json"` // OIDC Core §12.2: the login a refreshed ID token repeats; NULL without openid
 }
 
 func (RefreshTokenModel) TableName() string {
@@ -280,6 +281,7 @@ func (m *RefreshTokenModel) ToRefreshToken() *core.RefreshToken {
 		RevokedAt:            m.RevokedAt,
 		Revoked:              m.Revoked,
 		AccessTokens:         m.AccessTokens,
+		OIDC:                 m.OIDC,
 	}
 }
 
@@ -301,6 +303,7 @@ func RefreshTokenToModel(t *core.RefreshToken) *RefreshTokenModel {
 		RevokedAt:            t.RevokedAt,
 		Revoked:              t.Revoked,
 		AccessTokens:         IssuedAccessTokensJSON(t.AccessTokens),
+		OIDC:                 t.OIDC,
 	}
 }
 

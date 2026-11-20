@@ -92,6 +92,12 @@ type CreateIDTokenRequest struct {
 	// AuthTime is reported as `auth_time` when non-zero.
 	AuthTime time.Time
 
+	// ACR and AMR are reported as `acr` and `amr` (OIDC Core §2) when
+	// non-empty: the authentication context class the login met and the
+	// methods it used (RFC 8176 values, such as "pwd").
+	ACR string
+	AMR []string
+
 	// RequestedClaims are claim names the §5.5 `claims` request parameter
 	// asked to have in the ID token. Each one the user has is added,
 	// whatever Scopes grant.
@@ -190,6 +196,7 @@ func NewJWTIDTokenIssuer(cfg JWTIDTokenIssuerConfig) (IDTokenIssuer, error) {
 var idTokenReservedClaims = map[string]bool{
 	"iss": true, "sub": true, "aud": true, "exp": true, "iat": true,
 	"nonce": true, "auth_time": true, "at_hash": true, "azp": true,
+	"acr": true, "amr": true,
 	"typ": true, "type": true, "jti": true,
 }
 
@@ -235,6 +242,12 @@ func (i *jwtIDTokenIssuer) CreateIDToken(ctx context.Context, req *CreateIDToken
 	if !req.AuthTime.IsZero() {
 		claims["auth_time"] = req.AuthTime.Unix()
 	}
+	if req.ACR != "" {
+		claims["acr"] = req.ACR
+	}
+	if len(req.AMR) > 0 {
+		claims["amr"] = req.AMR
+	}
 	if req.AccessToken != "" {
 		h, err := tokenHash(i.method.Alg(), req.AccessToken)
 		if err != nil {
@@ -274,6 +287,77 @@ func atHashSupported(alg string) bool {
 }
 
 var _ IDTokenIssuer = (*jwtIDTokenIssuer)(nil)
+
+// UserinfoSigner signs userinfo responses for clients registered with
+// userinfo_signed_response_alg (OIDC Core §5.3.2). The IDTokenIssuer that
+// NewJWTIDTokenIssuer returns implements it with the AS signing key, so
+// clients verify the response against the JWKS, as they do ID tokens.
+// UserinfoHTTPHandler finds it on OneAuth.IDTokenIssuer.
+type UserinfoSigner interface {
+	// SignUserinfo returns claims as a signed JWT, adding `iss` and an
+	// `aud` of the client (§5.3.2). A request for an algorithm not in
+	// UserinfoSigningAlgs is an error.
+	SignUserinfo(ctx context.Context, req *SignUserinfoRequest) (*SignUserinfoResponse, error)
+
+	// UserinfoSigningAlgs lists the algorithms SignUserinfo signs with,
+	// for userinfo_signing_alg_values_supported (OIDC Discovery §3).
+	UserinfoSigningAlgs() []string
+}
+
+// SignUserinfoRequest is the input to UserinfoSigner.SignUserinfo.
+type SignUserinfoRequest struct {
+	// ClientID is the client the response goes to, its `aud`. Required.
+	ClientID string
+
+	// Alg is the client's registered userinfo_signed_response_alg.
+	Alg string
+
+	// Claims is the userinfo response, `sub` included. SignUserinfo
+	// doesn't modify it.
+	Claims map[string]any
+}
+
+// SignUserinfoResponse carries the signed userinfo JWT.
+type SignUserinfoResponse struct {
+	Token string
+}
+
+// UserinfoSigningAlgs implements UserinfoSigner.
+func (i *jwtIDTokenIssuer) UserinfoSigningAlgs() []string {
+	return []string{i.method.Alg()}
+}
+
+// SignUserinfo implements UserinfoSigner. The claims are copied, so the
+// caller's map is left alone, and `iss`, `aud` and `iat` overwrite any
+// claim of the same name from UserClaims.
+func (i *jwtIDTokenIssuer) SignUserinfo(ctx context.Context, req *SignUserinfoRequest) (*SignUserinfoResponse, error) {
+	if req == nil || req.ClientID == "" {
+		return nil, fmt.Errorf("oidc: client_id is required (it is the userinfo response's aud)")
+	}
+	if req.Alg != i.method.Alg() {
+		return nil, fmt.Errorf("oidc: userinfo is signed with %s, not %q", i.method.Alg(), req.Alg)
+	}
+	claims := jwt.MapClaims{}
+	for k, v := range req.Claims {
+		claims[k] = v
+	}
+	claims["iss"] = i.issuer
+	claims["aud"] = req.ClientID
+	claims["iat"] = time.Now().Unix()
+
+	signingKey := i.key()
+	tok := jwt.NewWithClaims(i.method, claims)
+	if kid, err := utils.ComputeKid(signingKey, i.method.Alg()); err == nil {
+		tok.Header["kid"] = kid
+	}
+	signed, err := tok.SignedString(signingKey)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: sign userinfo: %w", err)
+	}
+	return &SignUserinfoResponse{Token: signed}, nil
+}
+
+var _ UserinfoSigner = (*jwtIDTokenIssuer)(nil)
 
 // userinfoClaims builds a userinfo response (OIDC Core §5.3.2): `sub`
 // plus the claims the token's scopes grant and the ones its `claims`

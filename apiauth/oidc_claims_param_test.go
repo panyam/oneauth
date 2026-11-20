@@ -61,8 +61,14 @@ func claimsParams(scope, claims string) url.Values {
 // code, returning the token response.
 func authorizeAndRedeem(t *testing.T, fx *oidcFixture, q url.Values) map[string]any {
 	t.Helper()
+	return authorizeAndRedeemOn(t, fx, authorizeMux(fx, false), q)
+}
+
+// authorizeAndRedeemOn is authorizeAndRedeem through mux's /authorize.
+func authorizeAndRedeemOn(t *testing.T, fx *oidcFixture, mux http.Handler, q url.Values) map[string]any {
+	t.Helper()
 	rr := httptest.NewRecorder()
-	authorizeMux(fx, false).ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/authorize?"+q.Encode(), nil))
+	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/authorize?"+q.Encode(), nil))
 	require.Equal(t, http.StatusFound, rr.Code, rr.Body.String())
 	loc, err := url.Parse(rr.Header().Get("Location"))
 	require.NoError(t, err)

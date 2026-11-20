@@ -30,6 +30,12 @@ type SessionsHandler struct {
 	// Hooks fires the lifecycle callbacks. The zero value is a no-op
 	// dispatcher.
 	Hooks TokenHooks
+
+	// Blacklist receives the access tokens issued with the refresh tokens
+	// a logout revokes, so they stop working at once (RFC 7009 §2.1).
+	// Nil leaves them valid until they expire. OneAuth.SessionsHTTPHandler
+	// sets it to OneAuthConfig.Blacklist.
+	Blacklist core.TokenBlacklist
 }
 
 // NewSessionsHandler constructs a SessionsHandler.
@@ -37,10 +43,12 @@ func NewSessionsHandler(store core.RefreshTokenStore, hooks TokenHooks) *Session
 	return &SessionsHandler{Store: store, Hooks: hooks}
 }
 
-// HandleLogout serves POST /api/logout — revokes one refresh token.
-// Does not require authentication; the token in the body is the
-// proof. Errors are not surfaced (don't reveal whether the token
-// existed).
+// HandleLogout serves POST /api/logout. It ends the session the refresh
+// token in the body belongs to: the token's whole rotation family is
+// revoked, and the family's access tokens go on Blacklist. It does not
+// require authentication, since the token in the body is the proof.
+// Errors are not surfaced, so the response doesn't reveal whether the
+// token existed.
 func (h *SessionsHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeAPIErrorJSON(w, "invalid_request", "method not allowed", http.StatusMethodNotAllowed)
@@ -68,7 +76,11 @@ func (h *SessionsHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		clientID = getResp.Token.ClientID
 	}
 
-	if _, err := h.Store.RevokeRefreshToken(r.Context(), &core.RevokeRefreshTokenRequest{Token: req.RefreshToken}); err != nil {
+	if sid != "" {
+		if err := revokeRefreshFamily(r.Context(), h.Store, h.Blacklist, sid); err != nil {
+			log.Printf("revoke refresh token family: %v", err)
+		}
+	} else if _, err := h.Store.RevokeRefreshToken(r.Context(), &core.RevokeRefreshTokenRequest{Token: req.RefreshToken}); err != nil {
 		log.Printf("revoke refresh token: %v", err)
 	}
 
@@ -79,9 +91,10 @@ func (h *SessionsHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// HandleLogoutAll serves POST /api/logout-all — revokes every refresh
-// token for the authenticated caller. The subject MUST be present in
-// the request context (set by upstream middleware).
+// HandleLogoutAll serves POST /api/logout-all. It revokes every refresh
+// token of the authenticated caller and puts the access tokens recorded
+// on them on Blacklist, the caller's own included. The subject MUST be
+// present in the request context (set by upstream middleware).
 func (h *SessionsHandler) HandleLogoutAll(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeAPIErrorJSON(w, "invalid_request", "method not allowed", http.StatusMethodNotAllowed)
@@ -113,7 +126,11 @@ func (h *SessionsHandler) HandleLogoutAll(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	if _, err := h.Store.RevokeSubjectTokens(r.Context(), &core.RevokeSubjectTokensRequest{Subject: userID}); err != nil {
+	revoked, err := h.Store.RevokeSubjectTokens(r.Context(), &core.RevokeSubjectTokensRequest{Subject: userID})
+	if revoked != nil {
+		core.BlacklistIssuedAccessTokens(h.Blacklist, revoked.AccessTokens)
+	}
+	if err != nil {
 		log.Printf("revoke subject tokens: %v", err)
 		writeAPIErrorJSON(w, "server_error", "failed to revoke sessions", http.StatusInternalServerError)
 		return

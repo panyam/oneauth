@@ -416,6 +416,7 @@ type jwtIssuer struct {
 	hooks               TokenHooks
 	disableRotation     bool
 	blacklist           core.TokenBlacklist
+	idTokens            IDTokenIssuer
 }
 
 // resolveAudience returns the currently-configured aud claim value:
@@ -467,6 +468,12 @@ type JWTIssuerConfig struct {
 	// refresh tokens are revoked and its access tokens live until they
 	// expire.
 	Blacklist core.TokenBlacklist
+
+	// IDTokens mints the ID token a refresh of an OpenID Connect grant
+	// returns (OIDC Core §12.2). It runs only for refresh tokens that
+	// carry an OIDCGrant, which the authorization-code grant stores when
+	// it issues an ID token. Nil issues no ID token on refresh.
+	IDTokens IDTokenIssuer
 }
 
 // NewJWTIssuer creates a TokenIssuer that signs JWTs.
@@ -491,6 +498,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		hooks:               cfg.Hooks,
 		disableRotation:     cfg.DisableRefreshTokenRotation,
 		blacklist:           cfg.Blacklist,
+		idTokens:            cfg.IDTokens,
 	}
 }
 
@@ -708,12 +716,20 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		recordOn = newRefreshToken
 	}
 
-	// Create new access token (carry forward scopes + authorization_details)
+	// The new access token carries forward what the first one had:
+	// scopes, authorization_details, the client (which picks a pairwise
+	// sub at userinfo) and the userinfo part of the claims request.
+	var userinfoClaims []string
+	if rt.OIDC != nil {
+		userinfoClaims = rt.OIDC.UserinfoClaims
+	}
 	tok, err := i.CreateAccessToken(ctx, &CreateAccessTokenRequest{
 		Subject:              rt.Subject,
+		ClientID:             rt.ClientID,
 		Scopes:               rt.Scopes,
 		AuthorizationDetails: rt.AuthorizationDetails,
 		Confirmation:         confirmation,
+		UserinfoClaims:       userinfoClaims,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("server_error: %w", err)
@@ -727,6 +743,27 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		return nil, fmt.Errorf("server_error: %w", err)
 	}
 
+	// OIDC Core §12.2: the ID token repeats the original login's
+	// auth_time, acr and amr, and carries no nonce, since the refresh
+	// request has none.
+	var idToken string
+	if i.idTokens != nil && rt.OIDC != nil && rt.ClientID != "" {
+		idResp, err := i.idTokens.CreateIDToken(ctx, &CreateIDTokenRequest{
+			Subject:         rt.Subject,
+			ClientID:        rt.ClientID,
+			Scopes:          rt.Scopes,
+			AuthTime:        rt.OIDC.AuthTime,
+			ACR:             rt.OIDC.ACR,
+			AMR:             rt.OIDC.AMR,
+			RequestedClaims: rt.OIDC.IDTokenClaims,
+			AccessToken:     tok.Token,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("server_error: create ID token: %w", err)
+		}
+		idToken = idResp.Token
+	}
+
 	i.hooks.fireOnIssued(rt.Subject, "refresh_token")
 
 	return &RefreshGrantResponse{Tokens: &core.TokenPair{
@@ -736,6 +773,7 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		RefreshToken:         newRefreshToken,
 		Scope:                strings.Join(rt.Scopes, " "),
 		AuthorizationDetails: rt.AuthorizationDetails,
+		IDToken:              idToken,
 	}}, nil
 }
 

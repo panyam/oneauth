@@ -96,6 +96,14 @@ type CodeFlowConfig struct {
 	// pairwise client's users new subs. Empty leaves pairwise off.
 	PairwiseSalt string `yaml:"pairwise_salt"`
 
+	// ACRValues are the authentication context classes a password login
+	// at this server meets (OIDC Core §2), advertised as
+	// acr_values_supported. An ID token's acr is the first of the
+	// client's acr_values found here, or else the first entry. Empty
+	// leaves acr out. Every ID token reports amr ["pwd"] (RFC 8176), since
+	// a password is the only way to log in here.
+	ACRValues []string `yaml:"acr_values"`
+
 	// Implicit serves the OIDC implicit flow (response_type "id_token" and
 	// "id_token token", tokens in the redirect's fragment) to clients that
 	// register for it (issue 507). Off by default: RFC 9700 and OAuth 2.1
@@ -467,7 +475,7 @@ func defaultClaimsSupported() []string {
 // profile claims localauth.ProfileClaims maps, including the standard
 // profile claims a user can give at signup (signup.profile_claims).
 func oidcClaimsSupported() []string {
-	return []string{"nonce", "auth_time", "at_hash", "preferred_username", "email", "email_verified", "phone_number", "phone_number_verified",
+	return []string{"nonce", "auth_time", "at_hash", "acr", "amr", "preferred_username", "email", "email_verified", "phone_number", "phone_number_verified",
 		"name", "given_name", "family_name", "middle_name", "nickname", "profile", "picture", "website",
 		"gender", "birthdate", "zoneinfo", "locale", "address"}
 }
