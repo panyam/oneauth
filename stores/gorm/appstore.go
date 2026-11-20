@@ -59,6 +59,9 @@ type AppRegistrationModel struct {
 	SubjectType         string `gorm:"size:16"`
 	SectorIdentifierURI string `gorm:"size:512"`
 	SectorIdentifier    string `gorm:"size:256"`
+
+	// RFC 7591 §2 response_types (issue 507).
+	ResponseTypes []string `gorm:"serializer:json"`
 }
 
 func (AppRegistrationModel) TableName() string {
@@ -176,6 +179,7 @@ func appRegistrationToModel(app *core.AppRegistration) *AppRegistrationModel {
 		SubjectType:                        app.SubjectType,
 		SectorIdentifierURI:                app.SectorIdentifierURI,
 		SectorIdentifier:                   app.SectorIdentifier,
+		ResponseTypes:                      app.ResponseTypes,
 	}
 }
 
@@ -208,6 +212,7 @@ func modelToAppRegistration(m *AppRegistrationModel) *core.AppRegistration {
 		SubjectType:                        m.SubjectType,
 		SectorIdentifierURI:                m.SectorIdentifierURI,
 		SectorIdentifier:                   m.SectorIdentifier,
+		ResponseTypes:                      m.ResponseTypes,
 	}
 }
 

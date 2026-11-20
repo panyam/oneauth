@@ -66,6 +66,9 @@ type OneAuth struct {
 	// PKCEPolicy mirrors OneAuthConfig.PKCEPolicy, for MountAuthorize.
 	PKCEPolicy PKCEPolicy
 
+	// AllowImplicit mirrors OneAuthConfig.AllowImplicit, for MountAuthorize.
+	AllowImplicit bool
+
 	// AcceptedAudiences is the set of URLs the token endpoint will
 	// accept as the `aud` claim of a private_key_jwt / client_secret_jwt
 	// client assertion (OIDC Core §9). Echoed into the granters so they
@@ -232,6 +235,15 @@ type OneAuthConfig struct {
 	//
 	// Per capability-gating umbrella #344.
 	AllowPlainPKCE bool
+
+	// AllowImplicit serves the OIDC implicit flow (OIDC Core §3.2, issue
+	// 507): response_type "id_token" or "id_token token", tokens returned
+	// in the redirect's fragment, for a client registered for that type.
+	// RFC 9700 §2.1.2 and OAuth 2.1 advise against implicit, since tokens
+	// pass through the browser's URL, so it is off by default and needs
+	// both this and the client's registration. It needs OIDC, and FAPI2
+	// forbids it; NewOneAuth panics on either.
+	AllowImplicit bool
 
 	// PKCEPolicy says which clients must send a PKCE code_challenge. The
 	// zero value, PKCERequired, requires it from every client (OAuth 2.1).
@@ -432,6 +444,12 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		authenticator = &fapiClientAuthenticator{inner: authenticator}
 	}
 
+	if cfg.AllowImplicit && cfg.OIDC == nil {
+		panic("apiauth: NewOneAuth: AllowImplicit needs OIDC, since the implicit flow returns an ID token")
+	}
+	if cfg.AllowImplicit && cfg.FAPI2 {
+		panic("apiauth: NewOneAuth: FAPI 2.0 forbids the implicit flow; unset AllowImplicit")
+	}
 	var idTokens IDTokenIssuer
 	if cfg.OIDC != nil && len(cfg.OIDC.PairwiseSalt) > 0 && len(cfg.OIDC.PairwiseSalt) < MinPairwiseSaltLen {
 		panic("apiauth: NewOneAuth: OIDC.PairwiseSalt must be at least " + strconv.Itoa(MinPairwiseSaltLen) + " bytes")
@@ -522,6 +540,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		DeviceAuthStore:          cfg.DeviceAuthStore,
 		AppStore:                 cfg.AppStore,
 		AllowPlainPKCE:           cfg.AllowPlainPKCE,
+		AllowImplicit:            cfg.AllowImplicit,
 		PKCEPolicy:               cfg.PKCEPolicy,
 		AcceptedAudiences:        cfg.AcceptedAudiences,
 		DPoP:                     cfg.DPoP,

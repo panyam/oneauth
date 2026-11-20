@@ -194,6 +194,9 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 		PushedStore:           cfg.PushedStore,
 		RequirePushedRequests: cfg.RequirePushedRequests,
 	}
+	if cfg.OneAuth.AllowImplicit && cfg.OneAuth.IDTokenIssuer != nil {
+		authzHandler.Implicit = &ImplicitTokens{Issuer: cfg.OneAuth.Issuer, IDTokens: cfg.OneAuth.IDTokenIssuer}
+	}
 
 	verifier := &AuthorizeVerificationHandler{
 		Authorization:        authzHandler,

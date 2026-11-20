@@ -61,6 +61,9 @@ type AppRegistrationEntity struct {
 	SubjectType         string `datastore:"subject_type,noindex"`
 	SectorIdentifierURI string `datastore:"sector_identifier_uri,noindex"`
 	SectorIdentifier    string `datastore:"sector_identifier,noindex"`
+
+	// RFC 7591 §2 response_types (issue 507).
+	ResponseTypes []string `datastore:"response_types,noindex"`
 }
 
 // GAEAppStore implements core.AppRegistrationStore using Google Cloud Datastore.
@@ -197,6 +200,7 @@ func appRegToEntity(key *datastore.Key, app *core.AppRegistration) *AppRegistrat
 		SubjectType:                        app.SubjectType,
 		SectorIdentifierURI:                app.SectorIdentifierURI,
 		SectorIdentifier:                   app.SectorIdentifier,
+		ResponseTypes:                      app.ResponseTypes,
 	}
 }
 
@@ -229,6 +233,7 @@ func entityToAppReg(e *AppRegistrationEntity) *core.AppRegistration {
 		SubjectType:                        e.SubjectType,
 		SectorIdentifierURI:                e.SectorIdentifierURI,
 		SectorIdentifier:                   e.SectorIdentifier,
+		ResponseTypes:                      e.ResponseTypes,
 	}
 }
 

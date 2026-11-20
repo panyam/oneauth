@@ -16,6 +16,9 @@ func TestLoadExpectations_RepositoryManifest(t *testing.T) {
 	for _, a := range TestPlanAuthTypes {
 		keys = append(keys, TestPlanKey(a))
 	}
+	for _, rt := range DynamicImplicitResponseTypes {
+		keys = append(keys, DynamicImplicitPlanKey(rt))
+	}
 	for _, k := range keys {
 		got, err := oidfplan.LoadExpectations(filepath.Join("..", "..", "conformance", "known-gaps.yaml"), k)
 		require.NoError(t, err, k)

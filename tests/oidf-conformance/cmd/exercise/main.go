@@ -40,6 +40,7 @@ import (
 func main() {
 	planFlag := flag.String("plan", "fapi2", "plan to run: fapi2, oidcc, oidcdyn or oidcctp")
 	authType := flag.String("auth", "", "oidcctp only: the client auth method to run oidcc-test-plan with")
+	responseType := flag.String("response-type", "", "oidcdyn only: an implicit response type to run the Dynamic plan with instead of code")
 	harnessURL := flag.String("harness", "https://localhost.emobix.co.uk:8443", "OIDF harness origin")
 	serverURL := flag.String("server", "https://localhost:8889", "oneauth-server as this machine reaches it")
 	issuerURL := flag.String("issuer", "https://host.docker.internal:8889", "oneauth-server as the harness container reaches it (its public_url)")
@@ -54,6 +55,9 @@ func main() {
 		*alias = "oneauth-" + *planFlag
 		if *authType != "" {
 			*alias += "-" + strings.ReplaceAll(*authType, "_", "-")
+		}
+		if *responseType != "" {
+			*alias += "-" + strings.ReplaceAll(*responseType, " ", "-")
 		}
 	}
 	ca, err := os.ReadFile(*caFile)
@@ -99,6 +103,11 @@ func main() {
 			log.Fatalf("sign up the browser user: %v", err)
 		}
 		plan, prefix = oidcdyn.DynamicPlan(s), oidcc.ModulePrefix
+		if *planFlag == "oidcdyn" && *responseType != "" {
+			if plan, err = oidcdyn.DynamicImplicitPlan(s, *responseType); err != nil {
+				log.Fatal(err)
+			}
+		}
 		if *planFlag == "oidcctp" {
 			if plan, err = oidcdyn.TestPlan(s, *authType); err != nil {
 				log.Fatal(err)

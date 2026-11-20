@@ -361,6 +361,17 @@ func (h *AuthorizeVerificationHandler) issueAndRedirect(w http.ResponseWriter, r
 	if h.AuthTimeFromRequest != nil {
 		req.AuthTime = h.AuthTimeFromRequest(r)
 	}
+	if h.Authorization.isImplicit(req) {
+		redirect, err := h.Authorization.ImplicitRedirect(r.Context(), req, subject)
+		if err != nil {
+			log.Printf("apiauth: implicit: %v", err)
+			h.redirectError(w, r, req, "server_error", "could not issue the tokens")
+			return
+		}
+		noStore(w)
+		http.Redirect(w, r, redirect, http.StatusFound)
+		return
+	}
 	code, err := h.Authorization.IssueCode(r.Context(), req, subject, nil)
 	if err != nil {
 		h.redirectError(w, r, req, "server_error", "could not issue authorization code")

@@ -737,6 +737,8 @@ testoidf: oidf-discovery-up
 	./scripts/exercise-oidf.sh fapi2 --go-test
 	./scripts/exercise-oidf.sh oidcc --go-test
 	./scripts/exercise-oidf.sh oidcdyn --go-test
+	RESPONSE_TYPE="id_token" ./scripts/exercise-oidf.sh oidcdyn --go-test
+	RESPONSE_TYPE="id_token token" ./scripts/exercise-oidf.sh oidcdyn --go-test
 	@set -e; for a in $(OIDCCTP_AUTH_TYPES); do AUTH=$$a ./scripts/exercise-oidf.sh oidcctp --go-test; done
 
 # The OIDF Config plan alone: the discovery document checked against the
@@ -778,9 +780,10 @@ exercise-oidcc:
 	./scripts/exercise-oidf.sh oidcc $(if $(MODULE),-module $(MODULE))
 
 # Issue 493: the OIDF Dynamic OP plan on :8891, where the harness registers
-# its own clients. MODULE=<substring> as above.
+# its own clients. MODULE=<substring> as above. RESPONSE_TYPE="id_token" or
+# "id_token token" runs the implicit variant (issue 507).
 exercise-oidcdyn:
-	./scripts/exercise-oidf.sh oidcdyn $(if $(MODULE),-module $(MODULE))
+	RESPONSE_TYPE="$(RESPONSE_TYPE)" ./scripts/exercise-oidf.sh oidcdyn $(if $(MODULE),-module $(MODULE))
 
 # Issue 494: oidcc-test-plan on :8892 with AUTH's client auth method, or each
 # of OIDCCTP_AUTH_TYPES in turn when AUTH is unset. MODULE=<substring> as above.

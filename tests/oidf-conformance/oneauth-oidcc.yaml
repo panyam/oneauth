@@ -61,6 +61,9 @@ code_flow:
   # sector_identifier_uri modules. A fixed test value: the server is fresh
   # every run anyway.
   pairwise_salt: oidf-exercise-pairwise-salt-not-a-secret
+  # The opt-in implicit flow (issue 507), which an OIDC Dynamic OP must
+  # support (OIDC Core §15.2). Clients still have to register for it.
+  implicit: true
 
 # The exercise user signs up with these standard OIDC profile claims
 # (oidfplan.StandardProfile), so the modules that ask for claims find them.

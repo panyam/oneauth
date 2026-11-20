@@ -231,6 +231,7 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 		SubjectType:                 "pairwise",
 		SectorIdentifierURI:         "https://full.example/sector.json",
 		SectorIdentifier:            "full.example",
+		ResponseTypes:               []string{"code", "id_token token"},
 	}
 
 	saveApp(t, s, app)
@@ -297,5 +298,10 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	// pairwise client a new sub (issue 507).
 	if got.SubjectType != "pairwise" || got.SectorIdentifierURI != "https://full.example/sector.json" || got.SectorIdentifier != "full.example" {
 		t.Errorf("subject_type/sector = %q %q %q", got.SubjectType, got.SectorIdentifierURI, got.SectorIdentifier)
+	}
+	// Losing response_types would drop an implicit client back to code
+	// only after a restart (issue 507).
+	if len(got.ResponseTypes) != 2 || got.ResponseTypes[1] != "id_token token" {
+		t.Errorf("ResponseTypes=%v", got.ResponseTypes)
 	}
 }

@@ -69,6 +69,24 @@ suites:
     needs: [docker]
     tracking: "issue 493"
 
+  - name: oidf-dynamic-id-token
+    kind: gating
+    timeout: 20m
+    covers: OIDF oidcc-dynamic-certification-test-plan with response_type id_token, the opt-in implicit flow
+    plan: oidcc-dynamic-certification-test-plan-id_token
+    source: tests/oidf-conformance/oidcdyn
+    needs: [docker]
+    tracking: "issue 507"
+
+  - name: oidf-dynamic-id-token-token
+    kind: gating
+    timeout: 20m
+    covers: OIDF oidcc-dynamic-certification-test-plan with response_type "id_token token", the opt-in implicit flow
+    plan: oidcc-dynamic-certification-test-plan-id_token_token
+    source: tests/oidf-conformance/oidcdyn
+    needs: [docker]
+    tracking: "issue 507"
+
   - name: oidf-tp-post
     kind: gating
     timeout: 25m

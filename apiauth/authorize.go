@@ -194,6 +194,11 @@ type AuthorizationHandler struct {
 	// answer for a deployment that does not run a PAR endpoint.
 	PushedStore core.PushedAuthorizationRequestStore
 
+	// Implicit serves the OIDC implicit response types when set (OIDC Core
+	// §3.2, issue 507). MountAuthorize sets it from
+	// OneAuthConfig.AllowImplicit. Nil refuses them as before.
+	Implicit *ImplicitTokens
+
 	// RequirePushedRequests refuses any authorization request that did
 	// not arrive through the PAR endpoint (RFC 9126 §4, "Authorization
 	// server policy MAY dictate... that PAR be the only means"). Pair it
@@ -338,12 +343,17 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 
 	// From here on, errors flow back to the client via the redirect
 	// (§4.1.2.1 "MAY include state" — preserved by the caller).
-	if req.ResponseType != "code" {
+	implicit := h.isImplicit(req)
+	if req.ResponseType != "code" && !implicit {
 		return req, false, "unsupported_response_type", "only response_type=code is supported"
 	}
 
-	if code, desc := h.validatePKCE(ctx, req); code != "" {
-		return req, false, code, desc
+	// PKCE protects the code exchange, which the implicit flow doesn't
+	// have; its nonce binds the ID token instead.
+	if !implicit {
+		if code, desc := h.validatePKCE(ctx, req); code != "" {
+			return req, false, code, desc
+		}
 	}
 
 	if code, desc := parsePromptAndMaxAge(req, values); code != "" {
@@ -367,6 +377,11 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 	}
 	req.Scope = core.JoinScopes(scopes)
 
+	if implicit {
+		if code, desc := validateImplicit(req, reg); code != "" {
+			return req, false, code, desc
+		}
+	}
 	return req, false, "", ""
 }
 
@@ -560,6 +575,9 @@ func (h *AuthorizationHandler) ErrorRedirect(req *AuthorizationRequest, errCode,
 	}
 	if h.RedirectOverride != nil {
 		h.RedirectOverride(values)
+	}
+	if h.isImplicit(req) {
+		return appendFragment(req.RedirectURI, values)
 	}
 	return appendQuery(req.RedirectURI, values)
 }

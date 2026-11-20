@@ -7,7 +7,8 @@
 #   oidcc    oidcc-basic-certification-test-plan, mission 477, on :8890
 #            with tests/oidf-conformance/oneauth-oidcc.yaml
 #   oidcdyn  oidcc-dynamic-certification-test-plan, issue 493, on :8891
-#            with the same config
+#            with the same config; RESPONSE_TYPE="id_token token" (or
+#            id_token) runs its implicit variant (issue 507)
 #   oidcctp  oidcc-test-plan, issue 494, on :8892 with the same config;
 #            AUTH=<client auth method> picks the variant
 #
@@ -70,10 +71,10 @@ trap 'kill $server_pid 2>/dev/null || true' EXIT
 
 if [[ "${1:-}" == --go-test ]]; then
   shift
-  (cd tests/oidf-conformance && OIDF_AUTH_TYPE=${AUTH:-} GOWORK=off go test -count=1 -v -timeout 90m -run "$gotest" ./... "$@")
+  (cd tests/oidf-conformance && OIDF_AUTH_TYPE=${AUTH:-} OIDF_RESPONSE_TYPE=${RESPONSE_TYPE:-} GOWORK=off go test -count=1 -v -timeout 90m -run "$gotest" ./... "$@")
   exit
 fi
 
 (cd tests/oidf-conformance && GOWORK=off go run ./cmd/exercise -plan "$plan" \
   -harness "$harness" -server "$server" -issuer "https://host.docker.internal:$port" \
-  -ca certs/ca.crt ${AUTH:+-auth "$AUTH"} "$@")
+  -ca certs/ca.crt ${AUTH:+-auth "$AUTH"} ${RESPONSE_TYPE:+-response-type "$RESPONSE_TYPE"} "$@")

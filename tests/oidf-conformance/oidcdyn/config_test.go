@@ -86,3 +86,22 @@ func TestModuleBrowsers_ConsentHeadingExists(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(src), `<h1>Authorize {{.ClientName}}</h1>`)
 }
+
+// The implicit variants run the same plan with their response type, each
+// under its own manifest key; other types are refused.
+func TestDynamicImplicitPlan(t *testing.T) {
+	keys := map[string]bool{}
+	for _, rt := range DynamicImplicitResponseTypes {
+		p, err := DynamicImplicitPlan(testSetup(), rt)
+		require.NoError(t, err)
+		assert.Equal(t, DynamicPlanName, p.Name)
+		assert.Equal(t, rt, p.Variant["response_type"])
+		keys[p.ManifestKey()] = true
+	}
+	assert.True(t, keys["oidcc-dynamic-certification-test-plan-id_token_token"])
+	assert.Len(t, keys, 2)
+	for _, bad := range []string{"code", "code id_token", "token"} {
+		_, err := DynamicImplicitPlan(testSetup(), bad)
+		assert.Error(t, err, bad)
+	}
+}

@@ -10,7 +10,7 @@
 
 ROOT := ..
 
-.PHONY: test report conf-native conf-oidf-config conf-oidf-fapi2 conf-oidf-basic-op conf-oidf-dynamic-op \
+.PHONY: test report conf-native conf-oidf-config conf-oidf-fapi2 conf-oidf-basic-op conf-oidf-dynamic-op conf-oidf-dynamic-id-token conf-oidf-dynamic-id-token-token \
 	conf-oidf-tp-post conf-oidf-tp-secret-jwt conf-oidf-tp-private-key-jwt conf-keycloak conf-authlete
 
 RUNNER = cd $(ROOT)/tests/conformance && GOWORK=off go run ./cmd/suites \
@@ -41,6 +41,12 @@ conf-oidf-basic-op:
 
 conf-oidf-dynamic-op:
 	$(MAKE) -C $(ROOT) exercise-oidcdyn
+
+conf-oidf-dynamic-id-token:
+	$(MAKE) -C $(ROOT) exercise-oidcdyn RESPONSE_TYPE=id_token
+
+conf-oidf-dynamic-id-token-token:
+	$(MAKE) -C $(ROOT) exercise-oidcdyn RESPONSE_TYPE="id_token token"
 
 conf-oidf-tp-post:
 	$(MAKE) -C $(ROOT) exercise-oidcctp AUTH=client_secret_post

@@ -95,6 +95,14 @@ type CodeFlowConfig struct {
 	// fixed for the server's lifetime, since changing it gives every
 	// pairwise client's users new subs. Empty leaves pairwise off.
 	PairwiseSalt string `yaml:"pairwise_salt"`
+
+	// Implicit serves the OIDC implicit flow (response_type "id_token" and
+	// "id_token token", tokens in the redirect's fragment) to clients that
+	// register for it (issue 507). Off by default: RFC 9700 and OAuth 2.1
+	// advise against it, since tokens pass through the browser's URL. It
+	// needs code_flow.oidc, and fapi2 refuses it. It's what an OIDC Dynamic
+	// OP must support (OIDC Core §15.2).
+	Implicit bool `yaml:"implicit"`
 }
 
 // SignupConfig configures the signup form.
