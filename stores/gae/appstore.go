@@ -62,6 +62,9 @@ type AppRegistrationEntity struct {
 	UserinfoSignedResponseAlg string `datastore:"userinfo_signed_response_alg,noindex"`
 	SectorIdentifierURI       string `datastore:"sector_identifier_uri,noindex"`
 	SectorIdentifier          string `datastore:"sector_identifier,noindex"`
+
+	// RFC 7591 §2 response_types (issue 507).
+	ResponseTypes []string `datastore:"response_types,noindex"`
 }
 
 // GAEAppStore implements core.AppRegistrationStore using Google Cloud Datastore.
@@ -199,6 +202,7 @@ func appRegToEntity(key *datastore.Key, app *core.AppRegistration) *AppRegistrat
 		UserinfoSignedResponseAlg:          app.UserinfoSignedResponseAlg,
 		SectorIdentifierURI:                app.SectorIdentifierURI,
 		SectorIdentifier:                   app.SectorIdentifier,
+		ResponseTypes:                      app.ResponseTypes,
 	}
 }
 
@@ -232,6 +236,7 @@ func entityToAppReg(e *AppRegistrationEntity) *core.AppRegistration {
 		UserinfoSignedResponseAlg:          e.UserinfoSignedResponseAlg,
 		SectorIdentifierURI:                e.SectorIdentifierURI,
 		SectorIdentifier:                   e.SectorIdentifier,
+		ResponseTypes:                      e.ResponseTypes,
 	}
 }
 

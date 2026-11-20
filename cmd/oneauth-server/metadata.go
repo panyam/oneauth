@@ -32,6 +32,9 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 	if codeFlow {
 		meta.AuthorizationEndpoint = baseURL + "/authorize"
 		meta.ResponseTypesSupported = []string{"code"}
+		if cfg.CodeFlow.Implicit {
+			meta.ResponseTypesSupported = append(meta.ResponseTypesSupported, "id_token", "id_token token")
+		}
 		iss := true
 		meta.AuthorizationResponseIssParameterSupported = &iss
 		meta.TokenEndpointAuthMethods = append(meta.TokenEndpointAuthMethods, "none")
@@ -116,6 +119,31 @@ func checkFAPI2(cfg *Config) error {
 	}
 	if pkcePolicy(cfg) != apiauth.PKCERequired {
 		return fmt.Errorf("fapi2 needs code_flow.pkce: required: FAPI 2.0 §5.3.2.2 requires PKCE from every client")
+	}
+	return nil
+}
+
+// checkImplicit refuses code_flow.implicit without OIDC, since the
+// implicit flow returns an ID token, and under fapi2, which forbids it
+// (FAPI 2.0 §5.3.2.2 allows response_type code only).
+func checkImplicit(cfg *Config) error {
+	if !cfg.CodeFlow.Implicit {
+		return nil
+	}
+	if !cfg.CodeFlow.OIDC {
+		return fmt.Errorf("code_flow.implicit needs code_flow.oidc: the implicit flow returns an ID token")
+	}
+	if cfg.FAPI2 {
+		return fmt.Errorf("code_flow.implicit can't be used with fapi2: FAPI 2.0 §5.3.2.2 allows response_type code only")
+	}
+	return nil
+}
+
+// implicitGrantTypes is the grant type code_flow.implicit adds to
+// grant_types_supported: "implicit", or none when it's off.
+func implicitGrantTypes(cfg *Config) []string {
+	if cfg.CodeFlow.Enabled && cfg.CodeFlow.Implicit {
+		return []string{"implicit"}
 	}
 	return nil
 }

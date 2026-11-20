@@ -232,6 +232,7 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 		SectorIdentifierURI:         "https://full.example/sector.json",
 		SectorIdentifier:            "full.example",
 		UserinfoSignedResponseAlg:   "RS256",
+		ResponseTypes:               []string{"code", "id_token token"},
 	}
 
 	saveApp(t, s, app)
@@ -301,5 +302,10 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	}
 	if got.UserinfoSignedResponseAlg != "RS256" {
 		t.Errorf("userinfo_signed_response_alg = %q, want RS256", got.UserinfoSignedResponseAlg)
+	}
+	// Losing response_types would drop an implicit client back to code
+	// only after a restart (issue 507).
+	if len(got.ResponseTypes) != 2 || got.ResponseTypes[1] != "id_token token" {
+		t.Errorf("ResponseTypes=%v", got.ResponseTypes)
 	}
 }

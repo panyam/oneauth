@@ -11,6 +11,7 @@ package oidcdyn
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/panyam/oneauth/tests/oidf-conformance/oidcc"
 	"github.com/panyam/oneauth/tests/oidf-conformance/oidfplan"
@@ -45,14 +46,41 @@ type Setup struct {
 	User      oidfplan.User
 }
 
-// DynamicPlan is the Dynamic OP certification plan for the code flow, the
-// only response type oneauth implements.
+// DynamicPlan is the Dynamic OP certification plan for the code flow.
 func DynamicPlan(s Setup) oidfplan.Plan {
 	return oidfplan.Plan{
 		Name:    DynamicPlanName,
 		Variant: map[string]string{"response_type": "code"},
 		Config:  planConfig(s, "oneauth OIDC Dynamic OP (issue 493)"),
 	}
+}
+
+// DynamicImplicitResponseTypes are the implicit response types the
+// Dynamic plan runs with besides code (issue 507). oneauth serves them
+// with code_flow.implicit, to clients registered for them; hybrid types
+// aren't supported.
+var DynamicImplicitResponseTypes = []string{"id_token", "id_token token"}
+
+// DynamicImplicitPlan is the Dynamic OP plan for one implicit response
+// type. Its Key carries the type, so each run has its own known-gaps.yaml
+// entries and run record.
+func DynamicImplicitPlan(s Setup, responseType string) (oidfplan.Plan, error) {
+	if !slices.Contains(DynamicImplicitResponseTypes, responseType) {
+		return oidfplan.Plan{}, fmt.Errorf("response type %q: want one of %v", responseType, DynamicImplicitResponseTypes)
+	}
+	return oidfplan.Plan{
+		Name:    DynamicPlanName,
+		Key:     DynamicImplicitPlanKey(responseType),
+		Variant: map[string]string{"response_type": responseType},
+		Config:  planConfig(s, "oneauth OIDC Dynamic OP, "+responseType+" (issue 507)"),
+	}, nil
+}
+
+// DynamicImplicitPlanKey is the known-gaps.yaml plan name for one implicit
+// Dynamic run: the plan name with the response type, spaces as
+// underscores.
+func DynamicImplicitPlanKey(responseType string) string {
+	return DynamicPlanName + "-" + strings.ReplaceAll(responseType, " ", "_")
 }
 
 // TestPlan is oidcc-test-plan for the code flow with dynamically registered

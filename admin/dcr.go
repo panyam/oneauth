@@ -106,6 +106,11 @@ type DCRRequest struct {
 	// AppRegistrar.UserinfoSigningAlgs. Empty gets plain JSON.
 	UserinfoSignedResponseAlg string `json:"userinfo_signed_response_alg,omitempty"`
 
+	// ResponseTypes are the RFC 7591 §2 response_type values the client
+	// will use. Empty means ["code"]. "id_token" and "id_token token" need
+	// AppRegistrar.AllowImplicit and the "implicit" grant type.
+	ResponseTypes []string `json:"response_types,omitempty"`
+
 	// OIDC Back-Channel Logout 1.0 §3.1 — clients advertise a logout receiver.
 	// Empty disables BCL dispatch for this client.
 	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
@@ -157,14 +162,15 @@ type DCRResponse struct {
 	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
 
 	// OIDC Registration §2 metadata, echoed as stored (issue 507).
-	JWKSURI                     string `json:"jwks_uri,omitempty"`
-	TokenEndpointAuthSigningAlg string `json:"token_endpoint_auth_signing_alg,omitempty"`
-	LogoURI                     string `json:"logo_uri,omitempty"`
-	PolicyURI                   string `json:"policy_uri,omitempty"`
-	TOSURI                      string `json:"tos_uri,omitempty"`
-	SubjectType                 string `json:"subject_type,omitempty"`
-	SectorIdentifierURI         string `json:"sector_identifier_uri,omitempty"`
-	UserinfoSignedResponseAlg   string `json:"userinfo_signed_response_alg,omitempty"`
+	JWKSURI                     string   `json:"jwks_uri,omitempty"`
+	TokenEndpointAuthSigningAlg string   `json:"token_endpoint_auth_signing_alg,omitempty"`
+	LogoURI                     string   `json:"logo_uri,omitempty"`
+	PolicyURI                   string   `json:"policy_uri,omitempty"`
+	TOSURI                      string   `json:"tos_uri,omitempty"`
+	SubjectType                 string   `json:"subject_type,omitempty"`
+	SectorIdentifierURI         string   `json:"sector_identifier_uri,omitempty"`
+	ResponseTypes               []string `json:"response_types,omitempty"`
+	UserinfoSignedResponseAlg   string   `json:"userinfo_signed_response_alg,omitempty"`
 }
 
 // ServeHTTP is the HTTP wrapper for ClientRegistrar.Register (RFC 7591 DCR).

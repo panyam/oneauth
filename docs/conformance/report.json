@@ -7,8 +7,8 @@
       "source": "tests/conformance",
       "result": "PASS",
       "detail": "ratchet OK — no diff against known-gaps.yaml",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f"
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932"
     },
     {
       "name": "oidf-config",
@@ -16,9 +16,9 @@
       "covers": "OIDF oidcc-config-certification-test-plan, the discovery document check by check",
       "source": "tests/oidf-conformance (TestOIDF_OIDCC_ConfigCert_Discovery)",
       "result": "PASS",
-      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.187s",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f"
+      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.207s",
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932"
     },
     {
       "name": "oidf-fapi2",
@@ -28,8 +28,8 @@
       "tracking": "mission 98",
       "result": "PASS",
       "detail": "52 modules: map[PASSED:45 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f",
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932",
       "plan": {
         "plan": "fapi2-security-profile-final-test-plan",
         "variant": {
@@ -40,7 +40,7 @@
           "openid": "openid_connect",
           "sender_constrain": "dpop"
         },
-        "plan_id": "8u1TAcgKg4xTu",
+        "plan_id": "FMsBXzXMErZu0",
         "counts": {
           "PASSED": 45,
           "REVIEW": 4,
@@ -387,21 +387,21 @@
       "source": "tests/oidf-conformance/oidcc",
       "tracking": "mission 477",
       "result": "PASS",
-      "detail": "35 modules: map[PASSED:29 REVIEW:4 SKIPPED:1 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f",
+      "detail": "35 modules: map[PASSED:28 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932",
       "plan": {
         "plan": "oidcc-basic-certification-test-plan",
         "variant": {
           "client_registration": "static_client",
           "server_metadata": "discovery"
         },
-        "plan_id": "cF1sQ4LKmpDCE",
+        "plan_id": "nLF6b52HcpkSQ",
         "counts": {
-          "PASSED": 29,
+          "PASSED": 28,
           "REVIEW": 4,
           "SKIPPED": 1,
-          "WARNING": 1
+          "WARNING": 2
         },
         "against": 0,
         "modules": [
@@ -472,8 +472,11 @@
           {
             "module": "oidcc-ensure-request-with-acr-values-succeeds",
             "status": "FINISHED",
-            "result": "PASSED",
-            "verdict": "ok"
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 485,
+            "note": "ValidateIdTokenACRClaimAgainstAcrValuesRequest: An acr value was requested using acr_values, so the server 'SHOULD' return an acr claim, but it did not."
           },
           {
             "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
@@ -639,14 +642,14 @@
       "tracking": "issue 493",
       "result": "PASS",
       "detail": "23 modules: map[FAILED:3 PASSED:11 REVIEW:7 SKIPPED:1 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f",
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932",
       "plan": {
         "plan": "oidcc-dynamic-certification-test-plan",
         "variant": {
           "response_type": "code"
         },
-        "plan_id": "hLyAl6poaEbHQ",
+        "plan_id": "y1osr2Jd0IYMA",
         "counts": {
           "FAILED": 3,
           "PASSED": 11,
@@ -659,11 +662,8 @@
           {
             "module": "oidcc-discovery-endpoint-verification",
             "status": "FINISHED",
-            "result": "FAILED",
-            "verdict": "ok",
-            "expected": "expected-fail",
-            "issue": 493,
-            "note": "OIDCCCheckDiscEndpointResponseTypesSupportedDynamic: The server does not support all of the mandatory to implement response_types for dynamic OpenID Providers."
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-ensure-client-assertion-with-iss-aud-succeeds",
@@ -818,9 +818,337 @@
           },
           {
             "module": "oidcc-userinfo-rs256",
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 485,
+            "note": "CheckDiscEndpointUserinfoSigningAlgValuesSupportedContainsRS256: userinfo_signing_alg_values_supported: not found"
+          }
+        ]
+      }
+    },
+    {
+      "name": "oidf-dynamic-id-token",
+      "kind": "gating",
+      "covers": "OIDF oidcc-dynamic-certification-test-plan with response_type id_token, the opt-in implicit flow",
+      "source": "tests/oidf-conformance/oidcdyn",
+      "tracking": "issue 507",
+      "result": "PASS",
+      "detail": "18 modules: map[FAILED:2 PASSED:8 REVIEW:7 WARNING:1], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932",
+      "plan": {
+        "plan": "oidcc-dynamic-certification-test-plan-id_token",
+        "variant": {
+          "response_type": "id_token"
+        },
+        "plan_id": "3STVxKgEOQbq0",
+        "counts": {
+          "FAILED": 2,
+          "PASSED": 8,
+          "REVIEW": 7,
+          "WARNING": 1
+        },
+        "against": 0,
+        "modules": [
+          {
+            "module": "oidcc-discovery-endpoint-verification",
             "status": "FINISHED",
             "result": "PASSED",
             "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-client-assertion-with-iss-aud-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-redirect-uri-in-authorization-request",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 493
+          },
+          {
+            "module": "oidcc-ensure-request-object-with-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-idtoken-rs256",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-redirect-uri-query-OK",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-redirect-uri-query-added",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 493
+          },
+          {
+            "module": "oidcc-redirect-uri-query-mismatch",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 493
+          },
+          {
+            "module": "oidcc-redirect-uri-regfrag",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-registration-logo-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 507
+          },
+          {
+            "module": "oidcc-registration-policy-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 507
+          },
+          {
+            "module": "oidcc-registration-sector-bad",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-registration-sector-uri",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-registration-tos-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 507
+          },
+          {
+            "module": "oidcc-request-uri-signed-rs256",
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 338,
+            "note": "CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found"
+          },
+          {
+            "module": "oidcc-request-uri-unsigned",
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 338,
+            "note": "CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint"
+          },
+          {
+            "module": "oidcc-server",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 339,
+            "note": "EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ'"
+          },
+          {
+            "module": "oidcc-server-rotate-keys",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "name": "oidf-dynamic-id-token-token",
+      "kind": "gating",
+      "covers": "OIDF oidcc-dynamic-certification-test-plan with response_type \"id_token token\", the opt-in implicit flow",
+      "source": "tests/oidf-conformance/oidcdyn",
+      "tracking": "issue 507",
+      "result": "PASS",
+      "detail": "19 modules: map[FAILED:3 PASSED:8 REVIEW:7 WARNING:1], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932",
+      "plan": {
+        "plan": "oidcc-dynamic-certification-test-plan-id_token_token",
+        "variant": {
+          "response_type": "id_token token"
+        },
+        "plan_id": "3p2QmLGHsEep8",
+        "counts": {
+          "FAILED": 3,
+          "PASSED": 8,
+          "REVIEW": 7,
+          "WARNING": 1
+        },
+        "against": 0,
+        "modules": [
+          {
+            "module": "oidcc-discovery-endpoint-verification",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-client-assertion-with-iss-aud-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-redirect-uri-in-authorization-request",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 493
+          },
+          {
+            "module": "oidcc-ensure-request-object-with-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-idtoken-rs256",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-redirect-uri-query-OK",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-redirect-uri-query-added",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 493
+          },
+          {
+            "module": "oidcc-redirect-uri-query-mismatch",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 493
+          },
+          {
+            "module": "oidcc-redirect-uri-regfrag",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-registration-logo-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 507
+          },
+          {
+            "module": "oidcc-registration-policy-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 507
+          },
+          {
+            "module": "oidcc-registration-sector-bad",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-registration-sector-uri",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-registration-tos-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 507
+          },
+          {
+            "module": "oidcc-request-uri-signed-rs256",
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 338,
+            "note": "CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found"
+          },
+          {
+            "module": "oidcc-request-uri-unsigned",
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 338,
+            "note": "CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint"
+          },
+          {
+            "module": "oidcc-server",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 339,
+            "note": "EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ'"
+          },
+          {
+            "module": "oidcc-server-rotate-keys",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-userinfo-rs256",
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 485,
+            "note": "CheckDiscEndpointUserinfoSigningAlgValuesSupportedContainsRS256: userinfo_signing_alg_values_supported: not found"
           }
         ]
       }
@@ -832,9 +1160,9 @@
       "source": "tests/oidf-conformance/oidcdyn",
       "tracking": "issue 494",
       "result": "PASS",
-      "detail": "51 modules: map[FAILED:3 PASSED:35 REVIEW:10 SKIPPED:2 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f",
+      "detail": "51 modules: map[FAILED:3 PASSED:34 REVIEW:10 SKIPPED:2 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_post",
         "variant": {
@@ -843,13 +1171,13 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "Z10Ety35hVXP9",
+        "plan_id": "CzcJxIq3uuEtN",
         "counts": {
           "FAILED": 3,
-          "PASSED": 35,
+          "PASSED": 34,
           "REVIEW": 10,
           "SKIPPED": 2,
-          "WARNING": 1
+          "WARNING": 2
         },
         "against": 0,
         "modules": [
@@ -886,11 +1214,8 @@
           {
             "module": "oidcc-discovery-endpoint-verification",
             "status": "FINISHED",
-            "result": "FAILED",
-            "verdict": "ok",
-            "expected": "expected-fail",
-            "issue": 493,
-            "note": "OIDCCCheckDiscEndpointResponseTypesSupportedDynamic: The server does not support all of the mandatory to implement response_types for dynamic OpenID Providers."
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-display-page",
@@ -931,8 +1256,11 @@
           {
             "module": "oidcc-ensure-request-with-acr-values-succeeds",
             "status": "FINISHED",
-            "result": "PASSED",
-            "verdict": "ok"
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 485,
+            "note": "ValidateIdTokenACRClaimAgainstAcrValuesRequest: An acr value was requested using acr_values, so the server 'SHOULD' return an acr claim, but it did not."
           },
           {
             "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
@@ -1191,9 +1519,12 @@
           },
           {
             "module": "oidcc-userinfo-rs256",
-            "status": "FINISHED",
-            "result": "PASSED",
-            "verdict": "ok"
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 485,
+            "note": "CheckDiscEndpointUserinfoSigningAlgValuesSupportedContainsRS256: userinfo_signing_alg_values_supported: not found"
           }
         ]
       }
@@ -1205,9 +1536,9 @@
       "source": "tests/oidf-conformance/oidcdyn",
       "tracking": "issue 494",
       "result": "PASS",
-      "detail": "52 modules: map[FAILED:3 PASSED:36 REVIEW:10 SKIPPED:2 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f",
+      "detail": "52 modules: map[FAILED:3 PASSED:35 REVIEW:10 SKIPPED:2 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_jwt",
         "variant": {
@@ -1216,13 +1547,13 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "UZzNSmvsEbOIY",
+        "plan_id": "hld1XLAMdFyBH",
         "counts": {
           "FAILED": 3,
-          "PASSED": 36,
+          "PASSED": 35,
           "REVIEW": 10,
           "SKIPPED": 2,
-          "WARNING": 1
+          "WARNING": 2
         },
         "against": 0,
         "modules": [
@@ -1259,11 +1590,8 @@
           {
             "module": "oidcc-discovery-endpoint-verification",
             "status": "FINISHED",
-            "result": "FAILED",
-            "verdict": "ok",
-            "expected": "expected-fail",
-            "issue": 493,
-            "note": "OIDCCCheckDiscEndpointResponseTypesSupportedDynamic: The server does not support all of the mandatory to implement response_types for dynamic OpenID Providers."
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-display-page",
@@ -1310,8 +1638,11 @@
           {
             "module": "oidcc-ensure-request-with-acr-values-succeeds",
             "status": "FINISHED",
-            "result": "PASSED",
-            "verdict": "ok"
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 485,
+            "note": "ValidateIdTokenACRClaimAgainstAcrValuesRequest: An acr value was requested using acr_values, so the server 'SHOULD' return an acr claim, but it did not."
           },
           {
             "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
@@ -1570,9 +1901,12 @@
           },
           {
             "module": "oidcc-userinfo-rs256",
-            "status": "FINISHED",
-            "result": "PASSED",
-            "verdict": "ok"
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 485,
+            "note": "CheckDiscEndpointUserinfoSigningAlgValuesSupportedContainsRS256: userinfo_signing_alg_values_supported: not found"
           }
         ]
       }
@@ -1584,9 +1918,9 @@
       "source": "tests/oidf-conformance/oidcdyn",
       "tracking": "issue 494",
       "result": "PASS",
-      "detail": "54 modules: map[FAILED:3 PASSED:38 REVIEW:10 SKIPPED:2 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f",
+      "detail": "54 modules: map[FAILED:3 PASSED:37 REVIEW:10 SKIPPED:2 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932",
       "plan": {
         "plan": "oidcc-test-plan-private_key_jwt",
         "variant": {
@@ -1595,13 +1929,13 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "dmfO8U0o3Beuw",
+        "plan_id": "gH7oQ1qFYXKkn",
         "counts": {
           "FAILED": 3,
-          "PASSED": 38,
+          "PASSED": 37,
           "REVIEW": 10,
           "SKIPPED": 2,
-          "WARNING": 1
+          "WARNING": 2
         },
         "against": 0,
         "modules": [
@@ -1638,11 +1972,8 @@
           {
             "module": "oidcc-discovery-endpoint-verification",
             "status": "FINISHED",
-            "result": "FAILED",
-            "verdict": "ok",
-            "expected": "expected-fail",
-            "issue": 493,
-            "note": "OIDCCCheckDiscEndpointResponseTypesSupportedDynamic: The server does not support all of the mandatory to implement response_types for dynamic OpenID Providers."
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-display-page",
@@ -1689,8 +2020,11 @@
           {
             "module": "oidcc-ensure-request-with-acr-values-succeeds",
             "status": "FINISHED",
-            "result": "PASSED",
-            "verdict": "ok"
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 485,
+            "note": "ValidateIdTokenACRClaimAgainstAcrValuesRequest: An acr value was requested using acr_values, so the server 'SHOULD' return an acr claim, but it did not."
           },
           {
             "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
@@ -1961,9 +2295,12 @@
           },
           {
             "module": "oidcc-userinfo-rs256",
-            "status": "FINISHED",
-            "result": "PASSED",
-            "verdict": "ok"
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 485,
+            "note": "CheckDiscEndpointUserinfoSigningAlgValuesSupportedContainsRS256: userinfo_signing_alg_values_supported: not found"
           }
         ]
       }
@@ -1975,8 +2312,8 @@
       "source": "tests/keycloak",
       "result": "PASS",
       "detail": "go test: 68 passed, 0 skipped, 0 failed (top-level tests)",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f"
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932"
     },
     {
       "name": "authlete",
@@ -1985,8 +2322,8 @@
       "source": "tests/authlete",
       "result": "FAIL",
       "detail": "go test: 14 passed, 0 skipped, 4 failed (top-level tests)",
-      "ran_at": "2026-11-20 01:31 UTC",
-      "commit": "3b1360f"
+      "ran_at": "2026-11-20 01:13 UTC",
+      "commit": "147d932"
     }
   ]
 }

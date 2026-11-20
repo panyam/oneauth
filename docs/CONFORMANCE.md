@@ -112,7 +112,7 @@ The OpenID Foundation suite offers 81 plans (the harness's `/api/plan/available`
 | `fapi2-security-profile-final-test-plan` | 68 | Runs | `SUITE=oidf-fapi2` (`make testoidf`), mission 98 |
 | `oidcc-basic-certification-test-plan` | 38 | Runs | `SUITE=oidf-basic-op` (`make testoidf`), mission 477 |
 | `oidcc-config-certification-test-plan` | 1 | Runs | `make conformance SUITE=oidf-config` (`make testoidf`) |
-| `oidcc-dynamic-certification-test-plan` | 23 | Runs | `SUITE=oidf-dynamic-op` (`make testoidf`), issue 493. The harness registers its own clients through DCR |
+| `oidcc-dynamic-certification-test-plan` | 23 | Runs | `SUITE=oidf-dynamic-op` (`make testoidf`), issue 493. The harness registers its own clients through DCR. Also run with `response_type` `id_token` and `id_token token` (`SUITE=oidf-dynamic-id-token`, `-id-token-token`), the opt-in implicit flow (issue 507) |
 | `oidcc-test-plan` | 55 | Runs | `SUITE=oidf-tp-<method>` (`make testoidf`), issue 494: once each for `client_secret_post`, `client_secret_jwt` and `private_key_jwt`, which the Basic and Dynamic plans don't vary. `none` and `mtls` are left out (§2.3) |
 | `fapi-ciba-id1-test-plan` | 71 | Needs a feature | CIBA: #341 |
 | `fapi1-advanced-final-brazil-dcr-test-plan` | 18 | Needs a feature | Open Finance Brasil profile: #161 |
@@ -197,7 +197,7 @@ Every OIDF module that doesn't pass has a `known-gaps.yaml` entry. This table gr
 
 | Cause | Modules | Verdict |
 |---|---|---|
-| Implicit and hybrid response types | `discovery-endpoint-verification` fails in the Dynamic plan and `oidcc-test-plan`. OIDC Core §15.2 makes `id_token` and `id_token token` mandatory for a Dynamic OP. | Won't do. RFC 9700 §2.1.2 and OAuth 2.1 drop implicit, since it returns tokens in the URL, and FAPI 2.0 is code-only. So oneauth can't certify as a Dynamic OP. Basic OP is unaffected. |
+| Hybrid response types (`code id_token`, ...) | Not run: the Dynamic plan runs with `code`, `id_token` and `id_token token`. | Won't do. FAPI 1 used hybrid, FAPI 2.0 is code-only, and nothing has asked for it. The implicit types themselves are opt-in since issue 507 (`code_flow.implicit`, plus the client's registration), which lets oneauth meet the Dynamic OP's §15.2 list. |
 | Public clients without PKCE | `oidcc-test-plan`'s `none` variant sends public clients without PKCE, so every flow stops at `code_challenge is required`. The variant isn't run. | Won't do. RFC 9700 §2.1.1 and OAuth 2.1 require PKCE from public clients. |
 | Unsigned ID tokens (`alg: none`) | `idtoken-unsigned` is skipped | Won't do. |
 | The `typ: ID` claim in the ID token | `server` warns in every OIDC plan | Won't do, per issue 339. Relying-party libraries refuse a JOSE `typ` header other than `JWT`. |
