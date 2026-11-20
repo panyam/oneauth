@@ -76,3 +76,17 @@ func TestRegistrationRequest(t *testing.T) {
 	assert.Equal(t, []string{"code"}, body["response_types"])
 	assert.Equal(t, "openid profile email address phone offline_access", body["scope"])
 }
+
+// The Form Post plan is the Basic OP plan under another name: same
+// variant, clients and browser automation (issue 500).
+func TestFormPostPlan(t *testing.T) {
+	s := testSetup()
+	fp, basic := FormPostPlan(s), Plan(s)
+	assert.Equal(t, "oidcc-formpost-basic-certification-test-plan", fp.Name)
+	assert.Equal(t, fp.Name, fp.ManifestKey())
+	assert.Equal(t, basic.Variant, fp.Variant)
+	fpc, bc := fp.Config.(map[string]any), basic.Config.(map[string]any)
+	assert.Equal(t, bc["client"], fpc["client"])
+	assert.Equal(t, bc["browser"], fpc["browser"])
+	assert.NotEqual(t, bc["description"], fpc["description"])
+}

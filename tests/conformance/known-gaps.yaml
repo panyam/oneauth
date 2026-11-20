@@ -198,6 +198,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
@@ -214,6 +215,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-dynamic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
@@ -250,6 +252,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
@@ -266,6 +269,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
@@ -410,6 +414,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-dynamic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
@@ -442,6 +447,20 @@
     oneauth refuses request objects with request_not_supported (OIDC Core
     §6.1), and the harness reports that rejection as SKIPPED. Supporting
     request objects is JAR, issue 338.
+  expires: 2027-12-31
+
+- suite: oidf
+  plan: oidcc-formpost-basic-certification-test-plan
+  test: oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported
+  status: expected-fail
+  issue: 338
+  owner: panyam
+  reason: |
+    The harness puts response_mode=form_post and state only inside the
+    request object. oneauth doesn't read request objects, so it refuses
+    with request_not_supported in the default query mode, and the module
+    fails CheckCallbackHttpMethodIsPost. The Basic OP plan reports the
+    same refusal as SKIPPED. Reading request objects is JAR, issue 338.
   expires: 2027-12-31
 
 # MCP server-auth conformance (issue 495): the scenarios on

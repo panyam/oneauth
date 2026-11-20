@@ -5,6 +5,7 @@
 //
 //	fapi2    fapi2-security-profile-final-test-plan (mission 98)
 //	oidcc    oidcc-basic-certification-test-plan (mission 477)
+//	oidccfp  oidcc-formpost-basic-certification-test-plan (issue 500)
 //	oidcdyn  oidcc-dynamic-certification-test-plan (issue 493)
 //	oidcctp  oidcc-test-plan with -auth's client auth method (issue 494)
 //
@@ -38,7 +39,7 @@ import (
 )
 
 func main() {
-	planFlag := flag.String("plan", "fapi2", "plan to run: fapi2, oidcc, oidcdyn or oidcctp")
+	planFlag := flag.String("plan", "fapi2", "plan to run: fapi2, oidcc, oidccfp, oidcdyn or oidcctp")
 	authType := flag.String("auth", "", "oidcctp only: the client auth method to run oidcc-test-plan with")
 	responseType := flag.String("response-type", "", "oidcdyn only: an implicit response type to run the Dynamic plan with instead of code")
 	harnessURL := flag.String("harness", "https://localhost.emobix.co.uk:8443", "OIDF harness origin")
@@ -84,7 +85,7 @@ func main() {
 			fmt.Printf("registered client %d: %s\n", i+1, c.ID)
 		}
 		plan, prefix = fapi2.Plan(s), "fapi2-security-profile-final-"
-	case "oidcc":
+	case "oidcc", "oidccfp":
 		s := oidcc.Setup{
 			Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, Scope: oidcc.Scope,
 			User: oidcc.ExerciseUser(),
@@ -97,6 +98,9 @@ func main() {
 		}
 		fmt.Printf("registered client_secret_post client: %s\n", s.PostClient.ID)
 		plan, prefix = oidcc.Plan(s), oidcc.ModulePrefix
+		if *planFlag == "oidccfp" {
+			plan = oidcc.FormPostPlan(s)
+		}
 	case "oidcdyn", "oidcctp":
 		s := oidcdyn.Setup{Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, User: oidcdyn.ExerciseUser()}
 		if err := oidfplan.SignUp(ctx, hc, *serverURL, s.User); err != nil {
@@ -114,7 +118,7 @@ func main() {
 			}
 		}
 	default:
-		log.Fatalf("unknown -plan %q: want fapi2, oidcc, oidcdyn or oidcctp", *planFlag)
+		log.Fatalf("unknown -plan %q: want fapi2, oidcc, oidccfp, oidcdyn or oidcctp", *planFlag)
 	}
 
 	expected, err := oidfplan.LoadExpectations(*manifest, plan.ManifestKey())

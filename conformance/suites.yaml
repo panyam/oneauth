@@ -64,6 +64,15 @@ suites:
     needs: [docker]
     tracking: "mission 477"
 
+  - name: oidf-formpost-basic
+    kind: gating
+    timeout: 20m
+    covers: OIDF oidcc-formpost-basic-certification-test-plan, the Basic OP modules with response_mode=form_post
+    plan: oidcc-formpost-basic-certification-test-plan
+    source: tests/oidf-conformance/oidcc
+    needs: [docker]
+    tracking: "issue 500"
+
   - name: oidf-dynamic-op
     kind: gating
     timeout: 20m
