@@ -55,6 +55,31 @@ type RefreshToken struct {
 	// refresh token (RefreshTokenStore.RecordAccessToken), kept so
 	// revoking the family can blacklist them.
 	AccessTokens []IssuedAccessToken `json:"access_tokens,omitempty"`
+
+	// OIDC is what an ID token minted on refresh repeats from the login
+	// that started the grant (OIDC Core §12.2). Rotation carries it
+	// forward. Nil for a grant without the "openid" scope.
+	OIDC *OIDCGrant `json:"oidc,omitempty"`
+}
+
+// OIDCGrant is the part of an OpenID Connect authorization a refresh
+// token keeps. A refresh issues a new ID token, which must report the
+// original login's auth_time, acr and amr rather than the refresh time
+// (OIDC Core §12.2). The §5.5 claims request applies to the whole grant,
+// so the refreshed ID token and access token ask for the same claims.
+type OIDCGrant struct {
+	// AuthTime is the `auth_time` of the login. Zero leaves it out.
+	AuthTime time.Time `json:"auth_time,omitempty"`
+
+	// ACR and AMR are the `acr` and `amr` of the login (OIDC Core §2).
+	// Empty leaves them out.
+	ACR string   `json:"acr,omitempty"`
+	AMR []string `json:"amr,omitempty"`
+
+	// IDTokenClaims and UserinfoClaims are the claim names the §5.5
+	// claims request asked for in the ID token and at userinfo.
+	IDTokenClaims  []string `json:"id_token_claims,omitempty"`
+	UserinfoClaims []string `json:"userinfo_claims,omitempty"`
 }
 
 // IssuedAccessToken identifies an access token by its `jti` and `exp`,

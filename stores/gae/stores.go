@@ -779,6 +779,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 		Generation:      1,
 		Scopes:          scopeBytes,
 		ConfirmationJKT: confirmationJKT(req.Confirmation),
+		OIDC:            oidcGrantBytes(req.OIDC),
 		CreatedAt:       now,
 		ExpiresAt:       now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt:      now,
@@ -799,11 +800,21 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 		Generation:   1,
 		Scopes:       req.Scopes,
 		Confirmation: req.Confirmation,
+		OIDC:         req.OIDC,
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt:   now,
 		Revoked:      false,
 	}}, nil
+}
+
+// oidcGrantBytes encodes g for RefreshTokenEntity.OIDC; nil stays nil.
+func oidcGrantBytes(g *core.OIDCGrant) []byte {
+	if g == nil {
+		return nil
+	}
+	b, _ := json.Marshal(g)
+	return b
 }
 
 func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.RefreshToken {
@@ -823,6 +834,13 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 	if entity.AccessTokens != nil {
 		json.Unmarshal(entity.AccessTokens, &accessTokens)
 	}
+	var oidc *core.OIDCGrant
+	if entity.OIDC != nil {
+		oidc = &core.OIDCGrant{}
+		if json.Unmarshal(entity.OIDC, oidc) != nil {
+			oidc = nil
+		}
+	}
 
 	rt := &core.RefreshToken{
 		TokenHash:            entity.Key.Name,
@@ -839,6 +857,7 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 		LastUsedAt:           entity.LastUsedAt,
 		Revoked:              entity.Revoked,
 		AccessTokens:         accessTokens,
+		OIDC:                 oidc,
 	}
 	if !entity.RevokedAt.IsZero() {
 		rt.RevokedAt = &entity.RevokedAt
@@ -954,6 +973,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			Scopes:               scopeBytes,
 			AuthorizationDetails: authzDetailsBytes,
 			ConfirmationJKT:      confirmationJKT(oldRT.Confirmation),
+			OIDC:                 oidcGrantBytes(oldRT.OIDC),
 			CreatedAt:            now,
 			ExpiresAt:            oldRT.ExpiresAt, // the family's, not extended
 			LastUsedAt:           now,
@@ -975,6 +995,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			Scopes:               oldRT.Scopes,
 			AuthorizationDetails: oldRT.AuthorizationDetails,
 			Confirmation:         oldRT.Confirmation,
+			OIDC:                 oldRT.OIDC,
 			CreatedAt:            now,
 			ExpiresAt:            oldRT.ExpiresAt, // the family's, not extended
 			LastUsedAt:           now,
@@ -1034,44 +1055,23 @@ func (s *RefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.Re
 	return &core.RevokeRefreshTokenResponse{}, nil
 }
 
-// RevokeSubjectTokens revokes every active (non-revoked) refresh token for
-// req.Subject — used by "log out everywhere" and admin force-revoke paths.
-// Iterates the indexed subject query and stamps Revoked/RevokedAt outside a
-// transaction (the working set can be larger than Datastore's per-tx limit);
-// callers tolerate a brief window where some tokens are revoked and others
-// aren't, since the worst case is a not-yet-revoked token getting one more
-// rotation that then fails reuse detection on the next try.
+// RevokeSubjectTokens revokes every live refresh token of req.Subject,
+// for "log out everywhere" and password reset, and returns the unexpired
+// access tokens recorded on any of the subject's tokens, revoked earlier
+// or not. The subject can hold more entities than one transaction
+// permits, so each is revoked in its own transaction, which keeps it
+// atomic against RecordAccessToken on that entity. An entity that fails
+// partway leaves the rest unrevoked; the error is returned and a retry
+// finishes the job.
 func (s *RefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.RevokeSubjectTokensRequest) (*core.RevokeSubjectTokensResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("RevokeSubjectTokens: req is required")
 	}
-	query := datastore.NewQuery(KindRefreshToken).
-		FilterField("subject", "=", req.Subject).
-		FilterField("revoked", "=", false)
-	if s.namespace != "" {
-		query = query.Namespace(s.namespace)
+	issued, err := s.revokeMatching(ctx, "subject", req.Subject)
+	if err != nil {
+		return nil, err
 	}
-
-	now := time.Now()
-	it := s.client.Run(ctx, query)
-	for {
-		var entity RefreshTokenEntity
-		key, err := it.Next(&entity)
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		entity.Key = key
-		entity.Revoked = true
-		entity.RevokedAt = now
-		if _, err := s.client.Put(ctx, key, &entity); err != nil {
-			return nil, err
-		}
-	}
-	return &core.RevokeSubjectTokensResponse{}, nil
+	return &core.RevokeSubjectTokensResponse{AccessTokens: issued}, nil
 }
 
 // contendedTxAttempts is the transaction attempt limit for writes that
@@ -1136,8 +1136,19 @@ func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.Rev
 	if req == nil {
 		return nil, fmt.Errorf("RevokeTokenFamily: req is required")
 	}
+	issued, err := s.revokeMatching(ctx, "family", req.Family)
+	if err != nil {
+		return nil, err
+	}
+	return &core.RevokeTokenFamilyResponse{AccessTokens: issued}, nil
+}
+
+// revokeMatching revokes, one transaction per entity, every live token
+// whose field equals value, and returns the unexpired access tokens of
+// every matching entity.
+func (s *RefreshTokenStore) revokeMatching(ctx context.Context, field, value string) ([]core.IssuedAccessToken, error) {
 	query := datastore.NewQuery(KindRefreshToken).
-		FilterField("family", "=", req.Family).
+		FilterField(field, "=", value).
 		KeysOnly()
 	if s.namespace != "" {
 		query = query.Namespace(s.namespace)
@@ -1178,7 +1189,7 @@ func (s *RefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.Rev
 		}
 		issued = append(issued, live...)
 	}
-	return &core.RevokeTokenFamilyResponse{AccessTokens: issued}, nil
+	return issued, nil
 }
 
 // GetSubjectTokens returns every active (non-revoked) refresh token for

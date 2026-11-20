@@ -259,6 +259,7 @@ func (s *inMemoryRefreshStore) CreateRefreshToken(ctx context.Context, req *core
 		Scopes:       req.Scopes,
 		Family:       family[:16],
 		Confirmation: req.Confirmation,
+		OIDC:         req.OIDC,
 		ExpiresAt:    time.Now().Add(core.TokenExpiryRefreshToken),
 	}
 	s.tokens[token] = rt
@@ -300,6 +301,7 @@ func (s *inMemoryRefreshStore) RotateRefreshToken(ctx context.Context, req *core
 		AuthorizationDetails: rt.AuthorizationDetails,
 		Family:               rt.Family,
 		Confirmation:         rt.Confirmation,
+		OIDC:                 rt.OIDC,
 		ExpiresAt:            time.Now().Add(core.TokenExpiryRefreshToken),
 	}
 	s.tokens[newToken] = newRT

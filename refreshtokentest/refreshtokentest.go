@@ -1,6 +1,8 @@
 // Package refreshtokentest is the shared contract suite for
-// core.RefreshTokenStore's access-token bookkeeping: RecordAccessToken
-// and the access tokens RevokeTokenFamily hands back. Revoking a refresh
+// core.RefreshTokenStore's access-token bookkeeping: RecordAccessToken,
+// and the access tokens RevokeTokenFamily and RevokeSubjectTokens hand
+// back. It also checks that the OIDC grant a refresh needs survives
+// rotation. Revoking a refresh
 // token has to take the access tokens issued from the same grant with it
 // (RFC 7009 §2.1), and the store is the only place that knows which
 // those are, so every backend runs these scenarios through RunAll.
@@ -37,6 +39,9 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("FamiliesAreIsolated", func(t *testing.T) { TestFamiliesAreIsolated(t, factory) })
 	t.Run("RevokeUnknownFamily", func(t *testing.T) { TestRevokeUnknownFamily(t, factory) })
 	t.Run("ConcurrentRecordsAllKept", func(t *testing.T) { TestConcurrentRecordsAllKept(t, factory) })
+	t.Run("RevokeSubjectReturnsAccessTokens", func(t *testing.T) { TestRevokeSubjectReturnsAccessTokens(t, factory) })
+	t.Run("RevokeUnknownSubject", func(t *testing.T) { TestRevokeUnknownSubject(t, factory) })
+	t.Run("OIDCGrantSurvivesRotation", func(t *testing.T) { TestOIDCGrantSurvivesRotation(t, factory) })
 }
 
 func create(t *testing.T, s core.RefreshTokenStore) *core.RefreshToken {
