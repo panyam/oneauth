@@ -16,8 +16,10 @@ import (
 type GoogleOAuth2 struct {
 	*BaseOAuth2
 
-	// UserInfoURL is the URL to fetch user info from. Defaults to Google's API.
-	// Can be overridden for testing.
+	// UserInfoURL is where the callback fetches the signed-in person's
+	// profile, with the access token as a Bearer header. It defaults to
+	// Google's API, and a test can point it at a fake. A status other than
+	// 200 fails the sign-in.
 	UserInfoURL string
 }
 
@@ -115,13 +117,19 @@ func (g *GoogleOAuth2) validateAccessToken(token *oauth2.Token) (userInfo map[st
 }
 
 func (g *GoogleOAuth2) getUserData(token *oauth2.Token) ([]byte, error) {
-	// Use code to get token and get user info from Google.
-	url := g.UserInfoURL + "?access_token=" + token.AccessToken
-	response, err := g.getHTTPClient().Get(url)
+	req, err := http.NewRequest("GET", g.UserInfoURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %s", err.Error())
+	}
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	response, err := g.getHTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting user info from google: %s", err.Error())
 	}
 	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("google user info returned %s", response.Status)
+	}
 	contents, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed read response: %s", err.Error())

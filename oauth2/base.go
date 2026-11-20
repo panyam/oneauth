@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"slices"
@@ -113,8 +114,10 @@ func (b *BaseOAuth2) ExchangeContext() context.Context {
 	return ctx
 }
 
-// SetOAuthEndpoint sets the OAuth endpoint (auth URL and token URL).
-// This is primarily used for testing with mock servers.
+// SetOAuthEndpoint replaces the provider's authorize and token URLs. A
+// test points them at a fake provider with it, alongside SetHTTPClient and
+// the provider's UserInfoURL. For GitHub Enterprise, GithubOAuth2's
+// SetEnterpriseURL sets all three. Call it before serving.
 func (b *BaseOAuth2) SetOAuthEndpoint(endpoint oauth2.Endpoint) {
 	b.oauthConfig.Endpoint = endpoint
 }
@@ -181,7 +184,16 @@ func (b *BaseOAuth2) setupHandlers() {
 	*/
 }
 
-// OAuthEndpoint is a stub (red commit for issue 511).
+// OAuthEndpoint returns the authorize and token URLs the provider uses.
 func (b *BaseOAuth2) OAuthEndpoint() oauth2.Endpoint {
-	return oauth2.Endpoint{}
+	return b.oauthConfig.Endpoint
+}
+
+// isLoopback reports whether host is localhost or a loopback IP.
+func isLoopback(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

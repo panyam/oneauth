@@ -5,7 +5,10 @@ OAuth2 authorization code flow for Google and GitHub, with PKCE (RFC 7636) suppo
 ## Contents
 - **base.go** — `BaseOAuth2` struct, shared redirect/callback logic, `DisablePKCE` (every cookie is Secure + HttpOnly), `SetScopes` / `Scopes`, and `AllowedExtraScopes` (a login link adds scopes with `?scope=`, limited to the list; issue #467)
 - **google.go** — `GoogleOAuth2` (Google OAuth2 provider)
-- **github.go** — `GithubOAuth2` (GitHub OAuth2 provider)
+- **github.go** — `GithubOAuth2` (GitHub OAuth2 provider). `SetEnterpriseURL` points it at a GitHub Enterprise Server or GHE.com host (issue 511)
+
+## Testing against a fake provider
+`SetOAuthEndpoint` sets the authorize and token URLs, `UserInfoURL` sets the profile URL, and `SetHTTPClient` sets the client. A callback whose userinfo answers anything but 200 fails the sign-in. Neither provider logs a token or puts one in a URL (issue 510).
 - **utils.go** — `OauthRedirector`, `OauthRedirectorWithPKCE`, state cookie generation
 - **pkce.go** — `GenerateCodeVerifier`, `ComputeCodeChallenge`, PKCE cookie helpers
 

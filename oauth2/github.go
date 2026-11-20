@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -17,8 +17,11 @@ import (
 type GithubOAuth2 struct {
 	*BaseOAuth2
 
-	// UserInfoURL is the URL to fetch user info from. Defaults to GitHub's API.
-	// Can be overridden for testing.
+	// UserInfoURL is where the callback fetches the signed-in person's
+	// profile, with the access token as a Bearer header. It defaults to
+	// https://api.github.com/user. SetEnterpriseURL sets it for a GitHub
+	// Enterprise host, and a test can point it at a fake. A status other
+	// than 200 fails the sign-in.
 	UserInfoURL string
 }
 
@@ -103,7 +106,6 @@ func (g *GithubOAuth2) handleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *GithubOAuth2) validateAccessToken(token *oauth2.Token) (userInfo map[string]any, err error) {
-	log.Println("Validating Token: ", token)
 	userInfo, err = g.getUserData(token)
 	if err != nil {
 		slog.Info("error validating tokens", "err", err)
@@ -112,8 +114,7 @@ func (g *GithubOAuth2) validateAccessToken(token *oauth2.Token) (userInfo map[st
 }
 
 func (g *GithubOAuth2) getUserData(token *oauth2.Token) (map[string]any, error) {
-	// Use code to get token and get user info from Github.
-	log.Println("Getting User data from github....")
+	slog.Debug("fetching GitHub user info", "url", g.UserInfoURL)
 	req, err := http.NewRequest("GET", g.UserInfoURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %s", err.Error())
@@ -128,6 +129,9 @@ func (g *GithubOAuth2) getUserData(token *oauth2.Token) (map[string]any, error) 
 		return nil, fmt.Errorf("failed getting user info from github: %s", err.Error())
 	}
 	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github user info returned %s", response.Status)
+	}
 
 	contents, err := io.ReadAll(response.Body)
 	if err != nil {
@@ -141,7 +145,37 @@ func (g *GithubOAuth2) getUserData(token *oauth2.Token) (map[string]any, error) 
 	return userInfo, nil
 }
 
-// SetEnterpriseURL is a stub (red commit for issue 511).
+// SetEnterpriseURL points the sign-in at a GitHub Enterprise host, given as
+// its base URL such as https://ghe.example.com. It sets the authorize,
+// token and device URLs on that host, and sets UserInfoURL to the host's
+// API. A GitHub Enterprise Server host serves its API under /api/v3. A
+// GHE.com host such as https://acme.ghe.com serves it at
+// https://api.acme.ghe.com.
+//
+// The URL must be https with no path, query or fragment. http is allowed
+// only for a loopback host, so a test can run a fake server. On an error
+// nothing changes. Call it before serving, like SetScopes.
 func (g *GithubOAuth2) SetEnterpriseURL(baseURL string) error {
-	return fmt.Errorf("not implemented")
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return fmt.Errorf("github enterprise URL %q: %w", baseURL, err)
+	}
+	if u.Host == "" || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return fmt.Errorf("github enterprise URL %q must be a scheme and host only", baseURL)
+	}
+	if u.Scheme != "https" && !(u.Scheme == "http" && isLoopback(u.Hostname())) {
+		return fmt.Errorf("github enterprise URL %q must use https", baseURL)
+	}
+	base := u.Scheme + "://" + u.Host
+	userInfo := base + "/api/v3/user"
+	if strings.HasSuffix(strings.ToLower(u.Hostname()), ".ghe.com") {
+		userInfo = u.Scheme + "://api." + u.Host + "/user"
+	}
+	g.SetOAuthEndpoint(oauth2.Endpoint{
+		AuthURL:       base + "/login/oauth/authorize",
+		TokenURL:      base + "/login/oauth/access_token",
+		DeviceAuthURL: base + "/login/device/code",
+	})
+	g.UserInfoURL = userInfo
+	return nil
 }
