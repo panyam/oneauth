@@ -140,3 +140,8 @@ func (g *GithubOAuth2) getUserData(token *oauth2.Token) (map[string]any, error) 
 	}
 	return userInfo, nil
 }
+
+// SetEnterpriseURL is a stub (red commit for issue 511).
+func (g *GithubOAuth2) SetEnterpriseURL(baseURL string) error {
+	return fmt.Errorf("not implemented")
+}

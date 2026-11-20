@@ -180,3 +180,8 @@ func (b *BaseOAuth2) setupHandlers() {
 		}).Methods("POST")
 	*/
 }
+
+// OAuthEndpoint is a stub (red commit for issue 511).
+func (b *BaseOAuth2) OAuthEndpoint() oauth2.Endpoint {
+	return oauth2.Endpoint{}
+}
