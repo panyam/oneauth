@@ -79,17 +79,21 @@ app.use(mcpAuthMetadataRouter({ oauthMetadata, resourceServerUrl: mcpURL, scopes
 app.get('/demo/bootstrap', (_req, res) => res.json(tokens));
 
 const authenticated = requireBearerAuth({ verifier, resourceMetadataUrl });
-// A Map, not an object, so a tool name from the request body can only pick
-// one of these handlers and never an inherited property.
-const scopeGates = new Map<string, express.RequestHandler>(
-  Object.entries(toolScopes).map(([name, scope]) => [name, requireBearerAuth({ verifier, requiredScopes: [scope], resourceMetadataUrl })])
-);
+const scopeGates: Array<[string, express.RequestHandler]> = Object.entries(toolScopes).map(([name, scope]) => [
+  name,
+  requireBearerAuth({ verifier, requiredScopes: [scope], resourceMetadataUrl })
+]);
 // A tools/call for a scope-gated tool goes through that tool's gate, so the
-// SDK answers a token without the scope with 403 insufficient_scope.
+// SDK answers a token without the scope with 403 insufficient_scope. The
+// gate is found by comparing names, never by using the request's tool name
+// as a key, so the request can only pick one of these handlers.
 const gate: express.RequestHandler = (req, res, next) => {
   const body = req.body;
   const tool = body?.method === 'tools/call' ? body?.params?.name : undefined;
-  const handler = (typeof tool === 'string' && scopeGates.get(tool)) || authenticated;
+  let handler = authenticated;
+  for (const [name, h] of scopeGates) {
+    if (name === tool) handler = h;
+  }
   handler(req, res, next);
 };
 
