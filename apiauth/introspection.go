@@ -79,6 +79,10 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		h.jsonResponse(w, http.StatusBadRequest, map[string]any{"error": "invalid_request"})
 		return
 	}
+	if gErr := checkFormParams(r); gErr != nil {
+		h.jsonResponse(w, gErr.Status, map[string]any{"error": gErr.Code, "error_description": gErr.Description})
+		return
+	}
 
 	creds, ok := extractClientCredentials(r, nil)
 	if !ok {
@@ -96,14 +100,14 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token := r.FormValue("token")
+	token := r.PostForm.Get("token")
 	if token == "" {
 		h.jsonResponse(w, http.StatusBadRequest, map[string]any{"error": "invalid_request", "error_description": "token parameter is required"})
 		return
 	}
 
 	// Delegate to transport-independent introspector
-	introspectResp, err := h.Introspector.Introspect(r.Context(), &IntrospectRequest{Token: token, TokenTypeHint: r.FormValue("token_type_hint")})
+	introspectResp, err := h.Introspector.Introspect(r.Context(), &IntrospectRequest{Token: token, TokenTypeHint: r.PostForm.Get("token_type_hint")})
 	if err != nil || introspectResp == nil || !introspectResp.Result.Active {
 		// RFC 7662: invalid tokens get {"active": false}, never an error
 		span.SetAttributes(attribute.Bool("oauth.token_active", false))

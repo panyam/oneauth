@@ -21,11 +21,11 @@ import (
 // client sends both, we pick the strongest signal and ignore the rest.
 //
 // The form is assumed already parsed (handler must have called
-// r.ParseForm() or r.ParseMultipartForm() before calling). When
-// req is non-nil (token endpoint, where the body has already been
-// decoded into a core.TokenRequest — possibly from a JSON body that
-// http.Request.FormValue can't see), it is used as a fallback for
-// fields not present in the form/header.
+// r.ParseForm() or r.ParseMultipartForm() before calling). Form fields
+// come from the body only: RFC 6749 §2.3.1 keeps credentials out of the
+// request URI, and checkFormParams refuses them there (issue 519). When
+// req is non-nil (the token endpoint, which may have decoded a JSON
+// body), it is the fallback for fields absent from the form and header.
 //
 // Returns the populated request and true on success; nil + false when
 // no credentials are present.
@@ -37,10 +37,10 @@ func extractClientCredentials(r *http.Request, req *core.TokenRequest) (*Authent
 		return fallback
 	}
 	var (
-		fAssertion     = r.FormValue("client_assertion")
-		fAssertionType = r.FormValue("client_assertion_type")
-		fClientID      = r.FormValue("client_id")
-		fClientSecret  = r.FormValue("client_secret")
+		fAssertion     = r.PostFormValue("client_assertion")
+		fAssertionType = r.PostFormValue("client_assertion_type")
+		fClientID      = r.PostFormValue("client_id")
+		fClientSecret  = r.PostFormValue("client_secret")
 	)
 	var (
 		jAssertion, jAssertionType, jClientID, jClientSecret string

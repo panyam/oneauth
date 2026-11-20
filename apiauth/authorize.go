@@ -259,6 +259,18 @@ func (h *AuthorizationHandler) ParseAndValidate(r *http.Request) (req *Authoriza
 		values = r.PostForm
 	}
 
+	// RFC 6749 §3.1: no parameter may repeat. A repeated client_id or
+	// redirect_uri leaves no redirect to trust, so the page shows it;
+	// anything else goes back to the client as invalid_request.
+	if p := repeatedParam(values); p != "" {
+		desc := p + " must not be included more than once (RFC 6749 §3.1)"
+		if p == "client_id" || p == "redirect_uri" {
+			return nil, true, "invalid_request", desc
+		}
+		req, displayErr, _, _ = h.validateClientAndRedirect(r.Context(), values)
+		return req, displayErr, "invalid_request", desc
+	}
+
 	requestURI := strings.TrimSpace(values.Get("request_uri"))
 	if requestURI != "" && (h.PushedStore == nil || !strings.HasPrefix(requestURI, core.PushedRequestURIPrefix)) {
 		// OIDC Core §6.2: oneauth resolves only the references its own
@@ -707,7 +719,7 @@ func generateAuthorizationCode() (string, error) {
 }
 
 // appendQuery appends values to base's query string, preserving any
-// existing params. Returns the encoded URL.
+// existing params, and sets the fragment to "_=_". Returns the encoded URL.
 func appendQuery(base string, values url.Values) (string, error) {
 	u, err := url.Parse(base)
 	if err != nil {
@@ -720,6 +732,9 @@ func appendQuery(base string, values url.Values) (string, error) {
 		}
 	}
 	u.RawQuery = q.Encode()
+	// RFC 9700 §4.1.3: a fragment of our own stops the browser carrying
+	// one from the authorization request over to the client.
+	u.Fragment = "_=_"
 	return u.String(), nil
 }
 
