@@ -93,6 +93,13 @@ type AppRegistration struct {
 	// one host. Registration sets it; it must not change afterwards, or
 	// the client's users get new subs.
 	SectorIdentifier string `json:"sector_identifier,omitempty"`
+
+	// ResponseTypes are the RFC 7591 §2 response_type values the client
+	// may use at /authorize. Empty means ["code"], the default. The
+	// implicit types "id_token" and "id_token token" appear only on a
+	// server that allows implicit, for a client that registered them
+	// (issue 507).
+	ResponseTypes []string `json:"response_types,omitempty"`
 }
 
 // SaveAppRequest carries the registration to persist.
