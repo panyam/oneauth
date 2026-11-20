@@ -177,5 +177,5 @@ suites:
     last_run:
       date: "2026-11-20"
       commit: 7e3b812
-      result: "107 tests, 9 failed (5 test setup, 4 tracked or accepted); 30 of 36 relevant threats mitigated"
+      result: "109 tests, 9 failed (5 test setup, 4 tracked or accepted; form_post has shipped since); 33 of 40 relevant threats mitigated"
       doc: docs/conformance/oauch.md
