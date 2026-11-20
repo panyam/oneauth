@@ -32,3 +32,10 @@ admin_auth:
 # MCP authorization server, which runs the code flow.
 code_flow:
   enabled: true
+
+# The upstream IdP the MCP enterprise-managed scenarios assume (issue 521).
+# The exercise generates its key pair; the fixture signs an assertion with
+# the private half, which the AS takes through jwt-bearer and token exchange.
+trusted_assertion_issuers:
+  - issuer: ${MCPAUTH_IDP_ISSUER:-https://idp.mcpauth.test}
+    public_key_path: ${MCPAUTH_IDP_PUBKEY}

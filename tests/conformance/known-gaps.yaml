@@ -452,41 +452,6 @@
 
 - suite: mcp
   plans: [mcp-auth-gosdk, mcp-auth-mcpkit]
-  test: auth-enterprise-managed-jwt-bearer-grant-supported
-  status: expected-skip
-  issue: 521
-  owner: panyam
-  reason: |
-    oneauth-server has no config for a trusted assertion issuer, so it
-    doesn't advertise the RFC 7523 §2.1 jwt-bearer grant. apiauth supports
-    it through OneAuthConfig.TrustedAssertionIssuers.
-  expires: 2027-12-31
-
-- suite: mcp
-  plans: [mcp-auth-gosdk, mcp-auth-mcpkit]
-  test: auth-enterprise-managed-token-exchange-grant-supported
-  status: expected-skip
-  issue: 521
-  owner: panyam
-  reason: |
-    Same cause as the jwt-bearer entry: no trusted assertion issuer in the
-    reference server's config, so RFC 8693 token exchange isn't advertised.
-  expires: 2027-12-31
-
-- suite: mcp
-  plans: [mcp-auth-gosdk, mcp-auth-mcpkit]
-  test: auth-enterprise-managed-token-exchange-flow-shape
-  status: expected-skip
-  issue: 521
-  owner: panyam
-  reason: |
-    Needs AUTH_SUBJECT_ASSERTION_TOKEN, a JWT from an upstream IdP the AS
-    trusts, which the fixture can mint once the server takes that IdP's
-    key from config.
-  expires: 2027-12-31
-
-- suite: mcp
-  plans: [mcp-auth-gosdk, mcp-auth-mcpkit]
   test: auth-iss-param-redirect-carries-iss
   status: expected-skip
   issue: 521

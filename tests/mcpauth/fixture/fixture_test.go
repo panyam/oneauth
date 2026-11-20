@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/panyam/oneauth/apiauth"
 	"github.com/panyam/oneauth/utils"
 	"github.com/stretchr/testify/assert"
@@ -62,4 +63,19 @@ func TestLoadKey_ReadsRSAAndEC(t *testing.T) {
 	_, alg, err := LoadKey(path)
 	require.NoError(t, err)
 	assert.Equal(t, "RS256", alg)
+}
+
+// The upstream assertion names the trusted IdP as iss and the AS as aud,
+// and verifies with the IdP's key, which is all the AS checks.
+func TestUpstreamAssertion_VerifiesAsTheIdP(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tok, err := UpstreamAssertion(key, "RS256", "https://idp.test", "https://as.test", "alice")
+	require.NoError(t, err)
+	claims := jwt.MapClaims{}
+	_, err = jwt.ParseWithClaims(tok, claims, func(*jwt.Token) (any, error) { return &key.PublicKey, nil },
+		jwt.WithIssuer("https://idp.test"), jwt.WithAudience("https://as.test"), jwt.WithExpirationRequired(), jwt.WithValidMethods([]string{"RS256"}))
+	require.NoError(t, err)
+	assert.Equal(t, "alice", claims["sub"])
+	assert.NotEmpty(t, claims["jti"])
 }

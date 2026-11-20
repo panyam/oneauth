@@ -68,6 +68,7 @@ func main() {
 		"AUTH_WRONG_AUDIENCE_TOKEN="+tokens.TokWrongAud,
 		"AUTH_WRONG_ISSUER_TOKEN="+tokens.TokWrongIssuer,
 		"AUTH_AS_TOKEN_ENDPOINT="+asMeta.TokenEndpoint,
+		"AUTH_SUBJECT_ASSERTION_TOKEN="+tokens.TokUpstreamAssertion,
 	)
 
 	out, err := os.MkdirTemp("", plan+"-")

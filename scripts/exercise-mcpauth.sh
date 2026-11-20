@@ -61,16 +61,22 @@ cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; rm -r
 trap cleanup EXIT
 
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$work/signing.pem" 2>/dev/null
+# The upstream IdP oneauth-server trusts for jwt-bearer and token exchange.
+idp_issuer=https://idp.mcpauth.test
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$work/idp.pem" 2>/dev/null
+openssl pkey -in "$work/idp.pem" -pubout -out "$work/idp.pub.pem" 2>/dev/null
 go build -buildvcs=false -o "$work/oneauth-server" ./cmd/oneauth-server
 go build -buildvcs=false -o "$work/fixture" "./tests/mcpauth/cmd/$sdk-fixture"
 
 MCPAUTH_AS_PORT=$as_port MCPAUTH_SIGNING_KEY="$work/signing.pem" MCPAUTH_AUDIENCE=$mcp \
+  MCPAUTH_IDP_ISSUER=$idp_issuer MCPAUTH_IDP_PUBKEY="$work/idp.pub.pem" \
   "$work/oneauth-server" --config tests/mcpauth/oneauth-mcp.yaml >"$server_log" 2>&1 &
 pids+=($!)
 scripts/wait-for.sh 60 "oneauth-server (mcpauth)" --pid "${pids[0]}" --log "$server_log" -- \
   "$as/.well-known/oauth-authorization-server" || exit 2
 
-"$work/fixture" -addr ":$fixture_port" -as "$as" -mcp-url "$mcp" -key "$work/signing.pem" >"$fixture_log" 2>&1 &
+"$work/fixture" -addr ":$fixture_port" -as "$as" -mcp-url "$mcp" -key "$work/signing.pem" \
+  -idp-key "$work/idp.pem" -idp-issuer "$idp_issuer" >"$fixture_log" 2>&1 &
 pids+=($!)
 scripts/wait-for.sh 60 "$sdk fixture" --pid "${pids[1]}" --log "$fixture_log" -- \
   "http://localhost:$fixture_port/demo/bootstrap" || exit 2
