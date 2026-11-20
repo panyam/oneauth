@@ -405,6 +405,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 		Scopes:          req.Scopes,
 		ConfirmationJKT: jktFromConfirmation(req.Confirmation),
 		OIDC:            req.OIDC,
+		Resources:       req.Resources,
 		ExpiresAt:       now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt:      now,
 		Revoked:         false,
@@ -439,7 +440,8 @@ func (s *RefreshTokenStore) GetRefreshToken(ctx context.Context, req *core.GetRe
 
 // RotateRefreshToken revokes req.OldToken and inserts its successor in
 // the same family at the next generation, in one transaction. The
-// successor keeps the family's expiry, scopes, binding and OIDC grant.
+// successor keeps the family's expiry, scopes, binding, OIDC grant and
+// resources.
 // A missing row is core.ErrTokenNotFound and an expired one is
 // core.ErrTokenExpired. An already-revoked row is core.ErrTokenReused,
 // and so is losing the compare-and-set to a concurrent rotation; the
@@ -498,6 +500,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			AuthorizationDetails: oldModel.AuthorizationDetails,
 			ConfirmationJKT:      oldModel.ConfirmationJKT,
 			OIDC:                 oldModel.OIDC,
+			Resources:            oldModel.Resources,
 			ExpiresAt:            oldModel.ExpiresAt, // the family's, not extended
 			LastUsedAt:           now,
 			Revoked:              false,

@@ -197,6 +197,7 @@ func TestOIDCFieldsRoundTrip(t *testing.T, factory Factory) {
 	c.UserinfoClaims = []string{"address"}
 	c.ACR = "1"
 	c.AMR = []string{"pwd", "otp"}
+	c.Resources = []string{"https://mcp.example/mcp"}
 	createCode(t, s, c)
 
 	g, err := s.GetAuthorizationCode(context.Background(), &core.GetAuthorizationCodeRequest{Code: c.Code})
@@ -207,6 +208,7 @@ func TestOIDCFieldsRoundTrip(t *testing.T, factory Factory) {
 	assert.Equal(t, []string{"address"}, g.Code.UserinfoClaims)
 	assert.Equal(t, "1", g.Code.ACR)
 	assert.Equal(t, []string{"pwd", "otp"}, g.Code.AMR)
+	assert.Equal(t, []string{"https://mcp.example/mcp"}, g.Code.Resources, "RFC 8707 resources")
 
 	unset := newCode()
 	unset.Code = "code-no-oidc"
@@ -218,4 +220,5 @@ func TestOIDCFieldsRoundTrip(t *testing.T, factory Factory) {
 	assert.Empty(t, g.Code.UserinfoClaims)
 	assert.Empty(t, g.Code.ACR)
 	assert.Empty(t, g.Code.AMR)
+	assert.Empty(t, g.Code.Resources)
 }

@@ -120,6 +120,13 @@ type AuthorizationCode struct {
 	ACR string   `json:"acr,omitempty"`
 	AMR []string `json:"amr,omitempty"`
 
+	// Resources are the RFC 8707 resource indicators the code was
+	// authorized for. Redeeming it binds the access token's aud to them,
+	// or to the subset the token request names, and the refresh token
+	// keeps them all. Empty when the AS has no resource allowlist or the
+	// request named none.
+	Resources []string `json:"resources,omitempty"`
+
 	// IssuedAt is when the AS minted the code. Useful for telemetry
 	// and as the anchor for any future "max code age" enforcement.
 	IssuedAt time.Time `json:"issued_at"`

@@ -42,6 +42,7 @@ func RunAll(t *testing.T, factory Factory) {
 	t.Run("RevokeSubjectReturnsAccessTokens", func(t *testing.T) { TestRevokeSubjectReturnsAccessTokens(t, factory) })
 	t.Run("RevokeUnknownSubject", func(t *testing.T) { TestRevokeUnknownSubject(t, factory) })
 	t.Run("OIDCGrantSurvivesRotation", func(t *testing.T) { TestOIDCGrantSurvivesRotation(t, factory) })
+	t.Run("ResourcesSurviveRotation", func(t *testing.T) { TestResourcesSurviveRotation(t, factory) })
 }
 
 func create(t *testing.T, s core.RefreshTokenStore) *core.RefreshToken {

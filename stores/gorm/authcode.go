@@ -47,6 +47,7 @@ type AuthorizationCodeModel struct {
 	AuthTime             *time.Time                 // OIDC auth_time; NULL when unknown
 	ACR                  string                     `gorm:"size:256"`        // OIDC acr of the login
 	AMR                  []string                   `gorm:"serializer:json"` // OIDC amr of the login
+	Resources            []string                   `gorm:"serializer:json"` // RFC 8707 resources the code was authorized for
 	IssuedAt             time.Time                  `gorm:"autoCreateTime"`
 	ExpiresAt            time.Time                  `gorm:"not null;index"`
 	UsedAt               *time.Time
@@ -261,6 +262,7 @@ func authCodeToModel(c *core.AuthorizationCode) *AuthorizationCodeModel {
 		AuthTime:             nullableTime(c.AuthTime),
 		ACR:                  c.ACR,
 		AMR:                  c.AMR,
+		Resources:            c.Resources,
 		IssuedAt:             c.IssuedAt,
 		ExpiresAt:            c.ExpiresAt,
 		UsedAt:               nullableTime(c.UsedAt),
@@ -300,6 +302,7 @@ func modelToAuthCode(m *AuthorizationCodeModel, code string) *core.Authorization
 		AuthTime:             derefTime(m.AuthTime),
 		ACR:                  m.ACR,
 		AMR:                  m.AMR,
+		Resources:            m.Resources,
 		IssuedAt:             m.IssuedAt,
 		ExpiresAt:            m.ExpiresAt,
 		UsedAt:               derefTime(m.UsedAt),

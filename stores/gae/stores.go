@@ -780,6 +780,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 		Scopes:          scopeBytes,
 		ConfirmationJKT: confirmationJKT(req.Confirmation),
 		OIDC:            oidcGrantBytes(req.OIDC),
+		Resources:       req.Resources,
 		CreatedAt:       now,
 		ExpiresAt:       now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt:      now,
@@ -801,6 +802,7 @@ func (s *RefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.Cr
 		Scopes:       req.Scopes,
 		Confirmation: req.Confirmation,
 		OIDC:         req.OIDC,
+		Resources:    req.Resources,
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt:   now,
@@ -858,6 +860,7 @@ func (s *RefreshTokenStore) entityToToken(entity *RefreshTokenEntity) *core.Refr
 		Revoked:              entity.Revoked,
 		AccessTokens:         accessTokens,
 		OIDC:                 oidc,
+		Resources:            entity.Resources,
 	}
 	if !entity.RevokedAt.IsZero() {
 		rt.RevokedAt = &entity.RevokedAt
@@ -974,6 +977,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			AuthorizationDetails: authzDetailsBytes,
 			ConfirmationJKT:      confirmationJKT(oldRT.Confirmation),
 			OIDC:                 oidcGrantBytes(oldRT.OIDC),
+			Resources:            oldRT.Resources,
 			CreatedAt:            now,
 			ExpiresAt:            oldRT.ExpiresAt, // the family's, not extended
 			LastUsedAt:           now,
@@ -996,6 +1000,7 @@ func (s *RefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.Ro
 			AuthorizationDetails: oldRT.AuthorizationDetails,
 			Confirmation:         oldRT.Confirmation,
 			OIDC:                 oldRT.OIDC,
+			Resources:            oldRT.Resources,
 			CreatedAt:            now,
 			ExpiresAt:            oldRT.ExpiresAt, // the family's, not extended
 			LastUsedAt:           now,

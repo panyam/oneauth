@@ -145,6 +145,7 @@ type RefreshTokenEntity struct {
 	Revoked              bool           `datastore:"revoked"`
 	AccessTokens         []byte         `datastore:"access_tokens,noindex"` // JSON []core.IssuedAccessToken, RFC 7009 §2.1
 	OIDC                 []byte         `datastore:"oidc,noindex"`          // JSON *core.OIDCGrant, OIDC Core §12.2; nil without openid
+	Resources            []string       `datastore:"resources,noindex"`     // RFC 8707 resources the grant was authorized for
 }
 
 // APIKeyEntity is the Datastore entity for API keys
