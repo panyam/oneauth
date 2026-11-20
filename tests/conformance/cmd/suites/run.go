@@ -18,6 +18,9 @@ const (
 	ResultSkip = "SKIP"
 	// ResultNotRun marks a registered suite the report has no run for.
 	ResultNotRun = "not run"
+	// ResultManual is a manual suite's result in the report: it shows the
+	// run recorded in its suites.yaml entry.
+	ResultManual = "manual"
 )
 
 // Result is one suite's outcome. Detail is the suite's own summary line
@@ -55,6 +58,9 @@ func (r *Runner) Run(reg *Registry, only string) (results []Result, ok bool) {
 			continue
 		}
 		matched = true
+		if s.Kind == KindManual {
+			continue // run by a person; Merge reports its recorded run
+		}
 		res := r.runOne(s)
 		if res.Result == ResultFail && s.Kind == KindGating {
 			ok = false

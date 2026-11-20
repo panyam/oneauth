@@ -46,7 +46,7 @@ func TestValidate_RejectsBadEntries(t *testing.T) {
 	}}
 	problems := strings.Join(reg.Validate(), "\n")
 	assert.Contains(t, problems, `"a" appears twice`)
-	assert.Contains(t, problems, `"b": kind must be gating or info`)
+	assert.Contains(t, problems, `"b": kind must be gating, info or manual`)
 	assert.Contains(t, problems, `"c": covers is empty`)
 	assert.Contains(t, problems, `"Bad Name": name must be lower-case`)
 	assert.Contains(t, problems, `"d": need "env:" names no variable`)
