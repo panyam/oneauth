@@ -75,6 +75,9 @@ type OneAuth struct {
 	// can validate confidential-client assertions.
 	AcceptedAudiences []string
 
+	// AllowedResources is OneAuthConfig.AllowedResources.
+	AllowedResources []string
+
 	// IssuerURL is OneAuthConfig.Issuer. With no AcceptedAudiences the
 	// token endpoint accepts it as a client-assertion aud (RFC 7523 §3).
 	IssuerURL string
@@ -205,6 +208,19 @@ type OneAuthConfig struct {
 	// client assertion. Typically the token endpoint URL plus the AS
 	// issuer URL. Empty falls back to the request URL.
 	AcceptedAudiences []string
+
+	// AllowedResources are the RFC 8707 resource indicators the AS issues
+	// tokens for, such as the URLs of the MCP servers it fronts. A client
+	// names one with `resource` on the client_credentials, authorization
+	// code (at /authorize) or refresh request, and the access token's aud
+	// becomes that resource, so it can't be replayed at another resource
+	// server. A resource not listed, or one with a fragment, is
+	// invalid_target. A code's resources stay with its refresh token, and a
+	// later token request may narrow them but not widen them (§2.2).
+	//
+	// Empty ignores `resource`, as the AS did before supporting it, and
+	// tokens carry Audience. The device and password grants ignore it too.
+	AllowedResources []string
 
 	// PasswordGranter, when non-nil, opts the AS into OAuth 2.0 RFC 6749
 	// §4.3 Resource Owner Password Credentials grant. OAuth 2.1 §7.6
@@ -411,6 +427,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		DisableRefreshTokenRotation: cfg.DisableRefreshTokenRotation,
 		Blacklist:                   cfg.Blacklist,
 		IDTokens:                    idTokens,
+		AllowedResources:            cfg.AllowedResources,
 	})
 
 	// Wire the validator — needs read-only key lookup + blacklist.
@@ -544,6 +561,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		AllowImplicit:            cfg.AllowImplicit,
 		PKCEPolicy:               cfg.PKCEPolicy,
 		AcceptedAudiences:        cfg.AcceptedAudiences,
+		AllowedResources:         cfg.AllowedResources,
 		DPoP:                     cfg.DPoP,
 		RequireDPoP:              cfg.RequireDPoP,
 		OIDC:                     cfg.OIDC,

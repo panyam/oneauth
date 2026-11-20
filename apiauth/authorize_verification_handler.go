@@ -138,6 +138,10 @@ type authorizeConsentData struct {
 	// separated, so AuthContextFromRequest still sees it at Approve.
 	// Custom consent templates must post it back too.
 	ACRValues string
+	// Resources round-trips the RFC 8707 resource parameters, so Approve
+	// issues a code for them. Custom consent templates must post them back
+	// too, one hidden input each.
+	Resources []string
 	// RequestURI round-trips a pushed request (RFC 9126) through the
 	// form, so Approve resolves the stored payload instead of re-reading
 	// the other hidden inputs as a fresh request. Custom consent
@@ -221,6 +225,7 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		Nonce:               req.Nonce,
 		Claims:              req.Claims,
 		ACRValues:           strings.Join(req.ACRValues, " "),
+		Resources:           req.Resources,
 		RequestURI:          req.RequestURI,
 		CSRFToken:           h.csrfToken(r),
 		ActionURL:           r.URL.Path,
@@ -521,6 +526,8 @@ var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent"
     {{if .Nonce}}<input type="hidden" name="nonce" value="{{.Nonce}}">{{end}}
     {{if .Claims}}<input type="hidden" name="claims" value="{{.Claims}}">{{end}}
     {{if .ACRValues}}<input type="hidden" name="acr_values" value="{{.ACRValues}}">{{end}}
+    {{range .Resources}}<input type="hidden" name="resource" value="{{.}}">
+    {{end}}
     {{if .RequestURI}}<input type="hidden" name="request_uri" value="{{.RequestURI}}">{{end}}
     <button type="submit" name="action" value="approve">Approve</button>
     <button type="submit" name="action" value="deny">Deny</button>

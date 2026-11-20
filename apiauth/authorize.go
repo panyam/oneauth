@@ -108,6 +108,12 @@ type AuthorizationRequest struct {
 	// AuthContextFromRequest before IssueCode. Empty leaves them out.
 	ACR string
 	AMR []string
+
+	// Resources are the RFC 8707 `resource` parameters, each checked
+	// against AuthorizationHandler.AllowedResources. The code carries them
+	// to the token endpoint. Empty when the client sent none or the
+	// handler has no allowlist.
+	Resources []string
 }
 
 // AuthContext is how the logged-in user authenticated, reported in the
@@ -143,6 +149,11 @@ func (r *AuthorizationRequest) Scopes() []string {
 type AuthorizationHandler struct {
 	// Store persists minted codes. Required.
 	Store core.AuthorizationCodeStore
+
+	// AllowedResources is OneAuthConfig.AllowedResources. A request whose
+	// `resource` it doesn't list is refused with invalid_target at the
+	// redirect URI (RFC 8707 §2). Empty ignores `resource`.
+	AllowedResources []string
 
 	// AllowAnyRedirectURI accepts any redirect_uri when neither AppStore
 	// nor RedirectURIValidator is set. Without it such a handler refuses
@@ -385,6 +396,12 @@ func (h *AuthorizationHandler) ValidateValues(ctx context.Context, values url.Va
 		return req, false, code, desc
 	}
 
+	resources, gErr := checkResources(h.AllowedResources, values["resource"])
+	if gErr != nil {
+		return req, false, gErr.Code, gErr.Description
+	}
+	req.Resources = resources
+
 	// The client's registered scope bounds what it can ask for (RFC 6749
 	// §3.3), the same rule the token endpoint applies, and asking for
 	// nothing gets the registered default.
@@ -548,6 +565,7 @@ func (h *AuthorizationHandler) IssueCode(ctx context.Context, req *Authorization
 		AuthTime:            req.AuthTime,
 		ACR:                 req.ACR,
 		AMR:                 req.AMR,
+		Resources:           req.Resources,
 		IssuedAt:            now,
 		ExpiresAt:           now.Add(expiry),
 	}

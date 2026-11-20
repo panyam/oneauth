@@ -154,6 +154,10 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		return nil, invalidGrant("authorization code is missing subject")
 	}
 
+	audience, gErr := narrowResources(req.Resources, entry.Resources)
+	if gErr != nil {
+		return nil, gErr
+	}
 	tok, err := r.Issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{
 		Subject:              entry.Subject,
 		ClientID:             entry.ClientID,
@@ -161,6 +165,7 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		AuthorizationDetails: entry.AuthorizationDetails,
 		Confirmation:         req.Confirmation,
 		UserinfoClaims:       entry.UserinfoClaims,
+		Audience:             audience,
 	})
 	if err != nil {
 		return nil, serverError("create access token: " + err.Error())
@@ -206,6 +211,7 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 			Scopes:       entry.Scopes,
 			Confirmation: refreshConfirmation(authedID, req.Confirmation),
 			OIDC:         oidcGrantFor(entry, r.IDTokens != nil),
+			Resources:    entry.Resources,
 		})
 		if rtErr == nil && createResp != nil && createResp.Token != nil {
 			pair.RefreshToken = createResp.Token.Token

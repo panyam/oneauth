@@ -187,6 +187,7 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 
 	authzHandler := &AuthorizationHandler{
 		Store:                 cfg.OneAuth.AuthorizationCodeStore,
+		AllowedResources:      cfg.OneAuth.AllowedResources,
 		AppStore:              cfg.OneAuth.AppStore,
 		RedirectURIValidator:  cfg.RedirectURIValidator,
 		AllowAnyRedirectURI:   cfg.AllowAnyRedirectURI,

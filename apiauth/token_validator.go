@@ -417,6 +417,7 @@ type jwtIssuer struct {
 	disableRotation     bool
 	blacklist           core.TokenBlacklist
 	idTokens            IDTokenIssuer
+	allowedResources    []string
 }
 
 // resolveAudience returns the currently-configured aud claim value:
@@ -474,6 +475,11 @@ type JWTIssuerConfig struct {
 	// carry an OIDCGrant, which the authorization-code grant stores when
 	// it issues an ID token. Nil issues no ID token on refresh.
 	IDTokens IDTokenIssuer
+
+	// AllowedResources mirrors OneAuthConfig.AllowedResources. RefreshGrant
+	// checks a refresh request's resources against it when the grant was
+	// authorized without any.
+	AllowedResources []string
 }
 
 // NewJWTIssuer creates a TokenIssuer that signs JWTs.
@@ -499,6 +505,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		disableRotation:     cfg.DisableRefreshTokenRotation,
 		blacklist:           cfg.Blacklist,
 		idTokens:            cfg.IDTokens,
+		allowedResources:    cfg.AllowedResources,
 	}
 }
 
@@ -546,8 +553,15 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	if i.issuer != "" {
 		claims["iss"] = i.issuer
 	}
-	if aud := i.resolveAudience(); aud != "" {
-		claims["aud"] = aud
+	switch {
+	case len(req.Audience) == 1:
+		claims["aud"] = req.Audience[0]
+	case len(req.Audience) > 1:
+		claims["aud"] = req.Audience
+	default:
+		if aud := i.resolveAudience(); aud != "" {
+			claims["aud"] = aud
+		}
 	}
 
 	if i.customClaims != nil {
@@ -698,6 +712,21 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		confirmation = req.Confirmation
 	}
 
+	// RFC 8707 §2.2: a refresh may narrow the grant's resources but not
+	// widen them. A grant without resources may name any allowed one. Both
+	// are checked before rotation, so a refused request doesn't burn the
+	// token.
+	var audience []string
+	var gErr *GrantError
+	if len(rt.Resources) > 0 {
+		audience, gErr = narrowResources(req.Resources, rt.Resources)
+	} else {
+		audience, gErr = checkResources(i.allowedResources, req.Resources)
+	}
+	if gErr != nil {
+		return nil, gErr
+	}
+
 	// Rotate: invalidate old, create new in same family. With rotation
 	// off (FAPI 2.0 §5.3.2.1) the presented token stays live and the
 	// response carries no refresh_token, so the client keeps using it.
@@ -730,6 +759,7 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 		AuthorizationDetails: rt.AuthorizationDetails,
 		Confirmation:         confirmation,
 		UserinfoClaims:       userinfoClaims,
+		Audience:             audience,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("server_error: %w", err)

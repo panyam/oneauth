@@ -165,6 +165,7 @@ func parseTokenRequest(r *http.Request) (*core.TokenRequest, *GrantError) {
 			SubjectTokenType:    r.FormValue("subject_token_type"),
 			RequestedTokenType:  r.FormValue("requested_token_type"),
 			Resource:            r.FormValue("resource"),
+			Resources:           r.PostForm["resource"],
 			Audience:            r.FormValue("audience"),
 		}
 		if adStr := r.FormValue("authorization_details"); adStr != "" {
@@ -326,8 +327,14 @@ func (h *TokenEndpointHandler) handleRefresh(w http.ResponseWriter, r *http.Requ
 		RefreshToken: req.RefreshToken,
 		ClientID:     clientID,
 		Confirmation: cnf,
+		Resources:    req.ResourceIndicators(),
 	})
 	if err != nil {
+		var gErr *GrantError
+		if errors.As(err, &gErr) {
+			h.writeError(w, gErr)
+			return
+		}
 		msg := err.Error()
 		switch {
 		case strings.Contains(msg, "invalid_grant"), strings.Contains(msg, "expired"), strings.Contains(msg, "revoked"), strings.Contains(msg, "reuse"):
@@ -426,12 +433,19 @@ func (h *TokenEndpointHandler) handleClientCredentials(w http.ResponseWriter, r 
 		return
 	}
 
+	resources, gErr := checkResources(h.OneAuth.AllowedResources, req.ResourceIndicators())
+	if gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
+
 	tok, err := h.OneAuth.Issuer.CreateAccessToken(r.Context(), &CreateAccessTokenRequest{
 		Subject:              authedClientID,
 		ClientID:             authedClientID,
 		Scopes:               scopes,
 		AuthorizationDetails: req.AuthorizationDetails,
 		Confirmation:         cnf,
+		Audience:             resources,
 	})
 	if err != nil {
 		log.Printf("client_credentials mint: %v", err)
@@ -486,6 +500,7 @@ func (h *TokenEndpointHandler) dispatchAuthorizationCode(w http.ResponseWriter, 
 		ClientAssertion:     assertion,
 		AcceptedAudiences:   audiences,
 		Confirmation:        cnf,
+		Resources:           req.ResourceIndicators(),
 	})
 	if err != nil {
 		h.writeError(w, err)

@@ -260,6 +260,7 @@ func (s *inMemoryRefreshStore) CreateRefreshToken(ctx context.Context, req *core
 		Family:       family[:16],
 		Confirmation: req.Confirmation,
 		OIDC:         req.OIDC,
+		Resources:    req.Resources,
 		ExpiresAt:    time.Now().Add(core.TokenExpiryRefreshToken),
 	}
 	s.tokens[token] = rt
@@ -302,6 +303,7 @@ func (s *inMemoryRefreshStore) RotateRefreshToken(ctx context.Context, req *core
 		Family:               rt.Family,
 		Confirmation:         rt.Confirmation,
 		OIDC:                 rt.OIDC,
+		Resources:            rt.Resources,
 		ExpiresAt:            time.Now().Add(core.TokenExpiryRefreshToken),
 	}
 	s.tokens[newToken] = newRT
