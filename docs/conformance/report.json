@@ -2286,8 +2286,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:28 UTC",
-      "commit": "b0d4171-dirty",
+      "ran_at": "2026-11-20 05:29 UTC",
+      "commit": "75e87d2-dirty",
       "plan": {
         "plan": "mcp-auth-gosdk",
         "counts": {
@@ -2321,7 +2321,7 @@
             "result": "SKIPPED",
             "verdict": "ok",
             "expected": "expected-skip",
-            "issue": 523,
+            "issue": 496,
             "note": "Driving an auth code flow to verify `iss` in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCESS / FAILURE when the driver lands. Tracked alongside mcpkit issue 380."
           },
           {

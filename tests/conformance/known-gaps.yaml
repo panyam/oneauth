@@ -454,7 +454,7 @@
   plans: [mcp-auth-gosdk, mcp-auth-mcpkit, mcp-auth-ts]
   test: auth-iss-param-redirect-carries-iss
   status: expected-skip
-  issue: 523
+  issue: 496
   owner: panyam
   reason: |
     The conformance framework has no OAuth flow driver yet, so it can't
