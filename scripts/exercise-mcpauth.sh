@@ -29,7 +29,7 @@ for tool in git node npx openssl; do
   command -v "$tool" >/dev/null || { echo "exercise-mcpauth: $tool is required" >&2; exit 2; }
 done
 
-ref=${MCPCONFORMANCE_REF:-770db85418673a5bfc3537f7621d2296468088fe}
+ref=${MCPCONFORMANCE_REF:-0b17b48a6d585b279833601c5a6f8d57eca9533b}
 conf=${MCPCONFORMANCE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/oneauth/mcpconformance}
 if [[ ! -d "$conf/.git" ]]; then
   git clone --quiet https://github.com/panyam/mcpconformance.git "$conf"
