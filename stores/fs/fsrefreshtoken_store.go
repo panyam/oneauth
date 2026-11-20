@@ -13,13 +13,17 @@ import (
 	"github.com/panyam/oneauth/core"
 )
 
-// FSRefreshTokenStore stores refresh tokens as JSON files
+// FSRefreshTokenStore implements core.RefreshTokenStore with one JSON file
+// per refresh token, named by the SHA-256 of the token. One mutex guards
+// every method, so each call is atomic against the others in this
+// process. Two processes sharing StoragePath are not coordinated.
 type FSRefreshTokenStore struct {
 	StoragePath string
 	mu          sync.RWMutex
 }
 
-// NewFSRefreshTokenStore creates a new file-based refresh token store
+// NewFSRefreshTokenStore returns a store that keeps its files under
+// storagePath/refresh_tokens, creating the directory on first write.
 func NewFSRefreshTokenStore(storagePath string) *FSRefreshTokenStore {
 	return &FSRefreshTokenStore{StoragePath: storagePath}
 }
@@ -39,6 +43,10 @@ func (s *FSRefreshTokenStore) hashToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// CreateRefreshToken mints a token that starts a new family at
+// generation 1 and expires after core.TokenExpiryRefreshToken. The
+// returned record carries the raw token. The file stores it too, under a
+// name derived from its hash.
 func (s *FSRefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.CreateRefreshTokenRequest) (*core.CreateRefreshTokenResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -64,6 +72,7 @@ func (s *FSRefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.
 		Generation:   1,
 		Scopes:       req.Scopes,
 		Confirmation: req.Confirmation,
+		OIDC:         req.OIDC,
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt:   now,
@@ -91,6 +100,9 @@ func (s *FSRefreshTokenStore) saveToken(token *core.RefreshToken) error {
 	return writeAtomicFile(path, data)
 }
 
+// GetRefreshToken returns the record for req.Token, revoked or expired
+// ones included, so callers can tell reuse from an unknown token. A
+// missing token is core.ErrTokenNotFound.
 func (s *FSRefreshTokenStore) GetRefreshToken(ctx context.Context, req *core.GetRefreshTokenRequest) (*core.GetRefreshTokenResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -120,6 +132,12 @@ func (s *FSRefreshTokenStore) getTokenUnsafe(token string) (*core.RefreshToken, 
 	return &refreshToken, nil
 }
 
+// RotateRefreshToken revokes req.OldToken and mints its successor in the
+// same family at the next generation, under the store lock. The
+// successor keeps the family's expiry, scopes, binding and OIDC grant.
+// A missing token is core.ErrTokenNotFound, an already-revoked one is
+// core.ErrTokenReused (the caller revokes the family), and an expired
+// one is core.ErrTokenExpired.
 func (s *FSRefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.RotateRefreshTokenRequest) (*core.RotateRefreshTokenResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -160,6 +178,7 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.
 		Scopes:               old.Scopes,
 		AuthorizationDetails: old.AuthorizationDetails,
 		Confirmation:         old.Confirmation,
+		OIDC:                 old.OIDC,
 		CreatedAt:            now,
 		ExpiresAt:            old.ExpiresAt, // the family's, not extended
 		LastUsedAt:           now,
@@ -173,6 +192,9 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.
 	return &core.RotateRefreshTokenResponse{Token: refreshToken}, nil
 }
 
+// RevokeRefreshToken marks one token revoked. It is idempotent: a token
+// that is missing or already revoked is not an error. Its family and
+// recorded access tokens are left alone; RevokeTokenFamily covers those.
 func (s *FSRefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.RevokeRefreshTokenRequest) (*core.RevokeRefreshTokenResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -198,26 +220,19 @@ func (s *FSRefreshTokenStore) RevokeRefreshToken(ctx context.Context, req *core.
 	return &core.RevokeRefreshTokenResponse{}, nil
 }
 
+// RevokeSubjectTokens revokes every live token of req.Subject and returns
+// the unexpired access tokens recorded on any of them, revoked or not.
+// It holds the store lock throughout, so it is atomic against
+// RecordAccessToken.
 func (s *FSRefreshTokenStore) RevokeSubjectTokens(ctx context.Context, req *core.RevokeSubjectTokensRequest) (*core.RevokeSubjectTokensResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.forEachToken(func(token *core.RefreshToken, path string) error {
-		if token.Subject == req.Subject && !token.Revoked {
-			now := time.Now()
-			token.Revoked = true
-			token.RevokedAt = &now
-			data, err := json.MarshalIndent(token, "", "  ")
-			if err != nil {
-				return err
-			}
-			return writeAtomicFile(path, data)
-		}
-		return nil
-	}); err != nil {
+	issued, err := s.revokeWhereUnsafe(func(t *core.RefreshToken) bool { return t.Subject == req.Subject })
+	if err != nil {
 		return nil, err
 	}
-	return &core.RevokeSubjectTokensResponse{}, nil
+	return &core.RevokeSubjectTokensResponse{AccessTokens: issued}, nil
 }
 
 // RecordAccessToken appends the access token to req.Token's record under
@@ -245,10 +260,21 @@ func (s *FSRefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.R
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	issued, err := s.revokeWhereUnsafe(func(t *core.RefreshToken) bool { return t.Family == req.Family })
+	if err != nil {
+		return nil, err
+	}
+	return &core.RevokeTokenFamilyResponse{AccessTokens: issued}, nil
+}
+
+// revokeWhereUnsafe revokes every live token match selects and returns
+// the unexpired access tokens recorded on every selected token. The
+// caller holds s.mu.
+func (s *FSRefreshTokenStore) revokeWhereUnsafe(match func(*core.RefreshToken) bool) ([]core.IssuedAccessToken, error) {
 	now := time.Now()
 	var issued []core.IssuedAccessToken
-	if err := s.forEachToken(func(token *core.RefreshToken, path string) error {
-		if token.Family != req.Family {
+	err := s.forEachToken(func(token *core.RefreshToken, path string) error {
+		if !match(token) {
 			return nil
 		}
 		issued = append(issued, core.LiveIssuedAccessTokens(token.AccessTokens, now)...)
@@ -262,12 +288,13 @@ func (s *FSRefreshTokenStore) RevokeTokenFamily(ctx context.Context, req *core.R
 			return err
 		}
 		return writeAtomicFile(path, data)
-	}); err != nil {
-		return nil, err
-	}
-	return &core.RevokeTokenFamilyResponse{AccessTokens: issued}, nil
+	})
+	return issued, err
 }
 
+// GetSubjectTokens lists req.Subject's tokens that are neither revoked
+// nor expired. Each result has Token cleared, so a session listing can't
+// leak a usable refresh token.
 func (s *FSRefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.GetSubjectTokensRequest) (*core.GetSubjectTokensResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -287,6 +314,10 @@ func (s *FSRefreshTokenStore) GetSubjectTokens(ctx context.Context, req *core.Ge
 	return &core.GetSubjectTokensResponse{Tokens: tokens}, nil
 }
 
+// CleanupExpiredTokens deletes the files of expired tokens, and of tokens
+// revoked more than 24 hours ago. The grace period keeps a recently
+// revoked token on disk, so presenting it again still reads as reuse
+// rather than as an unknown token. Unreadable files are skipped.
 func (s *FSRefreshTokenStore) CleanupExpiredTokens(ctx context.Context, req *core.CleanupExpiredTokensRequest) (*core.CleanupExpiredTokensResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

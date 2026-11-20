@@ -78,7 +78,7 @@ func (h *AuthorizationHandler) ImplicitRedirect(ctx context.Context, req *Author
 		values.Set("scope", req.Scope)
 	}
 	idt, err := h.Implicit.IDTokens.CreateIDToken(ctx, &CreateIDTokenRequest{
-		Subject: subject, ClientID: req.ClientID, Scopes: req.Scopes(), Nonce: req.Nonce, AuthTime: req.AuthTime,
+		Subject: subject, ClientID: req.ClientID, Scopes: req.Scopes(), Nonce: req.Nonce, AuthTime: req.AuthTime, ACR: req.ACR, AMR: req.AMR,
 		AccessToken: accessToken, RequestedClaims: req.IDTokenClaims, ScopeClaims: accessToken == "",
 	})
 	if err != nil {

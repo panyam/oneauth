@@ -366,6 +366,32 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		signingAlg = "HS256"
 	}
 
+	if cfg.AllowImplicit && cfg.OIDC == nil {
+		panic("apiauth: NewOneAuth: AllowImplicit needs OIDC, since the implicit flow returns an ID token")
+	}
+	if cfg.AllowImplicit && cfg.FAPI2 {
+		panic("apiauth: NewOneAuth: FAPI 2.0 forbids the implicit flow; unset AllowImplicit")
+	}
+	var idTokens IDTokenIssuer
+	if cfg.OIDC != nil && len(cfg.OIDC.PairwiseSalt) > 0 && len(cfg.OIDC.PairwiseSalt) < MinPairwiseSaltLen {
+		panic("apiauth: NewOneAuth: OIDC.PairwiseSalt must be at least " + strconv.Itoa(MinPairwiseSaltLen) + " bytes")
+	}
+	if cfg.OIDC != nil {
+		var err error
+		idTokens, err = NewJWTIDTokenIssuer(JWTIDTokenIssuerConfig{
+			SigningKeySource: cfg.SigningKeySource,
+			SigningKey:       cfg.SigningKey,
+			SigningAlg:       signingAlg,
+			Issuer:           cfg.Issuer,
+			Expiry:           cfg.OIDC.IDTokenExpiry,
+			UserClaims:       cfg.OIDC.UserClaims,
+			SubjectForClient: clientSubjects(cfg.AppStore, cfg.OIDC.PairwiseSalt),
+		})
+		if err != nil {
+			panic("apiauth: NewOneAuth: OIDC: " + err.Error())
+		}
+	}
+
 	// Wire the issuer — needs signing config + client key lookup + refresh store
 	issuer := NewJWTIssuer(JWTIssuerConfig{
 		SigningKeySource:    cfg.SigningKeySource,
@@ -384,6 +410,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 
 		DisableRefreshTokenRotation: cfg.DisableRefreshTokenRotation,
 		Blacklist:                   cfg.Blacklist,
+		IDTokens:                    idTokens,
 	})
 
 	// Wire the validator — needs read-only key lookup + blacklist.
@@ -442,32 +469,6 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	}
 	if cfg.FAPI2 {
 		authenticator = &fapiClientAuthenticator{inner: authenticator}
-	}
-
-	if cfg.AllowImplicit && cfg.OIDC == nil {
-		panic("apiauth: NewOneAuth: AllowImplicit needs OIDC, since the implicit flow returns an ID token")
-	}
-	if cfg.AllowImplicit && cfg.FAPI2 {
-		panic("apiauth: NewOneAuth: FAPI 2.0 forbids the implicit flow; unset AllowImplicit")
-	}
-	var idTokens IDTokenIssuer
-	if cfg.OIDC != nil && len(cfg.OIDC.PairwiseSalt) > 0 && len(cfg.OIDC.PairwiseSalt) < MinPairwiseSaltLen {
-		panic("apiauth: NewOneAuth: OIDC.PairwiseSalt must be at least " + strconv.Itoa(MinPairwiseSaltLen) + " bytes")
-	}
-	if cfg.OIDC != nil {
-		var err error
-		idTokens, err = NewJWTIDTokenIssuer(JWTIDTokenIssuerConfig{
-			SigningKeySource: cfg.SigningKeySource,
-			SigningKey:       cfg.SigningKey,
-			SigningAlg:       signingAlg,
-			Issuer:           cfg.Issuer,
-			Expiry:           cfg.OIDC.IDTokenExpiry,
-			UserClaims:       cfg.OIDC.UserClaims,
-			SubjectForClient: clientSubjects(cfg.AppStore, cfg.OIDC.PairwiseSalt),
-		})
-		if err != nil {
-			panic("apiauth: NewOneAuth: OIDC: " + err.Error())
-		}
 	}
 
 	// Per-grant Granters. Nil when the corresponding store / config is
@@ -552,15 +553,29 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	return oa
 }
 
+// UserinfoSigningAlgs lists the algorithms the userinfo endpoint signs
+// with, for userinfo_signing_alg_values_supported in discovery and for
+// admin.AppRegistrar.UserinfoSigningAlgs. It is nil when OIDC is off or
+// the IDTokenIssuer is not a UserinfoSigner.
+func (oa *OneAuth) UserinfoSigningAlgs() []string {
+	if signer, ok := oa.IDTokenIssuer.(UserinfoSigner); ok {
+		return signer.UserinfoSigningAlgs()
+	}
+	return nil
+}
+
 // --- HTTP Convenience Methods ---
 // These create HTTP handlers wired to the OneAuth core interfaces.
 // Use these when mounting endpoints on an HTTP mux.
 
 // SessionsHTTPHandler returns a SessionsHandler for /api/logout,
 // /api/logout-all, and /api/sessions. RefreshStore must be set on the
-// OneAuth instance.
+// OneAuth instance. The handler blacklists the access tokens of the
+// sessions it ends when OneAuthConfig.Blacklist is set.
 func (oa *OneAuth) SessionsHTTPHandler() *SessionsHandler {
-	return NewSessionsHandler(oa.RefreshStore, oa.Hooks.Token)
+	h := NewSessionsHandler(oa.RefreshStore, oa.Hooks.Token)
+	h.Blacklist = oa.Blacklist
+	return h
 }
 
 // APIKeysHTTPHandler returns an APIKeysHandler for /api/keys{,/{id}}.

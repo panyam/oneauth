@@ -19,6 +19,29 @@ type TokenBlacklist interface {
 	IsRevoked(jti string) bool
 }
 
+// BlacklistIssuedAccessTokens revokes each token in blacklist until its
+// expiry, which is what a refresh-store revocation hands back
+// (RevokeTokenFamilyResponse, RevokeSubjectTokensResponse). A nil
+// blacklist does nothing, and an entry with no expiry is kept for the
+// default access-token lifetime. Errors from the blacklist are dropped:
+// the refresh tokens are already revoked, so failing here would leave
+// the caller nothing to retry.
+func BlacklistIssuedAccessTokens(blacklist TokenBlacklist, tokens []IssuedAccessToken) {
+	if blacklist == nil {
+		return
+	}
+	for _, t := range tokens {
+		if t.TokenID == "" {
+			continue
+		}
+		expiresAt := t.ExpiresAt
+		if expiresAt.IsZero() {
+			expiresAt = time.Now().Add(TokenExpiryAccessToken)
+		}
+		_ = blacklist.Revoke(t.TokenID, expiresAt)
+	}
+}
+
 // InMemoryBlacklist is a thread-safe in-memory TokenBlacklist.
 // Suitable for single-process deployments. For distributed deployments,
 // use a Redis-backed implementation with the same interface.

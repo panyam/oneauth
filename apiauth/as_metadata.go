@@ -100,6 +100,17 @@ type ASServerMetadata struct {
 	// Set it to the AS signing alg when OneAuthConfig.OIDC is on.
 	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported,omitempty"`
 
+	// UserinfoSigningAlgValuesSupported lists the algorithms the userinfo
+	// endpoint signs with for a client registered with
+	// userinfo_signed_response_alg (OIDC Discovery §3). Set it to
+	// OneAuth.UserinfoSigningAlgs().
+	UserinfoSigningAlgValuesSupported []string `json:"userinfo_signing_alg_values_supported,omitempty"`
+
+	// ACRValuesSupported lists the authentication context classes the AS
+	// can report in an ID token's `acr` (OIDC Discovery §3). Advertise
+	// only the values AuthorizeMountConfig.AuthContextFromRequest returns.
+	ACRValuesSupported []string `json:"acr_values_supported,omitempty"`
+
 	// AuthorizationResponseIssParameterSupported advertises RFC 9207
 	// support — when true, the AS includes an `iss` query parameter on
 	// every authorization response (both successful redirects with `code`

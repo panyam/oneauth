@@ -160,6 +160,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 	clientFetcher := &apiauth.ClientJWKSFetcher{AllowPrivateHosts: cfg.AdminAuth.AllowPrivateClientHosts, RootCAs: clientCAs}
 	registrar.FetchSectorIdentifier = clientFetcher.SectorRedirectURIs
 	registrar.PairwiseSubjects = cfg.CodeFlow.OIDC && cfg.CodeFlow.PairwiseSalt != ""
+	registrar.UserinfoSigningAlgs = userinfoSigningAlgs(cfg)
 	registrar.AllowImplicit = cfg.CodeFlow.Enabled && cfg.CodeFlow.Implicit
 	if cfg.AdminAuth.AllowPrivateClientHosts {
 		log.Printf("WARNING: admin_auth.allow_private_client_hosts is on. Clients can make this server fetch from private addresses; use it only for test harnesses.")
@@ -185,6 +186,10 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		registrar.AuthRateLimiter = core.NewInMemoryRateLimiter(1, 60)
 	}
 
+	// Token blacklist for immediate access token revocation. The password
+	// reset hook below and the token endpoint share it.
+	blacklist := core.NewInMemoryBlacklist()
+
 	// Build LocalAuth
 	localAuth := &localauth.LocalAuth{
 		ValidateCredentials: localauth.NewCredentialsValidator(stores.identityStore, stores.channelStore, stores.userStore),
@@ -196,7 +201,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		HandleUser:          makeHandleUser(cfg),
 		VerifyEmail:         localauth.NewVerifyEmailFunc(stores.identityStore, stores.tokenStore),
 		UpdatePassword:      localauth.NewUpdatePasswordFunc(stores.identityStore, stores.channelStore),
-		AfterPasswordReset:  localauth.NewRevokeSessionsOnReset(stores.identityStore, stores.refreshTokenStore),
+		AfterPasswordReset:  localauth.NewRevokeSessionsOnResetWithBlacklist(stores.identityStore, stores.refreshTokenStore, blacklist),
 		// Redirect-mode for forgot/reset password
 		ForgotPasswordURL: "/auth/forgot-password",
 		ResetPasswordURL:  "/auth/reset-password",
@@ -214,9 +219,6 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		localAuth.RateLimiter = bf.limiter
 		localAuth.Lockout = bf.lockout
 	}
-
-	// Token blacklist for immediate access token revocation
-	blacklist := core.NewInMemoryBlacklist()
 
 	// RFC 9449 DPoP, opt-in via the dpop block. Built before OneAuth because
 	// the token endpoint's validator is part of its config.
@@ -583,6 +585,9 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 			},
 			AuthTimeFromRequest: func(r *http.Request) time.Time {
 				return getAuthTimeFromCookie(r, cfg.JWT.SecretKey)
+			},
+			AuthContextFromRequest: func(_ *http.Request, acrValues []string) apiauth.AuthContext {
+				return authContext(cfg, acrValues)
 			},
 			CSRFTokenFromRequest: httpauth.CSRFToken,
 			LoginRedirectURL:     "/auth/login",

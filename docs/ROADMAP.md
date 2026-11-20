@@ -206,7 +206,7 @@ The OpenID Foundation's `oidcc-basic-certification-test-plan` runs against `cmd/
 | 487 | The `claims` parameter, the userinfo token in a form body, profile claims from signup | Merged |
 | 488 | Scope claims leave the ID token, `updated_at`, no bound tokens without DPoP | Merged |
 
-Next, from the mission's "not in this mission" list: the OIDF Config, Dynamic, Form Post and logout plans. Still open: `acr` / `amr` and the other leftovers in #485, and JAR (#338).
+Next, from the mission's "not in this mission" list: the OIDF Config, Dynamic, Form Post and logout plans. Still open: JAR (#338). Issue 485 added signed userinfo, `acr` / `amr`, and ID tokens on the refresh grant.
 
 ---
 

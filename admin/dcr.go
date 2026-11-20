@@ -101,6 +101,11 @@ type DCRRequest struct {
 	SubjectType         string `json:"subject_type,omitempty"`
 	SectorIdentifierURI string `json:"sector_identifier_uri,omitempty"`
 
+	// UserinfoSignedResponseAlg asks for userinfo as a JWT signed with
+	// this algorithm (OIDC Registration §2). It must be one of
+	// AppRegistrar.UserinfoSigningAlgs. Empty gets plain JSON.
+	UserinfoSignedResponseAlg string `json:"userinfo_signed_response_alg,omitempty"`
+
 	// ResponseTypes are the RFC 7591 §2 response_type values the client
 	// will use. Empty means ["code"]. "id_token" and "id_token token" need
 	// AppRegistrar.AllowImplicit and the "implicit" grant type.
@@ -165,6 +170,7 @@ type DCRResponse struct {
 	SubjectType                 string   `json:"subject_type,omitempty"`
 	SectorIdentifierURI         string   `json:"sector_identifier_uri,omitempty"`
 	ResponseTypes               []string `json:"response_types,omitempty"`
+	UserinfoSignedResponseAlg   string   `json:"userinfo_signed_response_alg,omitempty"`
 }
 
 // ServeHTTP is the HTTP wrapper for ClientRegistrar.Register (RFC 7591 DCR).

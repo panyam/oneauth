@@ -33,9 +33,9 @@
 | `RevokeRefreshTokenRequest` | struct | Identifies a single token to revoke by value. | Single-token revoke is its own request so backends can implement it differently from family / subject revocation. |
 | `RevokeRefreshTokenResponse` | struct | Empty acknowledgement. | gRPC-shape parity — an empty response leaves room to add fields (e.g., `revoked_count`) later. |
 | `RevokeSubjectTokensRequest` | struct | Identifies the `Subject` whose tokens are to be revoked en masse. | Subject-wide revoke is a common admin / "log out everywhere" operation; separating it from family revoke documents intent. |
-| `RevokeSubjectTokensResponse` | struct | Empty acknowledgement. | Same as `RevokeRefreshTokenResponse`. |
+| `RevokeSubjectTokensResponse` | struct | The unexpired access tokens recorded on the subject's refresh tokens. | Logout-all and password reset blacklist them, so live access tokens end with the sessions (issue 451). |
 | `RevokeTokenFamilyRequest` | struct | Identifies the `Family` to revoke (theft-detection trigger). | Family revoke is qualitatively different from subject revoke — only `Family` lets you scope to "this rotation chain only" without nuking other devices. |
-| `RevokeTokenFamilyResponse` | struct | Empty acknowledgement. | gRPC-shape parity. |
+| `RevokeTokenFamilyResponse` | struct | The unexpired access tokens recorded on the family. | The caller blacklists them (RFC 7009 §2.1); the store has no blacklist. |
 | `GetSubjectTokensRequest` | struct | Subject whose active refresh tokens are being enumerated. | Used by admin / session-management UI ("which devices are logged in") and for cleanup before issuing a fresh subject-wide credential. |
 | `GetSubjectTokensResponse` | struct | Carries the slice of active `*RefreshToken` values. | gRPC-shape parity. |
 | `CleanupExpiredTokensRequest` | struct | Empty request — maintenance trigger. | gRPC-shape parity even when no inputs exist; future versions can add a max-rows knob without breaking callers. |

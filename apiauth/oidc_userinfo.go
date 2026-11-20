@@ -3,6 +3,7 @@ package apiauth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"mime"
 	"net/http"
@@ -23,6 +24,13 @@ import (
 // send the token as a form-encoded `access_token` body parameter instead
 // (RFC 6750 §2.2). Userinfo adds the claims the token's §5.5 `claims`
 // request named (UserinfoClaimsClaim) to the ones its scopes grant.
+//
+// A client registered with userinfo_signed_response_alg gets the claims as
+// a JWT signed by OneAuth.IDTokenIssuer's UserinfoSigner, with
+// Content-Type application/jwt (§5.3.2). If the registered algorithm
+// can't be served, the response is 500 rather than unsigned JSON, so the
+// client never gets a form it didn't register for. Without AppStore every
+// client gets JSON.
 //
 // Panics when OIDC is off: there is nothing for the endpoint to serve.
 func (oa *OneAuth) UserinfoHTTPHandler(mw *APIMiddleware) http.Handler {
@@ -51,11 +59,53 @@ func (oa *OneAuth) UserinfoHTTPHandler(mw *APIMiddleware) http.Handler {
 			http.Error(w, "could not load user claims", http.StatusInternalServerError)
 			return
 		}
+		clientID := tokenInfoClientID(GetTokenInfoFromAPIContext(r.Context()))
+		if alg := oa.userinfoSigningAlg(r.Context(), clientID); alg != "" {
+			signed, err := oa.signUserinfo(r.Context(), clientID, alg, claims)
+			if err != nil {
+				log.Printf("apiauth: userinfo: %v", err)
+				http.Error(w, "could not sign the userinfo response", http.StatusInternalServerError)
+				return
+			}
+			noStore(w)
+			w.Header().Set("Content-Type", "application/jwt")
+			_, _ = w.Write([]byte(signed))
+			return
+		}
 		noStore(w)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(claims)
 	})
 	return formBodyAccessToken(mw.RequireScopes(core.ScopeOpenID)(serve))
+}
+
+// userinfoSigningAlg returns the userinfo_signed_response_alg clientID
+// registered, or "" for plain JSON. A client the store can't find gets
+// JSON too: the token validated, so the client is gone or was never
+// registered (the SDK's "cli").
+func (oa *OneAuth) userinfoSigningAlg(ctx context.Context, clientID string) string {
+	if oa.AppStore == nil || clientID == "" {
+		return ""
+	}
+	resp, err := oa.AppStore.GetApp(ctx, &core.GetAppRequest{ClientID: clientID})
+	if err != nil || resp == nil || resp.App == nil {
+		return ""
+	}
+	return resp.App.UserinfoSignedResponseAlg
+}
+
+// signUserinfo signs claims for clientID with alg, through the
+// IDTokenIssuer's UserinfoSigner.
+func (oa *OneAuth) signUserinfo(ctx context.Context, clientID, alg string, claims map[string]any) (string, error) {
+	signer, ok := oa.IDTokenIssuer.(UserinfoSigner)
+	if !ok {
+		return "", fmt.Errorf("client %s registered userinfo_signed_response_alg %s, but the ID token issuer can't sign userinfo", clientID, alg)
+	}
+	resp, err := signer.SignUserinfo(ctx, &SignUserinfoRequest{ClientID: clientID, Alg: alg, Claims: claims})
+	if err != nil {
+		return "", err
+	}
+	return resp.Token, nil
 }
 
 // UserinfoClaimsClaim is the access-token claim that carries the claim
