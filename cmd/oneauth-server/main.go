@@ -272,6 +272,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		DisableRefreshTokenRotation: cfg.JWT.DisableRefreshTokenRotation,
 	}
 
+	var signingSource *apiauth.RotatingSigningKey
 	// Wire asymmetric signing if configured (issue 184). The public half is
 	// registered in the keystore under a stable client_id so the JWKS handler
 	// exposes it — remote resource servers can then validate tokens without
@@ -301,6 +302,19 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 			return nil, nil, fmt.Errorf("Failed to register issuer public key: %w", err)
 		}
 		log.Printf("Asymmetric token signing enabled (alg=%s, public key registered as %q for JWKS)", alg, issuerClientID)
+
+		// Sign through a source that POST /admin/signing-key/rotate can
+		// rotate. Every key registered as issuerClientID, current or
+		// retired, is the server's own (issue 507).
+		signingSource, err = apiauth.NewRotatingSigningKey(priv, alg)
+		if err != nil {
+			return nil, nil, fmt.Errorf("signing key: %w", err)
+		}
+		oaCfg.SigningKeySource = signingSource
+		oaCfg.OwnKeyClientID = issuerClientID
+	}
+	if cfg.JWT.KeyRotation.Enabled && signingSource == nil {
+		return nil, nil, fmt.Errorf("jwt.key_rotation needs an asymmetric jwt.signing_alg (RS256 or ES256)")
 	}
 
 	if cfg.CodeFlow.Enabled && cfg.CodeFlow.OIDC {
@@ -464,6 +478,25 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 
 	// JWKS endpoint (public — no auth required)
 	jwksHandler := &keys.JWKSHandler{KeyStore: keyStore}
+	// Keys retired by a rotation stay in the JWKS for their grace period
+	// (issue 421), so a resource server that cached the old key's tokens
+	// still verifies them.
+	if lister, ok := kidStore.(keys.KidLister); ok {
+		jwksHandler.RetiredKeys = lister
+	}
+	if cfg.JWT.KeyRotation.Enabled {
+		grace := defaultKeyRotationGrace
+		if g := cfg.JWT.KeyRotation.GracePeriod; g != "" {
+			if grace, err = time.ParseDuration(g); err != nil || grace <= 0 {
+				return nil, nil, fmt.Errorf("jwt.key_rotation.grace_period %q is not a positive duration", g)
+			}
+		}
+		alg := cfg.JWT.SigningAlg
+		mux.Handle("/admin/signing-key/rotate", &signingKeyRotator{
+			auth: adminAuth, source: signingSource, keyStore: keyStore, kidStore: kidStore, grace: grace,
+			generate: func() (crypto.PrivateKey, []byte, error) { return generateSigningKey(alg) },
+		})
+	}
 	mux.HandleFunc("GET /.well-known/jwks.json", jwksHandler.ServeHTTP)
 
 	// AS Metadata / OIDC Discovery (RFC 8414).
@@ -786,17 +819,23 @@ func loadOrGenerateSigningKey(cfg JWTConfig, alg string) (priv crypto.PrivateKey
 	}
 	// Test/dev path: ephemeral keypair. Loud warning — tokens go stale on
 	// restart, JWKS rotates.
-	kind, generate := "RSA-2048", func() ([]byte, []byte, error) { return utils.GenerateRSAKeyPair(2048) }
+	log.Printf("WARNING: jwt.ephemeral_signing_key=true — generating a fresh %s keypair. "+
+		"Tokens issued by this instance will be INVALID after restart. Use jwt.private_key_path in production.", alg)
+	return generateSigningKey(alg)
+}
+
+// generateSigningKey makes a fresh keypair for alg: RSA-2048 for RS256,
+// P-256 for ES256. It returns the private key and the public key as PEM.
+func generateSigningKey(alg string) (crypto.PrivateKey, []byte, error) {
+	generate := func() ([]byte, []byte, error) { return utils.GenerateRSAKeyPair(2048) }
 	if alg == "ES256" {
-		kind, generate = "P-256", utils.GenerateECDSAKeyPair
+		generate = utils.GenerateECDSAKeyPair
 	}
-	log.Printf("WARNING: jwt.ephemeral_signing_key=true — generating fresh %s keypair. "+
-		"Tokens issued by this instance will be INVALID after restart. Use jwt.private_key_path in production.", kind)
 	privPEM, pubPEM, err := generate()
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate %s keypair: %w", kind, err)
+		return nil, nil, fmt.Errorf("generate %s keypair: %w", alg, err)
 	}
-	priv, err = utils.ParsePrivateKeyPEM(privPEM)
+	priv, err := utils.ParsePrivateKeyPEM(privPEM)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse generated private key: %w", err)
 	}
