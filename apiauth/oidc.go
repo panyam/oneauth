@@ -101,6 +101,11 @@ type CreateIDTokenRequest struct {
 	// `at_hash` (§3.1.3.6) when non-empty, so the client can tell that the
 	// two came from the same response.
 	AccessToken string
+
+	// ScopeClaims puts the claims Scopes grant in the ID token. OIDC Core
+	// §5.4 sends them to userinfo whenever an access token is issued, so
+	// only the implicit "id_token" response, which issues none, sets it.
+	ScopeClaims bool
 }
 
 // CreateIDTokenResponse wraps the minted ID token.
@@ -200,7 +205,11 @@ func (i *jwtIDTokenIssuer) CreateIDToken(ctx context.Context, req *CreateIDToken
 	// OIDC Core §5.4: an access token is always issued beside this ID
 	// token, so scope claims come from userinfo, and the ID token carries
 	// only the claims the request asked for by name (§5.5).
-	extra, err := collectUserClaims(ctx, i.userClaims, req.Subject, nil, req.RequestedClaims)
+	var scopes []string
+	if req.ScopeClaims {
+		scopes = req.Scopes
+	}
+	extra, err := collectUserClaims(ctx, i.userClaims, req.Subject, scopes, req.RequestedClaims)
 	if err != nil {
 		return nil, fmt.Errorf("oidc: user claims: %w", err)
 	}
