@@ -5,6 +5,14 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.13
+
+This release fixes a regression in 0.3.12. An AS with no `AllowedResources` refused every authorization-code redemption that named a `resource`, so MCP clients such as mcpkit's OAuth token source couldn't get a token.
+
+### Fixed
+
+- **The code grant falls back to the allowlist when the code carries no resources (PR 529).** Without an allowlist, `/authorize` ignores `resource` and stores none on the code. The token request then narrowed against that empty list and got `invalid_target`. Now a code with no stored resources checks the token request's `resource` against `AllowedResources`, as the device grant and refresh already did. With no allowlist the AS ignores it, and `aud` keeps its default. A code with stored resources still narrows as before.
+
 ## Version 0.3.12
 
 This release binds access tokens to the RFC 8707 resource a client names, on every grant. It closes the code findings from the OAuch run, adds `response_mode=form_post`, and lets a user withdraw consent from a connected-apps page. The FS refresh-token store stops keeping tokens in plaintext. Three OIDF plans (Form Post Basic, Implicit and Form Post Implicit) and a third MCP server-auth suite join `make conformance`.
