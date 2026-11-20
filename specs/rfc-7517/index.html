@@ -365,9 +365,15 @@ verification.</p>
 </tr>
 <tr>
 <td><code>kid</code> rotation with grace period</td>
-<td><strong>Partial</strong></td>
-<td><code>keys/kid.go</code> <code>KidStore</code> + <code>CompositeKeyLookup</code>; <code>OneAuthConfig.KidStore</code></td>
-<td>Since 0.1.47 oneauth&rsquo;s own validator verifies a rotated key until its grace period ends. <code>JWKSHandler</code> publishes retired keys only from an in-memory <code>*keys.KidStore</code>; a persistent kid store can&rsquo;t be listed, and the reference server passes none. A remote resource server loses the old key at rotation (#421)</td>
+<td><strong>Implemented</strong></td>
+<td><code>keys/kid.go</code> <code>KidStore</code>, <code>KidLister</code> + <code>CompositeKeyLookup</code>; <code>OneAuthConfig.KidStore</code>; <code>keys.JWKSHandler.RetiredKeys</code></td>
+<td>Since 0.1.47 oneauth&rsquo;s own validator verifies a rotated key until its grace period ends. <code>JWKSHandler</code> now publishes retired keys from any kid store that lists (in-memory, FS, GORM, GAE, encrypted), and the reference server passes its own, so a remote resource server keeps the old key for the grace period too (issue 421)</td>
+</tr>
+<tr>
+<td>Rotating the AS&rsquo;s own signing key at runtime</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/signing_key.go</code> <code>RotatingSigningKey</code>; <code>OneAuthConfig.SigningKeySource</code>, <code>OwnKeyClientID</code></td>
+<td>Access tokens, ID tokens and logout tokens sign with the source&rsquo;s current key, and the validator&rsquo;s own key follows it. Tokens signed with the retired key verify through the kid store until the grace period ends. Reference server: <code>jwt.key_rotation</code> turns on <code>POST /admin/signing-key/rotate</code> behind admin auth; the rotated key lives in memory until restart (issue 507)</td>
 </tr>
 <tr>
 <td>Remote JWKS fetcher with caching</td>
