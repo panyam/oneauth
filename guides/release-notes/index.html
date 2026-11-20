@@ -196,6 +196,12 @@
 <blockquote>
 <p>0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.</p>
 </blockquote>
+<h2 id="version-0313">Version 0.3.13 <a class="anchor" href="#version-0313">¶</a></h2>
+<p>This release fixes a regression in 0.3.12. An AS with no <code>AllowedResources</code> refused every authorization-code redemption that named a <code>resource</code>, so MCP clients such as mcpkit&rsquo;s OAuth token source couldn&rsquo;t get a token.</p>
+<h3 id="fixed">Fixed <a class="anchor" href="#fixed">¶</a></h3>
+<ul>
+<li><strong>The code grant falls back to the allowlist when the code carries no resources (PR 529).</strong> Without an allowlist, <code>/authorize</code> ignores <code>resource</code> and stores none on the code. The token request then narrowed against that empty list and got <code>invalid_target</code>. Now a code with no stored resources checks the token request&rsquo;s <code>resource</code> against <code>AllowedResources</code>, as the device grant and refresh already did. With no allowlist the AS ignores it, and <code>aud</code> keeps its default. A code with stored resources still narrows as before.</li>
+</ul>
 <h2 id="version-0312">Version 0.3.12 <a class="anchor" href="#version-0312">¶</a></h2>
 <p>This release binds access tokens to the RFC 8707 resource a client names, on every grant. It closes the code findings from the OAuch run, adds <code>response_mode=form_post</code>, and lets a user withdraw consent from a connected-apps page. The FS refresh-token store stops keeping tokens in plaintext. Three OIDF plans (Form Post Basic, Implicit and Form Post Implicit) and a third MCP server-auth suite join <code>make conformance</code>.</p>
 <h3 id="contract-changes">Contract changes <a class="anchor" href="#contract-changes">¶</a></h3>
