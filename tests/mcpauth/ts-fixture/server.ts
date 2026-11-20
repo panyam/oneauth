@@ -79,7 +79,9 @@ app.use(mcpAuthMetadataRouter({ oauthMetadata, resourceServerUrl: mcpURL, scopes
 app.get('/demo/bootstrap', (_req, res) => res.json(tokens));
 
 const authenticated = requireBearerAuth({ verifier, resourceMetadataUrl });
-const scopeGates = Object.fromEntries(
+// A Map, not an object, so a tool name from the request body can only pick
+// one of these handlers and never an inherited property.
+const scopeGates = new Map<string, express.RequestHandler>(
   Object.entries(toolScopes).map(([name, scope]) => [name, requireBearerAuth({ verifier, requiredScopes: [scope], resourceMetadataUrl })])
 );
 // A tools/call for a scope-gated tool goes through that tool's gate, so the
@@ -87,7 +89,8 @@ const scopeGates = Object.fromEntries(
 const gate: express.RequestHandler = (req, res, next) => {
   const body = req.body;
   const tool = body?.method === 'tools/call' ? body?.params?.name : undefined;
-  (scopeGates[tool] ?? authenticated)(req, res, next);
+  const handler = (typeof tool === 'string' && scopeGates.get(tool)) || authenticated;
+  handler(req, res, next);
 };
 
 const transports = new Map<string, StreamableHTTPServerTransport>();
