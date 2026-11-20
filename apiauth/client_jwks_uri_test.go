@@ -293,3 +293,22 @@ func TestClientJWKSURI_EncryptionKeyNeverVerifies(t *testing.T) {
 	_, err = fx.authenticate(assertionFor(t, jwt.SigningMethodES256, "k1", k))
 	assert.Error(t, err, "kid of the enc key")
 }
+
+// A sector_identifier_uri is fetched through the same guards as a jwks_uri,
+// and must hold a JSON array of strings (OIDC Registration §5).
+func TestClientJWKSFetcher_SectorRedirectURIs(t *testing.T) {
+	ctx := context.Background()
+	doc := `["https://a.example/cb","https://b.example/cb"]`
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(doc)) }))
+	defer srv.Close()
+	f := &apiauth.ClientJWKSFetcher{AllowPrivateHosts: true, HTTPClient: srv.Client()}
+	got, err := f.SectorRedirectURIs(ctx, srv.URL)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"https://a.example/cb", "https://b.example/cb"}, got)
+
+	doc = `{"redirect_uris":["https://a.example/cb"]}`
+	_, err = f.SectorRedirectURIs(ctx, srv.URL)
+	assert.Error(t, err, "not an array")
+	_, err = (&apiauth.ClientJWKSFetcher{}).SectorRedirectURIs(ctx, srv.URL)
+	assert.ErrorContains(t, err, "private", "the dial guard applies")
+}
