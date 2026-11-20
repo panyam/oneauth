@@ -369,6 +369,12 @@ that can&rsquo;t yet manage asymmetric keys per client.</p>
 <td><code>Method</code> field returns <code>&quot;private_key_jwt&quot;</code> for asymmetric clients</td>
 </tr>
 <tr>
+<td>Keys from the client&rsquo;s <code>jwks_uri</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/client_authenticator.go</code> <code>jwksAssertionKey</code>; <code>apiauth/client_jwks.go</code></td>
+<td>The key is picked by <code>kid</code>, with one rate-limited refetch on an unknown <code>kid</code> so a client can rotate keys. The algorithm is the header&rsquo;s only if the key&rsquo;s type can verify it, and only the registered <code>token_endpoint_auth_signing_alg</code> when the client set one (issue 507)</td>
+</tr>
+<tr>
 <td><code>client_secret_jwt</code> (HMAC)</td>
 <td><strong>Implemented</strong></td>
 <td><code>apiauth/client_authenticator.go</code> <code>authenticateAssertion</code> + <code>TestClientSecretJWT_MethodClassification</code> in <code>apiauth/client_secret_jwt_test.go</code> validates <code>Method == &quot;client_secret_jwt&quot;</code></td>
@@ -408,7 +414,7 @@ that can&rsquo;t yet manage asymmetric keys per client.</p>
 <td>Assertion algorithms under FAPI 2.0</td>
 <td><strong>Implemented</strong></td>
 <td><code>AuthenticateClientRequest.AllowedAssertionAlgs</code>; <code>fapi2AssertionAlgs</code> in <code>apiauth/fapi2.go</code></td>
-<td>Since 0.1.54 <code>FAPI2</code> accepts only PS256, ES256 and EdDSA client assertions. oneauth can register only ES256 client keys of those (#330, #331), so an RS256 <code>private_key_jwt</code> client stops authenticating when FAPI is on</td>
+<td>Since 0.1.54 <code>FAPI2</code> accepts only PS256, ES256 and EdDSA client assertions. Inline registered keys can only be ES256 of those (#330, #331), so an RS256 <code>private_key_jwt</code> client stops authenticating when FAPI is on. A <code>jwks_uri</code> client can use PS256, ES256 or EdDSA (issue 507)</td>
 </tr>
 <tr>
 <td>ID-JAG redemption (MCP EMA)</td>

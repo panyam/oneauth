@@ -482,6 +482,24 @@ extensions to DCR or out-of-band provisioning.</li>
 <td>The detail is logged and the client gets <code>server_error</code> with &ldquo;internal server error&rdquo; (0.1.50)</td>
 </tr>
 <tr>
+<td><code>jwks_uri</code> (§2)</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/registrar.go</code> <code>validateKeyMetadata</code>; <code>apiauth/client_jwks.go</code> <code>ClientJWKSFetcher</code></td>
+<td>For <code>private_key_jwt</code> only, never beside <code>jwks</code>. No key is stored: client authentication fetches the set, picks the key by the assertion&rsquo;s <code>kid</code>, and refetches once on an unknown <code>kid</code> (at most every 30 s), so the client rotates keys by publishing them. The fetch is https only, refuses private addresses at dial time, follows no redirect and reads at most 64 KiB. Reference server: <code>admin_auth.allow_private_client_hosts</code> and <code>client_fetch_ca_file</code>, for test harnesses (issue 507)</td>
+</tr>
+<tr>
+<td><code>token_endpoint_auth_signing_alg</code> (OIDC Registration §2)</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/dcr.go</code> <code>DCRRequest.TokenEndpointAuthSigningAlg</code></td>
+<td>Asymmetric algorithms only. A <code>jwks_uri</code> client&rsquo;s assertions must use it when set (issue 507)</td>
+</tr>
+<tr>
+<td><code>logo_uri</code>, <code>policy_uri</code>, <code>tos_uri</code> (§2)</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/registrar.go</code> <code>validateDisplayURIs</code>; the consent page in <code>apiauth/authorize_verification_handler.go</code></td>
+<td>Absolute https only. The consent page shows the logo and links to the policy and terms, and adds only the logo&rsquo;s origin to the page&rsquo;s CSP <code>img-src</code> (issue 507)</td>
+</tr>
+<tr>
 <td><code>software_statement</code> (§2.3)</td>
 <td><strong>Not implemented</strong></td>
 <td>—</td>
