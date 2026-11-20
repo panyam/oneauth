@@ -5,6 +5,42 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.11
+
+This release finishes what the OIDF Dynamic OP plan asked of oneauth: pairwise subjects, runtime signing-key rotation, and an opt-in implicit flow. It also makes logout cut off access tokens, issues ID tokens on the refresh grant, and fixes two security headers that stopped real browsers finishing an authorization with the reference server. The OIDF plans now run nightly in CI, and two MCP server-auth suites join `make conformance`.
+
+### Contract changes
+
+- **Custom refresh-token stores should fill `RevokeSubjectTokensResponse` (PR 517).** It now carries the unexpired access tokens of every revoked family, as `RevokeTokenFamilyResponse` already did. Logout-all and password reset blacklist them. A store that returns the empty struct still compiles, but its access tokens keep working until they expire.
+- **New stored client and token fields (PRs 513, 515, 517).** Apps gain `subject_type`, `sector_identifier_uri`, `response_types` and `userinfo_signed_response_alg`, and refresh tokens gain the login's OIDC context (`RefreshToken.OIDC`). GORM adds the columns through `AutoMigrate`, and GAE adds unindexed properties. Old rows read them as empty.
+- **DCR echoes `response_types`, `["code"]` by default (PR 515).** A client that sends `response_types: ["code"]` with grant types lacking `authorization_code` is now refused, as RFC 7591 section 2.1 pairs them.
+- **Reference server headers (PR 520).** The CSP no longer has `form-action`, and `/authorize` and `/auth/` pages send `Cross-Origin-Opener-Policy: unsafe-none`. Every other page still sends `same-origin`.
+
+### OIDC Dynamic OP features (issue 507)
+
+- **Pairwise subjects (PR 513).** DCR accepts `subject_type: pairwise` and `sector_identifier_uri`. ID tokens, userinfo and back-channel logout tokens carry a per-sector `sub` from `OneAuth.SubjectForClient`. Access tokens and introspection keep the user's own ID.
+- **Signing-key rotation (PR 514).** `RotatingSigningKey` and `SigningKeySource` let the AS change its signing key while running, and the reference server exposes `POST /admin/signing-key/rotate`. The JWKS publishes retired keys for their grace period through `JWKSHandler.RetiredKeys` and `KidLister` (issue 421).
+- **Implicit flow, off by default (PR 515).** `OneAuthConfig.AllowImplicit`, or `code_flow.implicit` on the reference server, serves `id_token` and `id_token token` to clients registered for them. Tokens come back in the fragment with `at_hash` and a required `nonce`. FAPI 2.0 refuses it.
+- In the OIDF Dynamic OP plan these took the code run from 5 passed to 12 passed. Both implicit response types run as plans of their own.
+
+### Tokens and OIDC (issues 451 and 485, PR 517)
+
+- Logout, logout-all and password reset (`NewRevokeSessionsOnResetWithBlacklist`) blacklist the sessions' access tokens.
+- The refresh grant issues an ID token for an `openid` grant, repeating the login's `auth_time`, `acr`, `amr` and claims request. The SDK's automatic refresh keeps and verifies it.
+- Signed userinfo for clients registered with `userinfo_signed_response_alg`, through the new `UserinfoSigner`.
+- `acr_values` at `/authorize`, an `AuthContextFromRequest` hook, and `acr` / `amr` in ID tokens. `oneauth token browser --verify-id-token` checks the ID token it receives.
+
+### Reference server
+
+- In Chrome, consent and login couldn't redirect back to the client, because CSP `form-action 'self'` covers that redirect. Popup logins also lost their opener under COOP `same-origin`. Both are fixed (PR 520). The OIDF harness's browser enforces neither header.
+- `jwt.audience` stamps an `aud` on issued tokens (PR 522).
+
+### Conformance
+
+- The OIDF workflow runs every plan nightly and on demand against the harness pinned at `release-v5.3.3` (PR 520, issue 498).
+- One audited OAuch run is recorded as a new `manual` suite kind: 107 tests, 13 failed, each triaged in `docs/conformance/oauch.md` (PR 520, issue 497). Its gaps are issue 519.
+- Two gating MCP server-auth suites, `mcp-auth-gosdk` and `mcp-auth-mcpkit`, run oneauth-server behind the official Go SDK and mcpkit (PR 522, issue 495).
+
 ## Version 0.3.10
 
 This release fixes the GitHub and Google sign-in providers in the `oauth2` module, which agni needs for Sign in with GitHub. It also lets a `private_key_jwt` client register a `jwks_uri` and puts the client's logo, policy and terms on the consent page. Two changes alter what a consumer sees, and both are listed under contract changes.
