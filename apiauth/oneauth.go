@@ -1,6 +1,7 @@
 package apiauth
 
 import (
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -432,6 +433,9 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	}
 
 	var idTokens IDTokenIssuer
+	if cfg.OIDC != nil && len(cfg.OIDC.PairwiseSalt) > 0 && len(cfg.OIDC.PairwiseSalt) < MinPairwiseSaltLen {
+		panic("apiauth: NewOneAuth: OIDC.PairwiseSalt must be at least " + strconv.Itoa(MinPairwiseSaltLen) + " bytes")
+	}
 	if cfg.OIDC != nil {
 		var err error
 		idTokens, err = NewJWTIDTokenIssuer(JWTIDTokenIssuerConfig{
@@ -441,6 +445,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 			Issuer:           cfg.Issuer,
 			Expiry:           cfg.OIDC.IDTokenExpiry,
 			UserClaims:       cfg.OIDC.UserClaims,
+			SubjectForClient: clientSubjects(cfg.AppStore, cfg.OIDC.PairwiseSalt),
 		})
 		if err != nil {
 			panic("apiauth: NewOneAuth: OIDC: " + err.Error())

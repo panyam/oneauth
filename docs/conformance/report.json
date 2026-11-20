@@ -7,8 +7,8 @@
       "source": "tests/conformance",
       "result": "PASS",
       "detail": "ratchet OK — no diff against known-gaps.yaml",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3"
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9"
     },
     {
       "name": "oidf-config",
@@ -16,9 +16,9 @@
       "covers": "OIDF oidcc-config-certification-test-plan, the discovery document check by check",
       "source": "tests/oidf-conformance (TestOIDF_OIDCC_ConfigCert_Discovery)",
       "result": "PASS",
-      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.254s",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3"
+      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.246s",
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9"
     },
     {
       "name": "oidf-fapi2",
@@ -28,8 +28,8 @@
       "tracking": "mission 98",
       "result": "PASS",
       "detail": "52 modules: map[PASSED:45 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3",
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9",
       "plan": {
         "plan": "fapi2-security-profile-final-test-plan",
         "variant": {
@@ -40,7 +40,7 @@
           "openid": "openid_connect",
           "sender_constrain": "dpop"
         },
-        "plan_id": "LHHilx2XZR5qJ",
+        "plan_id": "lL1XTVplXqi7H",
         "counts": {
           "PASSED": 45,
           "REVIEW": 4,
@@ -388,15 +388,15 @@
       "tracking": "mission 477",
       "result": "PASS",
       "detail": "35 modules: map[PASSED:28 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3",
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9",
       "plan": {
         "plan": "oidcc-basic-certification-test-plan",
         "variant": {
           "client_registration": "static_client",
           "server_metadata": "discovery"
         },
-        "plan_id": "BaE16yiZVUBXd",
+        "plan_id": "VBCpMe1CoWUVf",
         "counts": {
           "PASSED": 28,
           "REVIEW": 4,
@@ -641,21 +641,21 @@
       "source": "tests/oidf-conformance/oidcdyn",
       "tracking": "issue 493",
       "result": "PASS",
-      "detail": "23 modules: map[FAILED:4 MANUAL:1 PASSED:7 REVIEW:7 SKIPPED:3 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3",
+      "detail": "23 modules: map[FAILED:4 MANUAL:1 PASSED:9 REVIEW:7 SKIPPED:1 WARNING:1], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9",
       "plan": {
         "plan": "oidcc-dynamic-certification-test-plan",
         "variant": {
           "response_type": "code"
         },
-        "plan_id": "jeGR6jD6cWbX4",
+        "plan_id": "Ibm6zU2pIlBXc",
         "counts": {
           "FAILED": 4,
           "MANUAL": 1,
-          "PASSED": 7,
+          "PASSED": 9,
           "REVIEW": 7,
-          "SKIPPED": 3,
+          "SKIPPED": 1,
           "WARNING": 1
         },
         "against": 0,
@@ -770,18 +770,14 @@
           {
             "module": "oidcc-registration-sector-bad",
             "status": "FINISHED",
-            "result": "SKIPPED",
-            "verdict": "ok",
-            "expected": "expected-skip",
-            "issue": 507
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-sector-uri",
             "status": "FINISHED",
-            "result": "SKIPPED",
-            "verdict": "ok",
-            "expected": "expected-skip",
-            "issue": 507
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-tos-uri",
@@ -845,9 +841,9 @@
       "source": "tests/oidf-conformance/oidcdyn",
       "tracking": "issue 494",
       "result": "PASS",
-      "detail": "51 modules: map[FAILED:4 MANUAL:1 PASSED:30 REVIEW:10 SKIPPED:4 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3",
+      "detail": "51 modules: map[FAILED:4 MANUAL:1 PASSED:32 REVIEW:10 SKIPPED:2 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_post",
         "variant": {
@@ -856,13 +852,13 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "VQ2aczengl7fT",
+        "plan_id": "Jc2k9EI7s0uUF",
         "counts": {
           "FAILED": 4,
           "MANUAL": 1,
-          "PASSED": 30,
+          "PASSED": 32,
           "REVIEW": 10,
-          "SKIPPED": 4,
+          "SKIPPED": 2,
           "WARNING": 2
         },
         "against": 0,
@@ -1088,18 +1084,14 @@
           {
             "module": "oidcc-registration-sector-bad",
             "status": "FINISHED",
-            "result": "SKIPPED",
-            "verdict": "ok",
-            "expected": "expected-skip",
-            "issue": 507
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-sector-uri",
             "status": "FINISHED",
-            "result": "SKIPPED",
-            "verdict": "ok",
-            "expected": "expected-skip",
-            "issue": 507
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-tos-uri",
@@ -1231,9 +1223,9 @@
       "source": "tests/oidf-conformance/oidcdyn",
       "tracking": "issue 494",
       "result": "PASS",
-      "detail": "52 modules: map[FAILED:4 MANUAL:1 PASSED:31 REVIEW:10 SKIPPED:4 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3",
+      "detail": "52 modules: map[FAILED:4 MANUAL:1 PASSED:33 REVIEW:10 SKIPPED:2 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_jwt",
         "variant": {
@@ -1242,13 +1234,13 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "XWflJsHsZUE6Q",
+        "plan_id": "WVKJ307U5u8H1",
         "counts": {
           "FAILED": 4,
           "MANUAL": 1,
-          "PASSED": 31,
+          "PASSED": 33,
           "REVIEW": 10,
-          "SKIPPED": 4,
+          "SKIPPED": 2,
           "WARNING": 2
         },
         "against": 0,
@@ -1480,18 +1472,14 @@
           {
             "module": "oidcc-registration-sector-bad",
             "status": "FINISHED",
-            "result": "SKIPPED",
-            "verdict": "ok",
-            "expected": "expected-skip",
-            "issue": 507
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-sector-uri",
             "status": "FINISHED",
-            "result": "SKIPPED",
-            "verdict": "ok",
-            "expected": "expected-skip",
-            "issue": 507
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-tos-uri",
@@ -1623,9 +1611,9 @@
       "source": "tests/oidf-conformance/oidcdyn",
       "tracking": "issue 494",
       "result": "PASS",
-      "detail": "54 modules: map[FAILED:4 MANUAL:1 PASSED:33 REVIEW:10 SKIPPED:4 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3",
+      "detail": "54 modules: map[FAILED:4 MANUAL:1 PASSED:35 REVIEW:10 SKIPPED:2 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9",
       "plan": {
         "plan": "oidcc-test-plan-private_key_jwt",
         "variant": {
@@ -1634,13 +1622,13 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "e2my5xT5uTP5y",
+        "plan_id": "NwNUsSzzhUJcJ",
         "counts": {
           "FAILED": 4,
           "MANUAL": 1,
-          "PASSED": 33,
+          "PASSED": 35,
           "REVIEW": 10,
-          "SKIPPED": 4,
+          "SKIPPED": 2,
           "WARNING": 2
         },
         "against": 0,
@@ -1884,18 +1872,14 @@
           {
             "module": "oidcc-registration-sector-bad",
             "status": "FINISHED",
-            "result": "SKIPPED",
-            "verdict": "ok",
-            "expected": "expected-skip",
-            "issue": 507
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-sector-uri",
             "status": "FINISHED",
-            "result": "SKIPPED",
-            "verdict": "ok",
-            "expected": "expected-skip",
-            "issue": 507
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-tos-uri",
@@ -2027,8 +2011,8 @@
       "source": "tests/keycloak",
       "result": "PASS",
       "detail": "go test: 68 passed, 0 skipped, 0 failed (top-level tests)",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3"
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9"
     },
     {
       "name": "authlete",
@@ -2037,8 +2021,8 @@
       "source": "tests/authlete",
       "result": "FAIL",
       "detail": "go test: 14 passed, 0 skipped, 4 failed (top-level tests)",
-      "ran_at": "2026-11-19 23:38 UTC",
-      "commit": "75c07e3"
+      "ran_at": "2026-11-20 00:27 UTC",
+      "commit": "972c6f9"
     }
   ]
 }

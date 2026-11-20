@@ -1,6 +1,6 @@
 # Go-native conformance report
 
-Generated: 2026-11-19 23:27:31 UTC  
+Generated: 2026-11-20 00:15:44 UTC  
 Package pattern: `./...`
 
 ## Summary
@@ -11,7 +11,7 @@ Package pattern: `./...`
 | Passing | 26 |
 | Failing | 0 |
 | Skipped (forbidden) | 0 |
-| Known gaps in manifest | 28 |
+| Known gaps in manifest | 26 |
 | Gapped tests observed | 0 |
 | Ratchet issues | 0 |
 
@@ -40,8 +40,6 @@ Package pattern: `./...`
 | 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-redirect-uri-query-mismatch` | 493 | panyam | expected-review |
 | 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-logo-uri` | 507 | panyam | expected-review |
 | 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-policy-uri` | 507 | panyam | expected-review |
-| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-sector-bad` | 507 | panyam | expected-skip |
-| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-sector-uri` | 507 | panyam | expected-skip |
 | 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-tos-uri` | 507 | panyam | expected-review |
 | 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-request-uri-signed-rs256` | 338 | panyam | expected-fail |
 | 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-request-uri-unsigned` | 338 | panyam | expected-fail |

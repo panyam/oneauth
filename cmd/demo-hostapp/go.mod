@@ -4,7 +4,7 @@ go 1.26.9
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/panyam/oneauth v0.3.9
+	github.com/panyam/oneauth v0.3.10
 	golang.org/x/oauth2 v0.36.0
 )
 

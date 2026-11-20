@@ -95,6 +95,12 @@ type DCRRequest struct {
 	PolicyURI string `json:"policy_uri,omitempty"`
 	TOSURI    string `json:"tos_uri,omitempty"`
 
+	// OIDC Core §8 subject identifier type, "public" (the default) or
+	// "pairwise", and the OIDC Registration §2 sector_identifier_uri: an
+	// https URL whose JSON array lists every redirect URI of the client.
+	SubjectType         string `json:"subject_type,omitempty"`
+	SectorIdentifierURI string `json:"sector_identifier_uri,omitempty"`
+
 	// OIDC Back-Channel Logout 1.0 §3.1 — clients advertise a logout receiver.
 	// Empty disables BCL dispatch for this client.
 	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
@@ -151,6 +157,8 @@ type DCRResponse struct {
 	LogoURI                     string `json:"logo_uri,omitempty"`
 	PolicyURI                   string `json:"policy_uri,omitempty"`
 	TOSURI                      string `json:"tos_uri,omitempty"`
+	SubjectType                 string `json:"subject_type,omitempty"`
+	SectorIdentifierURI         string `json:"sector_identifier_uri,omitempty"`
 }
 
 // ServeHTTP is the HTTP wrapper for ClientRegistrar.Register (RFC 7591 DCR).

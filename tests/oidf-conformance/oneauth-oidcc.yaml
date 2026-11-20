@@ -57,6 +57,10 @@ code_flow:
   # prompt=none succeeds only for a request an earlier approval covers.
   consent:
     remember: true
+  # Pairwise subject identifiers (issue 507), for the Dynamic plan's
+  # sector_identifier_uri modules. A fixed test value: the server is fresh
+  # every run anyway.
+  pairwise_salt: oidf-exercise-pairwise-salt-not-a-secret
 
 # The exercise user signs up with these standard OIDC profile claims
 # (oidfplan.StandardProfile), so the modules that ask for claims find them.

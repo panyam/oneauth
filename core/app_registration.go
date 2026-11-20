@@ -79,6 +79,20 @@ type AppRegistration struct {
 	LogoURI   string `json:"logo_uri,omitempty"`
 	PolicyURI string `json:"policy_uri,omitempty"`
 	TOSURI    string `json:"tos_uri,omitempty"`
+
+	// SubjectType is the OIDC Core §8 subject identifier type: "public"
+	// (or empty) gives the client the user's own ID as sub, "pairwise" a
+	// value derived from SectorIdentifier, so clients in different sectors
+	// can't match up a user (issue 507).
+	SubjectType string `json:"subject_type,omitempty"`
+	// SectorIdentifierURI is the OIDC Registration §2 sector_identifier_uri
+	// the client registered, if any, kept for echoing back.
+	SectorIdentifierURI string `json:"sector_identifier_uri,omitempty"`
+	// SectorIdentifier is the host a pairwise sub is derived from (OIDC
+	// Core §8.1): the sector_identifier_uri's host, or the redirect URIs'
+	// one host. Registration sets it; it must not change afterwards, or
+	// the client's users get new subs.
+	SectorIdentifier string `json:"sector_identifier,omitempty"`
 }
 
 // SaveAppRequest carries the registration to persist.

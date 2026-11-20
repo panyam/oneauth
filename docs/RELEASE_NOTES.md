@@ -5,6 +5,30 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.10
+
+This release fixes the GitHub and Google sign-in providers in the `oauth2` module, which agni needs for Sign in with GitHub. It also lets a `private_key_jwt` client register a `jwks_uri` and puts the client's logo, policy and terms on the consent page. Two changes alter what a consumer sees, and both are listed under contract changes.
+
+### Contract changes
+
+- **A userinfo answer other than 200 fails the sign-in (PR 512).** GitHub answers a bad token with 401 and a JSON body, and that body used to reach `HandleUser` as the person's profile. The Google and GitHub callbacks now redirect to `AuthFailureUrl` instead. A fake provider in tests that answers 201 or similar will now fail.
+- **Five new `app_registrations` columns (PR 509).** GORM adds them through `AutoMigrate`, and GAE adds five unindexed properties. Old rows read them as empty.
+
+### Sign-in providers (issues 510 and 511, PR 512)
+
+- `GithubOAuth2` logged the person's access token, and the refresh token, on every sign-in. It no longer logs any token.
+- `GoogleOAuth2` sends the access token to userinfo as a Bearer header. It used to put it in the URL, and a failed request logged the URL inside the error.
+- `(*GithubOAuth2).SetEnterpriseURL` points the provider at a GitHub Enterprise Server or GHE.com host. It sets the authorize, token, device and userinfo URLs, and it allows plain http only for a loopback host, so tests can use a fake server.
+- `BaseOAuth2.OAuthEndpoint` returns the endpoint in use. `SetOAuthEndpoint`, `UserInfoURL` and `SetHTTPClient` already let a test run the whole sign-in against a fake provider, and their docs now say so.
+
+### Client metadata in DCR (issue 507, PR 509)
+
+- DCR accepts `jwks_uri` for `private_key_jwt` clients. oneauth fetches the key set when the client authenticates, picks the key by `kid`, and refetches once on an unknown `kid`, so a client rotates its key by publishing a new one.
+- The fetch is https only. It refuses private and loopback addresses, follows no redirect, reads at most 64 KiB, and refetches at most every 30 seconds. The reference server's `admin_auth.allow_private_client_hosts` and `client_fetch_ca_file` relax this for test setups.
+- `token_endpoint_auth_signing_alg` pins a `jwks_uri` client's assertion algorithm, so PS256 and EdDSA clients work this way.
+- DCR stores `logo_uri`, `policy_uri` and `tos_uri` (https only). The consent page shows the logo and links to the policy and terms, and adds only the logo's origin to its CSP `img-src`.
+- In the OIDF Dynamic OP plan, `registration-jwks-uri` and `refresh-token-rp-key-rotation` now pass.
+
 ## Version 0.3.9
 
 The whole repo's tests now run on Windows. That run found two bugs in the FS stores, and this release fixes both. It also adds `make conformance`, which runs every conformance suite from one command and publishes a report. One change alters what a consumer sees, and it's listed under contract changes.

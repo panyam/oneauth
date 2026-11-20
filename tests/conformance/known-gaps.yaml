@@ -380,36 +380,6 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
-  test: oidcc-registration-sector-bad
-  status: expected-skip
-  issue: 507
-  owner: panyam
-  reason: |
-    oneauth has no pairwise subject identifiers, so discovery lists only
-    the public subject type and the harness skips the module (issue 507).
-  expires: 2027-12-31
-
-- suite: oidf
-  plans:
-    - oidcc-dynamic-certification-test-plan
-    - oidcc-test-plan-client_secret_post
-    - oidcc-test-plan-client_secret_jwt
-    - oidcc-test-plan-private_key_jwt
-  test: oidcc-registration-sector-uri
-  status: expected-skip
-  issue: 507
-  owner: panyam
-  reason: |
-    oneauth has no pairwise subject identifiers, so discovery lists only
-    the public subject type and the harness skips the module (issue 507).
-  expires: 2027-12-31
-
-- suite: oidf
-  plans:
-    - oidcc-dynamic-certification-test-plan
-    - oidcc-test-plan-client_secret_post
-    - oidcc-test-plan-client_secret_jwt
-    - oidcc-test-plan-private_key_jwt
   test: oidcc-registration-tos-uri
   status: expected-review
   evidence: 'id="client-tos"'
