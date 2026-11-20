@@ -124,6 +124,7 @@ func (g *defaultPasswordGranter) PasswordGrant(ctx context.Context, req *Passwor
 		Scopes:               grantedScopes,
 		AuthorizationDetails: req.AuthorizationDetails,
 		Confirmation:         req.Confirmation,
+		Audience:             req.Resources,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("server_error: %w", err)

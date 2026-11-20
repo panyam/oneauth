@@ -89,6 +89,12 @@ type DeviceAuthorizationHandler struct {
 	// scope it registered (RFC 6749 §3.3), and grants the registered
 	// scope when none is asked for. MountDeviceFlow wires OneAuth's.
 	AppStore core.AppRegistrationStore
+
+	// AllowedResources is OneAuthConfig.AllowedResources. When set, each
+	// `resource` the device names is checked against it (RFC 8707 §2) and
+	// stored with the authorization, and an unknown one is invalid_target.
+	// When empty, `resource` is ignored. MountDeviceFlow wires OneAuth's.
+	AllowedResources []string
 }
 
 // ServeHTTP implements the RFC 8628 §3.1 device authorization request
@@ -177,12 +183,18 @@ func (h *DeviceAuthorizationHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		writeOAuthError(w, gErr.Status, gErr.Code, gErr.Description)
 		return
 	}
+	resources, gErr := checkResources(h.AllowedResources, r.PostForm["resource"])
+	if gErr != nil {
+		writeOAuthError(w, gErr.Status, gErr.Code, gErr.Description)
+		return
+	}
 	auth := &core.DeviceAuthorization{
 		DeviceCode:        deviceCode,
 		UserCode:          userCode,
 		ClientID:          clientID,
 		Scopes:            scopes,
 		RequestedAudience: r.PostForm.Get("audience"),
+		Resources:         resources,
 		Status:            core.DeviceAuthorizationStatusPending,
 		CreatedAt:         now,
 		ExpiresAt:         now.Add(expiry),

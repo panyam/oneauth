@@ -168,6 +168,11 @@ type PasswordGrantRequest struct {
 	AuthorizationDetails []core.AuthorizationDetail // RFC 9396
 	ClientID             string                     // optional — associated client
 
+	// Resources are the RFC 8707 resources the access token is bound to,
+	// already checked against the AS's allowlist by the token endpoint.
+	// The token carries them as `aud`; empty keeps the default audience.
+	Resources []string
+
 	// Confirmation binds the issued tokens to the proof-of-possession
 	// key the client proved on this request (RFC 9449 §5), or nil for a
 	// plain bearer token. The token endpoint fills it from the validated
@@ -290,6 +295,12 @@ type DeviceCodeGrantRequest struct {
 	ClientAssertion     string
 
 	AcceptedAudiences []string
+
+	// Resources are the RFC 8707 resource indicators on the token request.
+	// They narrow the ones stored with the authorization (§2.2); when the
+	// authorization has none, they are checked against the AS's allowlist
+	// instead.
+	Resources []string
 
 	// Confirmation binds the issued tokens to the proof-of-possession
 	// key the client proved on this request (RFC 9449 §5), or nil for a

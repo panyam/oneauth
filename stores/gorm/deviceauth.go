@@ -41,6 +41,7 @@ type DeviceAuthorizationModel struct {
 	ClientID          string    `gorm:"size:128;not null;index"`
 	Scopes            []string  `gorm:"serializer:json"`
 	RequestedAudience string    `gorm:"size:512"`
+	Resources         []string  `gorm:"serializer:json"`
 	Status            string    `gorm:"size:16;not null"`
 	ApprovedSubject   string    `gorm:"size:256"`
 	CreatedAt         time.Time `gorm:"autoCreateTime"`
@@ -303,6 +304,7 @@ func deviceAuthToModel(a *core.DeviceAuthorization) *DeviceAuthorizationModel {
 		ClientID:          a.ClientID,
 		Scopes:            a.Scopes,
 		RequestedAudience: a.RequestedAudience,
+		Resources:         a.Resources,
 		Status:            string(a.Status),
 		ApprovedSubject:   a.ApprovedSubject,
 		CreatedAt:         a.CreatedAt,
@@ -326,6 +328,7 @@ func modelToDeviceAuth(m *DeviceAuthorizationModel) *core.DeviceAuthorization {
 		ClientID:          m.ClientID,
 		Scopes:            m.Scopes,
 		RequestedAudience: m.RequestedAudience,
+		Resources:         m.Resources,
 		Status:            core.DeviceAuthorizationStatus(m.Status),
 		ApprovedSubject:   m.ApprovedSubject,
 		CreatedAt:         m.CreatedAt,

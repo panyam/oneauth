@@ -507,13 +507,15 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 	}
 	var deviceGranter DeviceCodeGranter
 	if cfg.DeviceAuthStore != nil {
-		deviceGranter = NewDeviceCodeGranter(
+		g := NewDeviceCodeGranter(
 			cfg.DeviceAuthStore,
 			cfg.AppStore,
 			authenticator,
 			issuer,
 			cfg.RefreshStore,
-		)
+		).(*deviceCodeGranter)
+		g.allowedResources = cfg.AllowedResources
+		deviceGranter = g
 	}
 	var jwtBearerGranter JwtBearerGranter
 	var tokenExchanger TokenExchanger

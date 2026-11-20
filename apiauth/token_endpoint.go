@@ -244,7 +244,16 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// RFC 8707 §2: the password grant takes `resource` on the token
+	// request, as client_credentials does.
+	resources, gErr := checkResources(h.OneAuth.AllowedResources, req.ResourceIndicators())
+	if gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
+
 	resp, err := h.OneAuth.PasswordGranter.PasswordGrant(r.Context(), &PasswordGrantRequest{
+		Resources:            resources,
 		Username:             req.Username,
 		Password:             req.Password,
 		Scopes:               scopes,
@@ -289,6 +298,7 @@ func (h *TokenEndpointHandler) handlePassword(w http.ResponseWriter, r *http.Req
 			ClientID:     req.ClientID,
 			DeviceInfo:   deviceInfo,
 			Scopes:       resp.GrantedScopes,
+			Resources:    resources,
 			Confirmation: cnf,
 		})
 		if rtErr != nil {
@@ -527,6 +537,7 @@ func (h *TokenEndpointHandler) dispatchDeviceCode(w http.ResponseWriter, r *http
 	audiences := h.acceptedAudiences(r)
 	clientID, clientSecret, assertionType, assertion := dispatchClientCredentials(r, req)
 	resp, err := h.OneAuth.DeviceCodeGranter.DeviceCodeGrant(r.Context(), &DeviceCodeGrantRequest{
+		Resources:           req.ResourceIndicators(),
 		DeviceCode:          req.DeviceCode,
 		ClientID:            clientID,
 		ClientSecret:        clientSecret,

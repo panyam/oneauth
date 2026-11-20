@@ -22,6 +22,10 @@ type deviceCodeGranter struct {
 	Authenticator ClientAuthenticator
 	Issuer        TokenIssuer
 	RefreshStore  core.RefreshTokenStore
+
+	// allowedResources is OneAuthConfig.AllowedResources, for a token
+	// request naming resources the authorization didn't carry.
+	allowedResources []string
 }
 
 // NewDeviceCodeGranter constructs a DeviceCodeGranter. Store and
@@ -111,10 +115,25 @@ func (r *deviceCodeGranter) DeviceCodeGrant(ctx context.Context, req *DeviceCode
 		return nil, invalidGrant("approved authorization is missing subject")
 	}
 
+	// RFC 8707 §2.2: the token request may narrow the resources the
+	// device was authorized for, never widen them. With none stored, it is
+	// checked against the allowlist, as for client_credentials.
+	var audience []string
+	var gErr *GrantError
+	if len(auth.Resources) > 0 {
+		audience, gErr = narrowResources(req.Resources, auth.Resources)
+	} else {
+		audience, gErr = checkResources(r.allowedResources, req.Resources)
+	}
+	if gErr != nil {
+		return nil, gErr
+	}
+
 	tok, err := r.Issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{
 		Subject:      subject,
 		Scopes:       auth.Scopes,
 		Confirmation: req.Confirmation,
+		Audience:     audience,
 	})
 	if err != nil {
 		return nil, serverError("create access token: " + err.Error())
@@ -131,6 +150,7 @@ func (r *deviceCodeGranter) DeviceCodeGrant(ctx context.Context, req *DeviceCode
 			Subject:      subject,
 			ClientID:     auth.ClientID,
 			Scopes:       auth.Scopes,
+			Resources:    audience,
 			Confirmation: refreshConfirmation(authedID, req.Confirmation),
 		})
 		if rtErr == nil && createResp != nil && createResp.Token != nil {

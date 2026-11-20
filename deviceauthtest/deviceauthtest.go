@@ -70,6 +70,7 @@ func newAuth() *core.DeviceAuthorization {
 		UserCode:        "WDJB-MJHT",
 		ClientID:        "client-x",
 		Scopes:          []string{"read"},
+		Resources:       []string{"https://mcp.example/a", "https://mcp.example/b"},
 		Status:          core.DeviceAuthorizationStatusPending,
 		CreatedAt:       time.Now(),
 		ExpiresAt:       time.Now().Add(5 * time.Minute),
@@ -94,6 +95,7 @@ func TestCreateAndGet(t *testing.T, factory Factory) {
 	assert.Equal(t, "dc-abc", g.Authorization.DeviceCode)
 	assert.Equal(t, "client-x", g.Authorization.ClientID)
 	assert.Equal(t, []string{"read"}, g.Authorization.Scopes, "Scopes slice MUST round-trip through the backend's serialization")
+	assert.Equal(t, []string{"https://mcp.example/a", "https://mcp.example/b"}, g.Authorization.Resources, "RFC 8707 resources MUST round-trip, in order (issue 523)")
 
 	u, err := s.GetByUserCode(context.Background(), &core.GetByUserCodeRequest{UserCode: "wdjbmjht"})
 	require.NoError(t, err, "user_code lookup MUST be case- and dash-insensitive")
@@ -141,6 +143,7 @@ func TestApproveBindsSubjectAndOverridesScopes(t *testing.T, factory Factory) {
 	assert.Equal(t, core.DeviceAuthorizationStatusApproved, g.Authorization.Status)
 	assert.Equal(t, "alice", g.Authorization.ApprovedSubject)
 	assert.Equal(t, []string{"read", "write"}, g.Authorization.Scopes)
+	assert.Equal(t, []string{"https://mcp.example/a", "https://mcp.example/b"}, g.Authorization.Resources, "approval MUST keep the resources the device asked for")
 }
 
 // TestApproveTwiceRejects pins that a second approval looks like
