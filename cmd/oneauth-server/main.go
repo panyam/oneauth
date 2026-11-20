@@ -86,6 +86,9 @@ func main() {
 	if err := checkOIDC(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
+	if err := checkImplicit(cfg); err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
 
 	handler, cleanup, err := buildServer(cfg)
 	if err != nil {
@@ -157,6 +160,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 	clientFetcher := &apiauth.ClientJWKSFetcher{AllowPrivateHosts: cfg.AdminAuth.AllowPrivateClientHosts, RootCAs: clientCAs}
 	registrar.FetchSectorIdentifier = clientFetcher.SectorRedirectURIs
 	registrar.PairwiseSubjects = cfg.CodeFlow.OIDC && cfg.CodeFlow.PairwiseSalt != ""
+	registrar.AllowImplicit = cfg.CodeFlow.Enabled && cfg.CodeFlow.Implicit
 	if cfg.AdminAuth.AllowPrivateClientHosts {
 		log.Printf("WARNING: admin_auth.allow_private_client_hosts is on. Clients can make this server fetch from private addresses; use it only for test harnesses.")
 	}
@@ -320,6 +324,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		return nil, nil, fmt.Errorf("jwt.key_rotation needs an asymmetric jwt.signing_alg (RS256 or ES256)")
 	}
 
+	oaCfg.AllowImplicit = cfg.CodeFlow.Enabled && cfg.CodeFlow.OIDC && cfg.CodeFlow.Implicit
 	if cfg.CodeFlow.Enabled && cfg.CodeFlow.OIDC {
 		oaCfg.OIDC = &apiauth.OIDCConfig{
 			UserClaims:   localauth.ProfileClaims(stores.userStore, stores.identityStore),
@@ -585,6 +590,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		})
 
 		grantTypes = append(grantTypes, apiauth.AuthorizationCodeGrantType)
+		grantTypes = append(grantTypes, implicitGrantTypes(cfg)...)
 		log.Println("RFC 6749 §4.1 code flow enabled (/authorize + authorization_code grant)")
 	}
 	asMeta.GrantTypesSupported = grantTypes
