@@ -443,3 +443,56 @@
     §6.1), and the harness reports that rejection as SKIPPED. Supporting
     request objects is JAR, issue 338.
   expires: 2027-12-31
+
+# MCP server-auth conformance (issue 495): the scenarios on
+# panyam/mcpconformance's pending branch, run against oneauth-server as the
+# authorization server through two MCP SDKs. Each entry's test is a check
+# ID, judged by tests/mcpauth/judge. An INFO or SKIPPED check didn't really
+# run, so it needs an expected-skip entry like these.
+
+- suite: mcp
+  plans: [mcp-auth-gosdk, mcp-auth-mcpkit]
+  test: auth-enterprise-managed-jwt-bearer-grant-supported
+  status: expected-skip
+  issue: 521
+  owner: panyam
+  reason: |
+    oneauth-server has no config for a trusted assertion issuer, so it
+    doesn't advertise the RFC 7523 §2.1 jwt-bearer grant. apiauth supports
+    it through OneAuthConfig.TrustedAssertionIssuers.
+  expires: 2027-12-31
+
+- suite: mcp
+  plans: [mcp-auth-gosdk, mcp-auth-mcpkit]
+  test: auth-enterprise-managed-token-exchange-grant-supported
+  status: expected-skip
+  issue: 521
+  owner: panyam
+  reason: |
+    Same cause as the jwt-bearer entry: no trusted assertion issuer in the
+    reference server's config, so RFC 8693 token exchange isn't advertised.
+  expires: 2027-12-31
+
+- suite: mcp
+  plans: [mcp-auth-gosdk, mcp-auth-mcpkit]
+  test: auth-enterprise-managed-token-exchange-flow-shape
+  status: expected-skip
+  issue: 521
+  owner: panyam
+  reason: |
+    Needs AUTH_SUBJECT_ASSERTION_TOKEN, a JWT from an upstream IdP the AS
+    trusts, which the fixture can mint once the server takes that IdP's
+    key from config.
+  expires: 2027-12-31
+
+- suite: mcp
+  plans: [mcp-auth-gosdk, mcp-auth-mcpkit]
+  test: auth-iss-param-redirect-carries-iss
+  status: expected-skip
+  issue: 521
+  owner: panyam
+  reason: |
+    The conformance framework has no OAuth flow driver yet, so it can't
+    drive /authorize to see the RFC 9207 iss in the redirect. The AS does
+    advertise it (auth-iss-param-as-metadata-advertises-support passes).
+  expires: 2027-12-31
