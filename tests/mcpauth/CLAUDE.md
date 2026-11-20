@@ -5,7 +5,7 @@
 - **Three fixtures, one contract.** `cmd/gosdk-fixture` uses oneauth's `APIMiddleware` for auth, so its failures are oneauth's. `cmd/mcpkit-fixture` uses mcpkit's `ext/auth`, and `ts-fixture/` the TypeScript SDK's own bearer middleware, so a check failing only in one of those points at that SDK. `fixture/` mints the tokens all three use; the TS fixture reads them from `cmd/bootstrap`.
 - **Tokens name their resource.** oneauth-server lists the fixture's `/mcp` URL in `jwt.resources`, and the fixtures ask for it with RFC 8707 `resource`, so `aud` is that URL. The upstream-IdP assertion comes from a key the exercise generates and `trusted_assertion_issuers` trusts.
 - **Fixtures build in workspace mode** (`go build ./tests/mcpauth/cmd/...` from the root), so they run the checkout's oneauth. `go.mod` also replaces oneauth with `../..` for `GOWORK=off`.
-- **The scenarios run through `driver/run-auth.ts`, not the framework CLI.** At the pinned commit the CLI passes the auth scenarios a RunContext where they take a URL string, and every check fails with "Failed to parse URL from [object Object]" (#521).
+- **The scenarios run through `driver/run-auth.ts`, not the framework CLI.** It calls each scenario's `run(ctx)` with only `serverUrl` set, which is all the auth scenarios read. A framework bump that changes `run`'s signature breaks it (issue 523).
 - **INFO and SKIPPED checks need `expected-skip` entries** (`suite: mcp` in `tests/conformance/known-gaps.yaml`). A check that didn't run can't pass quietly.
 - **mcpkit applies `server.WithMux` routes only in `ListenAndServe`**, not in `Handler()`.
 - **`ts-fixture/` pins exact package versions** in `package.json` and `package-lock.json`; the exercise runs `npm ci` there when the lockfile changes.

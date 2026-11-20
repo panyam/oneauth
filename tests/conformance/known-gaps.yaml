@@ -198,6 +198,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
@@ -214,6 +215,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-dynamic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
@@ -250,6 +252,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
@@ -266,6 +269,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
@@ -410,6 +414,7 @@
 - suite: oidf
   plans:
     - oidcc-basic-certification-test-plan
+    - oidcc-formpost-basic-certification-test-plan
     - oidcc-dynamic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
@@ -444,6 +449,20 @@
     request objects is JAR, issue 338.
   expires: 2027-12-31
 
+- suite: oidf
+  plan: oidcc-formpost-basic-certification-test-plan
+  test: oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported
+  status: expected-fail
+  issue: 338
+  owner: panyam
+  reason: |
+    The harness puts response_mode=form_post and state only inside the
+    request object. oneauth doesn't read request objects, so it refuses
+    with request_not_supported in the default query mode, and the module
+    fails CheckCallbackHttpMethodIsPost. The Basic OP plan reports the
+    same refusal as SKIPPED. Reading request objects is JAR, issue 338.
+  expires: 2027-12-31
+
 # MCP server-auth conformance (issue 495): the scenarios on
 # panyam/mcpconformance's pending branch, run against oneauth-server as the
 # authorization server through two MCP SDKs. Each entry's test is a check
@@ -454,7 +473,7 @@
   plans: [mcp-auth-gosdk, mcp-auth-mcpkit, mcp-auth-ts]
   test: auth-iss-param-redirect-carries-iss
   status: expected-skip
-  issue: 523
+  issue: 496
   owner: panyam
   reason: |
     The conformance framework has no OAuth flow driver yet, so it can't
@@ -462,32 +481,4 @@
     advertise it (auth-iss-param-as-metadata-advertises-support passes).
   expires: 2027-12-31
 
-- suite: mcp
-  plans: [mcp-auth-gosdk, mcp-auth-mcpkit, mcp-auth-ts]
-  test: auth-oauth-discovery-prm-root
-  status: expected-fail
-  evidence: got 404
-  issue: 523
-  owner: panyam
-  reason: |
-    All three MCP servers serve protected-resource metadata only at the
-    path-based URL, /.well-known/oauth-protected-resource/mcp, as RFC 9728
-    §3.1 builds it for a resource with a path. The MCP spec (2025-11-25)
-    lets a server use that URL or the root, not both, and §3.3 makes the
-    /mcp document unusable at the root a client builds from the origin.
-    oneauth's MountProtectedResource (which mcpkit's MountAuth calls) and
-    the TypeScript SDK both do this. The scenario also requires the root
-    URL, so the fix is in the scenario (issue 523).
-  expires: 2027-12-31
 
-- suite: mcp
-  plans: [mcp-auth-gosdk, mcp-auth-mcpkit, mcp-auth-ts]
-  test: auth-oauth-discovery-prm-content-type
-  status: expected-fail
-  evidence: PRM Content-Type MUST be application/json
-  issue: 523
-  owner: panyam
-  reason: |
-    Same cause as the prm-root entry: the check reads the root metadata
-    URL, which none of the servers serve, and gets a 404 page.
-  expires: 2027-12-31

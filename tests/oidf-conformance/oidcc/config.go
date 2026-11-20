@@ -2,7 +2,9 @@
 // certification plan (oidcc-basic-certification-test-plan) as oneauth runs
 // it: the clients it registers, the variant, the plan config and the browser
 // automation. oidfplan runs it. It is the exercise of mission 477, "an OIDC
-// relying party passes the OIDF Basic OP plan against oneauth".
+// relying party passes the OIDF Basic OP plan against oneauth". The Form
+// Post Basic OP plan (oidcc-formpost-basic-certification-test-plan, issue
+// 500) is the same plan with response_mode=form_post, and reuses all of it.
 //
 // The plan config here is pure (PlanConfig, BrowserAutomation, ...); the
 // network side is in run.go.
@@ -16,6 +18,11 @@ import (
 
 // PlanName is the harness plan this exercise runs.
 const PlanName = "oidcc-basic-certification-test-plan"
+
+// FormPostPlanName is the Form Post Basic OP plan (issue 500). It runs the
+// Basic OP modules with response_mode=form_post on every authorization
+// request, so it takes the same variant, clients and browser automation.
+const FormPostPlanName = "oidcc-formpost-basic-certification-test-plan"
 
 // ModulePrefix starts every module name in the plan; the exercise prints
 // names without it.

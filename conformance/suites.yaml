@@ -64,6 +64,15 @@ suites:
     needs: [docker]
     tracking: "mission 477"
 
+  - name: oidf-formpost-basic
+    kind: gating
+    timeout: 20m
+    covers: OIDF oidcc-formpost-basic-certification-test-plan, the Basic OP modules with response_mode=form_post
+    plan: oidcc-formpost-basic-certification-test-plan
+    source: tests/oidf-conformance/oidcc
+    needs: [docker]
+    tracking: "issue 500"
+
   - name: oidf-dynamic-op
     kind: gating
     timeout: 20m
@@ -168,5 +177,5 @@ suites:
     last_run:
       date: "2026-11-20"
       commit: 7e3b812
-      result: "107 tests, 9 failed (5 test setup, 4 tracked or accepted); 30 of 36 relevant threats mitigated"
+      result: "109 tests, 9 failed (5 test setup, 4 tracked or accepted; form_post has shipped since); 33 of 40 relevant threats mitigated"
       doc: docs/conformance/oauch.md

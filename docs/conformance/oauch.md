@@ -7,11 +7,11 @@
 - **When:** 2026-11-20, against the reference server built from the commit in `conformance/suites.yaml`.
 - **Server config:** `tests/oauch/oneauth-oauch.yaml`: code flow, OIDC, PKCE required, remembered consent, ES256.
 - **Documents selected:** RFC 6749, 6750, 6819, 7009, 7523, 7636, 9700, OIDC.
-- **Outcome:** 107 tests run, 2 still pending (OAuch's timed tests, which need a resume after 10 minutes). 9 failed:
+- **Outcome:** 109 tests run, including OAuch's two timed tests, which pass on a resume 10 minutes later (authorization codes and access tokens have short lifetimes). 9 failed:
   - 3 of 55 mandatory;
   - 3 of 16 recommended;
   - 3 of 7 optional.
-- **Threats:** 30 mitigated, 4 partly mitigated, 2 not mitigated.
+- **Threats:** 33 mitigated, 5 partly mitigated, 2 not mitigated.
 - **Since the first run:** the first run, at `c46fedf`, failed 13. Issue 519 fixed the four it found in the code (repeated parameters at `/authorize` and the token endpoint, client credentials in the request URI, and the redirect fragment), and those four now pass.
 
 | Document | Failure rate |
@@ -37,7 +37,7 @@
 | Does the server support RFC8705 (mTLS) | recommended | Not supported: issue 335. |
 | Are refresh tokens revoked after access token revocation | optional | Accepted. RFC 7009 §2.1 lets the AS revoke the refresh token too (MAY); oneauth revokes only the token presented. |
 | Is JAR supported at the authorization endpoint | optional | Not supported: issue 338. |
-| Does the server support Post Form response mode | optional | Not supported: #500. |
+| Does the server support Post Form response mode | optional | Supported since issue 500, which came after this run. The next run should pass it. |
 
 The two threats not mitigated are "Eavesdropping access tokens on transport" at the token endpoint and at the API. Both depend on the certificate and bearer-token findings above, so they come from the test certificate and DPoP being off, not from code.
 

@@ -52,7 +52,14 @@ type ASServerMetadata struct {
 	// it, so set this whenever OIDC is on.
 	ClaimsParameterSupported bool `json:"claims_parameter_supported,omitempty"`
 
-	ResponseTypesSupported   []string `json:"response_types_supported,omitempty"`
+	ResponseTypesSupported []string `json:"response_types_supported,omitempty"`
+	// ResponseModesSupported lists the `response_mode` values /authorize
+	// accepts (OIDC Discovery §3). MountAuthorize accepts query and
+	// form_post, plus fragment when it serves the implicit types;
+	// AuthorizationHandler.ResponseModesSupported returns that list.
+	// Empty means the RFC 8414 default of query and fragment, which
+	// would hide form_post from clients.
+	ResponseModesSupported   []string `json:"response_modes_supported,omitempty"`
 	GrantTypesSupported      []string `json:"grant_types_supported,omitempty"`
 	TokenEndpointAuthMethods []string `json:"token_endpoint_auth_methods_supported,omitempty"`
 

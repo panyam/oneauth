@@ -45,6 +45,7 @@ type DeviceAuthorizationEntity struct {
 	ClientID          string         `datastore:"client_id,noindex"`
 	Scopes            []string       `datastore:"scopes,noindex"`
 	RequestedAudience string         `datastore:"requested_audience,noindex"`
+	Resources         []string       `datastore:"resources,noindex"`
 	Status            string         `datastore:"status,noindex"`
 	ApprovedSubject   string         `datastore:"approved_subject,noindex"`
 	CreatedAt         int64          `datastore:"created_at,noindex"`
@@ -402,6 +403,7 @@ func deviceAuthToEntity(key *datastore.Key, a *core.DeviceAuthorization) *Device
 		ClientID:          a.ClientID,
 		Scopes:            a.Scopes,
 		RequestedAudience: a.RequestedAudience,
+		Resources:         a.Resources,
 		Status:            string(a.Status),
 		ApprovedSubject:   a.ApprovedSubject,
 		CreatedAt:         a.CreatedAt.UnixNano(),
@@ -424,6 +426,7 @@ func entityToDeviceAuth(e *DeviceAuthorizationEntity) *core.DeviceAuthorization 
 		ClientID:          e.ClientID,
 		Scopes:            e.Scopes,
 		RequestedAudience: e.RequestedAudience,
+		Resources:         e.Resources,
 		Status:            core.DeviceAuthorizationStatus(e.Status),
 		ApprovedSubject:   e.ApprovedSubject,
 		CreatedAt:         unixNanosToTime(e.CreatedAt),

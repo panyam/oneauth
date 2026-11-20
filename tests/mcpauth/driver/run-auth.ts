@@ -3,10 +3,9 @@
 // (issue 495). cmd/exercise runs it with `npx tsx` from the framework
 // checkout.
 //
-// It calls each scenario's run(url) directly, as the framework's own
-// auth.test.ts does. At the pinned commit the framework CLI passes these
-// scenarios a RunContext object where they expect the URL string, so every
-// check fails with "Failed to parse URL from [object Object]".
+// It calls each scenario's run(ctx) directly, as the framework's own
+// auth.test.ts does, rather than through the framework CLI. The auth
+// scenarios read only ctx.serverUrl.
 //
 // Usage: tsx run-auth.ts <checkout> <mcp-url> <out-dir> [scenario...]
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -14,7 +13,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 type Check = { id: string; status: string };
-type Scenario = { name: string; run(url: string): Promise<Check[]> };
+type Scenario = { name: string; run(ctx: { serverUrl: string }): Promise<Check[]> };
 
 async function main() {
   const [checkout, url, out, ...only] = process.argv.slice(2);
@@ -34,7 +33,7 @@ async function main() {
     mkdirSync(dir, { recursive: true });
     let checks: Check[];
     try {
-      checks = await s.run(url);
+      checks = await s.run({ serverUrl: url });
     } catch (err) {
       checks = [{ id: s.name, status: 'FAILURE', errorMessage: String(err) } as Check];
     }

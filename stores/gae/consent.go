@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"cloud.google.com/go/datastore"
 	"github.com/panyam/oneauth/core"
@@ -26,8 +27,15 @@ const KindConsent = "Consent"
 //   - Record is the grant as JSON, subject and client_id included, so the
 //     times round-trip at full precision rather than Datastore's
 //     microseconds. It is unindexed.
+//   - Subject repeats the grant's subject as an indexed property, so
+//     ListConsents finds a user's grants with an equality query. A
+//     single-property filter uses Datastore's built-in index, so no
+//     index.yaml entry is needed. Grants saved before the property
+//     existed have none and aren't listed until the user approves the
+//     client again; GetConsent and RevokeConsent still find them by key.
 type ConsentEntity struct {
-	Record []byte `datastore:"record,noindex"`
+	Record  []byte `datastore:"record,noindex"`
+	Subject string `datastore:"subject"`
 }
 
 // errConsentKeyMismatch means the entity under a key holds another
@@ -43,7 +51,10 @@ type GAEConsentStore struct {
 	namespace string
 }
 
-var _ core.ConsentStore = (*GAEConsentStore)(nil)
+var (
+	_ core.ConsentStore  = (*GAEConsentStore)(nil)
+	_ core.ConsentLister = (*GAEConsentStore)(nil)
+)
 
 // NewConsentStore returns a store using client, with every entity in
 // namespace (empty for the default namespace).
@@ -74,7 +85,7 @@ func (s *GAEConsentStore) SaveConsent(ctx context.Context, req *core.SaveConsent
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.client.Put(ctx, s.key(g.Subject, g.ClientID), &ConsentEntity{Record: b}); err != nil {
+	if _, err := s.client.Put(ctx, s.key(g.Subject, g.ClientID), &ConsentEntity{Record: b, Subject: g.Subject}); err != nil {
 		return nil, err
 	}
 	out := *g
@@ -117,4 +128,37 @@ func (s *GAEConsentStore) RevokeConsent(ctx context.Context, req *core.RevokeCon
 		return nil, err
 	}
 	return &core.RevokeConsentResponse{}, nil
+}
+
+// ListConsents returns the subject's unexpired grants, sorted by
+// client_id. It runs one equality query on the indexed subject property,
+// then decodes each Record and drops expired grants and any whose key
+// isn't the hash of the grant it holds, which GetConsent would refuse.
+// The query is eventually consistent on Cloud Datastore, so a grant
+// saved a moment ago can be missing from the list. Datastore errors pass
+// through.
+func (s *GAEConsentStore) ListConsents(ctx context.Context, req *core.ListConsentsRequest) (*core.ListConsentsResponse, error) {
+	out := []*core.ConsentGrant{}
+	if req == nil || req.Subject == "" {
+		return &core.ListConsentsResponse{Grants: out}, nil
+	}
+	q := datastore.NewQuery(KindConsent).Namespace(s.namespace).FilterField("subject", "=", req.Subject)
+	var entities []ConsentEntity
+	keys, err := s.client.GetAll(ctx, q, &entities)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	for i, e := range entities {
+		var g core.ConsentGrant
+		if err := json.Unmarshal(e.Record, &g); err != nil {
+			return nil, fmt.Errorf("gae: consent record: %w", err)
+		}
+		if g.Subject != req.Subject || g.IsExpired(now) || keys[i].Name != s.key(g.Subject, g.ClientID).Name {
+			continue
+		}
+		out = append(out, &g)
+	}
+	core.SortConsentGrants(out)
+	return &core.ListConsentsResponse{Grants: out}, nil
 }

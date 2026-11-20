@@ -153,6 +153,7 @@ func MountDeviceFlow(mux *http.ServeMux, cfg DeviceFlowMountConfig) {
 		Expiry:                          cfg.Expiry,
 		Interval:                        cfg.Interval,
 		ClientAuthenticator:             cfg.ClientAuthenticator,
+		AllowedResources:                cfg.OneAuth.AllowedResources,
 	}
 	mux.Handle("POST /device/authorize", devAuth)
 

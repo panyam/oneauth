@@ -1,0 +1,32 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-2">Connected Apps</h1>
+<p class="text-sm text-gray-500 mb-6">
+  These apps can sign you in without asking again.
+  Disconnecting one signs it out on every device and makes it ask for your consent next time.
+</p>
+
+{{if .Apps}}
+<ul class="space-y-4">
+  {{range .Apps}}
+  <li class="bg-white shadow rounded-lg p-6 flex items-start justify-between gap-6">
+    <div class="text-sm space-y-1">
+      <h2 class="text-lg font-semibold">{{if .Name}}{{.Name}}{{else}}Unnamed app{{end}}</h2>
+      <p class="font-mono text-xs text-gray-500">{{.ClientID}}</p>
+      <p><span class="text-gray-500">Access:</span> {{if .Scopes}}{{range $i, $s := .Scopes}}{{if $i}}, {{end}}<code class="bg-gray-100 px-1 rounded">{{$s}}</code>{{end}}{{else}}<span class="text-gray-400">no scopes</span>{{end}}</p>
+      <p><span class="text-gray-500">Approved:</span> {{.GrantedAt.Format "2006-01-02 15:04 MST"}}</p>
+      <p><span class="text-gray-500">Expires:</span> {{if .ExpiresAt.IsZero}}never{{else}}{{.ExpiresAt.Format "2006-01-02 15:04 MST"}}{{end}}</p>
+    </div>
+    <form method="POST" action="/auth/connected-apps/revoke">
+      {{$.CSRFField}}
+      <input type="hidden" name="client_id" value="{{.ClientID}}">
+      <button type="submit" class="py-2 px-4 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm">Disconnect</button>
+    </form>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="text-sm text-gray-500 bg-white shadow rounded-lg p-6">You haven't approved any apps.</p>
+{{end}}
+
+<p class="mt-6 text-sm"><a href="/dashboard" class="text-indigo-600 hover:underline">Back to the dashboard</a></p>
+{{end}}

@@ -100,7 +100,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 | Conformance ratchet | `tests/conformance/` | RFC 8414 dual-path (`as_metadata/`), RFC 7662 (`introspection/`), `private_key_jwt` (`client_auth/`); expected failures in `known-gaps.yaml`, run by `make testconformance` |
 | OIDF discovery plan | `tests/oidf-conformance/` | `oidcc-config-certification-test-plan` through `make testoidf`. CI runs every OIDF plan nightly and on demand (`oidf-conformance.yml`, issue 498), against the harness release pinned in the compose file. |
 | OIDF FAPI 2.0 plan | `tests/oidf-conformance/fapi2/` | `fapi2-security-profile-final-test-plan` through `make testoidf` (and `make exercise-fapi2`); whole-module `expected-review` / `expected-skip` entries in `known-gaps.yaml`. Local only, like the discovery plan. |
-| OIDF OIDC Basic OP plan | `tests/oidf-conformance/oidcc/` | `oidcc-basic-certification-test-plan` through `make testoidf` (and `make exercise-oidcc`), mission 477; whole-module entries in `known-gaps.yaml` like FAPI 2.0. Local only. |
+| OIDF OIDC Basic OP plan | `tests/oidf-conformance/oidcc/` | `oidcc-basic-certification-test-plan` through `make testoidf` (and `make exercise-oidcc`), mission 477; whole-module entries in `known-gaps.yaml` like FAPI 2.0. The same package runs `oidcc-formpost-basic-certification-test-plan` (`make exercise-oidccfp`, issue 500), the Basic OP modules with `response_mode=form_post`. Local only. |
 | OIDF Dynamic OP plan and `oidcc-test-plan` | `tests/oidf-conformance/oidcdyn/` | `oidcc-dynamic-certification-test-plan` (`make exercise-oidcdyn`, issue 493) and `oidcc-test-plan` once per client auth method (`make exercise-oidcctp AUTH=<method>`, issue 494), both through `make testoidf`. The harness registers its own clients through DCR. One `known-gaps.yaml` entry can name several plans with `plans:`. Local only. |
 | MCP server auth | `tests/mcpauth/` | The MCP server-auth scenarios (RFC 9728 discovery, RFC 8414 AS metadata, RFC 6750 Bearer enforcement, RFC 7519 `exp` / `aud` / `iss`, scope step-up, the enterprise-managed jwt-bearer and token-exchange grants) with oneauth-server as the AS, through three MCP SDKs: the official Go SDK with oneauth's `APIMiddleware` (`mcp-auth-gosdk`), mcpkit with its `ext/auth` (`mcp-auth-mcpkit`), and the official TypeScript SDK with its own bearer middleware (`mcp-auth-ts`, an interop check). Tokens are bound with RFC 8707 `resource`. `make exercise-mcpauth SDK=gosdk\|mcpkit\|ts`, issues 495 and 521. A check failing only in the mcpkit or TS run points at that SDK. Needs node. |
 
@@ -112,6 +112,7 @@ The OpenID Foundation suite offers 81 plans (the harness's `/api/plan/available`
 |---|---|---|---|
 | `fapi2-security-profile-final-test-plan` | 68 | Runs | `SUITE=oidf-fapi2` (`make testoidf`), mission 98 |
 | `oidcc-basic-certification-test-plan` | 38 | Runs | `SUITE=oidf-basic-op` (`make testoidf`), mission 477 |
+| `oidcc-formpost-basic-certification-test-plan` | 38 | Runs | `SUITE=oidf-formpost-basic` (`make testoidf`), issue 500. The Basic OP modules with `response_mode=form_post`, so the Basic OP entries in `known-gaps.yaml` name it too |
 | `oidcc-config-certification-test-plan` | 1 | Runs | `make conformance SUITE=oidf-config` (`make testoidf`) |
 | `oidcc-dynamic-certification-test-plan` | 23 | Runs | `SUITE=oidf-dynamic-op` (`make testoidf`), issue 493. The harness registers its own clients through DCR. Also run with `response_type` `id_token` and `id_token token` (`SUITE=oidf-dynamic-id-token`, `-id-token-token`), the opt-in implicit flow (issue 507) |
 | `oidcc-test-plan` | 55 | Runs | `SUITE=oidf-tp-<method>` (`make testoidf`), issue 494: once each for `client_secret_post`, `client_secret_jwt` and `private_key_jwt`, which the Basic and Dynamic plans don't vary. `none` and `mtls` are left out (§2.3) |
@@ -124,7 +125,6 @@ The OpenID Foundation suite offers 81 plans (the harness's `/api/plan/available`
 | `fapi2-security-profile-id2-brazil-dcr-test-plan` | 17 | Needs a feature | Open Finance Brasil profile: #161 |
 | `oidcc-3rdparty-init-login-certification-test-plan` | 2 | Needs a feature | Third-party-initiated login (`initiate_login_uri`, OIDC Core §4): not filed |
 | `oidcc-backchannel-rp-initiated-logout-certification-test-plan` | 2 | Needs a feature | RP-initiated logout, session management, front-channel logout: #340 (back-channel logout tokens exist; the plans start from `end_session_endpoint`) |
-| `oidcc-formpost-basic-certification-test-plan` | 38 | Needs a feature | `response_mode=form_post`, #500 |
 | `oidcc-frontchannel-rp-initiated-logout-certification-test-plan` | 2 | Needs a feature | RP-initiated logout, session management, front-channel logout: #340 (back-channel logout tokens exist; the plans start from `end_session_endpoint`) |
 | `oidcc-rp-initiated-logout-certification-test-plan` | 11 | Needs a feature | RP-initiated logout, session management, front-channel logout: #340 (back-channel logout tokens exist; the plans start from `end_session_endpoint`) |
 | `oidcc-session-management-certification-test-plan` | 2 | Needs a feature | RP-initiated logout, session management, front-channel logout: #340 (back-channel logout tokens exist; the plans start from `end_session_endpoint`) |
@@ -180,10 +180,10 @@ The OpenID Foundation suite offers 81 plans (the harness's `/api/plan/available`
 | `oid4vp-id2-wallet-test-plan` | 4 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
 | `oid4vp-id3-verifier-test-plan` | 1 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
 | `oid4vp-id3-wallet-test-plan` | 4 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
-| `oidcc-formpost-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
-| `oidcc-formpost-implicit-certification-test-plan` | 31 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
-| `oidcc-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
-| `oidcc-implicit-certification-test-plan` | 31 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
+| `oidcc-formpost-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid response types (`code id_token` and the rest): OAuth 2.1 drops them, and issue 507 left them out since no plan oneauth runs needs them |
+| `oidcc-formpost-implicit-certification-test-plan` | 31 | Separate mission | Implicit is opt-in since issue 507, and the Dynamic plan already runs both implicit response types. This plan isn't wired into `make testoidf` yet (issue 526) |
+| `oidcc-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid response types (`code id_token` and the rest): OAuth 2.1 drops them, and issue 507 left them out since no plan oneauth runs needs them |
+| `oidcc-implicit-certification-test-plan` | 31 | Separate mission | Implicit is opt-in since issue 507, and the Dynamic plan already runs both implicit response types. This plan isn't wired into `make testoidf` yet (issue 526) |
 | `openid-federation-deployed-entity-test-plan` | 5 | Not applicable | OpenID Federation: not in scope |
 | `openid-federation-entity-joined-to-test-federation-op-test-plan` | 20 | Not applicable | OpenID Federation: not in scope |
 | `openid-federation-entity-joined-to-test-federation-rp-test-plan` | 10 | Not applicable | OpenID Federation: not in scope |
@@ -202,7 +202,7 @@ Every OIDF module that doesn't pass has a `known-gaps.yaml` entry. This table gr
 | Public clients without PKCE | `oidcc-test-plan`'s `none` variant sends public clients without PKCE, so every flow stops at `code_challenge is required`. The variant isn't run. | Won't do. RFC 9700 §2.1.1 and OAuth 2.1 require PKCE from public clients. |
 | Unsigned ID tokens (`alg: none`) | `idtoken-unsigned` is skipped | Won't do. |
 | The `typ: ID` claim in the ID token | `server` warns in every OIDC plan | Won't do, per issue 339. Relying-party libraries refuse a JOSE `typ` header other than `JWT`. |
-| Request objects and `request_uri` (JAR) | `request-uri-unsigned` and `request-uri-signed-rs256` fail. `unsigned-request-object-...` is skipped. `ensure-request-object-with-redirect-uri` ends in REVIEW on oneauth's refusal. | Roadmap, issue 338. FAPI 2.0 Message Signing and FAPI 1 need it too. |
+| Request objects and `request_uri` (JAR) | `request-uri-unsigned` and `request-uri-signed-rs256` fail. `unsigned-request-object-...` is skipped, and fails in the Form Post plan, which puts `response_mode` only inside the object. `ensure-request-object-with-redirect-uri` ends in REVIEW on oneauth's refusal. | Roadmap, issue 338. FAPI 2.0 Message Signing and FAPI 1 need it too. |
 | Client logo, policy and terms on the consent page | `registration-logo-uri`, `-policy-uri` and `-tos-uri` end in REVIEW | Review. The consent page shows them (issue 507), and each entry's evidence checks the captured page. |
 | Error pages and re-login pages | `ensure-registered-redirect-uri`, `ensure-redirect-uri-in-authorization-request`, `redirect-uri-query-mismatch`, `redirect-uri-query-added`, `prompt-login` and `max-age-1` end in REVIEW | Review. oneauth shows the right page, and each entry's evidence checks the captured page says so. |
 
@@ -213,7 +213,7 @@ Every OIDF module that doesn't pass has a `known-gaps.yaml` entry. This table gr
 - **Repo:** [gitlab.com/openid/conformance-suite](https://gitlab.com/openid/conformance-suite) (Apache 2.0; GitHub mirror at `openid-certification/conformance-suite` is read-only)
 - **Runs as:** Docker Compose stack (Java + Spring Boot + MongoDB + httpd). Uses `localhost.emobix.co.uk:8443` (resolves to 127.0.0.1, ships a real cert chain) so callbacks can be HTTPS.
 - **Drives in CI** via the suite's published Python wrapper (headless). The harness, server config and baselines are checked into our repo at `tests/oidf-conformance/`.
-- **Plans:** see §2.2. Config, Basic OP, Dynamic OP, `oidcc-test-plan` and FAPI 2.0 run today. §2.3 says why each module that doesn't pass doesn't.
+- **Plans:** see §2.2. Config, Basic OP, Form Post Basic OP, Dynamic OP, `oidcc-test-plan` and FAPI 2.0 run today. §2.3 says why each module that doesn't pass doesn't.
 
 OIDF cert (the paid logo) is **not** a goal. We run the tests; we do not submit results.
 
@@ -221,7 +221,7 @@ OIDF cert (the paid logo) is **not** a goal. We run the tests; we do not submit 
 
 - **Repo:** [github.com/modelcontextprotocol/conformance](https://github.com/modelcontextprotocol/conformance)
 - **Runs as:** `npx @modelcontextprotocol/conformance` (Node toolchain in CI).
-- **Plans:** the server auth scenarios (RFC 9728 protected-resource metadata, RFC 8414 AS metadata, RFC 6750 Bearer enforcement, RFC 7519 claims, scope step-up) run against oneauth-server in `make conformance` as `mcp-auth-gosdk` and `mcp-auth-mcpkit` (issue 495, `tests/mcpauth/`). Upstream has no server auth suite yet, so they come from panyam/mcpconformance's `pending` branch, pinned in `scripts/exercise-mcpauth.sh`. All three runs give 20 SUCCESS, 1 SKIPPED (an OAuth flow driver the framework lacks) and 2 FAILURE. The failures are the scenario requiring protected-resource metadata at the root URL, where none of the servers serve it: RFC 9728 §3.1 puts a pathed resource's metadata at the path URL, and the MCP spec allows either. #523 tracks both. The authorization-server suite is proposed upstream (`modelcontextprotocol/conformance` issue 208) and not implemented yet (#496). The client scenarios (`auth/basic-dcr`, `auth/basic-metadata-var1`) test a client, so they go with the SDK.
+- **Plans:** the server auth scenarios (RFC 9728 protected-resource metadata, RFC 8414 AS metadata, RFC 6750 Bearer enforcement, RFC 7519 claims, scope step-up) run against oneauth-server in `make conformance` as `mcp-auth-gosdk` and `mcp-auth-mcpkit` (issue 495, `tests/mcpauth/`). Upstream has no server auth suite yet, so they come from panyam/mcpconformance's `pending` branch, pinned in `scripts/exercise-mcpauth.sh`. All three runs give 22 SUCCESS and 1 SKIPPED. The skip needs an OAuth flow driver the framework lacks, and #496 tracks it. The root-metadata check passes when a server serves its metadata at the path URL, since RFC 9728 §3.1 puts a pathed resource's metadata there and the MCP spec allows either location (issue 523). The authorization-server suite is proposed upstream (`modelcontextprotocol/conformance` issue 208) and not implemented yet (#496). The client scenarios (`auth/basic-dcr`, `auth/basic-metadata-var1`) test a client, so they go with the SDK.
 
 This is also the suite that surfaced bug 74 (`TokenEndpointAuthMethods` negotiation with explicit endpoints), per the "Fix auth method negotiation with explicit endpoints" entry in `docs/ROADMAP.md`. Worth running on every PR.
 

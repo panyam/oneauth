@@ -63,6 +63,13 @@ type DeviceAuthorization struct {
 	// the device passed at /device/authorize. Empty when not requested.
 	RequestedAudience string `json:"requested_audience,omitempty"`
 
+	// Resources are the RFC 8707 resource indicators the device named at
+	// /device/authorize, already checked against the AS's allowlist. The
+	// device_code token request may narrow them but not widen them
+	// (RFC 8707 §2.2), and the issued tokens carry them as `aud`. Empty
+	// when none were requested or the AS has no allowlist.
+	Resources []string `json:"resources,omitempty"`
+
 	// Status tracks the lifecycle. See DeviceAuthorizationStatus values.
 	Status DeviceAuthorizationStatus `json:"status"`
 
