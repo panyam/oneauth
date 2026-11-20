@@ -118,6 +118,9 @@ func main() {
 		}
 	}
 	plan.Manual = oidfplan.ManualModules(expected)
+	plan.Actions = map[string]func(context.Context) error{
+		"oidcc-server-rotate-keys": oidfplan.RotateServerKeys(hc, *serverURL),
+	}
 
 	h := harness.New(*harnessURL)
 	fmt.Printf("\n%s (%s)\n", plan.ManifestKey(), variantString(plan.Variant))

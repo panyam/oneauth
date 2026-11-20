@@ -71,6 +71,9 @@ func runDynamicRegistrationPlan(t *testing.T, serverURL, issuer, alias string, p
 		t.Fatal(err)
 	}
 	p.Manual = oidfplan.ManualModules(expected)
+	p.Actions = map[string]func(context.Context) error{
+		"oidcc-server-rotate-keys": oidfplan.RotateServerKeys(hc, serverURL),
+	}
 
 	planID, results, err := oidfplan.RunPlan(ctx, harness.New(harnessURL()), p, 90*time.Second, "", func(r oidfplan.ModuleResult) {
 		t.Logf("%-8s %-26s %s", r.Result, r.Status, strings.TrimPrefix(r.Module, oidcc.ModulePrefix))

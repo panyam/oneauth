@@ -143,6 +143,20 @@ func (c *Client) RunTest(ctx context.Context, planID, testName string, variant m
 	return resp.ID, nil
 }
 
+// StartTest presses Start on a test that is CONFIGURED and waiting for
+// one, as a module asking a person to do something first does
+// (oidcc-server-rotate-keys).
+func (c *Client) StartTest(ctx context.Context, testID string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/runner/%s", c.BaseURL, url.PathEscape(testID)), nil)
+	if err != nil {
+		return err
+	}
+	if err := c.do(req, nil); err != nil {
+		return fmt.Errorf("start test %s: %w", testID, err)
+	}
+	return nil
+}
+
 // Plan is a created plan as the harness reports it.
 type Plan struct {
 	ID       string       `json:"_id"`

@@ -133,6 +133,11 @@ type Plan struct {
 	// Manual are modules RunPlan records as ResultManual without running
 	// them, usually ManualModules of the plan's expectations.
 	Manual map[string]bool
+	// Actions are what a person would do for a module that stops in
+	// CONFIGURED and waits for Start, keyed by module name. RunPlan runs
+	// the action, then starts the module. oidcc-server-rotate-keys waits
+	// like this for the server's keys to be rotated.
+	Actions map[string]func(ctx context.Context) error
 }
 
 // ManifestKey is p.Key, or p.Name when Key is empty.
@@ -161,7 +166,7 @@ func RunPlan(ctx context.Context, h *harness.Client, p Plan, perModule time.Dura
 		if !strings.Contains(m.TestModule, only) {
 			continue
 		}
-		r := runOrRecord(ctx, h, planID, m, p.Manual, perModule)
+		r := runOrRecord(ctx, h, planID, m, p.Manual, p.Actions[m.TestModule], perModule)
 		results = append(results, r)
 		if progress != nil {
 			progress(r)
@@ -172,14 +177,14 @@ func RunPlan(ctx context.Context, h *harness.Client, p Plan, perModule time.Dura
 
 // runOrRecord runs m, or records it as manual without touching the
 // harness when manual lists it.
-func runOrRecord(ctx context.Context, h *harness.Client, planID string, m harness.PlanModule, manual map[string]bool, timeout time.Duration) ModuleResult {
+func runOrRecord(ctx context.Context, h *harness.Client, planID string, m harness.PlanModule, manual map[string]bool, action func(context.Context) error, timeout time.Duration) ModuleResult {
 	if manual[m.TestModule] {
 		return ModuleResult{Module: m.TestModule, Status: StatusNotRun, Result: ResultManual}
 	}
-	return runModule(ctx, h, planID, m, timeout)
+	return runModule(ctx, h, planID, m, action, timeout)
 }
 
-func runModule(ctx context.Context, h *harness.Client, planID string, m harness.PlanModule, timeout time.Duration) ModuleResult {
+func runModule(ctx context.Context, h *harness.Client, planID string, m harness.PlanModule, action func(context.Context) error, timeout time.Duration) ModuleResult {
 	r := ModuleResult{Module: m.TestModule}
 	testID, err := h.RunTest(ctx, planID, m.TestModule, m.Variant)
 	if err != nil {
@@ -189,6 +194,12 @@ func runModule(ctx context.Context, h *harness.Client, planID string, m harness.
 	r.TestID = testID
 	mctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	if action != nil {
+		if err := actThenStart(mctx, h, testID, action); err != nil {
+			r.Status, r.Result, r.Err = "ERROR", "UNKNOWN", err
+			return r
+		}
+	}
 	info, err := h.WaitForCompletion(mctx, testID)
 	if err != nil {
 		r.Status, r.Result = "TIMEOUT", "UNKNOWN"
@@ -212,4 +223,51 @@ func runModule(ctx context.Context, h *harness.Client, planID string, m harness.
 		}
 	}
 	return r
+}
+
+// actThenStart waits for testID to reach CONFIGURED, the state of a module
+// waiting for its Start button, runs action, and presses Start.
+func actThenStart(ctx context.Context, h *harness.Client, testID string, action func(context.Context) error) error {
+	for {
+		info, err := h.GetInfo(ctx, testID)
+		if err != nil {
+			return err
+		}
+		if info.Status == "CONFIGURED" {
+			break
+		}
+		if info.Status == "FINISHED" || info.Status == "INTERRUPTED" {
+			return fmt.Errorf("module ended (%s) before it waited to be started", info.Status)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	if err := action(ctx); err != nil {
+		return fmt.Errorf("module action: %w", err)
+	}
+	return h.StartTest(ctx, testID)
+}
+
+// RotateServerKeys is the action for oidcc-server-rotate-keys: it asks the
+// oneauth-server at serverURL to rotate its signing key, through POST
+// /admin/signing-key/rotate (jwt.key_rotation on, issue 507).
+func RotateServerKeys(hc *http.Client, serverURL string) func(context.Context) error {
+	return func(ctx context.Context) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, serverURL+"/admin/signing-key/rotate", nil)
+		if err != nil {
+			return err
+		}
+		resp, err := hc.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("rotate signing key: status %d", resp.StatusCode)
+		}
+		return nil
+	}
 }
