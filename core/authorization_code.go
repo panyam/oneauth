@@ -114,6 +114,12 @@ type AuthorizationCode struct {
 	// know, in which case the claim is left out.
 	AuthTime time.Time `json:"auth_time,omitempty"`
 
+	// ACR and AMR are the authentication context class and methods of
+	// that login, the ID token's `acr` and `amr` claims (OIDC Core §2).
+	// Empty leaves them out.
+	ACR string   `json:"acr,omitempty"`
+	AMR []string `json:"amr,omitempty"`
+
 	// IssuedAt is when the AS minted the code. Useful for telemetry
 	// and as the anchor for any future "max code age" enforcement.
 	IssuedAt time.Time `json:"issued_at"`

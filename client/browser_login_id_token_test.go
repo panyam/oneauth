@@ -36,6 +36,11 @@ type oidcMockAS struct {
 	nonceOverride string
 	omitIDToken   bool
 
+	// refreshSub, when set, is the sub of the ID token a refresh returns,
+	// and refreshOmitsIDToken leaves the ID token out of a refresh.
+	refreshSub          string
+	refreshOmitsIDToken bool
+
 	mu         sync.Mutex
 	sentNonce  string
 	sentScope  string
@@ -80,10 +85,19 @@ func newOIDCMockAS(t *testing.T) *oidcMockAS {
 		if as.nonceOverride != "" {
 			nonce = as.nonceOverride
 		}
-		resp := map[string]any{"access_token": idtAccess, "token_type": "Bearer", "expires_in": 300}
-		if !as.omitIDToken {
+		resp := map[string]any{"access_token": idtAccess, "token_type": "Bearer", "expires_in": 300, "refresh_token": "rt-1"}
+		refresh := r.FormValue("grant_type") == "refresh_token"
+		if !as.omitIDToken && !(refresh && as.refreshOmitsIDToken) {
 			claims := idtClaims()
 			claims["iss"], claims["aud"], claims["nonce"] = as.srv.URL, r.FormValue("client_id"), nonce
+			if refresh {
+				// OIDC Core §12.2: no nonce on a refreshed ID token.
+				delete(claims, "nonce")
+				claims["iat"] = time.Now().Add(time.Second).Unix()
+				if as.refreshSub != "" {
+					claims["sub"] = as.refreshSub
+				}
+			}
 			tok := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 			tok.Header["kid"] = kid
 			resp["id_token"], _ = tok.SignedString(key)

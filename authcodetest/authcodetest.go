@@ -181,8 +181,8 @@ func TestRestartPersists(t *testing.T, factory Factory) {
 
 // TestOIDCFieldsRoundTrip pins that the OIDC request state a code carries
 // to the token endpoint survives the backend: the nonce the ID token
-// echoes, the auth_time it reports, and the claims the `claims` request
-// parameter asked for (§5.5). A backend dropping any of them issues ID
+// echoes, the auth_time, acr and amr it reports, and the claims the
+// `claims` request parameter asked for (§5.5). A backend dropping any of them issues ID
 // tokens a client rejects (OIDC Core §3.1.3.7), misreports when the user
 // logged in, or leaves out claims the client asked for by name.
 //
@@ -195,6 +195,8 @@ func TestOIDCFieldsRoundTrip(t *testing.T, factory Factory) {
 	c.AuthTime = authTime
 	c.IDTokenClaims = []string{"name", "email"}
 	c.UserinfoClaims = []string{"address"}
+	c.ACR = "1"
+	c.AMR = []string{"pwd", "otp"}
 	createCode(t, s, c)
 
 	g, err := s.GetAuthorizationCode(context.Background(), &core.GetAuthorizationCodeRequest{Code: c.Code})
@@ -203,6 +205,8 @@ func TestOIDCFieldsRoundTrip(t *testing.T, factory Factory) {
 	assert.True(t, authTime.Equal(g.Code.AuthTime), "auth_time %v, want %v", g.Code.AuthTime, authTime)
 	assert.Equal(t, []string{"name", "email"}, g.Code.IDTokenClaims)
 	assert.Equal(t, []string{"address"}, g.Code.UserinfoClaims)
+	assert.Equal(t, "1", g.Code.ACR)
+	assert.Equal(t, []string{"pwd", "otp"}, g.Code.AMR)
 
 	unset := newCode()
 	unset.Code = "code-no-oidc"
@@ -212,4 +216,6 @@ func TestOIDCFieldsRoundTrip(t *testing.T, factory Factory) {
 	assert.True(t, g.Code.AuthTime.IsZero(), "an unknown auth_time stays zero")
 	assert.Empty(t, g.Code.IDTokenClaims)
 	assert.Empty(t, g.Code.UserinfoClaims)
+	assert.Empty(t, g.Code.ACR)
+	assert.Empty(t, g.Code.AMR)
 }

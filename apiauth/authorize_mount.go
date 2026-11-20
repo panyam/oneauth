@@ -70,6 +70,11 @@ type AuthorizeMountConfig struct {
 	// claim out. See AuthorizeVerificationHandler.AuthTimeFromRequest.
 	AuthTimeFromRequest func(r *http.Request) time.Time
 
+	// AuthContextFromRequest says how the logged-in user authenticated,
+	// reported as the ID token's `acr` and `amr`. Optional; nil leaves
+	// both out. See AuthorizeVerificationHandler.AuthContextFromRequest.
+	AuthContextFromRequest func(r *http.Request, acrValues []string) AuthContext
+
 	// CSRFTokenFromRequest returns the per-request CSRF token to
 	// embed in the rendered HTML form. Wire `httpauth.CSRFToken`.
 	// Required.
@@ -196,17 +201,18 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 	}
 
 	verifier := &AuthorizeVerificationHandler{
-		Authorization:        authzHandler,
-		AppStore:             cfg.OneAuth.AppStore,
-		SubjectFromRequest:   cfg.SubjectFromRequest,
-		AuthTimeFromRequest:  cfg.AuthTimeFromRequest,
-		CSRFTokenFromRequest: cfg.CSRFTokenFromRequest,
-		LoginRedirectURL:     cfg.LoginRedirectURL,
-		LoginNextParam:       cfg.LoginNextParam,
-		Templates:            cfg.Templates,
-		AutoApproveSubject:   cfg.AutoApproveSubject,
-		ConsentStore:         cfg.ConsentStore,
-		ConsentLifetime:      cfg.ConsentLifetime,
+		Authorization:          authzHandler,
+		AppStore:               cfg.OneAuth.AppStore,
+		SubjectFromRequest:     cfg.SubjectFromRequest,
+		AuthTimeFromRequest:    cfg.AuthTimeFromRequest,
+		AuthContextFromRequest: cfg.AuthContextFromRequest,
+		CSRFTokenFromRequest:   cfg.CSRFTokenFromRequest,
+		LoginRedirectURL:       cfg.LoginRedirectURL,
+		LoginNextParam:         cfg.LoginNextParam,
+		Templates:              cfg.Templates,
+		AutoApproveSubject:     cfg.AutoApproveSubject,
+		ConsentStore:           cfg.ConsentStore,
+		ConsentLifetime:        cfg.ConsentLifetime,
 	}
 
 	wrap := cfg.BrowserMiddleware

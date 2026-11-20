@@ -96,6 +96,27 @@ type AuthorizationRequest struct {
 	// AuthTimeFromRequest before IssueCode, and the ID token reports it as
 	// `auth_time`. Zero leaves the claim out.
 	AuthTime time.Time
+
+	// ACRValues is the OIDC Core §3.1.2.1 `acr_values` parameter split on
+	// spaces, in the client's order of preference. Empty when the client
+	// sent none.
+	ACRValues []string
+
+	// ACR and AMR are how the approving user authenticated, the ID
+	// token's `acr` and `amr`. Like AuthTime they don't come from the
+	// request: the verification handler sets them from
+	// AuthContextFromRequest before IssueCode. Empty leaves them out.
+	ACR string
+	AMR []string
+}
+
+// AuthContext is how the logged-in user authenticated, reported in the
+// ID token (OIDC Core §2). ACR is the authentication context class the
+// login met, and AMR lists the methods it used, with RFC 8176 values such
+// as "pwd", "otp" or "mfa". Empty fields are left out of the ID token.
+type AuthContext struct {
+	ACR string
+	AMR []string
 }
 
 // HasPrompt reports whether the request's `prompt` includes value.
@@ -386,6 +407,7 @@ func (h *AuthorizationHandler) validateClientAndRedirect(ctx context.Context, va
 		CodeChallengeMethod: strings.TrimSpace(values.Get("code_challenge_method")),
 		DPoPJKT:             strings.TrimSpace(values.Get("dpop_jkt")),
 		Nonce:               values.Get("nonce"),
+		ACRValues:           strings.Fields(values.Get("acr_values")),
 	}
 
 	// RFC 6749 §4.1.2.1 — missing client_id / redirect_uri is a
@@ -509,6 +531,8 @@ func (h *AuthorizationHandler) IssueCode(ctx context.Context, req *Authorization
 		IDTokenClaims:       req.IDTokenClaims,
 		UserinfoClaims:      req.UserinfoClaims,
 		AuthTime:            req.AuthTime,
+		ACR:                 req.ACR,
+		AMR:                 req.AMR,
 		IssuedAt:            now,
 		ExpiresAt:           now.Add(expiry),
 	}

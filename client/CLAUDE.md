@@ -5,3 +5,4 @@
 - **A DPoP proof is single-use.** Any retry (the refresh-then-retry in `client.go`) mints a fresh proof. Reuse looks fine against a single node with an in-memory `JTIStore`.
 - **The SDK checks an ID token only when asked** (`BrowserLoginRequest.VerifyIDToken`); otherwise it keeps it unverified on `ServerCredential.IDToken`, since many servers accept `openid` and return none. Verification needs the issuer and `jwks_uri`; against Keycloak with explicit endpoints pass `WithASMetadata` (discovery from the server URL loses the realm path).
 - **The loopback listener binds `localhost`.** `LoginWithBrowser` without a `Listener` sends `http://localhost:<port>/callback`, and `/authorize` relaxes only the port, so DCR registrations must say `localhost`, not `127.0.0.1`.
+- **Code holding `c.mu` must not use `c.httpClient`.** Its `refreshTransport` takes `c.mu` and deadlocks. Build `&http.Client{Transport: c.baseTransport}`, as `carryIDToken` does (issue 485).
