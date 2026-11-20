@@ -275,15 +275,22 @@
 <td>mcp-auth-gosdk</td>
 <td>gating</td>
 <td>PASS</td>
-<td>23 modules: map[SKIPPED:4 SUCCESS:19], 0 against known-gaps.yaml</td>
-<td>2026-11-20 04:34 UTC, 7e3b812</td>
+<td>23 modules: map[FAILURE:2 SKIPPED:1 SUCCESS:20], 0 against known-gaps.yaml</td>
+<td>2026-11-20 05:10 UTC, ada23a8</td>
 </tr>
 <tr>
 <td>mcp-auth-mcpkit</td>
 <td>gating</td>
 <td>PASS</td>
-<td>23 modules: map[SKIPPED:4 SUCCESS:19], 0 against known-gaps.yaml</td>
-<td>2026-11-20 04:34 UTC, 7e3b812</td>
+<td>23 modules: map[FAILURE:2 SKIPPED:1 SUCCESS:20], 0 against known-gaps.yaml</td>
+<td>2026-11-20 05:10 UTC, ada23a8</td>
+</tr>
+<tr>
+<td>mcp-auth-ts</td>
+<td>gating</td>
+<td>PASS</td>
+<td>23 modules: map[FAILURE:2 SKIPPED:1 SUCCESS:20], 0 against known-gaps.yaml</td>
+<td>2026-11-20 05:10 UTC, ada23a8</td>
 </tr>
 <tr>
 <td>keycloak</td>
@@ -2258,7 +2265,7 @@
 </table>
 <h2 id="mcp-auth-gosdk">mcp-auth-gosdk <a class="anchor" href="#mcp-auth-gosdk">¶</a></h2>
 <p>MCP server-auth scenarios (RFC 9728, RFC 8414, RFC 6750, RFC 7519 claims, scope step-up) through the official Go SDK, with oneauth&rsquo;s middleware as the resource server and oneauth-server as the AS Source: <code>tests/mcpauth (cmd/gosdk-fixture)</code>. Tracking: issue 495.</p>
-<p>Plan <code>mcp-auth-gosdk</code>, 23 modules: SKIPPED 4, SUCCESS 19; 0 against known-gaps.yaml.</p>
+<p>Plan <code>mcp-auth-gosdk</code>, 23 modules: FAILURE 2, SKIPPED 1, SUCCESS 20; 0 against known-gaps.yaml.</p>
 <table>
 <thead>
 <tr>
@@ -2271,21 +2278,21 @@
 <tbody>
 <tr>
 <td><code>auth-enterprise-managed-jwt-bearer-grant-supported</code></td>
-<td>SKIPPED</td>
-<td>expected-skip, issue 521</td>
-<td>AS metadata does not advertise <code>urn:ietf:params:oauth:grant-type:jwt-bearer</code> in grant_types_supported — feature not yet supported by this fixture. Tracked by mc…</td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
 </tr>
 <tr>
 <td><code>auth-enterprise-managed-token-exchange-flow-shape</code></td>
-<td>SKIPPED</td>
-<td>expected-skip, issue 521</td>
-<td>AUTH_SUBJECT_ASSERTION_TOKEN and/or AUTH_AS_TOKEN_ENDPOINT unset; cannot drive the token-exchange flow. Set both to enable this check (the test runner is respon…</td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
 </tr>
 <tr>
 <td><code>auth-enterprise-managed-token-exchange-grant-supported</code></td>
-<td>SKIPPED</td>
-<td>expected-skip, issue 521</td>
-<td>AS metadata does not advertise <code>urn:ietf:params:oauth:grant-type:token-exchange</code> in grant_types_supported — feature not yet supported by this fixture. Tracked b…</td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
 </tr>
 <tr>
 <td><code>auth-iss-param-as-metadata-advertises-support</code></td>
@@ -2296,7 +2303,7 @@
 <tr>
 <td><code>auth-iss-param-redirect-carries-iss</code></td>
 <td>SKIPPED</td>
-<td>expected-skip, issue 521</td>
+<td>expected-skip, issue 523</td>
 <td>Driving an auth code flow to verify <code>iss</code> in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCES…</td>
 </tr>
 <tr>
@@ -2361,9 +2368,9 @@
 </tr>
 <tr>
 <td><code>auth-oauth-discovery-prm-content-type</code></td>
-<td>SUCCESS</td>
-<td></td>
-<td></td>
+<td>FAILURE</td>
+<td>expected-fail, issue 523</td>
+<td>PRM Content-Type MUST be application/json; got &ldquo;text/plain; charset=utf-8&rdquo;</td>
 </tr>
 <tr>
 <td><code>auth-oauth-discovery-prm-path-based</code></td>
@@ -2373,9 +2380,9 @@
 </tr>
 <tr>
 <td><code>auth-oauth-discovery-prm-root</code></td>
-<td>SUCCESS</td>
-<td></td>
-<td></td>
+<td>FAILURE</td>
+<td>expected-fail, issue 523</td>
+<td>status MUST be 200; got 404; response MUST be valid JSON; got: 404 page not found</td>
 </tr>
 <tr>
 <td><code>auth-scope-step-up-insufficient-scope-rejected</code></td>
@@ -2411,7 +2418,7 @@
 </table>
 <h2 id="mcp-auth-mcpkit">mcp-auth-mcpkit <a class="anchor" href="#mcp-auth-mcpkit">¶</a></h2>
 <p>The same MCP server-auth scenarios through mcpkit and its ext/auth layer, with oneauth-server as the AS. A check failing only here points at mcpkit. Source: <code>tests/mcpauth (cmd/mcpkit-fixture)</code>. Tracking: issue 495.</p>
-<p>Plan <code>mcp-auth-mcpkit</code>, 23 modules: SKIPPED 4, SUCCESS 19; 0 against known-gaps.yaml.</p>
+<p>Plan <code>mcp-auth-mcpkit</code>, 23 modules: FAILURE 2, SKIPPED 1, SUCCESS 20; 0 against known-gaps.yaml.</p>
 <table>
 <thead>
 <tr>
@@ -2424,21 +2431,21 @@
 <tbody>
 <tr>
 <td><code>auth-enterprise-managed-jwt-bearer-grant-supported</code></td>
-<td>SKIPPED</td>
-<td>expected-skip, issue 521</td>
-<td>AS metadata does not advertise <code>urn:ietf:params:oauth:grant-type:jwt-bearer</code> in grant_types_supported — feature not yet supported by this fixture. Tracked by mc…</td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
 </tr>
 <tr>
 <td><code>auth-enterprise-managed-token-exchange-flow-shape</code></td>
-<td>SKIPPED</td>
-<td>expected-skip, issue 521</td>
-<td>AUTH_SUBJECT_ASSERTION_TOKEN and/or AUTH_AS_TOKEN_ENDPOINT unset; cannot drive the token-exchange flow. Set both to enable this check (the test runner is respon…</td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
 </tr>
 <tr>
 <td><code>auth-enterprise-managed-token-exchange-grant-supported</code></td>
-<td>SKIPPED</td>
-<td>expected-skip, issue 521</td>
-<td>AS metadata does not advertise <code>urn:ietf:params:oauth:grant-type:token-exchange</code> in grant_types_supported — feature not yet supported by this fixture. Tracked b…</td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
 </tr>
 <tr>
 <td><code>auth-iss-param-as-metadata-advertises-support</code></td>
@@ -2449,7 +2456,7 @@
 <tr>
 <td><code>auth-iss-param-redirect-carries-iss</code></td>
 <td>SKIPPED</td>
-<td>expected-skip, issue 521</td>
+<td>expected-skip, issue 523</td>
 <td>Driving an auth code flow to verify <code>iss</code> in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCES…</td>
 </tr>
 <tr>
@@ -2514,9 +2521,9 @@
 </tr>
 <tr>
 <td><code>auth-oauth-discovery-prm-content-type</code></td>
-<td>SUCCESS</td>
-<td></td>
-<td></td>
+<td>FAILURE</td>
+<td>expected-fail, issue 523</td>
+<td>PRM Content-Type MUST be application/json; got &ldquo;text/plain; charset=utf-8&rdquo;</td>
 </tr>
 <tr>
 <td><code>auth-oauth-discovery-prm-path-based</code></td>
@@ -2526,9 +2533,162 @@
 </tr>
 <tr>
 <td><code>auth-oauth-discovery-prm-root</code></td>
+<td>FAILURE</td>
+<td>expected-fail, issue 523</td>
+<td>status MUST be 200; got 404; response MUST be valid JSON; got: 404 page not found</td>
+</tr>
+<tr>
+<td><code>auth-scope-step-up-insufficient-scope-rejected</code></td>
 <td>SUCCESS</td>
 <td></td>
 <td></td>
+</tr>
+<tr>
+<td><code>auth-scope-step-up-scope-varies-by-tool</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-scope-step-up-sufficient-scope-accepted</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-scope-step-up-www-authenticate-advertises-scope</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-scope-step-up-www-authenticate-error</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="mcp-auth-ts">mcp-auth-ts <a class="anchor" href="#mcp-auth-ts">¶</a></h2>
+<p>The same MCP server-auth scenarios through the official TypeScript SDK and its bearer middleware, with oneauth-server as the AS. An interop check, since the TS SDK answers the challenge checks. Source: <code>tests/mcpauth/ts-fixture</code>. Tracking: issue 521.</p>
+<p>Plan <code>mcp-auth-ts</code>, 23 modules: FAILURE 2, SKIPPED 1, SUCCESS 20; 0 against known-gaps.yaml.</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Result</th>
+<th>Known gap</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>auth-enterprise-managed-jwt-bearer-grant-supported</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-enterprise-managed-token-exchange-flow-shape</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-enterprise-managed-token-exchange-grant-supported</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-iss-param-as-metadata-advertises-support</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-iss-param-redirect-carries-iss</code></td>
+<td>SKIPPED</td>
+<td>expected-skip, issue 523</td>
+<td>Driving an auth code flow to verify <code>iss</code> in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCES…</td>
+</tr>
+<tr>
+<td><code>auth-jwt-claims-expired-rejected</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-jwt-claims-wrong-audience-rejected</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-jwt-claims-wrong-issuer-rejected</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-jwt-validation-malformed-token-rejected</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-jwt-validation-no-token-rejected</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-jwt-validation-tampered-token-rejected</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-jwt-validation-valid-token-accepted</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-jwt-validation-www-authenticate-shape</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-oauth-discovery-as-metadata</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-oauth-discovery-as-metadata-content-type</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-oauth-discovery-prm-content-type</code></td>
+<td>FAILURE</td>
+<td>expected-fail, issue 523</td>
+<td>PRM Content-Type MUST be application/json; got &ldquo;text/html; charset=utf-8&rdquo;</td>
+</tr>
+<tr>
+<td><code>auth-oauth-discovery-prm-path-based</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-oauth-discovery-prm-root</code></td>
+<td>FAILURE</td>
+<td>expected-fail, issue 523</td>
+<td>status MUST be 200; got 404; response MUST be valid JSON; got: <!DOCTYPE html> <html lang="en"> <head> <meta charset="utf-8"> <title>Error&lt;/tit</td>
 </tr>
 <tr>
 <td><code>auth-scope-step-up-insufficient-scope-rejected</code></td>
