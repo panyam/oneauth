@@ -76,8 +76,8 @@ type Tokens struct {
 }
 
 // Bootstrap registers a client with the AS through open DCR, mints the
-// three valid tokens with client_credentials, and derives the three bad
-// ones from the first.
+// three valid tokens with client_credentials for the MCP endpoint as their
+// RFC 8707 resource, and derives the three bad ones from the first.
 func Bootstrap(ctx context.Context, hc *http.Client, cfg Config) (*Tokens, error) {
 	clientID, secret, err := register(ctx, hc, cfg.ASURL)
 	if err != nil {
@@ -88,7 +88,7 @@ func Bootstrap(ctx context.Context, hc *http.Client, cfg Config) (*Tokens, error
 		dst   *string
 		scope string
 	}{{&t.TokRead, "read"}, {&t.TokReadWrite, "read write"}, {&t.TokAll, "read write admin"}} {
-		if *x.dst, err = clientCredentials(ctx, hc, cfg.ASURL, clientID, secret, x.scope); err != nil {
+		if *x.dst, err = clientCredentials(ctx, hc, cfg.ASURL, clientID, secret, x.scope, cfg.MCPURL); err != nil {
 			return nil, err
 		}
 	}
@@ -219,8 +219,10 @@ func register(ctx context.Context, hc *http.Client, asURL string) (string, strin
 	return out.ClientID, out.ClientSecret, nil
 }
 
-func clientCredentials(ctx context.Context, hc *http.Client, asURL, clientID, secret, scope string) (string, error) {
-	form := url.Values{"grant_type": {"client_credentials"}, "scope": {scope}}
+// clientCredentials mints a token for resource (RFC 8707), which the AS
+// stamps as its aud.
+func clientCredentials(ctx context.Context, hc *http.Client, asURL, clientID, secret, scope, resource string) (string, error) {
+	form := url.Values{"grant_type": {"client_credentials"}, "scope": {scope}, "resource": {resource}}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, asURL+"/api/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(clientID, secret)

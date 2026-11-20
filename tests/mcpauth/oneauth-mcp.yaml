@@ -19,8 +19,10 @@ jwt:
   issuer: ""
   signing_alg: RS256
   private_key_path: ${MCPAUTH_SIGNING_KEY}
-  # Tokens are for the fixture's MCP endpoint, which refuses any other aud.
-  audience: ${MCPAUTH_AUDIENCE:-http://localhost:18300/mcp}
+  # The fixture's MCP endpoint is the one resource this AS issues tokens
+  # for. Its client names it with RFC 8707 `resource`, and the token's aud
+  # is that URL, which the MCP server requires (issue 521).
+  resources: ["${MCPAUTH_AUDIENCE:-http://localhost:18300/mcp}"]
   scopes_supported: [read, write, admin]
   secret_key: ${JWT_SECRET_KEY:-mcp-auth-exercise-session-secret-32b}
 

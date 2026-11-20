@@ -266,6 +266,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		SigningAlg:             "HS256",
 		Issuer:                 cfg.JWT.Issuer,
 		Audience:               cfg.JWT.Audience,
+		AllowedResources:       cfg.JWT.Resources,
 		FAPI2:                  cfg.FAPI2,
 		PKCEPolicy:             pkcePolicy(cfg),
 		// Client assertions name the issuer or one of these endpoints as
