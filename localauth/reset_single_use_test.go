@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,6 +112,35 @@ func TestReset_RevokeSessionsOnResetRevokesRefreshTokens(t *testing.T) {
 	require.NoError(t, hook(context.Background(), "reset@example.com"))
 
 	got, err := refresh.GetRefreshToken(context.Background(), &core.GetRefreshTokenRequest{Token: created.Token.Token})
+	require.NoError(t, err)
+	assert.True(t, got.Token.Revoked)
+}
+
+// A password reset revokes the account's refresh tokens, and the
+// blacklist variant also cuts off the access tokens issued with them,
+// so a session opened with the old password can't keep calling APIs
+// until its access token expires (issue 451).
+//
+// See: https://cwe.mitre.org/data/definitions/613.html
+// See: https://www.rfc-editor.org/rfc/rfc7009#section-2.1
+func TestReset_RevokeSessionsOnResetBlacklistsAccessTokens(t *testing.T) {
+	_, service, _, tmpDir := setupPasswordResetAuth(t)
+	defer cleanup(t, tmpDir)
+	ctx := context.Background()
+	refresh := fs.NewFSRefreshTokenStore(tmpDir)
+	ident, err := service.IdentityStore.GetIdentity(ctx, &accounts.GetIdentityRequest{IdentityType: "email", IdentityValue: "reset@example.com"})
+	require.NoError(t, err)
+	created, err := refresh.CreateRefreshToken(ctx, &core.CreateRefreshTokenRequest{Subject: ident.Identity.UserID, Scopes: []string{"read"}})
+	require.NoError(t, err)
+	_, err = refresh.RecordAccessToken(ctx, &core.RecordAccessTokenRequest{Token: created.Token.Token, TokenID: "at-old-password", ExpiresAt: time.Now().Add(time.Hour)})
+	require.NoError(t, err)
+
+	blacklist := core.NewInMemoryBlacklist()
+	hook := localauth.NewRevokeSessionsOnResetWithBlacklist(service.IdentityStore, refresh, blacklist)
+	require.NoError(t, hook(ctx, "reset@example.com"))
+
+	assert.True(t, blacklist.IsRevoked("at-old-password"))
+	got, err := refresh.GetRefreshToken(ctx, &core.GetRefreshTokenRequest{Token: created.Token.Token})
 	require.NoError(t, err)
 	assert.True(t, got.Token.Revoked)
 }
