@@ -180,10 +180,10 @@ The OpenID Foundation suite offers 81 plans (the harness's `/api/plan/available`
 | `oid4vp-id2-wallet-test-plan` | 4 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
 | `oid4vp-id3-verifier-test-plan` | 1 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
 | `oid4vp-id3-wallet-test-plan` | 4 | Not applicable | OpenID for Verifiable Credentials (issuer, wallet, verifier): not in scope |
-| `oidcc-formpost-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
-| `oidcc-formpost-implicit-certification-test-plan` | 31 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
-| `oidcc-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
-| `oidcc-implicit-certification-test-plan` | 31 | Not applicable | Hybrid and implicit response types: OAuth 2.1 drops them, and oneauth issues only `response_type=code` |
+| `oidcc-formpost-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid response types (`code id_token` and the rest): OAuth 2.1 drops them, and issue 507 left them out since no plan oneauth runs needs them |
+| `oidcc-formpost-implicit-certification-test-plan` | 31 | Separate mission | Implicit is opt-in since issue 507, and the Dynamic plan already runs both implicit response types. This plan isn't wired into `make testoidf` yet (issue 526) |
+| `oidcc-hybrid-certification-test-plan` | 37 | Not applicable | Hybrid response types (`code id_token` and the rest): OAuth 2.1 drops them, and issue 507 left them out since no plan oneauth runs needs them |
+| `oidcc-implicit-certification-test-plan` | 31 | Separate mission | Implicit is opt-in since issue 507, and the Dynamic plan already runs both implicit response types. This plan isn't wired into `make testoidf` yet (issue 526) |
 | `openid-federation-deployed-entity-test-plan` | 5 | Not applicable | OpenID Federation: not in scope |
 | `openid-federation-entity-joined-to-test-federation-op-test-plan` | 20 | Not applicable | OpenID Federation: not in scope |
 | `openid-federation-entity-joined-to-test-federation-rp-test-plan` | 10 | Not applicable | OpenID Federation: not in scope |
