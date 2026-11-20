@@ -67,7 +67,7 @@ func (h *AuthorizationHandler) ImplicitRedirect(ctx context.Context, req *Author
 	values := url.Values{}
 	var accessToken string
 	if req.ResponseType == ResponseTypeIDTokenToken {
-		at, err := h.Implicit.Issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{Subject: subject, Scopes: req.Scopes(), ClientID: req.ClientID})
+		at, err := h.Implicit.Issuer.CreateAccessToken(ctx, &CreateAccessTokenRequest{Subject: subject, Scopes: req.Scopes(), ClientID: req.ClientID, Audience: req.Resources})
 		if err != nil {
 			return "", fmt.Errorf("access token: %w", err)
 		}

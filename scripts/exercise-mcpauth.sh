@@ -4,6 +4,8 @@
 #
 #   gosdk   the official Go SDK, with oneauth's APIMiddleware as its auth
 #   mcpkit  mcpkit, with its own ext/auth layer
+#   ts      the official TypeScript SDK, with its own bearer middleware;
+#           oneauth-server is the AS only, so this run checks interop
 #
 #   1. check out the conformance framework at MCPCONFORMANCE_REF, the
 #      server auth scenarios on panyam/mcpconformance's pending branch
@@ -20,8 +22,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 sdk=${1:-}
 case "$sdk" in
-  gosdk|mcpkit) ;;
-  *) echo "usage: $0 gosdk|mcpkit" >&2; exit 2 ;;
+  gosdk|mcpkit|ts) ;;
+  *) echo "usage: $0 gosdk|mcpkit|ts" >&2; exit 2 ;;
 esac
 for tool in git node npx openssl; do
   command -v "$tool" >/dev/null || { echo "exercise-mcpauth: $tool is required" >&2; exit 2; }
@@ -61,16 +63,39 @@ cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; rm -r
 trap cleanup EXIT
 
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$work/signing.pem" 2>/dev/null
+# The upstream IdP oneauth-server trusts for jwt-bearer and token exchange.
+idp_issuer=https://idp.mcpauth.test
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$work/idp.pem" 2>/dev/null
+openssl pkey -in "$work/idp.pem" -pubout -out "$work/idp.pub.pem" 2>/dev/null
 go build -buildvcs=false -o "$work/oneauth-server" ./cmd/oneauth-server
-go build -buildvcs=false -o "$work/fixture" "./tests/mcpauth/cmd/$sdk-fixture"
+if [[ "$sdk" == ts ]]; then
+  ts=tests/mcpauth/ts-fixture
+  ts_stamp="$ts/node_modules/.oneauth-lock"
+  if [[ ! -f "$ts_stamp" ]] || ! cmp -s "$ts/package-lock.json" "$ts_stamp"; then
+    (cd "$ts" && npm ci --silent --ignore-scripts)
+    cp "$ts/package-lock.json" "$ts_stamp"
+  fi
+  go build -buildvcs=false -o "$work/bootstrap" ./tests/mcpauth/cmd/bootstrap
+else
+  go build -buildvcs=false -o "$work/fixture" "./tests/mcpauth/cmd/$sdk-fixture"
+fi
 
 MCPAUTH_AS_PORT=$as_port MCPAUTH_SIGNING_KEY="$work/signing.pem" MCPAUTH_AUDIENCE=$mcp \
+  MCPAUTH_IDP_ISSUER=$idp_issuer MCPAUTH_IDP_PUBKEY="$work/idp.pub.pem" \
   "$work/oneauth-server" --config tests/mcpauth/oneauth-mcp.yaml >"$server_log" 2>&1 &
 pids+=($!)
 scripts/wait-for.sh 60 "oneauth-server (mcpauth)" --pid "${pids[0]}" --log "$server_log" -- \
   "$as/.well-known/oauth-authorization-server" || exit 2
 
-"$work/fixture" -addr ":$fixture_port" -as "$as" -mcp-url "$mcp" -key "$work/signing.pem" >"$fixture_log" 2>&1 &
+if [[ "$sdk" == ts ]]; then
+  "$work/bootstrap" -as "$as" -mcp-url "$mcp" -key "$work/signing.pem" \
+    -idp-key "$work/idp.pem" -idp-issuer "$idp_issuer" >"$work/tokens.json"
+  (cd "$ts" && PORT=$fixture_port AS_URL=$as MCP_URL=$mcp BOOTSTRAP_FILE="$work/tokens.json" \
+    exec npx tsx server.ts) >"$fixture_log" 2>&1 &
+else
+  "$work/fixture" -addr ":$fixture_port" -as "$as" -mcp-url "$mcp" -key "$work/signing.pem" \
+    -idp-key "$work/idp.pem" -idp-issuer "$idp_issuer" >"$fixture_log" 2>&1 &
+fi
 pids+=($!)
 scripts/wait-for.sh 60 "$sdk fixture" --pid "${pids[1]}" --log "$fixture_log" -- \
   "http://localhost:$fixture_port/demo/bootstrap" || exit 2

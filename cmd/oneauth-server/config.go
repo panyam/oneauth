@@ -30,6 +30,11 @@ type Config struct {
 	// the server refuses to start otherwise.
 	FAPI2     bool            `yaml:"fapi2"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
+
+	// TrustedAssertionIssuers turns on the jwt-bearer and token-exchange
+	// grants for JWTs from these upstream IdPs, and advertises both in
+	// grant_types_supported. Empty leaves both grants off (issue 521).
+	TrustedAssertionIssuers []TrustedAssertionIssuerConfig `yaml:"trusted_assertion_issuers"`
 }
 
 // CodeFlowConfig toggles and configures the RFC 6749 §4.1
@@ -239,7 +244,15 @@ type JWTConfig struct {
 	// resource server the tokens are for, such as an MCP server's URL,
 	// which refuses a token whose aud isn't its own (RFC 7519 §4.1.3, MCP
 	// authorization spec). Empty leaves aud out (issue 495).
-	Audience                  string   `yaml:"audience"`
+	Audience string `yaml:"audience"`
+
+	// Resources are the RFC 8707 resource indicators this server issues
+	// tokens for, such as the URLs of the MCP servers it fronts
+	// (OneAuthConfig.AllowedResources, issue 521). A request naming one with
+	// `resource` gets a token whose aud is that resource; one naming any
+	// other gets invalid_target. Empty ignores `resource`, and tokens carry
+	// Audience.
+	Resources                 []string `yaml:"resources"`
 	AuthorizationDetailsTypes []string `yaml:"authorization_details_types"` // RFC 9396 supported types (advertised in AS metadata)
 
 	// ScopesSupported populates the `scopes_supported` field in AS

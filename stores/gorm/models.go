@@ -257,6 +257,7 @@ type RefreshTokenModel struct {
 	Revoked              bool                   `gorm:"default:false;index"`
 	AccessTokens         IssuedAccessTokensJSON `gorm:"type:jsonb"`      // RFC 7009 §2.1: blacklisted when the family is revoked
 	OIDC                 *core.OIDCGrant        `gorm:"serializer:json"` // OIDC Core §12.2: the login a refreshed ID token repeats; NULL without openid
+	Resources            []string               `gorm:"serializer:json"` // RFC 8707 resources the grant was authorized for
 }
 
 func (RefreshTokenModel) TableName() string {
@@ -282,6 +283,7 @@ func (m *RefreshTokenModel) ToRefreshToken() *core.RefreshToken {
 		Revoked:              m.Revoked,
 		AccessTokens:         m.AccessTokens,
 		OIDC:                 m.OIDC,
+		Resources:            m.Resources,
 	}
 }
 
@@ -304,6 +306,7 @@ func RefreshTokenToModel(t *core.RefreshToken) *RefreshTokenModel {
 		Revoked:              t.Revoked,
 		AccessTokens:         IssuedAccessTokensJSON(t.AccessTokens),
 		OIDC:                 t.OIDC,
+		Resources:            t.Resources,
 	}
 }
 

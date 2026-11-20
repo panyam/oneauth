@@ -79,6 +79,11 @@ type CreateAccessTokenRequest struct {
 	// parameter asked userinfo for. A JWT issuer carries them in the
 	// UserinfoClaimsClaim claim. Empty adds nothing.
 	UserinfoClaims []string
+
+	// Audience, when non-empty, is the token's aud in place of the
+	// issuer's configured audience: the RFC 8707 resources the grant is
+	// bound to. One entry is a string aud, several an array.
+	Audience []string
 }
 
 // CreateAccessTokenResponse is the output of TokenIssuer.CreateAccessToken.
@@ -120,6 +125,12 @@ type ClientCredentialsResponse struct {
 // RefreshGrantRequest is the input to TokenIssuer.RefreshGrant.
 type RefreshGrantRequest struct {
 	RefreshToken string
+
+	// Resources are the refresh request's RFC 8707 resource indicators.
+	// For a grant authorized with resources they must be among those, and
+	// empty means all of them. For one without, they are checked against
+	// the issuer's AllowedResources.
+	Resources []string
 
 	// ClientID is the client presenting the refresh token: the
 	// authenticated client_id for a confidential client, or the request's
@@ -234,6 +245,11 @@ type AuthorizationCodeGrantRequest struct {
 	// DPoP proof; a caller driving the granter directly supplies it
 	// itself.
 	Confirmation *core.Confirmation
+
+	// Resources are the token request's RFC 8707 resource indicators. The
+	// access token is bound to them, which must be among the code's
+	// authorized resources, or to all of those when empty.
+	Resources []string
 }
 
 // AuthorizationCodeGrantResponse wraps the issued token pair.

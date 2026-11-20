@@ -73,6 +73,7 @@ func (s *FSRefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.
 		Scopes:       req.Scopes,
 		Confirmation: req.Confirmation,
 		OIDC:         req.OIDC,
+		Resources:    req.Resources,
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(core.TokenExpiryRefreshToken),
 		LastUsedAt:   now,
@@ -134,7 +135,8 @@ func (s *FSRefreshTokenStore) getTokenUnsafe(token string) (*core.RefreshToken, 
 
 // RotateRefreshToken revokes req.OldToken and mints its successor in the
 // same family at the next generation, under the store lock. The
-// successor keeps the family's expiry, scopes, binding and OIDC grant.
+// successor keeps the family's expiry, scopes, binding, OIDC grant and
+// resources.
 // A missing token is core.ErrTokenNotFound, an already-revoked one is
 // core.ErrTokenReused (the caller revokes the family), and an expired
 // one is core.ErrTokenExpired.
@@ -179,6 +181,7 @@ func (s *FSRefreshTokenStore) RotateRefreshToken(ctx context.Context, req *core.
 		AuthorizationDetails: old.AuthorizationDetails,
 		Confirmation:         old.Confirmation,
 		OIDC:                 old.OIDC,
+		Resources:            old.Resources,
 		CreatedAt:            now,
 		ExpiresAt:            old.ExpiresAt, // the family's, not extended
 		LastUsedAt:           now,

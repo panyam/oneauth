@@ -28,6 +28,10 @@ type CreateRefreshTokenRequest struct {
 	// the token so a refresh can issue an ID token (RefreshToken.OIDC).
 	// Nil for a grant without the "openid" scope.
 	OIDC *OIDCGrant
+
+	// Resources are the RFC 8707 resources the grant was authorized for
+	// (RefreshToken.Resources).
+	Resources []string
 }
 
 type CreateRefreshTokenResponse struct {

@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -51,6 +52,11 @@ type Config struct {
 	// KeyPath is the PEM private key oneauth-server signs with
 	// (jwt.private_key_path).
 	KeyPath string
+	// IdPKeyPath is the PEM private key of the upstream IdP the AS trusts
+	// (trusted_assertion_issuers), and IdPIssuer its iss. With both set,
+	// Bootstrap also mints an assertion from that IdP. Empty skips it.
+	IdPKeyPath string
+	IdPIssuer  string
 }
 
 // Tokens are what GET /demo/bootstrap returns. The field names are the ones
@@ -63,11 +69,15 @@ type Tokens struct {
 	TokExpired     string `json:"tok_expired"`
 	TokWrongAud    string `json:"tok_wrong_audience"`
 	TokWrongIssuer string `json:"tok_wrong_issuer"`
+	// TokUpstreamAssertion is a JWT from the trusted upstream IdP, which
+	// the AS accepts as a jwt-bearer assertion or token-exchange subject
+	// token. Empty without Config.IdPKeyPath.
+	TokUpstreamAssertion string `json:"tok_upstream_assertion,omitempty"`
 }
 
 // Bootstrap registers a client with the AS through open DCR, mints the
-// three valid tokens with client_credentials, and derives the three bad
-// ones from the first.
+// three valid tokens with client_credentials for the MCP endpoint as their
+// RFC 8707 resource, and derives the three bad ones from the first.
 func Bootstrap(ctx context.Context, hc *http.Client, cfg Config) (*Tokens, error) {
 	clientID, secret, err := register(ctx, hc, cfg.ASURL)
 	if err != nil {
@@ -78,7 +88,7 @@ func Bootstrap(ctx context.Context, hc *http.Client, cfg Config) (*Tokens, error
 		dst   *string
 		scope string
 	}{{&t.TokRead, "read"}, {&t.TokReadWrite, "read write"}, {&t.TokAll, "read write admin"}} {
-		if *x.dst, err = clientCredentials(ctx, hc, cfg.ASURL, clientID, secret, x.scope); err != nil {
+		if *x.dst, err = clientCredentials(ctx, hc, cfg.ASURL, clientID, secret, x.scope, cfg.MCPURL); err != nil {
 			return nil, err
 		}
 	}
@@ -90,7 +100,27 @@ func Bootstrap(ctx context.Context, hc *http.Client, cfg Config) (*Tokens, error
 	if err != nil {
 		return nil, err
 	}
+	if cfg.IdPKeyPath != "" && cfg.IdPIssuer != "" {
+		idpKey, idpAlg, err := LoadKey(cfg.IdPKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("upstream IdP key: %w", err)
+		}
+		if t.TokUpstreamAssertion, err = UpstreamAssertion(idpKey, idpAlg, cfg.IdPIssuer, cfg.ASURL, "alice"); err != nil {
+			return nil, err
+		}
+	}
 	return t, nil
+}
+
+// UpstreamAssertion is a JWT from the upstream IdP issuer about subject,
+// addressed to the AS at asURL (RFC 7523 §3), valid for ten minutes. It has
+// a fresh jti, since the AS may refuse a repeated one.
+func UpstreamAssertion(key crypto.Signer, alg, issuer, asURL, subject string) (string, error) {
+	now := time.Now()
+	return sign(map[string]any{"typ": "JWT"}, jwt.MapClaims{
+		"iss": issuer, "sub": subject, "aud": asURL, "jti": rand.Text(),
+		"iat": now.Unix(), "exp": now.Add(10 * time.Minute).Unix(),
+	}, key, alg)
 }
 
 // BadTokens derives the expired, wrong-audience and wrong-issuer variants of
@@ -189,8 +219,10 @@ func register(ctx context.Context, hc *http.Client, asURL string) (string, strin
 	return out.ClientID, out.ClientSecret, nil
 }
 
-func clientCredentials(ctx context.Context, hc *http.Client, asURL, clientID, secret, scope string) (string, error) {
-	form := url.Values{"grant_type": {"client_credentials"}, "scope": {scope}}
+// clientCredentials mints a token for resource (RFC 8707), which the AS
+// stamps as its aud.
+func clientCredentials(ctx context.Context, hc *http.Client, asURL, clientID, secret, scope, resource string) (string, error) {
+	form := url.Values{"grant_type": {"client_credentials"}, "scope": {scope}, "resource": {resource}}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, asURL+"/api/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(clientID, secret)

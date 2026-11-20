@@ -1,10 +1,12 @@
 # tests/mcpauth — MCP server-auth conformance
 
-`make exercise-mcpauth SDK=gosdk|mcpkit` (or `make conformance SUITE=mcp-auth-<sdk>`) runs the MCP server-auth scenarios against oneauth-server through one MCP SDK (issue 495). `scripts/exercise-mcpauth.sh` does the setup.
+`make exercise-mcpauth SDK=gosdk|mcpkit|ts` (or `make conformance SUITE=mcp-auth-<sdk>`) runs the MCP server-auth scenarios against oneauth-server through one MCP SDK (issues 495, 521). `scripts/exercise-mcpauth.sh` does the setup.
 
-- **Two fixtures, one contract.** `cmd/gosdk-fixture` uses oneauth's `APIMiddleware` for auth, so its failures are oneauth's. `cmd/mcpkit-fixture` uses mcpkit's `ext/auth`, so a check failing only there points at mcpkit. `fixture/` holds the tools and tokens both share.
+- **Three fixtures, one contract.** `cmd/gosdk-fixture` uses oneauth's `APIMiddleware` for auth, so its failures are oneauth's. `cmd/mcpkit-fixture` uses mcpkit's `ext/auth`, and `ts-fixture/` the TypeScript SDK's own bearer middleware, so a check failing only in one of those points at that SDK. `fixture/` mints the tokens all three use; the TS fixture reads them from `cmd/bootstrap`.
+- **Tokens name their resource.** oneauth-server lists the fixture's `/mcp` URL in `jwt.resources`, and the fixtures ask for it with RFC 8707 `resource`, so `aud` is that URL. The upstream-IdP assertion comes from a key the exercise generates and `trusted_assertion_issuers` trusts.
 - **Fixtures build in workspace mode** (`go build ./tests/mcpauth/cmd/...` from the root), so they run the checkout's oneauth. `go.mod` also replaces oneauth with `../..` for `GOWORK=off`.
 - **The scenarios run through `driver/run-auth.ts`, not the framework CLI.** At the pinned commit the CLI passes the auth scenarios a RunContext where they take a URL string, and every check fails with "Failed to parse URL from [object Object]" (#521).
 - **INFO and SKIPPED checks need `expected-skip` entries** (`suite: mcp` in `tests/conformance/known-gaps.yaml`). A check that didn't run can't pass quietly.
 - **mcpkit applies `server.WithMux` routes only in `ListenAndServe`**, not in `Handler()`.
+- **`ts-fixture/` pins exact package versions** in `package.json` and `package-lock.json`; the exercise runs `npm ci` there when the lockfile changes.
 - The framework checkout lives in `MCPCONFORMANCE_DIR` (default `~/.cache/oneauth/mcpconformance`), pinned by `MCPCONFORMANCE_REF`.

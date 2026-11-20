@@ -98,18 +98,33 @@ type ProtectedResourceMetadata struct {
 // This bridges OIDC-only providers (Keycloak, Auth0) that don't natively
 // serve RFC 8414 metadata.
 //
+// pathPrefix is the path of the resource identifier, such as "/mcp" for
+// https://host/mcp. With one, the metadata is served only at
+// /.well-known/oauth-protected-resource/mcp (RFC 9728 §3.1). It isn't also
+// served at the root URL: a client falling back to the root builds that URL
+// from the origin, and §3.3 says it must discard a document whose resource
+// is anything else. Without one, the metadata is served at the root URL,
+// which is the §3.1 URL for a resource with no path. The MCP spec
+// (2025-11-25) lets an MCP server use either location.
+//
 // Usage:
 //
 //	MountProtectedResource(mux, meta, true)
 //	// PRM at: /.well-known/oauth-protected-resource
 //	// AS metadata at: /.well-known/oauth-authorization-server (proxied)
+//
+//	MountProtectedResource(mux, meta, false, "/mcp")
+//	// PRM at: /.well-known/oauth-protected-resource/mcp only
 func MountProtectedResource(mux *http.ServeMux, meta *ProtectedResourceMetadata, proxyASMetadata bool, pathPrefix ...string) {
-	// Mount PRM
+	// RFC 9728 §3.1: a resource with a path publishes at the path URL, and
+	// only there, since §3.3 makes its document unusable at the root URL a
+	// client builds from the origin (issue 523).
 	prmPath := "/.well-known/oauth-protected-resource"
-	if len(pathPrefix) > 0 && pathPrefix[0] != "" {
+	if len(pathPrefix) > 0 && pathPrefix[0] != "" && pathPrefix[0] != "/" {
 		mux.Handle(prmPath+pathPrefix[0], NewProtectedResourceHandler(meta))
+	} else {
+		mux.Handle(prmPath, NewProtectedResourceHandler(meta))
 	}
-	mux.Handle(prmPath, NewProtectedResourceHandler(meta))
 
 	if !proxyASMetadata {
 		return

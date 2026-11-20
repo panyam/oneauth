@@ -133,3 +133,31 @@ func assertOIDCGrant(t *testing.T, want, got *core.OIDCGrant, step string) {
 	assert.Equal(t, want.IDTokenClaims, got.IDTokenClaims, step)
 	assert.Equal(t, want.UserinfoClaims, got.UserinfoClaims, step)
 }
+
+// TestResourcesSurviveRotation: a refresh may bind its access token to any
+// of the grant's RFC 8707 resources and no others, so the store has to keep
+// them through every rotation. Losing them would let a refresh name any
+// allowed resource.
+//
+// See: https://www.rfc-editor.org/rfc/rfc8707#section-2.2
+func TestResourcesSurviveRotation(t *testing.T, factory Factory) {
+	s := factory(t)
+	ctx := context.Background()
+	want := []string{"https://mcp-a.example/mcp", "https://mcp-b.example/mcp"}
+	created, err := s.CreateRefreshToken(ctx, &core.CreateRefreshTokenRequest{Subject: "alice", ClientID: "client-x", Resources: want})
+	require.NoError(t, err)
+	assert.Equal(t, want, created.Token.Resources, "create")
+
+	rot, err := s.RotateRefreshToken(ctx, &core.RotateRefreshTokenRequest{OldToken: created.Token.Token})
+	require.NoError(t, err)
+	assert.Equal(t, want, rot.Token.Resources, "rotate")
+
+	got, err := s.GetRefreshToken(ctx, &core.GetRefreshTokenRequest{Token: rot.Token.Token})
+	require.NoError(t, err)
+	assert.Equal(t, want, got.Token.Resources, "get after rotate")
+
+	plain := createFor(t, s, "bob")
+	got, err = s.GetRefreshToken(ctx, &core.GetRefreshTokenRequest{Token: plain.Token})
+	require.NoError(t, err)
+	assert.Empty(t, got.Token.Resources)
+}

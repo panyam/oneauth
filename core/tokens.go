@@ -60,6 +60,12 @@ type RefreshToken struct {
 	// that started the grant (OIDC Core §12.2). Rotation carries it
 	// forward. Nil for a grant without the "openid" scope.
 	OIDC *OIDCGrant `json:"oidc,omitempty"`
+
+	// Resources are the RFC 8707 resource indicators the grant was
+	// authorized for. A refresh binds the new access token's aud to them,
+	// or to the subset the refresh request names (RFC 8707 §2.2).
+	// Rotation carries them forward. Empty for a grant without resources.
+	Resources []string `json:"resources,omitempty"`
 }
 
 // OIDCGrant is the part of an OpenID Connect authorization a refresh
@@ -227,6 +233,23 @@ type TokenRequest struct {
 	RequestedTokenType string `json:"requested_token_type,omitempty"`
 	Resource           string `json:"resource,omitempty"`
 	Audience           string `json:"audience,omitempty"`
+
+	// Resources are the RFC 8707 resource indicators, every `resource`
+	// parameter of a form-encoded request in order. Resource is the first
+	// of them, and a JSON request sets only Resource.
+	Resources []string `json:"resources,omitempty"`
+}
+
+// ResourceIndicators returns the request's RFC 8707 resource indicators:
+// Resources, or Resource alone when only that is set.
+func (r *TokenRequest) ResourceIndicators() []string {
+	if len(r.Resources) > 0 {
+		return r.Resources
+	}
+	if r.Resource != "" {
+		return []string{r.Resource}
+	}
+	return nil
 }
 
 // TokenError represents an OAuth 2.0 compliant error response.
