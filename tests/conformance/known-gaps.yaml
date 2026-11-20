@@ -463,30 +463,31 @@
   expires: 2027-12-31
 
 - suite: mcp
-  plan: mcp-auth-ts
+  plans: [mcp-auth-gosdk, mcp-auth-mcpkit, mcp-auth-ts]
   test: auth-oauth-discovery-prm-root
   status: expected-fail
   evidence: got 404
   issue: 523
   owner: panyam
   reason: |
-    The TypeScript SDK's mcpAuthMetadataRouter serves protected-resource
-    metadata only at the path-based URL, /.well-known/oauth-protected-
-    resource/mcp. That conforms: RFC 9728 §3.1 builds that URL for a
-    resource with a path, and the MCP spec (2025-11-25) lets a server serve
-    the path URL or the root, not both. The scenario's root check is
-    stricter than either, so the fix is in the scenario (issue 523).
+    All three MCP servers serve protected-resource metadata only at the
+    path-based URL, /.well-known/oauth-protected-resource/mcp, as RFC 9728
+    §3.1 builds it for a resource with a path. The MCP spec (2025-11-25)
+    lets a server use that URL or the root, not both, and §3.3 makes the
+    /mcp document unusable at the root a client builds from the origin.
+    oneauth's MountProtectedResource (which mcpkit's MountAuth calls) and
+    the TypeScript SDK both do this. The scenario also requires the root
+    URL, so the fix is in the scenario (issue 523).
   expires: 2027-12-31
 
 - suite: mcp
-  plan: mcp-auth-ts
+  plans: [mcp-auth-gosdk, mcp-auth-mcpkit, mcp-auth-ts]
   test: auth-oauth-discovery-prm-content-type
   status: expected-fail
-  evidence: got "text/html
+  evidence: PRM Content-Type MUST be application/json
   issue: 523
   owner: panyam
   reason: |
     Same cause as the prm-root entry: the check reads the root metadata
-    URL, which the TypeScript SDK conformantly doesn't serve, and gets
-    Express's 404 page.
+    URL, which none of the servers serve, and gets a 404 page.
   expires: 2027-12-31

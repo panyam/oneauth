@@ -2285,14 +2285,15 @@
       "source": "tests/mcpauth (cmd/gosdk-fixture)",
       "tracking": "issue 495",
       "result": "PASS",
-      "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 04:15 UTC",
-      "commit": "bc3be54",
+      "detail": "23 modules: map[FAILURE:2 SKIPPED:1 SUCCESS:20], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 05:01 UTC",
+      "commit": "43ad4d8-dirty",
       "plan": {
         "plan": "mcp-auth-gosdk",
         "counts": {
+          "FAILURE": 2,
           "SKIPPED": 1,
-          "SUCCESS": 22
+          "SUCCESS": 20
         },
         "against": 0,
         "modules": [
@@ -2376,8 +2377,11 @@
           },
           {
             "module": "auth-oauth-discovery-prm-content-type",
-            "result": "SUCCESS",
-            "verdict": "ok"
+            "result": "FAILURE",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 523,
+            "note": "PRM Content-Type MUST be application/json; got \"text/plain; charset=utf-8\""
           },
           {
             "module": "auth-oauth-discovery-prm-path-based",
@@ -2386,8 +2390,11 @@
           },
           {
             "module": "auth-oauth-discovery-prm-root",
-            "result": "SUCCESS",
-            "verdict": "ok"
+            "result": "FAILURE",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 523,
+            "note": "status MUST be 200; got 404; response MUST be valid JSON; got: 404 page not found\n"
           },
           {
             "module": "auth-scope-step-up-insufficient-scope-rejected",
@@ -2424,14 +2431,15 @@
       "source": "tests/mcpauth (cmd/mcpkit-fixture)",
       "tracking": "issue 495",
       "result": "PASS",
-      "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 04:15 UTC",
-      "commit": "bc3be54",
+      "detail": "23 modules: map[FAILURE:2 SKIPPED:1 SUCCESS:20], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 05:01 UTC",
+      "commit": "43ad4d8-dirty",
       "plan": {
         "plan": "mcp-auth-mcpkit",
         "counts": {
+          "FAILURE": 2,
           "SKIPPED": 1,
-          "SUCCESS": 22
+          "SUCCESS": 20
         },
         "against": 0,
         "modules": [
@@ -2515,8 +2523,11 @@
           },
           {
             "module": "auth-oauth-discovery-prm-content-type",
-            "result": "SUCCESS",
-            "verdict": "ok"
+            "result": "FAILURE",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 523,
+            "note": "PRM Content-Type MUST be application/json; got \"text/plain; charset=utf-8\""
           },
           {
             "module": "auth-oauth-discovery-prm-path-based",
@@ -2525,8 +2536,11 @@
           },
           {
             "module": "auth-oauth-discovery-prm-root",
-            "result": "SUCCESS",
-            "verdict": "ok"
+            "result": "FAILURE",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 523,
+            "note": "status MUST be 200; got 404; response MUST be valid JSON; got: 404 page not found\n"
           },
           {
             "module": "auth-scope-step-up-insufficient-scope-rejected",
@@ -2564,8 +2578,8 @@
       "tracking": "issue 521",
       "result": "PASS",
       "detail": "23 modules: map[FAILURE:2 SKIPPED:1 SUCCESS:20], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 04:15 UTC",
-      "commit": "bc3be54",
+      "ran_at": "2026-11-20 05:01 UTC",
+      "commit": "43ad4d8-dirty",
       "plan": {
         "plan": "mcp-auth-ts",
         "counts": {
