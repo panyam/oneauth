@@ -34,32 +34,61 @@ type CreateRefreshTokenRequest struct {
 	Resources []string
 }
 
+// CreateRefreshTokenResponse carries the new token. Token.Token is the
+// plaintext value the client must present. The GORM and GAE stores keep
+// only its hash, so the caller hands it to the client now. Token.Family
+// is new, and every rotation of this token stays in it, so revoking the
+// family reaches every generation.
 type CreateRefreshTokenResponse struct {
 	Token *RefreshToken
 }
 
+// GetRefreshTokenRequest looks a token up by the plaintext value the
+// client presented. The bundled stores key tokens by its SHA-256, so the
+// lookup needs the exact value and no prefix or partial match is
+// possible.
 type GetRefreshTokenRequest struct {
 	Token string
 }
 
+// GetRefreshTokenResponse returns the stored token, revoked and expired
+// ones included, so the caller can tell reuse of a rotated token
+// (Revoked) from an unknown one (ErrTokenNotFound) and revoke the family
+// on reuse (RFC 9700 §4.14.2).
 type GetRefreshTokenResponse struct {
 	Token *RefreshToken
 }
 
+// RotateRefreshTokenRequest names the token being redeemed by its
+// plaintext value. The store revokes it and issues its successor in one
+// atomic step, so two concurrent redemptions can't both succeed.
 type RotateRefreshTokenRequest struct {
 	OldToken string
 }
 
+// RotateRefreshTokenResponse carries the successor: same Family and
+// Subject, Generation one higher, and the old token's ExpiresAt, so
+// rotating never extends the grant past its first issue. As with
+// creation, Token.Token is the plaintext the client must present next.
 type RotateRefreshTokenResponse struct {
 	Token *RefreshToken
 }
 
+// RevokeRefreshTokenRequest names one token by its plaintext value.
+// Only that token is revoked; its family and the access tokens it
+// recorded are not. Callers that want the whole session ended use
+// RevokeTokenFamily, as RFC 7009 revocation does.
 type RevokeRefreshTokenRequest struct {
 	Token string
 }
 
+// RevokeRefreshTokenResponse is empty. Revoking an unknown or already
+// revoked token is not an error, so a retried revocation succeeds.
 type RevokeRefreshTokenResponse struct{}
 
+// RevokeSubjectTokensRequest names the user (or, for client_credentials,
+// the client) whose every refresh token to revoke, as logout-all and a
+// password reset do. It crosses every client and device.
 type RevokeSubjectTokensRequest struct {
 	Subject string
 }
@@ -73,6 +102,9 @@ type RevokeSubjectTokensResponse struct {
 	AccessTokens []IssuedAccessToken
 }
 
+// RevokeTokenFamilyRequest names a rotation family, the sid of one
+// session. Revoking it ends that session on every generation, including
+// the one a thief may hold, while the user's other sessions stay live.
 type RevokeTokenFamilyRequest struct {
 	Family string
 }
@@ -101,16 +133,31 @@ type RecordAccessTokenResponse struct {
 	Revoked bool
 }
 
+// GetSubjectTokensRequest names the user whose live sessions to list.
 type GetSubjectTokensRequest struct {
 	Subject string
 }
 
+// GetSubjectTokensResponse lists the subject's tokens that are neither
+// revoked nor expired, which is one per live session: rotation revokes
+// the older generations. Callers read ClientID and Family from it to
+// know which clients and sessions a revocation will reach, before the
+// revocation makes them disappear from the list. Order is unspecified.
 type GetSubjectTokensResponse struct {
 	Tokens []*RefreshToken
 }
 
+// CleanupExpiredTokensRequest is empty. Cleanup is maintenance: the
+// bundled stores delete expired tokens and tokens revoked more than 24
+// hours ago. Neither can be redeemed, so cleanup only bounds storage.
+// After it, a deleted rotated generation reads as unknown rather than as
+// reuse, which is acceptable because the access tokens it recorded
+// expired long before.
 type CleanupExpiredTokensRequest struct{}
 
+// CleanupExpiredTokensResponse is empty. Cleanup removes no live token,
+// so callers can run it on any schedule, or never, without changing who
+// can refresh.
 type CleanupExpiredTokensResponse struct{}
 
 // RefreshTokenStore manages refresh tokens for API access.

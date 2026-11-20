@@ -17,7 +17,9 @@ import (
 
 // ConsentModel is the GORM row for a core.ConsentGrant. Subject and
 // ClientID form the composite primary key, so the table holds at most one
-// grant per user and client. Scopes is a JSON array, like the scope lists
+// grant per user and client. Subject leads the key, so the key's index
+// also serves ListConsents' lookup by subject and no second index is
+// needed. Scopes is a JSON array, like the scope lists
 // on the token tables. A NULL ExpiresAt is a grant that never expires.
 type ConsentModel struct {
 	Subject   string      `gorm:"primaryKey;size:255"`
@@ -121,4 +123,32 @@ func (s *ConsentStore) RevokeConsent(ctx context.Context, req *core.RevokeConsen
 	return &core.RevokeConsentResponse{}, nil
 }
 
-var _ core.ConsentStore = (*ConsentStore)(nil)
+// ListConsents returns the subject's unexpired grants, sorted by
+// client_id. The query filters on subject, which the primary key's
+// leading column indexes. Expired rows are dropped in Go rather than in
+// SQL, because SQLite compares stored times as text and a grant saved in
+// another time zone would compare wrong. Database errors pass through.
+func (s *ConsentStore) ListConsents(ctx context.Context, req *core.ListConsentsRequest) (*core.ListConsentsResponse, error) {
+	out := []*core.ConsentGrant{}
+	if req == nil || req.Subject == "" {
+		return &core.ListConsentsResponse{Grants: out}, nil
+	}
+	var rows []ConsentModel
+	err := s.db.WithContext(ctx).Where("subject = ?", req.Subject).Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	for i := range rows {
+		if g := modelToConsent(&rows[i]); !g.IsExpired(now) {
+			out = append(out, g)
+		}
+	}
+	core.SortConsentGrants(out)
+	return &core.ListConsentsResponse{Grants: out}, nil
+}
+
+var (
+	_ core.ConsentStore  = (*ConsentStore)(nil)
+	_ core.ConsentLister = (*ConsentStore)(nil)
+)
