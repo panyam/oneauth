@@ -765,15 +765,20 @@ func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, req *core.ValidateAPIK
 
 // RevokeAPIKey sets revoked and revoked_at in one UPDATE, so a racing
 // ValidateAPIKey sees the key live or revoked, never half-updated.
-// Revoking twice succeeds and moves revoked_at to the second call. Unlike
-// the GAE store it does not report a missing key: an UPDATE that matches
-// no row returns nil, not core.ErrAPIKeyNotFound.
+// Revoking twice succeeds and moves revoked_at to the second call. A
+// missing key is core.ErrAPIKeyNotFound, as in the FS and GAE stores
+// (issue 526): revoked_at changes on every call, so the UPDATE matches
+// and changes a row whenever the key exists.
 func (s *APIKeyStore) RevokeAPIKey(ctx context.Context, req *core.RevokeAPIKeyRequest) (*core.RevokeAPIKeyResponse, error) {
 	now := time.Now()
-	if err := s.db.WithContext(ctx).Model(&APIKeyModel{}).
+	res := s.db.WithContext(ctx).Model(&APIKeyModel{}).
 		Where("key_id = ?", req.KeyID).
-		Updates(map[string]any{"revoked": true, "revoked_at": now}).Error; err != nil {
-		return nil, err
+		Updates(map[string]any{"revoked": true, "revoked_at": now})
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, core.ErrAPIKeyNotFound
 	}
 	return &core.RevokeAPIKeyResponse{}, nil
 }
