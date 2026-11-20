@@ -15,6 +15,12 @@ services:
     image: registry.gitlab.com/openid/conformance-suite/nginx:${IMAGE_TAG:-latest}
     ports:
      - "8443:8443"
+    # A cert from certs/ca.crt in place of the image's self-signed one, so
+    # oneauth-server can fetch a client's jwks_uri from the harness over
+    # verified TLS (issue 507). certs/regen.sh makes it.
+    volumes:
+     - ./certs/harness.crt:/etc/ssl/certs/nginx-selfsigned.crt:ro
+     - ./certs/harness.key:/etc/ssl/private/nginx-selfsigned.key:ro
     # The harness's headless browser runs in the server container, where
     # public DNS answers 127.0.0.1 for this name. The alias sends its
     # redirects to the harness callback (/test/a/<alias>/callback) here.

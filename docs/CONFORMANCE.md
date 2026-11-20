@@ -204,8 +204,7 @@ Every OIDF module that doesn't pass has a `known-gaps.yaml` entry. This table gr
 | Request objects and `request_uri` (JAR) | `request-uri-unsigned` and `request-uri-signed-rs256` fail. `unsigned-request-object-...` is skipped. `ensure-request-object-with-redirect-uri` ends in REVIEW on oneauth's refusal. | Roadmap, issue 338. FAPI 2.0 Message Signing and FAPI 1 need it too. |
 | Signed userinfo | `userinfo-rs256` fails | Roadmap, issue 485. |
 | `acr` | `ensure-request-with-acr-values-succeeds` warns | Roadmap, issue 485. |
-| `jwks_uri` in dynamic registration | `registration-jwks-uri` and `refresh-token-rp-key-rotation` fail. DCR takes an inline `jwks` only. | Roadmap, issue 507. Without it a `private_key_jwt` client re-registers to rotate keys. |
-| Client logo, policy and terms on the consent page | `registration-logo-uri`, `-policy-uri` and `-tos-uri` end in REVIEW, and the page doesn't show them | Roadmap, issue 507. OIDC Registration §2 says the OP SHOULD show them. |
+| Client logo, policy and terms on the consent page | `registration-logo-uri`, `-policy-uri` and `-tos-uri` end in REVIEW | Review. The consent page shows them (issue 507), and each entry's evidence checks the captured page. |
 | Pairwise subject identifiers | `registration-sector-uri` and `-sector-bad` are skipped | Roadmap, issue 507, waiting on a deployment that needs it. |
 | Rotating the server's signing keys | `server-rotate-keys` waits for a person to rotate keys and press Start | Harness. It's `expected-manual`, so the exercise records it without running it. Automating it is issue 507. |
 | Error pages and re-login pages | `ensure-registered-redirect-uri`, `ensure-redirect-uri-in-authorization-request`, `redirect-uri-query-mismatch`, `redirect-uri-query-added`, `prompt-login` and `max-age-1` end in REVIEW | Review. oneauth shows the right page, and each entry's evidence checks the captured page says so. |

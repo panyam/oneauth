@@ -80,8 +80,20 @@ type DCRRequest struct {
 	// RFC 9396 — authorization details types this client intends to use
 	AuthorizationDetailsTypes []string `json:"authorization_details_types,omitempty"`
 
-	// Keys — for asymmetric auth methods (private_key_jwt)
-	JWKS *utils.JWKSet `json:"jwks,omitempty"`
+	// Keys — for asymmetric auth methods (private_key_jwt). A client sends
+	// either jwks (inline) or jwks_uri (fetched when it authenticates), never
+	// both (RFC 7591 §2).
+	JWKS    *utils.JWKSet `json:"jwks,omitempty"`
+	JWKSURI string        `json:"jwks_uri,omitempty"`
+	// TokenEndpointAuthSigningAlg pins the algorithm of a private_key_jwt
+	// client's assertions (OIDC Registration §2). Asymmetric algorithms only.
+	TokenEndpointAuthSigningAlg string `json:"token_endpoint_auth_signing_alg,omitempty"`
+
+	// OIDC Registration §2 display metadata, shown on the consent page.
+	// Absolute https URLs only.
+	LogoURI   string `json:"logo_uri,omitempty"`
+	PolicyURI string `json:"policy_uri,omitempty"`
+	TOSURI    string `json:"tos_uri,omitempty"`
 
 	// OIDC Back-Channel Logout 1.0 §3.1 — clients advertise a logout receiver.
 	// Empty disables BCL dispatch for this client.
@@ -132,6 +144,13 @@ type DCRResponse struct {
 	// RFC 9126 §6: true asks the AS to refuse this client's authorization
 	// requests that don't come through PAR.
 	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
+
+	// OIDC Registration §2 metadata, echoed as stored (issue 507).
+	JWKSURI                     string `json:"jwks_uri,omitempty"`
+	TokenEndpointAuthSigningAlg string `json:"token_endpoint_auth_signing_alg,omitempty"`
+	LogoURI                     string `json:"logo_uri,omitempty"`
+	PolicyURI                   string `json:"policy_uri,omitempty"`
+	TOSURI                      string `json:"tos_uri,omitempty"`
 }
 
 // ServeHTTP is the HTTP wrapper for ClientRegistrar.Register (RFC 7591 DCR).

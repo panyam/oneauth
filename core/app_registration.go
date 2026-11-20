@@ -60,6 +60,25 @@ type AppRegistration struct {
 	// don't arrive through PAR, the per-client form of
 	// AuthorizationHandler.RequirePushedRequests.
 	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
+
+	// JWKSURI is the RFC 7591 §2 jwks_uri: where a private_key_jwt client
+	// publishes its public keys. A client registered with it has no key in
+	// the KeyStore; client authentication fetches the set and picks the key
+	// by the assertion's kid, so the client rotates keys by publishing new
+	// ones rather than re-registering (issue 507).
+	JWKSURI string `json:"jwks_uri,omitempty"`
+	// TokenEndpointAuthSigningAlg is the OIDC Registration §2
+	// token_endpoint_auth_signing_alg. When set, a jwks_uri client's
+	// assertions must use this algorithm. Empty accepts any asymmetric
+	// algorithm the selected key's type supports.
+	TokenEndpointAuthSigningAlg string `json:"token_endpoint_auth_signing_alg,omitempty"`
+
+	// LogoURI, PolicyURI and TOSURI are the OIDC Registration §2 display
+	// metadata. The consent page shows the logo and links to the policy and
+	// terms, so the user sees who is asking. Each is an https URL or empty.
+	LogoURI   string `json:"logo_uri,omitempty"`
+	PolicyURI string `json:"policy_uri,omitempty"`
+	TOSURI    string `json:"tos_uri,omitempty"`
 }
 
 // SaveAppRequest carries the registration to persist.

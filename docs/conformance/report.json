@@ -7,8 +7,8 @@
       "source": "tests/conformance",
       "result": "PASS",
       "detail": "ratchet OK — no diff against known-gaps.yaml",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1"
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3"
     },
     {
       "name": "oidf-config",
@@ -16,9 +16,9 @@
       "covers": "OIDF oidcc-config-certification-test-plan, the discovery document check by check",
       "source": "tests/oidf-conformance (TestOIDF_OIDCC_ConfigCert_Discovery)",
       "result": "PASS",
-      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.215s",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1"
+      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.254s",
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3"
     },
     {
       "name": "oidf-fapi2",
@@ -28,8 +28,8 @@
       "tracking": "mission 98",
       "result": "PASS",
       "detail": "52 modules: map[PASSED:45 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1",
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3",
       "plan": {
         "plan": "fapi2-security-profile-final-test-plan",
         "variant": {
@@ -40,7 +40,7 @@
           "openid": "openid_connect",
           "sender_constrain": "dpop"
         },
-        "plan_id": "Rt0xmAbOB5udf",
+        "plan_id": "LHHilx2XZR5qJ",
         "counts": {
           "PASSED": 45,
           "REVIEW": 4,
@@ -388,15 +388,15 @@
       "tracking": "mission 477",
       "result": "PASS",
       "detail": "35 modules: map[PASSED:28 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1",
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3",
       "plan": {
         "plan": "oidcc-basic-certification-test-plan",
         "variant": {
           "client_registration": "static_client",
           "server_metadata": "discovery"
         },
-        "plan_id": "lLnbmwpvo3cNW",
+        "plan_id": "BaE16yiZVUBXd",
         "counts": {
           "PASSED": 28,
           "REVIEW": 4,
@@ -641,19 +641,19 @@
       "source": "tests/oidf-conformance/oidcdyn",
       "tracking": "issue 493",
       "result": "PASS",
-      "detail": "23 modules: map[FAILED:6 MANUAL:1 PASSED:5 REVIEW:7 SKIPPED:3 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1",
+      "detail": "23 modules: map[FAILED:4 MANUAL:1 PASSED:7 REVIEW:7 SKIPPED:3 WARNING:1], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3",
       "plan": {
         "plan": "oidcc-dynamic-certification-test-plan",
         "variant": {
           "response_type": "code"
         },
-        "plan_id": "UYdc9kRhjJ6SG",
+        "plan_id": "jeGR6jD6cWbX4",
         "counts": {
-          "FAILED": 6,
+          "FAILED": 4,
           "MANUAL": 1,
-          "PASSED": 5,
+          "PASSED": 7,
           "REVIEW": 7,
           "SKIPPED": 3,
           "WARNING": 1
@@ -741,21 +741,15 @@
           },
           {
             "module": "oidcc-refresh-token-rp-key-rotation",
-            "status": "INTERRUPTED",
-            "result": "FAILED",
-            "verdict": "ok",
-            "expected": "expected-fail",
-            "issue": 507,
-            "note": "EnsureHttpStatusCodeIs201: dynamic registration endpoint returned an unexpected http status"
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-jwks-uri",
-            "status": "INTERRUPTED",
-            "result": "FAILED",
-            "verdict": "ok",
-            "expected": "expected-fail",
-            "issue": 507,
-            "note": "EnsureHttpStatusCodeIs201: dynamic registration endpoint returned an unexpected http status"
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-logo-uri",
@@ -852,8 +846,8 @@
       "tracking": "issue 494",
       "result": "PASS",
       "detail": "51 modules: map[FAILED:4 MANUAL:1 PASSED:30 REVIEW:10 SKIPPED:4 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1",
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_post",
         "variant": {
@@ -862,7 +856,7 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "qeTAStvLXFR4U",
+        "plan_id": "VQ2aczengl7fT",
         "counts": {
           "FAILED": 4,
           "MANUAL": 1,
@@ -1238,8 +1232,8 @@
       "tracking": "issue 494",
       "result": "PASS",
       "detail": "52 modules: map[FAILED:4 MANUAL:1 PASSED:31 REVIEW:10 SKIPPED:4 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1",
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_jwt",
         "variant": {
@@ -1248,7 +1242,7 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "DC6gFlQLGC3QE",
+        "plan_id": "XWflJsHsZUE6Q",
         "counts": {
           "FAILED": 4,
           "MANUAL": 1,
@@ -1629,9 +1623,9 @@
       "source": "tests/oidf-conformance/oidcdyn",
       "tracking": "issue 494",
       "result": "PASS",
-      "detail": "54 modules: map[FAILED:6 MANUAL:1 PASSED:31 REVIEW:10 SKIPPED:4 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1",
+      "detail": "54 modules: map[FAILED:4 MANUAL:1 PASSED:33 REVIEW:10 SKIPPED:4 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3",
       "plan": {
         "plan": "oidcc-test-plan-private_key_jwt",
         "variant": {
@@ -1640,11 +1634,11 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "OXANzrcubTOBB",
+        "plan_id": "e2my5xT5uTP5y",
         "counts": {
-          "FAILED": 6,
+          "FAILED": 4,
           "MANUAL": 1,
-          "PASSED": 31,
+          "PASSED": 33,
           "REVIEW": 10,
           "SKIPPED": 4,
           "WARNING": 2
@@ -1861,21 +1855,15 @@
           },
           {
             "module": "oidcc-refresh-token-rp-key-rotation",
-            "status": "INTERRUPTED",
-            "result": "FAILED",
-            "verdict": "ok",
-            "expected": "expected-fail",
-            "issue": 507,
-            "note": "EnsureHttpStatusCodeIs201: dynamic registration endpoint returned an unexpected http status"
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-jwks-uri",
-            "status": "INTERRUPTED",
-            "result": "FAILED",
-            "verdict": "ok",
-            "expected": "expected-fail",
-            "issue": 507,
-            "note": "EnsureHttpStatusCodeIs201: dynamic registration endpoint returned an unexpected http status"
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "oidcc-registration-logo-uri",
@@ -2039,8 +2027,8 @@
       "source": "tests/keycloak",
       "result": "PASS",
       "detail": "go test: 68 passed, 0 skipped, 0 failed (top-level tests)",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1"
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3"
     },
     {
       "name": "authlete",
@@ -2049,8 +2037,8 @@
       "source": "tests/authlete",
       "result": "FAIL",
       "detail": "go test: 14 passed, 0 skipped, 4 failed (top-level tests)",
-      "ran_at": "2026-11-19 22:26 UTC",
-      "commit": "ad11ab1"
+      "ran_at": "2026-11-19 23:38 UTC",
+      "commit": "75c07e3"
     }
   ]
 }

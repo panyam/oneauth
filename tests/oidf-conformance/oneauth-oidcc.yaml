@@ -32,6 +32,11 @@ jwt:
 admin_auth:
   type: none    # the exercise registers its clients through open DCR
   allow_open: true
+  # The Dynamic plan registers clients whose jwks_uri is on the harness,
+  # which resolves to 127.0.0.1 (issue 507). Test harnesses only.
+  allow_private_client_hosts: true
+  # The harness serves those jwks_uris with a cert from this test CA.
+  client_fetch_ca_file: tests/oidf-conformance/certs/ca.crt
 
 # The harness logs the same user in once per module, dozens of times a
 # minute; the default 10 a minute throttles it partway through the plan.

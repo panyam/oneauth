@@ -9,6 +9,9 @@
 #   ca.key          test CA private key (committed — test-only material)
 #   server.crt      server cert for host.docker.internal, signed by ca
 #   server.key      server private key
+#   harness.crt     the harness nginx's cert for localhost.emobix.co.uk,
+#   harness.key     signed by ca, so oneauth-server can fetch a client's
+#                   jwks_uri from the harness over verified TLS (issue 507)
 #   truststore.jks  Java keystore containing ca.crt as a trusted root —
 #                   mounted into the harness container so its JVM accepts
 #                   our self-signed chain.
@@ -70,7 +73,24 @@ openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
   -out server.crt -days "${DAYS}" -sha256 \
   -extfile openssl-server.cnf -extensions v3_server
 
-rm -f server.csr ca.srl openssl-server.cnf
+echo "==> Signing the harness nginx cert with CA (SAN: localhost.emobix.co.uk)"
+cat > openssl-harness.cnf <<HARNESS
+[req]
+distinguished_name = req_distinguished_name
+prompt             = no
+[req_distinguished_name]
+CN = localhost.emobix.co.uk
+[v3_harness]
+basicConstraints = CA:FALSE
+keyUsage         = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName   = DNS:localhost.emobix.co.uk, DNS:localhost
+HARNESS
+openssl req -nodes -newkey rsa:2048 -keyout harness.key -out harness.csr -config openssl-harness.cnf
+openssl x509 -req -in harness.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out harness.crt -days "${DAYS}" -sha256 -extfile openssl-harness.cnf -extensions v3_harness
+
+rm -f server.csr harness.csr ca.srl openssl-server.cnf openssl-harness.cnf
 
 echo "==> Building Java truststore for the OIDF harness JVM"
 rm -f truststore.jks
@@ -83,7 +103,7 @@ keytool -importcert -noprompt \
 
 echo ""
 echo "Done. Materials regenerated:"
-ls -1 ca.crt ca.key server.crt server.key truststore.jks
+ls -1 ca.crt ca.key server.crt server.key harness.crt harness.key truststore.jks
 echo ""
 echo "Note: ca.key + server.key are committed test material — the cert is"
 echo "      trusted only by this docker-compose's harness JVM."

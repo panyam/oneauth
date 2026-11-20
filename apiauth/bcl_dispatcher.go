@@ -2,6 +2,8 @@ package apiauth
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net"
@@ -229,39 +231,43 @@ func (d *BCLDispatcher) httpClient() *http.Client {
 	if d.HTTPClient != nil {
 		return d.HTTPClient
 	}
-	allowPrivate := d.AllowPrivateHosts
+	return guardedHTTPClient(d.AllowPrivateHosts, nil, 5*time.Second, "bcl")
+}
+
+// guardedHTTPClient is an HTTP client for URLs a client registered, such
+// as a backchannel_logout_uri or a jwks_uri. Unless allowPrivate, it refuses
+// at dial time to connect to a loopback, private, link-local, unspecified or
+// multicast address, so a host name that resolves to one is caught as well as
+// an IP literal (CWE-918). It never follows a redirect: a 3xx to another host
+// or an internal IP would reopen the hole the dial guard closes. label
+// prefixes its errors. rootCAs, when set, replaces the system roots for TLS.
+func guardedHTTPClient(allowPrivate bool, rootCAs *x509.CertPool, timeout time.Duration, label string) *http.Client {
 	dialer := &net.Dialer{
-		Timeout: 5 * time.Second,
+		Timeout: timeout,
 		Control: func(network, address string, _ syscall.RawConn) error {
 			if allowPrivate {
 				return nil
 			}
 			host, _, err := net.SplitHostPort(address)
 			if err != nil {
-				return fmt.Errorf("bcl: invalid dial address %q: %w", address, err)
+				return fmt.Errorf("%s: invalid dial address %q: %w", label, address, err)
 			}
 			ip := net.ParseIP(host)
 			if ip == nil {
-				return fmt.Errorf("bcl: dial address %q is not a literal IP", address)
+				return fmt.Errorf("%s: dial address %q is not a literal IP", label, address)
 			}
 			if isPrivateOrSpecialIP(ip) {
-				return fmt.Errorf("bcl: refusing to dial private/loopback/link-local address %s", ip)
+				return fmt.Errorf("%s: refusing to dial private/loopback/link-local address %s", label, ip)
 			}
 			return nil
 		},
 	}
 	return &http.Client{
-		Timeout: 5 * time.Second,
-		// Do NOT follow redirects. A 3xx to a different host (or to an
-		// internal IP) would re-open the SSRF surface that the dial-time
-		// guard closes for the registered URI itself. Receivers per OIDC
-		// BCL §2.7 respond with 200 on success / 4xx-5xx on failure; a
-		// 3xx is not part of the protocol and we let the dispatcher's
-		// caller see it as the final status.
+		Timeout: timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Transport: &http.Transport{DialContext: dialer.DialContext},
+		Transport: &http.Transport{DialContext: dialer.DialContext, TLSClientConfig: &tls.Config{RootCAs: rootCAs, MinVersion: tls.VersionTLS12}},
 	}
 }
 
