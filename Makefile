@@ -212,7 +212,7 @@ zap:
 		if curl -sf http://localhost:19876/_ah/health > /dev/null 2>&1; then ZAP_OK=1; break; fi; sleep 1; \
 	done; \
 	if [ $$ZAP_OK -eq 1 ]; then \
-		mkdir -p /tmp/zap-wrk && cp $(PWD)/.zap-rules.tsv /tmp/zap-wrk/rules.tsv && \
+		mkdir -p /tmp/zap-wrk && cp $(CURDIR)/.zap-rules.tsv /tmp/zap-wrk/rules.tsv && \
 		docker run --rm -v /tmp/zap-wrk:/zap/wrk:rw \
 			ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:19876 \
 			-c rules.tsv -a; \
@@ -254,7 +254,7 @@ testall:
 		-p $(PG_PORT):5432 arm64v8/postgres:18.1 >> $(REPORT_DIR)/run.log 2>&1
 	@echo "Starting Keycloak..." | tee -a $(REPORT_DIR)/run.log
 	@docker run --rm -d --name $(KC_CONTAINER_NAME) -p $(KC_PORT):8080 \
-		-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
+		-v $(CURDIR)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
 		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
 		$(KC_IMAGE) start-dev --features=dpop --import-realm >> $(REPORT_DIR)/run.log 2>&1
 	@sleep 3
@@ -516,7 +516,7 @@ upkcl:
 	@docker run --rm -d \
 		--name $(KC_CONTAINER_NAME) \
 		-p $(KC_PORT):8080 \
-		-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
+		-v $(CURDIR)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
 		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
 		-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
 		$(KC_IMAGE) start-dev --features=dpop --import-realm
@@ -621,7 +621,7 @@ upauthlete: authlete-image
 	@docker run --rm -d \
 		--name $(AUTH_CONTAINER_NAME) \
 		-p $(AUTH_PORT):8080 \
-		-v $(PWD)/$(AUTH_FRONTEND_DIR)/authlete.properties.runtime:/authlete/app/authlete.properties \
+		-v $(CURDIR)/$(AUTH_FRONTEND_DIR)/authlete.properties.runtime:/authlete/app/authlete.properties \
 		$(AUTH_IMAGE)
 	@echo "Waiting for AS to be ready (Jetty warmup ~30s)..."
 	@./scripts/wait-for.sh 180 "Authlete-backed AS on :$(AUTH_PORT)" -- http://localhost:$(AUTH_PORT)/.well-known/openid-configuration
@@ -838,7 +838,7 @@ testkcl:
 		docker run --rm -d \
 			--name $(KC_CONTAINER_NAME) \
 			-p $(KC_PORT):8080 \
-			-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
+			-v $(CURDIR)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
 			-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
 			-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
 			$(KC_IMAGE) start-dev --features=dpop --import-realm; \

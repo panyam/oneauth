@@ -69,6 +69,7 @@ Rationale in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Shipped vs in flight 
 - **CodeQL reports errors as PR checks.** It flags `ParseUnverified` on request input even after verification elsewhere, and SHA-256 over a field named like a secret. Take claims from the validator's `TokenInfo`, and compare keys directly.
 - **Every module releases on one tag.** `make release V=vX` writes one commit that sets every `github.com/panyam/oneauth*` require to `vX` and tags all modules on it; `make pushrelease` pushes the tags, records their `go.sum` hashes (a release commit can't hold them), then pushes main; `make verify-install` follows. Between releases the requires name the last tag, and `verify-submodule-deps` (part of `make test`) fails on drift or on a `replace` in a published `go.mod`. New root API can be used by a sub-module in the same PR.
 - **CI runs every module's tests on Windows** (no `-race`). File names, `filepath.IsAbs` and Unix mode bits differ there. A Unix-only test needs `t.Skip` with the reason, and an OS-specific behavior gets a `_windows_test.go` (#502, #505).
+- **Makefile recipes use `$(CURDIR)`, never `$(PWD)`.** `make -C` keeps the caller's `PWD`, so a Docker volume path from `make conformance` pointed into `tests/conformance/` and Docker mounted an empty directory (issue 526).
 - **Local `main` can be locked by another worktree.** Cut branches from `origin/main` (`git checkout -b feat/X origin/main`).
 
 ## Issues, gaps, memories
