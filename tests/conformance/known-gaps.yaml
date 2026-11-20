@@ -443,22 +443,6 @@
 
 - suite: oidf
   plans:
-    - oidcc-dynamic-certification-test-plan
-    - oidcc-test-plan-client_secret_post
-    - oidcc-test-plan-client_secret_jwt
-    - oidcc-test-plan-private_key_jwt
-  test: oidcc-server-rotate-keys
-  status: expected-manual
-  issue: 507
-  owner: panyam
-  reason: |
-    The module waits for a person to rotate the server's signing keys and
-    press Start, so the exercise records it without running it.
-    Automating the rotation is issue 507.
-  expires: 2027-12-31
-
-- suite: oidf
-  plans:
     - oidcc-basic-certification-test-plan
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt

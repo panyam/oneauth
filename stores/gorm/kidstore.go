@@ -98,6 +98,23 @@ func (s *KidStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequest
 	}}, nil
 }
 
+// ListKids implements keys.KidLister: every row whose expires_at is unset
+// or in the future, so the JWKS endpoint can publish retired keys
+// (issue 421).
+func (s *KidStore) ListKids(ctx context.Context, req *keys.ListKidsRequest) (*keys.ListKidsResponse, error) {
+	var models []KidKeyModel
+	if err := s.db.WithContext(ctx).Where("expires_at IS NULL OR expires_at > ?", time.Now()).Find(&models).Error; err != nil {
+		return nil, err
+	}
+	out := &keys.ListKidsResponse{}
+	for _, m := range models {
+		out.Records = append(out.Records, &keys.KeyRecord{ClientID: m.ClientID, Key: m.Key, Algorithm: m.Algorithm, Kid: m.Kid})
+	}
+	return out, nil
+}
+
+var _ keys.KidLister = (*KidStore)(nil)
+
 func (s *KidStore) CleanExpired(ctx context.Context, req *keys.CleanExpiredRequest) (*keys.CleanExpiredResponse, error) {
 	result := s.db.WithContext(ctx).Where("expires_at IS NOT NULL AND expires_at < ?", time.Now()).
 		Delete(&KidKeyModel{})

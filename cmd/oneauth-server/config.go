@@ -203,6 +203,17 @@ type UserStoresConfig struct {
 }
 
 // JWTConfig configures JWT signing for browser sessions and API tokens.
+// KeyRotationConfig configures runtime rotation of an asymmetric signing
+// key. A rotated key lives in memory: a restart goes back to
+// jwt.private_key_path, or to a fresh key with ephemeral_signing_key.
+type KeyRotationConfig struct {
+	// Enabled serves POST /admin/signing-key/rotate, behind admin_auth.
+	Enabled bool `yaml:"enabled"`
+	// GracePeriod is how long the retired key stays in the JWKS and keeps
+	// verifying tokens it signed, as a Go duration. Empty means 24h.
+	GracePeriod string `yaml:"grace_period"`
+}
+
 type JWTConfig struct {
 	SecretKey                 string   `yaml:"secret_key"`                  // Secret key for signing JWTs (HS256 mode only)
 	Issuer                    string   `yaml:"issuer"`                      // JWT issuer claim
@@ -244,6 +255,9 @@ type JWTConfig struct {
 	// refreshes (OneAuthConfig.DisableRefreshTokenRotation). FAPI 2.0
 	// §5.3.2.1 asks for this; the default rotates, with reuse detection.
 	DisableRefreshTokenRotation bool `yaml:"disable_refresh_token_rotation"`
+
+	// KeyRotation turns on POST /admin/signing-key/rotate (issue 507).
+	KeyRotation KeyRotationConfig `yaml:"key_rotation"`
 }
 
 type ServerConfig struct {

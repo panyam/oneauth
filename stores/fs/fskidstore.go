@@ -144,6 +144,40 @@ func (s *FSKidStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidReque
 	}}, nil
 }
 
+// ListKids implements keys.KidLister: every entry file whose expiry is
+// unset or in the future, so the JWKS endpoint can publish retired keys
+// (issue 421). Unreadable or unparseable files are skipped, as in
+// CleanExpired.
+func (s *FSKidStore) ListKids(ctx context.Context, req *keys.ListKidsRequest) (*keys.ListKidsResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := &keys.ListKidsResponse{}
+	entries, err := os.ReadDir(s.getKidDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return out, nil
+		}
+		return nil, err
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(s.getKidDir(), e.Name()))
+		if err != nil {
+			continue
+		}
+		var entry fsKidEntry
+		if err := json.Unmarshal(data, &entry); err != nil || isExpired(entry.ExpiresAt) {
+			continue
+		}
+		out.Records = append(out.Records, &keys.KeyRecord{ClientID: entry.ClientID, Key: entry.Key, Algorithm: entry.Algorithm, Kid: entry.Kid})
+	}
+	return out, nil
+}
+
+var _ keys.KidLister = (*FSKidStore)(nil)
+
 func (s *FSKidStore) CleanExpired(ctx context.Context, req *keys.CleanExpiredRequest) (*keys.CleanExpiredResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

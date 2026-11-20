@@ -27,6 +27,11 @@ jwt:
   signing_alg: RS256
   # A fresh key per run; the exercise starts a new server each time.
   ephemeral_signing_key: true
+  # The Dynamic plan's server-rotate-keys module has the exercise rotate
+  # the key through POST /admin/signing-key/rotate (issue 507).
+  key_rotation:
+    enabled: true
+    grace_period: 1h
   secret_key: ${JWT_SECRET_KEY:-oidf-oidcc-exercise-session-secret-32b}
 
 admin_auth:

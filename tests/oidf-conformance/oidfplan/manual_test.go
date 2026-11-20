@@ -48,7 +48,7 @@ func TestLoadExpectations_AcceptsManual(t *testing.T) {
 // RunPlan records a manual module without asking the harness to run it,
 // so a nil harness client is never touched for it.
 func TestRunPlan_DoesNotRunManualModules(t *testing.T) {
-	r := runOrRecord(context.Background(), nil, "plan", harness.PlanModule{TestModule: "oidcc-server-rotate-keys"}, map[string]bool{"oidcc-server-rotate-keys": true}, 0)
+	r := runOrRecord(context.Background(), nil, "plan", harness.PlanModule{TestModule: "oidcc-server-rotate-keys"}, map[string]bool{"oidcc-server-rotate-keys": true}, nil, 0)
 	assert.Equal(t, ModuleResult{Module: "oidcc-server-rotate-keys", Status: StatusNotRun, Result: ResultManual}, r)
 }
 

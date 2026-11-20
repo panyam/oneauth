@@ -76,6 +76,25 @@ type KidStorage interface {
 	CleanExpired(ctx context.Context, req *CleanExpiredRequest) (*CleanExpiredResponse, error)
 }
 
+// KidLister is the optional side of KidStorage that lists retired keys, so a
+// JWKS endpoint can publish them during their grace period (issue 421). It
+// is separate so third-party KidStorage implementations keep compiling.
+// Every KidStorage in this module implements it.
+type KidLister interface {
+	// ListKids returns every unexpired kid entry, as GetKeyByKid would
+	// return it: Kid, ClientID, Key and Algorithm set. Order is
+	// unspecified.
+	ListKids(ctx context.Context, req *ListKidsRequest) (*ListKidsResponse, error)
+}
+
+// ListKidsRequest is the input to KidLister.ListKids.
+type ListKidsRequest struct{}
+
+// ListKidsResponse is KidLister.ListKids's output.
+type ListKidsResponse struct {
+	Records []*KeyRecord
+}
+
 // KidStore is an in-memory KidStorage that tracks kid→key mappings,
 // including grace-period entries retained during key rotation.
 //
@@ -89,6 +108,21 @@ type KidStore struct {
 }
 
 var _ KidStorage = (*KidStore)(nil)
+var _ KidLister = (*KidStore)(nil)
+
+// ListKids returns every unexpired entry.
+func (s *KidStore) ListKids(ctx context.Context, req *ListKidsRequest) (*ListKidsResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := &ListKidsResponse{}
+	for kid, rec := range s.records {
+		if rec.isExpired() {
+			continue
+		}
+		out.Records = append(out.Records, &KeyRecord{Kid: kid, ClientID: rec.ClientID, Key: rec.Key, Algorithm: rec.Algorithm})
+	}
+	return out, nil
+}
 
 // NewKidStore creates a new empty KidStore.
 func NewKidStore() *KidStore {

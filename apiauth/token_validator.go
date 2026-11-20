@@ -36,6 +36,8 @@ type jwtValidator struct {
 	hooks          SecurityHooks
 	tracerProvider trace.TracerProvider
 	ownKid         string // kid of signingKey; tokens it signed skip the tenant check
+	keySource      SigningKeySource
+	ownKeyClientID string
 }
 
 // resolveAudience returns the currently-expected audience: AudienceFunc's
@@ -67,6 +69,21 @@ type JWTValidatorConfig struct {
 	AudienceFunc func() string
 	Hooks        SecurityHooks
 
+	// SigningKeySource, when set, replaces SigningKey: the validator's own
+	// key is the public half of the source's current key, read per token,
+	// so it follows a rotation. Tokens signed with a retired key verify
+	// through KeyLookup (the KidStore) instead, for as long as it keeps
+	// them.
+	SigningKeySource SigningKeySource
+
+	// OwnKeyClientID is the KeyStore client_id the AS's own public keys are
+	// registered under. A key record with that client_id verifies the AS's
+	// own tokens, which carry any client's client_id, so it skips the
+	// tenant check. That covers a retired own key in the KidStore, whose
+	// kid is no longer the current one. Empty exempts only the current
+	// key.
+	OwnKeyClientID string
+
 	// TracerProvider opts the signature-verify hot path into SEP-414
 	// tracing. When set, ValidateToken emits an `oneauth.signature_verify`
 	// span (attributes: `jwt.alg`, `jwt.kid`). Nil keeps the path on the
@@ -89,7 +106,19 @@ func NewJWTValidator(cfg JWTValidatorConfig) TokenValidator {
 		hooks:          cfg.Hooks,
 		tracerProvider: cfg.TracerProvider,
 		ownKid:         kidOf(cfg.SigningKey, cfg.SigningAlg),
+		keySource:      cfg.SigningKeySource,
+		ownKeyClientID: cfg.OwnKeyClientID,
 	}
+}
+
+// ownKey is the validator's own verify key and its kid: from the source's
+// current key when there is one, else the configured SigningKey.
+func (v *jwtValidator) ownKey() (any, string) {
+	if v.keySource != nil {
+		key, alg := v.keySource.CurrentSigningKey()
+		return verifyKeyAndKid(key, alg)
+	}
+	return v.signingKey, v.ownKid
 }
 
 // ValidateToken parses and validates a JWT, returning the extracted claims
@@ -294,8 +323,9 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 	// A token naming our own kid was signed by us. Resolving it through
 	// KeyLookup instead would fall back to the client_id claim and verify
 	// an AS-issued token against that client's key.
-	if kid, _ := token.Header["kid"].(string); v.ownKid != "" && kid == v.ownKid {
-		return v.signingKeyFor(token)
+	ownKey, ownKid := v.ownKey()
+	if kid, _ := token.Header["kid"].(string); ownKid != "" && kid == ownKid {
+		return v.signingKeyFor(token, ownKey)
 	}
 
 	// Try kid-based lookup first (only when a KeyLookup is configured)
@@ -308,8 +338,10 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 					v.hooks.fireOnAlgorithmMismatch(rec.Algorithm, fmt.Sprintf("%v", token.Header["alg"]))
 					return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", rec.Algorithm, token.Header["alg"])
 				}
-				if err := checkTenantKey(rec, v.ownKid, token); err != nil {
-					return nil, err
+				if v.ownKeyClientID == "" || rec.ClientID != v.ownKeyClientID {
+					if err := checkTenantKey(rec, ownKid, token); err != nil {
+						return nil, err
+					}
 				}
 				return utils.DecodeVerifyKey(rec.Key, rec.Algorithm)
 			}
@@ -333,8 +365,8 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 
 	// Self-validation fallback: the validator was configured with its own
 	// SigningKey (typical APIAuth shape — one key, no KeyStore).
-	if v.signingKey != nil {
-		return v.signingKeyFor(token)
+	if ownKey != nil {
+		return v.signingKeyFor(token, ownKey)
 	}
 
 	if v.keyLookup == nil {
@@ -345,8 +377,8 @@ func (v *jwtValidator) resolveKey(token *jwt.Token) (any, error) {
 
 // signingKeyFor returns the validator's own key for a token, after checking
 // the token's alg is one that key can verify.
-func (v *jwtValidator) signingKeyFor(token *jwt.Token) (any, error) {
-	switch k := v.signingKey.(type) {
+func (v *jwtValidator) signingKeyFor(token *jwt.Token, key any) (any, error) {
+	switch k := key.(type) {
 	case []byte:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -363,14 +395,15 @@ func (v *jwtValidator) signingKeyFor(token *jwt.Token) (any, error) {
 			v.hooks.fireOnAlgorithmMismatch(v.signingAlg, fmt.Sprintf("%v", token.Header["alg"]))
 			return nil, fmt.Errorf("algorithm mismatch: expected %s, got %v", v.signingAlg, token.Header["alg"])
 		}
-		return v.signingKey, nil
+		return key, nil
 	}
 }
 
 // jwtIssuer implements TokenIssuer using JWT signing.
 type jwtIssuer struct {
-	signingKey          any    // []byte for HS256, *rsa.PrivateKey for RS256, *ecdsa.PrivateKey for ES256
-	signingAlg          string // "HS256", "RS256", "ES256"
+	signingKey          any              // []byte for HS256, *rsa.PrivateKey for RS256, *ecdsa.PrivateKey for ES256
+	keySource           SigningKeySource // when set, supplies the key in place of signingKey
+	signingAlg          string           // "HS256", "RS256", "ES256"
 	issuer              string
 	audience            string
 	audienceFunc        func() string
@@ -407,8 +440,12 @@ type CustomClaimsFunc func(subject string, scopes []string) (map[string]any, err
 type JWTIssuerConfig struct {
 	SigningKey any
 	SigningAlg string
-	Issuer     string
-	Audience   string
+	// SigningKeySource, when set, supplies the key on every mint in place
+	// of SigningKey, so it can rotate (RotatingSigningKey). SigningAlg must
+	// match its algorithm.
+	SigningKeySource SigningKeySource
+	Issuer           string
+	Audience         string
 	// AudienceFunc, when non-nil, is consulted on each access-token
 	// mint. A non-empty return takes precedence over Audience. See
 	// OneAuthConfig.AudienceFunc for the canonical use case.
@@ -439,6 +476,7 @@ func NewJWTIssuer(cfg JWTIssuerConfig) TokenIssuer {
 		expiry = core.TokenExpiryAccessToken
 	}
 	return &jwtIssuer{
+		keySource:           cfg.SigningKeySource,
 		signingKey:          cfg.SigningKey,
 		signingAlg:          cfg.SigningAlg,
 		issuer:              cfg.Issuer,
@@ -461,8 +499,9 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	if req == nil {
 		return nil, fmt.Errorf("CreateAccessTokenRequest is required")
 	}
+	signingKey := i.key()
 	// An empty HMAC key would mint tokens anyone can forge (RFC 7518 §3.2).
-	if b, ok := i.signingKey.([]byte); ok && len(b) == 0 {
+	if b, ok := signingKey.([]byte); ok && len(b) == 0 {
 		return nil, fmt.Errorf("no signing key configured")
 	}
 	subject := req.Subject
@@ -521,7 +560,7 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	signingMethod, err := utils.SigningMethodForAlg(i.signingAlg)
 	if err != nil {
 		// Fall back to HS256 for []byte keys
-		if _, ok := i.signingKey.([]byte); ok {
+		if _, ok := signingKey.([]byte); ok {
 			signingMethod = jwt.SigningMethodHS256
 		} else {
 			return nil, fmt.Errorf("invalid signing algorithm: %w", err)
@@ -529,11 +568,11 @@ func (i *jwtIssuer) CreateAccessToken(ctx context.Context, req *CreateAccessToke
 	}
 
 	token := jwt.NewWithClaims(signingMethod, claims)
-	if kid, kidErr := utils.ComputeKid(i.signingKey, signingMethod.Alg()); kidErr == nil {
+	if kid, kidErr := utils.ComputeKid(signingKey, signingMethod.Alg()); kidErr == nil {
 		token.Header["kid"] = kid
 	}
 
-	tokenString, err := token.SignedString(i.signingKey)
+	tokenString, err := token.SignedString(signingKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign token: %w", err)
 	}
@@ -704,3 +743,12 @@ func (i *jwtIssuer) RefreshGrant(ctx context.Context, req *RefreshGrantRequest) 
 // Extracted from this file per OAuth 2.1 §7.6 retirement: ROPC is now
 // a peer interface (PasswordGranter) the deployment opts into rather
 // than a TokenIssuer method that's always available. See #294.
+
+// key is the issuer's current signing key: its source's when it has one.
+func (i *jwtIssuer) key() any {
+	if i.keySource != nil {
+		k, _ := i.keySource.CurrentSigningKey()
+		return k
+	}
+	return i.signingKey
+}

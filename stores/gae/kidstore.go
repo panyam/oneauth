@@ -125,6 +125,34 @@ func (s *GAEKidStore) GetKeyByKid(ctx context.Context, req *keys.GetKeyByKidRequ
 	}}, nil
 }
 
+// ListKids implements keys.KidLister: every entity in the namespace whose
+// ExpiresAt is zero or in the future, so the JWKS endpoint can publish
+// retired keys (issue 421). Like CleanExpired it reads every entity and
+// filters in process; the grace cache is small. The kid is the entity's
+// key name.
+func (s *GAEKidStore) ListKids(ctx context.Context, req *keys.ListKidsRequest) (*keys.ListKidsResponse, error) {
+	q := datastore.NewQuery(KindKidKey)
+	if s.namespace != "" {
+		q = q.Namespace(s.namespace)
+	}
+	var entities []KidKeyEntity
+	dsKeys, err := s.client.GetAll(ctx, q, &entities)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	out := &keys.ListKidsResponse{}
+	for i, e := range entities {
+		if !e.ExpiresAt.IsZero() && now.After(e.ExpiresAt) {
+			continue
+		}
+		out.Records = append(out.Records, &keys.KeyRecord{ClientID: e.ClientID, Key: e.KeyBytes, Algorithm: e.Algorithm, Kid: dsKeys[i].Name})
+	}
+	return out, nil
+}
+
+var _ keys.KidLister = (*GAEKidStore)(nil)
+
 // CleanExpired sweeps the grace cache for entries whose ExpiresAt has passed
 // and returns the number removed. Implementation reads every entity in the
 // namespace and filters in process — Datastore doesn't expose a "delete
