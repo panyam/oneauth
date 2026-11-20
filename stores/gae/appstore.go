@@ -56,6 +56,11 @@ type AppRegistrationEntity struct {
 	LogoURI                     string `datastore:"logo_uri,noindex"`
 	PolicyURI                   string `datastore:"policy_uri,noindex"`
 	TOSURI                      string `datastore:"tos_uri,noindex"`
+
+	// OIDC Core §8 pairwise subjects (issue 507).
+	SubjectType         string `datastore:"subject_type,noindex"`
+	SectorIdentifierURI string `datastore:"sector_identifier_uri,noindex"`
+	SectorIdentifier    string `datastore:"sector_identifier,noindex"`
 }
 
 // GAEAppStore implements core.AppRegistrationStore using Google Cloud Datastore.
@@ -189,6 +194,9 @@ func appRegToEntity(key *datastore.Key, app *core.AppRegistration) *AppRegistrat
 		LogoURI:                            app.LogoURI,
 		PolicyURI:                          app.PolicyURI,
 		TOSURI:                             app.TOSURI,
+		SubjectType:                        app.SubjectType,
+		SectorIdentifierURI:                app.SectorIdentifierURI,
+		SectorIdentifier:                   app.SectorIdentifier,
 	}
 }
 
@@ -218,6 +226,9 @@ func entityToAppReg(e *AppRegistrationEntity) *core.AppRegistration {
 		LogoURI:                            e.LogoURI,
 		PolicyURI:                          e.PolicyURI,
 		TOSURI:                             e.TOSURI,
+		SubjectType:                        e.SubjectType,
+		SectorIdentifierURI:                e.SectorIdentifierURI,
+		SectorIdentifier:                   e.SectorIdentifier,
 	}
 }
 
