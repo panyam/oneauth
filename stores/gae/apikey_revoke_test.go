@@ -18,7 +18,10 @@ import (
 
 func TestAPIKeyStore_RevokeReportsAMissingKey(t *testing.T) {
 	ctx := context.Background()
-	s := func() *APIKeyStore { c, _ := emulatorClient(t, KindAPIKey, "apikey-revoke-test"); return NewAPIKeyStore(c, "apikey-revoke-test") }()
+	s := func() *APIKeyStore {
+		c, _ := emulatorClient(t, KindAPIKey, "apikey-revoke-test")
+		return NewAPIKeyStore(c, "apikey-revoke-test")
+	}()
 	created, err := s.CreateAPIKey(ctx, &core.CreateAPIKeyRequest{Subject: "alice", Name: "ci"})
 	require.NoError(t, err)
 

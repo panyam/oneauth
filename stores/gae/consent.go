@@ -31,8 +31,8 @@ const KindConsent = "Consent"
 //     ListConsents finds a user's grants with an equality query. A
 //     single-property filter uses Datastore's built-in index, so no
 //     index.yaml entry is needed. Grants saved before the property
-//     existed have none and aren't listed until the user approves the
-//     client again; GetConsent and RevokeConsent still find them by key.
+//     existed have none: GetConsent adds it when it reads one, and
+//     BackfillConsentSubjects adds it to all of them (issue 526).
 type ConsentEntity struct {
 	Record  []byte `datastore:"record,noindex"`
 	Subject string `datastore:"subject"`
@@ -115,6 +115,13 @@ func (s *GAEConsentStore) GetConsent(ctx context.Context, req *core.GetConsentRe
 	if g.Subject != req.Subject || g.ClientID != req.ClientID {
 		return nil, errConsentKeyMismatch
 	}
+	if e.Subject == "" {
+		// A grant saved before the subject property existed. Adding it
+		// lets ListConsents find the grant; failing to is not this
+		// read's problem.
+		e.Subject = g.Subject
+		_, _ = s.client.Put(ctx, s.key(g.Subject, g.ClientID), &e)
+	}
 	return &core.GetConsentResponse{Grant: &g}, nil
 }
 
@@ -161,4 +168,43 @@ func (s *GAEConsentStore) ListConsents(ctx context.Context, req *core.ListConsen
 	}
 	core.SortConsentGrants(out)
 	return &core.ListConsentsResponse{Grants: out}, nil
+}
+
+// BackfillConsentSubjects adds the indexed subject property to every grant
+// in the store's namespace saved before it existed, so ListConsents can
+// find them, and returns how many it rewrote. It is idempotent, and safe
+// to run while the store serves requests: a concurrent SaveConsent writes
+// the same property. Run it once after upgrading past issue 516; GetConsent
+// also repairs a grant whenever it reads one (issue 526).
+func (s *GAEConsentStore) BackfillConsentSubjects(ctx context.Context) (int, error) {
+	var entities []ConsentEntity
+	keys, err := s.client.GetAll(ctx, datastore.NewQuery(KindConsent).Namespace(s.namespace), &entities)
+	if err != nil {
+		return 0, fmt.Errorf("gae: list consents: %w", err)
+	}
+	var putKeys []*datastore.Key
+	var puts []*ConsentEntity
+	for i := range entities {
+		if entities[i].Subject != "" {
+			continue
+		}
+		var g core.ConsentGrant
+		if err := json.Unmarshal(entities[i].Record, &g); err != nil || g.Subject == "" {
+			continue
+		}
+		if keys[i].Name != s.key(g.Subject, g.ClientID).Name {
+			continue
+		}
+		entities[i].Subject = g.Subject
+		putKeys = append(putKeys, keys[i])
+		puts = append(puts, &entities[i])
+	}
+	// Datastore takes at most 500 entities per batch.
+	for start := 0; start < len(puts); start += 500 {
+		end := min(start+500, len(puts))
+		if _, err := s.client.PutMulti(ctx, putKeys[start:end], puts[start:end]); err != nil {
+			return start, fmt.Errorf("gae: backfill consent subjects: %w", err)
+		}
+	}
+	return len(puts), nil
 }
