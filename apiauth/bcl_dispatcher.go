@@ -84,6 +84,12 @@ type BCLDispatcher struct {
 	// registration-side knob.
 	AllowPrivateHosts bool
 
+	// SubjectForClient maps the user's subject to the sub each receiving
+	// client knows, which is pairwise for a pairwise client (issue 507);
+	// OneAuth.SubjectForClient is the usual value. A client whose sub
+	// can't be mapped gets no logout token. Nil sends the subject as is.
+	SubjectForClient ClientSubjectFunc
+
 	// wg tracks in-flight async dispatches so callers (mainly tests) can
 	// wait for them via Wait().
 	wg sync.WaitGroup
@@ -167,9 +173,18 @@ func (d *BCLDispatcher) Dispatch(ctx context.Context, req *DispatchRequest) (*Di
 			d.logger().Printf("bcl: skipping %q — session_required but no sid", cid)
 			continue
 		}
+		subject := req.Subject
+		if subject != "" && d.SubjectForClient != nil {
+			mapped, err := d.SubjectForClient(ctx, cid, subject)
+			if err != nil {
+				d.logger().Printf("bcl: skipping %q — subject: %v", cid, err)
+				continue
+			}
+			subject = mapped
+		}
 		tokReq := &CreateLogoutTokenRequest{
 			Audience: cid,
-			Subject:  req.Subject,
+			Subject:  subject,
 			SID:      req.SID,
 		}
 		tokResp, err := d.Issuer.CreateLogoutToken(ctx, tokReq)

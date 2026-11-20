@@ -150,6 +150,13 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 	// Host header.
 	registrar.IssuerBaseURL = publicBaseURL(cfg)
 	registrar.AllowPrivateJWKSHosts = cfg.AdminAuth.AllowPrivateClientHosts
+	clientCAs, err := clientFetchRootCAs(cfg.AdminAuth.ClientFetchCAFile)
+	if err != nil {
+		return nil, nil, err
+	}
+	clientFetcher := &apiauth.ClientJWKSFetcher{AllowPrivateHosts: cfg.AdminAuth.AllowPrivateClientHosts, RootCAs: clientCAs}
+	registrar.FetchSectorIdentifier = clientFetcher.SectorRedirectURIs
+	registrar.PairwiseSubjects = cfg.CodeFlow.OIDC && cfg.CodeFlow.PairwiseSalt != ""
 	if cfg.AdminAuth.AllowPrivateClientHosts {
 		log.Printf("WARNING: admin_auth.allow_private_client_hosts is on. Clients can make this server fetch from private addresses; use it only for test harnesses.")
 	}
@@ -237,12 +244,8 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 	}
 
 	// Build OneAuth (the transport-independent core) + handlers.
-	clientCAs, err := clientFetchRootCAs(cfg.AdminAuth.ClientFetchCAFile)
-	if err != nil {
-		log.Fatal(err)
-	}
 	oaCfg := apiauth.OneAuthConfig{
-		ClientJWKSFetcher:      &apiauth.ClientJWKSFetcher{AllowPrivateHosts: cfg.AdminAuth.AllowPrivateClientHosts, RootCAs: clientCAs},
+		ClientJWKSFetcher:      clientFetcher,
 		AppStore:               flowAppStore,
 		DeviceAuthStore:        deviceStore,
 		AuthorizationCodeStore: codeStore,
@@ -305,7 +308,8 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 
 	if cfg.CodeFlow.Enabled && cfg.CodeFlow.OIDC {
 		oaCfg.OIDC = &apiauth.OIDCConfig{
-			UserClaims: localauth.ProfileClaims(stores.userStore, stores.identityStore),
+			UserClaims:   localauth.ProfileClaims(stores.userStore, stores.identityStore),
+			PairwiseSalt: []byte(cfg.CodeFlow.PairwiseSalt),
 		}
 	}
 

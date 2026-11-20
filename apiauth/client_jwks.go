@@ -98,22 +98,47 @@ func (f *ClientJWKSFetcher) Keys(ctx context.Context, uri string, refresh bool) 
 }
 
 func (f *ClientJWKSFetcher) fetch(ctx context.Context, uri string) (*utils.JWKSet, error) {
+	var set utils.JWKSet
+	if err := f.getJSON(ctx, uri, "jwks_uri", &set); err != nil {
+		return nil, err
+	}
+	return &set, nil
+}
+
+// SectorRedirectURIs fetches a sector_identifier_uri, which must hold a
+// JSON array of redirect URIs (OIDC Registration §5), with the same guards
+// as a jwks_uri. Nothing is cached: registration fetches it once. It fits
+// admin.AppRegistrar.FetchSectorIdentifier.
+func (f *ClientJWKSFetcher) SectorRedirectURIs(ctx context.Context, uri string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var uris []string
+	if err := f.getJSON(ctx, uri, "sector_identifier_uri", &uris); err != nil {
+		return nil, err
+	}
+	return uris, nil
+}
+
+// getJSON GETs uri, which must be https, through the guarded client and
+// decodes at most MaxBytes of a 200 response into v. label names the
+// field in errors. The caller holds f.mu.
+func (f *ClientJWKSFetcher) getJSON(ctx context.Context, uri, label string, v any) error {
 	u, err := url.Parse(uri)
 	if err != nil || u.Scheme != "https" || u.Host == "" {
-		return nil, fmt.Errorf("jwks_uri %q is not an https URL", uri)
+		return fmt.Errorf("%s %q is not an https URL", label, uri)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	req.Header.Set("Accept", "application/json, application/jwk-set+json")
 	resp, err := f.httpClient().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetch jwks_uri: %w", err)
+		return fmt.Errorf("fetch %s: %w", label, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetch jwks_uri: status %d", resp.StatusCode)
+		return fmt.Errorf("fetch %s: status %d", label, resp.StatusCode)
 	}
 	limit := f.MaxBytes
 	if limit <= 0 {
@@ -121,16 +146,15 @@ func (f *ClientJWKSFetcher) fetch(ctx context.Context, uri string) (*utils.JWKSe
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
-		return nil, fmt.Errorf("read jwks_uri: %w", err)
+		return fmt.Errorf("read %s: %w", label, err)
 	}
 	if int64(len(body)) > limit {
-		return nil, fmt.Errorf("jwks_uri response is over %d bytes", limit)
+		return fmt.Errorf("%s response is over %d bytes", label, limit)
 	}
-	var set utils.JWKSet
-	if err := json.Unmarshal(body, &set); err != nil {
-		return nil, fmt.Errorf("parse jwks_uri: %w", err)
+	if err := json.Unmarshal(body, v); err != nil {
+		return fmt.Errorf("parse %s: %w", label, err)
 	}
-	return &set, nil
+	return nil
 }
 
 func (f *ClientJWKSFetcher) httpClient() *http.Client {

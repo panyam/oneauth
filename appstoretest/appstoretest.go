@@ -228,6 +228,9 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 		LogoURI:                     "https://full.example/logo.png",
 		PolicyURI:                   "https://full.example/privacy",
 		TOSURI:                      "https://full.example/terms",
+		SubjectType:                 "pairwise",
+		SectorIdentifierURI:         "https://full.example/sector.json",
+		SectorIdentifier:            "full.example",
 	}
 
 	saveApp(t, s, app)
@@ -289,5 +292,10 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	}
 	if got.LogoURI != "https://full.example/logo.png" || got.PolicyURI != "https://full.example/privacy" || got.TOSURI != "https://full.example/terms" {
 		t.Errorf("logo/policy/tos = %q %q %q", got.LogoURI, got.PolicyURI, got.TOSURI)
+	}
+	// Losing the sector after a restart would give every user of a
+	// pairwise client a new sub (issue 507).
+	if got.SubjectType != "pairwise" || got.SectorIdentifierURI != "https://full.example/sector.json" || got.SectorIdentifier != "full.example" {
+		t.Errorf("subject_type/sector = %q %q %q", got.SubjectType, got.SectorIdentifierURI, got.SectorIdentifier)
 	}
 }

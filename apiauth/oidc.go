@@ -54,6 +54,14 @@ type OIDCConfig struct {
 	// IDTokenExpiry bounds the ID token lifetime. Zero uses
 	// DefaultIDTokenExpiry.
 	IDTokenExpiry time.Duration
+
+	// PairwiseSalt keys the pairwise subs of clients registered with
+	// subject_type pairwise (OIDC Core §8.1, issue 507). It must stay the
+	// same for the server's lifetime, or every pairwise client's users get
+	// new subs, and it must be at least MinPairwiseSaltLen bytes. Empty
+	// means pairwise isn't supported: a pairwise client gets no ID token
+	// or userinfo response rather than the user's own ID.
+	PairwiseSalt []byte
 }
 
 // IDTokenIssuer mints OIDC ID tokens. It follows the gRPC-shape
@@ -120,6 +128,11 @@ type JWTIDTokenIssuerConfig struct {
 
 	// UserClaims supplies the claims beyond `sub`. Optional.
 	UserClaims UserClaimsFunc
+
+	// SubjectForClient maps the user's subject to the `sub` the client
+	// sees, which differs for a pairwise client (OneAuth.SubjectForClient).
+	// UserClaims still gets the user's own subject. Nil keeps it as is.
+	SubjectForClient ClientSubjectFunc
 }
 
 // jwtIDTokenIssuer implements IDTokenIssuer with the AS signing key.
@@ -129,6 +142,7 @@ type jwtIDTokenIssuer struct {
 	issuer     string
 	expiry     time.Duration
 	userClaims UserClaimsFunc
+	subjectFor ClientSubjectFunc
 }
 
 // NewJWTIDTokenIssuer returns an IDTokenIssuer that signs with the AS key.
@@ -156,6 +170,7 @@ func NewJWTIDTokenIssuer(cfg JWTIDTokenIssuerConfig) (IDTokenIssuer, error) {
 		issuer:     cfg.Issuer,
 		expiry:     expiry,
 		userClaims: cfg.UserClaims,
+		subjectFor: cfg.SubjectForClient,
 	}, nil
 }
 
@@ -188,7 +203,13 @@ func (i *jwtIDTokenIssuer) CreateIDToken(ctx context.Context, req *CreateIDToken
 	now := time.Now()
 	expiresAt := now.Add(i.expiry)
 	claims["iss"] = i.issuer
-	claims["sub"] = req.Subject
+	sub := req.Subject
+	if i.subjectFor != nil {
+		if sub, err = i.subjectFor(ctx, req.ClientID, req.Subject); err != nil {
+			return nil, fmt.Errorf("oidc: subject for client: %w", err)
+		}
+	}
+	claims["sub"] = sub
 	claims["aud"] = req.ClientID
 	claims["iat"] = now.Unix()
 	claims["exp"] = expiresAt.Unix()

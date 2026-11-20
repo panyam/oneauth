@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/panyam/oneauth/apiauth"
 	"os"
 	"regexp"
 	"strings"
@@ -87,6 +88,13 @@ type CodeFlowConfig struct {
 	// since ID tokens are verified against the JWKS; the server refuses to
 	// start otherwise.
 	OIDC bool `yaml:"oidc"`
+
+	// PairwiseSalt turns on pairwise subject identifiers (OIDC Core §8.1,
+	// issue 507): a client may register subject_type pairwise, and gets a
+	// sub derived from its sector with this secret. At least 32 bytes, and
+	// fixed for the server's lifetime, since changing it gives every
+	// pairwise client's users new subs. Empty leaves pairwise off.
+	PairwiseSalt string `yaml:"pairwise_salt"`
 }
 
 // SignupConfig configures the signup form.
@@ -408,6 +416,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.CodeFlow.Enabled && cfg.CodeFlow.Store.Type == "" {
 		cfg.CodeFlow.Store.Type = "memory"
+	}
+	if s := cfg.CodeFlow.PairwiseSalt; s != "" && len(s) < apiauth.MinPairwiseSaltLen {
+		return nil, fmt.Errorf("code_flow.pairwise_salt must be at least %d bytes", apiauth.MinPairwiseSaltLen)
 	}
 
 	return &cfg, nil

@@ -39,7 +39,13 @@ func (oa *OneAuth) UserinfoHTTPHandler(mw *APIMiddleware) http.Handler {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		claims, err := userinfoClaims(r.Context(), userClaims, GetSubjectFromAPIContext(r.Context()), GetScopesFromAPIContext(r.Context()), requestedUserinfoClaims(r.Context()))
+		subject := GetSubjectFromAPIContext(r.Context())
+		claims, err := userinfoClaims(r.Context(), userClaims, subject, GetScopesFromAPIContext(r.Context()), requestedUserinfoClaims(r.Context()))
+		if err == nil {
+			// The client sees the same sub as in its ID token (OIDC Core
+			// §5.3.2), which is pairwise for a pairwise client.
+			claims["sub"], err = oa.SubjectForClient(r.Context(), tokenInfoClientID(GetTokenInfoFromAPIContext(r.Context())), subject)
+		}
 		if err != nil {
 			log.Printf("apiauth: userinfo: %v", err)
 			http.Error(w, "could not load user claims", http.StatusInternalServerError)
@@ -103,4 +109,17 @@ func formBodyAccessToken(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// tokenInfoClientID is the client the validated access token was issued
+// to: its client_id claim, else azp, as tokenClientID reads them.
+func tokenInfoClientID(info *TokenInfo) string {
+	if info == nil {
+		return ""
+	}
+	if v, _ := info.CustomClaims["client_id"].(string); v != "" {
+		return v
+	}
+	v, _ := info.CustomClaims["azp"].(string)
+	return v
 }
