@@ -242,6 +242,16 @@ func validateKeyMetadata(authMethod string, md *DCRRequest, allowPrivate bool) e
 	return nil
 }
 
+// validateUserinfoAlg refuses a userinfo_signed_response_alg the
+// userinfo endpoint can't sign with.
+func (h *AppRegistrar) validateUserinfoAlg(md *DCRRequest) error {
+	alg := md.UserinfoSignedResponseAlg
+	if alg == "" || slices.Contains(h.UserinfoSigningAlgs, alg) {
+		return nil
+	}
+	return fmt.Errorf("%w: userinfo_signed_response_alg %q is not supported (userinfo_signing_alg_values_supported)", ErrInvalidClientMetadata, alg)
+}
+
 // asymmetricJWSAlgs are the algorithms a private_key_jwt client may pin
 // with token_endpoint_auth_signing_alg (RFC 7518 §3.1). Wider than
 // utils.IsAsymmetricAlg, which covers only the algorithms oneauth stores
@@ -434,6 +444,13 @@ type AppRegistrar struct {
 	// sector_identifier_uri.
 	FetchSectorIdentifier func(ctx context.Context, uri string) ([]string, error)
 
+	// UserinfoSigningAlgs are the algorithms the userinfo endpoint signs
+	// with, normally just the AS signing key's (apiauth.UserinfoSigner).
+	// A registration asking for another userinfo_signed_response_alg is
+	// refused, since its client could never verify the response. Empty
+	// refuses every userinfo_signed_response_alg.
+	UserinfoSigningAlgs []string
+
 	mu   sync.RWMutex
 	apps map[string]*core.AppRegistration
 }
@@ -509,6 +526,9 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	if err := validateDisplayURIs(md); err != nil {
 		return nil, err
 	}
+	if err := h.validateUserinfoAlg(md); err != nil {
+		return nil, err
+	}
 	subjectType, sector, err := subjectSector(ctx, md, h.PairwiseSubjects, h.FetchSectorIdentifier)
 	if err != nil {
 		return nil, err
@@ -572,6 +592,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		TOSURI:                             md.TOSURI,
 		SubjectType:                        subjectType,
 		SectorIdentifierURI:                md.SectorIdentifierURI,
+		UserinfoSignedResponseAlg:          md.UserinfoSignedResponseAlg,
 	}
 
 	if md.JWKSURI != "" {
@@ -636,6 +657,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		TOSURI:                             md.TOSURI,
 		SubjectType:                        subjectType,
 		SectorIdentifierURI:                md.SectorIdentifierURI,
+		UserinfoSignedResponseAlg:          md.UserinfoSignedResponseAlg,
 		SectorIdentifier:                   sector,
 	}
 	if err := h.SaveRegistration(ctx, reg); err != nil {
@@ -876,6 +898,7 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 			TOSURI:                             reg.TOSURI,
 			SubjectType:                        reg.SubjectType,
 			SectorIdentifierURI:                reg.SectorIdentifierURI,
+			UserinfoSignedResponseAlg:          reg.UserinfoSignedResponseAlg,
 		},
 	}, nil
 }
@@ -950,6 +973,9 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if err := keepsSubjectSector(md, reg); err != nil {
 		return nil, err
 	}
+	if err := h.validateUserinfoAlg(md); err != nil {
+		return nil, err
+	}
 	if reg.SectorIdentifierURI != "" {
 		check := *md
 		check.SubjectType, check.SectorIdentifierURI = reg.SubjectType, reg.SectorIdentifierURI
@@ -988,6 +1014,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	reg.LogoURI = md.LogoURI
 	reg.PolicyURI = md.PolicyURI
 	reg.TOSURI = md.TOSURI
+	reg.UserinfoSignedResponseAlg = md.UserinfoSignedResponseAlg
 
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, err
@@ -1017,6 +1044,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 			TOSURI:                             reg.TOSURI,
 			SubjectType:                        reg.SubjectType,
 			SectorIdentifierURI:                reg.SectorIdentifierURI,
+			UserinfoSignedResponseAlg:          reg.UserinfoSignedResponseAlg,
 		},
 	}, nil
 }

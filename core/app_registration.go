@@ -88,6 +88,12 @@ type AppRegistration struct {
 	// SectorIdentifierURI is the OIDC Registration §2 sector_identifier_uri
 	// the client registered, if any, kept for echoing back.
 	SectorIdentifierURI string `json:"sector_identifier_uri,omitempty"`
+
+	// UserinfoSignedResponseAlg is the OIDC Registration §2
+	// userinfo_signed_response_alg. When set, the userinfo endpoint
+	// answers this client with a JWT signed by the AS key
+	// (application/jwt, OIDC Core §5.3.2). Empty answers with plain JSON.
+	UserinfoSignedResponseAlg string `json:"userinfo_signed_response_alg,omitempty"`
 	// SectorIdentifier is the host a pairwise sub is derived from (OIDC
 	// Core §8.1): the sector_identifier_uri's host, or the redirect URIs'
 	// one host. Registration sets it; it must not change afterwards, or

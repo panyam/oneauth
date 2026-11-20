@@ -231,6 +231,7 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 		SubjectType:                 "pairwise",
 		SectorIdentifierURI:         "https://full.example/sector.json",
 		SectorIdentifier:            "full.example",
+		UserinfoSignedResponseAlg:   "RS256",
 	}
 
 	saveApp(t, s, app)
@@ -297,5 +298,8 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	// pairwise client a new sub (issue 507).
 	if got.SubjectType != "pairwise" || got.SectorIdentifierURI != "https://full.example/sector.json" || got.SectorIdentifier != "full.example" {
 		t.Errorf("subject_type/sector = %q %q %q", got.SubjectType, got.SectorIdentifierURI, got.SectorIdentifier)
+	}
+	if got.UserinfoSignedResponseAlg != "RS256" {
+		t.Errorf("userinfo_signed_response_alg = %q, want RS256", got.UserinfoSignedResponseAlg)
 	}
 }

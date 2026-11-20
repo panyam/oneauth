@@ -101,6 +101,11 @@ type DCRRequest struct {
 	SubjectType         string `json:"subject_type,omitempty"`
 	SectorIdentifierURI string `json:"sector_identifier_uri,omitempty"`
 
+	// UserinfoSignedResponseAlg asks for userinfo as a JWT signed with
+	// this algorithm (OIDC Registration §2). It must be one of
+	// AppRegistrar.UserinfoSigningAlgs. Empty gets plain JSON.
+	UserinfoSignedResponseAlg string `json:"userinfo_signed_response_alg,omitempty"`
+
 	// OIDC Back-Channel Logout 1.0 §3.1 — clients advertise a logout receiver.
 	// Empty disables BCL dispatch for this client.
 	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
@@ -159,6 +164,7 @@ type DCRResponse struct {
 	TOSURI                      string `json:"tos_uri,omitempty"`
 	SubjectType                 string `json:"subject_type,omitempty"`
 	SectorIdentifierURI         string `json:"sector_identifier_uri,omitempty"`
+	UserinfoSignedResponseAlg   string `json:"userinfo_signed_response_alg,omitempty"`
 }
 
 // ServeHTTP is the HTTP wrapper for ClientRegistrar.Register (RFC 7591 DCR).

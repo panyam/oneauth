@@ -56,9 +56,10 @@ type AppRegistrationModel struct {
 	TOSURI                      string `gorm:"column:tos_uri;size:512"`
 
 	// OIDC Core §8 pairwise subjects (issue 507).
-	SubjectType         string `gorm:"size:16"`
-	SectorIdentifierURI string `gorm:"size:512"`
-	SectorIdentifier    string `gorm:"size:256"`
+	SubjectType               string `gorm:"size:16"`
+	UserinfoSignedResponseAlg string `gorm:"size:16"`
+	SectorIdentifierURI       string `gorm:"size:512"`
+	SectorIdentifier          string `gorm:"size:256"`
 }
 
 func (AppRegistrationModel) TableName() string {
@@ -174,6 +175,7 @@ func appRegistrationToModel(app *core.AppRegistration) *AppRegistrationModel {
 		PolicyURI:                          app.PolicyURI,
 		TOSURI:                             app.TOSURI,
 		SubjectType:                        app.SubjectType,
+		UserinfoSignedResponseAlg:          app.UserinfoSignedResponseAlg,
 		SectorIdentifierURI:                app.SectorIdentifierURI,
 		SectorIdentifier:                   app.SectorIdentifier,
 	}
@@ -206,6 +208,7 @@ func modelToAppRegistration(m *AppRegistrationModel) *core.AppRegistration {
 		PolicyURI:                          m.PolicyURI,
 		TOSURI:                             m.TOSURI,
 		SubjectType:                        m.SubjectType,
+		UserinfoSignedResponseAlg:          m.UserinfoSignedResponseAlg,
 		SectorIdentifierURI:                m.SectorIdentifierURI,
 		SectorIdentifier:                   m.SectorIdentifier,
 	}
