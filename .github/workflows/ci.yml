@@ -60,6 +60,11 @@ jobs:
       - name: Test (OIDF conformance tooling)
         run: cd tests/oidf-conformance && GOWORK=off go test -count=1 ./...
 
+      # The MCP server-auth fixtures' token minting and the judge (issue
+      # 495). The scenarios themselves need node and run in make conformance.
+      - name: Test (MCP auth conformance tooling)
+        run: cd tests/mcpauth && GOWORK=off go test -count=1 ./... && GOWORK=off go vet ./...
+
       # The conformance runner and its drift check between
       # conformance/suites.yaml and conformance/Makefile (mission 489). The
       # suites themselves need Docker and run through `make conformance`.

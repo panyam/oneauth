@@ -785,6 +785,12 @@ exercise-oidcc:
 exercise-oidcdyn:
 	RESPONSE_TYPE="$(RESPONSE_TYPE)" ./scripts/exercise-oidf.sh oidcdyn $(if $(MODULE),-module $(MODULE))
 
+# Issue 495: the MCP server-auth conformance scenarios against oneauth-server
+# through one MCP SDK, SDK=gosdk (the official Go SDK) or SDK=mcpkit, or
+# both in turn when SDK is unset. Needs node; see scripts/exercise-mcpauth.sh.
+exercise-mcpauth:
+	@set -e; for s in $(or $(SDK),gosdk mcpkit); do ./scripts/exercise-mcpauth.sh $$s; done
+
 # Issue 494: oidcc-test-plan on :8892 with AUTH's client auth method, or each
 # of OIDCCTP_AUTH_TYPES in turn when AUTH is unset. MODULE=<substring> as above.
 exercise-oidcctp:

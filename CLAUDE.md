@@ -21,6 +21,7 @@ Each package has a `SUMMARY.md`. Subsystem gotchas live in a `CLAUDE.md` beside 
 | `cmd/oneauth-server/` | Config-driven reference server (#194) | [cmd/oneauth-server/CLAUDE.md](cmd/oneauth-server/CLAUDE.md) |
 | `cmd/oneauth/` | Cobra client CLI (`oneauth token ...`) | |
 | `tests/keycloak/`, `tests/oidf-conformance/` | Keycloak interop, OIDF FAPI 2.0 harness | [keycloak](tests/keycloak/CLAUDE.md), [oidf](tests/oidf-conformance/CLAUDE.md) |
+| `tests/mcpauth/` | MCP server-auth conformance through the Go SDK and mcpkit | [mcpauth](tests/mcpauth/CLAUDE.md) |
 | `docs/site/` | Docsite | [docs/site/CLAUDE.md](docs/site/CLAUDE.md) |
 | `examples/` | 10 progressive examples with demokit | [examples/README.md](examples/README.md) |
 
