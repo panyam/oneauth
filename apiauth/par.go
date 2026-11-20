@@ -94,6 +94,10 @@ func (h *PARHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, invalidRequest("could not parse form body"))
 		return
 	}
+	if gErr := checkFormParams(r); gErr != nil {
+		h.writeError(w, gErr)
+		return
+	}
 
 	// §2.1: request_uri is the one authorization parameter that must not
 	// be pushed. Accepting it would let a client chain one reference to

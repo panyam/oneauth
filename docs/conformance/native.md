@@ -1,6 +1,6 @@
 # Go-native conformance report
 
-Generated: 2026-11-20 04:02:50 UTC  
+Generated: 2026-11-20 04:22:30 UTC  
 Package pattern: `./...`
 
 ## Summary
@@ -11,7 +11,7 @@ Package pattern: `./...`
 | Passing | 26 |
 | Failing | 0 |
 | Skipped (forbidden) | 0 |
-| Known gaps in manifest | 25 |
+| Known gaps in manifest | 26 |
 | Gapped tests observed | 0 |
 | Ratchet issues | 0 |
 
@@ -19,9 +19,10 @@ Package pattern: `./...`
 
 | Expires | Suite | Test | Issue | Owner | Status |
 |---|---|---|---|---|---|
-| 2027-12-31 | mcp | `mcp-auth-gosdk,mcp-auth-mcpkit,mcp-auth-ts/auth-iss-param-redirect-carries-iss` | 523 | panyam | expected-skip |
-| 2027-12-31 | mcp | `mcp-auth-ts/auth-oauth-discovery-prm-content-type` | 523 | panyam | expected-fail |
-| 2027-12-31 | mcp | `mcp-auth-ts/auth-oauth-discovery-prm-root` | 523 | panyam | expected-fail |
+| 2027-12-31 | mcp | `mcp-auth-gosdk,mcp-auth-mcpkit/auth-enterprise-managed-jwt-bearer-grant-supported` | 521 | panyam | expected-skip |
+| 2027-12-31 | mcp | `mcp-auth-gosdk,mcp-auth-mcpkit/auth-enterprise-managed-token-exchange-flow-shape` | 521 | panyam | expected-skip |
+| 2027-12-31 | mcp | `mcp-auth-gosdk,mcp-auth-mcpkit/auth-enterprise-managed-token-exchange-grant-supported` | 521 | panyam | expected-skip |
+| 2027-12-31 | mcp | `mcp-auth-gosdk,mcp-auth-mcpkit/auth-iss-param-redirect-carries-iss` | 521 | panyam | expected-skip |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails` | 330 | panyam | expected-skip |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails` | 98 | panyam | expected-review |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-happy-flow` | 339 | panyam | expected-warning |

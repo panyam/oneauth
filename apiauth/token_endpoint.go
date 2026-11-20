@@ -146,34 +146,44 @@ func parseTokenRequest(r *http.Request) (*core.TokenRequest, *GrantError) {
 			}
 			return nil, invalidRequest("invalid form body")
 		}
-		req := &core.TokenRequest{
-			GrantType:           r.FormValue("grant_type"),
-			Username:            r.FormValue("username"),
-			Password:            r.FormValue("password"),
-			RefreshToken:        r.FormValue("refresh_token"),
-			Scope:               r.FormValue("scope"),
-			ClientID:            r.FormValue("client_id"),
-			ClientSecret:        r.FormValue("client_secret"),
-			DeviceCode:          r.FormValue("device_code"),
-			Code:                r.FormValue("code"),
-			CodeVerifier:        r.FormValue("code_verifier"),
-			RedirectURI:         r.FormValue("redirect_uri"),
-			ClientAssertionType: r.FormValue("client_assertion_type"),
-			ClientAssertion:     r.FormValue("client_assertion"),
-			Assertion:           r.FormValue("assertion"),
-			SubjectToken:        r.FormValue("subject_token"),
-			SubjectTokenType:    r.FormValue("subject_token_type"),
-			RequestedTokenType:  r.FormValue("requested_token_type"),
-			Resource:            r.FormValue("resource"),
-			Resources:           r.PostForm["resource"],
-			Audience:            r.FormValue("audience"),
+		// RFC 6749 §2.3.1 and §3.2: credentials stay out of the URI, and
+		// every parameter is read from the body alone.
+		if gErr := checkFormParams(r); gErr != nil {
+			return nil, gErr
 		}
-		if adStr := r.FormValue("authorization_details"); adStr != "" {
+		req := &core.TokenRequest{
+			GrantType:           r.PostForm.Get("grant_type"),
+			Username:            r.PostForm.Get("username"),
+			Password:            r.PostForm.Get("password"),
+			RefreshToken:        r.PostForm.Get("refresh_token"),
+			Scope:               r.PostForm.Get("scope"),
+			ClientID:            r.PostForm.Get("client_id"),
+			ClientSecret:        r.PostForm.Get("client_secret"),
+			DeviceCode:          r.PostForm.Get("device_code"),
+			Code:                r.PostForm.Get("code"),
+			CodeVerifier:        r.PostForm.Get("code_verifier"),
+			RedirectURI:         r.PostForm.Get("redirect_uri"),
+			ClientAssertionType: r.PostForm.Get("client_assertion_type"),
+			ClientAssertion:     r.PostForm.Get("client_assertion"),
+			Assertion:           r.PostForm.Get("assertion"),
+			SubjectToken:        r.PostForm.Get("subject_token"),
+			SubjectTokenType:    r.PostForm.Get("subject_token_type"),
+			RequestedTokenType:  r.PostForm.Get("requested_token_type"),
+			Resource:            r.PostForm.Get("resource"),
+			Resources:           r.PostForm["resource"],
+			Audience:            r.PostForm.Get("audience"),
+		}
+		if adStr := r.PostForm.Get("authorization_details"); adStr != "" {
 			if err := json.Unmarshal([]byte(adStr), &req.AuthorizationDetails); err != nil {
 				return nil, &GrantError{Code: "invalid_authorization_details", Description: "invalid authorization_details JSON", Status: http.StatusBadRequest}
 			}
 		}
 		return req, nil
+	}
+	for _, p := range clientCredentialParams {
+		if r.URL.Query().Has(p) {
+			return nil, invalidRequest(p + " must not be sent in the request URI (RFC 6749 §2.3.1); send it in the request body")
+		}
 	}
 	var req core.TokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -693,7 +703,7 @@ func requestingClientID(r *http.Request, req *core.TokenRequest) string {
 	if req != nil && req.ClientID != "" {
 		return req.ClientID
 	}
-	return r.FormValue("client_id")
+	return r.PostFormValue("client_id")
 }
 
 // authenticateClient runs whichever auth method the request carries
