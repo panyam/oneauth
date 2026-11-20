@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -105,6 +106,43 @@ type ConsentStore interface {
 	RevokeConsent(ctx context.Context, req *RevokeConsentRequest) (*RevokeConsentResponse, error)
 }
 
+// ListConsentsRequest names the user whose grants to list.
+type ListConsentsRequest struct {
+	Subject string
+}
+
+// ListConsentsResponse holds the user's unexpired grants, sorted by
+// ClientID so a page listing them doesn't reorder between loads. An
+// empty list is not an error.
+type ListConsentsResponse struct {
+	Grants []*ConsentGrant
+}
+
+// ConsentLister is an optional ConsentStore capability. A store that
+// implements it lets a user see every client they approved and withdraw
+// one, as the reference server's connected-apps page does. It is a
+// separate interface so a custom ConsentStore written before it existed
+// still compiles; callers check for it with a type assertion.
+//
+// Implementations must:
+//   - return only grants whose Subject is req.Subject, so one user never
+//     sees another's approvals;
+//   - leave out expired grants, since they no longer let a client skip
+//     the consent screen and revoking them changes nothing;
+//   - return an empty list for an empty Subject rather than every grant;
+//   - return copies, as GetConsent does.
+//
+// The shared contract suite is consenttest.RunLister.
+type ConsentLister interface {
+	ListConsents(ctx context.Context, req *ListConsentsRequest) (*ListConsentsResponse, error)
+}
+
+// SortConsentGrants orders grants by ClientID, the order ListConsents
+// promises. Backends call it on what they collected.
+func SortConsentGrants(grants []*ConsentGrant) {
+	slices.SortFunc(grants, func(a, b *ConsentGrant) int { return strings.Compare(a.ClientID, b.ClientID) })
+}
+
 // InMemoryConsentStore is a ConsentStore for tests and single-process
 // deployments. Grants are lost on restart, so users see the consent screen
 // again.
@@ -149,6 +187,30 @@ func (s *InMemoryConsentStore) RevokeConsent(ctx context.Context, req *RevokeCon
 	s.mu.Unlock()
 	return &RevokeConsentResponse{}, nil
 }
+
+// ListConsents returns copies of the subject's unexpired grants, sorted
+// by ClientID.
+func (s *InMemoryConsentStore) ListConsents(ctx context.Context, req *ListConsentsRequest) (*ListConsentsResponse, error) {
+	out := []*ConsentGrant{}
+	if req == nil || req.Subject == "" {
+		return &ListConsentsResponse{Grants: out}, nil
+	}
+	now := time.Now()
+	s.mu.Lock()
+	for k, g := range s.grants {
+		if k[0] == req.Subject && !g.IsExpired(now) {
+			out = append(out, copyConsentGrant(&g))
+		}
+	}
+	s.mu.Unlock()
+	SortConsentGrants(out)
+	return &ListConsentsResponse{Grants: out}, nil
+}
+
+var (
+	_ ConsentStore  = (*InMemoryConsentStore)(nil)
+	_ ConsentLister = (*InMemoryConsentStore)(nil)
+)
 
 func copyConsentGrant(g *ConsentGrant) *ConsentGrant {
 	c := *g

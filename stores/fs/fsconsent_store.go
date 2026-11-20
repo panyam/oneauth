@@ -10,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/panyam/oneauth/core"
 )
@@ -125,4 +127,55 @@ func (s *FSConsentStore) RevokeConsent(_ context.Context, req *core.RevokeConsen
 	return &core.RevokeConsentResponse{}, nil
 }
 
-var _ core.ConsentStore = (*FSConsentStore)(nil)
+// ListConsents returns the subject's unexpired grants, sorted by
+// client_id. Files are named by a hash, so it reads every file under
+// consents and keeps those whose grant names req.Subject; the cost grows
+// with every user's grants, which suits the FS store's single-node use.
+// A file whose name isn't the hash of the grant it holds is skipped, as
+// GetConsent would refuse it. A missing directory is an empty list, and
+// an unreadable or corrupt file is an error rather than a silent gap.
+func (s *FSConsentStore) ListConsents(_ context.Context, req *core.ListConsentsRequest) (*core.ListConsentsResponse, error) {
+	out := []*core.ConsentGrant{}
+	if req == nil || req.Subject == "" {
+		return &core.ListConsentsResponse{Grants: out}, nil
+	}
+	dir := filepath.Join(s.StoragePath, "consents")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return &core.ListConsentsResponse{Grants: out}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || filepath.Ext(name) != ".json" || strings.HasPrefix(name, ".") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, err
+		}
+		var g core.ConsentGrant
+		if err := json.Unmarshal(data, &g); err != nil {
+			return nil, fmt.Errorf("fs: consent file %s: %w", name, err)
+		}
+		if g.Subject != req.Subject || g.IsExpired(now) {
+			continue
+		}
+		if want, err := s.path(g.Subject, g.ClientID); err != nil || filepath.Base(want) != name {
+			continue
+		}
+		out = append(out, &g)
+	}
+	core.SortConsentGrants(out)
+	return &core.ListConsentsResponse{Grants: out}, nil
+}
+
+var (
+	_ core.ConsentStore  = (*FSConsentStore)(nil)
+	_ core.ConsentLister = (*FSConsentStore)(nil)
+)
