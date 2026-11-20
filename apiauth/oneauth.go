@@ -503,6 +503,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		)
 		g.IDTokens = idTokens
 		g.PKCEPolicy = cfg.PKCEPolicy
+		g.allowedResources = cfg.AllowedResources
 		authCodeGranter = g
 	}
 	var deviceGranter DeviceCodeGranter

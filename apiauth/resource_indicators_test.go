@@ -207,3 +207,32 @@ func TestResourceIndicators_ConsentFormCarriesResources(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), `<input type="hidden" name="resource" value="`+mcpA+`">`)
 	assert.Contains(t, rr.Body.String(), `<input type="hidden" name="resource" value="`+mcpB+`">`)
 }
+
+// An MCP client sends the same resource at /authorize and at the token
+// endpoint (RFC 8707 §2.1 and §2.2). Without AllowedResources the AS
+// ignores both, as for client_credentials, rather than storing no
+// resources on the code and then refusing the token request's one.
+func TestResourceIndicators_CodeGrantIgnoredWithoutAnAllowlist(t *testing.T) {
+	fx := newOIDCFixture(t, nil)
+	q := claimsParams("read", "")
+	q.Set("resource", mcpA)
+
+	status, body := redeemWithResources(t, fx, q, mcpA)
+	require.Equal(t, http.StatusOK, status, body)
+	assert.NotEqual(t, mcpA, audOf(t, body["access_token"].(string)), "no allowlist: resource is not bound")
+}
+
+// A code authorized with no resource can still name one at the token
+// request, checked against the allowlist as client_credentials is.
+func TestResourceIndicators_CodeGrantWithoutAuthorizedResourcesChecksTheAllowlist(t *testing.T) {
+	fx := resourceOIDCFixture(t)
+	q := claimsParams("read", "")
+
+	status, body := redeemWithResources(t, fx, q, mcpA)
+	require.Equal(t, http.StatusOK, status, body)
+	assert.Equal(t, mcpA, audOf(t, body["access_token"].(string)))
+
+	status, body = redeemWithResources(t, fx, q, "https://unknown.example/mcp")
+	assert.Equal(t, http.StatusBadRequest, status)
+	assert.Equal(t, "invalid_target", body["error"])
+}

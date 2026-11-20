@@ -35,6 +35,10 @@ type authorizationCodeGranter struct {
 	// can be redeemed at all. Under PKCERequired it can't, whatever path
 	// stored it.
 	PKCEPolicy PKCEPolicy
+
+	// allowedResources is OneAuthConfig.AllowedResources, for a token
+	// request that names a resource when the code carries none.
+	allowedResources []string
 }
 
 // NewAuthorizationCodeGranter constructs an AuthorizationCodeGranter
@@ -154,7 +158,16 @@ func (r *authorizationCodeGranter) AuthorizationCodeGrant(ctx context.Context, r
 		return nil, invalidGrant("authorization code is missing subject")
 	}
 
-	audience, gErr := narrowResources(req.Resources, entry.Resources)
+	// RFC 8707 §2.2: the token request may narrow the resources the code
+	// was authorized for, never widen them. With none stored, it is checked
+	// against the allowlist, as for the device grant.
+	var audience []string
+	var gErr *GrantError
+	if len(entry.Resources) > 0 {
+		audience, gErr = narrowResources(req.Resources, entry.Resources)
+	} else {
+		audience, gErr = checkResources(r.allowedResources, req.Resources)
+	}
 	if gErr != nil {
 		return nil, gErr
 	}
