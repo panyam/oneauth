@@ -22,16 +22,16 @@ use (
 
 // BEGIN release-managed replaces (scripts/workspace-replace.sh)
 replace (
-	github.com/panyam/oneauth v0.3.11 => ./
-	github.com/panyam/oneauth/cmd/demo-hostapp v0.3.11 => ./cmd/demo-hostapp
-	github.com/panyam/oneauth/cmd/demo-resource-server v0.3.11 => ./cmd/demo-resource-server
-	github.com/panyam/oneauth/cmd/oneauth v0.3.11 => ./cmd/oneauth
-	github.com/panyam/oneauth/cmd/oneauth-server v0.3.11 => ./cmd/oneauth-server
-	github.com/panyam/oneauth/grpc v0.3.11 => ./grpc
-	github.com/panyam/oneauth/oauth2 v0.3.11 => ./oauth2
-	github.com/panyam/oneauth/saml v0.3.11 => ./saml
-	github.com/panyam/oneauth/sshkeys v0.3.11 => ./sshkeys
-	github.com/panyam/oneauth/stores/gae v0.3.11 => ./stores/gae
-	github.com/panyam/oneauth/stores/gorm v0.3.11 => ./stores/gorm
+	github.com/panyam/oneauth v0.3.12 => ./
+	github.com/panyam/oneauth/cmd/demo-hostapp v0.3.12 => ./cmd/demo-hostapp
+	github.com/panyam/oneauth/cmd/demo-resource-server v0.3.12 => ./cmd/demo-resource-server
+	github.com/panyam/oneauth/cmd/oneauth v0.3.12 => ./cmd/oneauth
+	github.com/panyam/oneauth/cmd/oneauth-server v0.3.12 => ./cmd/oneauth-server
+	github.com/panyam/oneauth/grpc v0.3.12 => ./grpc
+	github.com/panyam/oneauth/oauth2 v0.3.12 => ./oauth2
+	github.com/panyam/oneauth/saml v0.3.12 => ./saml
+	github.com/panyam/oneauth/sshkeys v0.3.12 => ./sshkeys
+	github.com/panyam/oneauth/stores/gae v0.3.12 => ./stores/gae
+	github.com/panyam/oneauth/stores/gorm v0.3.12 => ./stores/gorm
 )
 // END release-managed replaces
