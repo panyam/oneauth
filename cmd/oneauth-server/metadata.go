@@ -23,7 +23,7 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 		TokenEndpointAuthMethods: []string{"client_secret_basic", "client_secret_post", "private_key_jwt", "client_secret_jwt"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256", "HS256", "HS384", "HS512"},
 		CodeChallengeMethodsSupported:              []string{"S256"},
-		SubjectTypesSupported:                      []string{"public"},
+		SubjectTypesSupported:                      subjectTypes(cfg),
 		ScopesSupported:                            cfg.JWT.ScopesSupported,
 		ClaimsSupported:                            cfg.JWT.ClaimsSupported,
 		AuthorizationDetailsTypesSupported:         cfg.JWT.AuthorizationDetailsTypes,
@@ -140,4 +140,13 @@ func pkcePolicy(cfg *Config) apiauth.PKCEPolicy {
 		return apiauth.PKCEOptionalForConfidential
 	}
 	return apiauth.PKCERequired
+}
+
+// subjectTypes is subject_types_supported: public, plus pairwise when
+// code_flow.pairwise_salt is set (issue 507).
+func subjectTypes(cfg *Config) []string {
+	if cfg.CodeFlow.OIDC && cfg.CodeFlow.PairwiseSalt != "" {
+		return []string{"public", "pairwise"}
+	}
+	return []string{"public"}
 }
