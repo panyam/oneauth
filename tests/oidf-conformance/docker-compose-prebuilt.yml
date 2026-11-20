@@ -57,6 +57,11 @@ services:
         -Djavax.net.ssl.trustStoreType=JKS
     volumes:
      - ./certs:/oneauth-truststore:ro
+    # The harness reaches oneauth-server at host.docker.internal. Docker
+    # Desktop resolves that name itself; Docker on Linux (CI) needs this
+    # (issue 498).
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
     depends_on:
      - mongodb
     logging:
