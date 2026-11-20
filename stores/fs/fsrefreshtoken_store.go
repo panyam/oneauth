@@ -87,13 +87,24 @@ func (s *FSRefreshTokenStore) CreateRefreshToken(ctx context.Context, req *core.
 	return &core.CreateRefreshTokenResponse{Token: refreshToken}, nil
 }
 
+// saveToken writes token's record under its hash with Token cleared, so
+// the file holds no usable refresh token, as in the GORM and GAE stores
+// (issue 526). A record read from a file written before that still
+// carries Token, and this rewrite drops it.
 func (s *FSRefreshTokenStore) saveToken(token *core.RefreshToken) error {
-	path := s.getTokenPath(token.Token)
+	hash := token.TokenHash
+	if hash == "" {
+		hash = s.hashToken(token.Token)
+	}
+	path := filepath.Join(s.getTokenDir(), hash+".json")
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 
-	data, err := json.MarshalIndent(token, "", "  ")
+	atRest := *token
+	atRest.Token = ""
+	atRest.TokenHash = hash
+	data, err := json.MarshalIndent(&atRest, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -130,6 +141,8 @@ func (s *FSRefreshTokenStore) getTokenUnsafe(token string) (*core.RefreshToken, 
 		return nil, err
 	}
 
+	// The file keeps only the hash; the caller knows the token.
+	refreshToken.Token = token
 	return &refreshToken, nil
 }
 

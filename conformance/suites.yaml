@@ -73,6 +73,24 @@ suites:
     needs: [docker]
     tracking: "issue 500"
 
+  - name: oidf-implicit
+    kind: gating
+    timeout: 20m
+    covers: OIDF oidcc-implicit-certification-test-plan, the opt-in implicit flow with a static client
+    plan: oidcc-implicit-certification-test-plan
+    source: tests/oidf-conformance/oidcc
+    needs: [docker]
+    tracking: "issue 526"
+
+  - name: oidf-formpost-implicit
+    kind: gating
+    timeout: 20m
+    covers: OIDF oidcc-formpost-implicit-certification-test-plan, the Implicit OP modules with response_mode=form_post
+    plan: oidcc-formpost-implicit-certification-test-plan
+    source: tests/oidf-conformance/oidcc
+    needs: [docker]
+    tracking: "issue 526"
+
   - name: oidf-dynamic-op
     kind: gating
     timeout: 20m

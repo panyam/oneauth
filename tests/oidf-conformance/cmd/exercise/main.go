@@ -6,6 +6,8 @@
 //	fapi2    fapi2-security-profile-final-test-plan (mission 98)
 //	oidcc    oidcc-basic-certification-test-plan (mission 477)
 //	oidccfp  oidcc-formpost-basic-certification-test-plan (issue 500)
+//	oidcci   oidcc-implicit-certification-test-plan (issue 526)
+//	oidccfpi oidcc-formpost-implicit-certification-test-plan (issue 526)
 //	oidcdyn  oidcc-dynamic-certification-test-plan (issue 493)
 //	oidcctp  oidcc-test-plan with -auth's client auth method (issue 494)
 //
@@ -39,7 +41,7 @@ import (
 )
 
 func main() {
-	planFlag := flag.String("plan", "fapi2", "plan to run: fapi2, oidcc, oidccfp, oidcdyn or oidcctp")
+	planFlag := flag.String("plan", "fapi2", "plan to run: fapi2, oidcc, oidccfp, oidcci, oidccfpi, oidcdyn or oidcctp")
 	authType := flag.String("auth", "", "oidcctp only: the client auth method to run oidcc-test-plan with")
 	responseType := flag.String("response-type", "", "oidcdyn only: an implicit response type to run the Dynamic plan with instead of code")
 	harnessURL := flag.String("harness", "https://localhost.emobix.co.uk:8443", "OIDF harness origin")
@@ -101,6 +103,19 @@ func main() {
 		if *planFlag == "oidccfp" {
 			plan = oidcc.FormPostPlan(s)
 		}
+	case "oidcci", "oidccfpi":
+		s := oidcc.Setup{
+			Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, Scope: oidcc.Scope,
+			User: oidcc.ExerciseUser(),
+		}
+		if err := oidcc.PrepareImplicit(ctx, hc, *serverURL, &s); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("registered implicit client: %s\n", s.Clients[0].ID)
+		plan, prefix = oidcc.ImplicitPlan(s), oidcc.ModulePrefix
+		if *planFlag == "oidccfpi" {
+			plan = oidcc.FormPostImplicitPlan(s)
+		}
 	case "oidcdyn", "oidcctp":
 		s := oidcdyn.Setup{Alias: *alias, HarnessURL: *harnessURL, IssuerURL: *issuerURL, User: oidcdyn.ExerciseUser()}
 		if err := oidfplan.SignUp(ctx, hc, *serverURL, s.User); err != nil {
@@ -118,7 +133,7 @@ func main() {
 			}
 		}
 	default:
-		log.Fatalf("unknown -plan %q: want fapi2, oidcc, oidccfp, oidcdyn or oidcctp", *planFlag)
+		log.Fatalf("unknown -plan %q: want fapi2, oidcc, oidccfp, oidcci, oidccfpi, oidcdyn or oidcctp", *planFlag)
 	}
 
 	expected, err := oidfplan.LoadExpectations(*manifest, plan.ManifestKey())

@@ -3,6 +3,7 @@ package admin
 import (
 	"encoding/json"
 	"errors"
+	"github.com/panyam/oneauth/core"
 	"net/http"
 	"strings"
 )
@@ -179,7 +180,7 @@ func dcrUnauthorized(w http.ResponseWriter, errCode, description string) {
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error":             errCode,
-		"error_description": description,
+		"error_description": core.OAuthErrorDescription(description),
 	})
 }
 
@@ -193,6 +194,6 @@ func dcrBadRequest(w http.ResponseWriter, errCode, description string) {
 	w.WriteHeader(http.StatusBadRequest)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error":             errCode,
-		"error_description": description,
+		"error_description": core.OAuthErrorDescription(description),
 	})
 }

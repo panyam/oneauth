@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/utils"
 )
@@ -255,7 +256,7 @@ func (h *DCRHandler) jsonError(w http.ResponseWriter, errCode, description strin
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{
 		"error":             errCode,
-		"error_description": description,
+		"error_description": core.OAuthErrorDescription(description),
 	})
 }
 

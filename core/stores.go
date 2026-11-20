@@ -35,8 +35,9 @@ type CreateRefreshTokenRequest struct {
 }
 
 // CreateRefreshTokenResponse carries the new token. Token.Token is the
-// plaintext value the client must present. The GORM and GAE stores keep
-// only its hash, so the caller hands it to the client now. Token.Family
+// plaintext value the client must present. Every bundled store keeps
+// only its hash (the FS store since issue 526), so the caller hands it to
+// the client now. Token.Family
 // is new, and every rotation of this token stays in it, so revoking the
 // family reaches every generation.
 type CreateRefreshTokenResponse struct {

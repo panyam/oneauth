@@ -276,7 +276,7 @@ func (h *PARHandler) writeError(w http.ResponseWriter, err *GrantError) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error":             err.Code,
-		"error_description": err.Description,
+		"error_description": core.OAuthErrorDescription(err.Description),
 	})
 }
 

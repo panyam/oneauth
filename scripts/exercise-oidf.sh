@@ -8,6 +8,10 @@
 #            with tests/oidf-conformance/oneauth-oidcc.yaml
 #   oidccfp  oidcc-formpost-basic-certification-test-plan, issue 500, on
 #            :8893 with the same config
+#   oidcci   oidcc-implicit-certification-test-plan, issue 526, on :8894
+#            with the same config
+#   oidccfpi oidcc-formpost-implicit-certification-test-plan, issue 526,
+#            on :8896 with the same config
 #   oidcdyn  oidcc-dynamic-certification-test-plan, issue 493, on :8891
 #            with the same config; RESPONSE_TYPE="id_token token" (or
 #            id_token) runs its implicit variant (issue 507)
@@ -40,11 +44,13 @@ case "$plan" in
   fapi2) port=8889 config=tests/oidf-conformance/oneauth-fapi2.yaml gotest=. ;;
   oidcc) port=8890 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_BasicOP$' ;;
   oidccfp) port=8893 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_FormPostBasicOP$' ;;
+  oidcci) port=8894 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_ImplicitOP$' ;;
+  oidccfpi) port=8896 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_FormPostImplicitOP$' ;;
   oidcdyn) port=8891 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_DynamicOP$' ;;
   oidcctp)
     port=8892 config=tests/oidf-conformance/oneauth-oidcc.yaml gotest='^TestOIDF_OIDCC_TestPlan$'
     if [[ -z "${AUTH:-}" ]]; then echo "oidcctp needs AUTH=<client auth method>" >&2; exit 2; fi ;;
-  *) echo "usage: $0 fapi2|oidcc|oidccfp|oidcdyn|oidcctp [--go-test] [args...]" >&2; exit 2 ;;
+  *) echo "usage: $0 fapi2|oidcc|oidccfp|oidcci|oidccfpi|oidcdyn|oidcctp [--go-test] [args...]" >&2; exit 2 ;;
 esac
 shift
 

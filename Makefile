@@ -212,7 +212,7 @@ zap:
 		if curl -sf http://localhost:19876/_ah/health > /dev/null 2>&1; then ZAP_OK=1; break; fi; sleep 1; \
 	done; \
 	if [ $$ZAP_OK -eq 1 ]; then \
-		mkdir -p /tmp/zap-wrk && cp $(PWD)/.zap-rules.tsv /tmp/zap-wrk/rules.tsv && \
+		mkdir -p /tmp/zap-wrk && cp $(CURDIR)/.zap-rules.tsv /tmp/zap-wrk/rules.tsv && \
 		docker run --rm -v /tmp/zap-wrk:/zap/wrk:rw \
 			ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:19876 \
 			-c rules.tsv -a; \
@@ -254,7 +254,7 @@ testall:
 		-p $(PG_PORT):5432 arm64v8/postgres:18.1 >> $(REPORT_DIR)/run.log 2>&1
 	@echo "Starting Keycloak..." | tee -a $(REPORT_DIR)/run.log
 	@docker run --rm -d --name $(KC_CONTAINER_NAME) -p $(KC_PORT):8080 \
-		-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
+		-v $(CURDIR)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
 		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
 		$(KC_IMAGE) start-dev --features=dpop --import-realm >> $(REPORT_DIR)/run.log 2>&1
 	@sleep 3
@@ -516,7 +516,7 @@ upkcl:
 	@docker run --rm -d \
 		--name $(KC_CONTAINER_NAME) \
 		-p $(KC_PORT):8080 \
-		-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
+		-v $(CURDIR)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
 		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
 		-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
 		$(KC_IMAGE) start-dev --features=dpop --import-realm
@@ -621,7 +621,7 @@ upauthlete: authlete-image
 	@docker run --rm -d \
 		--name $(AUTH_CONTAINER_NAME) \
 		-p $(AUTH_PORT):8080 \
-		-v $(PWD)/$(AUTH_FRONTEND_DIR)/authlete.properties.runtime:/authlete/app/authlete.properties \
+		-v $(CURDIR)/$(AUTH_FRONTEND_DIR)/authlete.properties.runtime:/authlete/app/authlete.properties \
 		$(AUTH_IMAGE)
 	@echo "Waiting for AS to be ready (Jetty warmup ~30s)..."
 	@./scripts/wait-for.sh 180 "Authlete-backed AS on :$(AUTH_PORT)" -- http://localhost:$(AUTH_PORT)/.well-known/openid-configuration
@@ -729,10 +729,11 @@ oidflogs:
 # against tests/conformance/known-gaps.yaml (external-suite entries).
 # The FAPI 2.0 plan (issue 98), the OIDC Basic OP plan (mission 477), the
 # Dynamic OP plan (issue 493), oidcc-test-plan once per client auth method
-# (issue 494) and the Form Post Basic OP plan (issue 500) each run against a
-# fresh server that scripts/exercise-oidf.sh <plan> --go-test starts and
-# stops (:8889 to :8893). The full run takes a while (52 + 38 + 23 + 3 x
-# about 52 + 38 modules).
+# (issue 494), the Form Post Basic OP plan (issue 500) and the Implicit and
+# Form Post Implicit OP plans (issue 526) each run against a fresh server
+# that scripts/exercise-oidf.sh <plan> --go-test starts and stops (:8889 to
+# :8894, and :8896). The full run takes a while (52 + 38 + 23 + 3 x about
+# 52 + 38 + 2 x 31 modules).
 OIDCCTP_AUTH_TYPES := client_secret_post client_secret_jwt private_key_jwt
 testoidf: oidf-discovery-up
 	./scripts/exercise-oidf.sh fapi2 --go-test
@@ -742,6 +743,8 @@ testoidf: oidf-discovery-up
 	RESPONSE_TYPE="id_token token" ./scripts/exercise-oidf.sh oidcdyn --go-test
 	@set -e; for a in $(OIDCCTP_AUTH_TYPES); do AUTH=$$a ./scripts/exercise-oidf.sh oidcctp --go-test; done
 	./scripts/exercise-oidf.sh oidccfp --go-test
+	./scripts/exercise-oidf.sh oidcci --go-test
+	./scripts/exercise-oidf.sh oidccfpi --go-test
 
 # The OIDF Config plan alone: the discovery document checked against the
 # server on :8888, with its per-check scorecard. `make testoidf` runs it too.
@@ -786,6 +789,15 @@ exercise-oidcc:
 exercise-oidccfp:
 	./scripts/exercise-oidf.sh oidccfp $(if $(MODULE),-module $(MODULE))
 
+# Issue 526: the OIDF Implicit OP plan on :8894 and the Form Post Implicit OP
+# plan on :8896, run with one static client registered for the implicit
+# response types. MODULE=<substring> as above.
+exercise-oidcci:
+	./scripts/exercise-oidf.sh oidcci $(if $(MODULE),-module $(MODULE))
+
+exercise-oidccfpi:
+	./scripts/exercise-oidf.sh oidccfpi $(if $(MODULE),-module $(MODULE))
+
 # Issue 493: the OIDF Dynamic OP plan on :8891, where the harness registers
 # its own clients. MODULE=<substring> as above. RESPONSE_TYPE="id_token" or
 # "id_token token" runs the implicit variant (issue 507).
@@ -826,7 +838,7 @@ testkcl:
 		docker run --rm -d \
 			--name $(KC_CONTAINER_NAME) \
 			-p $(KC_PORT):8080 \
-			-v $(PWD)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
+			-v $(CURDIR)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
 			-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
 			-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
 			$(KC_IMAGE) start-dev --features=dpop --import-realm; \
@@ -1076,7 +1088,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

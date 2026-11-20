@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/httpauth"
 	"github.com/panyam/oneauth/tracing"
 )
@@ -80,7 +81,7 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if gErr := checkFormParams(r); gErr != nil {
-		h.jsonResponse(w, gErr.Status, map[string]any{"error": gErr.Code, "error_description": gErr.Description})
+		h.jsonResponse(w, gErr.Status, map[string]any{"error": gErr.Code, "error_description": core.OAuthErrorDescription(gErr.Description)})
 		return
 	}
 

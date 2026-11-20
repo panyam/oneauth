@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/httpauth"
 	"github.com/panyam/oneauth/tracing"
 )
@@ -114,6 +115,6 @@ func (h *RevocationHandler) errorResponse(w http.ResponseWriter, errCode, descri
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{
 		"error":             errCode,
-		"error_description": description,
+		"error_description": core.OAuthErrorDescription(description),
 	})
 }

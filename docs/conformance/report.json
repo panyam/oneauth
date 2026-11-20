@@ -7,8 +7,8 @@
       "source": "tests/conformance",
       "result": "PASS",
       "detail": "ratchet OK — no diff against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946"
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82"
     },
     {
       "name": "oidf-config",
@@ -16,9 +16,9 @@
       "covers": "OIDF oidcc-config-certification-test-plan, the discovery document check by check",
       "source": "tests/oidf-conformance (TestOIDF_OIDCC_ConfigCert_Discovery)",
       "result": "PASS",
-      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.196s",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946"
+      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.228s",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82"
     },
     {
       "name": "oidf-fapi2",
@@ -28,8 +28,8 @@
       "tracking": "mission 98",
       "result": "PASS",
       "detail": "52 modules: map[PASSED:45 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "fapi2-security-profile-final-test-plan",
         "variant": {
@@ -40,7 +40,7 @@
           "openid": "openid_connect",
           "sender_constrain": "dpop"
         },
-        "plan_id": "tBrFOXSP88JLx",
+        "plan_id": "gZElsYtchJC9V",
         "counts": {
           "PASSED": 45,
           "REVIEW": 4,
@@ -388,15 +388,15 @@
       "tracking": "mission 477",
       "result": "PASS",
       "detail": "35 modules: map[PASSED:29 REVIEW:4 SKIPPED:1 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "oidcc-basic-certification-test-plan",
         "variant": {
           "client_registration": "static_client",
           "server_metadata": "discovery"
         },
-        "plan_id": "s3bx4h0BBvpMu",
+        "plan_id": "01RuSlcSPeGre",
         "counts": {
           "PASSED": 29,
           "REVIEW": 4,
@@ -639,15 +639,15 @@
       "tracking": "issue 500",
       "result": "PASS",
       "detail": "35 modules: map[FAILED:1 PASSED:29 REVIEW:4 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "oidcc-formpost-basic-certification-test-plan",
         "variant": {
           "client_registration": "static_client",
           "server_metadata": "discovery"
         },
-        "plan_id": "QqWEIQ7gU0r8q",
+        "plan_id": "wH9jxAXBX2m08",
         "counts": {
           "FAILED": 1,
           "PASSED": 29,
@@ -884,6 +884,764 @@
       }
     },
     {
+      "name": "oidf-implicit",
+      "kind": "gating",
+      "covers": "OIDF oidcc-implicit-certification-test-plan, the opt-in implicit flow with a static client",
+      "source": "tests/oidf-conformance/oidcc",
+      "tracking": "issue 526",
+      "result": "PASS",
+      "detail": "54 modules: map[PASSED:42 REVIEW:8 SKIPPED:2 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
+      "plan": {
+        "plan": "oidcc-implicit-certification-test-plan",
+        "variant": {
+          "client_registration": "static_client",
+          "server_metadata": "discovery"
+        },
+        "plan_id": "YvtKItq16osCV",
+        "counts": {
+          "PASSED": 42,
+          "REVIEW": 8,
+          "SKIPPED": 2,
+          "WARNING": 2
+        },
+        "against": 0,
+        "modules": [
+          {
+            "module": "oidcc-alternate-happy-flow",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-alternate-happy-flow",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-essential",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-essential",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-page",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-page",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-popup",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-popup",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-registered-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-ensure-registered-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-ensure-request-object-with-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-ensure-request-object-with-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-ensure-request-with-acr-values-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-with-acr-values-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-without-nonce-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-without-nonce-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-id-token-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-id-token-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-login-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-login-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-max-age-1",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-max-age-1",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-max-age-10000",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-max-age-10000",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-login",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-prompt-login",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-prompt-none-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-none-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-none-not-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-none-not-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-response-type-missing",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-address",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-address",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-all",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-all",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-email",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-email",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-phone",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-phone",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-profile",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-profile",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-server",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 339,
+            "note": "EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ'"
+          },
+          {
+            "module": "oidcc-server",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 339,
+            "note": "EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ'"
+          },
+          {
+            "module": "oidcc-ui-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ui-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
+            "status": "FINISHED",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
+            "status": "FINISHED",
+            "result": "SKIPPED",
+            "verdict": "ok",
+            "expected": "expected-skip",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-userinfo-get",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-userinfo-post-body",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-userinfo-post-header",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "name": "oidf-formpost-implicit",
+      "kind": "gating",
+      "covers": "OIDF oidcc-formpost-implicit-certification-test-plan, the Implicit OP modules with response_mode=form_post",
+      "source": "tests/oidf-conformance/oidcc",
+      "tracking": "issue 526",
+      "result": "PASS",
+      "detail": "54 modules: map[FAILED:2 PASSED:42 REVIEW:8 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
+      "plan": {
+        "plan": "oidcc-formpost-implicit-certification-test-plan",
+        "variant": {
+          "client_registration": "static_client",
+          "server_metadata": "discovery"
+        },
+        "plan_id": "dRlK0oW7cGkCe",
+        "counts": {
+          "FAILED": 2,
+          "PASSED": 42,
+          "REVIEW": 8,
+          "WARNING": 2
+        },
+        "against": 0,
+        "modules": [
+          {
+            "module": "oidcc-alternate-happy-flow",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-alternate-happy-flow",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-essential",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-essential",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-claims-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-page",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-page",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-popup",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-display-popup",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-registered-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-ensure-registered-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-ensure-request-object-with-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-ensure-request-object-with-redirect-uri",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 338
+          },
+          {
+            "module": "oidcc-ensure-request-with-acr-values-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-with-acr-values-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-with-unknown-parameter-succeeds",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-without-nonce-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ensure-request-without-nonce-fails",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-id-token-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-id-token-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-login-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-login-hint",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-max-age-1",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-max-age-1",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-max-age-10000",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-max-age-10000",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-login",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-prompt-login",
+            "status": "FINISHED",
+            "result": "REVIEW",
+            "verdict": "ok",
+            "expected": "expected-review",
+            "issue": 477
+          },
+          {
+            "module": "oidcc-prompt-none-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-none-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-none-not-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-prompt-none-not-logged-in",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-response-type-missing",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-address",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-address",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-all",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-all",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-email",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-email",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-phone",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-phone",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-profile",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-scope-profile",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-server",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 339,
+            "note": "EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ'"
+          },
+          {
+            "module": "oidcc-server",
+            "status": "FINISHED",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 339,
+            "note": "EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ'"
+          },
+          {
+            "module": "oidcc-ui-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-ui-locales",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 338,
+            "note": "CheckCallbackHttpMethodIsPost: The HTTP method used at redirect_uri is not 'POST'"
+          },
+          {
+            "module": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
+            "status": "INTERRUPTED",
+            "result": "FAILED",
+            "verdict": "ok",
+            "expected": "expected-fail",
+            "issue": 338,
+            "note": "CheckCallbackHttpMethodIsPost: The HTTP method used at redirect_uri is not 'POST'"
+          },
+          {
+            "module": "oidcc-userinfo-get",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-userinfo-post-body",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          },
+          {
+            "module": "oidcc-userinfo-post-header",
+            "status": "FINISHED",
+            "result": "PASSED",
+            "verdict": "ok"
+          }
+        ]
+      }
+    },
+    {
       "name": "oidf-dynamic-op",
       "kind": "gating",
       "covers": "OIDF oidcc-dynamic-certification-test-plan, the harness registering its own clients through RFC 7591",
@@ -891,14 +1649,14 @@
       "tracking": "issue 493",
       "result": "PASS",
       "detail": "23 modules: map[FAILED:2 PASSED:12 REVIEW:7 SKIPPED:1 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "oidcc-dynamic-certification-test-plan",
         "variant": {
           "response_type": "code"
         },
-        "plan_id": "u12qecHZX04ey",
+        "plan_id": "dCOegEvvNRkhI",
         "counts": {
           "FAILED": 2,
           "PASSED": 12,
@@ -1082,14 +1840,14 @@
       "tracking": "issue 507",
       "result": "PASS",
       "detail": "18 modules: map[FAILED:2 PASSED:8 REVIEW:7 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "oidcc-dynamic-certification-test-plan-id_token",
         "variant": {
           "response_type": "id_token"
         },
-        "plan_id": "K0N4XrianyNS2",
+        "plan_id": "baWnBUU6r8L8I",
         "counts": {
           "FAILED": 2,
           "PASSED": 8,
@@ -1240,14 +1998,14 @@
       "tracking": "issue 507",
       "result": "PASS",
       "detail": "19 modules: map[FAILED:2 PASSED:9 REVIEW:7 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "oidcc-dynamic-certification-test-plan-id_token_token",
         "variant": {
           "response_type": "id_token token"
         },
-        "plan_id": "qGlcCn0sRAkhl",
+        "plan_id": "sqL5I9zRdpP8v",
         "counts": {
           "FAILED": 2,
           "PASSED": 9,
@@ -1404,8 +2162,8 @@
       "tracking": "issue 494",
       "result": "PASS",
       "detail": "51 modules: map[FAILED:2 PASSED:36 REVIEW:10 SKIPPED:2 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_post",
         "variant": {
@@ -1414,7 +2172,7 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "v5D8A83uVIkQu",
+        "plan_id": "Ss34eBvWnkJpy",
         "counts": {
           "FAILED": 2,
           "PASSED": 36,
@@ -1774,8 +2532,8 @@
       "tracking": "issue 494",
       "result": "PASS",
       "detail": "52 modules: map[FAILED:2 PASSED:37 REVIEW:10 SKIPPED:2 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:58 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_jwt",
         "variant": {
@@ -1784,7 +2542,7 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "PthYczHDGKpX9",
+        "plan_id": "qx2Xx9ThYCSOg",
         "counts": {
           "FAILED": 2,
           "PASSED": 37,
@@ -2150,8 +2908,8 @@
       "tracking": "issue 494",
       "result": "PASS",
       "detail": "54 modules: map[FAILED:2 PASSED:39 REVIEW:10 SKIPPED:2 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "oidcc-test-plan-private_key_jwt",
         "variant": {
@@ -2160,7 +2918,7 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "TNlV5ImuUI89P",
+        "plan_id": "aIGUn3ByVuxcA",
         "counts": {
           "FAILED": 2,
           "PASSED": 39,
@@ -2538,8 +3296,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "mcp-auth-gosdk",
         "counts": {
@@ -2677,8 +3435,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "mcp-auth-mcpkit",
         "counts": {
@@ -2816,8 +3574,8 @@
       "tracking": "issue 521",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946",
+      "ran_at": "2026-11-20 07:44 UTC",
+      "commit": "173ea82",
       "plan": {
         "plan": "mcp-auth-ts",
         "counts": {
@@ -2954,8 +3712,8 @@
       "source": "tests/keycloak",
       "result": "PASS",
       "detail": "go test: 68 passed, 0 skipped, 0 failed (top-level tests)",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946"
+      "ran_at": "2026-11-20 07:54 UTC",
+      "commit": "173ea82"
     },
     {
       "name": "authlete",
@@ -2964,8 +3722,8 @@
       "source": "tests/authlete",
       "result": "FAIL",
       "detail": "go test: 14 passed, 0 skipped, 4 failed (top-level tests)",
-      "ran_at": "2026-11-20 05:54 UTC",
-      "commit": "2249946"
+      "ran_at": "2026-11-20 07:54 UTC",
+      "commit": "173ea82"
     },
     {
       "name": "oauch",
