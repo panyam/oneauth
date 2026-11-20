@@ -18,3 +18,4 @@ The same session produced the sharper version of this: a flaky base64 tamper tes
 - Watch for this shape specifically: a new stricter path layered over a permissive one that still works. The permissive fallback keeps the test green and hides the gap.
 - A test that fails during a red-check of something unrelated is reporting a bug in itself. Investigate rather than re-running.
 - Commit before mutating. Restoring a mutated file with `git checkout <file>` also throws away any uncommitted work in that file, which cost a client refactor once (issue 88 interop PR).
+- A platform-specific test can be green on the CI runner's OS version and red on older ones. The `CON.json` round-trip test passed unfixed on Windows Server 2025, which allows device names with an extension, so we dropped it and kept the mapping test that did fail (issue 505).
