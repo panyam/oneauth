@@ -90,3 +90,38 @@ func TestFormPostPlan(t *testing.T) {
 	assert.Equal(t, bc["browser"], fpc["browser"])
 	assert.NotEqual(t, bc["description"], fpc["description"])
 }
+
+// The implicit client registers the implicit grant with both implicit
+// response types, which RFC 7591 §2.1 pairs (issue 526).
+func TestImplicitRegistrationRequest(t *testing.T) {
+	s := testSetup()
+	body := ImplicitRegistrationRequest(RedirectURI(s.HarnessURL, s.Alias), Scope)
+	assert.Equal(t, []string{"https://localhost.emobix.co.uk:8443/test/a/oneauth-oidcc/callback"}, body["redirect_uris"])
+	assert.Equal(t, []string{"implicit"}, body["grant_types"])
+	assert.Equal(t, []string{"id_token", "id_token token"}, body["response_types"])
+	assert.Equal(t, "client_secret_basic", body["token_endpoint_auth_method"])
+	assert.Equal(t, Scope, body["scope"])
+}
+
+// The implicit plans take the Basic OP variant and browser automation, and
+// only the one static "client" (issue 526).
+func TestImplicitPlans(t *testing.T) {
+	s := testSetup()
+	basic := Plan(s)
+	bc := basic.Config.(map[string]any)
+	for name, p := range map[string]oidfplan.Plan{
+		"oidcc-implicit-certification-test-plan":          ImplicitPlan(s),
+		"oidcc-formpost-implicit-certification-test-plan": FormPostImplicitPlan(s),
+	} {
+		assert.Equal(t, name, p.Name)
+		assert.Equal(t, name, p.ManifestKey())
+		assert.Equal(t, basic.Variant, p.Variant)
+		pc := p.Config.(map[string]any)
+		assert.Equal(t, bc["client"], pc["client"])
+		assert.Equal(t, bc["browser"], pc["browser"])
+		assert.Equal(t, bc["override"], pc["override"])
+		assert.NotContains(t, pc, "client2")
+		assert.NotContains(t, pc, "client_secret_post")
+		assert.NotEqual(t, bc["description"], pc["description"])
+	}
+}
