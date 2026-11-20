@@ -12,10 +12,13 @@ services:
         max-size: "500k"
         max-file: "5"
   nginx:
-    # Pinned by digest, as is the server image below, so CI and laptops run
-    # the same harness and a new release is a deliberate change: `latest`
-    # moved under CI once and changed which modules ran (issue 498).
-    image: ${OIDF_NGINX_IMAGE:-registry.gitlab.com/openid/conformance-suite/nginx@sha256:8114a77cf7433f48a02c192f398cc3a0606ddad65f0575e7158b6d69c140e350}
+    # Pinned to a release, as is the server image below, so CI and laptops
+    # run the same harness and an upgrade is a deliberate change. The
+    # registry's `latest` is older than the releases (April 2026), and a
+    # digest disappears when GitLab's cleanup removes it (issue 498).
+    # `curl -sk https://localhost.emobix.co.uk:8443/api/server` shows the
+    # running harness's tag.
+    image: registry.gitlab.com/openid/conformance-suite/nginx:${OIDF_HARNESS_TAG:-release-v5.3.3}
     ports:
      - "8443:8443"
     # A cert from certs/ca.crt in place of the image's self-signed one, so
@@ -39,7 +42,7 @@ services:
         max-size: "500k"
         max-file: "5"
   server:
-    image: ${OIDF_SERVER_IMAGE:-registry.gitlab.com/openid/conformance-suite@sha256:3e821b3ff5c341d494b166d5e46f523b0f81a3839e28dd2798dda0117b31c9d9}
+    image: registry.gitlab.com/openid/conformance-suite:${OIDF_HARNESS_TAG:-release-v5.3.3}
     environment:
       BASE_URL: ${BASE_URL:-https://localhost.emobix.co.uk:8443}
       MONGODB_HOST: mongodb
