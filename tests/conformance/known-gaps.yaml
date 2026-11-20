@@ -183,24 +183,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
-  test: oidcc-discovery-endpoint-verification
-  status: expected-fail
-  evidence: mandatory to implement response_types for dynamic
-  issue: 493
-  owner: panyam
-  reason: |
-    OIDC Core §15.2 requires a Dynamic OP to support the id_token and
-    id_token token response types. Those are implicit flows, which RFC
-    9700 and OAuth 2.1 drop, and oneauth won't add them
-    (docs/CONFORMANCE.md §2.3).
-  expires: 2027-12-31
-
-- suite: oidf
-  plans:
-    - oidcc-dynamic-certification-test-plan
-    - oidcc-test-plan-client_secret_post
-    - oidcc-test-plan-client_secret_jwt
-    - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-ensure-redirect-uri-in-authorization-request
   status: expected-review
   evidence: redirect_uri is required
@@ -234,6 +218,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-ensure-request-object-with-redirect-uri
   status: expected-review
   evidence: request_not_supported
@@ -314,6 +300,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-redirect-uri-query-added
   status: expected-review
   evidence: unknown client_id or redirect_uri
@@ -331,6 +319,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-redirect-uri-query-mismatch
   status: expected-review
   evidence: unknown client_id or redirect_uri
@@ -348,6 +338,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-registration-logo-uri
   status: expected-review
   evidence: 'id="client-logo"'
@@ -364,6 +356,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-registration-policy-uri
   status: expected-review
   evidence: 'id="client-policy"'
@@ -380,6 +374,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-registration-tos-uri
   status: expected-review
   evidence: 'id="client-tos"'
@@ -396,6 +392,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-request-uri-signed-rs256
   status: expected-fail
   evidence: request_object_signing_alg_values_supported
@@ -412,6 +410,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-request-uri-unsigned
   status: expected-fail
   evidence: expected to succeed, but the server returned an error
@@ -429,6 +429,8 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-server
   status: expected-warning
   evidence: "non-requested claim 'typ'"
@@ -463,6 +465,7 @@
     - oidcc-test-plan-client_secret_post
     - oidcc-test-plan-client_secret_jwt
     - oidcc-test-plan-private_key_jwt
+    - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-userinfo-rs256
   status: expected-fail
   evidence: userinfo_signing_alg_values_supported

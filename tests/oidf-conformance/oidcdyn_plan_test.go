@@ -30,6 +30,18 @@ import (
 func TestOIDF_OIDCC_DynamicOP(t *testing.T) {
 	serverURL := envOr("OIDF_OIDCDYN_SERVER_URL", "https://localhost:8891")
 	skipIfHarnessOrServerNotReady(t, serverURL, "OIDC Dynamic OP", "./scripts/exercise-oidf.sh oidcdyn --go-test")
+	// OIDF_RESPONSE_TYPE runs an implicit variant instead of code (issue 507).
+	if rt := os.Getenv("OIDF_RESPONSE_TYPE"); rt != "" {
+		alias := "oneauth-oidcdyn-" + strings.ReplaceAll(rt, " ", "-")
+		runDynamicRegistrationPlan(t, serverURL, "https://host.docker.internal:8891", alias, func(s oidcdyn.Setup) oidfplan.Plan {
+			p, err := oidcdyn.DynamicImplicitPlan(s, rt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return p
+		})
+		return
+	}
 	runDynamicRegistrationPlan(t, serverURL, "https://host.docker.internal:8891", "oneauth-oidcdyn", oidcdyn.DynamicPlan)
 }
 
