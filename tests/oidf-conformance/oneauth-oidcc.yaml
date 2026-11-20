@@ -54,6 +54,9 @@ code_flow:
   # OIDC Core lets a confidential client omit PKCE, and the Basic OP plan's
   # clients send it in only one module.
   pkce: optional_for_confidential
+  # A password login meets ISO/IEC 29115 level 1. The plans ask for acr
+  # with acr_values, and the ID token reports this (issue 485).
+  acr_values: ["1"]
   # prompt=none succeeds only for a request an earlier approval covers.
   consent:
     remember: true
