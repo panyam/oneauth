@@ -1,6 +1,6 @@
 # Go-native conformance report
 
-Generated: 2026-11-20 00:15:44 UTC  
+Generated: 2026-11-20 01:20:09 UTC  
 Package pattern: `./...`
 
 ## Summary
@@ -11,7 +11,7 @@ Package pattern: `./...`
 | Passing | 26 |
 | Failing | 0 |
 | Skipped (forbidden) | 0 |
-| Known gaps in manifest | 26 |
+| Known gaps in manifest | 23 |
 | Gapped tests observed | 0 |
 | Ratchet issues | 0 |
 
@@ -29,7 +29,6 @@ Package pattern: `./...`
 | 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-ensure-request-object-with-redirect-uri` | 338 | panyam | expected-review |
 | 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-server` | 339 | panyam | expected-warning |
 | 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-ensure-registered-redirect-uri` | 477 | panyam | expected-review |
-| 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-ensure-request-with-acr-values-succeeds` | 485 | panyam | expected-warning |
 | 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-max-age-1` | 477 | panyam | expected-review |
 | 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-prompt-login` | 477 | panyam | expected-review |
 | 2027-12-31 | oidf | `oidcc-basic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | 338 | panyam | expected-skip |
@@ -43,6 +42,4 @@ Package pattern: `./...`
 | 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-registration-tos-uri` | 507 | panyam | expected-review |
 | 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-request-uri-signed-rs256` | 338 | panyam | expected-fail |
 | 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-request-uri-unsigned` | 338 | panyam | expected-fail |
-| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-server-rotate-keys` | 507 | panyam | expected-manual |
-| 2027-12-31 | oidf | `oidcc-dynamic-certification-test-plan,oidcc-test-plan-client_secret_post,oidcc-test-plan-client_secret_jwt,oidcc-test-plan-private_key_jwt/oidcc-userinfo-rs256` | 485 | panyam | expected-fail |
 
