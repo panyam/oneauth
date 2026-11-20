@@ -500,6 +500,12 @@ extensions to DCR or out-of-band provisioning.</li>
 <td>Absolute https only. The consent page shows the logo and links to the policy and terms, and adds only the logo&rsquo;s origin to the page&rsquo;s CSP <code>img-src</code> (issue 507)</td>
 </tr>
 <tr>
+<td><code>subject_type</code>, <code>sector_identifier_uri</code> (OIDC Registration §2, §5)</td>
+<td><strong>Implemented</strong></td>
+<td><code>admin/registrar.go</code> <code>subjectSector</code>, <code>keepsSubjectSector</code></td>
+<td><code>pairwise</code> needs <code>AppRegistrar.PairwiseSubjects</code>. The sector document is fetched through <code>AppRegistrar.FetchSectorIdentifier</code> (<code>ClientJWKSFetcher.SectorRedirectURIs</code>, with the jwks_uri guards) and must list every redirect URI, on update too. An update can&rsquo;t change the subject type or sector (issue 507)</td>
+</tr>
+<tr>
 <td><code>software_statement</code> (§2.3)</td>
 <td><strong>Not implemented</strong></td>
 <td>—</td>

@@ -445,6 +445,12 @@ surface smaller.</li>
 <td>GET and POST, Bearer or DPoP through the caller&rsquo;s <code>APIMiddleware</code>, or the token as a form-encoded <code>access_token</code> on POST (RFC 6750 §2.2); 403 <code>insufficient_scope</code> without <code>openid</code>. JSON only, no signed response</td>
 </tr>
 <tr>
+<td>Pairwise subject identifiers (§8.1)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth/pairwise.go</code> <code>PairwiseSubject</code>, <code>OneAuth.SubjectForClient</code>; <code>admin/registrar.go</code> <code>subjectSector</code></td>
+<td>A client registers <code>subject_type</code> <code>pairwise</code>, and its sector is its <code>sector_identifier_uri</code>&rsquo;s host (whose document must list every redirect URI) or its redirect URIs&rsquo; one host. The ID token, userinfo and logout tokens carry HMAC-SHA256 over the sector and user ID, keyed with <code>OIDCConfig.PairwiseSalt</code>. Access tokens and introspection keep the user&rsquo;s own ID for resource servers. Without a salt a pairwise client gets an error, never the real ID. Reference server: <code>code_flow.pairwise_salt</code> (issue 507)</td>
+</tr>
+<tr>
 <td><code>openid</code>/<code>profile</code>/<code>email</code>/<code>address</code>/<code>phone</code> scope-to-claims mapping</td>
 <td><strong>Implemented</strong> (#339, #481)</td>
 <td><code>OIDCConfig.UserClaims</code>, <code>core.FilterClaimsByScope</code> (the §5.4 table), <code>localauth.ProfileClaims</code></td>
