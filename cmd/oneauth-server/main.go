@@ -122,6 +122,11 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		return nil, nil, fmt.Errorf("Failed to create KeyStore: %w", err)
 	}
 
+	trustedIssuers, stopTrustedIssuers, err := trustedAssertionIssuers(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Build AdminAuth
 	adminAuth, err := buildAdminAuth(cfg)
 	if err != nil {
@@ -280,6 +285,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		DPoP:                        dpop.tokenEndpoint,
 		RequireDPoP:                 cfg.DPoP.Require,
 		DisableRefreshTokenRotation: cfg.JWT.DisableRefreshTokenRotation,
+		TrustedAssertionIssuers:     trustedIssuers,
 	}
 
 	var signingSource *apiauth.RotatingSigningKey
@@ -599,11 +605,15 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		grantTypes = append(grantTypes, implicitGrantTypes(cfg)...)
 		log.Println("RFC 6749 §4.1 code flow enabled (/authorize + authorization_code grant)")
 	}
+	if len(trustedIssuers) > 0 {
+		grantTypes = append(grantTypes, apiauth.JwtBearerGrantType, apiauth.TokenExchangeGrantType)
+		log.Printf("RFC 7523 jwt-bearer and RFC 8693 token-exchange enabled for %d trusted assertion issuer(s)", len(trustedIssuers))
+	}
 	asMeta.GrantTypesSupported = grantTypes
 
 	apiauth.MountASMetadata(mux, asMeta)
 
-	return withSecurityHeaders(mux), stores.Cleanup, nil
+	return withSecurityHeaders(mux), func() { stopTrustedIssuers(); stores.Cleanup() }, nil
 }
 
 // userStores holds all the store instances needed for auth.

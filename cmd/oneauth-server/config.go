@@ -30,6 +30,11 @@ type Config struct {
 	// the server refuses to start otherwise.
 	FAPI2     bool            `yaml:"fapi2"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
+
+	// TrustedAssertionIssuers turns on the jwt-bearer and token-exchange
+	// grants for JWTs from these upstream IdPs, and advertises both in
+	// grant_types_supported. Empty leaves both grants off (issue 521).
+	TrustedAssertionIssuers []TrustedAssertionIssuerConfig `yaml:"trusted_assertion_issuers"`
 }
 
 // CodeFlowConfig toggles and configures the RFC 6749 §4.1
