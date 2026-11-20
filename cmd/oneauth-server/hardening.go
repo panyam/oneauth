@@ -20,8 +20,11 @@ import (
 // serverCSP is the Content-Security-Policy for every response. Pages load
 // only this server's own stylesheet (static/app.css, built from the
 // templates by `make server-css`), so there is no third-party script and no
-// inline style to allow (CWE-829).
-var serverCSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
+// inline style to allow (CWE-829). It has no form-action: browsers apply it
+// to the redirects a form submission causes, and the login and consent
+// forms end in a redirect to the client's redirect_uri, so form-action
+// 'self' stopped every authorization in Chrome (issue 497).
+var serverCSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'"
 
 //go:embed static/app.css
 var staticFS embed.FS
@@ -118,4 +121,37 @@ func buildCSRF(cfg *Config) *httpauth.CSRFMiddleware {
 			return hex.EncodeToString(sum[:])
 		},
 	}
+}
+
+// withSecurityHeaders wraps h with the server's hardening headers, and
+// relaxes Cross-Origin-Opener-Policy to unsafe-none on the authorization
+// flow's pages (allowPopupOpener).
+func withSecurityHeaders(h http.Handler) http.Handler {
+	secHeaders := httpauth.SecurityHeadersWithConfig(httpauth.SecurityHeadersConfig{
+		HSTSMaxAge:                31536000,
+		HSTSIncludeSubDomains:     true,
+		FrameOptions:              "DENY",
+		ContentSecurityPolicy:     serverCSP,
+		ReferrerPolicy:            "strict-origin-when-cross-origin",
+		PermissionsPolicy:         "camera=(), microphone=(), geolocation=()",
+		CrossOriginEmbedderPolicy: "credentialless",
+		CrossOriginOpenerPolicy:   "same-origin",
+		CrossOriginResourcePolicy: "same-origin",
+	})
+	return secHeaders(allowPopupOpener(h))
+}
+
+// allowPopupOpener sets Cross-Origin-Opener-Policy unsafe-none on
+// /authorize and /auth/ pages, overriding the server-wide same-origin. A
+// client may open the authorization request in a popup; with same-origin
+// the browser severs the popup from its opener when it reaches this
+// server, so the client's callback page can't pass the result back
+// (issue 497). Every other page keeps same-origin.
+func allowPopupOpener(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if p := r.URL.Path; p == "/authorize" || strings.HasPrefix(p, "/auth/") {
+			w.Header().Set("Cross-Origin-Opener-Policy", "unsafe-none")
+		}
+		h.ServeHTTP(w, r)
+	})
 }
