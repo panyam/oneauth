@@ -7,8 +7,9 @@
 #
 # Schema:
 #   name:     suite name; its Makefile target is conf-<name>
-#   kind:     gating (a failure fails `make conformance`) or info (reported,
-#             never fails the run)
+#   kind:     gating (a failure fails `make conformance`), info (reported,
+#             never fails the run), or manual (run by a person; make
+#             conformance never runs it, and the report shows last_run)
 #   covers:   what the suite checks, one line
 #   source:   where its tests live
 #   needs:    prerequisites. "docker" is informational; "env:VAR" makes the
@@ -22,6 +23,9 @@
 #             docs/conformance/REPORT.md. Optional.
 #   tracking: the issue the suite belongs to, plain text. Optional.
 #   note:     one line of context. Optional.
+#   last_run: for a manual suite, its last run: date, commit, result (one
+#             line for the report) and doc (where it's triaged). Required
+#             for kind manual.
 #
 # The drift check (tests/conformance/cmd/suites, run by `make test`) fails
 # when this file and conformance/Makefile disagree.
@@ -129,3 +133,14 @@ suites:
     source: tests/authlete
     needs: [docker, "env:AUTHLETE_CLIENTID", "env:AUTHLETE_CLIENTSECRET"]
     note: Needs an Authlete service account, so it skips on a machine without one.
+
+  - name: oauch
+    kind: manual
+    covers: OAuch (DistriNet) checks the reference server against RFC 6749, 6750, 6819, 7009, 7636, 9700 and OIDC, and against their threat models
+    source: tests/oauch (server config); OAuch has only a web UI
+    tracking: "issue 497"
+    last_run:
+      date: "2026-11-20"
+      commit: c46fedf
+      result: "107 tests, 13 failed (6 test setup, 3 gaps in issue 519, 4 tracked or accepted); 30 of 36 relevant threats mitigated"
+      doc: docs/conformance/oauch.md

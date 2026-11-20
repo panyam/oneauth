@@ -1,0 +1,41 @@
+# cmd/oneauth-server for an OAuch run (issue 497): the reference server as a
+# deployment would run it, code flow with OIDC, PKCE required, refresh
+# tokens rotated. It answers at https://localhost.emobix.co.uk:8895, a name
+# that resolves to 127.0.0.1 for the browser; OAuch's container maps it to
+# the host with --add-host. The certificate is the OIDF harness's, which
+# covers that name.
+# docs/conformance/oauch.md says how to run it and what it found.
+
+server:
+  port: 8895
+  host: 0.0.0.0
+  public_url: https://localhost.emobix.co.uk:8895
+
+tls:
+  enabled: true
+  cert: tests/oidf-conformance/certs/harness.crt
+  key: tests/oidf-conformance/certs/harness.key
+
+keystore:
+  type: memory
+
+user_stores:
+  type: memory
+
+jwt:
+  issuer: ""
+  signing_alg: ES256
+  ephemeral_signing_key: true
+  secret_key: ${JWT_SECRET_KEY:-oauch-run-session-secret-32-bytes!!}
+
+admin_auth:
+  type: none    # the run registers its client through open DCR
+  allow_open: true
+
+code_flow:
+  enabled: true
+  oidc: true
+  # OAuch opens a fresh browser flow for most tests; remembered consent
+  # keeps it from stopping on the consent page each time.
+  consent:
+    remember: true
