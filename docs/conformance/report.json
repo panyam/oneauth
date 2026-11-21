@@ -3713,8 +3713,8 @@
       "tracking": "issue 496",
       "result": "PASS",
       "detail": "12 modules: map[SUCCESS:12], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 10:19 UTC",
-      "commit": "62b6dee-dirty",
+      "ran_at": "2026-11-21 10:31 UTC",
+      "commit": "f02d20b",
       "plan": {
         "plan": "mcp-auth-as",
         "counts": {
