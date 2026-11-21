@@ -20,6 +20,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Every open gap in known-gaps.yaml must cite an open issue (mission 489).
+  gapcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Open gaps cite open issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/check-known-gaps.sh
+
   testoidf:
     runs-on: ubuntu-latest
     timeout-minutes: 90

@@ -2,6 +2,8 @@ module github.com/panyam/oneauth
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	github.com/alexedwards/scs/v2 v2.8.0
 	github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611

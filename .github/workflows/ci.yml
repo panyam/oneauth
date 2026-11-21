@@ -19,9 +19,9 @@ jobs:
         with:
           fetch-depth: 0 # needed for gitleaks to scan commit history
 
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       # Every tracked Go file, across all modules, must be gofmt-clean.
       - name: gofmt
@@ -78,9 +78,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       - name: Test (core)
         run: go test -count=1 -short ./...
@@ -103,9 +103,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       - name: GAE store tests (Datastore emulator)
         run: make testds
@@ -115,13 +115,13 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       - name: Install tools
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0 # same pin as the Makefile
+          go install golang.org/x/vuln/cmd/govulncheck@v1.10.0 # same pin as the Makefile
           go install honnef.co/go/tools/cmd/staticcheck@latest
 
       - name: govulncheck
@@ -152,9 +152,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       - name: Build server
         run: go build -o build/oneauth-server ./cmd/oneauth-server/

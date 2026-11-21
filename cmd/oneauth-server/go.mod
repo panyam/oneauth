@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/cmd/oneauth-server
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	cloud.google.com/go/datastore v1.21.0
 	cloud.google.com/go/secretmanager v1.16.0

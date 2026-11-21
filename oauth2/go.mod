@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/oauth2
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/oauth2 v0.36.0

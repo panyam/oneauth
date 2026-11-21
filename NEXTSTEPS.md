@@ -5,9 +5,9 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- Active mission: #489, every applicable external conformance suite run from `make conformance`. 17/17 tickets closed, after PR #533 added `mcp-auth-as` (issue 496). Its last done-when item is a person's review of the report, so closing it is the owner's call. The MCP suites ran on main at `eb5e420`. The last full `make conformance` ran for PR #530 at `aecf2e6`, where Authlete (info) failed 4 tests on `invalid_client` because `AUTHLETE_CLIENTID` isn't registered in the service. JARM (#409) is parked, next ready #410.
-- Next: #532 (server-side CIMD), the one gap `mcp-auth-as` found, recorded as an expected warning.
-- No open threads. This run: no branch threads to merge; refreshed the mission line after PR #533.
+- Active mission: #489, every applicable external conformance suite run from `make conformance`. 17/17 tickets closed. PR #535 gave every `known-gaps.yaml` entry an `open` or `accepted` class, and the report now has a Known gaps section (7 open, 18 accepted). The mission closes when its owner reads that section and agrees nothing is papered over. The MCP suites ran on main at `eb5e420`. The last full `make conformance` ran for PR #530 at `aecf2e6`. JARM (#409) is parked, next ready #410.
+- feat/532-cimd — #532 (server-side CIMD) — in progress in `../oneauth-532`; next: open its PR after merging main, so its known-gaps edit uses the class field.
+- This run: dropped feat/489-gap-classes (PR #535 merged).
 
 ## Across threads
 

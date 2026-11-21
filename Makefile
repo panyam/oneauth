@@ -13,6 +13,11 @@ conformance:
 conformance-report:
 	$(MAKE) -C conformance report
 
+# Every `class: open` entry in known-gaps.yaml must cite an open issue
+# (mission 489). Needs gh; the nightly conformance workflow runs it too.
+gapcheck:
+	./scripts/check-known-gaps.sh
+
 # The conformance runner's own tests, including the drift check between
 # conformance/suites.yaml and conformance/Makefile.
 conformance-check:
@@ -184,7 +189,7 @@ authlete:
 # without installing anything and everyone gets the same results. Override
 # with an installed binary, e.g. `make audit GITLEAKS=gitleaks`.
 GITLEAKS ?= go run github.com/zricethezav/gitleaks/v8@v8.21.2
-GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.9.0
+GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.10.0
 # gosec v2.29.0 is the first release that builds under Go 1.27. Its type
 # checker can't read Go 1.27 export data yet, so only the AST rules run.
 GOSEC ?= go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0
@@ -193,10 +198,18 @@ secrets:
 	@echo "[secrets] Scanning for leaked secrets..."
 	@$(GITLEAKS) detect --source . --config .gitleaks.toml
 
-# Vulnerability check via govulncheck
+# Vulnerability check via govulncheck, over the root module and each
+# published sub-module. The list comes from PUBLISHED in
+# scripts/verify-submodule-deps.sh, as in scripts/release.sh. Each module
+# is scanned with GOWORK=off, against the tagged versions an importer gets.
+# docs/site and tests/* aren't published, so they aren't scanned.
+PUBLISHED_MODULES = $(shell awk '/^PUBLISHED=\(/{f=1;next} f&&/^\)/{f=0} f{gsub(/[" ]/,""); print}' scripts/verify-submodule-deps.sh)
 vulncheck:
 	@echo "[vulncheck] Checking for known vulnerabilities..."
-	@$(GOVULNCHECK) ./...
+	@fail=0; for mod in . $(PUBLISHED_MODULES); do \
+		echo "[vulncheck] $$mod"; \
+		(cd $$mod && GOWORK=off $(GOVULNCHECK) ./...) || fail=1; \
+	done; exit $$fail
 
 # ZAP baseline security scan (starts temp server, runs ZAP Docker)
 zap:
@@ -1064,7 +1077,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	up-all down-all ps-all logs-all updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl upauthlete downauthlete authletelogs uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl upauthlete downauthlete authletelogs uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report gapcheck deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

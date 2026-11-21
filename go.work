@@ -1,5 +1,7 @@
 go 1.26.9
 
+toolchain go1.27.4
+
 use (
 	.
 	./cmd/demo-hostapp

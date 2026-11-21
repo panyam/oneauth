@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/cmd/demo-hostapp
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/panyam/oneauth v0.3.13

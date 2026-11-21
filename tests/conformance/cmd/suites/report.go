@@ -53,6 +53,9 @@ func readPlanRecord(path string) *PlanRecord {
 // docs/conformance/REPORT.md from it.
 type Report struct {
 	Suites []SuiteReport `json:"suites"`
+	// Gaps is known-gaps.yaml as of this report, so the render can say
+	// which expected outcomes are open gaps and which are accepted.
+	Gaps []Gap `json:"gaps,omitempty"`
 }
 
 // SuiteReport is one suite's last result. RanAt and Commit say when and
@@ -190,6 +193,9 @@ func Render(r *Report) string {
 			gap := ""
 			if m.Expected != "" {
 				gap = m.Expected
+				if g := gapFor(r.Gaps, p.Plan, m.Module); g != nil {
+					gap = g.Class + ", " + gap
+				}
 				if m.Issue != 0 {
 					gap += fmt.Sprintf(", issue %d", m.Issue)
 				}
@@ -197,6 +203,7 @@ func Render(r *Report) string {
 			fmt.Fprintf(&b, "| `%s` | %s | %s | %s |\n", m.Module, result, gap, cell(m.Note, 160))
 		}
 	}
+	renderGaps(&b, r.Gaps)
 	return b.String()
 }
 

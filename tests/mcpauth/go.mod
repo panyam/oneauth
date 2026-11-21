@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/tests/mcpauth
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
