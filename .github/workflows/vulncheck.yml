@@ -19,6 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # A tag points at the release commit, which can't hold the go.sum hashes for its own
+      # version; `make pushrelease` records them in the next commit (issue 537). Without them
+      # every sub-module that requires the new root version fails to load under GOWORK=off.
+      # -mod=mod lets go fetch those hashes, checked against the checksum database, so the scan
+      # covers exactly the tree an importer gets. ci.yml's PR scan stays strict.
       - uses: panyam/ci-actions/vulncheck@v0.1.1
         with:
-          command: make vulncheck
+          command: GOFLAGS=-mod=mod make vulncheck

@@ -202,7 +202,9 @@ secrets:
 # published sub-module. The list comes from PUBLISHED in
 # scripts/verify-submodule-deps.sh, as in scripts/release.sh. Each module
 # is scanned with GOWORK=off, against the tagged versions an importer gets.
-# docs/site and tests/* aren't published, so they aren't scanned.
+# docs/site and tests/* aren't published, so they aren't scanned. On a
+# release commit the sub-modules lack go.sum hashes for the new version, so
+# the tag workflow runs this with GOFLAGS=-mod=mod (issue 537).
 PUBLISHED_MODULES = $(shell awk '/^PUBLISHED=\(/{f=1;next} f&&/^\)/{f=0} f{gsub(/[" ]/,""); print}' scripts/verify-submodule-deps.sh)
 vulncheck:
 	@echo "[vulncheck] Checking for known vulnerabilities..."
