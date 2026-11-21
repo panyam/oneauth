@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -67,6 +68,13 @@ type AppRegistration struct {
 	// by the assertion's kid, so the client rotates keys by publishing new
 	// ones rather than re-registering (issue 507).
 	JWKSURI string `json:"jwks_uri,omitempty"`
+
+	// JWKS is an inline RFC 7591 §2 jwks, a JSON Web Key Set of public
+	// keys. Only apiauth.CIMDAppStore sets it, from a client ID metadata
+	// document (issue 532), and the client authenticator verifies that
+	// client's private_key_jwt assertions with it. Stores never persist
+	// it. A DCR client's inline keys go to the KeyStore instead.
+	JWKS json.RawMessage `json:"-"`
 	// TokenEndpointAuthSigningAlg is the OIDC Registration §2
 	// token_endpoint_auth_signing_alg. When set, a jwks_uri client's
 	// assertions must use this algorithm. Empty accepts any asymmetric

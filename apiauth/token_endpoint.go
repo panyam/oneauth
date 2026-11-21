@@ -668,6 +668,9 @@ func (h *TokenEndpointHandler) requireDPoP(r *http.Request, req *core.TokenReque
 			return nil
 		}
 		resp, err := oa.AppStore.GetApp(r.Context(), &core.GetAppRequest{ClientID: clientID})
+		if ge := clientMetadataGrantError(err); ge != nil {
+			return ge
+		}
 		if err != nil && !errors.Is(err, core.ErrAppNotFound) {
 			log.Printf("token endpoint: look up client %q for dpop_bound_access_tokens: %v", clientID, err)
 			return serverError("could not load the client registration")
@@ -731,6 +734,9 @@ func (h *TokenEndpointHandler) authenticateClient(r *http.Request, req *core.Tok
 	}
 	creds.Audiences = h.acceptedAudiences(r)
 	resp, err := h.OneAuth.Authenticator.AuthenticateClient(r.Context(), creds)
+	if ge := clientMetadataGrantError(err); ge != nil {
+		return "", ge
+	}
 	if err != nil {
 		return "", invalidClient("invalid client credentials")
 	}

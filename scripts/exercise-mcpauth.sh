@@ -23,7 +23,9 @@
 # For `as`, steps 3 and 4 are tests/mcpauth/cmd/exercise-as instead. It runs
 # the framework's `authorization` command, with its callback on :18400, and
 # approves each authorization request it prints. The server config is
-# tests/mcpauth/oneauth-mcp-as.yaml.
+# tests/mcpauth/oneauth-mcp-as.yaml. A second run logs in as a client whose
+# client_id is a metadata document URL on :18401, served with a certificate
+# the server trusts (issue 532).
 #
 # Needs git, node and npx. Logs: /tmp/oneauth-mcpauth-<sdk>-{server,fixture}.log.
 set -euo pipefail
@@ -53,10 +55,10 @@ if [[ ! -f "$stamp" ]] || ! cmp -s "$conf/package-lock.json" "$stamp"; then
   cp "$conf/package-lock.json" "$stamp"
 fi
 
-as_port=18200 fixture_port=18300 callback_port=18400
+as_port=18200 fixture_port=18300 callback_port=18400 cimd_port=18401
 as=http://localhost:$as_port
 mcp=http://localhost:$fixture_port/mcp
-for port in $as_port $fixture_port $callback_port; do
+for port in $as_port $fixture_port $callback_port $cimd_port; do
   if curl -s -o /dev/null "http://localhost:$port/"; then
     echo "Something is already listening on :$port. Stop it first." >&2
     exit 2
@@ -79,6 +81,7 @@ go build -buildvcs=false -o "$work/oneauth-server" ./cmd/oneauth-server
 config=tests/mcpauth/oneauth-mcp.yaml
 if [[ "$sdk" == as ]]; then
   config=tests/mcpauth/oneauth-mcp-as.yaml
+  (cd tests/mcpauth && GOWORK=off go run ./cmd/exercise-as -gen-cimd-cert "$work")
 elif [[ "$sdk" == ts ]]; then
   ts=tests/mcpauth/ts-fixture
   ts_stamp="$ts/node_modules/.oneauth-lock"
@@ -91,7 +94,7 @@ else
   go build -buildvcs=false -o "$work/fixture" "./tests/mcpauth/cmd/$sdk-fixture"
 fi
 
-MCPAUTH_AS_PORT=$as_port MCPAUTH_SIGNING_KEY="$work/signing.pem" MCPAUTH_AUDIENCE=$mcp \
+MCPAUTH_AS_PORT=$as_port MCPAUTH_SIGNING_KEY="$work/signing.pem" MCPAUTH_AUDIENCE=$mcp MCPAUTH_CIMD_CERT="$work/cert.pem" \
   MCPAUTH_IDP_ISSUER=$idp_issuer MCPAUTH_IDP_PUBKEY="$work/idp.pub.pem" \
   "$work/oneauth-server" --config "$config" >"$server_log" 2>&1 &
 pids+=($!)
@@ -100,7 +103,8 @@ scripts/wait-for.sh 60 "oneauth-server (mcpauth)" --pid "${pids[0]}" --log "$ser
 
 if [[ "$sdk" == as ]]; then
   (cd tests/mcpauth && GOWORK=off go run ./cmd/exercise-as -conformance "$conf" -as "$as" \
-    -resource "$mcp" -port $callback_port -manifest ../conformance/known-gaps.yaml)
+    -resource "$mcp" -port $callback_port -manifest ../conformance/known-gaps.yaml \
+    -cimd-cert "$work/cert.pem" -cimd-key "$work/key.pem" -cimd-port $cimd_port)
   exit $?
 fi
 

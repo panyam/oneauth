@@ -173,6 +173,10 @@ func (h *DeviceAuthorizationHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		interval = DefaultDeviceAuthorizationInterval
 	}
 	reg, gErr := clientRegistration(r.Context(), h.AppStore, clientID)
+	if gErr != nil && gErr.Code != "server_error" {
+		writeOAuthError(w, gErr.Status, gErr.Code, gErr.Description)
+		return
+	}
 	if gErr != nil {
 		log.Printf("device authorization: %s", gErr.Description)
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", "could not load the client registration")

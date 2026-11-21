@@ -28,9 +28,16 @@ jwt:
 admin_auth:
   type: none    # the exercise registers its client through open DCR
   allow_open: true
+  # The CIMD run's metadata document is on 127.0.0.1, with a certificate
+  # the exercise generates per run (issue 532). Test harnesses only.
+  allow_private_client_hosts: true
+  client_fetch_ca_file: ${MCPAUTH_CIMD_CERT}
 
 code_flow:
   enabled: true
+  # A client may use an https URL as its client_id, and the server fetches
+  # its metadata from it (issue 532). The exercise's second run does.
+  client_id_metadata_documents: true
 
 # The dpop scenario binds a code-flow token to a proof key (RFC 9449).
 # Proofs stay optional, so authorization-code-grant still gets a Bearer

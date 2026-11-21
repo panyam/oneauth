@@ -116,6 +116,14 @@ type CodeFlowConfig struct {
 	// needs code_flow.oidc, and fapi2 refuses it. It's what an OIDC Dynamic
 	// OP must support (OIDC Core §15.2).
 	Implicit bool `yaml:"implicit"`
+
+	// ClientIDMetadataDocuments lets a client use an https URL it controls
+	// as its client_id, and the server fetches the client's metadata from
+	// it (issue 532, OneAuthConfig.ClientIDMetadataDocuments). MCP clients
+	// use it in place of DCR. The fetch follows admin_auth's
+	// allow_private_client_hosts and client_fetch_ca_file. Off by default,
+	// and fapi2 refuses it.
+	ClientIDMetadataDocuments bool `yaml:"client_id_metadata_documents"`
 }
 
 // SignupConfig configures the signup form.

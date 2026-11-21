@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -126,10 +127,17 @@ type authorizeConsentData struct {
 	// LogoURI, PolicyURI and TOSURI are the client's registered display
 	// metadata (OIDC Registration §2), each an https URL or empty. A
 	// custom template should show them, so the user sees who is asking.
-	LogoURI      string
-	PolicyURI    string
-	TOSURI       string
-	RedirectURI  string
+	LogoURI     string
+	PolicyURI   string
+	TOSURI      string
+	RedirectURI string
+	// ClientHost and RedirectHost are set for a client whose client_id is
+	// a metadata document URL (issue 532). Nobody registered such a
+	// client, so the page names the host that publishes its metadata
+	// (draft §10.6) and the host the user returns to (MCP authorization
+	// spec). Empty for a registered client.
+	ClientHost   string
+	RedirectHost string
 	Scopes       []string
 	State        string
 	ResponseType string
@@ -243,6 +251,10 @@ func (h *AuthorizeVerificationHandler) Consent(w http.ResponseWriter, r *http.Re
 		ActionURL:           r.URL.Path,
 	}
 	data.LogoURI, data.PolicyURI, data.TOSURI = lookupClientDisplayURIs(r.Context(), h.AppStore, req.ClientID)
+	if IsClientIDMetadataDocumentURL(req.ClientID) {
+		data.ClientHost = urlHost(req.ClientID)
+		data.RedirectHost = urlHost(req.RedirectURI)
+	}
 	httpauth.DenyFraming(w)
 	if data.LogoURI != "" {
 		allowImageOrigin(w.Header(), data.LogoURI)
@@ -522,6 +534,7 @@ var defaultAuthorizeConsentTmpl = template.Must(template.New("authorize_consent"
     {{if .PolicyURI}}<a id="client-policy" href="{{.PolicyURI}}" rel="noopener noreferrer" target="_blank">{{.ClientName}} privacy policy</a>{{end}}
     {{if .TOSURI}}<a id="client-tos" href="{{.TOSURI}}" rel="noopener noreferrer" target="_blank">{{.ClientName}} terms of service</a>{{end}}
   </p>{{end}}
+  {{if .ClientHost}}<p id="client-host">This application is not registered here. <strong>{{.ClientHost}}</strong> publishes its details, and approving sends you to <strong>{{.RedirectHost}}</strong>.</p>{{end}}
   <p>It will return you to <code>{{.RedirectURI}}</code> after you approve.</p>
   {{if .Scopes}}
   <p>Scopes requested:</p>
@@ -559,3 +572,13 @@ var defaultAuthorizeErrorTmpl = template.Must(template.New("authorize_error").Pa
   <h1 id="authorize-error">Authorization error</h1>
   <p><strong>{{.ErrorCode}}</strong>{{if .ErrorDescription}}: {{.ErrorDescription}}{{end}}</p>
 </body></html>`))
+
+// urlHost returns the host (with port) of raw, or raw itself when it
+// doesn't parse.
+func urlHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return raw
+	}
+	return u.Host
+}

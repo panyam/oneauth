@@ -3296,8 +3296,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 09:52 UTC",
-      "commit": "eb5e420",
+      "ran_at": "2026-11-21 10:19 UTC",
+      "commit": "62b6dee-dirty",
       "plan": {
         "plan": "mcp-auth-gosdk",
         "counts": {
@@ -3435,8 +3435,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 09:43 UTC",
-      "commit": "aecf2e6-dirty",
+      "ran_at": "2026-11-21 10:19 UTC",
+      "commit": "62b6dee-dirty",
       "plan": {
         "plan": "mcp-auth-mcpkit",
         "counts": {
@@ -3574,8 +3574,8 @@
       "tracking": "issue 521",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 09:43 UTC",
-      "commit": "aecf2e6-dirty",
+      "ran_at": "2026-11-21 10:19 UTC",
+      "commit": "62b6dee-dirty",
       "plan": {
         "plan": "mcp-auth-ts",
         "counts": {
@@ -3712,14 +3712,13 @@
       "source": "tests/mcpauth (cmd/exercise-as)",
       "tracking": "issue 496",
       "result": "PASS",
-      "detail": "6 modules: map[SUCCESS:5 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 09:52 UTC",
-      "commit": "eb5e420",
+      "detail": "12 modules: map[SUCCESS:12], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-21 10:19 UTC",
+      "commit": "62b6dee-dirty",
       "plan": {
         "plan": "mcp-auth-as",
         "counts": {
-          "SUCCESS": 5,
-          "WARNING": 1
+          "SUCCESS": 12
         },
         "against": 0,
         "modules": [
@@ -3735,11 +3734,38 @@
           },
           {
             "module": "authorization-server-metadata-cimd",
-            "result": "WARNING",
-            "verdict": "ok",
-            "expected": "expected-warning",
-            "issue": 532,
-            "note": "Authorization server metadata does not include \"client_id_metadata_document_supported\""
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "cimd-authorization-code-grant",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "cimd-authorization-server-metadata",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "cimd-authorization-server-metadata-cimd",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "cimd-sep-1932-as-metadata-alg-values",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "cimd-sep-1932-as-no-none-alg",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "cimd-sep-1932-as-token-binding",
+            "result": "SUCCESS",
+            "verdict": "ok"
           },
           {
             "module": "sep-1932-as-metadata-alg-values",
@@ -4141,17 +4167,6 @@
       "class": "accepted",
       "issue": 496,
       "reason": "The server-auth scenarios test a resource server, and they don't drive\n/authorize, so they can't see the RFC 9207 iss in the redirect. The AS\ndoes advertise it (auth-iss-param-as-metadata-advertises-support\npasses). The mcp-auth-as run checks the redirect itself:\nauthorization-code-grant requires an iss that matches the issuer."
-    },
-    {
-      "suite": "mcp",
-      "check": "authorization-server-metadata-cimd",
-      "plans": [
-        "mcp-auth-as"
-      ],
-      "status": "expected-warning",
-      "class": "open",
-      "issue": 532,
-      "reason": "oneauth's AS doesn't accept Client ID Metadata Documents as client_id\nyet, so its metadata doesn't advertise\nclient_id_metadata_document_supported. The MCP spec makes it a SHOULD."
     }
   ]
 }
