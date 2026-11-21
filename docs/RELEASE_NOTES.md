@@ -5,6 +5,33 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.14
+
+This release lets a client use an https URL it controls as its `client_id`, through Client ID Metadata Documents (CIMD). The MCP authorization spec asks authorization servers to support them. It also adds the MCP conformance framework's authorization-server scenarios to `make conformance`. Every expected outcome in `known-gaps.yaml` is now marked as an open gap or an accepted one.
+
+### Contract changes
+
+- **The token endpoint answers a failed client lookup with an OAuth error instead of 500 (PR 536).** The confidential-client check, the `dpop_bound_access_tokens` lookup and the registered-scope lookup each turned any lookup error other than "not found" into `server_error`. A bad client metadata document now gets `invalid_client`, and an unreachable one gets 503 `temporarily_unavailable`. Other store errors are still 500.
+- **Device authorization passes a lookup error's own status through (PR 536).** Only the CIMD errors carry one, so registered clients see no change.
+- **New optional fields (PR 536).** These are `OneAuthConfig.ClientIDMetadataDocuments`, `ASServerMetadata.ClientIDMetadataDocumentSupported`, and `AppRegistration.JWKS`. `AppRegistration.JWKS` holds a CIMD client's inline keys in memory only, and stores never save it.
+- **The toolchain is Go 1.27.4 (PR 534).** The `go` lines stay at 1.26.9, so importers keep the same minimum Go.
+
+### Client ID Metadata Documents (issue 532, PR 536)
+
+- `OneAuthConfig.ClientIDMetadataDocuments`, or `code_flow.client_id_metadata_documents` on the reference server, turns it on. It's off by default, and FAPI 2.0 refuses it.
+- `apiauth.CIMDAppStore` wraps the app store. A `client_id` that starts with `https://` is fetched, checked against draft -03, and cached. So `/authorize`, the token endpoint, userinfo and the consent page all accept it.
+- The fetch follows no redirect, accepts only a 200, reads at most 5 KB, and dials no private address unless `allow_private_client_hosts` is set. It caches for the response's `max-age`, clamped to between 1 minute and 24 hours.
+- Clients can use `none` with PKCE, or `private_key_jwt` with keys in the document's `jwks` or at its `jwks_uri`. A document with a secret or a shared-secret method is refused.
+- The consent page names the host that publishes the document and the host the user returns to. A URL client's `logo_uri` isn't shown.
+- Discovery advertises `client_id_metadata_document_supported`. The new docsite page `specs/cimd/` explains it.
+
+### Conformance
+
+- `mcp-auth-as` is a new gating suite. It runs the MCP framework's authorization-server scenarios against oneauth-server, and a headless login approves each authorization request (PR 533, issue 496). It runs once with a registered client and once with a CIMD client, and all 12 checks pass (PR 536).
+- Each `known-gaps.yaml` entry now has a `class`. An `open` entry is a gap with an open issue, and an `accepted` entry is an outcome oneauth keeps on purpose. The report's new Known gaps section lists all 24, and `make gapcheck` fails when an open entry cites a closed issue (PR 535).
+- `make up-all`, `down-all`, `ps-all` and `logs-all` start and stop every Docker service the tests use, from a top-level `docker-compose.yml` (PRs 530 and 531, issue 243).
+- A weekly workflow runs `make vulncheck` over every published module (PR 534).
+
 ## Version 0.3.13
 
 This release fixes a regression in 0.3.12. An AS with no `AllowedResources` refused every authorization-code redemption that named a `resource`, so MCP clients such as mcpkit's OAuth token source couldn't get a token.
