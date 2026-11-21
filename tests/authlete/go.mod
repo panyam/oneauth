@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/tests/authlete
 
 go 1.26.9
 
+toolchain go1.27.4
+
 replace github.com/panyam/oneauth => ../..
 
 require (

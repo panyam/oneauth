@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/docs/site
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	github.com/panyam/s3gen v0.1.4
 	github.com/yuin/goldmark v1.8.2

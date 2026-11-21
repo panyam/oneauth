@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/stores/gae
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	cloud.google.com/go/datastore v1.21.0
 	github.com/panyam/oneauth v0.3.13

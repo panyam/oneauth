@@ -184,7 +184,7 @@ authlete:
 # without installing anything and everyone gets the same results. Override
 # with an installed binary, e.g. `make audit GITLEAKS=gitleaks`.
 GITLEAKS ?= go run github.com/zricethezav/gitleaks/v8@v8.21.2
-GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.9.0
+GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.10.0
 # gosec v2.29.0 is the first release that builds under Go 1.27. Its type
 # checker can't read Go 1.27 export data yet, so only the AST rules run.
 GOSEC ?= go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0
