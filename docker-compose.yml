@@ -4,7 +4,7 @@
 # Makefile passes its *_CONTAINER_NAME, *_PORT and other settings in as
 # environment variables, and the defaults here match the Makefile so a bare
 # `docker compose up -d` gives the same containers. The drift test in
-# tests/conformance/devservices keeps the two in step.
+# devservices_test.go keeps the two in step.
 #
 # The OIDF harness keeps its own file (tests/oidf-conformance/
 # docker-compose-prebuilt.yml): including it here would rename its project
