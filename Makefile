@@ -13,10 +13,11 @@ conformance:
 conformance-report:
 	$(MAKE) -C conformance report
 
-# The conformance runner's own tests, including the drift check between
-# conformance/suites.yaml and conformance/Makefile.
+# The conformance runner's own tests, including the drift checks between
+# conformance/suites.yaml and conformance/Makefile, and between
+# docker-compose.yml and this Makefile.
 conformance-check:
-	cd tests/conformance && GOWORK=off go test -count=1 ./cmd/...
+	cd tests/conformance && GOWORK=off go test -count=1 ./cmd/... ./devservices/...
 
 
 # Run ALL tests: unit tests → e2e (in-process) → secrets scan -> Keycloak
@@ -244,20 +245,11 @@ testall:
 	@mkdir -p $(REPORT_DIR) $(BUILD_DIR)
 	@echo "=== OneAuth Comprehensive Test Suite ===" | tee $(REPORT_DIR)/run.log
 	@echo "Started: $$(date)" | tee -a $(REPORT_DIR)/run.log
-	@# Clean slate: stop any leftover containers
-	@docker stop $(PG_CONTAINER_NAME) 2>/dev/null || true
-	@docker stop $(KC_CONTAINER_NAME) 2>/dev/null || true
-	@# Start fresh containers for PG and Keycloak
-	@echo "Starting PostgreSQL..." | tee -a $(REPORT_DIR)/run.log
-	@docker run --rm -d --name $(PG_CONTAINER_NAME) \
-		-e POSTGRES_USER=$(PG_USER) -e POSTGRES_PASSWORD=$(PG_PASSWORD) -e POSTGRES_DB=$(PG_DB) \
-		-p $(PG_PORT):5432 arm64v8/postgres:18.1 >> $(REPORT_DIR)/run.log 2>&1
-	@echo "Starting Keycloak..." | tee -a $(REPORT_DIR)/run.log
-	@docker run --rm -d --name $(KC_CONTAINER_NAME) -p $(KC_PORT):8080 \
-		-v $(CURDIR)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
-		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-		$(KC_IMAGE) start-dev --features=dpop --import-realm >> $(REPORT_DIR)/run.log 2>&1
-	@sleep 3
+	@# Clean slate: remove any leftover containers, then start fresh ones
+	@$(MAKE) --no-print-directory downdb downkcl >> $(REPORT_DIR)/run.log 2>&1
+	@echo "Starting PostgreSQL and Keycloak..." | tee -a $(REPORT_DIR)/run.log
+	@$(MAKE) --no-print-directory updb >> $(REPORT_DIR)/run.log 2>&1
+	@$(COMPOSE) up -d keycloak >> $(REPORT_DIR)/run.log 2>&1
 	@PASS=0; FAIL=0; STAGES=""; \
 	$(call RUN_STAGE,[1/11] Lint (staticcheck),lint,lint); \
 	$(call RUN_STAGE,[2/11] Unit tests + coverage (core + sub-modules),cover-html,unit+coverage); \
@@ -276,8 +268,7 @@ testall:
 	echo "Finished: $$(date)" | tee -a $(REPORT_DIR)/run.log; \
 	\
 	echo "Cleaning up containers..."; \
-	docker stop $(PG_CONTAINER_NAME) >> $(REPORT_DIR)/run.log 2>&1 || true; \
-	docker stop $(KC_CONTAINER_NAME) >> $(REPORT_DIR)/run.log 2>&1 || true; \
+	$(MAKE) --no-print-directory downdb downkcl >> $(REPORT_DIR)/run.log 2>&1; \
 	\
 	echo "Generating HTML report..."; \
 	$(MAKE) test-report STAGES="$$STAGES"; \
@@ -345,6 +336,60 @@ test-report:
 
 
 # =============================================================================
+# External test services (issue 243)
+# =============================================================================
+# docker-compose.yml runs Postgres, the Datastore emulator, Keycloak and the
+# Authlete frontend. The settings in each section below are exported, and
+# compose reads them, so an override such as `make updb PG_PORT=5533` moves
+# the container too. DEV_UP starts a service unless a container with its
+# name is already running. That covers one started by the docker run these
+# targets used before. DEV_DOWN removes the container by name, compose's or
+# not. `make up-all` starts every service, the OIDF harness included.
+COMPOSE := docker compose -f $(CURDIR)/docker-compose.yml
+export PG_CONTAINER_NAME PG_PORT PG_USER PG_PASSWORD PG_DB \
+	DS_CONTAINER_NAME DS_PORT DS_PROJECT \
+	KC_CONTAINER_NAME KC_PORT KC_IMAGE \
+	AUTH_CONTAINER_NAME AUTH_PORT AUTH_FRONTEND_REF
+DEV_UP = if docker ps --format '{{.Names}}' | grep -qx '$(1)'; then \
+		echo "$(1) is already running."; \
+	else \
+		echo "Starting $(1)..."; $(COMPOSE) $(3) up -d $(4) $(2) || exit 1; \
+	fi
+DEV_DOWN = if docker ps -aq --filter name='^$(1)$$' | grep -q .; then \
+		docker rm -fv $(1) >/dev/null && echo "Removed $(1)."; \
+	else \
+		echo "$(1) isn't running."; \
+	fi
+
+# Every external test service: Postgres, the Datastore emulator, Keycloak
+# and the OIDF harness, plus the Authlete frontend when AUTHLETE_SERVICEID
+# and AUTHLETE_ACCESS_TOKEN are exported. `make -j4 up-all` starts them in
+# parallel.
+up-all: updb upds upkcl upoidf
+	@if [ -n "$$AUTHLETE_SERVICEID" ] && [ -n "$$AUTHLETE_ACCESS_TOKEN" ]; then \
+		$(MAKE) --no-print-directory upauthlete; \
+	else \
+		echo "Skipping the Authlete frontend: AUTHLETE_SERVICEID and AUTHLETE_ACCESS_TOKEN aren't exported."; \
+	fi
+
+down-all: downdb downds downkcl downauthlete downoidf
+	@$(COMPOSE) --profile authlete down --remove-orphans 2>/dev/null
+
+# Lists every test service container, running or stopped.
+ps-all:
+	@docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' \
+		--filter name='^$(PG_CONTAINER_NAME)$$' --filter name='^$(DS_CONTAINER_NAME)$$' \
+		--filter name='^$(KC_CONTAINER_NAME)$$' --filter name='^$(AUTH_CONTAINER_NAME)$$' \
+		--filter name='^oidf-conformance-'
+
+# Follows the logs of every compose-started service and the OIDF harness.
+logs-all:
+	@trap 'kill 0' INT TERM; \
+	$(COMPOSE) --profile authlete logs -f --tail=50 & \
+	docker compose -f $(OIDF_COMPOSE) logs -f --tail=50 & \
+	wait
+
+# =============================================================================
 # PostgreSQL test database configuration
 # =============================================================================
 PG_CONTAINER_NAME := oneauth-test-pg
@@ -353,27 +398,17 @@ PG_USER := postgres
 PG_PASSWORD := testpassword
 PG_DB := testdb
 
-# Start an ephemeral PostgreSQL instance using Docker for testing
+# Start a PostgreSQL instance for the GORM tests. --wait waits for the
+# compose healthcheck, pg_isready.
 updb:
-	@echo "Starting PostgreSQL container..."
-	@docker run --rm -d \
-		--name $(PG_CONTAINER_NAME) \
-		-e POSTGRES_USER=$(PG_USER) \
-		-e POSTGRES_PASSWORD=$(PG_PASSWORD) \
-		-e POSTGRES_DB=$(PG_DB) \
-		-p $(PG_PORT):5432 \
-		arm64v8/postgres:18.1
-	@echo "Waiting for PostgreSQL to be ready..."
-	@sleep 3
-	@echo ""
-	@echo "PostgreSQL is running!"
+	@$(call DEV_UP,$(PG_CONTAINER_NAME),pg,,--wait --wait-timeout 60)
+	@echo "PostgreSQL is running on :$(PG_PORT)."
 	@echo "To run GORM tests with PostgreSQL: make testpg"
 	@echo "To stop: make downdb"
 
-# Stop the PostgreSQL test container
+# Remove the PostgreSQL test container
 downdb:
-	@echo "Stopping PostgreSQL container..."
-	@docker stop $(PG_CONTAINER_NAME) 2>/dev/null || echo "Container not running"
+	@$(call DEV_DOWN,$(PG_CONTAINER_NAME))
 
 # Tail the logs of the running PostgreSQL container
 dblogs:
@@ -381,17 +416,7 @@ dblogs:
 
 # Run GORM store tests with PostgreSQL (starts container if not running)
 testpg:
-	@if ! docker ps --format '{{.Names}}' | grep -q '^$(PG_CONTAINER_NAME)$$'; then \
-		echo "Starting PostgreSQL container..."; \
-		docker run --rm -d \
-			--name $(PG_CONTAINER_NAME) \
-			-e POSTGRES_USER=$(PG_USER) \
-			-e POSTGRES_PASSWORD=$(PG_PASSWORD) \
-			-e POSTGRES_DB=$(PG_DB) \
-			-p $(PG_PORT):5432 \
-			arm64v8/postgres:18.1; \
-		sleep 3; \
-	fi
+	@$(MAKE) --no-print-directory updb
 	ONEAUTH_TEST_PGDB=$(PG_DB) \
 	ONEAUTH_TEST_PGPORT=$(PG_PORT) \
 	ONEAUTH_TEST_PGUSER=$(PG_USER) \
@@ -424,27 +449,16 @@ DS_WAIT = for i in $$(seq 1 60); do \
 # tests fail at random. Firestore in Datastore mode is strongly consistent,
 # so 1.0 is also what production does.
 upds:
-	@echo "Starting Datastore emulator container..."
-	@docker run --rm -d \
-		--name $(DS_CONTAINER_NAME) \
-		-p $(DS_PORT):8081 \
-		gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators \
-		gcloud beta emulators datastore start \
-			--host-port=0.0.0.0:8081 \
-			--project=$(DS_PROJECT) \
-			--no-store-on-disk \
-			--consistency=1.0
+	@$(call DEV_UP,$(DS_CONTAINER_NAME),datastore)
 	@echo "Waiting for Datastore emulator to be ready..."
 	@$(DS_WAIT)
-	@echo ""
-	@echo "Datastore emulator is running!"
+	@echo "Datastore emulator is running on :$(DS_PORT)."
 	@echo "To run GAE tests: make testds"
 	@echo "To stop: make downds"
 
-# Stop the Datastore emulator container
+# Remove the Datastore emulator container
 downds:
-	@echo "Stopping Datastore emulator container..."
-	@docker stop $(DS_CONTAINER_NAME) 2>/dev/null || echo "Container not running"
+	@$(call DEV_DOWN,$(DS_CONTAINER_NAME))
 
 # Tail the logs of the running Datastore emulator container
 dslogs:
@@ -452,19 +466,7 @@ dslogs:
 
 # Run GAE store tests with Datastore emulator (starts container if not running)
 testds:
-	@if ! docker ps --format '{{.Names}}' | grep -q '^$(DS_CONTAINER_NAME)$$'; then \
-		echo "Starting Datastore emulator container..."; \
-		docker run --rm -d \
-			--name $(DS_CONTAINER_NAME) \
-			-p $(DS_PORT):8081 \
-			gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators \
-			gcloud beta emulators datastore start \
-				--host-port=0.0.0.0:8081 \
-				--project=$(DS_PROJECT) \
-				--no-store-on-disk \
-				--consistency=1.0; \
-	fi
-	@$(DS_WAIT)
+	@$(MAKE) --no-print-directory upds
 	DATASTORE_EMULATOR_HOST=localhost:$(DS_PORT) \
 	DATASTORE_PROJECT_ID=$(DS_PROJECT) \
 	go test -v ./stores/gae/...
@@ -504,22 +506,15 @@ testrealDS:
 # =============================================================================
 # Keycloak's DPoP support is a preview feature, so the RFC 9449 interop
 # tests need --features=dpop on the server command line. It goes in the
-# docker run invocations below rather than an env var, because Keycloak
+# compose command (docker-compose.yml) rather than an env var, because Keycloak
 # reads features from the command.
 KC_CONTAINER_NAME := oneauth-test-keycloak
 KC_PORT := 8180
 KC_IMAGE := quay.io/keycloak/keycloak:26.6
 
-# Start a Keycloak instance using Docker for interop testing
+# Start a Keycloak instance for interop testing
 upkcl:
-	@echo "Starting Keycloak container..."
-	@docker run --rm -d \
-		--name $(KC_CONTAINER_NAME) \
-		-p $(KC_PORT):8080 \
-		-v $(CURDIR)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
-		-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
-		-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-		$(KC_IMAGE) start-dev --features=dpop --import-realm
+	@$(call DEV_UP,$(KC_CONTAINER_NAME),keycloak)
 	@echo "Waiting for Keycloak to be ready (~15s)..."
 	@./scripts/wait-for.sh 180 "Keycloak on :$(KC_PORT)" -- http://localhost:$(KC_PORT)/realms/oneauth-test
 	@echo ""
@@ -529,10 +524,9 @@ upkcl:
 	@echo "To run interop tests: make testkcl"
 	@echo "To stop: make downkcl"
 
-# Stop the Keycloak container
+# Remove the Keycloak container
 downkcl:
-	@echo "Stopping Keycloak container..."
-	@docker stop $(KC_CONTAINER_NAME) 2>/dev/null || echo "Container not running"
+	@$(call DEV_DOWN,$(KC_CONTAINER_NAME))
 
 # Tail the logs of the running Keycloak container
 kcllogs:
@@ -617,12 +611,7 @@ upauthlete: authlete-image
 	@printf 'base_url=%s\napi_version=V3\nservice.api_key=%s\nservice.access_token=%s\n' \
 		"$(AUTH_API_SERVER)" "$$AUTHLETE_SERVICEID" "$$AUTHLETE_ACCESS_TOKEN" \
 		> $(AUTH_FRONTEND_DIR)/authlete.properties.runtime
-	@echo "Starting Authlete frontend container..."
-	@docker run --rm -d \
-		--name $(AUTH_CONTAINER_NAME) \
-		-p $(AUTH_PORT):8080 \
-		-v $(CURDIR)/$(AUTH_FRONTEND_DIR)/authlete.properties.runtime:/authlete/app/authlete.properties \
-		$(AUTH_IMAGE)
+	@$(call DEV_UP,$(AUTH_CONTAINER_NAME),authlete,--profile authlete)
 	@echo "Waiting for AS to be ready (Jetty warmup ~30s)..."
 	@./scripts/wait-for.sh 180 "Authlete-backed AS on :$(AUTH_PORT)" -- http://localhost:$(AUTH_PORT)/.well-known/openid-configuration
 	@echo ""
@@ -632,10 +621,9 @@ upauthlete: authlete-image
 	@echo "To run interop tests: make testauthlete"
 	@echo "To stop: make downauthlete"
 
-# Stop the Authlete frontend container.
+# Remove the Authlete frontend container.
 downauthlete:
-	@echo "Stopping Authlete frontend container..."
-	@docker stop $(AUTH_CONTAINER_NAME) 2>/dev/null || echo "Container not running"
+	@$(call DEV_DOWN,$(AUTH_CONTAINER_NAME))
 
 # Tail logs of the running Authlete frontend container.
 authletelogs:
@@ -674,7 +662,7 @@ testauthlete:
 	@if docker ps --format '{{.Names}}' | grep -q '^$(AUTH_CONTAINER_NAME)$$' && \
 		! curl -sf -o /dev/null http://localhost:$(AUTH_PORT)/.well-known/openid-configuration; then \
 		echo "The Authlete container is running but its discovery fails; restarting it."; \
-		docker stop $(AUTH_CONTAINER_NAME) >/dev/null; \
+		$(call DEV_DOWN,$(AUTH_CONTAINER_NAME)); \
 	fi
 	@if ! docker ps --format '{{.Names}}' | grep -q '^$(AUTH_CONTAINER_NAME)$$'; then \
 		$(MAKE) upauthlete; \
@@ -833,19 +821,7 @@ testconformance:
 
 # Run Keycloak interop tests (starts container if not running)
 testkcl:
-	@if ! docker ps --format '{{.Names}}' | grep -q '^$(KC_CONTAINER_NAME)$$'; then \
-		echo "Starting Keycloak container..."; \
-		docker run --rm -d \
-			--name $(KC_CONTAINER_NAME) \
-			-p $(KC_PORT):8080 \
-			-v $(CURDIR)/tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json \
-			-e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
-			-e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-			$(KC_IMAGE) start-dev --features=dpop --import-realm; \
-		echo "Waiting for Keycloak to be ready (~15s)..."; \
-		./scripts/wait-for.sh 180 "Keycloak on :$(KC_PORT)" -- http://localhost:$(KC_PORT)/realms/oneauth-test || exit 1; \
-		echo "Keycloak ready."; \
-	fi
+	@$(MAKE) --no-print-directory upkcl
 	@if ! curl -sf http://localhost:$(RAR_PORT)/_ah/health > /dev/null 2>&1; then \
 		echo "Starting RAR test server..."; \
 		$(RAR_ENV) go run -buildvcs=false ./cmd/oneauth-server/ \
@@ -1087,8 +1063,8 @@ audit: vulncheck secrets
 .PHONY: test test-hard testall test-report e2e audit \
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
-	updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
+	up-all down-all ps-all logs-all updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
+	upkcl downkcl kcllogs testkcl upauthlete downauthlete authletelogs uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

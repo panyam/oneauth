@@ -1,0 +1,75 @@
+# External services for oneauth's tests (issue 243). `make up-all` starts
+# them with the OIDF harness, `make down-all` removes them, and the
+# per-service targets (updb, upds, upkcl, upauthlete) start one each. The
+# Makefile passes its *_CONTAINER_NAME, *_PORT and other settings in as
+# environment variables, and the defaults here match the Makefile so a bare
+# `docker compose up -d` gives the same containers. The drift test in
+# tests/conformance/devservices keeps the two in step.
+#
+# The OIDF harness keeps its own file (tests/oidf-conformance/
+# docker-compose-prebuilt.yml): including it here would rename its project
+# and orphan its MongoDB volume.
+name: ${ONEAUTH_COMPOSE_PROJECT:-oneauth-test}
+
+services:
+  # make testpg runs the GORM stores against it.
+  pg:
+    image: postgres:18.1
+    container_name: ${PG_CONTAINER_NAME:-oneauth-test-pg}
+    environment:
+      POSTGRES_USER: ${PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-testpassword}
+      POSTGRES_DB: ${PG_DB:-testdb}
+    ports:
+      - "${PG_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  # make testds runs the GAE stores against it. --consistency=1.0 because
+  # the emulator defaults to 0.9, where a query misses a recent write about
+  # one time in ten. Firestore in Datastore mode is strongly consistent.
+  datastore:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    container_name: ${DS_CONTAINER_NAME:-oneauth-test-datastore}
+    command:
+      - gcloud
+      - beta
+      - emulators
+      - datastore
+      - start
+      - --host-port=0.0.0.0:8081
+      - --project=${DS_PROJECT:-test-project}
+      - --no-store-on-disk
+      - --consistency=1.0
+    ports:
+      - "${DS_PORT:-8081}:8081"
+
+  # make testkcl and the keycloak conformance suite. DPoP is a preview
+  # feature in Keycloak, so it needs --features=dpop on the command line.
+  keycloak:
+    image: ${KC_IMAGE:-quay.io/keycloak/keycloak:26.6}
+    container_name: ${KC_CONTAINER_NAME:-oneauth-test-keycloak}
+    command: ["start-dev", "--features=dpop", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./tests/keycloak/realm.json:/opt/keycloak/data/import/oneauth-test-realm.json:ro
+    ports:
+      - "${KC_PORT:-8180}:8080"
+
+  # make testauthlete. The image is built from source by `make
+  # authlete-image`, and `make upauthlete` writes the properties file from
+  # the AUTHLETE_* environment, so start it through make. The profile keeps
+  # a bare `docker compose up` from starting it without either.
+  authlete:
+    profiles: [authlete]
+    image: oneauth-test/authlete-frontend:${AUTH_FRONTEND_REF:-799440548fb8}
+    container_name: ${AUTH_CONTAINER_NAME:-oneauth-test-authlete}
+    volumes:
+      - ./tests/authlete/.frontend/authlete.properties.runtime:/authlete/app/authlete.properties:ro
+    ports:
+      - "${AUTH_PORT:-8280}:8080"

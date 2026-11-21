@@ -96,7 +96,8 @@ jobs:
 
   # The GAE store tests skip without DATASTORE_PROJECT_ID, so the test job
   # above never runs them. The emulator needs --consistency=1.0, and a
-  # services: container can't take arguments, so make testds starts it.
+  # services: container can't take arguments, so make testds starts it
+  # from docker-compose.yml.
   gae:
     runs-on: ubuntu-latest
     steps:

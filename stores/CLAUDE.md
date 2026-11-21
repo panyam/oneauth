@@ -1,7 +1,7 @@
 # stores — backend gotchas
 
 - **Documented-contract bar.** Every exported store method documents error-sentinel mapping, idempotency, transactional scope and non-obvious dances. Match `stores/gae/appstore.go` and `keystore.go`, not sparser neighbours.
-- **Run the Datastore emulator with `--consistency=1.0`.** At the default 0.9 a query misses a recent write about one time in ten (issue 395). `make upds` / `make testds` pass it and wait for the emulator; CI's `gae` job runs `make testds`. `make downds` first if `testds` turns flaky.
+- **Run the Datastore emulator with `--consistency=1.0`.** At the default 0.9 a query misses a recent write about one time in ten (issue 395). `docker-compose.yml` passes it, and `make upds` / `make testds` start the emulator and wait for it; CI's `gae` job runs `make testds`. `make downds` first if `testds` turns flaky.
 - **`make testpg` shares one Postgres with a 100-client limit.** `setupPostgresDB` must close every connection it opens, or a test with a pooled race (the `usertokentest` one opens 16) pushes the package over it.
 - **GAE transactions that race on one entity by design need `datastore.MaxAttempts`.** The default 3 attempts let the fourth concurrent writer fail with `ErrConcurrentTransaction`; `RecordAccessToken` lost access tokens that way about 1 run in 70 (`contendedTxAttempts` in `gae/stores.go`, PR #471).
 - **A concurrent GORM test on sqlite needs one connection.** Each pooled `:memory:` connection opens its own empty database. Set `SetMaxOpenConns(1)` for sqlite only (see `gorm/refreshtoken_access_tokens_test.go`) and let `make testpg` exercise a real pool.
