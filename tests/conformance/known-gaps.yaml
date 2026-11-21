@@ -490,9 +490,24 @@
   issue: 496
   owner: panyam
   reason: |
-    The conformance framework has no OAuth flow driver yet, so it can't
-    drive /authorize to see the RFC 9207 iss in the redirect. The AS does
-    advertise it (auth-iss-param-as-metadata-advertises-support passes).
+    The server-auth scenarios test a resource server, and they don't drive
+    /authorize, so they can't see the RFC 9207 iss in the redirect. The AS
+    does advertise it (auth-iss-param-as-metadata-advertises-support
+    passes). The mcp-auth-as run checks the redirect itself:
+    authorization-code-grant requires an iss that matches the issuer.
   expires: 2027-12-31
+
+- suite: mcp
+  plan: mcp-auth-as
+  test: authorization-server-metadata-cimd
+  status: expected-warning
+  evidence: client_id_metadata_document_supported
+  issue: 532
+  owner: panyam
+  reason: |
+    oneauth's AS doesn't accept Client ID Metadata Documents as client_id
+    yet, so its metadata doesn't advertise
+    client_id_metadata_document_supported. The MCP spec makes it a SHOULD.
+  expires: 2027-06-30
 
 
