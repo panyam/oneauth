@@ -3296,8 +3296,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 09:43 UTC",
-      "commit": "aecf2e6-dirty",
+      "ran_at": "2026-11-21 09:52 UTC",
+      "commit": "eb5e420",
       "plan": {
         "plan": "mcp-auth-gosdk",
         "counts": {
@@ -3713,8 +3713,8 @@
       "tracking": "issue 496",
       "result": "PASS",
       "detail": "6 modules: map[SUCCESS:5 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 09:43 UTC",
-      "commit": "aecf2e6-dirty",
+      "ran_at": "2026-11-21 09:52 UTC",
+      "commit": "eb5e420",
       "plan": {
         "plan": "mcp-auth-as",
         "counts": {

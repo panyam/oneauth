@@ -5,9 +5,9 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- Active mission: #489, every applicable external conformance suite run from `make conformance`. 16/17 tickets closed. Nothing ready: #496 waits on the upstream MCP authorization-server suite. The last full `make conformance` ran for PR #530 at `aecf2e6`: 17 gating suites pass, and Authlete (info) fails 4 tests on `invalid_client` because `AUTHLETE_CLIENTID` isn't registered in the service. JARM (#409) is parked, next ready #410.
-- No open threads. Releases v0.3.12 and v0.3.13 are cut; PRs #530 and #531 (`make up-all` over `docker-compose.yml`, issue 243) merged after v0.3.13.
-- This run: no branch threads to merge; refreshed the mission line.
+- Active mission: #489, every applicable external conformance suite run from `make conformance`. 17/17 tickets closed, after PR #533 added `mcp-auth-as` (issue 496). Its last done-when item is a person's review of the report, so closing it is the owner's call. The MCP suites ran on main at `eb5e420`. The last full `make conformance` ran for PR #530 at `aecf2e6`, where Authlete (info) failed 4 tests on `invalid_client` because `AUTHLETE_CLIENTID` isn't registered in the service. JARM (#409) is parked, next ready #410.
+- Next: #532 (server-side CIMD), the one gap `mcp-auth-as` found, recorded as an expected warning.
+- No open threads. This run: no branch threads to merge; refreshed the mission line after PR #533.
 
 ## Across threads
 
