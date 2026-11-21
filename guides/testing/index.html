@@ -231,7 +231,47 @@
 </span></span><span style="display:flex;"><span>        t.<span style="color:#900;font-weight:bold">Errorf</span>(<span style="color:#d14">&#34;Expected status 200, got %d&#34;</span>, rr.Code)
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre><h3 id="reusable-test-infrastructure-testutil">Reusable Test Infrastructure (<code>testutil/</code>) <a class="anchor" href="#reusable-test-infrastructure-testutil">¶</a></h3>
+</span></span></code></pre><h3 id="external-test-services">External test services <a class="anchor" href="#external-test-services">¶</a></h3>
+<p>Some suites need a service running in Docker. <code>docker-compose.yml</code> defines four of them, and the OIDF harness has its own compose file in <code>tests/oidf-conformance/</code>. Each service has its own targets, and each <code>test*</code> target starts its service when it isn&rsquo;t running:</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Start / stop</th>
+<th>Tests</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL on :5433</td>
+<td><code>make updb</code> / <code>make downdb</code></td>
+<td><code>make testpg</code></td>
+</tr>
+<tr>
+<td>Datastore emulator on :8081</td>
+<td><code>make upds</code> / <code>make downds</code></td>
+<td><code>make testds</code></td>
+</tr>
+<tr>
+<td>Keycloak on :8180</td>
+<td><code>make upkcl</code> / <code>make downkcl</code></td>
+<td><code>make testkcl</code></td>
+</tr>
+<tr>
+<td>Authlete frontend on :8280 (needs <code>AUTHLETE_*</code> env)</td>
+<td><code>make upauthlete</code> / <code>make downauthlete</code></td>
+<td><code>make testauthlete</code></td>
+</tr>
+<tr>
+<td>OIDF harness on :8443</td>
+<td><code>make upoidf</code> / <code>make downoidf</code></td>
+<td><code>make testoidf</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>make up-all</code> starts all of them, and it skips Authlete when <code>AUTHLETE_SERVICEID</code> and <code>AUTHLETE_ACCESS_TOKEN</code> aren&rsquo;t exported. <code>make -j4 up-all</code> starts them in parallel. <code>make ps-all</code> lists the containers, <code>make logs-all</code> follows their logs, and <code>make down-all</code> removes them. The OIDF harness keeps its MongoDB volume.</p>
+<p>The ports and container names are Makefile variables, and an override moves the container: <code>make upkcl KC_PORT=8281 &amp;&amp; make testkcl KC_PORT=8281</code>. A bare <code>docker compose up -d</code> gives the same containers as the defaults. A test in <code>tests/conformance/devservices</code> (part of <code>make conformance-check</code>) fails when the compose defaults and the Makefile differ.</p>
+<h3 id="reusable-test-infrastructure-testutil">Reusable Test Infrastructure (<code>testutil/</code>) <a class="anchor" href="#reusable-test-infrastructure-testutil">¶</a></h3>
 <p>For integration tests that need an in-process auth server, use the <code>testutil</code> package instead of wiring one up manually:</p>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;github.com/panyam/oneauth/testutil&#34;</span>
 </span></span><span style="display:flex;"><span>
