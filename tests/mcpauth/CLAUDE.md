@@ -1,11 +1,12 @@
 # tests/mcpauth — MCP server-auth conformance
 
-`make exercise-mcpauth SDK=gosdk|mcpkit|ts` (or `make conformance SUITE=mcp-auth-<sdk>`) runs the MCP server-auth scenarios against oneauth-server through one MCP SDK (issues 495, 521). `scripts/exercise-mcpauth.sh` does the setup.
+`make exercise-mcpauth SDK=gosdk|mcpkit|ts` (or `make conformance SUITE=mcp-auth-<sdk>`) runs the MCP server-auth scenarios against oneauth-server through one MCP SDK (issues 495, 521). `SDK=as` runs the framework's authorization-server scenarios against oneauth-server instead (issue 496). `scripts/exercise-mcpauth.sh` does the setup.
 
 - **Three fixtures, one contract.** `cmd/gosdk-fixture` uses oneauth's `APIMiddleware` for auth, so its failures are oneauth's. `cmd/mcpkit-fixture` uses mcpkit's `ext/auth`, and `ts-fixture/` the TypeScript SDK's own bearer middleware, so a check failing only in one of those points at that SDK. `fixture/` mints the tokens all three use; the TS fixture reads them from `cmd/bootstrap`.
 - **Tokens name their resource.** oneauth-server lists the fixture's `/mcp` URL in `jwt.resources`, and the fixtures ask for it with RFC 8707 `resource`, so `aud` is that URL. The upstream-IdP assertion comes from a key the exercise generates and `trusted_assertion_issuers` trusts.
 - **Fixtures build in workspace mode** (`go build ./tests/mcpauth/cmd/...` from the root), so they run the checkout's oneauth. `go.mod` also replaces oneauth with `../..` for `GOWORK=off`.
 - **The scenarios run through `driver/run-auth.ts`, not the framework CLI.** It calls each scenario's `run(ctx)` with only `serverUrl` set, which is all the auth scenarios read. A framework bump that changes `run`'s signature breaks it (issue 523).
+- **The AS run uses the framework CLI and a headless login.** `cmd/exercise-as` signs a user up, registers a public client for the callback on :18400, and runs `authorization`. `asflow.Watch` passes each printed URL that starts with the metadata's `authorization_endpoint` to `client.ApproveConsent`. That refuses a login form, so a lost session fails at once instead of after the scenario's 5-minute wait.
 - **INFO and SKIPPED checks need `expected-skip` entries** (`suite: mcp` in `tests/conformance/known-gaps.yaml`). A check that didn't run can't pass quietly.
 - **mcpkit applies `server.WithMux` routes only in `ListenAndServe`**, not in `Handler()`.
 - **`ts-fixture/` pins exact package versions** in `package.json` and `package-lock.json`; the exercise runs `npm ci` there when the lockfile changes.
