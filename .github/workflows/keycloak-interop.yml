@@ -1,10 +1,10 @@
 name: Keycloak Interop Tests
 
 # Runs `make testkcl`, the same target used locally, so CI and a laptop start
-# Keycloak the same way: `docker run` with `--features=dpop` (a `services:`
-# block cannot pass arguments to the container's command), the realm imported
-# at boot, the image pinned by KC_IMAGE in the Makefile, and the RAR test
-# issuer on 8181.
+# Keycloak the same way: docker-compose.yml with `--features=dpop` (a
+# `services:` block cannot pass arguments to the container's command), the
+# realm imported at boot, the image pinned by KC_IMAGE in the Makefile, and
+# the RAR test issuer on 8181.
 #
 # Runs on PRs that touch the code these tests exercise, on pushes to main,
 # and by hand from Actions → Keycloak Interop Tests → Run workflow.
@@ -20,6 +20,7 @@ on:
       - "cmd/oneauth-server/**"
       - "tests/keycloak/**"
       - "Makefile"
+      - "docker-compose.yml"
       - ".github/workflows/keycloak-interop.yml"
   pull_request:
     paths:
@@ -30,6 +31,7 @@ on:
       - "cmd/oneauth-server/**"
       - "tests/keycloak/**"
       - "Makefile"
+      - "docker-compose.yml"
       - ".github/workflows/keycloak-interop.yml"
 
 # Read-only token by default; a job that needs more says so.

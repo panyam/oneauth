@@ -47,6 +47,22 @@ func TestSignup(t *testing.T) {
 }
 ```
 
+### External test services
+
+Some suites need a service running in Docker. `docker-compose.yml` defines four of them, and the OIDF harness has its own compose file in `tests/oidf-conformance/`. Each service has its own targets, and each `test*` target starts its service when it isn't running:
+
+| Service | Start / stop | Tests |
+|---|---|---|
+| PostgreSQL on :5433 | `make updb` / `make downdb` | `make testpg` |
+| Datastore emulator on :8081 | `make upds` / `make downds` | `make testds` |
+| Keycloak on :8180 | `make upkcl` / `make downkcl` | `make testkcl` |
+| Authlete frontend on :8280 (needs `AUTHLETE_*` env) | `make upauthlete` / `make downauthlete` | `make testauthlete` |
+| OIDF harness on :8443 | `make upoidf` / `make downoidf` | `make testoidf` |
+
+`make up-all` starts all of them, and it skips Authlete when `AUTHLETE_SERVICEID` and `AUTHLETE_ACCESS_TOKEN` aren't exported. `make -j4 up-all` starts them in parallel. `make ps-all` lists the containers, `make logs-all` follows their logs, and `make down-all` removes them. The OIDF harness keeps its MongoDB volume.
+
+The ports and container names are Makefile variables, and an override moves the container: `make upkcl KC_PORT=8281 && make testkcl KC_PORT=8281`. A bare `docker compose up -d` gives the same containers as the defaults. A test in `tests/conformance/devservices` (part of `make conformance-check`) fails when the compose defaults and the Makefile differ.
+
 ### Reusable Test Infrastructure (`testutil/`)
 
 For integration tests that need an in-process auth server, use the `testutil` package instead of wiring one up manually:

@@ -36,6 +36,7 @@ make testkcl       # Keycloak + RAR interop (auto-starts Docker)
 make testoidf      # OIDF FAPI 2.0 + Basic OP plans
 make conformance   # every suite in conformance/suites.yaml, one line each (SUITE=x for one)
 make testpg / testds  # GORM on Postgres, GAE on the Datastore emulator
+make up-all / down-all / ps-all  # every test service (docker-compose.yml + OIDF harness)
 make testgh        # outbound against real GitHub (never in CI; see outbound/CLAUDE.md)
 make testall       # Everything + report
 make fmt / fmtcheck / vulncheck
