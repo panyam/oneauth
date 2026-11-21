@@ -39,6 +39,7 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 		iss := true
 		meta.AuthorizationResponseIssParameterSupported = &iss
 		meta.TokenEndpointAuthMethods = append(meta.TokenEndpointAuthMethods, "none")
+		meta.ClientIDMetadataDocumentSupported = cfg.CodeFlow.ClientIDMetadataDocuments
 		if cfg.CodeFlow.OIDC {
 			// OIDC Discovery §3: userinfo_endpoint is RECOMMENDED and
 			// id_token_signing_alg_values_supported REQUIRED.
@@ -146,6 +147,15 @@ func checkImplicit(cfg *Config) error {
 	}
 	if cfg.FAPI2 {
 		return fmt.Errorf("code_flow.implicit can't be used with fapi2: FAPI 2.0 §5.3.2.2 allows response_type code only")
+	}
+	return nil
+}
+
+// checkClientIDMetadataDocuments refuses code_flow.client_id_metadata_documents
+// under fapi2, since FAPI 2.0 allows registered confidential clients only.
+func checkClientIDMetadataDocuments(cfg *Config) error {
+	if cfg.CodeFlow.ClientIDMetadataDocuments && cfg.FAPI2 {
+		return fmt.Errorf("code_flow.client_id_metadata_documents can't be used with fapi2: FAPI 2.0 allows registered confidential clients only")
 	}
 	return nil
 }

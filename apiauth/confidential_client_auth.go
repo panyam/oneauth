@@ -85,6 +85,9 @@ func authenticateClientByRegistration(ctx context.Context, appStore core.AppRegi
 		return "", nil
 	}
 	appResp, err := appStore.GetApp(ctx, &core.GetAppRequest{ClientID: lookupClientID})
+	if ge := clientMetadataGrantError(err); ge != nil {
+		return "", ge
+	}
 	if err != nil && !errors.Is(err, core.ErrAppNotFound) {
 		log.Printf("client authentication: look up client %q: %v", lookupClientID, err)
 		return "", serverError("could not load the client registration")
@@ -117,6 +120,9 @@ func authenticateClientByRegistration(ctx context.Context, appStore core.AppRegi
 		ClientAssertion:     creds.ClientAssertion,
 		Audiences:           creds.Audiences,
 	})
+	if ge := clientMetadataGrantError(err); ge != nil {
+		return "", ge
+	}
 	if err != nil || resp == nil || resp.ClientID == "" {
 		return "", invalidClient("client authentication required for confidential client")
 	}
@@ -148,6 +154,9 @@ func authenticateFAPIWithoutLookup(ctx context.Context, appStore core.AppRegistr
 		return resp.ClientID, nil
 	}
 	appResp, err := appStore.GetApp(ctx, &core.GetAppRequest{ClientID: resp.ClientID})
+	if ge := clientMetadataGrantError(err); ge != nil {
+		return "", ge
+	}
 	if err != nil && !errors.Is(err, core.ErrAppNotFound) {
 		log.Printf("client authentication: look up client %q: %v", resp.ClientID, err)
 		return "", serverError("could not load the client registration")

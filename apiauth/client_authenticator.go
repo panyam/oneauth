@@ -2,6 +2,7 @@ package apiauth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -374,8 +375,10 @@ func (a *clientAuthenticator) authenticateAssertion(ctx context.Context, req *Au
 // algs and the parsed public key for asymmetric ones.
 func (a *clientAuthenticator) assertionKey(ctx context.Context, clientID string, header map[string]any) (any, string, error) {
 	if a.appStore != nil {
-		if app, err := a.appStore.GetApp(ctx, &core.GetAppRequest{ClientID: clientID}); err == nil && app != nil && app.App != nil && app.App.JWKSURI != "" {
+		if app, err := a.appStore.GetApp(ctx, &core.GetAppRequest{ClientID: clientID}); err == nil && app != nil && app.App != nil && (app.App.JWKSURI != "" || len(app.App.JWKS) > 0) {
 			return a.jwksAssertionKey(ctx, app.App, header)
+		} else if errors.Is(err, ErrClientMetadataUnavailable) {
+			return nil, "", err
 		}
 	}
 	keyResp, err := a.keyLookup.GetKey(ctx, &keys.GetKeyRequest{ClientID: clientID})
@@ -392,19 +395,27 @@ func (a *clientAuthenticator) assertionKey(ctx context.Context, clientID string,
 
 // jwksAssertionKey picks app's key from its jwks_uri by the assertion's
 // kid (issue 507), refetching once when the kid is unknown so a rotated key
-// is found. The algorithm is the header's, but only if the key's type can
+// is found. A client ID metadata document client may carry its keys inline
+// instead (app.JWKS, issue 532), and those are used as they are. The algorithm is the header's, but only if the key's type can
 // verify it (algFitsKey) and it matches token_endpoint_auth_signing_alg
 // when the client registered one. So the header chooses among the
 // algorithms the client's key allows, never outside them.
 func (a *clientAuthenticator) jwksAssertionKey(ctx context.Context, app *core.AppRegistration, header map[string]any) (any, string, error) {
 	kid, _ := header["kid"].(string)
 	alg, _ := header["alg"].(string)
-	set, err := a.jwks.Keys(ctx, app.JWKSURI, false)
+	var set *utils.JWKSet
+	var err error
+	if len(app.JWKS) > 0 {
+		set = &utils.JWKSet{}
+		err = json.Unmarshal(app.JWKS, set)
+	} else {
+		set, err = a.jwks.Keys(ctx, app.JWKSURI, false)
+	}
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %v", errInvalidClient, err)
 	}
 	jwk, err := selectClientJWK(set, kid)
-	if errors.Is(err, errNoClientKey) {
+	if errors.Is(err, errNoClientKey) && app.JWKSURI != "" {
 		if set, err = a.jwks.Keys(ctx, app.JWKSURI, true); err == nil {
 			jwk, err = selectClientJWK(set, kid)
 		}

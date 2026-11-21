@@ -89,6 +89,9 @@ func main() {
 	if err := checkImplicit(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
+	if err := checkClientIDMetadataDocuments(cfg); err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
 
 	handler, cleanup, err := buildServer(cfg)
 	if err != nil {
@@ -335,6 +338,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 	}
 
 	oaCfg.AllowImplicit = cfg.CodeFlow.Enabled && cfg.CodeFlow.OIDC && cfg.CodeFlow.Implicit
+	oaCfg.ClientIDMetadataDocuments = cfg.CodeFlow.Enabled && cfg.CodeFlow.ClientIDMetadataDocuments
 	if cfg.CodeFlow.Enabled && cfg.CodeFlow.OIDC {
 		oaCfg.OIDC = &apiauth.OIDCConfig{
 			UserClaims:   localauth.ProfileClaims(stores.userStore, stores.identityStore),
@@ -612,7 +616,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		if lister, ok := consentStore.(core.ConsentLister); ok {
 			(&connectedApps{
 				lister:  lister,
-				apps:    flowAppStore,
+				apps:    oa.AppStore,
 				revoker: oa.ClientAccessRevoker(consentStore),
 				subject: func(r *http.Request) string { return getUserIDFromCookie(r, cfg.JWT.SecretKey) },
 				user:    func(r *http.Request) string { return getUserFromCookie(r, cfg.JWT.SecretKey) },

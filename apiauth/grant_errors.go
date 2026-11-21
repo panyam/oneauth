@@ -77,3 +77,17 @@ func asGrantError(err error) (*GrantError, bool) {
 	}
 	return nil, false
 }
+
+// clientMetadataGrantError maps a failed client ID metadata document lookup
+// (issue 532) to its token endpoint error. Draft §6.1 makes a transient
+// failure 503 temporarily_unavailable and a terminal one invalid_client. It
+// returns nil for any other error, including nil.
+func clientMetadataGrantError(err error) *GrantError {
+	switch {
+	case errors.Is(err, ErrClientMetadataUnavailable):
+		return &GrantError{Code: "temporarily_unavailable", Description: "the client's metadata document could not be fetched; try again later", Status: http.StatusServiceUnavailable}
+	case errors.Is(err, ErrInvalidClientMetadata):
+		return invalidClient("the client's metadata document is invalid")
+	}
+	return nil
+}

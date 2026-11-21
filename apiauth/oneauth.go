@@ -261,6 +261,17 @@ type OneAuthConfig struct {
 	// forbids it; NewOneAuth panics on either.
 	AllowImplicit bool
 
+	// ClientIDMetadataDocuments lets a client use an https URL it controls
+	// as its client_id (draft-ietf-oauth-client-id-metadata-document-03,
+	// issue 532). NewOneAuth wraps AppStore in a CIMDAppStore, which fetches
+	// and validates the client's metadata from that URL. The fetch uses
+	// ClientJWKSFetcher's AllowPrivateHosts, RootCAs and HTTPClient. The AS
+	// metadata should then carry client_id_metadata_document_supported
+	// (ASServerMetadata.ClientIDMetadataDocumentSupported). Off by default.
+	// FAPI 2.0 needs registered confidential clients, so FAPI2 forbids it;
+	// NewOneAuth panics on both.
+	ClientIDMetadataDocuments bool
+
 	// PKCEPolicy says which clients must send a PKCE code_challenge. The
 	// zero value, PKCERequired, requires it from every client (OAuth 2.1).
 	// PKCEOptionalForConfidential lets registered confidential clients
@@ -382,6 +393,12 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		signingAlg = "HS256"
 	}
 
+	if cfg.ClientIDMetadataDocuments {
+		if cfg.FAPI2 {
+			panic("apiauth: NewOneAuth: FAPI 2.0 allows registered confidential clients only; unset ClientIDMetadataDocuments")
+		}
+		cfg.AppStore = newCIMDAppStore(cfg)
+	}
 	if cfg.AllowImplicit && cfg.OIDC == nil {
 		panic("apiauth: NewOneAuth: AllowImplicit needs OIDC, since the implicit flow returns an ID token")
 	}
@@ -632,4 +649,28 @@ func (oa *OneAuth) HTTPMiddleware() *APIMiddleware {
 		Blacklist: oa.Blacklist,
 		KeyStore:  oa.KeyStore,
 	}
+}
+
+// newCIMDAppStore wraps cfg.AppStore for OneAuthConfig.ClientIDMetadataDocuments,
+// with the grant and response types this configuration serves.
+func newCIMDAppStore(cfg OneAuthConfig) *CIMDAppStore {
+	store := &CIMDAppStore{
+		AppRegistrationStore: cfg.AppStore,
+		Issuer:               cfg.Issuer,
+		GrantTypes:           []string{AuthorizationCodeGrantType, "refresh_token"},
+		ResponseTypes:        []string{"code"},
+	}
+	if cfg.DeviceAuthStore != nil {
+		store.GrantTypes = append(store.GrantTypes, DeviceCodeGrantType)
+	}
+	if cfg.AllowImplicit {
+		store.GrantTypes = append(store.GrantTypes, "implicit")
+		store.ResponseTypes = append(store.ResponseTypes, ResponseTypeIDToken, ResponseTypeIDTokenToken)
+	}
+	if f := cfg.ClientJWKSFetcher; f != nil {
+		store.AllowPrivateHosts = f.AllowPrivateHosts
+		store.RootCAs = f.RootCAs
+		store.HTTPClient = f.HTTPClient
+	}
+	return store
 }

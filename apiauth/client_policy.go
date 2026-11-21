@@ -23,6 +23,9 @@ func clientRegistration(ctx context.Context, store core.AppRegistrationStore, cl
 	if errors.Is(err, core.ErrAppNotFound) {
 		return nil, nil
 	}
+	if ge := clientMetadataGrantError(err); ge != nil {
+		return nil, ge
+	}
 	if err != nil {
 		return nil, serverError(fmt.Sprintf("look up client %q: %v", clientID, err))
 	}

@@ -102,6 +102,13 @@ type ASServerMetadata struct {
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
 	SubjectTypesSupported         []string `json:"subject_types_supported,omitempty"`
 
+	// ClientIDMetadataDocumentSupported says the AS accepts an https URL
+	// as a client_id and fetches the client's metadata from it
+	// (draft-ietf-oauth-client-id-metadata-document-03 §8, issue 532). Set
+	// it with OneAuthConfig.ClientIDMetadataDocuments. MCP clients check it
+	// before they use a URL client_id.
+	ClientIDMetadataDocumentSupported bool `json:"client_id_metadata_document_supported,omitempty"`
+
 	// IDTokenSigningAlgValuesSupported lists the algorithms ID tokens are
 	// signed with (OIDC Discovery §3, REQUIRED for an OpenID Provider).
 	// Set it to the AS signing alg when OneAuthConfig.OIDC is on.
