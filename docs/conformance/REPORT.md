@@ -72,17 +72,17 @@ Plan `fapi2-security-profile-final-test-plan`, 52 modules: PASSED 45, REVIEW 4, 
 | `fapi2-security-profile-final-ensure-request-object-without-redirect-uri-fails` | PASSED |  |  |
 | `fapi2-security-profile-final-ensure-response-type-code-idtoken-fails` | PASSED |  |  |
 | `fapi2-security-profile-final-ensure-response-type-token-fails` | PASSED |  |  |
-| `fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails` | SKIPPED | expected-skip, issue 330 |  |
+| `fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails` | SKIPPED | open, expected-skip, issue 330 |  |
 | `fapi2-security-profile-final-ensure-token-endpoint-fails-with-expired-auth-code` | PASSED |  |  |
 | `fapi2-security-profile-final-ensure-token-endpoint-fails-with-mismatched-dpop-jkt` | PASSED |  |  |
 | `fapi2-security-profile-final-ensure-token-endpoint-fails-with-mismatched-dpop-proof-jkt` | PASSED |  |  |
-| `fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails` | REVIEW | expected-review, issue 98 |  |
-| `fapi2-security-profile-final-happy-flow` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails` | REVIEW | accepted, expected-review, issue 98 |  |
+| `fapi2-security-profile-final-happy-flow` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `fapi2-security-profile-final-incorrect-pkce-code-verifier-rejected` | PASSED |  |  |
 | `fapi2-security-profile-final-par-attempt-invalid-http-method` | PASSED |  |  |
-| `fapi2-security-profile-final-par-attempt-reuse-request_uri` | REVIEW | expected-review, issue 98 |  |
-| `fapi2-security-profile-final-par-attempt-to-use-expired-request_uri` | REVIEW | expected-review, issue 98 |  |
-| `fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client` | REVIEW | expected-review, issue 98 |  |
+| `fapi2-security-profile-final-par-attempt-reuse-request_uri` | REVIEW | accepted, expected-review, issue 98 |  |
+| `fapi2-security-profile-final-par-attempt-to-use-expired-request_uri` | REVIEW | accepted, expected-review, issue 98 |  |
+| `fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client` | REVIEW | accepted, expected-review, issue 98 |  |
 | `fapi2-security-profile-final-par-authorization-request-containing-request_uri-form-param` | PASSED |  |  |
 | `fapi2-security-profile-final-par-ensure-pkce-required` | PASSED |  |  |
 | `fapi2-security-profile-final-par-ensure-reused-request-uri-prior-to-auth-completion-succeeds` | PASSED |  |  |
@@ -91,7 +91,7 @@ Plan `fapi2-security-profile-final-test-plan`, 52 modules: PASSED 45, REVIEW 4, 
 | `fapi2-security-profile-final-plain-fapi-tolerate-unregistered-redirect-uri` | PASSED |  |  |
 | `fapi2-security-profile-final-refresh-token` | PASSED |  |  |
 | `fapi2-security-profile-final-state-only-outside-request-object-not-used` | PASSED |  |  |
-| `fapi2-security-profile-final-test-claims-parameter-identity-claims` | WARNING | expected-warning, issue 339 | CheckForUnexpectedClaimsInIdToken: id_token includes claims with names that are not known. This may indicate the authorization server has misunderstood the spec… |
+| `fapi2-security-profile-final-test-claims-parameter-identity-claims` | WARNING | accepted, expected-warning, issue 339 | CheckForUnexpectedClaimsInIdToken: id_token includes claims with names that are not known. This may indicate the authorization server has misunderstood the spec… |
 | `fapi2-security-profile-final-user-rejects-authentication` | PASSED |  |  |
 
 ## oidf-basic-op
@@ -110,17 +110,17 @@ Plan `oidcc-basic-certification-test-plan`, 35 modules: PASSED 29, REVIEW 4, SKI
 | `oidcc-display-page` | PASSED |  |  |
 | `oidcc-display-popup` | PASSED |  |  |
 | `oidcc-ensure-post-request-succeeds` | PASSED |  |  |
-| `oidcc-ensure-registered-redirect-uri` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-registered-redirect-uri` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-ensure-request-with-acr-values-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-unknown-parameter-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-valid-pkce-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-without-nonce-succeeds-for-code-flow` | PASSED |  |  |
 | `oidcc-id-token-hint` | PASSED |  |  |
 | `oidcc-login-hint` | PASSED |  |  |
-| `oidcc-max-age-1` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-max-age-1` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-max-age-10000` | PASSED |  |  |
-| `oidcc-prompt-login` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-prompt-login` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-prompt-none-logged-in` | PASSED |  |  |
 | `oidcc-prompt-none-not-logged-in` | PASSED |  |  |
 | `oidcc-refresh-token` | PASSED |  |  |
@@ -130,10 +130,10 @@ Plan `oidcc-basic-certification-test-plan`, 35 modules: PASSED 29, REVIEW 4, SKI
 | `oidcc-scope-email` | PASSED |  |  |
 | `oidcc-scope-phone` | PASSED |  |  |
 | `oidcc-scope-profile` | PASSED |  |  |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-server-client-secret-post` | PASSED |  |  |
 | `oidcc-ui-locales` | PASSED |  |  |
-| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | expected-skip, issue 338 |  |
+| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | open, expected-skip, issue 338 |  |
 | `oidcc-userinfo-get` | PASSED |  |  |
 | `oidcc-userinfo-post-body` | PASSED |  |  |
 | `oidcc-userinfo-post-header` | PASSED |  |  |
@@ -154,17 +154,17 @@ Plan `oidcc-formpost-basic-certification-test-plan`, 35 modules: FAILED 1, PASSE
 | `oidcc-display-page` | PASSED |  |  |
 | `oidcc-display-popup` | PASSED |  |  |
 | `oidcc-ensure-post-request-succeeds` | PASSED |  |  |
-| `oidcc-ensure-registered-redirect-uri` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-registered-redirect-uri` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-ensure-request-with-acr-values-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-unknown-parameter-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-valid-pkce-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-without-nonce-succeeds-for-code-flow` | PASSED |  |  |
 | `oidcc-id-token-hint` | PASSED |  |  |
 | `oidcc-login-hint` | PASSED |  |  |
-| `oidcc-max-age-1` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-max-age-1` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-max-age-10000` | PASSED |  |  |
-| `oidcc-prompt-login` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-prompt-login` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-prompt-none-logged-in` | PASSED |  |  |
 | `oidcc-prompt-none-not-logged-in` | PASSED |  |  |
 | `oidcc-refresh-token` | PASSED |  |  |
@@ -174,10 +174,10 @@ Plan `oidcc-formpost-basic-certification-test-plan`, 35 modules: FAILED 1, PASSE
 | `oidcc-scope-email` | PASSED |  |  |
 | `oidcc-scope-phone` | PASSED |  |  |
 | `oidcc-scope-profile` | PASSED |  |  |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-server-client-secret-post` | PASSED |  |  |
 | `oidcc-ui-locales` | PASSED |  |  |
-| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | FAILED | expected-fail, issue 338 | CheckCallbackHttpMethodIsPost: The HTTP method used at redirect_uri is not 'POST' |
+| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | FAILED | open, expected-fail, issue 338 | CheckCallbackHttpMethodIsPost: The HTTP method used at redirect_uri is not 'POST' |
 | `oidcc-userinfo-get` | PASSED |  |  |
 | `oidcc-userinfo-post-body` | PASSED |  |  |
 | `oidcc-userinfo-post-header` | PASSED |  |  |
@@ -200,10 +200,10 @@ Plan `oidcc-implicit-certification-test-plan`, 54 modules: PASSED 42, REVIEW 8, 
 | `oidcc-display-page` | PASSED |  |  |
 | `oidcc-display-popup` | PASSED |  |  |
 | `oidcc-display-popup` | PASSED |  |  |
-| `oidcc-ensure-registered-redirect-uri` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-ensure-registered-redirect-uri` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-registered-redirect-uri` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-ensure-registered-redirect-uri` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-ensure-request-with-acr-values-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-acr-values-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-unknown-parameter-succeeds` | PASSED |  |  |
@@ -214,12 +214,12 @@ Plan `oidcc-implicit-certification-test-plan`, 54 modules: PASSED 42, REVIEW 8, 
 | `oidcc-id-token-hint` | PASSED |  |  |
 | `oidcc-login-hint` | PASSED |  |  |
 | `oidcc-login-hint` | PASSED |  |  |
-| `oidcc-max-age-1` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-max-age-1` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-max-age-1` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-max-age-1` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-max-age-10000` | PASSED |  |  |
 | `oidcc-max-age-10000` | PASSED |  |  |
-| `oidcc-prompt-login` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-prompt-login` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-prompt-login` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-prompt-login` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-prompt-none-logged-in` | PASSED |  |  |
 | `oidcc-prompt-none-logged-in` | PASSED |  |  |
 | `oidcc-prompt-none-not-logged-in` | PASSED |  |  |
@@ -235,12 +235,12 @@ Plan `oidcc-implicit-certification-test-plan`, 54 modules: PASSED 42, REVIEW 8, 
 | `oidcc-scope-phone` | PASSED |  |  |
 | `oidcc-scope-profile` | PASSED |  |  |
 | `oidcc-scope-profile` | PASSED |  |  |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-ui-locales` | PASSED |  |  |
 | `oidcc-ui-locales` | PASSED |  |  |
-| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | expected-skip, issue 338 |  |
-| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | expected-skip, issue 338 |  |
+| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | open, expected-skip, issue 338 |  |
+| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | open, expected-skip, issue 338 |  |
 | `oidcc-userinfo-get` | PASSED |  |  |
 | `oidcc-userinfo-post-body` | PASSED |  |  |
 | `oidcc-userinfo-post-header` | PASSED |  |  |
@@ -263,10 +263,10 @@ Plan `oidcc-formpost-implicit-certification-test-plan`, 54 modules: FAILED 2, PA
 | `oidcc-display-page` | PASSED |  |  |
 | `oidcc-display-popup` | PASSED |  |  |
 | `oidcc-display-popup` | PASSED |  |  |
-| `oidcc-ensure-registered-redirect-uri` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-ensure-registered-redirect-uri` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-registered-redirect-uri` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-ensure-registered-redirect-uri` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-ensure-request-with-acr-values-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-acr-values-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-unknown-parameter-succeeds` | PASSED |  |  |
@@ -277,12 +277,12 @@ Plan `oidcc-formpost-implicit-certification-test-plan`, 54 modules: FAILED 2, PA
 | `oidcc-id-token-hint` | PASSED |  |  |
 | `oidcc-login-hint` | PASSED |  |  |
 | `oidcc-login-hint` | PASSED |  |  |
-| `oidcc-max-age-1` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-max-age-1` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-max-age-1` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-max-age-1` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-max-age-10000` | PASSED |  |  |
 | `oidcc-max-age-10000` | PASSED |  |  |
-| `oidcc-prompt-login` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-prompt-login` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-prompt-login` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-prompt-login` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-prompt-none-logged-in` | PASSED |  |  |
 | `oidcc-prompt-none-logged-in` | PASSED |  |  |
 | `oidcc-prompt-none-not-logged-in` | PASSED |  |  |
@@ -298,12 +298,12 @@ Plan `oidcc-formpost-implicit-certification-test-plan`, 54 modules: FAILED 2, PA
 | `oidcc-scope-phone` | PASSED |  |  |
 | `oidcc-scope-profile` | PASSED |  |  |
 | `oidcc-scope-profile` | PASSED |  |  |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-ui-locales` | PASSED |  |  |
 | `oidcc-ui-locales` | PASSED |  |  |
-| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | FAILED | expected-fail, issue 338 | CheckCallbackHttpMethodIsPost: The HTTP method used at redirect_uri is not 'POST' |
-| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | FAILED | expected-fail, issue 338 | CheckCallbackHttpMethodIsPost: The HTTP method used at redirect_uri is not 'POST' |
+| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | FAILED | open, expected-fail, issue 338 | CheckCallbackHttpMethodIsPost: The HTTP method used at redirect_uri is not 'POST' |
+| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | FAILED | open, expected-fail, issue 338 | CheckCallbackHttpMethodIsPost: The HTTP method used at redirect_uri is not 'POST' |
 | `oidcc-userinfo-get` | PASSED |  |  |
 | `oidcc-userinfo-post-body` | PASSED |  |  |
 | `oidcc-userinfo-post-header` | PASSED |  |  |
@@ -318,25 +318,25 @@ Plan `oidcc-dynamic-certification-test-plan`, 23 modules: FAILED 2, PASSED 12, R
 |---|---|---|---|
 | `oidcc-discovery-endpoint-verification` | PASSED |  |  |
 | `oidcc-ensure-client-assertion-with-iss-aud-succeeds` | PASSED |  |  |
-| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-idtoken-rs256` | PASSED |  |  |
-| `oidcc-idtoken-unsigned` | SKIPPED | expected-skip, issue 493 |  |
+| `oidcc-idtoken-unsigned` | SKIPPED | accepted, expected-skip, issue 493 |  |
 | `oidcc-redirect-uri-query-OK` | PASSED |  |  |
-| `oidcc-redirect-uri-query-added` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-redirect-uri-query-mismatch` | REVIEW | expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-added` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-mismatch` | REVIEW | accepted, expected-review, issue 493 |  |
 | `oidcc-redirect-uri-regfrag` | PASSED |  |  |
 | `oidcc-refresh-token` | PASSED |  |  |
 | `oidcc-refresh-token-rp-key-rotation` | PASSED |  |  |
 | `oidcc-registration-jwks-uri` | PASSED |  |  |
-| `oidcc-registration-logo-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-registration-policy-uri` | REVIEW | expected-review, issue 507 |  |
+| `oidcc-registration-logo-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-registration-policy-uri` | REVIEW | accepted, expected-review, issue 507 |  |
 | `oidcc-registration-sector-bad` | PASSED |  |  |
 | `oidcc-registration-sector-uri` | PASSED |  |  |
-| `oidcc-registration-tos-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-request-uri-signed-rs256` | FAILED | expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
-| `oidcc-request-uri-unsigned` | FAILED | expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-registration-tos-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-request-uri-signed-rs256` | FAILED | open, expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
+| `oidcc-request-uri-unsigned` | FAILED | open, expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-server-rotate-keys` | PASSED |  |  |
 | `oidcc-userinfo-rs256` | PASSED |  |  |
 
@@ -350,21 +350,21 @@ Plan `oidcc-dynamic-certification-test-plan-id_token`, 18 modules: FAILED 2, PAS
 |---|---|---|---|
 | `oidcc-discovery-endpoint-verification` | PASSED |  |  |
 | `oidcc-ensure-client-assertion-with-iss-aud-succeeds` | PASSED |  |  |
-| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-idtoken-rs256` | PASSED |  |  |
 | `oidcc-redirect-uri-query-OK` | PASSED |  |  |
-| `oidcc-redirect-uri-query-added` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-redirect-uri-query-mismatch` | REVIEW | expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-added` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-mismatch` | REVIEW | accepted, expected-review, issue 493 |  |
 | `oidcc-redirect-uri-regfrag` | PASSED |  |  |
-| `oidcc-registration-logo-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-registration-policy-uri` | REVIEW | expected-review, issue 507 |  |
+| `oidcc-registration-logo-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-registration-policy-uri` | REVIEW | accepted, expected-review, issue 507 |  |
 | `oidcc-registration-sector-bad` | PASSED |  |  |
 | `oidcc-registration-sector-uri` | PASSED |  |  |
-| `oidcc-registration-tos-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-request-uri-signed-rs256` | FAILED | expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
-| `oidcc-request-uri-unsigned` | FAILED | expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-registration-tos-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-request-uri-signed-rs256` | FAILED | open, expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
+| `oidcc-request-uri-unsigned` | FAILED | open, expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-server-rotate-keys` | PASSED |  |  |
 
 ## oidf-dynamic-id-token-token
@@ -377,21 +377,21 @@ Plan `oidcc-dynamic-certification-test-plan-id_token_token`, 19 modules: FAILED 
 |---|---|---|---|
 | `oidcc-discovery-endpoint-verification` | PASSED |  |  |
 | `oidcc-ensure-client-assertion-with-iss-aud-succeeds` | PASSED |  |  |
-| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-idtoken-rs256` | PASSED |  |  |
 | `oidcc-redirect-uri-query-OK` | PASSED |  |  |
-| `oidcc-redirect-uri-query-added` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-redirect-uri-query-mismatch` | REVIEW | expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-added` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-mismatch` | REVIEW | accepted, expected-review, issue 493 |  |
 | `oidcc-redirect-uri-regfrag` | PASSED |  |  |
-| `oidcc-registration-logo-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-registration-policy-uri` | REVIEW | expected-review, issue 507 |  |
+| `oidcc-registration-logo-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-registration-policy-uri` | REVIEW | accepted, expected-review, issue 507 |  |
 | `oidcc-registration-sector-bad` | PASSED |  |  |
 | `oidcc-registration-sector-uri` | PASSED |  |  |
-| `oidcc-registration-tos-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-request-uri-signed-rs256` | FAILED | expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
-| `oidcc-request-uri-unsigned` | FAILED | expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-registration-tos-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-request-uri-signed-rs256` | FAILED | open, expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
+| `oidcc-request-uri-unsigned` | FAILED | open, expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-server-rotate-keys` | PASSED |  |  |
 | `oidcc-userinfo-rs256` | PASSED |  |  |
 
@@ -411,9 +411,9 @@ Plan `oidcc-test-plan-client_secret_post`, 51 modules: FAILED 2, PASSED 36, REVI
 | `oidcc-discovery-endpoint-verification` | PASSED |  |  |
 | `oidcc-display-page` | PASSED |  |  |
 | `oidcc-display-popup` | PASSED |  |  |
-| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-ensure-registered-redirect-uri` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-ensure-registered-redirect-uri` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-ensure-request-with-acr-values-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-unknown-parameter-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-valid-pkce-succeeds` | PASSED |  |  |
@@ -421,35 +421,35 @@ Plan `oidcc-test-plan-client_secret_post`, 51 modules: FAILED 2, PASSED 36, REVI
 | `oidcc-id-token-hint` | PASSED |  |  |
 | `oidcc-idtoken-rs256` | PASSED |  |  |
 | `oidcc-idtoken-signature` | PASSED |  |  |
-| `oidcc-idtoken-unsigned` | SKIPPED | expected-skip, issue 493 |  |
+| `oidcc-idtoken-unsigned` | SKIPPED | accepted, expected-skip, issue 493 |  |
 | `oidcc-login-hint` | PASSED |  |  |
-| `oidcc-max-age-1` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-max-age-1` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-max-age-10000` | PASSED |  |  |
-| `oidcc-prompt-login` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-prompt-login` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-prompt-none-logged-in` | PASSED |  |  |
 | `oidcc-prompt-none-not-logged-in` | PASSED |  |  |
 | `oidcc-redirect-uri-query-OK` | PASSED |  |  |
-| `oidcc-redirect-uri-query-added` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-redirect-uri-query-mismatch` | REVIEW | expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-added` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-mismatch` | REVIEW | accepted, expected-review, issue 493 |  |
 | `oidcc-redirect-uri-regfrag` | PASSED |  |  |
 | `oidcc-refresh-token` | PASSED |  |  |
-| `oidcc-registration-logo-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-registration-policy-uri` | REVIEW | expected-review, issue 507 |  |
+| `oidcc-registration-logo-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-registration-policy-uri` | REVIEW | accepted, expected-review, issue 507 |  |
 | `oidcc-registration-sector-bad` | PASSED |  |  |
 | `oidcc-registration-sector-uri` | PASSED |  |  |
-| `oidcc-registration-tos-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-request-uri-signed-rs256` | FAILED | expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
-| `oidcc-request-uri-unsigned` | FAILED | expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
+| `oidcc-registration-tos-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-request-uri-signed-rs256` | FAILED | open, expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
+| `oidcc-request-uri-unsigned` | FAILED | open, expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
 | `oidcc-response-type-missing` | PASSED |  |  |
 | `oidcc-scope-address` | PASSED |  |  |
 | `oidcc-scope-all` | PASSED |  |  |
 | `oidcc-scope-email` | PASSED |  |  |
 | `oidcc-scope-phone` | PASSED |  |  |
 | `oidcc-scope-profile` | PASSED |  |  |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-server-rotate-keys` | PASSED |  |  |
 | `oidcc-ui-locales` | PASSED |  |  |
-| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | expected-skip, issue 338 |  |
+| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | open, expected-skip, issue 338 |  |
 | `oidcc-userinfo-get` | PASSED |  |  |
 | `oidcc-userinfo-post-body` | PASSED |  |  |
 | `oidcc-userinfo-post-header` | PASSED |  |  |
@@ -472,9 +472,9 @@ Plan `oidcc-test-plan-client_secret_jwt`, 52 modules: FAILED 2, PASSED 37, REVIE
 | `oidcc-display-page` | PASSED |  |  |
 | `oidcc-display-popup` | PASSED |  |  |
 | `oidcc-ensure-client-assertion-with-iss-aud-succeeds` | PASSED |  |  |
-| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-ensure-registered-redirect-uri` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-ensure-registered-redirect-uri` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-ensure-request-with-acr-values-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-unknown-parameter-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-valid-pkce-succeeds` | PASSED |  |  |
@@ -482,35 +482,35 @@ Plan `oidcc-test-plan-client_secret_jwt`, 52 modules: FAILED 2, PASSED 37, REVIE
 | `oidcc-id-token-hint` | PASSED |  |  |
 | `oidcc-idtoken-rs256` | PASSED |  |  |
 | `oidcc-idtoken-signature` | PASSED |  |  |
-| `oidcc-idtoken-unsigned` | SKIPPED | expected-skip, issue 493 |  |
+| `oidcc-idtoken-unsigned` | SKIPPED | accepted, expected-skip, issue 493 |  |
 | `oidcc-login-hint` | PASSED |  |  |
-| `oidcc-max-age-1` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-max-age-1` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-max-age-10000` | PASSED |  |  |
-| `oidcc-prompt-login` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-prompt-login` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-prompt-none-logged-in` | PASSED |  |  |
 | `oidcc-prompt-none-not-logged-in` | PASSED |  |  |
 | `oidcc-redirect-uri-query-OK` | PASSED |  |  |
-| `oidcc-redirect-uri-query-added` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-redirect-uri-query-mismatch` | REVIEW | expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-added` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-mismatch` | REVIEW | accepted, expected-review, issue 493 |  |
 | `oidcc-redirect-uri-regfrag` | PASSED |  |  |
 | `oidcc-refresh-token` | PASSED |  |  |
-| `oidcc-registration-logo-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-registration-policy-uri` | REVIEW | expected-review, issue 507 |  |
+| `oidcc-registration-logo-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-registration-policy-uri` | REVIEW | accepted, expected-review, issue 507 |  |
 | `oidcc-registration-sector-bad` | PASSED |  |  |
 | `oidcc-registration-sector-uri` | PASSED |  |  |
-| `oidcc-registration-tos-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-request-uri-signed-rs256` | FAILED | expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
-| `oidcc-request-uri-unsigned` | FAILED | expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
+| `oidcc-registration-tos-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-request-uri-signed-rs256` | FAILED | open, expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
+| `oidcc-request-uri-unsigned` | FAILED | open, expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
 | `oidcc-response-type-missing` | PASSED |  |  |
 | `oidcc-scope-address` | PASSED |  |  |
 | `oidcc-scope-all` | PASSED |  |  |
 | `oidcc-scope-email` | PASSED |  |  |
 | `oidcc-scope-phone` | PASSED |  |  |
 | `oidcc-scope-profile` | PASSED |  |  |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-server-rotate-keys` | PASSED |  |  |
 | `oidcc-ui-locales` | PASSED |  |  |
-| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | expected-skip, issue 338 |  |
+| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | open, expected-skip, issue 338 |  |
 | `oidcc-userinfo-get` | PASSED |  |  |
 | `oidcc-userinfo-post-body` | PASSED |  |  |
 | `oidcc-userinfo-post-header` | PASSED |  |  |
@@ -533,9 +533,9 @@ Plan `oidcc-test-plan-private_key_jwt`, 54 modules: FAILED 2, PASSED 39, REVIEW 
 | `oidcc-display-page` | PASSED |  |  |
 | `oidcc-display-popup` | PASSED |  |  |
 | `oidcc-ensure-client-assertion-with-iss-aud-succeeds` | PASSED |  |  |
-| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-ensure-registered-redirect-uri` | REVIEW | expected-review, issue 477 |  |
-| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | expected-review, issue 338 |  |
+| `oidcc-ensure-redirect-uri-in-authorization-request` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-ensure-registered-redirect-uri` | REVIEW | accepted, expected-review, issue 477 |  |
+| `oidcc-ensure-request-object-with-redirect-uri` | REVIEW | open, expected-review, issue 338 |  |
 | `oidcc-ensure-request-with-acr-values-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-unknown-parameter-succeeds` | PASSED |  |  |
 | `oidcc-ensure-request-with-valid-pkce-succeeds` | PASSED |  |  |
@@ -543,37 +543,37 @@ Plan `oidcc-test-plan-private_key_jwt`, 54 modules: FAILED 2, PASSED 39, REVIEW 
 | `oidcc-id-token-hint` | PASSED |  |  |
 | `oidcc-idtoken-rs256` | PASSED |  |  |
 | `oidcc-idtoken-signature` | PASSED |  |  |
-| `oidcc-idtoken-unsigned` | SKIPPED | expected-skip, issue 493 |  |
+| `oidcc-idtoken-unsigned` | SKIPPED | accepted, expected-skip, issue 493 |  |
 | `oidcc-login-hint` | PASSED |  |  |
-| `oidcc-max-age-1` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-max-age-1` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-max-age-10000` | PASSED |  |  |
-| `oidcc-prompt-login` | REVIEW | expected-review, issue 477 |  |
+| `oidcc-prompt-login` | REVIEW | accepted, expected-review, issue 477 |  |
 | `oidcc-prompt-none-logged-in` | PASSED |  |  |
 | `oidcc-prompt-none-not-logged-in` | PASSED |  |  |
 | `oidcc-redirect-uri-query-OK` | PASSED |  |  |
-| `oidcc-redirect-uri-query-added` | REVIEW | expected-review, issue 493 |  |
-| `oidcc-redirect-uri-query-mismatch` | REVIEW | expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-added` | REVIEW | accepted, expected-review, issue 493 |  |
+| `oidcc-redirect-uri-query-mismatch` | REVIEW | accepted, expected-review, issue 493 |  |
 | `oidcc-redirect-uri-regfrag` | PASSED |  |  |
 | `oidcc-refresh-token` | PASSED |  |  |
 | `oidcc-refresh-token-rp-key-rotation` | PASSED |  |  |
 | `oidcc-registration-jwks-uri` | PASSED |  |  |
-| `oidcc-registration-logo-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-registration-policy-uri` | REVIEW | expected-review, issue 507 |  |
+| `oidcc-registration-logo-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-registration-policy-uri` | REVIEW | accepted, expected-review, issue 507 |  |
 | `oidcc-registration-sector-bad` | PASSED |  |  |
 | `oidcc-registration-sector-uri` | PASSED |  |  |
-| `oidcc-registration-tos-uri` | REVIEW | expected-review, issue 507 |  |
-| `oidcc-request-uri-signed-rs256` | FAILED | expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
-| `oidcc-request-uri-unsigned` | FAILED | expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
+| `oidcc-registration-tos-uri` | REVIEW | accepted, expected-review, issue 507 |  |
+| `oidcc-request-uri-signed-rs256` | FAILED | open, expected-fail, issue 338 | CheckDiscEndpointRequestObjectSigningAlgValuesSupportedContainsRS256: request_object_signing_alg_values_supported: not found |
+| `oidcc-request-uri-unsigned` | FAILED | open, expected-fail, issue 338 | CheckIfAuthorizationEndpointError: The authorization was expected to succeed, but the server returned an error from the authorization endpoint |
 | `oidcc-response-type-missing` | PASSED |  |  |
 | `oidcc-scope-address` | PASSED |  |  |
 | `oidcc-scope-all` | PASSED |  |  |
 | `oidcc-scope-email` | PASSED |  |  |
 | `oidcc-scope-phone` | PASSED |  |  |
 | `oidcc-scope-profile` | PASSED |  |  |
-| `oidcc-server` | WARNING | expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
+| `oidcc-server` | WARNING | accepted, expected-warning, issue 339 | EnsureIdTokenDoesNotContainNonRequestedClaims: id_token contains non-requested claim 'typ' |
 | `oidcc-server-rotate-keys` | PASSED |  |  |
 | `oidcc-ui-locales` | PASSED |  |  |
-| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | expected-skip, issue 338 |  |
+| `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` | SKIPPED | open, expected-skip, issue 338 |  |
 | `oidcc-userinfo-get` | PASSED |  |  |
 | `oidcc-userinfo-post-body` | PASSED |  |  |
 | `oidcc-userinfo-post-header` | PASSED |  |  |
@@ -591,7 +591,7 @@ Plan `mcp-auth-gosdk`, 23 modules: SKIPPED 1, SUCCESS 22; 0 against known-gaps.y
 | `auth-enterprise-managed-token-exchange-flow-shape` | SUCCESS |  |  |
 | `auth-enterprise-managed-token-exchange-grant-supported` | SUCCESS |  |  |
 | `auth-iss-param-as-metadata-advertises-support` | SUCCESS |  |  |
-| `auth-iss-param-redirect-carries-iss` | SKIPPED | expected-skip, issue 496 | Driving an auth code flow to verify `iss` in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCES… |
+| `auth-iss-param-redirect-carries-iss` | SKIPPED | accepted, expected-skip, issue 496 | Driving an auth code flow to verify `iss` in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCES… |
 | `auth-jwt-claims-expired-rejected` | SUCCESS |  |  |
 | `auth-jwt-claims-wrong-audience-rejected` | SUCCESS |  |  |
 | `auth-jwt-claims-wrong-issuer-rejected` | SUCCESS |  |  |
@@ -623,7 +623,7 @@ Plan `mcp-auth-mcpkit`, 23 modules: SKIPPED 1, SUCCESS 22; 0 against known-gaps.
 | `auth-enterprise-managed-token-exchange-flow-shape` | SUCCESS |  |  |
 | `auth-enterprise-managed-token-exchange-grant-supported` | SUCCESS |  |  |
 | `auth-iss-param-as-metadata-advertises-support` | SUCCESS |  |  |
-| `auth-iss-param-redirect-carries-iss` | SKIPPED | expected-skip, issue 496 | Driving an auth code flow to verify `iss` in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCES… |
+| `auth-iss-param-redirect-carries-iss` | SKIPPED | accepted, expected-skip, issue 496 | Driving an auth code flow to verify `iss` in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCES… |
 | `auth-jwt-claims-expired-rejected` | SUCCESS |  |  |
 | `auth-jwt-claims-wrong-audience-rejected` | SUCCESS |  |  |
 | `auth-jwt-claims-wrong-issuer-rejected` | SUCCESS |  |  |
@@ -655,7 +655,7 @@ Plan `mcp-auth-ts`, 23 modules: SKIPPED 1, SUCCESS 22; 0 against known-gaps.yaml
 | `auth-enterprise-managed-token-exchange-flow-shape` | SUCCESS |  |  |
 | `auth-enterprise-managed-token-exchange-grant-supported` | SUCCESS |  |  |
 | `auth-iss-param-as-metadata-advertises-support` | SUCCESS |  |  |
-| `auth-iss-param-redirect-carries-iss` | SKIPPED | expected-skip, issue 496 | Driving an auth code flow to verify `iss` in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCES… |
+| `auth-iss-param-redirect-carries-iss` | SKIPPED | accepted, expected-skip, issue 496 | Driving an auth code flow to verify `iss` in the redirect requires an OAuth flow driver in the conformance test runner; not yet implemented. Will flip to SUCCES… |
 | `auth-jwt-claims-expired-rejected` | SUCCESS |  |  |
 | `auth-jwt-claims-wrong-audience-rejected` | SUCCESS |  |  |
 | `auth-jwt-claims-wrong-issuer-rejected` | SUCCESS |  |  |
@@ -685,7 +685,7 @@ Plan `mcp-auth-as`, 6 modules: SUCCESS 5, WARNING 1; 0 against known-gaps.yaml.
 |---|---|---|---|
 | `authorization-code-grant` | SUCCESS |  |  |
 | `authorization-server-metadata` | SUCCESS |  |  |
-| `authorization-server-metadata-cimd` | WARNING | expected-warning, issue 532 | Authorization server metadata does not include "client_id_metadata_document_supported" |
+| `authorization-server-metadata-cimd` | WARNING | open, expected-warning, issue 532 | Authorization server metadata does not include "client_id_metadata_document_supported" |
 | `sep-1932-as-metadata-alg-values` | SUCCESS |  |  |
 | `sep-1932-as-no-none-alg` | SUCCESS |  |  |
 | `sep-1932-as-token-binding` | SUCCESS |  |  |
@@ -701,3 +701,35 @@ Interop with Authlete's java-oauth-server as the authorization server Source: `t
 ## oauch
 
 OAuch (DistriNet) checks the reference server against RFC 6749, 6750, 6819, 7009, 7636, 9700 and OIDC, and against their threat models Source: `tests/oauch (server config); OAuch has only a web UI`. Tracking: issue 497.
+
+## Known gaps
+
+`tests/conformance/known-gaps.yaml` lists 25 expected outcomes. 7 are open gaps, and each names an open issue. 18 are accepted: oneauth keeps that outcome on purpose, and the reason says why. An accepted entry's issue is where the decision was made, so it may be closed. Anything that isn't a pass, and isn't listed here, fails its suite.
+
+| Class | Suite | Check | Expected | Issue | Reason |
+|---|---|---|---|---|---|
+| open | oidf | `fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails` (1 plan) | expected-skip | 330 | The harness runs this only with an RSA client key, and the plan's clients use ES256 because oneauth can't register a PS256 client yet (issue 330). The harness says the skip doesn't block certification. |
+| open | oidf | `oidcc-ensure-request-object-with-redirect-uri` (10 plans) | expected-review | 338 | The outer redirect_uri is unregistered and the registered one is inside a request object, which oneauth doesn't read (JAR, issue 338). So it shows its request_not_supported error page instead of redirecting, and the harness asks for a screenshot of it. |
+| open | oidf | `oidcc-request-uri-signed-rs256` (6 plans) | expected-fail | 338 | oneauth doesn't support request objects, so discovery has no request_object_signing_alg_values_supported. That's JAR, issue 338. |
+| open | oidf | `oidcc-request-uri-unsigned` (6 plans) | expected-fail | 338 | oneauth refuses request_uri with request_uri_not_supported. Request objects by reference are JAR, issue 338. |
+| open | oidf | `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` (5 plans) | expected-skip | 338 | oneauth refuses request objects with request_not_supported (OIDC Core §6.1), and the harness reports that rejection as SKIPPED. Supporting request objects is JAR, issue 338. |
+| open | oidf | `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` (2 plans) | expected-fail | 338 | The harness puts response_mode=form_post and state only inside the request object. oneauth doesn't read request objects, so it refuses with request_not_supported in the response type's default mode, and the module fails CheckCallbackHttpMethodIsPost. The Basic OP and Implicit OP plans report the same refusal as SKIPPED. Reading request objects is JAR, issue 338. |
+| open | mcp | `authorization-server-metadata-cimd` (1 plan) | expected-warning | 532 | oneauth's AS doesn't accept Client ID Metadata Documents as client_id yet, so its metadata doesn't advertise client_id_metadata_document_supported. The MCP spec makes it a SHOULD. |
+| accepted | oidf | `fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails` (1 plan) | expected-review | 98 | FAPI 2.0 makes PAR mandatory, so /authorize refuses a direct request with oneauth's error page. The harness asks for a screenshot of it. |
+| accepted | oidf | `fapi2-security-profile-final-par-attempt-reuse-request_uri` (1 plan) | expected-review | 98 | A request_uri is single-use (RFC 9126 §2.2), so the second visit gets oneauth's error page. The harness asks for a screenshot of it. |
+| accepted | oidf | `fapi2-security-profile-final-par-attempt-to-use-expired-request_uri` (1 plan) | expected-review | 98 | An expired request_uri gets oneauth's error page. The harness asks for a screenshot of it. |
+| accepted | oidf | `fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client` (1 plan) | expected-review | 98 | A request_uri presented with another client's client_id gets oneauth's error page. The harness asks for a screenshot of it. |
+| accepted | oidf | `fapi2-security-profile-final-happy-flow` (1 plan) | expected-warning | 339 | oneauth's ID tokens carry a `typ: ID` claim so a resource server refuses one presented as an access token (checkAccessTokenKind), the marker Keycloak uses too. OIDC defines no marker, and a JOSE header typ other than JWT is refused by common relying-party libraries (Nimbus), so the claim stays and the harness warns that the client did not request it. |
+| accepted | oidf | `fapi2-security-profile-final-test-claims-parameter-identity-claims` (1 plan) | expected-warning | 339 | Discovery advertises claims_parameter_supported and the ID token carries every requested claim the user has, but also oneauth's typ: ID marker claim, which the harness doesn't know. Issue 339 kept the marker, as for the happy-flow module. |
+| accepted | oidf | `oidcc-ensure-redirect-uri-in-authorization-request` (6 plans) | expected-review | 493 | A request without redirect_uri gets oneauth's error page (OIDC Core §3.1.2.1 makes it required), and the harness asks for a screenshot. |
+| accepted | oidf | `oidcc-ensure-registered-redirect-uri` (7 plans) | expected-review | 477 | An unregistered redirect URI gets oneauth's error page, never a redirect (RFC 6749 §4.1.2.1). The harness asks for a screenshot of it. |
+| accepted | oidf | `oidcc-idtoken-unsigned` (4 plans) | expected-skip | 493 | oneauth never issues unsigned ID tokens (alg none), so discovery doesn't offer it and the harness skips the module. |
+| accepted | oidf | `oidcc-max-age-1` (7 plans) | expected-review | 477 | A login older than max_age sends the user back to the login page (issue 453), and the harness asks for a screenshot of it. |
+| accepted | oidf | `oidcc-prompt-login` (7 plans) | expected-review | 477 | prompt=login sends the logged-in user back to the login page (issue 453), and the harness asks for a screenshot of that second login page. |
+| accepted | oidf | `oidcc-redirect-uri-query-added` (6 plans) | expected-review | 493 | The redirect_uri adds a query the registered one doesn't have, so it doesn't match. oneauth shows its error page, and the harness asks for a screenshot of it. |
+| accepted | oidf | `oidcc-redirect-uri-query-mismatch` (6 plans) | expected-review | 493 | The redirect_uri's query differs from the registered one, so it doesn't match. oneauth shows its error page, and the harness asks for a screenshot of it. |
+| accepted | oidf | `oidcc-registration-logo-uri` (6 plans) | expected-review | 507 | The harness asks a person to check the consent page shows the client's logo. It does (issue 507), and the evidence checks the captured page. |
+| accepted | oidf | `oidcc-registration-policy-uri` (6 plans) | expected-review | 507 | The harness asks a person to check the consent page shows the client's link to its policy. It does (issue 507), and the evidence checks the captured page. |
+| accepted | oidf | `oidcc-registration-tos-uri` (6 plans) | expected-review | 507 | The harness asks a person to check the consent page shows the client's link to its terms. It does (issue 507), and the evidence checks the captured page. |
+| accepted | oidf | `oidcc-server` (10 plans) | expected-warning | 339 | The ID token carries oneauth's typ: ID marker claim, which stops it validating as an access token. Issue 339 kept it as a claim: a JOSE typ header other than JWT is refused by common relying-party libraries. Issue 480 confirmed that, so the warning stays. |
+| accepted | mcp | `auth-iss-param-redirect-carries-iss` (3 plans) | expected-skip | 496 | The server-auth scenarios test a resource server, and they don't drive /authorize, so they can't see the RFC 9207 iss in the redirect. The AS does advertise it (auth-iss-param-as-metadata-advertises-support passes). The mcp-auth-as run checks the redirect itself: authorization-code-grant requires an iss that matches the issuer. |
