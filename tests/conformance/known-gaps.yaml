@@ -15,6 +15,10 @@
 #               log JSON), which is the stable per-check identifier across runs.
 #   status    — "expected-fail"; external entries may also be "expected-review"
 #               or "expected-skip" (see the FAPI 2.0 section at the end)
+#   class     — "open": a gap oneauth means to close; its issue must be open
+#               (scripts/check-known-gaps.sh). "accepted": an outcome kept on
+#               purpose, such as an error page the harness screenshots; its
+#               reason says why, and its issue names where that was decided.
 #   evidence  — expected-review only: text the captured page must contain
 #   issue     — required GitHub issue number tracking the gap
 #   owner     — GitHub handle responsible for closing the gap
@@ -81,6 +85,7 @@
   plan: fapi2-security-profile-final-test-plan
   test: fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails
   status: expected-review
+  class: accepted
   evidence: only through the pushed authorization request endpoint
   issue: 98
   owner: panyam
@@ -93,6 +98,7 @@
   plan: fapi2-security-profile-final-test-plan
   test: fapi2-security-profile-final-par-attempt-reuse-request_uri
   status: expected-review
+  class: accepted
   evidence: request_uri has already been used
   issue: 98
   owner: panyam
@@ -105,6 +111,7 @@
   plan: fapi2-security-profile-final-test-plan
   test: fapi2-security-profile-final-par-attempt-to-use-expired-request_uri
   status: expected-review
+  class: accepted
   evidence: request_uri has expired
   issue: 98
   owner: panyam
@@ -117,6 +124,7 @@
   plan: fapi2-security-profile-final-test-plan
   test: fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client
   status: expected-review
+  class: accepted
   evidence: request_uri was not issued to this client
   issue: 98
   owner: panyam
@@ -129,6 +137,7 @@
   plan: fapi2-security-profile-final-test-plan
   test: fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails
   status: expected-skip
+  class: open
   issue: 330
   owner: panyam
   reason: |
@@ -141,6 +150,7 @@
   plan: fapi2-security-profile-final-test-plan
   test: fapi2-security-profile-final-happy-flow
   status: expected-warning
+  class: accepted
   evidence: non-requested claim 'typ'
   issue: 339
   owner: panyam
@@ -157,6 +167,7 @@
   plan: fapi2-security-profile-final-test-plan
   test: fapi2-security-profile-final-test-claims-parameter-identity-claims
   status: expected-warning
+  class: accepted
   evidence: names that are not known
   issue: 339
   owner: panyam
@@ -187,6 +198,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-ensure-redirect-uri-in-authorization-request
   status: expected-review
+  class: accepted
   evidence: redirect_uri is required
   issue: 493
   owner: panyam
@@ -206,6 +218,7 @@
     - oidcc-test-plan-private_key_jwt
   test: oidcc-ensure-registered-redirect-uri
   status: expected-review
+  class: accepted
   evidence: unknown client_id or redirect_uri
   issue: 477
   owner: panyam
@@ -228,6 +241,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-ensure-request-object-with-redirect-uri
   status: expected-review
+  class: open
   evidence: request_not_supported
   issue: 338
   owner: panyam
@@ -246,6 +260,7 @@
     - oidcc-test-plan-private_key_jwt
   test: oidcc-idtoken-unsigned
   status: expected-skip
+  class: accepted
   issue: 493
   owner: panyam
   reason: |
@@ -264,6 +279,7 @@
     - oidcc-test-plan-private_key_jwt
   test: oidcc-max-age-1
   status: expected-review
+  class: accepted
   evidence: "Login</h1>"
   issue: 477
   owner: panyam
@@ -283,6 +299,7 @@
     - oidcc-test-plan-private_key_jwt
   test: oidcc-prompt-login
   status: expected-review
+  class: accepted
   evidence: "Login</h1>"
   issue: 477
   owner: panyam
@@ -301,6 +318,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-redirect-uri-query-added
   status: expected-review
+  class: accepted
   evidence: unknown client_id or redirect_uri
   issue: 493
   owner: panyam
@@ -320,6 +338,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-redirect-uri-query-mismatch
   status: expected-review
+  class: accepted
   evidence: unknown client_id or redirect_uri
   issue: 493
   owner: panyam
@@ -339,6 +358,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-registration-logo-uri
   status: expected-review
+  class: accepted
   evidence: 'id="client-logo"'
   issue: 507
   owner: panyam
@@ -357,6 +377,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-registration-policy-uri
   status: expected-review
+  class: accepted
   evidence: 'id="client-policy"'
   issue: 507
   owner: panyam
@@ -375,6 +396,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-registration-tos-uri
   status: expected-review
+  class: accepted
   evidence: 'id="client-tos"'
   issue: 507
   owner: panyam
@@ -393,6 +415,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-request-uri-signed-rs256
   status: expected-fail
+  class: open
   evidence: request_object_signing_alg_values_supported
   issue: 338
   owner: panyam
@@ -411,6 +434,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-request-uri-unsigned
   status: expected-fail
+  class: open
   evidence: expected to succeed, but the server returned an error
   issue: 338
   owner: panyam
@@ -433,6 +457,7 @@
     - oidcc-dynamic-certification-test-plan-id_token_token
   test: oidcc-server
   status: expected-warning
+  class: accepted
   evidence: "non-requested claim 'typ'"
   issue: 339
   owner: panyam
@@ -452,6 +477,7 @@
     - oidcc-test-plan-private_key_jwt
   test: oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported
   status: expected-skip
+  class: open
   issue: 338
   owner: panyam
   reason: |
@@ -466,6 +492,7 @@
     - oidcc-formpost-implicit-certification-test-plan
   test: oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported
   status: expected-fail
+  class: open
   issue: 338
   owner: panyam
   reason: |
@@ -487,6 +514,7 @@
   plans: [mcp-auth-gosdk, mcp-auth-mcpkit, mcp-auth-ts]
   test: auth-iss-param-redirect-carries-iss
   status: expected-skip
+  class: accepted
   issue: 496
   owner: panyam
   reason: |
@@ -501,6 +529,7 @@
   plan: mcp-auth-as
   test: authorization-server-metadata-cimd
   status: expected-warning
+  class: open
   evidence: client_id_metadata_document_supported
   issue: 532
   owner: panyam

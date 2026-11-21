@@ -24,6 +24,7 @@ func main() {
 	only := flag.String("suite", "", "run only this suite")
 	reportJSON := flag.String("report-json", "../../docs/conformance/report.json", "the committed report data, merged with this run")
 	reportMD := flag.String("report-md", "../../docs/conformance/REPORT.md", "the committed report, rendered from -report-json")
+	manifest := flag.String("manifest", "known-gaps.yaml", "tests/conformance/known-gaps.yaml, copied into the report")
 	renderOnly := flag.Bool("render-only", false, "re-render -report-md from -report-json and exit, running nothing")
 	flag.Parse()
 
@@ -42,8 +43,14 @@ func main() {
 	// Without a run, follow the registry (new suites appear as not run,
 	// removed ones drop out) and re-render, so a registry change needs no
 	// Docker to keep the stale check passing.
+	gaps, err := LoadGaps(*manifest)
+	if err != nil {
+		fail(err)
+	}
 	if *renderOnly {
-		if err := SaveReport(Merge(prev, reg, nil, time.Now(), commitID()), *reportJSON, *reportMD); err != nil {
+		rep := Merge(prev, reg, nil, time.Now(), commitID())
+		rep.Gaps = gaps
+		if err := SaveReport(rep, *reportJSON, *reportMD); err != nil {
 			fail(err)
 		}
 		return
@@ -68,6 +75,7 @@ func main() {
 	}
 
 	rep := Merge(prev, reg, results, time.Now(), commitID())
+	rep.Gaps = gaps
 	if err := SaveReport(rep, *reportJSON, *reportMD); err != nil {
 		fail(err)
 	}

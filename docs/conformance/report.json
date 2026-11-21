@@ -3790,5 +3790,368 @@
       "ran_at": "2026-11-20",
       "commit": "7e3b812"
     }
+  ],
+  "gaps": [
+    {
+      "suite": "oidf",
+      "check": "fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails",
+      "plans": [
+        "fapi2-security-profile-final-test-plan"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 98,
+      "reason": "FAPI 2.0 makes PAR mandatory, so /authorize refuses a direct request\nwith oneauth's error page. The harness asks for a screenshot of it."
+    },
+    {
+      "suite": "oidf",
+      "check": "fapi2-security-profile-final-par-attempt-reuse-request_uri",
+      "plans": [
+        "fapi2-security-profile-final-test-plan"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 98,
+      "reason": "A request_uri is single-use (RFC 9126 §2.2), so the second visit gets\noneauth's error page. The harness asks for a screenshot of it."
+    },
+    {
+      "suite": "oidf",
+      "check": "fapi2-security-profile-final-par-attempt-to-use-expired-request_uri",
+      "plans": [
+        "fapi2-security-profile-final-test-plan"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 98,
+      "reason": "An expired request_uri gets oneauth's error page. The harness asks for\na screenshot of it."
+    },
+    {
+      "suite": "oidf",
+      "check": "fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client",
+      "plans": [
+        "fapi2-security-profile-final-test-plan"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 98,
+      "reason": "A request_uri presented with another client's client_id gets oneauth's\nerror page. The harness asks for a screenshot of it."
+    },
+    {
+      "suite": "oidf",
+      "check": "fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails",
+      "plans": [
+        "fapi2-security-profile-final-test-plan"
+      ],
+      "status": "expected-skip",
+      "class": "open",
+      "issue": 330,
+      "reason": "The harness runs this only with an RSA client key, and the plan's\nclients use ES256 because oneauth can't register a PS256 client yet\n(issue 330). The harness says the skip doesn't block certification."
+    },
+    {
+      "suite": "oidf",
+      "check": "fapi2-security-profile-final-happy-flow",
+      "plans": [
+        "fapi2-security-profile-final-test-plan"
+      ],
+      "status": "expected-warning",
+      "class": "accepted",
+      "issue": 339,
+      "reason": "oneauth's ID tokens carry a `typ: ID` claim so a resource server\nrefuses one presented as an access token (checkAccessTokenKind), the\nmarker Keycloak uses too. OIDC defines no marker, and a JOSE header\ntyp other than JWT is refused by common relying-party libraries\n(Nimbus), so the claim stays and the harness warns that the client\ndid not request it."
+    },
+    {
+      "suite": "oidf",
+      "check": "fapi2-security-profile-final-test-claims-parameter-identity-claims",
+      "plans": [
+        "fapi2-security-profile-final-test-plan"
+      ],
+      "status": "expected-warning",
+      "class": "accepted",
+      "issue": 339,
+      "reason": "Discovery advertises claims_parameter_supported and the ID token\ncarries every requested claim the user has, but also oneauth's typ: ID\nmarker claim, which the harness doesn't know. Issue 339 kept the\nmarker, as for the happy-flow module."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-ensure-redirect-uri-in-authorization-request",
+      "plans": [
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 493,
+      "reason": "A request without redirect_uri gets oneauth's error page (OIDC Core\n§3.1.2.1 makes it required), and the harness asks for a screenshot."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-ensure-registered-redirect-uri",
+      "plans": [
+        "oidcc-basic-certification-test-plan",
+        "oidcc-formpost-basic-certification-test-plan",
+        "oidcc-implicit-certification-test-plan",
+        "oidcc-formpost-implicit-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 477,
+      "reason": "An unregistered redirect URI gets oneauth's error page, never a\nredirect (RFC 6749 §4.1.2.1). The harness asks for a screenshot of it."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-ensure-request-object-with-redirect-uri",
+      "plans": [
+        "oidcc-basic-certification-test-plan",
+        "oidcc-formpost-basic-certification-test-plan",
+        "oidcc-implicit-certification-test-plan",
+        "oidcc-formpost-implicit-certification-test-plan",
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-review",
+      "class": "open",
+      "issue": 338,
+      "reason": "The outer redirect_uri is unregistered and the registered one is inside\na request object, which oneauth doesn't read (JAR, issue 338). So it\nshows its request_not_supported error page instead of redirecting, and\nthe harness asks for a screenshot of it."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-idtoken-unsigned",
+      "plans": [
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt"
+      ],
+      "status": "expected-skip",
+      "class": "accepted",
+      "issue": 493,
+      "reason": "oneauth never issues unsigned ID tokens (alg none), so discovery\ndoesn't offer it and the harness skips the module."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-max-age-1",
+      "plans": [
+        "oidcc-basic-certification-test-plan",
+        "oidcc-formpost-basic-certification-test-plan",
+        "oidcc-implicit-certification-test-plan",
+        "oidcc-formpost-implicit-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 477,
+      "reason": "A login older than max_age sends the user back to the login page\n(issue 453), and the harness asks for a screenshot of it."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-prompt-login",
+      "plans": [
+        "oidcc-basic-certification-test-plan",
+        "oidcc-formpost-basic-certification-test-plan",
+        "oidcc-implicit-certification-test-plan",
+        "oidcc-formpost-implicit-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 477,
+      "reason": "prompt=login sends the logged-in user back to the login page (issue\n453), and the harness asks for a screenshot of that second login page."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-redirect-uri-query-added",
+      "plans": [
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 493,
+      "reason": "The redirect_uri adds a query the registered one doesn't have, so it\ndoesn't match. oneauth shows its error page, and the harness asks for a\nscreenshot of it."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-redirect-uri-query-mismatch",
+      "plans": [
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 493,
+      "reason": "The redirect_uri's query differs from the registered one, so it doesn't\nmatch. oneauth shows its error page, and the harness asks for a\nscreenshot of it."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-registration-logo-uri",
+      "plans": [
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 507,
+      "reason": "The harness asks a person to check the consent page shows the client's\nlogo. It does (issue 507), and the evidence checks the captured page."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-registration-policy-uri",
+      "plans": [
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 507,
+      "reason": "The harness asks a person to check the consent page shows the client's\nlink to its policy. It does (issue 507), and the evidence checks the captured page."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-registration-tos-uri",
+      "plans": [
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-review",
+      "class": "accepted",
+      "issue": 507,
+      "reason": "The harness asks a person to check the consent page shows the client's\nlink to its terms. It does (issue 507), and the evidence checks the captured page."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-request-uri-signed-rs256",
+      "plans": [
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-fail",
+      "class": "open",
+      "issue": 338,
+      "reason": "oneauth doesn't support request objects, so discovery has no\nrequest_object_signing_alg_values_supported. That's JAR, issue 338."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-request-uri-unsigned",
+      "plans": [
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-fail",
+      "class": "open",
+      "issue": 338,
+      "reason": "oneauth refuses request_uri with request_uri_not_supported. Request\nobjects by reference are JAR, issue 338."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-server",
+      "plans": [
+        "oidcc-basic-certification-test-plan",
+        "oidcc-formpost-basic-certification-test-plan",
+        "oidcc-implicit-certification-test-plan",
+        "oidcc-formpost-implicit-certification-test-plan",
+        "oidcc-dynamic-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt",
+        "oidcc-dynamic-certification-test-plan-id_token",
+        "oidcc-dynamic-certification-test-plan-id_token_token"
+      ],
+      "status": "expected-warning",
+      "class": "accepted",
+      "issue": 339,
+      "reason": "The ID token carries oneauth's typ: ID marker claim, which stops it\nvalidating as an access token. Issue 339 kept it as a claim: a JOSE\ntyp header other than JWT is refused by common relying-party\nlibraries. Issue 480 confirmed that, so the warning stays."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
+      "plans": [
+        "oidcc-basic-certification-test-plan",
+        "oidcc-implicit-certification-test-plan",
+        "oidcc-test-plan-client_secret_post",
+        "oidcc-test-plan-client_secret_jwt",
+        "oidcc-test-plan-private_key_jwt"
+      ],
+      "status": "expected-skip",
+      "class": "open",
+      "issue": 338,
+      "reason": "oneauth refuses request objects with request_not_supported (OIDC Core\n§6.1), and the harness reports that rejection as SKIPPED. Supporting\nrequest objects is JAR, issue 338."
+    },
+    {
+      "suite": "oidf",
+      "check": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
+      "plans": [
+        "oidcc-formpost-basic-certification-test-plan",
+        "oidcc-formpost-implicit-certification-test-plan"
+      ],
+      "status": "expected-fail",
+      "class": "open",
+      "issue": 338,
+      "reason": "The harness puts response_mode=form_post and state only inside the\nrequest object. oneauth doesn't read request objects, so it refuses\nwith request_not_supported in the response type's default mode, and\nthe module fails CheckCallbackHttpMethodIsPost. The Basic OP and\nImplicit OP plans report the same refusal as SKIPPED. Reading request\nobjects is JAR, issue 338."
+    },
+    {
+      "suite": "mcp",
+      "check": "auth-iss-param-redirect-carries-iss",
+      "plans": [
+        "mcp-auth-gosdk",
+        "mcp-auth-mcpkit",
+        "mcp-auth-ts"
+      ],
+      "status": "expected-skip",
+      "class": "accepted",
+      "issue": 496,
+      "reason": "The server-auth scenarios test a resource server, and they don't drive\n/authorize, so they can't see the RFC 9207 iss in the redirect. The AS\ndoes advertise it (auth-iss-param-as-metadata-advertises-support\npasses). The mcp-auth-as run checks the redirect itself:\nauthorization-code-grant requires an iss that matches the issuer."
+    },
+    {
+      "suite": "mcp",
+      "check": "authorization-server-metadata-cimd",
+      "plans": [
+        "mcp-auth-as"
+      ],
+      "status": "expected-warning",
+      "class": "open",
+      "issue": 532,
+      "reason": "oneauth's AS doesn't accept Client ID Metadata Documents as client_id\nyet, so its metadata doesn't advertise\nclient_id_metadata_document_supported. The MCP spec makes it a SHOULD."
+    }
   ]
 }

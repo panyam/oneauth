@@ -13,6 +13,11 @@ conformance:
 conformance-report:
 	$(MAKE) -C conformance report
 
+# Every `class: open` entry in known-gaps.yaml must cite an open issue
+# (mission 489). Needs gh; the nightly conformance workflow runs it too.
+gapcheck:
+	./scripts/check-known-gaps.sh
+
 # The conformance runner's own tests, including the drift check between
 # conformance/suites.yaml and conformance/Makefile.
 conformance-check:
@@ -1064,7 +1069,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	up-all down-all ps-all logs-all updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl upauthlete downauthlete authletelogs uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl upauthlete downauthlete authletelogs uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report gapcheck deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

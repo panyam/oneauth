@@ -18,6 +18,7 @@ func validGap(suite, id string) Entry {
 		Suite:   suite,
 		ID:      id,
 		Status:  "expected-fail",
+		Class:   ClassOpen,
 		Issue:   1,
 		Owner:   "test-owner",
 		Reason:  "placeholder",
@@ -93,6 +94,7 @@ func validExternalGap(suite, plan, test string) Entry {
 		Plan:    plan,
 		Test:    test,
 		Status:  "expected-fail",
+		Class:   ClassOpen,
 		Issue:   1,
 		Owner:   "test-owner",
 		Reason:  "placeholder",
@@ -182,74 +184,89 @@ func TestEntry_Validate(t *testing.T) {
 	}{
 		{
 			name:    "missing suite",
-			entry:   Entry{ID: "X", Status: "expected-fail", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{ID: "X", Status: "expected-fail", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "suite",
 		},
 		{
 			name:    "neither id nor plan/test",
-			entry:   Entry{Suite: "s", Status: "expected-fail", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "s", Status: "expected-fail", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "id (Go-native) or both plan+test",
 		},
 		{
 			name:    "id and plan together",
-			entry:   Entry{Suite: "s", ID: "X", Plan: "p", Test: "t", Status: "expected-fail", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "s", ID: "X", Plan: "p", Test: "t", Status: "expected-fail", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "cannot mix shapes",
 		},
 		{
 			name:    "wrong status",
-			entry:   Entry{Suite: "s", ID: "X", Status: "skip", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "s", ID: "X", Status: "skip", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "expected-fail",
 		},
 		{
 			name:    "missing issue",
-			entry:   Entry{Suite: "s", ID: "X", Status: "expected-fail", Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "s", ID: "X", Status: "expected-fail", Class: "open", Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "issue",
 		},
 		{
+			name:    "missing class",
+			entry:   Entry{Suite: "s", ID: "X", Status: "expected-fail", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			wantErr: "class",
+		},
+		{
+			name:    "unknown class",
+			entry:   Entry{Suite: "s", ID: "X", Status: "expected-fail", Class: "wontfix", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			wantErr: "class",
+		},
+		{
+			name:    "accepted class ok",
+			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-review", Class: "accepted", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			wantErr: "",
+		},
+		{
 			name:    "bad date",
-			entry:   Entry{Suite: "s", ID: "X", Status: "expected-fail", Issue: 1, Owner: "o", Reason: "r", Expires: "next tuesday"},
+			entry:   Entry{Suite: "s", ID: "X", Status: "expected-fail", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "next tuesday"},
 			wantErr: "ISO date",
 		},
 		{
 			name:    "external suite ok",
-			entry:   Entry{Suite: "oidf", Plan: "basic", Test: "x", Status: "expected-fail", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "oidf", Plan: "basic", Test: "x", Status: "expected-fail", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "",
 		},
 		{
 			name:    "go-native ok",
-			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-fail", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-fail", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "",
 		},
 		{
 			name:    "external expected-review ok",
-			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-review", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-review", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "",
 		},
 		{
 			name:    "external expected-skip ok",
-			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-skip", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-skip", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "",
 		},
 		{
 			// The FAPI 2.0 and OIDC Basic plans record warnings this way
 			// (oidfplan.StatusExpectedWarning); the runner must accept them.
 			name:    "external expected-warning ok",
-			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-warning", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "expected-warning", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "",
 		},
 		{
 			name:    "go-native expected-warning refused",
-			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-warning", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-warning", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "expected-fail",
 		},
 		{
 			name:    "go-native expected-skip refused",
-			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-skip", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "as_metadata", ID: "TestX", Status: "expected-skip", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "expected-fail",
 		},
 		{
 			name:    "external unknown status refused",
-			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "skip", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
+			entry:   Entry{Suite: "oidf", Plan: "fapi2", Test: "m", Status: "skip", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2099-01-01"},
 			wantErr: "expected-review",
 		},
 	}

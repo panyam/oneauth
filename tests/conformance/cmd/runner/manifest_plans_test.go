@@ -5,7 +5,7 @@ import "testing"
 // One OIDF entry can name several plans that share a module, and a module
 // that needs a person at the harness is expected-manual.
 func TestEntryValidate_PlansAndManual(t *testing.T) {
-	base := Entry{Suite: "oidf", Test: "oidcc-server-rotate-keys", Status: "expected-manual", Issue: 1, Owner: "o", Reason: "r", Expires: "2027-12-31"}
+	base := Entry{Suite: "oidf", Test: "oidcc-server-rotate-keys", Status: "expected-manual", Class: "open", Issue: 1, Owner: "o", Reason: "r", Expires: "2027-12-31"}
 	tests := []struct {
 		name    string
 		mut     func(*Entry)

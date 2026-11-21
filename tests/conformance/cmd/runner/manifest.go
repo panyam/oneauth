@@ -34,6 +34,12 @@ import (
 // warning, and "expected-manual" for a module that needs a person at the
 // harness, which the exercise doesn't run. Their adapter
 // (tests/oidf-conformance/oidfplan.Judge) reads Evidence for those.
+//
+// Class says why the entry exists. "open" is a gap oneauth means to close,
+// and its Issue must be open (scripts/check-known-gaps.sh checks that).
+// "accepted" is an outcome oneauth keeps on purpose, such as an error page
+// the harness screenshots or a module that doesn't apply, and Reason says
+// why. Its Issue may be closed, since it names where that was decided.
 type Entry struct {
 	Suite    string   `yaml:"suite"`
 	ID       string   `yaml:"id,omitempty"`
@@ -41,12 +47,19 @@ type Entry struct {
 	Plans    []string `yaml:"plans,omitempty"`
 	Test     string   `yaml:"test,omitempty"`
 	Status   string   `yaml:"status"`
+	Class    string   `yaml:"class"`
 	Evidence string   `yaml:"evidence,omitempty"`
 	Issue    int      `yaml:"issue"`
 	Owner    string   `yaml:"owner"`
 	Reason   string   `yaml:"reason"`
 	Expires  string   `yaml:"expires"`
 }
+
+// The two values of Entry.Class.
+const (
+	ClassOpen     = "open"
+	ClassAccepted = "accepted"
+)
 
 // Key returns the runner's lookup key for this entry.
 // Go-native entries: "<suite>::<id>"
@@ -88,6 +101,9 @@ func (e Entry) Validate() error {
 		return fmt.Errorf("status must be \"expected-fail\", \"expected-review\", \"expected-skip\", \"expected-warning\" or \"expected-manual\" (got %q)", e.Status)
 	default:
 		return fmt.Errorf("status must be \"expected-fail\" (got %q)", e.Status)
+	}
+	if e.Class != ClassOpen && e.Class != ClassAccepted {
+		return fmt.Errorf("class must be %q or %q (got %q)", ClassOpen, ClassAccepted, e.Class)
 	}
 	if e.Issue == 0 {
 		return fmt.Errorf("issue is required")
