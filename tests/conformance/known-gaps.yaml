@@ -497,17 +497,4 @@
     authorization-code-grant requires an iss that matches the issuer.
   expires: 2027-12-31
 
-- suite: mcp
-  plan: mcp-auth-as
-  test: authorization-server-metadata-cimd
-  status: expected-warning
-  evidence: client_id_metadata_document_supported
-  issue: 532
-  owner: panyam
-  reason: |
-    oneauth's AS doesn't accept Client ID Metadata Documents as client_id
-    yet, so its metadata doesn't advertise
-    client_id_metadata_document_supported. The MCP spec makes it a SHOULD.
-  expires: 2027-06-30
-
 

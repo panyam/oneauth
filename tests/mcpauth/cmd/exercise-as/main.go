@@ -48,7 +48,17 @@ func main() {
 	resource := flag.String("resource", "http://localhost:18300/mcp", "the MCP server the tokens are for (RFC 8707 resource)")
 	port := flag.Int("port", 18400, "port for the framework's callback server")
 	manifest := flag.String("manifest", "../conformance/known-gaps.yaml", "known-gaps.yaml")
+	genCert := flag.String("gen-cimd-cert", "", "write a self-signed cert.pem and key.pem for 127.0.0.1 into this directory, then exit")
+	cimdCert := flag.String("cimd-cert", "", "cert.pem for the client ID metadata document server; empty skips the CIMD run")
+	cimdKey := flag.String("cimd-key", "", "key.pem for the client ID metadata document server")
+	cimdPort := flag.Int("cimd-port", 18401, "port for the client ID metadata document server")
 	flag.Parse()
+	if *genCert != "" {
+		if err := asflow.WriteSelfSignedCert(*genCert); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if *conf == "" {
 		log.Fatal("-conformance is required")
 	}
@@ -69,59 +79,28 @@ func main() {
 	if err := getJSON(*asURL+"/.well-known/oauth-authorization-server", &meta); err != nil {
 		log.Fatalf("read the AS metadata: %v", err)
 	}
+	fw := framework{conf: *conf, asURL: *asURL, resource: *resource, port: *port, endpoint: meta.AuthorizationEndpoint, approve: client.ApproveConsent(hc)}
 
-	out, err := os.MkdirTemp("", Plan+"-")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(out)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "npx", "tsx", "src/index.ts", "authorization",
-		"--url", *asURL, "--client-id", clientID, "--resource", *resource,
-		"--port", fmt.Sprint(*port), "--output-dir", out)
-	cmd.Dir = *conf
-	cmd.Stderr = os.Stderr
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := cmd.Start(); err != nil {
-		log.Fatalf("start the framework: %v", err)
-	}
-	approve := client.ApproveConsent(hc)
-	urls, approveErr := asflow.Watch(stdout, os.Stdout, meta.AuthorizationEndpoint, func(u string) error {
-		if err := approve(u); err != nil {
-			cancel()
-			return err
-		}
-		return nil
-	})
-	runErr := cmd.Wait()
-	if approveErr != nil {
-		log.Printf("approving an authorization request failed: %v", approveErr)
-	}
-	fmt.Printf("\napproved %d authorization request(s); framework exit: %v\n\n", len(urls), runErr)
-
-	var all [][]judge.Check
-	for _, s := range Scenarios {
-		checks, err := readScenario(out, s)
+	checks := fw.run(clientID, "")
+	if *cimdCert != "" {
+		// The second run logs in as a client with no registration: its
+		// client_id is the URL of a metadata document this command serves
+		// (issue 532). Its checks get a "cimd-" prefix.
+		docURL := fmt.Sprintf("https://127.0.0.1:%d/mcp-conformance-client.json", *cimdPort)
+		stop, err := asflow.ServeClientMetadata(fmt.Sprintf("127.0.0.1:%d", *cimdPort), *cimdCert, *cimdKey,
+			asflow.ClientMetadataDocument(docURL, redirect))
 		if err != nil {
-			msg := fmt.Sprintf("no checks (%v)", err)
-			if approveErr != nil {
-				msg += "; approval: " + approveErr.Error()
-			}
-			checks = []judge.Check{{ID: s, Status: judge.Failure, ErrorMessage: msg}}
+			log.Fatalf("serve the client metadata document: %v", err)
 		}
-		all = append(all, checks)
+		defer stop()
+		checks = append(checks, fw.run(docURL, CIMDPrefix)...)
 	}
-	checks := judge.Merge(all...)
+
 	expected, err := judge.LoadExpectations(*manifest, Plan)
 	if err != nil {
 		log.Fatal(err)
 	}
-	rec := judge.NewPlanRecord(Plan, checks, expected)
+	rec := judge.NewPlanRecord(Plan, judge.Merge(checks), expected)
 	for _, m := range rec.Modules {
 		mark := "  "
 		if m.Verdict != judge.OK {
@@ -141,6 +120,77 @@ func main() {
 	if rec.Against > 0 {
 		os.Exit(1)
 	}
+}
+
+// CIMDPrefix marks the checks of the run whose client_id is a metadata
+// document URL, so they don't merge with the registered client's.
+const CIMDPrefix = "cimd-"
+
+// framework runs the conformance framework's `authorization` command.
+type framework struct {
+	conf, asURL, resource, endpoint string
+	port                            int
+	approve                         func(string) error
+}
+
+// run runs every scenario as clientID, approving each authorization URL
+// the command prints, and returns the checks with prefix on their ids. A
+// scenario that wrote no checks.json is one failed check named after it,
+// so the run can't pass without it.
+func (fw framework) run(clientID, prefix string) []judge.Check {
+	out, err := os.MkdirTemp("", Plan+"-")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(out)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	// node with tsx as a loader runs the framework in one process. Through
+	// npx, tsx starts a child, and cancelling killed only the parent, so the
+	// child kept stdout open through its 5-minute callback wait.
+	cmd := exec.CommandContext(ctx, "node", "--import", "tsx", "src/index.ts", "authorization",
+		"--url", fw.asURL, "--client-id", clientID, "--resource", fw.resource,
+		"--port", fmt.Sprint(fw.port), "--output-dir", out)
+	cmd.Dir = fw.conf
+	cmd.Stderr = os.Stderr
+	cmd.WaitDelay = 5 * time.Second
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		log.Fatalf("start the framework: %v", err)
+	}
+	urls, approveErr := asflow.Watch(stdout, os.Stdout, fw.endpoint, func(u string) error {
+		if err := fw.approve(u); err != nil {
+			cancel()
+			return err
+		}
+		return nil
+	})
+	runErr := cmd.Wait()
+	if approveErr != nil {
+		log.Printf("approving an authorization request failed: %v", approveErr)
+	}
+	fmt.Printf("\napproved %d authorization request(s) as %s; framework exit: %v\n\n", len(urls), clientID, runErr)
+
+	var all []judge.Check
+	for _, s := range Scenarios {
+		checks, err := readScenario(out, s)
+		if err != nil {
+			msg := fmt.Sprintf("no checks (%v)", err)
+			if approveErr != nil {
+				msg += "; approval: " + approveErr.Error()
+			}
+			checks = []judge.Check{{ID: s, Status: judge.Failure, ErrorMessage: msg}}
+		}
+		for _, c := range checks {
+			c.ID = prefix + c.ID
+			all = append(all, c)
+		}
+	}
+	return all
 }
 
 // readScenario reads the checks.json the framework wrote for scenario. Its
