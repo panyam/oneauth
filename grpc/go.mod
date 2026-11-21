@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/grpc
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	connectrpc.com/connect v1.21.1
 	github.com/golang-jwt/jwt/v5 v5.2.2

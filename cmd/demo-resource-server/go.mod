@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/cmd/demo-resource-server
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	github.com/panyam/oneauth v0.3.13
 	github.com/panyam/oneauth/stores/gorm v0.3.13

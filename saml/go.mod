@@ -2,6 +2,8 @@ module github.com/panyam/oneauth/saml
 
 go 1.26.9
 
+toolchain go1.27.4
+
 require (
 	github.com/crewjam/saml v0.4.14
 	github.com/gorilla/mux v1.8.1

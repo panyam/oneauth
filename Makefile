@@ -189,7 +189,7 @@ authlete:
 # without installing anything and everyone gets the same results. Override
 # with an installed binary, e.g. `make audit GITLEAKS=gitleaks`.
 GITLEAKS ?= go run github.com/zricethezav/gitleaks/v8@v8.21.2
-GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.9.0
+GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.10.0
 # gosec v2.29.0 is the first release that builds under Go 1.27. Its type
 # checker can't read Go 1.27 export data yet, so only the AST rules run.
 GOSEC ?= go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0
@@ -198,10 +198,18 @@ secrets:
 	@echo "[secrets] Scanning for leaked secrets..."
 	@$(GITLEAKS) detect --source . --config .gitleaks.toml
 
-# Vulnerability check via govulncheck
+# Vulnerability check via govulncheck, over the root module and each
+# published sub-module. The list comes from PUBLISHED in
+# scripts/verify-submodule-deps.sh, as in scripts/release.sh. Each module
+# is scanned with GOWORK=off, against the tagged versions an importer gets.
+# docs/site and tests/* aren't published, so they aren't scanned.
+PUBLISHED_MODULES = $(shell awk '/^PUBLISHED=\(/{f=1;next} f&&/^\)/{f=0} f{gsub(/[" ]/,""); print}' scripts/verify-submodule-deps.sh)
 vulncheck:
 	@echo "[vulncheck] Checking for known vulnerabilities..."
-	@$(GOVULNCHECK) ./...
+	@fail=0; for mod in . $(PUBLISHED_MODULES); do \
+		echo "[vulncheck] $$mod"; \
+		(cd $$mod && GOWORK=off $(GOVULNCHECK) ./...) || fail=1; \
+	done; exit $$fail
 
 # ZAP baseline security scan (starts temp server, runs ZAP Docker)
 zap:
