@@ -297,21 +297,28 @@
 <td>gating</td>
 <td>PASS</td>
 <td>23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml</td>
-<td>2026-11-20 07:44 UTC, 173ea82</td>
+<td>2026-11-21 09:43 UTC, aecf2e6-dirty</td>
 </tr>
 <tr>
 <td>mcp-auth-mcpkit</td>
 <td>gating</td>
 <td>PASS</td>
 <td>23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml</td>
-<td>2026-11-20 07:44 UTC, 173ea82</td>
+<td>2026-11-21 09:43 UTC, aecf2e6-dirty</td>
 </tr>
 <tr>
 <td>mcp-auth-ts</td>
 <td>gating</td>
 <td>PASS</td>
 <td>23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml</td>
-<td>2026-11-20 07:44 UTC, 173ea82</td>
+<td>2026-11-21 09:43 UTC, aecf2e6-dirty</td>
+</tr>
+<tr>
+<td>mcp-auth-as</td>
+<td>gating</td>
+<td>PASS</td>
+<td>6 modules: map[SUCCESS:5 WARNING:1], 0 against known-gaps.yaml</td>
+<td>2026-11-21 09:43 UTC, aecf2e6-dirty</td>
 </tr>
 <tr>
 <td>keycloak</td>
@@ -3640,6 +3647,57 @@
 </tr>
 <tr>
 <td><code>auth-scope-step-up-www-authenticate-error</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="mcp-auth-as">mcp-auth-as <a class="anchor" href="#mcp-auth-as">¶</a></h2>
+<p>The MCP framework&rsquo;s authorization-server scenarios (RFC 8414 metadata, the PKCE authorization code grant with RFC 9207 iss, RFC 9449 DPoP binding) against oneauth-server, with a headless login approving each authorization request Source: <code>tests/mcpauth (cmd/exercise-as)</code>. Tracking: issue 496.</p>
+<p>Plan <code>mcp-auth-as</code>, 6 modules: SUCCESS 5, WARNING 1; 0 against known-gaps.yaml.</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Result</th>
+<th>Known gap</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>authorization-code-grant</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>authorization-server-metadata</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>authorization-server-metadata-cimd</code></td>
+<td>WARNING</td>
+<td>expected-warning, issue 532</td>
+<td>Authorization server metadata does not include &ldquo;client_id_metadata_document_supported&rdquo;</td>
+</tr>
+<tr>
+<td><code>sep-1932-as-metadata-alg-values</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sep-1932-as-no-none-alg</code></td>
+<td>SUCCESS</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sep-1932-as-token-binding</code></td>
 <td>SUCCESS</td>
 <td></td>
 <td></td>
