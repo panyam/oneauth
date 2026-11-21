@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "description": "MCP server on the official TypeScript SDK, with oneauth-server as its authorization server, for the MCP server-auth conformance suite (oneauth issue 521).",
+  "packageManager": "pnpm@12.11.2",
   "scripts": {
     "start": "tsx server.ts"
   },
