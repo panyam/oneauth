@@ -524,5 +524,3 @@
     passes). The mcp-auth-as run checks the redirect itself:
     authorization-code-grant requires an iss that matches the issuer.
   expires: 2027-12-31
-
-
