@@ -18,7 +18,7 @@ Three invariants govern every suite under this strategy:
 
 1. **Every known test runs every time.** No `t.Skip()` for "not implemented yet". A test we deliberately don't pass is still executed; its expected result is "fail", recorded in a manifest.
 2. **CI fails on diff, not absolute count.** The runner asserts `actual_failures == expected_failures` for conformance and adversarial suites, and `actual_metrics ≤ baseline * margin` for load. Movement in either direction breaks the build.
-3. **Suppression has metadata.** Every entry in a `known-gaps` / `baseline` / `suppressions` file carries a tracking issue, an owner, a reason, and an `expires:` date. The ratchet itself is the strongest staleness signal — a gap silently shipped will already break CI as a "ratchet up" failure. For human review of long-lived gaps, `make testconformance` writes a Markdown summary to `docs/conformance/native.md` sorted by `expires:` so old entries surface on demand. The published docs site renders that file under `/conformance/native/`. The `expires:` field is advisory: the gating runner does not fail on past dates.
+3. **Suppression has metadata.** Every entry in a `known-gaps` / `baseline` / `suppressions` file carries a tracking issue, an owner, a reason, and an `expires:` date. A `known-gaps.yaml` entry also has a `class`. An `open` entry is a gap oneauth means to close, and `scripts/check-known-gaps.sh` (`make gapcheck`, nightly in CI) fails if its issue is closed. An `accepted` entry is an outcome oneauth keeps on purpose, such as an error page the harness screenshots, and its issue names where that was decided. The conformance report's "Known gaps" section lists every entry with its class and reason. The ratchet itself is the strongest staleness signal — a gap silently shipped will already break CI as a "ratchet up" failure. For human review of long-lived gaps, `make testconformance` writes a Markdown summary to `docs/conformance/native.md` sorted by `expires:` so old entries surface on demand. The published docs site renders that file under `/conformance/native/`. The `expires:` field is advisory: the gating runner does not fail on past dates.
 
 The result: when a feature PR lands and a previously-failing conformance test starts passing, CI breaks immediately ("you forgot to remove `oidc-discovery-required-fields` from `known-gaps.yaml`"). The author flips the entry, the test moves from "known gap" to "regression-protected", and the gap count drops by one. There is no scenario where a passing test silently gets credit it didn't earn, and no scenario where a regression on something we already supported gets dismissed.
 
@@ -35,6 +35,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 - suite: as_metadata                                  # package basename
   id: TestDualPathParity/rfc8414_path_parity          # full Go test name incl. subtest
   status: expected-fail                               # only legal value today
+  class: open                                         # open (a gap to close) or accepted
   issue: 187
   owner: panyam
   reason: |
@@ -47,6 +48,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
   plan: dynamic-op-basic
   test: dcr-rejects-non-https-redirect-uri
   status: expected-fail
+  class: open
   issue: 999
   owner: panyam
   reason: |

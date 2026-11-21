@@ -94,6 +94,8 @@ When adding an entry to `known-gaps.yaml`:
 - suite: as_metadata                              # package basename
   id: TestX/sub_a                                 # full Go test name
   status: expected-fail
+  class: open                                     # open: a gap whose issue is open;
+                                                  # accepted: kept on purpose (required)
   issue: 187                                      # tracking issue (required)
   owner: panyam                                   # required
   reason: |                                       # what's missing, where, and why
