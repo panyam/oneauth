@@ -27,7 +27,7 @@
 # client_id is a metadata document URL on :18401, served with a certificate
 # the server trusts (issue 532).
 #
-# Needs git, node and npx. Logs: /tmp/oneauth-mcpauth-<sdk>-{server,fixture}.log.
+# Needs git, node, npx and openssl, plus pnpm for ts. Logs: /tmp/oneauth-mcpauth-<sdk>-{server,fixture}.log.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 sdk=${1:-}
@@ -85,9 +85,10 @@ if [[ "$sdk" == as ]]; then
 elif [[ "$sdk" == ts ]]; then
   ts=tests/mcpauth/ts-fixture
   ts_stamp="$ts/node_modules/.oneauth-lock"
-  if [[ ! -f "$ts_stamp" ]] || ! cmp -s "$ts/package-lock.json" "$ts_stamp"; then
-    (cd "$ts" && npm ci --silent --ignore-scripts)
-    cp "$ts/package-lock.json" "$ts_stamp"
+  command -v pnpm >/dev/null || { echo "exercise-mcpauth: pnpm is required for ts" >&2; exit 2; }
+  if [[ ! -f "$ts_stamp" ]] || ! cmp -s "$ts/pnpm-lock.yaml" "$ts_stamp"; then
+    (cd "$ts" && pnpm install --frozen-lockfile --silent --ignore-scripts)
+    cp "$ts/pnpm-lock.yaml" "$ts_stamp"
   fi
   go build -buildvcs=false -o "$work/bootstrap" ./tests/mcpauth/cmd/bootstrap
 else
@@ -112,7 +113,7 @@ if [[ "$sdk" == ts ]]; then
   "$work/bootstrap" -as "$as" -mcp-url "$mcp" -key "$work/signing.pem" \
     -idp-key "$work/idp.pem" -idp-issuer "$idp_issuer" >"$work/tokens.json"
   (cd "$ts" && PORT=$fixture_port AS_URL=$as MCP_URL=$mcp BOOTSTRAP_FILE="$work/tokens.json" \
-    exec npx tsx server.ts) >"$fixture_log" 2>&1 &
+    exec pnpm exec tsx server.ts) >"$fixture_log" 2>&1 &
 else
   "$work/fixture" -addr ":$fixture_port" -as "$as" -mcp-url "$mcp" -key "$work/signing.pem" \
     -idp-key "$work/idp.pem" -idp-issuer "$idp_issuer" >"$fixture_log" 2>&1 &
