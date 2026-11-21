@@ -1,0 +1,39 @@
+# cmd/oneauth-server as the authorization server under test for the MCP
+# conformance framework's authorization-server scenarios (issue 496).
+# scripts/exercise-mcpauth.sh starts it on :18200 for `as`, and
+# tests/mcpauth/cmd/exercise-as signs up a user, registers a public client
+# and approves each authorization request the framework prints.
+
+server:
+  port: ${MCPAUTH_AS_PORT:-18200}
+  host: 127.0.0.1
+  public_url: http://localhost:${MCPAUTH_AS_PORT:-18200}
+
+keystore:
+  type: memory
+
+user_stores:
+  type: memory
+
+jwt:
+  issuer: ""
+  signing_alg: RS256
+  private_key_path: ${MCPAUTH_SIGNING_KEY}
+  # The framework names this MCP server with RFC 8707 `resource`, and the
+  # token's aud is that URL (issue 521).
+  resources: ["${MCPAUTH_AUDIENCE:-http://localhost:18300/mcp}"]
+  scopes_supported: [read, write, admin]
+  secret_key: ${JWT_SECRET_KEY:-mcp-auth-exercise-session-secret-32b}
+
+admin_auth:
+  type: none    # the exercise registers its client through open DCR
+  allow_open: true
+
+code_flow:
+  enabled: true
+
+# The dpop scenario binds a code-flow token to a proof key (RFC 9449).
+# Proofs stay optional, so authorization-code-grant still gets a Bearer
+# token.
+dpop:
+  enabled: true

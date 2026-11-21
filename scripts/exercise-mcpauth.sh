@@ -6,10 +6,13 @@
 #   mcpkit  mcpkit, with its own ext/auth layer
 #   ts      the official TypeScript SDK, with its own bearer middleware;
 #           oneauth-server is the AS only, so this run checks interop
+#   as      no SDK: the framework's authorization-server scenarios, with
+#           oneauth-server as the AS under test (issue 496)
 #
-#   1. check out the conformance framework at MCPCONFORMANCE_REF, the
-#      server auth scenarios on panyam/mcpconformance's pending branch
-#      (upstream has none yet), into MCPCONFORMANCE_DIR
+#   1. check out the conformance framework at MCPCONFORMANCE_REF into
+#      MCPCONFORMANCE_DIR. The server auth scenarios live only on
+#      panyam/mcpconformance's pending branch, which also tracks upstream's
+#      authorization-server scenarios
 #   2. generate a signing key, start oneauth-server with
 #      tests/mcpauth/oneauth-mcp.yaml on :18200
 #   3. start the SDK's fixture from tests/mcpauth/cmd on :18300, which
@@ -17,19 +20,24 @@
 #   4. run every auth scenario and judge each check against
 #      tests/conformance/known-gaps.yaml (suite mcp, plan mcp-auth-<sdk>)
 #
+# For `as`, steps 3 and 4 are tests/mcpauth/cmd/exercise-as instead. It runs
+# the framework's `authorization` command, with its callback on :18400, and
+# approves each authorization request it prints. The server config is
+# tests/mcpauth/oneauth-mcp-as.yaml.
+#
 # Needs git, node and npx. Logs: /tmp/oneauth-mcpauth-<sdk>-{server,fixture}.log.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 sdk=${1:-}
 case "$sdk" in
-  gosdk|mcpkit|ts) ;;
-  *) echo "usage: $0 gosdk|mcpkit|ts" >&2; exit 2 ;;
+  gosdk|mcpkit|ts|as) ;;
+  *) echo "usage: $0 gosdk|mcpkit|ts|as" >&2; exit 2 ;;
 esac
 for tool in git node npx openssl; do
   command -v "$tool" >/dev/null || { echo "exercise-mcpauth: $tool is required" >&2; exit 2; }
 done
 
-ref=${MCPCONFORMANCE_REF:-41261e3aba4c9d20ba5514de7d1582cad9fbf918}
+ref=${MCPCONFORMANCE_REF:-e70624fc4bafb5427588af3704f403224b6d6782}
 conf=${MCPCONFORMANCE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/oneauth/mcpconformance}
 if [[ ! -d "$conf/.git" ]]; then
   git clone --quiet https://github.com/panyam/mcpconformance.git "$conf"
@@ -45,10 +53,10 @@ if [[ ! -f "$stamp" ]] || ! cmp -s "$conf/package-lock.json" "$stamp"; then
   cp "$conf/package-lock.json" "$stamp"
 fi
 
-as_port=18200 fixture_port=18300
+as_port=18200 fixture_port=18300 callback_port=18400
 as=http://localhost:$as_port
 mcp=http://localhost:$fixture_port/mcp
-for port in $as_port $fixture_port; do
+for port in $as_port $fixture_port $callback_port; do
   if curl -s -o /dev/null "http://localhost:$port/"; then
     echo "Something is already listening on :$port. Stop it first." >&2
     exit 2
@@ -68,7 +76,10 @@ idp_issuer=https://idp.mcpauth.test
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$work/idp.pem" 2>/dev/null
 openssl pkey -in "$work/idp.pem" -pubout -out "$work/idp.pub.pem" 2>/dev/null
 go build -buildvcs=false -o "$work/oneauth-server" ./cmd/oneauth-server
-if [[ "$sdk" == ts ]]; then
+config=tests/mcpauth/oneauth-mcp.yaml
+if [[ "$sdk" == as ]]; then
+  config=tests/mcpauth/oneauth-mcp-as.yaml
+elif [[ "$sdk" == ts ]]; then
   ts=tests/mcpauth/ts-fixture
   ts_stamp="$ts/node_modules/.oneauth-lock"
   if [[ ! -f "$ts_stamp" ]] || ! cmp -s "$ts/package-lock.json" "$ts_stamp"; then
@@ -82,10 +93,16 @@ fi
 
 MCPAUTH_AS_PORT=$as_port MCPAUTH_SIGNING_KEY="$work/signing.pem" MCPAUTH_AUDIENCE=$mcp \
   MCPAUTH_IDP_ISSUER=$idp_issuer MCPAUTH_IDP_PUBKEY="$work/idp.pub.pem" \
-  "$work/oneauth-server" --config tests/mcpauth/oneauth-mcp.yaml >"$server_log" 2>&1 &
+  "$work/oneauth-server" --config "$config" >"$server_log" 2>&1 &
 pids+=($!)
 scripts/wait-for.sh 60 "oneauth-server (mcpauth)" --pid "${pids[0]}" --log "$server_log" -- \
   "$as/.well-known/oauth-authorization-server" || exit 2
+
+if [[ "$sdk" == as ]]; then
+  (cd tests/mcpauth && GOWORK=off go run ./cmd/exercise-as -conformance "$conf" -as "$as" \
+    -resource "$mcp" -port $callback_port -manifest ../conformance/known-gaps.yaml)
+  exit $?
+fi
 
 if [[ "$sdk" == ts ]]; then
   "$work/bootstrap" -as "$as" -mcp-url "$mcp" -key "$work/signing.pem" \

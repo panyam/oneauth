@@ -172,6 +172,14 @@ suites:
     source: tests/mcpauth/ts-fixture
     needs: [node]
     tracking: "issue 521"
+  - name: mcp-auth-as
+    kind: gating
+    timeout: 10m
+    covers: The MCP framework's authorization-server scenarios (RFC 8414 metadata, the PKCE authorization code grant with RFC 9207 iss, RFC 9449 DPoP binding) against oneauth-server, with a headless login approving each authorization request
+    plan: mcp-auth-as
+    source: tests/mcpauth (cmd/exercise-as)
+    needs: [node]
+    tracking: "issue 496"
   - name: keycloak
     kind: gating
     timeout: 15m

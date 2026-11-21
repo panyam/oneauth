@@ -794,10 +794,11 @@ exercise-oidcdyn:
 
 # Issue 495: the MCP server-auth conformance scenarios against oneauth-server
 # through one MCP SDK: SDK=gosdk (the official Go SDK), SDK=mcpkit, or SDK=ts
-# (the official TypeScript SDK), or each in turn when SDK is unset. Needs
-# node; see scripts/exercise-mcpauth.sh.
+# (the official TypeScript SDK). SDK=as runs the framework's
+# authorization-server scenarios instead (issue 496). Unset runs all four.
+# Needs node; see scripts/exercise-mcpauth.sh.
 exercise-mcpauth:
-	@set -e; for s in $(or $(SDK),gosdk mcpkit ts); do ./scripts/exercise-mcpauth.sh $$s; done
+	@set -e; for s in $(or $(SDK),gosdk mcpkit ts as); do ./scripts/exercise-mcpauth.sh $$s; done
 
 # Issue 494: oidcc-test-plan on :8892 with AUTH's client auth method, or each
 # of OIDCCTP_AUTH_TYPES in turn when AUTH is unset. MODULE=<substring> as above.
