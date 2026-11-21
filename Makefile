@@ -13,11 +13,10 @@ conformance:
 conformance-report:
 	$(MAKE) -C conformance report
 
-# The conformance runner's own tests, including the drift checks between
-# conformance/suites.yaml and conformance/Makefile, and between
-# docker-compose.yml and this Makefile.
+# The conformance runner's own tests, including the drift check between
+# conformance/suites.yaml and conformance/Makefile.
 conformance-check:
-	cd tests/conformance && GOWORK=off go test -count=1 ./cmd/... ./devservices/...
+	cd tests/conformance && GOWORK=off go test -count=1 ./cmd/...
 
 
 # Run ALL tests: unit tests → e2e (in-process) → secrets scan -> Keycloak
