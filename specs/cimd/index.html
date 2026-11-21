@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented, opt-in (apiauth.CIMDAppStore)">
+    <title>OAuth Client ID Metadata Document (CIMD) · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/report/">Latest run</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+                <li><a href="/oneauth/conformance/security-audit/">Security audit</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/outbound-credentials/">Outbound credentials</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>OAuth Client ID Metadata Document (CIMD)</h1>
+        
+        <p class="lead">Implemented, opt-in (apiauth.CIMDAppStore)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/CIMD.md"><code>docs/oauth/CIMD.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="oauth-client-id-metadata-document-cimd">OAuth Client ID Metadata Document (CIMD) <a class="anchor" href="#oauth-client-id-metadata-document-cimd">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Internet-Draft (draft-ietf-oauth-client-id-metadata-document-03, November 2026)<br />
+<strong>L-tier / T-tier:</strong> L2 · T0 (setup / registration)<br />
+<strong>OneAuth coverage:</strong> Implemented, opt-in (<code>apiauth.CIMDAppStore</code>, <code>OneAuthConfig.ClientIDMetadataDocuments</code>)<br />
+<strong>See also:</strong> <a href="RFC_7591.md"><code>RFC_7591.md</code></a> · <a href="RFC_8414.md"><code>RFC_8414.md</code></a> · <a href="RFC_7523.md"><code>RFC_7523.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>A client uses an https URL it controls as its <code>client_id</code>, and the authorization server fetches the client&rsquo;s metadata from that URL instead of needing the client registered first.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>With pre-registration or DCR</th>
+<th>With CIMD</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Each client registers with each AS before its first login</td>
+<td>The client publishes one JSON document, and any AS that supports CIMD reads it</td>
+</tr>
+<tr>
+<td>DCR (RFC 7591) gives every AS its own copy of the client, and each one drifts</td>
+<td>One document is the source of truth, and an AS re-reads it when its cache expires</td>
+</tr>
+<tr>
+<td>An open DCR endpoint lets anyone create clients, so ASes often close it</td>
+<td>Nothing is created. The AS reads the document on demand and keeps only a cache</td>
+</tr>
+<tr>
+<td>The consent page shows a <code>client_name</code> the client chose</td>
+<td>The consent page can show the host that publishes the document, which the client can&rsquo;t fake</td>
+</tr>
+</tbody>
+</table>
+<p>The MCP authorization spec (2025-11-25) says an authorization server SHOULD support CIMD. An MCP client meets authorization servers it has never seen, often on a user&rsquo;s laptop, and registering with each one first doesn&rsquo;t scale.</p>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>A coding agent wants to call an MCP server whose authorization server is oneauth. The agent&rsquo;s vendor publishes this at <code>https://agent.example/oauth/client.json</code>:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_id&#34;</span>: <span style="color:#d14">&#34;https://agent.example/oauth/client.json&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;client_name&#34;</span>: <span style="color:#d14">&#34;Example Agent&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;redirect_uris&#34;</span>: [<span style="color:#d14">&#34;http://127.0.0.1/callback&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;grant_types&#34;</span>: [<span style="color:#d14">&#34;authorization_code&#34;</span>, <span style="color:#d14">&#34;refresh_token&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;token_endpoint_auth_method&#34;</span>: <span style="color:#d14">&#34;none&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>The agent sends the user to <code>/authorize</code> with that URL as <code>client_id</code>. oneauth fetches the document, checks it, and shows the consent page. The page says <code>agent.example</code> publishes the client&rsquo;s details, and that approving sends the user to <code>127.0.0.1</code>. The agent then redeems the code with PKCE, like any public client.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ul>
+<li><strong>The URL is the identity.</strong> The AS compares <code>client_id</code> values as exact strings and never normalizes them (§3). The document&rsquo;s own <code>client_id</code> must equal the URL it came from.</li>
+<li><strong>No shared secrets.</strong> A document must not carry <code>client_secret</code>, and its auth method can&rsquo;t be <code>client_secret_basic</code>, <code>client_secret_post</code> or <code>client_secret_jwt</code> (§4.1, §5). A client authenticates with <code>none</code> (plus PKCE) or with <code>private_key_jwt</code>, using keys in <code>jwks</code> or at <code>jwks_uri</code>.</li>
+<li><strong>The default auth method is <code>none</code>.</strong> RFC 7591&rsquo;s default of <code>client_secret_basic</code> doesn&rsquo;t apply.</li>
+<li><strong>Fetching is guarded.</strong> The AS follows no redirect, accepts only a 200, reads at most 5 KB, and refuses special-use addresses in production (§6, §10.7, §10.11).</li>
+<li><strong>Caching follows HTTP.</strong> The AS may cache a document per RFC 9111, within bounds it picks. It must not cache a failure, and a transient failure shouldn&rsquo;t end trust in a copy cached earlier (§6.1, §6.2).</li>
+</ul>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<pre><code>GET /authorize?response_type=code
+    &amp;client_id=https%3A%2F%2Fagent.example%2Foauth%2Fclient.json
+    &amp;redirect_uri=http%3A%2F%2F127.0.0.1%3A51234%2Fcallback
+    &amp;code_challenge=...&amp;code_challenge_method=S256&amp;state=...
+
+    (the AS fetches https://agent.example/oauth/client.json, Accept: application/json)
+
+POST /api/token
+grant_type=authorization_code&amp;code=...&amp;code_verifier=...
+&amp;client_id=https%3A%2F%2Fagent.example%2Foauth%2Fclient.json
+&amp;redirect_uri=http%3A%2F%2F127.0.0.1%3A51234%2Fcallback
+</code></pre>
+<p>The AS&rsquo;s metadata advertises support:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{ <span style="color:#000080">&#34;client_id_metadata_document_supported&#34;</span>: <span style="color:#000;font-weight:bold">true</span> }
+</span></span></code></pre><h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L2 lifecycle and registration.</strong> It sits beside DCR as a way for a client to become known to an AS.</li>
+<li><strong>T0 (setup).</strong> The AS reads the document when the client first shows up, then from its cache.</li>
+</ul>
+<h2 id="oauth-20-and-21-status">OAuth 2.0 and 2.1 status <a class="anchor" href="#oauth-20-and-21-status">¶</a></h2>
+<p>CIMD is an Internet-Draft from the IETF OAuth working group, and neither OAuth 2.0 nor the OAuth 2.1 draft mentions it. It builds on 2.1&rsquo;s defaults. Public clients use PKCE, and confidential clients use asymmetric keys rather than shared secrets.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>CIMD surface</th>
+<th>Status</th>
+<th>Where</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>URL <code>client_id</code> at <code>/authorize</code>, the token endpoint, userinfo and consent</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth.CIMDAppStore</code></td>
+<td>Wraps <code>core.AppRegistrationStore</code>, so every client lookup accepts a URL client with no change at the call site</td>
+</tr>
+<tr>
+<td>Opt-in</td>
+<td><strong>Implemented</strong></td>
+<td><code>OneAuthConfig.ClientIDMetadataDocuments</code>; reference server <code>code_flow.client_id_metadata_documents</code></td>
+<td>Off by default. FAPI 2.0 refuses it, since it allows registered confidential clients only</td>
+</tr>
+<tr>
+<td>URL rules (§3)</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth.ValidateClientIDMetadataDocumentURL</code></td>
+<td>https, no userinfo or fragment, a path other than <code>/</code>, no dot segments. The AS&rsquo;s own issuer is refused (§10.1)</td>
+</tr>
+<tr>
+<td>Document rules (§4, §5)</td>
+<td><strong>Implemented</strong></td>
+<td><code>CIMDAppStore.GetApp</code></td>
+<td><code>client_id</code> equals the URL. <code>client_name</code> and <code>redirect_uris</code> are required, as MCP asks. No secrets or shared-secret methods, and not both <code>jwks</code> and <code>jwks_uri</code>. <code>grant_types</code> and <code>response_types</code> are cut down to what the AS supports (§6)</td>
+</tr>
+<tr>
+<td><code>none</code> and <code>private_key_jwt</code> clients</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth.ClientAuthenticator</code></td>
+<td>Keys come from the document&rsquo;s <code>jwks</code>, or from <code>jwks_uri</code> through <code>ClientJWKSFetcher</code></td>
+</tr>
+<tr>
+<td>Guarded fetch</td>
+<td><strong>Implemented</strong></td>
+<td><code>CIMDAppStore</code></td>
+<td>No redirects, 200 only, 5 KB, 5-second timeout, no cookies. Private addresses only with <code>AllowPrivateHosts</code> (reference server <code>admin_auth.allow_private_client_hosts</code>), for tests</td>
+</tr>
+<tr>
+<td>Caching</td>
+<td><strong>Implemented</strong></td>
+<td><code>CIMDAppStore</code></td>
+<td>The response&rsquo;s <code>max-age</code>, clamped to 1 minute to 24 hours, 5 minutes when absent. Failures aren&rsquo;t cached. A transient failure serves the cached copy for up to 24 hours after its fetch</td>
+</tr>
+<tr>
+<td>Errors</td>
+<td><strong>Implemented</strong></td>
+<td><code>apiauth.ErrInvalidClientMetadata</code>, <code>apiauth.ErrClientMetadataUnavailable</code></td>
+<td>A bad document is <code>invalid_client</code> at the token endpoint and the error page at <code>/authorize</code>, never a redirect. An unreachable one is 503 at the token endpoint (§6.1)</td>
+</tr>
+<tr>
+<td>Consent page shows the hosts</td>
+<td><strong>Implemented</strong></td>
+<td><code>AuthorizeVerificationHandler</code></td>
+<td>The host that publishes the document (§10.6) and the host the user returns to (MCP)</td>
+</tr>
+<tr>
+<td><code>client_id_metadata_document_supported</code></td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.ClientIDMetadataDocumentSupported</code></td>
+<td>The reference server sets it with the opt-in</td>
+</tr>
+<tr>
+<td>Client logos</td>
+<td><strong>Not shown</strong></td>
+<td>None</td>
+<td>§10.9 requires the AS to prefetch a logo and serve it from its own host. oneauth drops a URL client&rsquo;s <code>logo_uri</code> instead</td>
+</tr>
+<tr>
+<td>Domain allowlists and trust policy</td>
+<td><strong>Not implemented</strong></td>
+<td>None</td>
+<td>§10.8 leaves trust heuristics to the AS. Every valid document is accepted today</td>
+</tr>
+<tr>
+<td>Grant invalidation when a document changes</td>
+<td><strong>Not implemented</strong></td>
+<td>None</td>
+<td>§10.5 says a change may warrant it</td>
+</tr>
+</tbody>
+</table>
+<p>The MCP conformance framework&rsquo;s <code>mcp-auth-as</code> run logs in with a URL <code>client_id</code> end to end (issue 496, issue 532).</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>Closed deployments with known clients.</strong> Pre-registered clients give the AS a fixed list. CIMD lets any client with a valid document start a login, and the user&rsquo;s consent is the only gate.</li>
+<li><strong>FAPI 2.0.</strong> It requires registered confidential clients, so oneauth refuses the combination.</li>
+<li><strong>Clients without a stable https host.</strong> The document has to live at a URL the client controls for as long as its tokens should work.</li>
+</ul>
+<h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
+<ul>
+<li><a href="RFC_7591.md">RFC 7591</a> covers Dynamic Client Registration, the other way a client becomes known without manual setup.</li>
+<li><a href="RFC_8414.md">RFC 8414</a> covers AS metadata, which advertises <code>client_id_metadata_document_supported</code>.</li>
+<li><a href="RFC_7523.md">RFC 7523</a> covers <code>private_key_jwt</code>, the confidential-client method a document can declare.</li>
+<li><a href="RFC_7636.md">RFC 7636</a> covers PKCE, which a <code>none</code> client relies on.</li>
+<li><a href="RFC_9700.md">RFC 9700</a> covers the loopback redirect rule that native clients&rsquo; <code>redirect_uris</code> use.</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/">Datatracker: draft-ietf-oauth-client-id-metadata-document</a></li>
+<li><a href="https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-03.html">Draft -03</a></li>
+<li><a href="https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization">MCP authorization spec, 2025-11-25</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>
