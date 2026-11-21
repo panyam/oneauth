@@ -193,10 +193,18 @@ secrets:
 	@echo "[secrets] Scanning for leaked secrets..."
 	@$(GITLEAKS) detect --source . --config .gitleaks.toml
 
-# Vulnerability check via govulncheck
+# Vulnerability check via govulncheck, over the root module and each
+# published sub-module. The list comes from PUBLISHED in
+# scripts/verify-submodule-deps.sh, as in scripts/release.sh. Each module
+# is scanned with GOWORK=off, against the tagged versions an importer gets.
+# docs/site and tests/* aren't published, so they aren't scanned.
+PUBLISHED_MODULES = $(shell awk '/^PUBLISHED=\(/{f=1;next} f&&/^\)/{f=0} f{gsub(/[" ]/,""); print}' scripts/verify-submodule-deps.sh)
 vulncheck:
 	@echo "[vulncheck] Checking for known vulnerabilities..."
-	@$(GOVULNCHECK) ./...
+	@fail=0; for mod in . $(PUBLISHED_MODULES); do \
+		echo "[vulncheck] $$mod"; \
+		(cd $$mod && GOWORK=off $(GOVULNCHECK) ./...) || fail=1; \
+	done; exit $$fail
 
 # ZAP baseline security scan (starts temp server, runs ZAP Docker)
 zap:
