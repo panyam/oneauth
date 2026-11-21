@@ -69,6 +69,10 @@ tests/conformance/
     └── *_test.go               # unit tests for the runner itself
 ```
 
+The runner counts every test outside `cmd/` in `native.md`, so a test
+that isn't a conformance check belongs elsewhere. The compose drift test
+moved to the repo root for that reason (#531).
+
 ## Adding a test
 
 1. Pick or create a suite directory (`<rfc-shorthand>/`). Add a `doc.go`
