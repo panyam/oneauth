@@ -12,8 +12,8 @@ Test module: `oidcc-discovery-endpoint-verification`
 
 | Metric | Count |
 |---|---|
-| Total checks observed | 32 |
-| Passing | 32 |
+| Total checks observed | 33 |
+| Passing | 33 |
 | Known gaps (expected-fail in manifest) | 0 |
 | Regressions (failed but NOT in manifest) | 0 |
 | Ratchet-up available (in manifest but passed) | 0 |
@@ -50,6 +50,7 @@ Test module: `oidcc-discovery-endpoint-verification`
 | `OIDCCCheckDiscEndpointGrantTypesSupported` | PASS | — |  |
 | `OIDCCCheckDiscEndpointIdTokenSigningAlgValuesSupported` | PASS | — |  |
 | `OIDCCCheckDiscEndpointResponseTypesSupported` | PASS | — |  |
+| `OIDCCCheckDiscEndpointUserinfoSigningAlgValuesSupported` | PASS | — |  |
 | `ParseUsableJwksKeys` | PASS | — |  |
 | `ValidateJwksStructure` | PASS | — |  |
 | `ValidateServerMetadataAgainstSchema` | PASS | — |  |

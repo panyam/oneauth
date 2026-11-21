@@ -1,6 +1,6 @@
 # Go-native conformance report
 
-Generated: 2026-11-21 10:04:39 UTC  
+Generated: 2026-11-21 10:37:26 UTC  
 Package pattern: `./...`
 
 ## Summary
@@ -11,7 +11,7 @@ Package pattern: `./...`
 | Passing | 26 |
 | Failing | 0 |
 | Skipped (forbidden) | 0 |
-| Known gaps in manifest | 25 |
+| Known gaps in manifest | 24 |
 | Gapped tests observed | 0 |
 | Ratchet issues | 0 |
 
@@ -19,7 +19,6 @@ Package pattern: `./...`
 
 | Expires | Suite | Test | Issue | Owner | Status |
 |---|---|---|---|---|---|
-| 2027-06-30 | mcp | `mcp-auth-as/authorization-server-metadata-cimd` | 532 | panyam | expected-warning |
 | 2027-12-31 | mcp | `mcp-auth-gosdk,mcp-auth-mcpkit,mcp-auth-ts/auth-iss-param-redirect-carries-iss` | 496 | panyam | expected-skip |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails` | 330 | panyam | expected-skip |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails` | 98 | panyam | expected-review |

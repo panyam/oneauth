@@ -7,8 +7,8 @@
       "source": "tests/conformance",
       "result": "PASS",
       "detail": "ratchet OK — no diff against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82"
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e"
     },
     {
       "name": "oidf-config",
@@ -16,9 +16,9 @@
       "covers": "OIDF oidcc-config-certification-test-plan, the discovery document check by check",
       "source": "tests/oidf-conformance (TestOIDF_OIDCC_ConfigCert_Discovery)",
       "result": "PASS",
-      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.228s",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82"
+      "detail": "ok  \tgithub.com/panyam/oneauth/tests/oidf-conformance\t1.450s",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e"
     },
     {
       "name": "oidf-fapi2",
@@ -28,8 +28,8 @@
       "tracking": "mission 98",
       "result": "PASS",
       "detail": "52 modules: map[PASSED:45 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "fapi2-security-profile-final-test-plan",
         "variant": {
@@ -40,7 +40,7 @@
           "openid": "openid_connect",
           "sender_constrain": "dpop"
         },
-        "plan_id": "gZElsYtchJC9V",
+        "plan_id": "9GsBBt0IupZKE",
         "counts": {
           "PASSED": 45,
           "REVIEW": 4,
@@ -388,15 +388,15 @@
       "tracking": "mission 477",
       "result": "PASS",
       "detail": "35 modules: map[PASSED:29 REVIEW:4 SKIPPED:1 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-basic-certification-test-plan",
         "variant": {
           "client_registration": "static_client",
           "server_metadata": "discovery"
         },
-        "plan_id": "01RuSlcSPeGre",
+        "plan_id": "KMR37SQkaEWXV",
         "counts": {
           "PASSED": 29,
           "REVIEW": 4,
@@ -639,15 +639,15 @@
       "tracking": "issue 500",
       "result": "PASS",
       "detail": "35 modules: map[FAILED:1 PASSED:29 REVIEW:4 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-formpost-basic-certification-test-plan",
         "variant": {
           "client_registration": "static_client",
           "server_metadata": "discovery"
         },
-        "plan_id": "wH9jxAXBX2m08",
+        "plan_id": "tL53q3y3uVEc2",
         "counts": {
           "FAILED": 1,
           "PASSED": 29,
@@ -891,15 +891,15 @@
       "tracking": "issue 526",
       "result": "PASS",
       "detail": "54 modules: map[PASSED:42 REVIEW:8 SKIPPED:2 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-implicit-certification-test-plan",
         "variant": {
           "client_registration": "static_client",
           "server_metadata": "discovery"
         },
-        "plan_id": "YvtKItq16osCV",
+        "plan_id": "szXbSXxmTPQA8",
         "counts": {
           "PASSED": 42,
           "REVIEW": 8,
@@ -1269,15 +1269,15 @@
       "tracking": "issue 526",
       "result": "PASS",
       "detail": "54 modules: map[FAILED:2 PASSED:42 REVIEW:8 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-formpost-implicit-certification-test-plan",
         "variant": {
           "client_registration": "static_client",
           "server_metadata": "discovery"
         },
-        "plan_id": "dRlK0oW7cGkCe",
+        "plan_id": "3NHC08SY0YGkl",
         "counts": {
           "FAILED": 2,
           "PASSED": 42,
@@ -1649,14 +1649,14 @@
       "tracking": "issue 493",
       "result": "PASS",
       "detail": "23 modules: map[FAILED:2 PASSED:12 REVIEW:7 SKIPPED:1 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-dynamic-certification-test-plan",
         "variant": {
           "response_type": "code"
         },
-        "plan_id": "dCOegEvvNRkhI",
+        "plan_id": "PBzp3q2ck8JS2",
         "counts": {
           "FAILED": 2,
           "PASSED": 12,
@@ -1840,14 +1840,14 @@
       "tracking": "issue 507",
       "result": "PASS",
       "detail": "18 modules: map[FAILED:2 PASSED:8 REVIEW:7 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-dynamic-certification-test-plan-id_token",
         "variant": {
           "response_type": "id_token"
         },
-        "plan_id": "baWnBUU6r8L8I",
+        "plan_id": "W3p4YJSRRYWK1",
         "counts": {
           "FAILED": 2,
           "PASSED": 8,
@@ -1998,14 +1998,14 @@
       "tracking": "issue 507",
       "result": "PASS",
       "detail": "19 modules: map[FAILED:2 PASSED:9 REVIEW:7 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-dynamic-certification-test-plan-id_token_token",
         "variant": {
           "response_type": "id_token token"
         },
-        "plan_id": "sqL5I9zRdpP8v",
+        "plan_id": "JpQS0v1T3Ezkg",
         "counts": {
           "FAILED": 2,
           "PASSED": 9,
@@ -2162,8 +2162,8 @@
       "tracking": "issue 494",
       "result": "PASS",
       "detail": "51 modules: map[FAILED:2 PASSED:36 REVIEW:10 SKIPPED:2 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_post",
         "variant": {
@@ -2172,7 +2172,7 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "Ss34eBvWnkJpy",
+        "plan_id": "nsL86Y8ohzqjK",
         "counts": {
           "FAILED": 2,
           "PASSED": 36,
@@ -2532,8 +2532,8 @@
       "tracking": "issue 494",
       "result": "PASS",
       "detail": "52 modules: map[FAILED:2 PASSED:37 REVIEW:10 SKIPPED:2 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-test-plan-client_secret_jwt",
         "variant": {
@@ -2542,7 +2542,7 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "qx2Xx9ThYCSOg",
+        "plan_id": "PHiWxLvkgtfdj",
         "counts": {
           "FAILED": 2,
           "PASSED": 37,
@@ -2908,8 +2908,8 @@
       "tracking": "issue 494",
       "result": "PASS",
       "detail": "54 modules: map[FAILED:2 PASSED:39 REVIEW:10 SKIPPED:2 WARNING:1], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "oidcc-test-plan-private_key_jwt",
         "variant": {
@@ -2918,7 +2918,7 @@
           "response_mode": "default",
           "response_type": "code"
         },
-        "plan_id": "aIGUn3ByVuxcA",
+        "plan_id": "YZSwrPj5mQIRB",
         "counts": {
           "FAILED": 2,
           "PASSED": 39,
@@ -3296,8 +3296,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 10:19 UTC",
-      "commit": "62b6dee-dirty",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "mcp-auth-gosdk",
         "counts": {
@@ -3435,8 +3435,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 10:19 UTC",
-      "commit": "62b6dee-dirty",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "mcp-auth-mcpkit",
         "counts": {
@@ -3574,8 +3574,8 @@
       "tracking": "issue 521",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 10:19 UTC",
-      "commit": "62b6dee-dirty",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "mcp-auth-ts",
         "counts": {
@@ -3713,8 +3713,8 @@
       "tracking": "issue 496",
       "result": "PASS",
       "detail": "12 modules: map[SUCCESS:12], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-21 10:31 UTC",
-      "commit": "f02d20b",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e",
       "plan": {
         "plan": "mcp-auth-as",
         "counts": {
@@ -3792,18 +3792,18 @@
       "source": "tests/keycloak",
       "result": "PASS",
       "detail": "go test: 68 passed, 0 skipped, 0 failed (top-level tests)",
-      "ran_at": "2026-11-20 07:54 UTC",
-      "commit": "173ea82"
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e"
     },
     {
       "name": "authlete",
       "kind": "info",
       "covers": "Interop with Authlete's java-oauth-server as the authorization server",
       "source": "tests/authlete",
-      "result": "FAIL",
-      "detail": "go test: 14 passed, 0 skipped, 4 failed (top-level tests)",
-      "ran_at": "2026-11-20 07:54 UTC",
-      "commit": "173ea82"
+      "result": "PASS",
+      "detail": "go test: 17 passed, 1 skipped, 0 failed (top-level tests)",
+      "ran_at": "2026-11-21 10:53 UTC",
+      "commit": "2fec03e"
     },
     {
       "name": "oauch",
