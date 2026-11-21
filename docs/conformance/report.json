@@ -3296,8 +3296,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 09:43 UTC",
+      "commit": "aecf2e6-dirty",
       "plan": {
         "plan": "mcp-auth-gosdk",
         "counts": {
@@ -3435,8 +3435,8 @@
       "tracking": "issue 495",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 09:43 UTC",
+      "commit": "aecf2e6-dirty",
       "plan": {
         "plan": "mcp-auth-mcpkit",
         "counts": {
@@ -3574,8 +3574,8 @@
       "tracking": "issue 521",
       "result": "PASS",
       "detail": "23 modules: map[SKIPPED:1 SUCCESS:22], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-20 07:44 UTC",
-      "commit": "173ea82",
+      "ran_at": "2026-11-21 09:43 UTC",
+      "commit": "aecf2e6-dirty",
       "plan": {
         "plan": "mcp-auth-ts",
         "counts": {
@@ -3699,6 +3699,60 @@
           },
           {
             "module": "auth-scope-step-up-www-authenticate-error",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "name": "mcp-auth-as",
+      "kind": "gating",
+      "covers": "The MCP framework's authorization-server scenarios (RFC 8414 metadata, the PKCE authorization code grant with RFC 9207 iss, RFC 9449 DPoP binding) against oneauth-server, with a headless login approving each authorization request",
+      "source": "tests/mcpauth (cmd/exercise-as)",
+      "tracking": "issue 496",
+      "result": "PASS",
+      "detail": "6 modules: map[SUCCESS:5 WARNING:1], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-21 09:43 UTC",
+      "commit": "aecf2e6-dirty",
+      "plan": {
+        "plan": "mcp-auth-as",
+        "counts": {
+          "SUCCESS": 5,
+          "WARNING": 1
+        },
+        "against": 0,
+        "modules": [
+          {
+            "module": "authorization-code-grant",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "authorization-server-metadata",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "authorization-server-metadata-cimd",
+            "result": "WARNING",
+            "verdict": "ok",
+            "expected": "expected-warning",
+            "issue": 532,
+            "note": "Authorization server metadata does not include \"client_id_metadata_document_supported\""
+          },
+          {
+            "module": "sep-1932-as-metadata-alg-values",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "sep-1932-as-no-none-alg",
+            "result": "SUCCESS",
+            "verdict": "ok"
+          },
+          {
+            "module": "sep-1932-as-token-binding",
             "result": "SUCCESS",
             "verdict": "ok"
           }
