@@ -61,7 +61,7 @@ Some suites need a service running in Docker. `docker-compose.yml` defines four 
 
 `make up-all` starts all of them, and it skips Authlete when `AUTHLETE_SERVICEID` and `AUTHLETE_ACCESS_TOKEN` aren't exported. `make -j4 up-all` starts them in parallel. `make ps-all` lists the containers, `make logs-all` follows their logs, and `make down-all` removes them. The OIDF harness keeps its MongoDB volume.
 
-The ports and container names are Makefile variables, and an override moves the container: `make upkcl KC_PORT=8281 && make testkcl KC_PORT=8281`. A bare `docker compose up -d` gives the same containers as the defaults. A test in `tests/conformance/devservices` (part of `make conformance-check`) fails when the compose defaults and the Makefile differ.
+The ports and container names are Makefile variables, and an override moves the container: `make upkcl KC_PORT=8281 && make testkcl KC_PORT=8281`. A bare `docker compose up -d` gives the same containers as the defaults. `devservices_test.go` at the repo root (part of `make test`) fails when the compose defaults and the Makefile differ.
 
 ### Reusable Test Infrastructure (`testutil/`)
 

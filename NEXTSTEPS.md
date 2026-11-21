@@ -5,9 +5,9 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- Active mission: #489, every applicable external conformance suite run from `make conformance`. 9/13 tickets closed. Next ready #519 (OAuch's gaps: repeated parameters, client credentials in the URI, a redirect fragment), then #521 (MCP auth follow-ups) and #243. #496 waits on the upstream MCP AS suite. The OIDF plans now also run nightly in CI (`oidf-conformance.yml`); the run dispatched on main after PR #520 is 44665445346. The last full `make conformance` was for PR #515 at `0ddf191`, and PRs #517, #518, #520 and #522 merged since. JARM (#409) is parked, next ready #410.
-- No open threads. Release v0.3.11 is cut after this checkpoint (PRs #509 to #522).
-- This run: dropped the issue 88 follow-ups line (#421 and #451 closed); no branch threads to merge.
+- Active mission: #489, every applicable external conformance suite run from `make conformance`. 16/17 tickets closed. Nothing ready: #496 waits on the upstream MCP authorization-server suite. The last full `make conformance` ran for PR #530 at `aecf2e6`: 17 gating suites pass, and Authlete (info) fails 4 tests on `invalid_client` because `AUTHLETE_CLIENTID` isn't registered in the service. JARM (#409) is parked, next ready #410.
+- No open threads. Releases v0.3.12 and v0.3.13 are cut; PRs #530 and #531 (`make up-all` over `docker-compose.yml`, issue 243) merged after v0.3.13.
+- This run: no branch threads to merge; refreshed the mission line.
 
 ## Across threads
 

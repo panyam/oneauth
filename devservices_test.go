@@ -1,13 +1,13 @@
-// Package devservices checks docker-compose.yml against the root Makefile
-// (issue 243). The Makefile exports each service's settings and compose
+// These tests check docker-compose.yml against the Makefile (issue 243).
+// They live in the root package, not under tests/conformance, so the
+// native conformance report doesn't count them. The Makefile exports each service's settings and compose
 // reads them, with defaults for a bare `docker compose up`. Every default
 // must equal the Makefile's value, and every variable must be exported, or
 // the two start different containers.
-package devservices
+package oneauth
 
 import (
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -27,9 +27,10 @@ var composeOnly = map[string]bool{"ONEAUTH_COMPOSE_PROJECT": true}
 
 func read(t *testing.T, rel string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", rel))
+	b, err := os.ReadFile(rel)
 	require.NoError(t, err)
-	return string(b)
+	// A Windows checkout may have CRLF line endings.
+	return strings.ReplaceAll(string(b), "\r\n", "\n")
 }
 
 func TestComposeDefaultsMatchTheMakefile(t *testing.T) {
