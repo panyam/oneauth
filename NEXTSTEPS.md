@@ -5,9 +5,9 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- Mission JARM (#409) is at 4/4. `make exercise-jarm` works at a879075 on both targets, and the tampered run is refused. It closes once the user confirms the exercise output. Its follow-ups are #553 and #557, under the uncategorised mission #543. No other mission is active, so the next pick goes through `retriage`.
-- No open threads on main. PRs 548, 551, 552 and 556 merged after v0.3.17, and a release is being cut next.
-- This run: feat/410 to feat/413 merged; fix/537-vulncheck-tag's worktree removed (issue 537 was already closed).
+- No mission is active. JARM (#409) is closed, and #543 (uncategorised later work) is at 2/3 with #553 next. The next pick goes through `retriage`.
+- No open threads on main. PRs 561 (issues 554, 555) and 562 (issue 558) merged after v0.3.19. #563 waits on them: agni and goapplib need a release that carries 561.
+- This run: dropped feat/554-555-oauth2-pushdowns and feat/558-ps256-interop (both merged), and removed their worktrees.
 
 ## Across threads
 
