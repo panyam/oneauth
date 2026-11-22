@@ -54,7 +54,7 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 		}
 		if cfg.CodeFlow.JARM.Enabled {
 			// JARM §4: the algorithms signed responses use, the AS key's.
-			meta.AuthorizationSigningAlgValuesSupported = []string{cfg.JWT.SigningAlg}
+			meta.AuthorizationSigningAlgValuesSupported = jarmSigningAlgs(cfg)
 		}
 		if cfg.CodeFlow.PAR.Enabled {
 			meta.PushedAuthorizationRequestEndpoint = baseURL + "/par"
@@ -237,6 +237,16 @@ func subjectTypes(cfg *Config) []string {
 // token's algorithm, when OIDC is on.
 func userinfoSigningAlgs(cfg *Config) []string {
 	if !cfg.CodeFlow.OIDC {
+		return nil
+	}
+	return []string{cfg.JWT.SigningAlg}
+}
+
+// jarmSigningAlgs is what JARM authorization responses are signed with:
+// the AS key's algorithm, when code_flow.jarm is on. DCR accepts only
+// these for authorization_signed_response_alg.
+func jarmSigningAlgs(cfg *Config) []string {
+	if !cfg.CodeFlow.Enabled || !cfg.CodeFlow.JARM.Enabled {
 		return nil
 	}
 	return []string{cfg.JWT.SigningAlg}

@@ -58,10 +58,11 @@ type AppRegistrationEntity struct {
 	TOSURI                      string `datastore:"tos_uri,noindex"`
 
 	// OIDC Core §8 pairwise subjects (issue 507).
-	SubjectType               string `datastore:"subject_type,noindex"`
-	UserinfoSignedResponseAlg string `datastore:"userinfo_signed_response_alg,noindex"`
-	SectorIdentifierURI       string `datastore:"sector_identifier_uri,noindex"`
-	SectorIdentifier          string `datastore:"sector_identifier,noindex"`
+	SubjectType                    string `datastore:"subject_type,noindex"`
+	UserinfoSignedResponseAlg      string `datastore:"userinfo_signed_response_alg,noindex"`
+	AuthorizationSignedResponseAlg string `datastore:"authorization_signed_response_alg,noindex"`
+	SectorIdentifierURI            string `datastore:"sector_identifier_uri,noindex"`
+	SectorIdentifier               string `datastore:"sector_identifier,noindex"`
 
 	// RFC 7591 §2 response_types (issue 507).
 	ResponseTypes []string `datastore:"response_types,noindex"`
@@ -200,6 +201,7 @@ func appRegToEntity(key *datastore.Key, app *core.AppRegistration) *AppRegistrat
 		TOSURI:                             app.TOSURI,
 		SubjectType:                        app.SubjectType,
 		UserinfoSignedResponseAlg:          app.UserinfoSignedResponseAlg,
+		AuthorizationSignedResponseAlg:     app.AuthorizationSignedResponseAlg,
 		SectorIdentifierURI:                app.SectorIdentifierURI,
 		SectorIdentifier:                   app.SectorIdentifier,
 		ResponseTypes:                      app.ResponseTypes,
@@ -234,6 +236,7 @@ func entityToAppReg(e *AppRegistrationEntity) *core.AppRegistration {
 		TOSURI:                             e.TOSURI,
 		SubjectType:                        e.SubjectType,
 		UserinfoSignedResponseAlg:          e.UserinfoSignedResponseAlg,
+		AuthorizationSignedResponseAlg:     e.AuthorizationSignedResponseAlg,
 		SectorIdentifierURI:                e.SectorIdentifierURI,
 		SectorIdentifier:                   e.SectorIdentifier,
 		ResponseTypes:                      e.ResponseTypes,

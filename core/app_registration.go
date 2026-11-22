@@ -102,6 +102,13 @@ type AppRegistration struct {
 	// answers this client with a JWT signed by the AS key
 	// (application/jwt, OIDC Core §5.3.2). Empty answers with plain JSON.
 	UserinfoSignedResponseAlg string `json:"userinfo_signed_response_alg,omitempty"`
+
+	// AuthorizationSignedResponseAlg is the JARM §3
+	// authorization_signed_response_alg: the algorithm the AS signs this
+	// client's JARM authorization responses with. It doesn't turn JARM on
+	// by itself; the client still asks with response_mode=jwt. Empty uses
+	// the AS's default algorithm.
+	AuthorizationSignedResponseAlg string `json:"authorization_signed_response_alg,omitempty"`
 	// SectorIdentifier is the host a pairwise sub is derived from (OIDC
 	// Core §8.1): the sector_identifier_uri's host, or the redirect URIs'
 	// one host. Registration sets it; it must not change afterwards, or

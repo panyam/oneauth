@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -225,4 +226,36 @@ func TestNewOneAuth_JARMNeedsAnAsymmetricKey(t *testing.T) {
 	assert.Panics(t, func() {
 		NewOneAuth(OneAuthConfig{SigningKey: []byte("0123456789abcdef0123456789abcdef"), Issuer: formPostIssuer, JARM: &JARMConfig{}})
 	})
+}
+
+// registerJARMAlg sets the fixture client's authorization_signed_response_alg.
+func registerJARMAlg(t *testing.T, alg string) func(*OneAuthConfig, *ecdsa.PrivateKey) {
+	return func(cfg *OneAuthConfig, _ *ecdsa.PrivateKey) {
+		cfg.JARM = &JARMConfig{}
+		got, err := cfg.AppStore.GetApp(context.Background(), &core.GetAppRequest{ClientID: "fp"})
+		require.NoError(t, err)
+		got.App.AuthorizationSignedResponseAlg = alg
+		_, err = cfg.AppStore.SaveApp(context.Background(), &core.SaveAppRequest{App: got.App})
+		require.NoError(t, err)
+	}
+}
+
+// A client registered with the AS's algorithm gets responses signed with
+// it (JARM §3, issue 413).
+func TestJARM_RegisteredAlgIsUsed(t *testing.T) {
+	fx := newAuthorizeFixture(t, true, false, registerJARMAlg(t, "ES256"))
+	query, _ := redirectParams(t, fx.get(formPostQuery(t, "jwt")))
+	tok, _, err := jwt.NewParser().ParseUnverified(query.Get("response"), jwt.MapClaims{})
+	require.NoError(t, err)
+	assert.Equal(t, "ES256", tok.Header["alg"])
+}
+
+// A registered algorithm the AS can't sign with fails the response, with
+// an error page, rather than signing with another algorithm the client
+// didn't ask for, or not signing at all.
+func TestJARM_RegisteredAlgTheASCannotSignWithFails(t *testing.T) {
+	fx := newAuthorizeFixture(t, true, false, registerJARMAlg(t, "RS256"))
+	rec := fx.get(formPostQuery(t, "jwt"))
+	assert.Empty(t, rec.Header().Get("Location"))
+	assert.GreaterOrEqual(t, rec.Code, 400)
 }

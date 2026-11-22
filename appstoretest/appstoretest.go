@@ -223,16 +223,17 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 		DPoPBoundAccessTokens:              true,
 		RequirePushedAuthorizationRequests: true,
 
-		JWKSURI:                     "https://full.example/jwks.json",
-		TokenEndpointAuthSigningAlg: "PS256",
-		LogoURI:                     "https://full.example/logo.png",
-		PolicyURI:                   "https://full.example/privacy",
-		TOSURI:                      "https://full.example/terms",
-		SubjectType:                 "pairwise",
-		SectorIdentifierURI:         "https://full.example/sector.json",
-		SectorIdentifier:            "full.example",
-		UserinfoSignedResponseAlg:   "RS256",
-		ResponseTypes:               []string{"code", "id_token token"},
+		JWKSURI:                        "https://full.example/jwks.json",
+		TokenEndpointAuthSigningAlg:    "PS256",
+		LogoURI:                        "https://full.example/logo.png",
+		PolicyURI:                      "https://full.example/privacy",
+		TOSURI:                         "https://full.example/terms",
+		SubjectType:                    "pairwise",
+		SectorIdentifierURI:            "https://full.example/sector.json",
+		SectorIdentifier:               "full.example",
+		UserinfoSignedResponseAlg:      "RS256",
+		AuthorizationSignedResponseAlg: "PS256",
+		ResponseTypes:                  []string{"code", "id_token token"},
 	}
 
 	saveApp(t, s, app)
@@ -302,6 +303,9 @@ func TestAllFieldsRoundTrip(t *testing.T, factory Factory) {
 	}
 	if got.UserinfoSignedResponseAlg != "RS256" {
 		t.Errorf("userinfo_signed_response_alg = %q, want RS256", got.UserinfoSignedResponseAlg)
+	}
+	if got.AuthorizationSignedResponseAlg != "PS256" {
+		t.Errorf("authorization_signed_response_alg = %q, want PS256", got.AuthorizationSignedResponseAlg)
 	}
 	// Losing response_types would drop an implicit client back to code
 	// only after a restart (issue 507).

@@ -302,6 +302,17 @@ func (h *AppRegistrar) validateUserinfoAlg(md *DCRRequest) error {
 	return fmt.Errorf("%w: userinfo_signed_response_alg %q is not supported (userinfo_signing_alg_values_supported)", ErrInvalidClientMetadata, alg)
 }
 
+// validateAuthorizationResponseAlg refuses an
+// authorization_signed_response_alg the AS can't sign JARM responses
+// with, `none` included (JARM §3 forbids it).
+func (h *AppRegistrar) validateAuthorizationResponseAlg(md *DCRRequest) error {
+	alg := md.AuthorizationSignedResponseAlg
+	if alg == "" || slices.Contains(h.AuthorizationSigningAlgs, alg) {
+		return nil
+	}
+	return fmt.Errorf("%w: authorization_signed_response_alg %q is not supported (authorization_signing_alg_values_supported)", ErrInvalidClientMetadata, alg)
+}
+
 // asymmetricJWSAlgs are the algorithms a private_key_jwt client may pin
 // with token_endpoint_auth_signing_alg (RFC 7518 §3.1). Wider than
 // utils.IsAsymmetricAlg, which covers only the algorithms oneauth stores
@@ -507,6 +518,12 @@ type AppRegistrar struct {
 	// refuses every userinfo_signed_response_alg.
 	UserinfoSigningAlgs []string
 
+	// AuthorizationSigningAlgs are the algorithms JARM authorization
+	// responses can be signed with (OneAuth.AuthorizationSigningAlgs). A
+	// registration asking for another authorization_signed_response_alg
+	// is refused. Empty refuses every one, which is right when JARM is off.
+	AuthorizationSigningAlgs []string
+
 	mu   sync.RWMutex
 	apps map[string]*core.AppRegistration
 }
@@ -585,6 +602,9 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 	if err := h.validateUserinfoAlg(md); err != nil {
 		return nil, err
 	}
+	if err := h.validateAuthorizationResponseAlg(md); err != nil {
+		return nil, err
+	}
 	subjectType, sector, err := subjectSector(ctx, md, h.PairwiseSubjects, h.FetchSectorIdentifier)
 	if err != nil {
 		return nil, err
@@ -653,6 +673,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		SubjectType:                        subjectType,
 		SectorIdentifierURI:                md.SectorIdentifierURI,
 		UserinfoSignedResponseAlg:          md.UserinfoSignedResponseAlg,
+		AuthorizationSignedResponseAlg:     md.AuthorizationSignedResponseAlg,
 		ResponseTypes:                      responseTypes,
 	}
 
@@ -719,6 +740,7 @@ func (h *AppRegistrar) Register(ctx context.Context, req *RegisterRequest) (*Reg
 		SubjectType:                        subjectType,
 		SectorIdentifierURI:                md.SectorIdentifierURI,
 		UserinfoSignedResponseAlg:          md.UserinfoSignedResponseAlg,
+		AuthorizationSignedResponseAlg:     md.AuthorizationSignedResponseAlg,
 		SectorIdentifier:                   sector,
 		ResponseTypes:                      responseTypes,
 	}
@@ -961,6 +983,7 @@ func (h *AppRegistrar) GetRegistration(ctx context.Context, req *GetRegistration
 			SubjectType:                        reg.SubjectType,
 			SectorIdentifierURI:                reg.SectorIdentifierURI,
 			UserinfoSignedResponseAlg:          reg.UserinfoSignedResponseAlg,
+			AuthorizationSignedResponseAlg:     reg.AuthorizationSignedResponseAlg,
 			ResponseTypes:                      reg.ResponseTypes,
 		},
 	}, nil
@@ -1043,6 +1066,9 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	if err := h.validateUserinfoAlg(md); err != nil {
 		return nil, err
 	}
+	if err := h.validateAuthorizationResponseAlg(md); err != nil {
+		return nil, err
+	}
 	if reg.SectorIdentifierURI != "" {
 		check := *md
 		check.SubjectType, check.SectorIdentifierURI = reg.SubjectType, reg.SectorIdentifierURI
@@ -1083,6 +1109,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 	reg.PolicyURI = md.PolicyURI
 	reg.TOSURI = md.TOSURI
 	reg.UserinfoSignedResponseAlg = md.UserinfoSignedResponseAlg
+	reg.AuthorizationSignedResponseAlg = md.AuthorizationSignedResponseAlg
 
 	if err := h.SaveRegistration(ctx, reg); err != nil {
 		return nil, err
@@ -1113,6 +1140,7 @@ func (h *AppRegistrar) UpdateRegistration(ctx context.Context, req *UpdateRegist
 			SubjectType:                        reg.SubjectType,
 			SectorIdentifierURI:                reg.SectorIdentifierURI,
 			UserinfoSignedResponseAlg:          reg.UserinfoSignedResponseAlg,
+			AuthorizationSignedResponseAlg:     reg.AuthorizationSignedResponseAlg,
 			ResponseTypes:                      reg.ResponseTypes,
 		},
 	}, nil

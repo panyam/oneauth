@@ -5,11 +5,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
 	"slices"
+
+	"github.com/panyam/oneauth/core"
 )
 
 // Response modes for the authorization response (OAuth 2.0 Multiple
@@ -163,7 +166,12 @@ func (h *AuthorizationHandler) newResponse(req *AuthorizationRequest, values url
 	if signed && h.ResponseSigner != nil {
 		signer, clientID := h.ResponseSigner, req.ClientID
 		resp.sign = func(params url.Values) (string, error) {
-			out, err := signer.SignAuthorizationResponse(context.Background(), &SignAuthorizationResponseRequest{ClientID: clientID, Params: params})
+			ctx := context.Background()
+			alg, err := h.registeredResponseAlg(ctx, clientID)
+			if err != nil {
+				return "", err
+			}
+			out, err := signer.SignAuthorizationResponse(ctx, &SignAuthorizationResponseRequest{ClientID: clientID, Alg: alg, Params: params})
 			if err != nil {
 				return "", err
 			}
@@ -171,6 +179,28 @@ func (h *AuthorizationHandler) newResponse(req *AuthorizationRequest, values url
 		}
 	}
 	return resp
+}
+
+// registeredResponseAlg is the client's authorization_signed_response_alg
+// (JARM §3), or "" for the signer's default. Without an AppStore, or for
+// a client it doesn't know (AllowAnyRedirectURI), that is the default. A
+// lookup that fails otherwise is an error, so the response isn't signed
+// with an algorithm the client didn't register.
+func (h *AuthorizationHandler) registeredResponseAlg(ctx context.Context, clientID string) (string, error) {
+	if h.AppStore == nil {
+		return "", nil
+	}
+	resp, err := h.AppStore.GetApp(ctx, &core.GetAppRequest{ClientID: clientID})
+	if errors.Is(err, core.ErrAppNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("jarm: look up client %s: %w", clientID, err)
+	}
+	if resp == nil || resp.App == nil {
+		return "", nil
+	}
+	return resp.App.AuthorizationSignedResponseAlg, nil
 }
 
 // authorizeFormPostData drives the FormPost template. Fields are the

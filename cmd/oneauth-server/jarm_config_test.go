@@ -22,6 +22,8 @@ func TestJARMConfig(t *testing.T) {
 	on := serverASMetadata(cfg, "https://as.example", true)
 	assert.Equal(t, []string{"query", "form_post", "jwt", "query.jwt", "fragment.jwt", "form_post.jwt"}, on.ResponseModesSupported)
 	assert.Equal(t, []string{"ES256"}, on.AuthorizationSigningAlgValuesSupported)
+	assert.Equal(t, []string{"ES256"}, jarmSigningAlgs(cfg), "DCR accepts what discovery advertises (issue 413)")
+	assert.Nil(t, jarmSigningAlgs(&Config{}), "JARM off: DCR refuses every authorization_signed_response_alg")
 
 	hmac := *cfg
 	hmac.JWT.SigningAlg = ""

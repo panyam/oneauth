@@ -252,21 +252,22 @@ var (
 // clientMetadataDocument is the part of an RFC 7591 client metadata
 // document a CIMD client's registration uses.
 type clientMetadataDocument struct {
-	ClientID                    string          `json:"client_id"`
-	ClientName                  string          `json:"client_name"`
-	ClientURI                   string          `json:"client_uri"`
-	RedirectURIs                []string        `json:"redirect_uris"`
-	GrantTypes                  []string        `json:"grant_types"`
-	ResponseTypes               []string        `json:"response_types"`
-	Scope                       string          `json:"scope"`
-	TokenEndpointAuthMethod     string          `json:"token_endpoint_auth_method"`
-	TokenEndpointAuthSigningAlg string          `json:"token_endpoint_auth_signing_alg"`
-	JWKSURI                     string          `json:"jwks_uri"`
-	JWKS                        json.RawMessage `json:"jwks"`
-	PolicyURI                   string          `json:"policy_uri"`
-	TOSURI                      string          `json:"tos_uri"`
-	ClientSecret                *string         `json:"client_secret"`
-	ClientSecretExpiresAt       json.RawMessage `json:"client_secret_expires_at"`
+	ClientID                       string          `json:"client_id"`
+	ClientName                     string          `json:"client_name"`
+	ClientURI                      string          `json:"client_uri"`
+	RedirectURIs                   []string        `json:"redirect_uris"`
+	GrantTypes                     []string        `json:"grant_types"`
+	ResponseTypes                  []string        `json:"response_types"`
+	Scope                          string          `json:"scope"`
+	TokenEndpointAuthMethod        string          `json:"token_endpoint_auth_method"`
+	TokenEndpointAuthSigningAlg    string          `json:"token_endpoint_auth_signing_alg"`
+	AuthorizationSignedResponseAlg string          `json:"authorization_signed_response_alg"`
+	JWKSURI                        string          `json:"jwks_uri"`
+	JWKS                           json.RawMessage `json:"jwks"`
+	PolicyURI                      string          `json:"policy_uri"`
+	TOSURI                         string          `json:"tos_uri"`
+	ClientSecret                   *string         `json:"client_secret"`
+	ClientSecretExpiresAt          json.RawMessage `json:"client_secret_expires_at"`
 }
 
 // validateClientMetadataDocument checks body as the metadata document for
@@ -329,18 +330,19 @@ func validateClientMetadataDocument(clientID string, body []byte, supportedGrant
 		return nil, fmt.Errorf("%w: none of the document's response_types is supported", ErrInvalidClientMetadata)
 	}
 	app := &core.AppRegistration{
-		ClientID:                    clientID,
-		ClientName:                  doc.ClientName,
-		ClientURI:                   doc.ClientURI,
-		RedirectURIs:                doc.RedirectURIs,
-		GrantTypes:                  grants,
-		ResponseTypes:               responses,
-		Scope:                       doc.Scope,
-		TokenEndpointAuthMethod:     method,
-		TokenEndpointAuthSigningAlg: doc.TokenEndpointAuthSigningAlg,
-		JWKSURI:                     doc.JWKSURI,
-		PolicyURI:                   doc.PolicyURI,
-		TOSURI:                      doc.TOSURI,
+		ClientID:                       clientID,
+		ClientName:                     doc.ClientName,
+		ClientURI:                      doc.ClientURI,
+		RedirectURIs:                   doc.RedirectURIs,
+		GrantTypes:                     grants,
+		ResponseTypes:                  responses,
+		Scope:                          doc.Scope,
+		TokenEndpointAuthMethod:        method,
+		TokenEndpointAuthSigningAlg:    doc.TokenEndpointAuthSigningAlg,
+		AuthorizationSignedResponseAlg: doc.AuthorizationSignedResponseAlg,
+		JWKSURI:                        doc.JWKSURI,
+		PolicyURI:                      doc.PolicyURI,
+		TOSURI:                         doc.TOSURI,
 	}
 	if hasJWKS {
 		app.JWKS = doc.JWKS

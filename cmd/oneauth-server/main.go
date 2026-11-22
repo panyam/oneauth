@@ -172,6 +172,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 	registrar.FetchSectorIdentifier = clientFetcher.SectorRedirectURIs
 	registrar.PairwiseSubjects = cfg.CodeFlow.OIDC && cfg.CodeFlow.PairwiseSalt != ""
 	registrar.UserinfoSigningAlgs = userinfoSigningAlgs(cfg)
+	registrar.AuthorizationSigningAlgs = jarmSigningAlgs(cfg)
 	registrar.AllowImplicit = cfg.CodeFlow.Enabled && cfg.CodeFlow.Implicit
 	if cfg.AdminAuth.AllowPrivateClientHosts {
 		log.Printf("WARNING: admin_auth.allow_private_client_hosts is on. Clients can make this server fetch from private addresses; use it only for test harnesses.")
