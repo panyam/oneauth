@@ -5,9 +5,9 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 ## At a glance
 
-- No mission is active. JARM (#409) is closed, and #543 (uncategorised later work) is at 2/3 with #553 next. The next pick goes through `retriage`.
-- No open threads on main. PRs 561 (issues 554, 555) and 562 (issue 558) merged after v0.3.19. #563 waits on them: agni and goapplib need a release that carries 561.
-- This run: dropped feat/554-555-oauth2-pushdowns and feat/558-ps256-interop (both merged), and removed their worktrees.
+- No mission is active, and #543 has nothing ready. The next pick goes through `retriage`.
+- No open threads on main. PRs 561, 562, 564 and 565 merged after v0.3.19, and v0.3.20 is being cut next. #563 (goapplib and agni consumers) waits on that release.
+- This run: dropped fix/553-unpublished-module-bumps and feat/563-id-token-jti (both merged), and removed their worktrees.
 
 ## Across threads
 
