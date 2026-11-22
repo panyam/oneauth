@@ -6,6 +6,7 @@ toolchain go1.27.4
 
 require (
 	github.com/panyam/s3gen v0.1.6
+	github.com/stretchr/testify v1.12.1
 	github.com/yuin/goldmark v1.8.2
 	github.com/yuin/goldmark-highlighting v0.0.0-20220208100518-594be1970594
 	go.abhg.dev/goldmark/anchor v0.2.0
@@ -24,7 +25,7 @@ require (
 	github.com/panyam/templar v0.1.3 // indirect
 	github.com/radovskyb/watcher v1.0.7 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
-	github.com/stretchr/testify v1.12.1 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

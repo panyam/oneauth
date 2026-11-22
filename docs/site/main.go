@@ -19,16 +19,23 @@ import (
 	"flag"
 	"html/template"
 	"log"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
 
 	s3 "github.com/panyam/s3gen"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting"
+	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 	"go.abhg.dev/goldmark/anchor"
 )
 
@@ -103,7 +110,9 @@ func renderMarkdownFile(relPath string) template.HTML {
 		return ""
 	}
 	var buf bytes.Buffer
-	if err := markdown.Convert(data, &buf); err != nil {
+	ctx := parser.NewContext()
+	ctx.Set(sourcePathKey, filepath.ToSlash(filepath.Clean(relPath)))
+	if err := markdown.Convert(data, &buf, parser.WithContext(ctx)); err != nil {
 		log.Printf("docs/site: render %s: %v", relPath, err)
 		return ""
 	}
@@ -118,13 +127,118 @@ var markdown = goldmark.New(
 		highlighting.NewHighlighting(highlighting.WithStyle("github")),
 		&anchor.Extender{},
 	),
-	goldmark.WithParserOptions(parser.WithAutoHeadingID()),
+	goldmark.WithParserOptions(
+		parser.WithAutoHeadingID(),
+		parser.WithASTTransformers(util.Prioritized(linkRewriter{}, 100)),
+	),
 	goldmark.WithRendererOptions(
 		html.WithHardWraps(),
 		html.WithXHTML(),
 		html.WithUnsafe(),
 	),
 )
+
+// githubBlob is where a repo file without a page of its own is linked.
+const githubBlob = "https://github.com/panyam/oneauth/blob/main/"
+
+// sourcePathKey carries the markdown file's repo path into linkRewriter.
+var sourcePathKey = parser.NewContextKey()
+
+// renderCall finds the markdown file a content page renders.
+var renderCall = regexp.MustCompile(`renderMarkdownFile "([^"]+)"`)
+
+// linkRewriter points relative links at the site instead of at repo paths
+// (issue 557). A doc links to another file as GitHub sees the repo, so
+// `[FAPI](FAPI.md)` resolved against the page URL 404s on the site.
+type linkRewriter struct{}
+
+func (linkRewriter) Transform(doc *ast.Document, _ text.Reader, pc parser.Context) {
+	src, _ := pc.Get(sourcePathKey).(string)
+	if src == "" {
+		return
+	}
+	pages := sitePages()
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if link, ok := n.(*ast.Link); ok && entering {
+			link.Destination = []byte(rewriteLink(src, string(link.Destination), pages))
+		}
+		return ast.WalkContinue, nil
+	})
+}
+
+// rewriteLink maps a relative link dest, written in the markdown file src,
+// to where the site serves it: the page that renders the target file, or
+// the file on GitHub. A dest with a scheme, an absolute path, a bare
+// fragment, or a target outside the repo or missing from it comes back
+// unchanged.
+func rewriteLink(src, dest string, pages map[string]string) string {
+	if dest == "" || strings.HasPrefix(dest, "#") || strings.HasPrefix(dest, "/") {
+		return dest
+	}
+	if u, err := url.Parse(dest); err != nil || u.Scheme != "" {
+		return dest
+	}
+	target, frag, _ := strings.Cut(dest, "#")
+	if frag != "" {
+		frag = "#" + frag
+	}
+	p := path.Clean(path.Join(path.Dir(src), target))
+	if p == ".." || strings.HasPrefix(p, "../") {
+		return dest
+	}
+	if page, ok := pages[p]; ok {
+		return page + frag
+	}
+	if full, ok := safeJoin(p); ok {
+		if _, err := os.Stat(full); err == nil {
+			return githubBlob + p + frag
+		}
+	}
+	return dest
+}
+
+// pagesForSources maps each markdown file a page under contentRoot renders
+// to that page's URL: content/specs/jarm.html is prefix/specs/jarm/, and
+// an index.html is its directory's URL.
+func pagesForSources(contentRoot, prefix string) map[string]string {
+	pages := map[string]string{}
+	_ = filepath.Walk(contentRoot, func(file string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(file, ".html") {
+			return nil
+		}
+		body, err := os.ReadFile(file)
+		if err != nil {
+			return nil
+		}
+		m := renderCall.FindSubmatch(body)
+		if m == nil {
+			return nil
+		}
+		rel, err := filepath.Rel(contentRoot, file)
+		if err != nil {
+			return nil
+		}
+		route := strings.TrimSuffix(filepath.ToSlash(rel), ".html")
+		route = strings.TrimSuffix(strings.TrimSuffix(route, "index"), "/")
+		pageURL := prefix + "/"
+		if route != "" {
+			pageURL += route + "/"
+		}
+		pages[path.Clean(string(m[1]))] = pageURL
+		return nil
+	})
+	return pages
+}
+
+var (
+	sitePagesOnce sync.Once
+	sitePagesMap  map[string]string
+)
+
+func sitePages() map[string]string {
+	sitePagesOnce.Do(func() { sitePagesMap = pagesForSources(Site.ContentRoot, Site.PathPrefix) })
+	return sitePagesMap
+}
 
 // Site is the s3gen configuration. PathPrefix matches the repository
 // name so links resolve correctly when GitHub Pages serves the site
