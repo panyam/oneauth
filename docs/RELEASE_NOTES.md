@@ -5,6 +5,57 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.18
+
+This release finishes JWT Secured Authorization Response Mode (JARM). A FAPI client can ask for `response_mode=jwt` and get its authorization response back as one JWT that the AS signs. The client SDK verifies it before it uses the code. `make exercise-jarm` logs in this way against oneauth-server and against Keycloak, and refuses a response with a tampered signature.
+
+### Contract changes
+
+- **New optional `OneAuthConfig.JARM` (PR 551).** Nil, the default, keeps today's behavior, and the JARM modes stay refused with `invalid_request`. Set, it needs an RS256 or ES256 key, and `NewOneAuth` panics on an HMAC secret or an empty issuer.
+- **`AuthorizationResponse` gains `Signed` and `Params()` (PR 551).** For a JARM response, `Mode` is the base delivery mode (`query.jwt` is `ResponseModeQuery`), and `Params()` returns the one `response` parameter. `RedirectURL` signs too, and it returns an error when signing fails.
+- **A JARM response carries RFC 9207 `iss` inside the JWT, not on the URL (PR 551).** A client checking `iss` on a JARM redirect has to read it from the verified JWT.
+- **`LoginWithBrowser` with a JARM `ResponseMode` now verifies the response (PR 552).** In v0.3.17 it refused every callback. It now takes `code` and `state` from a `response` JWT that passes `client.VerifyAuthorizationResponse`. A plain `code` under a JARM mode still fails with `ErrUnverifiedAuthorizationResponse`.
+- **`LoginWithBrowser` refuses `fragment` and `fragment.jwt` before it opens the browser (PR 552).** A fragment never reaches the loopback server, so these used to time out.
+- **New `core.AppRegistration.AuthorizationSignedResponseAlg` (PR 556).** The gorm store adds a column on the next `AutoMigrate`. The gae entity and the fs store need nothing.
+- **DCR now refuses `authorization_signed_response_alg` it can't serve (PR 556).** On an AS without JARM that means every value. Before, DCR dropped the field silently and answered 201.
+
+### Signed authorization responses at the AS (issue 411, PR 551)
+
+- `/authorize` accepts `jwt`, `query.jwt`, `fragment.jwt` and `form_post.jwt`, through PAR too. `jwt` means `query.jwt` for `code` and `fragment.jwt` for the implicit types. `query.jwt` is refused for the implicit types, like `query`.
+- The JWT carries `iss`, `aud` (the client_id), a 60-second `exp` (`JARMConfig.Expiry`), `state`, and the code or error. It's signed with the AS key, with the `kid` the JWKS publishes.
+- Errors that go to the redirect_uri are signed too. A response the AS can't sign shows a `server_error` page, and never goes out unsigned.
+- AS metadata lists the JARM modes in `response_modes_supported`, and adds `authorization_signing_alg_values_supported` (`ASServerMetadata.AuthorizationSigningAlgValuesSupported`, `OneAuth.AuthorizationSigningAlgs`).
+- oneauth-server turns it on with `code_flow.jarm.enabled`, and refuses to start with it under an HMAC key or without the code flow.
+
+### Verifying them in the client SDK (issue 412, PR 552)
+
+- `client.VerifyAuthorizationResponse` checks a JARM response: an asymmetric signature by a key in the AS's JWKS, `iss` equal to the discovered issuer, `aud` containing the client, and an unexpired `exp`. Failures wrap `ErrUnverifiedAuthorizationResponse`.
+- An `error` inside a verified response comes back as a `*CallbackError`, like a denial on a plain response.
+- The loopback callback reads a POSTed form, so `form_post.jwt` works.
+- Keycloak 26's JARM JWT repeats `iss`. The last value wins, as `encoding/json` does, so its responses verify.
+- `oneauth token browser --response-mode jwt` verifies the response the same way.
+
+### Registering the signing algorithm (issue 413, PR 556)
+
+- A client registers `authorization_signed_response_alg` through DCR (JARM §3). DCR accepts only `AppRegistrar.AuthorizationSigningAlgs`, so `none` is refused. Every app store keeps the field, CIMD documents carry it, and register, read and RFC 7592 update echo it.
+- The AS signs with the client's registered algorithm. One it can't sign with fails the response with `server_error`.
+- Registering an algorithm doesn't turn JARM on. The client still asks with `response_mode=jwt`, as Keycloak does. With none registered, the AS uses its own key's algorithm, not the RS256 JARM §3 names.
+- `client.ClientRegistrationRequest` and `ClientRegistrationResponse` get the field, and `oneauth dcr register` and `put` get `--authorization-signed-response-alg`.
+- Not done: PS256 with an RSA key, since the JWKS lists the key under RS256 only (issue 557), and encrypted responses.
+
+### Testing and conformance
+
+- `make exercise-jarm` passes on both targets, and a third run flips one character of the response signature and must be refused. It runs as the gating `jarm` suite in `make conformance`.
+- `TestKeycloak_JARMLogin` logs in with `jwt`, `query.jwt` and `form_post.jwt` against Keycloak's PS256 responses.
+- `testutil.KeycloakPasswordLogin` submits a form_post response page, as a browser's script would.
+- `tests/keycloak/go.mod` follows the root version again, after the v0.3.17 and v0.3.18 releases left it behind (issue 553).
+
+### Docs and CI
+
+- A JARM page on the docsite (`specs/jarm`), linked from the specs index and the nav. The FAPI and landscape pages no longer list JARM as a gap, and the client SDK guide covers `ResponseMode`.
+- The browser auth guide documents `oidc.Provider.LogoutURL` from v0.3.17.
+- The vulncheck workflow moves to `panyam/ci-actions` v0.1.4, which titles the issue it files by what stopped the scan.
+
 ## Version 0.3.17
 
 This release lets an app list every API key and sweep the expired ones through the store interface. It also adds OIDC RP-initiated logout, stops the GitHub and Google callbacks from echoing the state cookie, and adds the JARM mission's exercise.
