@@ -13,4 +13,3 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 - Token-slice candidates not filed: real logout tokens / ID-JAGs at the middleware (e2e), GORM rotation under real Postgres concurrency, a test on the server's own `/api/revoke`, the SDK on 403.
 - OAuch runs by hand (`docs/conformance/oauch.md`). Rerun it after a change to security headers or the authorization pages, and update the `oauch` entry in `conformance/suites.yaml`.
-- `realm.json` changed in PRs 545, 547 and 548 (`test-jarm`). The shared Keycloak on :8180 still has the old realm, and the `oauth2/oidc` interop tests, `make exercise-jarm` and the `jarm` conformance suite fail on it. Run `make downkcl` before `make testkcl`.
