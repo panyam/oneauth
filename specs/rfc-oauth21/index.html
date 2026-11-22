@@ -195,8 +195,8 @@
 <p><strong>Status:</strong> Internet-Draft (active)<br />
 <strong>Latest:</strong> <a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/">draft-ietf-oauth-v2-1</a><br />
 <strong>L-tier / T-tier:</strong> L0 · T0–T8 (foundational)<br />
-<strong>OneAuth coverage:</strong> Baseline alignment landed in PR 296 (issue 140). Audit table: <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a><br />
-<strong>See also:</strong> <a href="RFC_6749.md"><code>RFC_6749.md</code></a> · <a href="RFC_9700.md"><code>RFC_9700.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>OneAuth coverage:</strong> Baseline alignment landed in PR 296 (issue 140). Audit table: <a href="/oneauth/guides/oauth21-alignment/"><code>docs/OAUTH21_ALIGNMENT.md</code></a><br />
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-6749/"><code>RFC_6749.md</code></a> · <a href="/oneauth/specs/rfc-9700/"><code>RFC_9700.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>OAuth 2.1 is RFC 6749 with the Security BCP (RFC 9700), PKCE (RFC 7636), and<br />
@@ -329,7 +329,7 @@ that checklist:</p>
 <h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
 <p>There is no &ldquo;2.1 wire format&rdquo; — the wire is still 6749&rsquo;s wire. What 2.1<br />
 changes is what&rsquo;s <em>required</em> vs <em>allowed</em>. The example from<br />
-<a href="RFC_6749.md"><code>RFC_6749.md</code></a> is already 2.1-compliant because it carries<br />
+<a href="/oneauth/specs/rfc-6749/"><code>RFC_6749.md</code></a> is already 2.1-compliant because it carries<br />
 PKCE (S256), an <code>iss</code> on the redirect, and exact redirect URI matching at<br />
 both registration and authorization. Under pre-2.1, the same <code>/authorize</code><br />
 request without <code>code_challenge</code> would have been accepted. Under 2.1, it&rsquo;s<br />
@@ -362,7 +362,7 @@ promotion date. The major IdPs (Google, GitHub, Azure AD, Okta, Auth0) ship<br /
 bearer is widely off — but they brand themselves as &ldquo;OAuth 2.0 with<br />
 [selected] BCP defenses,&rdquo; not as &ldquo;OAuth 2.1.&rdquo; That&rsquo;s a fair stance.</p>
 <p>For OneAuth, see the audit-table verdict in<br />
-<a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>. The shortcut:</p>
+<a href="/oneauth/guides/oauth21-alignment/"><code>docs/OAUTH21_ALIGNMENT.md</code></a>. The shortcut:</p>
 <ul>
 <li>Compliant by default on all 9 rows of the audit table.</li>
 <li>ROPC and query-param bearer are off unless a deployment opts in (issues 294 and 295, both closed). <code>FAPI2</code> refuses ROPC outright.</li>
@@ -398,10 +398,10 @@ too — you&rsquo;d lose interop with every production IdP.</li>
 that haven&rsquo;t yet shipped PKCE on their client SDKs, you&rsquo;ll leave 6749-only<br />
 flows enabled for the deprecation window. 2.1 is a destination — pace it.<br />
 OneAuth&rsquo;s own ROPC and query-param-bearer carve-outs (see<br />
-<a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a> rows 3 and 7) are<br />
+<a href="/oneauth/guides/oauth21-alignment/"><code>docs/OAUTH21_ALIGNMENT.md</code></a> rows 3 and 7) are<br />
 exactly this kind of deprecation window.</p>
 <h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
-<p>The single source of truth is <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>.<br />
+<p>The single source of truth is <a href="/oneauth/guides/oauth21-alignment/"><code>docs/OAUTH21_ALIGNMENT.md</code></a>.<br />
 The row-by-row table there is kept in lock-step with the codebase as each<br />
 non-compliance is closed. As of 0.2.1:</p>
 <table>
@@ -461,14 +461,14 @@ non-compliance is closed. As of 0.2.1:</p>
 </tbody>
 </table>
 <p>If a row above moves, update <code>docs/OAUTH21_ALIGNMENT.md</code> <em>and</em> this doc <em>and</em><br />
-<a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a> §6 in the same change.</p>
+<a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a> §6 in the same change.</p>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
-<li><a href="RFC_6749.md">RFC 6749</a> — the framework 2.1 builds on</li>
-<li><a href="RFC_6750.md">RFC 6750</a> — Bearer; 2.1 §5 mostly re-exports 6750 with the query-string carve-out removed</li>
-<li><a href="RFC_7636.md">RFC 7636</a> — PKCE; 2.1 makes it universal</li>
-<li><a href="RFC_9700.md">RFC 9700</a> — the BCP whose <em>normative</em> recommendations 2.1 promotes to MUST</li>
-<li><a href="RFC_9207.md">RFC 9207</a> — <code>iss</code> on redirect; 2.1 mandates</li>
+<li><a href="/oneauth/specs/rfc-6749/">RFC 6749</a> — the framework 2.1 builds on</li>
+<li><a href="/oneauth/specs/rfc-6750/">RFC 6750</a> — Bearer; 2.1 §5 mostly re-exports 6750 with the query-string carve-out removed</li>
+<li><a href="/oneauth/specs/rfc-7636/">RFC 7636</a> — PKCE; 2.1 makes it universal</li>
+<li><a href="/oneauth/specs/rfc-9700/">RFC 9700</a> — the BCP whose <em>normative</em> recommendations 2.1 promotes to MUST</li>
+<li><a href="/oneauth/specs/rfc-9207/">RFC 9207</a> — <code>iss</code> on redirect; 2.1 mandates</li>
 <li><a href="https://datatracker.ietf.org/doc/rfc8252/">RFC 8252</a> — Native Apps; loopback redirect exemption</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>

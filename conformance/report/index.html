@@ -3776,8 +3776,8 @@
 <td>oidf</td>
 <td><code>fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails</code> (1 plan)</td>
 <td>expected-skip</td>
-<td>330</td>
-<td>The harness runs this only with an RSA client key, and the plan&rsquo;s clients use ES256 because oneauth can&rsquo;t register a PS256 client yet (issue 330). The harness says the skip doesn&rsquo;t block certification.</td>
+<td>558</td>
+<td>The harness runs this only with an RSA client key, and the plan&rsquo;s clients use ES256. oneauth can register a PS256 client since issue 330, so a plan client with an RSA key should turn this into a pass (issue 558). The harness says the skip doesn&rsquo;t block certification.</td>
 </tr>
 <tr>
 <td>open</td>

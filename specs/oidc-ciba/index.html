@@ -196,7 +196,7 @@
 <strong>Published:</strong> 2021 (final)<br />
 <strong>L-tier / T-tier:</strong> L4 (grant) + L7 (identity) · T5<br />
 <strong>OneAuth coverage:</strong> Gap (#341)<br />
-<strong>See also:</strong> <a href="RFC_8628.md"><code>RFC_8628.md</code></a> · <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-8628/"><code>RFC_8628.md</code></a> · <a href="/oneauth/specs/oidc-core/"><code>OIDC_Core.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>CIBA lets a client <em>initiate authentication for a specific user</em> via a<br />
@@ -340,7 +340,7 @@ this id_token corresponds to that specific authentication request.</p>
 <li><strong>L4 grant + L7 identity.</strong> CIBA is <em>both</em> a new grant type AND an<br />
 OIDC-specific identity flow.</li>
 <li><strong>T5 (token endpoint).</strong> No redirect, no browser at the client.</li>
-<li><strong>Sibling solution: <a href="RFC_8628.md">RFC 8628 device flow</a></strong> — device<br />
+<li><strong>Sibling solution: <a href="/oneauth/specs/rfc-8628/">RFC 8628 device flow</a></strong> — device<br />
 flow assumes the user can read a code; CIBA assumes the user gets a<br />
 push. Pick by the user-side UX you actually have.</li>
 </ul>
@@ -422,7 +422,7 @@ the user&rsquo;s device via push. Without that, you can&rsquo;t ship it.</li>
 <tr>
 <td><code>id_token</code> issuance</td>
 <td><strong>Gap</strong></td>
-<td>Foundational; see <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a> (#339)</td>
+<td>Foundational; see <a href="/oneauth/specs/oidc-core/"><code>OIDC_Core.md</code></a> (#339)</td>
 </tr>
 </tbody>
 </table>
@@ -435,10 +435,10 @@ for CIBA — AI agents calling APIs that need just-in-time user consent map<br /
 directly onto CIBA&rsquo;s design intent.</p>
 <h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
 <ul>
-<li><a href="OIDC_Core.md">OIDC Core</a> — id_token issuance is a prerequisite</li>
-<li><a href="OIDC_Discovery.md">OIDC Discovery</a> — CIBA metadata advertised here</li>
-<li><a href="RFC_8628.md">RFC 8628 Device Authorization</a> — sibling decoupled-auth pattern</li>
-<li><a href="RFC_9396.md">RFC 9396 RAR</a> — <code>binding_message</code> plus RAR&rsquo;s structured <code>authorization_details</code> gives the user precise context on what they&rsquo;re approving</li>
+<li><a href="/oneauth/specs/oidc-core/">OIDC Core</a> — id_token issuance is a prerequisite</li>
+<li><a href="/oneauth/specs/oidc-discovery/">OIDC Discovery</a> — CIBA metadata advertised here</li>
+<li><a href="/oneauth/specs/rfc-8628/">RFC 8628 Device Authorization</a> — sibling decoupled-auth pattern</li>
+<li><a href="/oneauth/specs/rfc-9396/">RFC 9396 RAR</a> — <code>binding_message</code> plus RAR&rsquo;s structured <code>authorization_details</code> gives the user precise context on what they&rsquo;re approving</li>
 <li>Repo issue 125 — AI-agent auth track that naturally hosts CIBA work</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>

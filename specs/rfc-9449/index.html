@@ -196,7 +196,7 @@
 <strong>Published:</strong> 2023-09<br />
 <strong>L-tier / T-tier:</strong> L5 · T5 (issue) + T6 (present proof) + T7 (verify)<br />
 <strong>OneAuth coverage:</strong> Implemented — issuance (<code>cnf.jkt</code>, bound refresh tokens), resource-server enforcement, <code>dpop_jkt</code> at <code>/authorize</code> and on a pushed request, the §8/§9 nonce protocol, and client SDK proof minting with nonce retry<br />
-<strong>See also:</strong> <a href="RFC_8705.md"><code>RFC_8705.md</code></a> · <a href="RFC_9068.md"><code>RFC_9068.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-8705/"><code>RFC_8705.md</code></a> · <a href="/oneauth/specs/rfc-9068/"><code>RFC_9068.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>DPoP binds an access token to a key the <em>client itself</em> generates — letting<br />
@@ -272,7 +272,7 @@ header has <code>typ:&quot;dpop+jwt&quot;</code>, an embedded <code>jwk</code> (
 <li><strong>Two binding points:</strong>
 <ul>
 <li>At <code>/token</code>: AS issues an access token with <code>cnf.jkt</code> = thumbprint<br />
-of the proof key (RFC 7638 thumbprint, per <a href="RFC_7517.md">RFC 7517</a>).</li>
+of the proof key (RFC 7638 thumbprint, per <a href="/oneauth/specs/rfc-7517/">RFC 7517</a>).</li>
 <li>At the RS: every request carries a DPoP proof bound to (method, URL,<br />
 access-token hash); RS verifies the proof key matches <code>cnf.jkt</code>.</li>
 </ul>
@@ -361,7 +361,7 @@ Mismatch → reject.</li>
 <li><strong>L5 token sender constraint.</strong> DPoP is the public-client / no-PKI path.</li>
 <li><strong>T5 (issue)</strong> + <strong>T6 (present proof on every request)</strong> + <strong>T7<br />
 (verify proof + cnf match)</strong>.</li>
-<li>Sibling spec: <strong><a href="RFC_8705.md">RFC 8705 mTLS</a></strong> — same property<br />
+<li>Sibling spec: <strong><a href="/oneauth/specs/rfc-8705/">RFC 8705 mTLS</a></strong> — same property<br />
 (sender constraint) via TLS rather than app layer. Choose by deployment<br />
 topology.</li>
 </ul>
@@ -605,7 +605,7 @@ endpoint checks <code>htu</code> against its own path on <code>EndpointURL</code
 <code>jwt.disable_refresh_token_rotation</code>. <code>deploy-examples/fapi-dpop.yaml</code> sets<br />
 all of them along with <code>fapi2: true</code>.</p>
 <p>The full requirement-by-requirement matrix is in<br />
-<a href="../SECURITY_AUDIT.md"><code>docs/SECURITY_AUDIT.md</code></a>.</p>
+<a href="/oneauth/conformance/security-audit/"><code>docs/SECURITY_AUDIT.md</code></a>.</p>
 <p><strong>What is left.</strong></p>
 <ol>
 <li>A <code>TokenBindingValidator</code> interface (shared seam with mTLS) — deferred<br />
@@ -613,18 +613,18 @@ on purpose until #335 makes the second shape visible, since an<br />
 interface with one implementation is a guess about the second.</li>
 <li>mTLS as the second sender constraint (#335). <code>OneAuthConfig.FAPI2</code><br />
 already requires DPoP and turns on PAR-only <code>/authorize</code> and the rest<br />
-of the FAPI 2.0 Security Profile together (see <a href="FAPI.md"><code>FAPI.md</code></a>), so DPoP is<br />
+of the FAPI 2.0 Security Profile together (see <a href="/oneauth/specs/fapi/"><code>FAPI.md</code></a>), so DPoP is<br />
 the only sender constraint a FAPI deployment can use today.</li>
 </ol>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
-<li><a href="RFC_8705.md">RFC 8705 mTLS</a> — sibling sender-constraint mechanism (PKI-based)</li>
-<li><a href="RFC_9068.md">RFC 9068</a> — JWT AT profile; <code>cnf.jkt</code> is a recognized claim there</li>
-<li><a href="RFC_7517.md">RFC 7517</a> / <a href="https://datatracker.ietf.org/doc/rfc7638/">RFC 7638</a> — JWK thumbprint computation</li>
+<li><a href="/oneauth/specs/rfc-8705/">RFC 8705 mTLS</a> — sibling sender-constraint mechanism (PKI-based)</li>
+<li><a href="/oneauth/specs/rfc-9068/">RFC 9068</a> — JWT AT profile; <code>cnf.jkt</code> is a recognized claim there</li>
+<li><a href="/oneauth/specs/rfc-7517/">RFC 7517</a> / <a href="https://datatracker.ietf.org/doc/rfc7638/">RFC 7638</a> — JWK thumbprint computation</li>
 <li><a href="https://datatracker.ietf.org/doc/rfc7800/">RFC 7800</a> — <code>cnf</code> claim semantics</li>
-<li><a href="RFC_9700.md">RFC 9700</a> — §4.10 sender constraint defense</li>
-<li><a href="FAPI.md">FAPI 2.0</a> — requires either DPoP or mTLS</li>
-<li><a href="RFC_oauth21.md">OAuth 2.1 draft</a> — mentions DPoP as the public-client sender-constraint option</li>
+<li><a href="/oneauth/specs/rfc-9700/">RFC 9700</a> — §4.10 sender constraint defense</li>
+<li><a href="/oneauth/specs/fapi/">FAPI 2.0</a> — requires either DPoP or mTLS</li>
+<li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1 draft</a> — mentions DPoP as the public-client sender-constraint option</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

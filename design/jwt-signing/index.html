@@ -407,7 +407,7 @@
 </span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Use as a read-only KeyLookup
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>rec, _ <span style="color:#000;font-weight:bold">:=</span> ks.<span style="color:#900;font-weight:bold">GetKey</span>(<span style="color:#d14">&#34;app_abc&#34;</span>)       <span style="color:#998;font-style:italic">// → *KeyRecord with Key and Algorithm
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>rec, _ = ks.<span style="color:#900;font-weight:bold">GetKeyByKid</span>(kid)          <span style="color:#998;font-style:italic">// → lookup by kid header from JWT
-</span></span></span></code></pre><p>See <a href="FEDERATED_AUTH.md#jwks-public-key-discovery">FEDERATED_AUTH.md</a> for the full JWKS guide.</p>
+</span></span></span></code></pre><p>See <a href="/oneauth/design/federated-auth/#jwks-public-key-discovery">FEDERATED_AUTH.md</a> for the full JWKS guide.</p>
 <h2 id="encryption-at-rest-encryptedkeystorage">Encryption at Rest (EncryptedKeyStorage) <a class="anchor" href="#encryption-at-rest-encryptedkeystorage">¶</a></h2>
 <p>HS256 <code>client_secret</code> values are stored in the KeyStore as raw <code>[]byte</code>. To protect them at rest (e.g., against database dumps), wrap any <code>KeyStorage</code> with <code>EncryptedKeyStorage</code>:</p>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> oa <span style="color:#d14">&#34;github.com/panyam/oneauth&#34;</span>
@@ -463,9 +463,9 @@
 <p>When resource servers share the same KeyStore database as the auth server, they must also have the same <code>ONEAUTH_MASTER_KEY</code> to decrypt HS256 secrets. Resource servers using JWKS discovery are unaffected (JWKS only serves asymmetric keys).</p>
 <h2 id="see-also">See Also <a class="anchor" href="#see-also">¶</a></h2>
 <ul>
-<li><a href="FEDERATED_AUTH.md">FEDERATED_AUTH.md</a> — end-to-end federated auth flow with registration, minting, and validation</li>
-<li><a href="API_AUTH.md">API_AUTH.md</a> — APIAuth and APIMiddleware configuration</li>
-<li><a href="STORES.md">STORES.md</a> — KeyLookup and KeyStorage interface details</li>
+<li><a href="/oneauth/design/federated-auth/">FEDERATED_AUTH.md</a> — end-to-end federated auth flow with registration, minting, and validation</li>
+<li><a href="/oneauth/guides/api-auth/">API_AUTH.md</a> — APIAuth and APIMiddleware configuration</li>
+<li><a href="/oneauth/guides/stores/">STORES.md</a> — KeyLookup and KeyStorage interface details</li>
 </ul>
 
 

@@ -488,7 +488,7 @@
 </table>
 <p>PR #520 then put every OIDF plan in nightly CI and ran OAuch once by hand (<code>docs/conformance/oauch.md</code>). That run found two headers that stopped real browsers finishing an authorization (CSP <code>form-action</code>, and COOP on the authorization pages). Its three remaining gaps are #519. Still open: JAR (issue 338) and mTLS (issue 335).</p>
 <h2 id="jarm--signed-authorization-responses-mission-409--complete">JARM — signed authorization responses (mission #409) ✅ COMPLETE <a class="anchor" href="#jarm--signed-authorization-responses-mission-409--complete">¶</a></h2>
-<p>A FAPI client logs in with <code>response_mode=jwt</code> against oneauth and against Keycloak, and a tampered response is refused. <code>make exercise-jarm</code> checks all of it, and runs as the gating <code>jarm</code> suite in <code>make conformance</code>. See <a href="oauth/JARM.md">JARM</a>.</p>
+<p>A FAPI client logs in with <code>response_mode=jwt</code> against oneauth and against Keycloak, and a tampered response is refused. <code>make exercise-jarm</code> checks all of it, and runs as the gating <code>jarm</code> suite in <code>make conformance</code>. See <a href="/oneauth/specs/jarm/">JARM</a>.</p>
 <table>
 <thead>
 <tr>
@@ -772,7 +772,7 @@
 <li><strong>Redis-backed distributed stores</strong> (#115) — introspection endpoint benefits from fast token lookup</li>
 <li><strong>Token blacklist</strong> — introspection checks the blacklist</li>
 <li><strong>Persist AppRegistrar state</strong> (#20) — DCR wrapper benefits from persistent registrations</li>
-<li><strong>Authlete-superset tracker</strong> (#163) — meta-issue aggregating gap-closure work, see <a href="gaps/AUTHLETE_GAP_ANALYSIS.md">docs/gaps/AUTHLETE_GAP_ANALYSIS.md</a></li>
+<li><strong>Authlete-superset tracker</strong> (#163) — meta-issue aggregating gap-closure work, see <a href="/oneauth/design/gap-authlete/">docs/gaps/AUTHLETE_GAP_ANALYSIS.md</a></li>
 </ul>
 <h3 id="positioning-vs-keycloak">Positioning vs Keycloak <a class="anchor" href="#positioning-vs-keycloak">¶</a></h3>
 <p>OneAuth and Keycloak are <strong>complementary, not competing:</strong></p>

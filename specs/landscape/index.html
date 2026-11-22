@@ -200,11 +200,11 @@ and OneAuth-specific notes.</p>
 <p><strong>Related reading already in the repo.</strong> This doc is the <em>map</em>; existing<br />
 docs are the <em>territory</em>:</p>
 <ul>
-<li><a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a> — gap analysis vs OAuth 2.1</li>
-<li><a href="../AUTH_FLOWS.md"><code>docs/AUTH_FLOWS.md</code></a> — sequence diagrams for built flows</li>
-<li><a href="../JWT_SIGNING.md"><code>docs/JWT_SIGNING.md</code></a> — key/JWKS internals</li>
-<li><a href="../gaps/AUTHLETE_GAP_ANALYSIS.md"><code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code></a> — Authlete-superset gap analysis (tracked under #163)</li>
-<li><a href="../gaps/AUTH0_GAP_ANALYSIS.md"><code>docs/gaps/AUTH0_GAP_ANALYSIS.md</code></a> — Auth0 gap analysis</li>
+<li><a href="/oneauth/guides/oauth21-alignment/"><code>docs/OAUTH21_ALIGNMENT.md</code></a> — gap analysis vs OAuth 2.1</li>
+<li><a href="/oneauth/design/auth-flows/"><code>docs/AUTH_FLOWS.md</code></a> — sequence diagrams for built flows</li>
+<li><a href="/oneauth/design/jwt-signing/"><code>docs/JWT_SIGNING.md</code></a> — key/JWKS internals</li>
+<li><a href="/oneauth/design/gap-authlete/"><code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code></a> — Authlete-superset gap analysis (tracked under #163)</li>
+<li><a href="/oneauth/design/gap-auth0/"><code>docs/gaps/AUTH0_GAP_ANALYSIS.md</code></a> — Auth0 gap analysis</li>
 </ul>
 </blockquote>
 <hr />
@@ -315,7 +315,7 @@ corresponds to a defense in RFC 9700 (the Security BCP):</p>
 </tbody>
 </table>
 <p>For the row-by-row OneAuth audit against 2.1, see<br />
-<a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>. For the per-RFC<br />
+<a href="/oneauth/guides/oauth21-alignment/"><code>docs/OAUTH21_ALIGNMENT.md</code></a>. For the per-RFC<br />
 &ldquo;what does this RFC require under 2.0 vs 2.1&rdquo; breakdown, every per-RFC doc<br />
 in this folder has paired <em>OAuth 2.0 status</em> and <em>OAuth 2.1 status</em> sections<br />
 (§8 template).</p>
@@ -768,193 +768,193 @@ kind of thing</em> it is, T tells you <em>when it fires</em>.</p>
 <td>6749 OAuth 2.0 framework</td>
 <td>L0</td>
 <td>T2, T5</td>
-<td><a href="RFC_6749.md">RFC_6749.md</a></td>
+<td><a href="/oneauth/specs/rfc-6749/">RFC_6749.md</a></td>
 </tr>
 <tr>
 <td>6750 Bearer token usage</td>
 <td>L0</td>
 <td>T6</td>
-<td><a href="RFC_6750.md">RFC_6750.md</a></td>
+<td><a href="/oneauth/specs/rfc-6750/">RFC_6750.md</a></td>
 </tr>
 <tr>
 <td>7636 PKCE</td>
 <td>L0</td>
 <td>T1, T5</td>
-<td><a href="RFC_7636.md">RFC_7636.md</a></td>
+<td><a href="/oneauth/specs/rfc-7636/">RFC_7636.md</a></td>
 </tr>
 <tr>
 <td>9700 Security BCP</td>
 <td>L0</td>
 <td><em>always-on</em></td>
-<td><a href="RFC_9700.md">RFC_9700.md</a></td>
+<td><a href="/oneauth/specs/rfc-9700/">RFC_9700.md</a></td>
 </tr>
 <tr>
 <td>OAuth 2.1 draft</td>
 <td>L0</td>
 <td>T0–T8</td>
-<td><a href="RFC_oauth21.md">RFC_oauth21.md</a></td>
+<td><a href="/oneauth/specs/rfc-oauth21/">RFC_oauth21.md</a></td>
 </tr>
 <tr>
 <td>7515 JWS</td>
 <td>L1</td>
 <td>T5, T7</td>
-<td><a href="RFC_7515.md">RFC_7515.md</a></td>
+<td><a href="/oneauth/specs/rfc-7515/">RFC_7515.md</a></td>
 </tr>
 <tr>
 <td>7516 JWE</td>
 <td>L1</td>
 <td>T5, T7 (if encrypted)</td>
-<td><a href="RFC_7516.md">RFC_7516.md</a></td>
+<td><a href="/oneauth/specs/rfc-7516/">RFC_7516.md</a></td>
 </tr>
 <tr>
 <td>7517 JWK / JWKS</td>
 <td>L1</td>
 <td>T0, T7</td>
-<td><a href="RFC_7517.md">RFC_7517.md</a></td>
+<td><a href="/oneauth/specs/rfc-7517/">RFC_7517.md</a></td>
 </tr>
 <tr>
 <td>7518 JWA</td>
 <td>L1</td>
 <td>T5, T7</td>
-<td><a href="RFC_7518.md">RFC_7518.md</a></td>
+<td><a href="/oneauth/specs/rfc-7518/">RFC_7518.md</a></td>
 </tr>
 <tr>
 <td>7519 JWT</td>
 <td>L1</td>
 <td>T5, T7</td>
-<td><a href="RFC_7519.md">RFC_7519.md</a></td>
+<td><a href="/oneauth/specs/rfc-7519/">RFC_7519.md</a></td>
 </tr>
 <tr>
 <td>9068 JWT AT profile</td>
 <td>L1</td>
 <td>T5, T7</td>
-<td><a href="RFC_9068.md">RFC_9068.md</a></td>
+<td><a href="/oneauth/specs/rfc-9068/">RFC_9068.md</a></td>
 </tr>
 <tr>
 <td>7662 Introspection</td>
 <td>L2</td>
 <td>T7</td>
-<td><a href="RFC_7662.md">RFC_7662.md</a></td>
+<td><a href="/oneauth/specs/rfc-7662/">RFC_7662.md</a></td>
 </tr>
 <tr>
 <td>7009 Revocation</td>
 <td>L2</td>
 <td>T8</td>
-<td><a href="RFC_7009.md">RFC_7009.md</a></td>
+<td><a href="/oneauth/specs/rfc-7009/">RFC_7009.md</a></td>
 </tr>
 <tr>
 <td>8414 AS metadata</td>
 <td>L2</td>
 <td>T0</td>
-<td><a href="RFC_8414.md">RFC_8414.md</a></td>
+<td><a href="/oneauth/specs/rfc-8414/">RFC_8414.md</a></td>
 </tr>
 <tr>
 <td>9728 PR metadata</td>
 <td>L2</td>
 <td>T0</td>
-<td><a href="RFC_9728.md">RFC_9728.md</a></td>
+<td><a href="/oneauth/specs/rfc-9728/">RFC_9728.md</a></td>
 </tr>
 <tr>
 <td>9207 Issuer ID</td>
 <td>L2</td>
 <td>T4</td>
-<td><a href="RFC_9207.md">RFC_9207.md</a></td>
+<td><a href="/oneauth/specs/rfc-9207/">RFC_9207.md</a></td>
 </tr>
 <tr>
 <td>7591 DCR</td>
 <td>L3</td>
 <td>T0</td>
-<td><a href="RFC_7591.md">RFC_7591.md</a></td>
+<td><a href="/oneauth/specs/rfc-7591/">RFC_7591.md</a></td>
 </tr>
 <tr>
 <td>7592 DCR mgmt</td>
 <td>L3</td>
 <td>T0</td>
-<td><a href="RFC_7592.md">RFC_7592.md</a></td>
+<td><a href="/oneauth/specs/rfc-7592/">RFC_7592.md</a></td>
 </tr>
 <tr>
 <td>8628 Device</td>
 <td>L4</td>
 <td>T5 (alt to T2–T4)</td>
-<td><a href="RFC_8628.md">RFC_8628.md</a></td>
+<td><a href="/oneauth/specs/rfc-8628/">RFC_8628.md</a></td>
 </tr>
 <tr>
 <td>7523 JWT bearer (grant + client auth)</td>
 <td>L4, L5</td>
 <td>T5</td>
-<td><a href="RFC_7523.md">RFC_7523.md</a></td>
+<td><a href="/oneauth/specs/rfc-7523/">RFC_7523.md</a></td>
 </tr>
 <tr>
 <td>8693 Token Exchange</td>
 <td>L4</td>
 <td>T5</td>
-<td><a href="RFC_8693.md">RFC_8693.md</a></td>
+<td><a href="/oneauth/specs/rfc-8693/">RFC_8693.md</a></td>
 </tr>
 <tr>
 <td>7521 Assertion fwk</td>
 <td>L5</td>
 <td>T5</td>
-<td><a href="RFC_7521.md">RFC_7521.md</a></td>
+<td><a href="/oneauth/specs/rfc-7521/">RFC_7521.md</a></td>
 </tr>
 <tr>
 <td>8705 mTLS</td>
 <td>L5</td>
 <td>T5, T6, T7</td>
-<td><a href="RFC_8705.md">RFC_8705.md</a></td>
+<td><a href="/oneauth/specs/rfc-8705/">RFC_8705.md</a></td>
 </tr>
 <tr>
 <td>9449 DPoP</td>
 <td>L5</td>
 <td>T5, T6, T7</td>
-<td><a href="RFC_9449.md">RFC_9449.md</a></td>
+<td><a href="/oneauth/specs/rfc-9449/">RFC_9449.md</a></td>
 </tr>
 <tr>
 <td>9126 PAR</td>
 <td>L6</td>
 <td>T1</td>
-<td><a href="RFC_9126.md">RFC_9126.md</a></td>
+<td><a href="/oneauth/specs/rfc-9126/">RFC_9126.md</a></td>
 </tr>
 <tr>
 <td>9101 JAR</td>
 <td>L6</td>
 <td>T1</td>
-<td><a href="RFC_9101.md">RFC_9101.md</a></td>
+<td><a href="/oneauth/specs/rfc-9101/">RFC_9101.md</a></td>
 </tr>
 <tr>
 <td>9396 RAR</td>
 <td>L6</td>
 <td>T1, T5, T7</td>
-<td><a href="RFC_9396.md">RFC_9396.md</a></td>
+<td><a href="/oneauth/specs/rfc-9396/">RFC_9396.md</a></td>
 </tr>
 <tr>
 <td>OIDC Core</td>
 <td>L7</td>
 <td>T3, T5</td>
-<td><a href="OIDC_Core.md">OIDC_Core.md</a></td>
+<td><a href="/oneauth/specs/oidc-core/">OIDC_Core.md</a></td>
 </tr>
 <tr>
 <td>OIDC Discovery</td>
 <td>L7</td>
 <td>T0</td>
-<td><a href="OIDC_Discovery.md">OIDC_Discovery.md</a></td>
+<td><a href="/oneauth/specs/oidc-discovery/">OIDC_Discovery.md</a></td>
 </tr>
 <tr>
 <td>OIDC BCL</td>
 <td>L7</td>
 <td>T8</td>
-<td><a href="OIDC_BCL.md">OIDC_BCL.md</a></td>
+<td><a href="/oneauth/specs/oidc-bcl/">OIDC_BCL.md</a></td>
 </tr>
 <tr>
 <td>FAPI 1.0 / 2.0</td>
 <td>L8</td>
 <td>T0 (profile of all)</td>
-<td><a href="FAPI.md">FAPI.md</a></td>
+<td><a href="/oneauth/specs/fapi/">FAPI.md</a></td>
 </tr>
 <tr>
 <td>GNAP</td>
 <td>L8 (future)</td>
 <td>replacement, not extension</td>
-<td><a href="GNAP.md">GNAP.md</a></td>
+<td><a href="/oneauth/specs/gnap/">GNAP.md</a></td>
 </tr>
 </tbody>
 </table>
@@ -978,7 +978,7 @@ version verdict.</strong> &ldquo;Implemented&rdquo; means the wire surface is bu
 it does not mean the deployment is fully 2.1-conformant (or 2.0-conformant<br />
 for that matter). Per-version detail lives in each <code>RFC_*.md</code> under its<br />
 <em>OAuth 2.0 status</em> and <em>OAuth 2.1 status</em> sections, and the 2.1 audit<br />
-proper is in <a href="../OAUTH21_ALIGNMENT.md"><code>docs/OAUTH21_ALIGNMENT.md</code></a>.</p>
+proper is in <a href="/oneauth/guides/oauth21-alignment/"><code>docs/OAUTH21_ALIGNMENT.md</code></a>.</p>
 </blockquote>
 <table>
 <thead>
@@ -1173,7 +1173,7 @@ Profile have shipped. What the matrix still leaves open:</p>
 allows, and certificate-bound client authentication.</li>
 <li><strong>L6 JAR</strong> (RFC 9101, #338). Signed authorization requests, which FAPI<br />
 2.0 Message Signing needs. Its other half, signed responses, shipped as<br />
-<a href="JARM.md">JARM</a> (mission #409).</li>
+<a href="/oneauth/specs/jarm/">JARM</a> (mission #409).</li>
 <li><strong>OIDC ID tokens</strong> (#339). ID tokens, <code>nonce</code> and userinfo on top of the<br />
 existing <code>/authorize</code>.</li>
 </ol>
@@ -1278,122 +1278,271 @@ shape — keep it terse, optimise for <em>scan</em>:</p>
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span><span style="color:#aaa">## Wire example
 </span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
-</span></span><span style="display:flex;"><span>```http
-</span></span><span style="display:flex;"><span>POST /token HTTP/1.1
-</span></span><span style="display:flex;"><span>Host: as.example.com
-</span></span><span style="display:flex;"><span>…
-</span></span></code></pre><pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span><span style="color:#d14">```http
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span><span style="color:#900;font-weight:bold">POST</span> <span style="color:#555">/token</span> <span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span>
+</span></span><span style="display:flex;"><span>Host<span style="color:#000;font-weight:bold">:</span> as.example.com
 </span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">…</span>
-</span></span></code></pre><h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
-<p>&lt;Which §2 slot does this fill? What does it replace / supplement?&gt;</p>
-<h2 id="oauth-20-status">OAuth 2.0 status <a class="anchor" href="#oauth-20-status">¶</a></h2>
-<p>&lt;Under RFC 6749 / 2.0 baseline, what&rsquo;s this RFC&rsquo;s normative weight — MAY,<br />
-SHOULD, MUST? Was it part of 6749 itself or shipped later (and roughly<br />
-when did the major IdPs ship it)? Is it widely deployed in 2.0 ecosystems<br />
-today? If 2.0 leaves something optional that 2.1 mandates, name the gap.&gt;</p>
-<h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
-<p>&lt;Under OAuth 2.1 (still an active Internet-Draft), what changes? Promoted<br />
-from SHOULD to MUST? Tightened (e.g., S256-only instead of plain+S256)?<br />
-Removed entirely? If 2.0 and 2.1 disagree on this RFC, this is the section<br />
-that names the divergence and points at the §-citation in the 2.1 draft.&gt;</p>
-<h2 id="migration-path-when-21-supersedes-a-20-surface">Migration path (when 2.1 supersedes a 2.0 surface) <a class="anchor" href="#migration-path-when-21-supersedes-a-20-surface">¶</a></h2>
-<p>&lt;Only if 2.1 removes / tightens something 2.0 still permits. Honest<br />
-guidance for deployments still on 2.0: what&rsquo;s the on-ramp? What can you<br />
-ship today that&rsquo;s both 2.0-legal and 2.1-compatible (a &ldquo;single stack&rdquo;)?<br />
-What needs a deprecation window? Don&rsquo;t say &ldquo;do it now&rdquo; — most 2.0<br />
-deployments will live another decade. Say what specifically breaks and<br />
-under what conditions.&gt;</p>
-<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
-<p>&lt;Honest tradeoffs. e.g., &ldquo;DPoP adds a per-request crypto op. If you control<br />
-the network path, mTLS is cheaper.&quot;&gt;</p>
-<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+</span></span><span style="display:flex;"><span><span style="color:#d14">```</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#d14">```http
+</span></span></span><span style="display:flex;"><span><span style="color:#d14"></span><span style="color:#000;font-weight:bold">HTTP</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">1.1</span> <span style="color:#099">200</span> <span style="color:#900;font-weight:bold">OK</span>
+</span></span><span style="display:flex;"><span><span style="color:#a61717;background-color:#e3d2d2">…</span>
+</span></span><span style="display:flex;"><span><span style="color:#d14">```</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## Where it lands on the OAuth abstraction
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#000080">Which</span> <span style="color:#a61717;background-color:#e3d2d2">§</span><span style="color:#008080">2</span> <span style="color:#008080">slot</span> <span style="color:#008080">does</span> <span style="color:#008080">this</span> <span style="color:#008080">fill</span><span style="color:#a61717;background-color:#e3d2d2">?</span> <span style="color:#008080">What</span> <span style="color:#008080">does</span> <span style="color:#008080">it</span> <span style="color:#008080">replace</span> <span style="color:#a61717;background-color:#e3d2d2">/</span> <span style="color:#008080">supplement</span><span style="color:#a61717;background-color:#e3d2d2">?</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## OAuth 2.0 status
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#000080">Under</span> <span style="color:#008080">RFC</span> <span style="color:#008080">6749</span> <span style="color:#a61717;background-color:#e3d2d2">/</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">0</span> <span style="color:#008080">baseline</span><span style="color:#a61717;background-color:#e3d2d2">,</span> <span style="color:#008080">what</span><span style="color:#a61717;background-color:#e3d2d2">&#39;</span><span style="color:#008080">s</span> <span style="color:#008080">this</span> <span style="color:#008080">RFC</span><span style="color:#a61717;background-color:#e3d2d2">&#39;</span><span style="color:#008080">s</span> <span style="color:#008080">normative</span> <span style="color:#008080">weight</span> <span style="color:#a61717;background-color:#e3d2d2">—</span> <span style="color:#008080">MAY</span><span style="color:#a61717;background-color:#e3d2d2">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">SHOULD</span><span style="color:#a61717;background-color:#e3d2d2">,</span> <span style="color:#008080">MUST</span><span style="color:#a61717;background-color:#e3d2d2">?</span> <span style="color:#008080">Was</span> <span style="color:#008080">it</span> <span style="color:#008080">part</span> <span style="color:#008080">of</span> <span style="color:#008080">6749</span> <span style="color:#008080">itself</span> <span style="color:#008080">or</span> <span style="color:#008080">shipped</span> <span style="color:#008080">later</span> <span style="color:#a61717;background-color:#e3d2d2">(</span><span style="color:#008080">and</span> <span style="color:#008080">roughly</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">when</span> <span style="color:#008080">did</span> <span style="color:#008080">the</span> <span style="color:#008080">major</span> <span style="color:#008080">IdPs</span> <span style="color:#008080">ship</span> <span style="color:#008080">it</span><span style="color:#a61717;background-color:#e3d2d2">)?</span> <span style="color:#008080">Is</span> <span style="color:#008080">it</span> <span style="color:#008080">widely</span> <span style="color:#008080">deployed</span> <span style="color:#008080">in</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">0</span> <span style="color:#008080">ecosystems</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">today</span><span style="color:#a61717;background-color:#e3d2d2">?</span> <span style="color:#008080">If</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">0</span> <span style="color:#008080">leaves</span> <span style="color:#008080">something</span> <span style="color:#008080">optional</span> <span style="color:#008080">that</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">1</span> <span style="color:#008080">mandates</span><span style="color:#a61717;background-color:#e3d2d2">,</span> <span style="color:#008080">name</span> <span style="color:#008080">the</span> <span style="color:#008080">gap</span><span style="color:#a61717;background-color:#e3d2d2">.</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## OAuth 2.1 status
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#000080">Under</span> <span style="color:#008080">OAuth</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">1</span> <span style="color:#a61717;background-color:#e3d2d2">(</span><span style="color:#008080">still</span> <span style="color:#008080">an</span> <span style="color:#008080">active</span> <span style="color:#008080">Internet-Draft</span><span style="color:#a61717;background-color:#e3d2d2">),</span> <span style="color:#008080">what</span> <span style="color:#008080">changes</span><span style="color:#a61717;background-color:#e3d2d2">?</span> <span style="color:#008080">Promoted</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">from</span> <span style="color:#008080">SHOULD</span> <span style="color:#008080">to</span> <span style="color:#008080">MUST</span><span style="color:#a61717;background-color:#e3d2d2">?</span> <span style="color:#008080">Tightened</span> <span style="color:#a61717;background-color:#e3d2d2">(</span><span style="color:#008080">e</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">g</span><span style="color:#a61717;background-color:#e3d2d2">.,</span> <span style="color:#008080">S256-only</span> <span style="color:#008080">instead</span> <span style="color:#008080">of</span> <span style="color:#008080">plain</span><span style="color:#a61717;background-color:#e3d2d2">+</span><span style="color:#008080">S256</span><span style="color:#a61717;background-color:#e3d2d2">)?</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">Removed</span> <span style="color:#008080">entirely</span><span style="color:#a61717;background-color:#e3d2d2">?</span> <span style="color:#008080">If</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">0</span> <span style="color:#008080">and</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">1</span> <span style="color:#008080">disagree</span> <span style="color:#008080">on</span> <span style="color:#008080">this</span> <span style="color:#008080">RFC</span><span style="color:#a61717;background-color:#e3d2d2">,</span> <span style="color:#008080">this</span> <span style="color:#008080">is</span> <span style="color:#008080">the</span> <span style="color:#008080">section</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">that</span> <span style="color:#008080">names</span> <span style="color:#008080">the</span> <span style="color:#008080">divergence</span> <span style="color:#008080">and</span> <span style="color:#008080">points</span> <span style="color:#008080">at</span> <span style="color:#008080">the</span> <span style="color:#a61717;background-color:#e3d2d2">§</span><span style="color:#008080">-citation</span> <span style="color:#008080">in</span> <span style="color:#008080">the</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">1</span> <span style="color:#008080">draft</span><span style="color:#a61717;background-color:#e3d2d2">.</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## Migration path (when 2.1 supersedes a 2.0 surface)
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#000080">Only</span> <span style="color:#008080">if</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">1</span> <span style="color:#008080">removes</span> <span style="color:#a61717;background-color:#e3d2d2">/</span> <span style="color:#008080">tightens</span> <span style="color:#008080">something</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">0</span> <span style="color:#008080">still</span> <span style="color:#008080">permits</span><span style="color:#a61717;background-color:#e3d2d2">.</span> <span style="color:#008080">Honest</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">guidance</span> <span style="color:#008080">for</span> <span style="color:#008080">deployments</span> <span style="color:#008080">still</span> <span style="color:#008080">on</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">0:</span> <span style="color:#008080">what</span><span style="color:#a61717;background-color:#e3d2d2">&#39;</span><span style="color:#008080">s</span> <span style="color:#008080">the</span> <span style="color:#008080">on-ramp</span><span style="color:#a61717;background-color:#e3d2d2">?</span> <span style="color:#008080">What</span> <span style="color:#008080">can</span> <span style="color:#008080">you</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">ship</span> <span style="color:#008080">today</span> <span style="color:#008080">that</span><span style="color:#a61717;background-color:#e3d2d2">&#39;</span><span style="color:#008080">s</span> <span style="color:#008080">both</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">0-legal</span> <span style="color:#008080">and</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">1-compatible</span> <span style="color:#a61717;background-color:#e3d2d2">(</span><span style="color:#008080">a</span> <span style="color:#a61717;background-color:#e3d2d2">&#34;</span><span style="color:#008080">single</span> <span style="color:#008080">stack</span><span style="color:#a61717;background-color:#e3d2d2">&#34;)?</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">What</span> <span style="color:#008080">needs</span> <span style="color:#008080">a</span> <span style="color:#008080">deprecation</span> <span style="color:#008080">window</span><span style="color:#a61717;background-color:#e3d2d2">?</span> <span style="color:#008080">Don</span><span style="color:#a61717;background-color:#e3d2d2">&#39;</span><span style="color:#008080">t</span> <span style="color:#008080">say</span> <span style="color:#a61717;background-color:#e3d2d2">&#34;</span><span style="color:#008080">do</span> <span style="color:#008080">it</span> <span style="color:#008080">now</span><span style="color:#a61717;background-color:#e3d2d2">&#34;</span> <span style="color:#a61717;background-color:#e3d2d2">—</span> <span style="color:#008080">most</span> <span style="color:#008080">2</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">0</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">deployments</span> <span style="color:#008080">will</span> <span style="color:#008080">live</span> <span style="color:#008080">another</span> <span style="color:#008080">decade</span><span style="color:#a61717;background-color:#e3d2d2">.</span> <span style="color:#008080">Say</span> <span style="color:#008080">what</span> <span style="color:#008080">specifically</span> <span style="color:#008080">breaks</span> <span style="color:#008080">and</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">under</span> <span style="color:#008080">what</span> <span style="color:#008080">conditions</span><span style="color:#a61717;background-color:#e3d2d2">.</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## When NOT to use it
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#000080">Honest</span> <span style="color:#008080">tradeoffs</span><span style="color:#a61717;background-color:#e3d2d2">.</span> <span style="color:#008080">e</span><span style="color:#a61717;background-color:#e3d2d2">.</span><span style="color:#008080">g</span><span style="color:#a61717;background-color:#e3d2d2">.,</span> <span style="color:#a61717;background-color:#e3d2d2">&#34;</span><span style="color:#008080">DPoP</span> <span style="color:#008080">adds</span> <span style="color:#008080">a</span> <span style="color:#008080">per-request</span> <span style="color:#008080">crypto</span> <span style="color:#008080">op</span><span style="color:#a61717;background-color:#e3d2d2">.</span> <span style="color:#008080">If</span> <span style="color:#008080">you</span> <span style="color:#008080">control</span>
+</span></span><span style="display:flex;"><span><span style="color:#008080">the</span> <span style="color:#008080">network</span> <span style="color:#008080">path</span><span style="color:#a61717;background-color:#e3d2d2">,</span> <span style="color:#008080">mTLS</span> <span style="color:#008080">is</span> <span style="color:#008080">cheaper</span><span style="color:#a61717;background-color:#e3d2d2">.&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## OneAuth status
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-</span> **Status:** Implemented / Partial / Gap
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-</span> **Code:** <span style="color:#d14">`apiauth/...`</span>, <span style="color:#d14">`core/...`</span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-</span> **Tests:** <span style="color:#d14">`apiauth/..._test.go`</span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-</span> **Related issues / PRs:** issue NNN, PR NNN  <span style="color:#000;font-style:italic">*(plain text — see backlink hygiene rule)*</span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-</span> **Known gaps:** &lt;<span style="color:#000080">bullets</span>&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## Related RFCs
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-</span> [<span style="color:#000080">RFC nnnn</span>](<span style="color:#008080">RFC_nnnn.md</span>) — &lt;<span style="color:#000080">how</span> <span style="color:#008080">it</span> <span style="color:#008080">relates</span>&gt;
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-</span> …
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#aaa">## Spec links
+</span></span></span><span style="display:flex;"><span><span style="color:#aaa"></span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-</span> [<span style="color:#000080">Datatracker</span>](<span style="color:#008080">https://datatracker.ietf.org/doc/rfcXXXX/</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-</span> [<span style="color:#000080">Errata</span>](<span style="color:#008080">https://www.rfc-editor.org/errata_search.php?rfc=XXXX</span>) (if any)
+</span></span></code></pre><p><strong>Four rules for these docs:</strong></p>
+<ol>
+<li><strong>Relatable example up top, every time.</strong> If you can&rsquo;t write a one-paragraph<br />
+&ldquo;this is when this RFC bites in real life,&rdquo; you don&rsquo;t understand it yet.</li>
+<li><strong>Pair the 2.0 and 2.1 status sections.</strong> The world ships 2.0; OneAuth aims<br />
+for 2.1 posture. Every doc must say where the RFC stands under both — and<br />
+include a migration path if 2.1 tightens or removes something. Don&rsquo;t write<br />
+&ldquo;removed in 2.1&rdquo; without noting &ldquo;still legal under 2.0.&rdquo;</li>
+<li><strong>OneAuth section is verified-by-grep, not memory.</strong> Before claiming<br />
+&ldquo;Implemented in <code>apiauth/foo.go</code>,&rdquo; grep for the symbol. Stale path<br />
+references in this folder will rot fast otherwise.</li>
+<li><strong>Cross-link liberally.</strong> Each doc should link upstream to LANDSCAPE.md<br />
+(<code>§3</code> and <code>§5</code>) and sideways to closely related RFCs. The mermaid clicks<br />
+only work top-down; in-prose links make the back-and-forth navigation work.</li>
+</ol>
+<hr />
+<h2 id="9-per-rfc-docs-index">9. Per-RFC docs index <a class="anchor" href="#9-per-rfc-docs-index">¶</a></h2>
+<p>Status: 📝 <em>Stub</em> · 🟡 <em>Drafted</em> · ✅ <em>Reviewed</em></p>
+<table>
+<thead>
+<tr>
+<th>Doc</th>
+<th>Status</th>
+<th>Tracking</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="/oneauth/specs/rfc-6749/">RFC_6749.md</a> OAuth 2.0 framework</td>
+<td>✅</td>
+<td>#302</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-6750/">RFC_6750.md</a> Bearer</td>
+<td>✅</td>
+<td>#303</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7009/">RFC_7009.md</a> Revocation</td>
+<td>✅</td>
+<td>#309</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7515/">RFC_7515.md</a> JWS</td>
+<td>✅</td>
+<td>#306</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7516/">RFC_7516.md</a> JWE</td>
+<td>✅</td>
+<td>#306</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7517/">RFC_7517.md</a> JWK / JWKS</td>
+<td>✅</td>
+<td>#306</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7518/">RFC_7518.md</a> JWA</td>
+<td>✅</td>
+<td>#306</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7519/">RFC_7519.md</a> JWT</td>
+<td>✅</td>
+<td>#306</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7521/">RFC_7521.md</a> Assertion framework</td>
+<td>✅</td>
+<td>#314</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7523/">RFC_7523.md</a> JWT bearer</td>
+<td>✅</td>
+<td>#314</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7591/">RFC_7591.md</a> DCR</td>
+<td>✅</td>
+<td>#313</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7592/">RFC_7592.md</a> DCR mgmt</td>
+<td>✅</td>
+<td>#313</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7636/">RFC_7636.md</a> PKCE</td>
+<td>✅</td>
+<td>#304</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-7662/">RFC_7662.md</a> Introspection</td>
+<td>✅</td>
+<td>#308</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-8414/">RFC_8414.md</a> AS metadata</td>
+<td>✅</td>
+<td>#310</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-8628/">RFC_8628.md</a> Device</td>
+<td>✅</td>
+<td>#316</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-8693/">RFC_8693.md</a> Token Exchange</td>
+<td>✅</td>
+<td>#317</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-8705/">RFC_8705.md</a> mTLS</td>
+<td>✅</td>
+<td>#315</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-9068/">RFC_9068.md</a> JWT AT profile</td>
+<td>✅</td>
+<td>#307</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-9101/">RFC_9101.md</a> JAR</td>
+<td>✅</td>
+<td>#320</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-9126/">RFC_9126.md</a> PAR</td>
+<td>✅</td>
+<td>#319</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-9207/">RFC_9207.md</a> Issuer ID</td>
+<td>✅</td>
+<td>#312</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-9396/">RFC_9396.md</a> RAR</td>
+<td>✅</td>
+<td>#321</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-9449/">RFC_9449.md</a> DPoP</td>
+<td>✅</td>
+<td>#316</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-9700/">RFC_9700.md</a> Security BCP</td>
+<td>✅</td>
+<td>#305</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-9728/">RFC_9728.md</a> PR metadata</td>
+<td>✅</td>
+<td>#311</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/rfc-oauth21/">RFC_oauth21.md</a> OAuth 2.1 draft</td>
+<td>✅</td>
+<td>#302</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/oidc-core/">OIDC_Core.md</a></td>
+<td>✅</td>
+<td>#322</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/oidc-discovery/">OIDC_Discovery.md</a></td>
+<td>✅</td>
+<td>#322</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/oidc-bcl/">OIDC_BCL.md</a></td>
+<td>✅</td>
+<td>#323</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/oidc-ciba/">OIDC_CIBA.md</a></td>
+<td>✅</td>
+<td>#324</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/fapi/">FAPI.md</a></td>
+<td>✅</td>
+<td>#325</td>
+</tr>
+<tr>
+<td><a href="/oneauth/specs/gnap/">GNAP.md</a></td>
+<td>✅</td>
+<td>#326</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="10-updating-this-document">10. Updating this document <a class="anchor" href="#10-updating-this-document">¶</a></h2>
 <ul>
-<li><strong>Status:</strong> Implemented / Partial / Gap</li>
-<li><strong>Code:</strong> <code>apiauth/...</code>, <code>core/...</code></li>
-<li><strong>Tests:</strong> <code>apiauth/..._test.go</code></li>
-<li><strong>Related issues / PRs:</strong> issue NNN, PR NNN  <em>(plain text — see backlink hygiene rule)</em></li>
-<li><strong>Known gaps:</strong> <bullets></li>
+<li>When a per-RFC doc moves status (📝 → 🟡 → ✅), bump §9.</li>
+<li>When OneAuth coverage of an RFC changes (gap closes, partial → implemented),<br />
+update §6 <em>and</em> the per-RFC doc&rsquo;s OneAuth section.</li>
+<li>When a new RFC enters scope, add nodes to both §3 and §4 diagrams + §5 cross-ref<br />
+table + §9 index.</li>
+<li>When a relatable example in §7 is no longer current (e.g., a vendor switches<br />
+flow), replace it — the value of this doc is in the examples staying <em>live</em>.</li>
 </ul>
-<h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
-<ul>
-<li><a href="RFC_nnnn.md">RFC nnnn</a> — <how it relates></li>
-<li>…</li>
-</ul>
-<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
-<ul>
-<li><a href="https://datatracker.ietf.org/doc/rfcXXXX/">Datatracker</a></li>
-<li><a href="https://www.rfc-editor.org/errata_search.php?rfc=XXXX">Errata</a> (if any)</li>
-</ul>
-<pre><code>
-**Four rules for these docs:**
-
-1. **Relatable example up top, every time.** If you can't write a one-paragraph
-   &quot;this is when this RFC bites in real life,&quot; you don't understand it yet.
-2. **Pair the 2.0 and 2.1 status sections.** The world ships 2.0; OneAuth aims
-   for 2.1 posture. Every doc must say where the RFC stands under both — and
-   include a migration path if 2.1 tightens or removes something. Don't write
-   &quot;removed in 2.1&quot; without noting &quot;still legal under 2.0.&quot;
-3. **OneAuth section is verified-by-grep, not memory.** Before claiming
-   &quot;Implemented in `apiauth/foo.go`,&quot; grep for the symbol. Stale path
-   references in this folder will rot fast otherwise.
-4. **Cross-link liberally.** Each doc should link upstream to LANDSCAPE.md
-   (`§3` and `§5`) and sideways to closely related RFCs. The mermaid clicks
-   only work top-down; in-prose links make the back-and-forth navigation work.
-
----
-
-## 9. Per-RFC docs index
-
-Status: 📝 *Stub* · 🟡 *Drafted* · ✅ *Reviewed*
-
-| Doc | Status | Tracking |
-|------|--------|---------|
-| [RFC_6749.md](RFC_6749.md) OAuth 2.0 framework | ✅ | #302 |
-| [RFC_6750.md](RFC_6750.md) Bearer | ✅ | #303 |
-| [RFC_7009.md](RFC_7009.md) Revocation | ✅ | #309 |
-| [RFC_7515.md](RFC_7515.md) JWS | ✅ | #306 |
-| [RFC_7516.md](RFC_7516.md) JWE | ✅ | #306 |
-| [RFC_7517.md](RFC_7517.md) JWK / JWKS | ✅ | #306 |
-| [RFC_7518.md](RFC_7518.md) JWA | ✅ | #306 |
-| [RFC_7519.md](RFC_7519.md) JWT | ✅ | #306 |
-| [RFC_7521.md](RFC_7521.md) Assertion framework | ✅ | #314 |
-| [RFC_7523.md](RFC_7523.md) JWT bearer | ✅ | #314 |
-| [RFC_7591.md](RFC_7591.md) DCR | ✅ | #313 |
-| [RFC_7592.md](RFC_7592.md) DCR mgmt | ✅ | #313 |
-| [RFC_7636.md](RFC_7636.md) PKCE | ✅ | #304 |
-| [RFC_7662.md](RFC_7662.md) Introspection | ✅ | #308 |
-| [RFC_8414.md](RFC_8414.md) AS metadata | ✅ | #310 |
-| [RFC_8628.md](RFC_8628.md) Device | ✅ | #316 |
-| [RFC_8693.md](RFC_8693.md) Token Exchange | ✅ | #317 |
-| [RFC_8705.md](RFC_8705.md) mTLS | ✅ | #315 |
-| [RFC_9068.md](RFC_9068.md) JWT AT profile | ✅ | #307 |
-| [RFC_9101.md](RFC_9101.md) JAR | ✅ | #320 |
-| [RFC_9126.md](RFC_9126.md) PAR | ✅ | #319 |
-| [RFC_9207.md](RFC_9207.md) Issuer ID | ✅ | #312 |
-| [RFC_9396.md](RFC_9396.md) RAR | ✅ | #321 |
-| [RFC_9449.md](RFC_9449.md) DPoP | ✅ | #316 |
-| [RFC_9700.md](RFC_9700.md) Security BCP | ✅ | #305 |
-| [RFC_9728.md](RFC_9728.md) PR metadata | ✅ | #311 |
-| [RFC_oauth21.md](RFC_oauth21.md) OAuth 2.1 draft | ✅ | #302 |
-| [OIDC_Core.md](OIDC_Core.md) | ✅ | #322 |
-| [OIDC_Discovery.md](OIDC_Discovery.md) | ✅ | #322 |
-| [OIDC_BCL.md](OIDC_BCL.md) | ✅ | #323 |
-| [OIDC_CIBA.md](OIDC_CIBA.md) | ✅ | #324 |
-| [FAPI.md](FAPI.md) | ✅ | #325 |
-| [GNAP.md](GNAP.md) | ✅ | #326 |
-
----
-
-## 10. Updating this document
-
-- When a per-RFC doc moves status (📝 → 🟡 → ✅), bump §9.
-- When OneAuth coverage of an RFC changes (gap closes, partial → implemented),
-  update §6 *and* the per-RFC doc's OneAuth section.
-- When a new RFC enters scope, add nodes to both §3 and §4 diagrams + §5 cross-ref
-  table + §9 index.
-- When a relatable example in §7 is no longer current (e.g., a vendor switches
-  flow), replace it — the value of this doc is in the examples staying *live*.
-</code></pre>
 
 
     </div>

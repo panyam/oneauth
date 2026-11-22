@@ -196,7 +196,7 @@
 <strong>Published:</strong> 2021-10<br />
 <strong>L-tier / T-tier:</strong> L1 · T5 (issue) + T7 (verify)<br />
 <strong>OneAuth coverage:</strong> Partial (claims and verify-side token-kind checks implemented; <code>typ:at+jwt</code> on issue is #328)<br />
-<strong>See also:</strong> <a href="RFC_7519.md"><code>RFC_7519.md</code></a> · <a href="RFC_7662.md"><code>RFC_7662.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-7519/"><code>RFC_7519.md</code></a> · <a href="/oneauth/specs/rfc-7662/"><code>RFC_7662.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>RFC 9068 is <em>the</em> standard for &ldquo;what does a JWT-shaped OAuth access token<br />
@@ -425,13 +425,13 @@ sign with the same key. The issue side still mints <code>typ:JWT</code> and a <c
 array; <code>typ:at+jwt</code> is tracked in #328.</p>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
-<li><a href="RFC_7519.md">RFC 7519 JWT</a> — the parent spec 9068 profiles</li>
-<li><a href="RFC_7515.md">RFC 7515 JWS</a> — the signing envelope</li>
-<li><a href="RFC_7517.md">RFC 7517 JWK / JWKS</a> — where the verifier finds the public key</li>
-<li><a href="RFC_7662.md">RFC 7662 Introspection</a> — the opaque-token alternative to 9068</li>
-<li><a href="RFC_9396.md">RFC 9396 RAR</a> — <code>authorization_details</code> rides as a public JWT claim</li>
-<li><a href="RFC_9449.md">RFC 9449 DPoP</a> — adds <code>cnf.jkt</code> to bind 9068 tokens to a sender</li>
-<li><a href="RFC_8705.md">RFC 8705 mTLS</a> — adds <code>cnf.x5t#S256</code> for cert-bound 9068 tokens</li>
+<li><a href="/oneauth/specs/rfc-7519/">RFC 7519 JWT</a> — the parent spec 9068 profiles</li>
+<li><a href="/oneauth/specs/rfc-7515/">RFC 7515 JWS</a> — the signing envelope</li>
+<li><a href="/oneauth/specs/rfc-7517/">RFC 7517 JWK / JWKS</a> — where the verifier finds the public key</li>
+<li><a href="/oneauth/specs/rfc-7662/">RFC 7662 Introspection</a> — the opaque-token alternative to 9068</li>
+<li><a href="/oneauth/specs/rfc-9396/">RFC 9396 RAR</a> — <code>authorization_details</code> rides as a public JWT claim</li>
+<li><a href="/oneauth/specs/rfc-9449/">RFC 9449 DPoP</a> — adds <code>cnf.jkt</code> to bind 9068 tokens to a sender</li>
+<li><a href="/oneauth/specs/rfc-8705/">RFC 8705 mTLS</a> — adds <code>cnf.x5t#S256</code> for cert-bound 9068 tokens</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

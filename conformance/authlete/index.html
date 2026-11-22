@@ -192,7 +192,7 @@
         
 <h1 id="authlete-interop">Authlete interop <a class="anchor" href="#authlete-interop">¶</a></h1>
 <p>Hand-authored audit of what <a href="https://github.com/panyam/oneauth/tree/main/tests/authlete"><code>tests/authlete/</code></a> proves about OneAuth&rsquo;s interoperability with <a href="https://www.authlete.com/">Authlete</a> — the semi-hosted OAuth/OIDC token engine that powers several commercial deployments and the FAPI conformance suite.</p>
-<p>The pitch is the same as for <a href="keycloak.md">Keycloak</a>: OneAuth has to validate, introspect, and round-trip tokens minted by a real implementation. Authlete is more interesting than Keycloak for one specific reason — it ships RFC 9396 (Rich Authorization Requests) end-to-end, which means we can verify our middleware against authoritative RAR tokens, not just against ourselves. See also: the <a href="../gaps/AUTHLETE_GAP_ANALYSIS.md">Authlete gap analysis</a>.</p>
+<p>The pitch is the same as for <a href="/oneauth/conformance/keycloak/">Keycloak</a>: OneAuth has to validate, introspect, and round-trip tokens minted by a real implementation. Authlete is more interesting than Keycloak for one specific reason — it ships RFC 9396 (Rich Authorization Requests) end-to-end, which means we can verify our middleware against authoritative RAR tokens, not just against ourselves. See also: the <a href="/oneauth/design/gap-authlete/">Authlete gap analysis</a>.</p>
 <h2 id="architecture">Architecture <a class="anchor" href="#architecture">¶</a></h2>
 <p>Authlete is <em>not</em> a self-contained AS. The local Docker container we run (<code>authlete/java-oauth-server</code>) is the AS <strong>frontend</strong> only — it serves wire endpoints (<code>/api/token</code>, <code>/.well-known/openid-configuration</code>, etc.) and back-channels every token operation over HTTPS to Authlete&rsquo;s cloud REST API:</p>
 <pre><code>test → java-oauth-server (local container) → HTTPS → Authlete cloud
@@ -300,13 +300,13 @@
 <ul>
 <li><strong>FAPI 2.0 / mTLS / DPoP.</strong> Authlete supports them; we don&rsquo;t yet. The matrix-mode runner that attempted to flip signing algs was abandoned in <a href="https://github.com/panyam/oneauth/pull/249">PR 249</a> because Authlete&rsquo;s cloud takes minutes to settle after <code>SetSignAlg</code> PUTs — not worth the runtime tax until we have surface to test.</li>
 <li><strong>Issuance from OneAuth that Authlete consumes.</strong> Same one-way arrow as the Keycloak suite: tokens flow Authlete → OneAuth, not the reverse.</li>
-<li><strong>Authlete-specific extensions</strong> beyond what the Authlete gap analysis lists as &ldquo;in scope.&rdquo; See <a href="../gaps/AUTHLETE_GAP_ANALYSIS.md"><code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code></a> for the full inventory of &ldquo;stays blocked on missing OneAuth surface.&rdquo;</li>
+<li><strong>Authlete-specific extensions</strong> beyond what the Authlete gap analysis lists as &ldquo;in scope.&rdquo; See <a href="/oneauth/design/gap-authlete/"><code>docs/gaps/AUTHLETE_GAP_ANALYSIS.md</code></a> for the full inventory of &ldquo;stays blocked on missing OneAuth surface.&rdquo;</li>
 </ul>
 <h2 id="how-this-page-is-published">How this page is published <a class="anchor" href="#how-this-page-is-published">¶</a></h2>
 <p>Source of truth lives here. The docs site at <code>docs/site/content/conformance/authlete.html</code> renders it verbatim via <code>renderMarkdownFile</code>. The published <code>/conformance/authlete/</code> page picks up changes on the next build.</p>
 <h2 id="follow-ups">Follow-ups <a class="anchor" href="#follow-ups">¶</a></h2>
 <ul>
-<li><strong>Auto-regenerate from <code>go test -json</code>.</strong> Same future work flagged in <a href="keycloak.md">keycloak.md</a> — when the curation cost gets painful, parse the test stream and emit this table mechanically.</li>
+<li><strong>Auto-regenerate from <code>go test -json</code>.</strong> Same future work flagged in <a href="/oneauth/conformance/keycloak/">keycloak.md</a> — when the curation cost gets painful, parse the test stream and emit this table mechanically.</li>
 <li><strong>Re-attempt matrix-mode signing-alg sweep</strong> once Authlete&rsquo;s settle-time becomes a smaller fraction of total runtime, or once <code>SetSignAlg</code> can be batched.</li>
 </ul>
 

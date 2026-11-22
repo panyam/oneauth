@@ -196,8 +196,8 @@
 <strong>Published:</strong> 2015-05<br />
 <strong>L-tier / T-tier:</strong> L1 · T5 (issue) + T7 (verify)<br />
 <strong>OneAuth coverage:</strong> Implemented (via <code>github.com/golang-jwt/jwt</code>)<br />
-<strong>JOSE family:</strong> <a href="RFC_7515.md">JWS</a> · <a href="RFC_7516.md">JWE</a> · <a href="RFC_7517.md">JWK</a> · <a href="RFC_7518.md">JWA</a> · <a href="RFC_7519.md">JWT</a><br />
-<strong>See also:</strong> <a href="RFC_9068.md"><code>RFC_9068.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>JOSE family:</strong> <a href="/oneauth/specs/rfc-7515/">JWS</a> · <a href="/oneauth/specs/rfc-7516/">JWE</a> · <a href="/oneauth/specs/rfc-7517/">JWK</a> · <a href="/oneauth/specs/rfc-7518/">JWA</a> · <a href="/oneauth/specs/rfc-7519/">JWT</a><br />
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-9068/"><code>RFC_9068.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>JWS is the JOSE format for <em>signed</em> JSON payloads — the <code>header.payload.signature</code><br />
@@ -252,9 +252,9 @@ unprotected headers. OAuth never uses it.</li>
 <li><strong>The <code>alg</code> in the header is <em>the</em> attack surface.</strong> &ldquo;alg&rdquo;:&ldquo;none&rdquo; was a<br />
 famous footgun — libraries that honored it accepted unsigned tokens. The<br />
 defense is to lock allowed algs at the verifier, not trust the header.<br />
-See <a href="RFC_7518.md"><code>RFC_7518.md</code></a> for the registry.</li>
+See <a href="/oneauth/specs/rfc-7518/"><code>RFC_7518.md</code></a> for the registry.</li>
 <li><strong><code>kid</code> (key ID) enables rotation.</strong> Header carries <code>kid</code>; verifier looks<br />
-up the matching public key in a JWKS (see <a href="RFC_7517.md"><code>RFC_7517.md</code></a>).<br />
+up the matching public key in a JWKS (see <a href="/oneauth/specs/rfc-7517/"><code>RFC_7517.md</code></a>).<br />
 Rotation is just &ldquo;publish new kid, mint with new kid, retire old kid<br />
 after grace period.&rdquo;</li>
 <li><strong>Detached payload (§A.6) is rarely used in OAuth.</strong> The full token<br />
@@ -285,7 +285,7 @@ verifies the RS256 signature over <code>&lt;header&gt;.&lt;payload&gt;</code>. I
 payload is authentic.</p>
 <h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
 <ul>
-<li><strong>L1 token format.</strong> JWS is the <em>security primitive</em>; <a href="RFC_7519.md">RFC 7519 JWT</a><br />
+<li><strong>L1 token format.</strong> JWS is the <em>security primitive</em>; <a href="/oneauth/specs/rfc-7519/">RFC 7519 JWT</a><br />
 is the claim convention layered on it.</li>
 <li><strong>T5 (issue) and T7 (verify).</strong> AS signs at issuance; RS (or the AS for<br />
 introspection) verifies.</li>
@@ -305,7 +305,7 @@ introspection round-trip</li>
 require it. Opaque-token deployments + introspection (RFC 7662) is a valid<br />
 alternative.</p>
 <h2 id="oauth-21-status">OAuth 2.1 status <a class="anchor" href="#oauth-21-status">¶</a></h2>
-<p>Same — 2.1 doesn&rsquo;t mandate JWS either. RFC 9068 (<a href="RFC_9068.md">the JWT AT profile</a>)<br />
+<p>Same — 2.1 doesn&rsquo;t mandate JWS either. RFC 9068 (<a href="/oneauth/specs/rfc-9068/">the JWT AT profile</a>)<br />
 standardized &ldquo;if you ship JWT access tokens, here&rsquo;s the shape.&rdquo; That&rsquo;s<br />
 referenced by 2.1 but not required.</p>
 <p>If 2.0 didn&rsquo;t mandate JWS and 2.1 doesn&rsquo;t either, why is every doc here<br />
@@ -362,11 +362,11 @@ spec-level optionality and the deployed-reality mandate don&rsquo;t align.</p>
 </table>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
-<li><a href="RFC_7519.md">RFC 7519 JWT</a> — the claim envelope that almost always rides inside JWS</li>
-<li><a href="RFC_7517.md">RFC 7517 JWK / JWKS</a> — how the verifier finds the public key</li>
-<li><a href="RFC_7518.md">RFC 7518 JWA</a> — the registry of <code>alg</code> values JWS headers carry</li>
-<li><a href="RFC_9068.md">RFC 9068</a> — JWT Access Token profile; the OAuth-specific claims layered on JWT</li>
-<li><a href="RFC_7516.md">RFC 7516 JWE</a> — sibling spec for encrypted (rather than signed) payloads</li>
+<li><a href="/oneauth/specs/rfc-7519/">RFC 7519 JWT</a> — the claim envelope that almost always rides inside JWS</li>
+<li><a href="/oneauth/specs/rfc-7517/">RFC 7517 JWK / JWKS</a> — how the verifier finds the public key</li>
+<li><a href="/oneauth/specs/rfc-7518/">RFC 7518 JWA</a> — the registry of <code>alg</code> values JWS headers carry</li>
+<li><a href="/oneauth/specs/rfc-9068/">RFC 9068</a> — JWT Access Token profile; the OAuth-specific claims layered on JWT</li>
+<li><a href="/oneauth/specs/rfc-7516/">RFC 7516 JWE</a> — sibling spec for encrypted (rather than signed) payloads</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

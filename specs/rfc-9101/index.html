@@ -196,7 +196,7 @@
 <strong>Published:</strong> 2021-08<br />
 <strong>L-tier / T-tier:</strong> L6 · T1 (prepare)<br />
 <strong>OneAuth coverage:</strong> Gap for signed request objects (#338; issue 150 was consolidated into it). <code>request_uri</code> works for references from oneauth&rsquo;s own PAR endpoint<br />
-<strong>See also:</strong> <a href="RFC_9126.md"><code>RFC_9126.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-9126/"><code>RFC_9126.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>JAR lets a client send its authorization request as a <em>signed JWT</em> —<br />
@@ -307,7 +307,7 @@ selector but URL <code>redirect_uri</code> etc. are ignored.</li>
 </span></span></code></pre><p>Bank fetches <code>https://psp.example/request-objects/abc</code>, validates the<br />
 JWT returned, proceeds as if <code>request=&lt;jwt&gt;</code> had been used.</p>
 <p><strong>Delivery via PAR + JAR</strong> (FAPI 2.0 Message Signing; FAPI 1.0 Advanced). See<br />
-<a href="RFC_9126.md"><code>RFC_9126.md</code></a>. The signed JWT is POSTed to <code>/par</code>; the<br />
+<a href="/oneauth/specs/rfc-9126/"><code>RFC_9126.md</code></a>. The signed JWT is POSTed to <code>/par</code>; the<br />
 returned <code>request_uri</code> is short and URN-shaped.</p>
 <h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
 <ul>
@@ -330,7 +330,7 @@ optional.</p>
 <p>FAPI 1.0 Advanced mandates JAR (signed request objects). The FAPI 2.0<br />
 Security Profile does not: it requires PAR, and moves signed request<br />
 objects into the separate FAPI 2.0 Message Signing profile. oneauth meets<br />
-the Security Profile without JAR (see <a href="FAPI.md"><code>FAPI.md</code></a>). JAR is on the<br />
+the Security Profile without JAR (see <a href="/oneauth/specs/fapi/"><code>FAPI.md</code></a>). JAR is on the<br />
 critical path only if you target Message Signing or FAPI 1.0.</p>
 <h2 id="migration-path-unsigned-request--jar">Migration path (unsigned-request → JAR) <a class="anchor" href="#migration-path-unsigned-request--jar">¶</a></h2>
 <p>A pragmatic on-ramp:</p>
@@ -385,7 +385,7 @@ for non-repudiation.</li>
 <td><code>request_uri</code> parameter at <code>/authorize</code></td>
 <td><strong>Partial</strong></td>
 <td><code>AuthorizationHandler.ParseAndValidate</code> → <code>resolvePushedRequest</code></td>
-<td>Works for references issued by oneauth&rsquo;s own <code>/par</code> since 0.1.38 (see <a href="RFC_9126.md"><code>RFC_9126.md</code></a>). Any other reference gets <code>request_uri_not_supported</code> (#479). Fetching a request object from a client-hosted URL, and signed request objects in general, are the gap (#338)</td>
+<td>Works for references issued by oneauth&rsquo;s own <code>/par</code> since 0.1.38 (see <a href="/oneauth/specs/rfc-9126/"><code>RFC_9126.md</code></a>). Any other reference gets <code>request_uri_not_supported</code> (#479). Fetching a request object from a client-hosted URL, and signed request objects in general, are the gap (#338)</td>
 </tr>
 <tr>
 <td>Request JWT signature validation</td>
@@ -415,7 +415,7 @@ for non-repudiation.</li>
 <td>Encrypted request objects (JWE)</td>
 <td><strong>Gap</strong></td>
 <td>—</td>
-<td>Tracked under <a href="RFC_7516.md">RFC_7516.md</a> JWE gap; rarely needed</td>
+<td>Tracked under <a href="/oneauth/specs/rfc-7516/">RFC_7516.md</a> JWE gap; rarely needed</td>
 </tr>
 </tbody>
 </table>
@@ -435,14 +435,14 @@ per-client and per-deployment.</li>
 </ol>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
-<li><a href="RFC_9126.md">RFC 9126</a> — PAR; pairs naturally with JAR</li>
-<li><a href="RFC_9396.md">RFC 9396</a> — RAR; carries inside JAR-signed requests</li>
-<li><a href="RFC_6749.md">RFC 6749</a> — the framework whose <code>/authorize</code> JAR signs</li>
-<li><a href="RFC_9700.md">RFC 9700</a> — §4.18 motivates request integrity</li>
-<li><a href="RFC_7515.md">RFC 7515</a> / <a href="RFC_7516.md">RFC 7516</a> — the JOSE primitives</li>
-<li><a href="RFC_7523.md">RFC 7523</a> — the client-auth analogue (same key, different purpose)</li>
-<li><a href="FAPI.md">FAPI 1.0 / 2.0</a> — FAPI 1.0 Advanced and FAPI 2.0 Message Signing use JAR; the FAPI 2.0 Security Profile does not</li>
-<li><a href="RFC_oauth21.md">OAuth 2.1 draft</a> — references but doesn&rsquo;t mandate</li>
+<li><a href="/oneauth/specs/rfc-9126/">RFC 9126</a> — PAR; pairs naturally with JAR</li>
+<li><a href="/oneauth/specs/rfc-9396/">RFC 9396</a> — RAR; carries inside JAR-signed requests</li>
+<li><a href="/oneauth/specs/rfc-6749/">RFC 6749</a> — the framework whose <code>/authorize</code> JAR signs</li>
+<li><a href="/oneauth/specs/rfc-9700/">RFC 9700</a> — §4.18 motivates request integrity</li>
+<li><a href="/oneauth/specs/rfc-7515/">RFC 7515</a> / <a href="/oneauth/specs/rfc-7516/">RFC 7516</a> — the JOSE primitives</li>
+<li><a href="/oneauth/specs/rfc-7523/">RFC 7523</a> — the client-auth analogue (same key, different purpose)</li>
+<li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a> — FAPI 1.0 Advanced and FAPI 2.0 Message Signing use JAR; the FAPI 2.0 Security Profile does not</li>
+<li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1 draft</a> — references but doesn&rsquo;t mandate</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

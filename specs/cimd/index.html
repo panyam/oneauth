@@ -195,7 +195,7 @@
 <p><strong>Status:</strong> Internet-Draft (draft-ietf-oauth-client-id-metadata-document-03, November 2026)<br />
 <strong>L-tier / T-tier:</strong> L2 · T0 (setup / registration)<br />
 <strong>OneAuth coverage:</strong> Implemented, opt-in (<code>apiauth.CIMDAppStore</code>, <code>OneAuthConfig.ClientIDMetadataDocuments</code>)<br />
-<strong>See also:</strong> <a href="RFC_7591.md"><code>RFC_7591.md</code></a> · <a href="RFC_8414.md"><code>RFC_8414.md</code></a> · <a href="RFC_7523.md"><code>RFC_7523.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-7591/"><code>RFC_7591.md</code></a> · <a href="/oneauth/specs/rfc-8414/"><code>RFC_8414.md</code></a> · <a href="/oneauth/specs/rfc-7523/"><code>RFC_7523.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>A client uses an https URL it controls as its <code>client_id</code>, and the authorization server fetches the client&rsquo;s metadata from that URL instead of needing the client registered first.</p>
@@ -303,6 +303,12 @@ grant_type=authorization_code&amp;code=...&amp;code_verifier=...
 <td><code>client_id</code> equals the URL. <code>client_name</code> and <code>redirect_uris</code> are required, as MCP asks. No secrets or shared-secret methods, and not both <code>jwks</code> and <code>jwks_uri</code>. <code>grant_types</code> and <code>response_types</code> are cut down to what the AS supports (§6)</td>
 </tr>
 <tr>
+<td>Per-client settings</td>
+<td><strong>Implemented</strong></td>
+<td><code>CIMDAppStore.GetApp</code></td>
+<td><code>dpop_bound_access_tokens</code>, <code>require_pushed_authorization_requests</code>, <code>userinfo_signed_response_alg</code> and <code>authorization_signed_response_alg</code> hold as they do for a registered client. A signing algorithm the AS doesn&rsquo;t sign with (<code>CIMDAppStore.UserinfoSigningAlgs</code>, <code>AuthorizationSigningAlgs</code>, set by <code>NewOneAuth</code>) makes the document invalid, as DCR refuses it (issue 557)</td>
+</tr>
+<tr>
 <td><code>none</code> and <code>private_key_jwt</code> clients</td>
 <td><strong>Implemented</strong></td>
 <td><code>apiauth.ClientAuthenticator</code></td>
@@ -367,11 +373,11 @@ grant_type=authorization_code&amp;code=...&amp;code_verifier=...
 </ul>
 <h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
 <ul>
-<li><a href="RFC_7591.md">RFC 7591</a> covers Dynamic Client Registration, the other way a client becomes known without manual setup.</li>
-<li><a href="RFC_8414.md">RFC 8414</a> covers AS metadata, which advertises <code>client_id_metadata_document_supported</code>.</li>
-<li><a href="RFC_7523.md">RFC 7523</a> covers <code>private_key_jwt</code>, the confidential-client method a document can declare.</li>
-<li><a href="RFC_7636.md">RFC 7636</a> covers PKCE, which a <code>none</code> client relies on.</li>
-<li><a href="RFC_9700.md">RFC 9700</a> covers the loopback redirect rule that native clients&rsquo; <code>redirect_uris</code> use.</li>
+<li><a href="/oneauth/specs/rfc-7591/">RFC 7591</a> covers Dynamic Client Registration, the other way a client becomes known without manual setup.</li>
+<li><a href="/oneauth/specs/rfc-8414/">RFC 8414</a> covers AS metadata, which advertises <code>client_id_metadata_document_supported</code>.</li>
+<li><a href="/oneauth/specs/rfc-7523/">RFC 7523</a> covers <code>private_key_jwt</code>, the confidential-client method a document can declare.</li>
+<li><a href="/oneauth/specs/rfc-7636/">RFC 7636</a> covers PKCE, which a <code>none</code> client relies on.</li>
+<li><a href="/oneauth/specs/rfc-9700/">RFC 9700</a> covers the loopback redirect rule that native clients&rsquo; <code>redirect_uris</code> use.</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

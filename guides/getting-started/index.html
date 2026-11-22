@@ -234,7 +234,7 @@ case.</p>
 </span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// For API authentication
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>refreshTokenStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSRefreshTokenStore</span>(storagePath)
 </span></span><span style="display:flex;"><span>apiKeyStore <span style="color:#000;font-weight:bold">:=</span> fs.<span style="color:#900;font-weight:bold">NewFSAPIKeyStore</span>(storagePath)
-</span></span></code></pre><p>For production store options (GORM, GAE), see <a href="STORES.md">STORES.md</a>.</p>
+</span></span></code></pre><p>For production store options (GORM, GAE), see <a href="/oneauth/guides/stores/">STORES.md</a>.</p>
 <h2 id="configuring-local-authentication">Configuring Local Authentication <a class="anchor" href="#configuring-local-authentication">¶</a></h2>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// Create authentication callbacks using helper functions
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>createUser <span style="color:#000;font-weight:bold">:=</span> localauth.<span style="color:#900;font-weight:bold">NewCreateUserFunc</span>(userStore, identityStore, channelStore)
@@ -303,11 +303,11 @@ case.</p>
 </span></span><span style="display:flex;"><span>err <span style="color:#000;font-weight:bold">:=</span> <span style="color:#900;font-weight:bold">updatePassword</span>(<span style="color:#d14">&#34;john@example.com&#34;</span>, <span style="color:#d14">&#34;newpassword456&#34;</span>)
 </span></span></code></pre><h2 id="next-steps">Next Steps <a class="anchor" href="#next-steps">¶</a></h2>
 <ul>
-<li><a href="API_AUTH.md">API_AUTH.md</a> — JWT-based API authentication for mobile apps, SPAs, and services</li>
-<li><a href="BROWSER_AUTH.md">BROWSER_AUTH.md</a> — OAuth integration, session management, channel linking</li>
-<li><a href="STORES.md">STORES.md</a> — Store interfaces and persistent implementations (GORM, GAE)</li>
-<li><a href="GRPC.md">GRPC.md</a> — gRPC authentication interceptors</li>
-<li><a href="TESTING.md">TESTING.md</a> — Testing, security, and troubleshooting</li>
+<li><a href="/oneauth/guides/api-auth/">API_AUTH.md</a> — JWT-based API authentication for mobile apps, SPAs, and services</li>
+<li><a href="/oneauth/guides/browser-auth/">BROWSER_AUTH.md</a> — OAuth integration, session management, channel linking</li>
+<li><a href="/oneauth/guides/stores/">STORES.md</a> — Store interfaces and persistent implementations (GORM, GAE)</li>
+<li><a href="/oneauth/guides/grpc/">GRPC.md</a> — gRPC authentication interceptors</li>
+<li><a href="/oneauth/guides/testing/">TESTING.md</a> — Testing, security, and troubleshooting</li>
 </ul>
 
 

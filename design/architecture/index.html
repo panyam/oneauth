@@ -246,10 +246,10 @@
 </table>
 <p>Each mode has its own detailed documentation:</p>
 <ul>
-<li><strong><a href="BROWSER_AUTH.md">Browser Auth</a></strong> — Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error handling</li>
-<li><strong><a href="API_AUTH.md">API Auth</a></strong> — JWT access tokens, refresh tokens with rotation and theft detection, API keys, scope-based access control, custom claims, multi-tenant JWT validation via KeyStore</li>
-<li><strong><a href="FEDERATED_AUTH.md">Federated Auth</a></strong> — App Registration API (AdminAuth, AppRegistrar), resource token minting (MintResourceToken), multi-service architecture with shared KeyStore</li>
-<li><strong><a href="AUTH_FLOWS.md">Auth Flows</a></strong> — Detailed decision trees for login/signup, provider linking matrix, user journeys, edge cases</li>
+<li><strong><a href="/oneauth/guides/browser-auth/">Browser Auth</a></strong> — Form-based login/signup, OAuth integration, channel linking, email verification, password reset, session management, validation, and error handling</li>
+<li><strong><a href="/oneauth/guides/api-auth/">API Auth</a></strong> — JWT access tokens, refresh tokens with rotation and theft detection, API keys, scope-based access control, custom claims, multi-tenant JWT validation via KeyStore</li>
+<li><strong><a href="/oneauth/design/federated-auth/">Federated Auth</a></strong> — App Registration API (AdminAuth, AppRegistrar), resource token minting (MintResourceToken), multi-service architecture with shared KeyStore</li>
+<li><strong><a href="/oneauth/design/auth-flows/">Auth Flows</a></strong> — Detailed decision trees for login/signup, provider linking matrix, user journeys, edge cases</li>
 </ul>
 <h2 id="package-organization">Package Organization <a class="anchor" href="#package-organization">¶</a></h2>
 <pre><code class="language-mermaid">flowchart TD
@@ -281,16 +281,16 @@
     Interfaces --&gt; Gorm[&quot;stores/gorm&lt;br/&gt;SQL (GORM)&lt;br/&gt;Production&quot;]
     Interfaces --&gt; Gae[&quot;stores/gae&lt;br/&gt;Datastore&lt;br/&gt;Google Cloud&quot;]
 </code></pre>
-<p>For store interfaces, implementations, and KeyStore details, see <strong><a href="STORES.md">Stores</a></strong>.</p>
+<p>For store interfaces, implementations, and KeyStore details, see <strong><a href="/oneauth/guides/stores/">Stores</a></strong>.</p>
 <h2 id="demos">Demos <a class="anchor" href="#demos">¶</a></h2>
-<p>See <strong><a href="DEMOS.md">DEMOS.md</a></strong> for runnable demos that exercise key scenarios end-to-end, including what each demo simplifies vs. production usage.</p>
+<p>See <strong><a href="/oneauth/guides/demos/">DEMOS.md</a></strong> for runnable demos that exercise key scenarios end-to-end, including what each demo simplifies vs. production usage.</p>
 <h2 id="client-sdk">Client SDK <a class="anchor" href="#client-sdk">¶</a></h2>
 <p>For CLI tools and programmatic clients consuming oneauth-protected APIs:</p>
 <pre><code class="language-mermaid">flowchart LR
     AuthClient[&quot;AuthClient&quot;] --&gt; LoginLogout[&quot;Login/Logout&quot;] --&gt; CredentialStore[&quot;CredentialStore&lt;br/&gt;(persists tokens)&quot;]
     AuthClient --&gt; HTTPClient[&quot;HTTPClient()&quot;] --&gt; RefreshTransport[&quot;refreshTransport&lt;br/&gt;(auto-refresh on 401)&quot;]
 </code></pre>
-<p>See <strong><a href="CLIENT_SDK.md">Client SDK</a></strong> for full details.</p>
+<p>See <strong><a href="/oneauth/guides/client-sdk/">Client SDK</a></strong> for full details.</p>
 <h2 id="security-architecture">Security Architecture <a class="anchor" href="#security-architecture">¶</a></h2>
 <h3 id="password-security">Password Security <a class="anchor" href="#password-security">¶</a></h3>
 <ul>
@@ -366,42 +366,42 @@
 <tr>
 <td><code>SignupPolicy</code></td>
 <td>Configurable signup requirements</td>
-<td><a href="BROWSER_AUTH.md#signuppolicy-recommended">Browser Auth</a></td>
+<td><a href="/oneauth/guides/browser-auth/#signuppolicy-recommended">Browser Auth</a></td>
 </tr>
 <tr>
 <td><code>OnSignupError</code> / <code>OnLoginError</code></td>
 <td>Custom error handlers</td>
-<td><a href="BROWSER_AUTH.md#custom-error-handlers">Browser Auth</a></td>
+<td><a href="/oneauth/guides/browser-auth/#custom-error-handlers">Browser Auth</a></td>
 </tr>
 <tr>
 <td><code>ValidateSignup</code> (legacy)</td>
 <td>Custom signup validation</td>
-<td><a href="BROWSER_AUTH.md#custom-validator-legacy">Browser Auth</a></td>
+<td><a href="/oneauth/guides/browser-auth/#custom-validator-legacy">Browser Auth</a></td>
 </tr>
 <tr>
 <td><code>GetUserScopes</code></td>
 <td>Custom scope resolution</td>
-<td><a href="API_AUTH.md#scopes">API Auth</a></td>
+<td><a href="/oneauth/guides/api-auth/#scopes">API Auth</a></td>
 </tr>
 <tr>
 <td><code>CustomClaimsFunc</code></td>
 <td>Inject custom JWT claims</td>
-<td><a href="API_AUTH.md#custom-claims">API Auth</a></td>
+<td><a href="/oneauth/guides/api-auth/#custom-claims">API Auth</a></td>
 </tr>
 <tr>
 <td><code>EmailSender</code></td>
 <td>Custom email delivery</td>
-<td><a href="BROWSER_AUTH.md#email-integration">Browser Auth</a></td>
+<td><a href="/oneauth/guides/browser-auth/#email-integration">Browser Auth</a></td>
 </tr>
 <tr>
 <td><code>AdminAuth</code></td>
 <td>Pluggable admin authentication</td>
-<td><a href="FEDERATED_AUTH.md#adminauth-interface">Federated Auth</a></td>
+<td><a href="/oneauth/design/federated-auth/#adminauth-interface">Federated Auth</a></td>
 </tr>
 <tr>
 <td>Store interfaces</td>
 <td>Custom database backends</td>
-<td><a href="STORES.md#custom-store-implementation">Stores</a></td>
+<td><a href="/oneauth/guides/stores/#custom-store-implementation">Stores</a></td>
 </tr>
 </tbody>
 </table>
@@ -433,55 +433,55 @@
 </thead>
 <tbody>
 <tr>
-<td><a href="ARCHITECTURE.md">ARCHITECTURE.md</a></td>
+<td><a href="/oneauth/design/architecture/">ARCHITECTURE.md</a></td>
 <td>This file — high-level overview</td>
 </tr>
 <tr>
-<td><a href="BROWSER_AUTH.md">BROWSER_AUTH.md</a></td>
+<td><a href="/oneauth/guides/browser-auth/">BROWSER_AUTH.md</a></td>
 <td>Browser-based authentication (LocalAuth, OAuth, sessions)</td>
 </tr>
 <tr>
-<td><a href="API_AUTH.md">API_AUTH.md</a></td>
+<td><a href="/oneauth/guides/api-auth/">API_AUTH.md</a></td>
 <td>API authentication (JWT, refresh tokens, API keys, KeyStore)</td>
 </tr>
 <tr>
-<td><a href="FEDERATED_AUTH.md">FEDERATED_AUTH.md</a></td>
+<td><a href="/oneauth/design/federated-auth/">FEDERATED_AUTH.md</a></td>
 <td>Federated auth (AppRegistrar, MintResourceToken, AdminAuth)</td>
 </tr>
 <tr>
-<td><a href="AUTH_FLOWS.md">AUTH_FLOWS.md</a></td>
+<td><a href="/oneauth/design/auth-flows/">AUTH_FLOWS.md</a></td>
 <td>Detailed decision trees, user journeys, edge cases</td>
 </tr>
 <tr>
-<td><a href="CLIENT_SDK.md">CLIENT_SDK.md</a></td>
+<td><a href="/oneauth/guides/client-sdk/">CLIENT_SDK.md</a></td>
 <td>Client SDK for CLI/programmatic access</td>
 </tr>
 <tr>
-<td><a href="STORES.md">STORES.md</a></td>
+<td><a href="/oneauth/guides/stores/">STORES.md</a></td>
 <td>Store interfaces and implementations</td>
 </tr>
 <tr>
-<td><a href="GETTING_STARTED.md">GETTING_STARTED.md</a></td>
+<td><a href="/oneauth/guides/getting-started/">GETTING_STARTED.md</a></td>
 <td>Quick start guide</td>
 </tr>
 <tr>
-<td><a href="USER_GUIDE.md">USER_GUIDE.md</a></td>
+<td><a href="/oneauth/guides/user-guide/">USER_GUIDE.md</a></td>
 <td>User guide</td>
 </tr>
 <tr>
-<td><a href="DEVELOPER_GUIDE.md">DEVELOPER_GUIDE.md</a></td>
+<td><a href="/oneauth/guides/developer-guide/">DEVELOPER_GUIDE.md</a></td>
 <td>Developer guide</td>
 </tr>
 <tr>
-<td><a href="DEMOS.md">DEMOS.md</a></td>
+<td><a href="/oneauth/guides/demos/">DEMOS.md</a></td>
 <td>Runnable demos &amp; production vs. demo comparison</td>
 </tr>
 <tr>
-<td><a href="TESTING.md">TESTING.md</a></td>
+<td><a href="/oneauth/guides/testing/">TESTING.md</a></td>
 <td>Testing guide</td>
 </tr>
 <tr>
-<td><a href="GRPC.md">GRPC.md</a></td>
+<td><a href="/oneauth/guides/grpc/">GRPC.md</a></td>
 <td>gRPC integration</td>
 </tr>
 </tbody>

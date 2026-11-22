@@ -196,7 +196,7 @@
 <strong>Published:</strong> 2020-01<br />
 <strong>L-tier / T-tier:</strong> L4 · T5<br />
 <strong>OneAuth coverage:</strong> Implemented (Phase 1 — JWT subject tokens)<br />
-<strong>See also:</strong> <a href="RFC_7523.md"><code>RFC_7523.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-7523/"><code>RFC_7523.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>Token Exchange lets a holder of one token swap it for another token —<br />
@@ -403,7 +403,7 @@ with the IdP key) into <code>TokenExchangerConfig.IDJAGIssuer</code> or<br />
 <code>OneAuthConfig.IDJAGIssuer</code> to opt in — minting a cross-domain<br />
 authorization grant is a sensitive capability gated per #344.</li>
 </ul>
-<p>Redemption is the sibling <a href="RFC_7523.md">RFC 7523</a> jwt-bearer grant. See<br />
+<p>Redemption is the sibling <a href="/oneauth/specs/rfc-7523/">RFC 7523</a> jwt-bearer grant. See<br />
 <code>apiauth/id_jag.go</code> and the two-leg e2e in<br />
 <code>client/enterprise_managed_e2e_test.go</code>.</p>
 <p>A confidential requesting client is authenticated on the exchange when its<br />
@@ -421,12 +421,12 @@ for getting an initial token.</li>
 </ul>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
-<li><a href="RFC_7523.md">RFC 7523</a> — JWT Bearer; sibling grant for &ldquo;I have a JWT, give me a token&rdquo; (simpler, no actor concept)</li>
-<li><a href="RFC_6749.md">RFC 6749</a> — the framework 8693 extends</li>
-<li><a href="RFC_7519.md">RFC 7519</a> — JWT subject_tokens live here</li>
-<li><a href="RFC_9396.md">RFC 9396</a> — RAR; token exchange can ask for and receive narrowed <code>authorization_details</code></li>
-<li><a href="RFC_oauth21.md">OAuth 2.1 draft</a> — unchanged</li>
-<li><a href="RFC_9068.md">RFC 9068</a> — the issued access token follows this profile</li>
+<li><a href="/oneauth/specs/rfc-7523/">RFC 7523</a> — JWT Bearer; sibling grant for &ldquo;I have a JWT, give me a token&rdquo; (simpler, no actor concept)</li>
+<li><a href="/oneauth/specs/rfc-6749/">RFC 6749</a> — the framework 8693 extends</li>
+<li><a href="/oneauth/specs/rfc-7519/">RFC 7519</a> — JWT subject_tokens live here</li>
+<li><a href="/oneauth/specs/rfc-9396/">RFC 9396</a> — RAR; token exchange can ask for and receive narrowed <code>authorization_details</code></li>
+<li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1 draft</a> — unchanged</li>
+<li><a href="/oneauth/specs/rfc-9068/">RFC 9068</a> — the issued access token follows this profile</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

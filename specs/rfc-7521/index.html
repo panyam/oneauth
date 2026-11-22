@@ -195,8 +195,8 @@
 <p><strong>Status:</strong> Standards Track<br />
 <strong>Published:</strong> 2015-05<br />
 <strong>L-tier / T-tier:</strong> L4 (grant) + L5 (client auth) · T5<br />
-<strong>OneAuth coverage:</strong> Implemented (transitively via <a href="RFC_7523.md">RFC 7523</a>)<br />
-<strong>See also:</strong> <a href="RFC_7523.md"><code>RFC_7523.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>OneAuth coverage:</strong> Implemented (transitively via <a href="/oneauth/specs/rfc-7523/">RFC 7523</a>)<br />
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-7523/"><code>RFC_7523.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>RFC 7521 is the <em>generic</em> framework that defines how to use a signed<br />
@@ -227,7 +227,7 @@ RFC 7523, SAML in RFC 7522) layer on top.</p>
 </tbody>
 </table>
 <p>7521 is the <em>abstract</em> spec. You almost never read it on its own — you<br />
-read it as the parent of <a href="RFC_7523.md">RFC 7523 (JWT bearer)</a> or RFC 7522<br />
+read it as the parent of <a href="/oneauth/specs/rfc-7523/">RFC 7523 (JWT bearer)</a> or RFC 7522<br />
 (SAML bearer). It&rsquo;s listed here as a separate doc because the LANDSCAPE<br />
 ticket pairs them, and because understanding 7521 illuminates why 7523<br />
 has the shape it does.</p>
@@ -318,7 +318,7 @@ no deployment uses 7521 abstractly.</p>
 <p>Not changed by 2.1. The framework and bindings continue forward.</p>
 <h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
 <p>OneAuth implements RFC 7523 (JWT binding) on top of 7521&rsquo;s framework. See<br />
-<a href="RFC_7523.md"><code>RFC_7523.md</code></a> for the implementation details.</p>
+<a href="/oneauth/specs/rfc-7523/"><code>RFC_7523.md</code></a> for the implementation details.</p>
 <ul>
 <li><strong>Implemented</strong>: framework wire shape (via 7523)</li>
 <li><strong>Not implemented</strong>: SAML binding (RFC 7522) — out of scope; no observed demand</li>
@@ -331,10 +331,10 @@ is a niche in modern OAuth deployments.</p>
 framework&rsquo;s value is to keep multi-binding implementations consistent.</p>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
-<li><a href="RFC_7523.md">RFC 7523</a> — the JWT binding; what&rsquo;s actually used</li>
+<li><a href="/oneauth/specs/rfc-7523/">RFC 7523</a> — the JWT binding; what&rsquo;s actually used</li>
 <li><a href="https://datatracker.ietf.org/doc/rfc7522/">RFC 7522</a> — SAML binding; niche</li>
-<li><a href="RFC_6749.md">RFC 6749</a> — the framework whose grant + client-auth slots 7521 fills</li>
-<li><a href="RFC_8693.md">RFC 8693</a> — Token Exchange; another assertion-shaped grant</li>
+<li><a href="/oneauth/specs/rfc-6749/">RFC 6749</a> — the framework whose grant + client-auth slots 7521 fills</li>
+<li><a href="/oneauth/specs/rfc-8693/">RFC 8693</a> — Token Exchange; another assertion-shaped grant</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

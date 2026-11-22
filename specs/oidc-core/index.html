@@ -196,7 +196,7 @@
 <strong>Published:</strong> 2014 (latest errata 2024)<br />
 <strong>L-tier / T-tier:</strong> L7 · T3 (user auth) + T5 (id_token issue)<br />
 <strong>OneAuth coverage:</strong> Partial. <code>/authorize</code> shipped in PR 297 (OAuth-layer), but id_token issuance, nonce, and <code>/userinfo</code> are gaps (#339)<br />
-<strong>See also:</strong> <a href="OIDC_Discovery.md"><code>OIDC_Discovery.md</code></a> · <a href="OIDC_BCL.md"><code>OIDC_BCL.md</code></a> · <a href="OIDC_CIBA.md"><code>OIDC_CIBA.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/oidc-discovery/"><code>OIDC_Discovery.md</code></a> · <a href="/oneauth/specs/oidc-bcl/"><code>OIDC_BCL.md</code></a> · <a href="/oneauth/specs/oidc-ciba/"><code>OIDC_CIBA.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>OpenID Connect Core is the identity layer on top of OAuth 2.0 — it adds the<br />
@@ -383,7 +383,7 @@ separate identity-signing key — same JWKS publication mechanism).</li>
 authorization code record, echo in the issued id_token.</li>
 <li><strong>Stand up <code>/userinfo</code></strong> — bearer-token-authed; return identity claims<br />
 per the granted scopes (<code>openid</code>, <code>profile</code>, <code>email</code>, &hellip;).</li>
-<li><strong>Update discovery</strong> with OIDC-specific fields (see <a href="OIDC_Discovery.md"><code>OIDC_Discovery.md</code></a>).</li>
+<li><strong>Update discovery</strong> with OIDC-specific fields (see <a href="/oneauth/specs/oidc-discovery/"><code>OIDC_Discovery.md</code></a>).</li>
 <li><strong>Add scope-to-claims mapping</strong> for <code>profile</code>, <code>email</code>, <code>address</code>,<br />
 <code>phone</code>.</li>
 <li><strong>Add <code>auth_time</code>, <code>acr</code>, <code>amr</code> emission</strong> based on how the user was<br />
@@ -432,7 +432,7 @@ surface smaller.</li>
 <td><code>request</code> / <code>request_uri</code> parameters (§6)</td>
 <td><strong>Refused</strong> (#479)</td>
 <td><code>AuthorizationHandler.ValidateValues</code>, <code>ParseAndValidate</code></td>
-<td><code>request_not_supported</code> and <code>request_uri_not_supported</code> at the redirect URI, with <code>state</code>, as §6.1 and §6.2 allow an OP that doesn&rsquo;t support them. A <code>request_uri</code> from oneauth&rsquo;s own <code>/par</code> still resolves. Request objects themselves are JAR, see <a href="RFC_9101.md"><code>RFC_9101.md</code></a></td>
+<td><code>request_not_supported</code> and <code>request_uri_not_supported</code> at the redirect URI, with <code>state</code>, as §6.1 and §6.2 allow an OP that doesn&rsquo;t support them. A <code>request_uri</code> from oneauth&rsquo;s own <code>/par</code> still resolves. Request objects themselves are JAR, see <a href="/oneauth/specs/rfc-9101/"><code>RFC_9101.md</code></a></td>
 </tr>
 <tr>
 <td><code>id_token</code> issuance</td>
@@ -510,7 +510,7 @@ surface smaller.</li>
 <td>OIDC Discovery (<code>/.well-known/openid-configuration</code>)</td>
 <td><strong>Implemented</strong></td>
 <td><code>apiauth.MountASMetadata</code> co-serves both paths</td>
-<td>See <a href="OIDC_Discovery.md"><code>OIDC_Discovery.md</code></a></td>
+<td>See <a href="/oneauth/specs/oidc-discovery/"><code>OIDC_Discovery.md</code></a></td>
 </tr>
 <tr>
 <td>ID token verification in the client SDK (relying-party side)</td>
@@ -560,14 +560,14 @@ marker of its own, and without one an ID token signed with the AS key would<br /
 open any resource the AS protects.</p>
 <h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
 <ul>
-<li><a href="OIDC_Discovery.md">OIDC Discovery 1.0</a> — the discovery doc with OIDC-specific fields</li>
-<li><a href="OIDC_BCL.md">OIDC BCL</a> — back-channel logout</li>
-<li><a href="OIDC_CIBA.md">OIDC CIBA</a> — client-initiated backchannel auth</li>
-<li><a href="RFC_6749.md">RFC 6749</a> — the OAuth framework OIDC layers on</li>
-<li><a href="RFC_7519.md">RFC 7519</a> — JWT (the id_token format)</li>
-<li><a href="RFC_7515.md">RFC 7515</a> — JWS (signs the id_token)</li>
-<li><a href="RFC_7636.md">RFC 7636</a> — PKCE; mandatory companion in modern OIDC</li>
-<li><a href="RFC_9068.md">RFC 9068</a> — JWT AT profile (sibling of OIDC&rsquo;s id_token shape)</li>
+<li><a href="/oneauth/specs/oidc-discovery/">OIDC Discovery 1.0</a> — the discovery doc with OIDC-specific fields</li>
+<li><a href="/oneauth/specs/oidc-bcl/">OIDC BCL</a> — back-channel logout</li>
+<li><a href="/oneauth/specs/oidc-ciba/">OIDC CIBA</a> — client-initiated backchannel auth</li>
+<li><a href="/oneauth/specs/rfc-6749/">RFC 6749</a> — the OAuth framework OIDC layers on</li>
+<li><a href="/oneauth/specs/rfc-7519/">RFC 7519</a> — JWT (the id_token format)</li>
+<li><a href="/oneauth/specs/rfc-7515/">RFC 7515</a> — JWS (signs the id_token)</li>
+<li><a href="/oneauth/specs/rfc-7636/">RFC 7636</a> — PKCE; mandatory companion in modern OIDC</li>
+<li><a href="/oneauth/specs/rfc-9068/">RFC 9068</a> — JWT AT profile (sibling of OIDC&rsquo;s id_token shape)</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

@@ -196,7 +196,7 @@
 <strong>Published:</strong> 2012-10<br />
 <strong>L-tier / T-tier:</strong> L0 · T6<br />
 <strong>OneAuth coverage:</strong> Implemented (header form); query-param fallback deprecated<br />
-<strong>See also:</strong> <a href="RFC_6749.md"><code>RFC_6749.md</code></a> · <a href="RFC_oauth21.md"><code>RFC_oauth21.md</code></a> · <a href="RFC_9449.md"><code>RFC_9449.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/rfc-6749/"><code>RFC_6749.md</code></a> · <a href="/oneauth/specs/rfc-oauth21/"><code>RFC_oauth21.md</code></a> · <a href="/oneauth/specs/rfc-9449/"><code>RFC_9449.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>RFC 6750 defines the <em>contract between the client and the resource server</em> —<br />
@@ -393,7 +393,7 @@ field or an initial-frame auth message — <em>not</em> the discouraged (2.0)<br
 <td>Query-param fallback (§2.3)</td>
 <td><strong>Opt-in only; OAuth 2.0 escape hatch</strong></td>
 <td><code>apiauth/middleware.go</code> <code>LegacyQueryParamBearer</code> field with <code>sync.Once</code> warning</td>
-<td>Retained for OAuth 2.0 deployments under capability-gating umbrella #344. See <a href="../DEMOS.md#websocket-auth-alternatives">docs/DEMOS.md</a> for three header-clean WebSocket alternatives.</td>
+<td>Retained for OAuth 2.0 deployments under capability-gating umbrella #344. See <a href="/oneauth/guides/demos/#websocket-auth-alternatives">docs/DEMOS.md</a> for three header-clean WebSocket alternatives.</td>
 </tr>
 <tr>
 <td><code>error=&quot;invalid_token&quot;</code> on challenge</td>
@@ -417,12 +417,12 @@ field or an initial-frame auth message — <em>not</em> the discouraged (2.0)<br
 </table>
 <h2 id="related-rfcs">Related RFCs <a class="anchor" href="#related-rfcs">¶</a></h2>
 <ul>
-<li><a href="RFC_6749.md">RFC 6749</a> — the framework that produces the token 6750 carries</li>
-<li><a href="RFC_oauth21.md">OAuth 2.1 draft</a> — §5 re-exports 6750 with §2.3 query-param removed</li>
-<li><a href="RFC_9449.md">RFC 9449</a> — DPoP; replaces <code>Bearer</code> with sender-constrained <code>DPoP &lt;token&gt;</code> + proof</li>
-<li><a href="RFC_8705.md">RFC 8705</a> — mTLS; binds the token to a TLS client cert</li>
-<li><a href="RFC_7662.md">RFC 7662</a> — Introspection; the RS-side companion when the token is opaque</li>
-<li><a href="RFC_9068.md">RFC 9068</a> — JWT AT profile; the shape the token has when it&rsquo;s a JWT</li>
+<li><a href="/oneauth/specs/rfc-6749/">RFC 6749</a> — the framework that produces the token 6750 carries</li>
+<li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1 draft</a> — §5 re-exports 6750 with §2.3 query-param removed</li>
+<li><a href="/oneauth/specs/rfc-9449/">RFC 9449</a> — DPoP; replaces <code>Bearer</code> with sender-constrained <code>DPoP &lt;token&gt;</code> + proof</li>
+<li><a href="/oneauth/specs/rfc-8705/">RFC 8705</a> — mTLS; binds the token to a TLS client cert</li>
+<li><a href="/oneauth/specs/rfc-7662/">RFC 7662</a> — Introspection; the RS-side companion when the token is opaque</li>
+<li><a href="/oneauth/specs/rfc-9068/">RFC 9068</a> — JWT AT profile; the shape the token has when it&rsquo;s a JWT</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

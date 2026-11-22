@@ -195,7 +195,7 @@
 <p><strong>Status:</strong> OpenID Foundation final specification (2022), part of FAPI 1.0 Advanced and FAPI 2.0 Message Signing<br />
 <strong>L-tier / T-tier:</strong> L6 · T1 (authorization response)<br />
 <strong>OneAuth coverage:</strong> Implemented, opt-in. The AS signs (<code>OneAuthConfig.JARM</code>), the SDK verifies (<code>BrowserLoginRequest.ResponseMode</code>, <code>client.VerifyAuthorizationResponse</code>), and DCR takes <code>authorization_signed_response_alg</code><br />
-<strong>See also:</strong> <a href="FAPI.md"><code>FAPI.md</code></a> · <a href="RFC_9207.md"><code>RFC_9207.md</code></a> · <a href="RFC_9126.md"><code>RFC_9126.md</code></a> · <a href="RFC_7591.md"><code>RFC_7591.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/fapi/"><code>FAPI.md</code></a> · <a href="/oneauth/specs/rfc-9207/"><code>RFC_9207.md</code></a> · <a href="/oneauth/specs/rfc-9126/"><code>RFC_9126.md</code></a> · <a href="/oneauth/specs/rfc-7591/"><code>RFC_7591.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
 <p>The authorization server returns its authorization response as one JWT it signs, so the client can check who sent the code and who it was meant for before it uses it.</p>
@@ -335,10 +335,10 @@ Location: http://localhost:18501/callback?response=eyJhbGciOiJFUzI1NiIsImtpZCI6I
 <td>§3 says RS256 when a client registers none. An AS with an EC key can&rsquo;t sign RS256, so oneauth uses its own algorithm</td>
 </tr>
 <tr>
-<td>PS256 with an RSA key</td>
-<td><strong>Not implemented</strong></td>
-<td>None</td>
-<td>FAPI 2.0 prefers PS256 over RS256. The JWKS lists the RSA key under RS256, and a verifier that checks a key&rsquo;s alg against the token&rsquo;s (oneauth&rsquo;s does) would refuse PS256. Use an ES256 key for FAPI</td>
+<td>PS256</td>
+<td><strong>Implemented</strong></td>
+<td><code>jwt.signing_alg: PS256</code> (<code>OneAuthConfig.SigningAlg</code>)</td>
+<td>An RSA key signs every token PS256, JARM responses included, and the JWKS lists it as PS256, so verifiers that bind a key to its alg accept it (issue 330). One key signs under one algorithm, so an RS256 server can&rsquo;t sign PS256 for one client</td>
 </tr>
 <tr>
 <td>Client verification</td>
@@ -375,11 +375,11 @@ Location: http://localhost:18501/callback?response=eyJhbGciOiJFUzI1NiIsImtpZCI6I
 </ul>
 <h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
 <ul>
-<li><a href="FAPI.md">FAPI</a> covers FAPI 1.0 Advanced and FAPI 2.0 Message Signing, which require JARM.</li>
-<li><a href="RFC_9207.md">RFC 9207</a> covers the unsigned <code>iss</code> parameter, which JARM&rsquo;s <code>iss</code> claim replaces.</li>
-<li><a href="RFC_9126.md">RFC 9126</a> covers PAR, which carries <code>response_mode=jwt</code> like any other parameter.</li>
-<li><a href="RFC_7591.md">RFC 7591</a> covers DCR, where <code>authorization_signed_response_alg</code> is registered.</li>
-<li><a href="RFC_9101.md">RFC 9101</a> covers JAR, the signed request that pairs with JARM in FAPI Message Signing (not implemented, issue 338).</li>
+<li><a href="/oneauth/specs/fapi/">FAPI</a> covers FAPI 1.0 Advanced and FAPI 2.0 Message Signing, which require JARM.</li>
+<li><a href="/oneauth/specs/rfc-9207/">RFC 9207</a> covers the unsigned <code>iss</code> parameter, which JARM&rsquo;s <code>iss</code> claim replaces.</li>
+<li><a href="/oneauth/specs/rfc-9126/">RFC 9126</a> covers PAR, which carries <code>response_mode=jwt</code> like any other parameter.</li>
+<li><a href="/oneauth/specs/rfc-7591/">RFC 7591</a> covers DCR, where <code>authorization_signed_response_alg</code> is registered.</li>
+<li><a href="/oneauth/specs/rfc-9101/">RFC 9101</a> covers JAR, the signed request that pairs with JARM in FAPI Message Signing (not implemented, issue 338).</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
 <ul>

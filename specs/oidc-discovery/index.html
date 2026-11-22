@@ -196,10 +196,10 @@
 <strong>Published:</strong> 2014 (latest errata 2024)<br />
 <strong>L-tier / T-tier:</strong> L7 · T0 (setup)<br />
 <strong>OneAuth coverage:</strong> Implemented (<code>apiauth.MountASMetadata</code> co-serves both well-known paths)<br />
-<strong>See also:</strong> <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a> · <a href="RFC_8414.md"><code>RFC_8414.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
+<strong>See also:</strong> <a href="/oneauth/specs/oidc-core/"><code>OIDC_Core.md</code></a> · <a href="/oneauth/specs/rfc-8414/"><code>RFC_8414.md</code></a> · <a href="/oneauth/specs/landscape/"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
-<p>OIDC Discovery is the identity-layer equivalent of <a href="RFC_8414.md">RFC 8414</a> —<br />
+<p>OIDC Discovery is the identity-layer equivalent of <a href="/oneauth/specs/rfc-8414/">RFC 8414</a> —<br />
 a discovery document at <code>/.well-known/openid-configuration</code> that adds<br />
 OIDC-specific metadata fields (id_token signing algs, supported claims,<br />
 acr values) on top of OAuth AS metadata.</p>
@@ -374,7 +374,7 @@ changes to Discovery.</p>
 <td><code>userinfo_endpoint</code></td>
 <td><strong>Implemented (advertised)</strong></td>
 <td><code>ASServerMetadata.UserinfoEndpoint</code></td>
-<td>Field present; underlying handler is a gap (see <a href="OIDC_Core.md"><code>OIDC_Core.md</code></a>)</td>
+<td>Field present; underlying handler is a gap (see <a href="/oneauth/specs/oidc-core/"><code>OIDC_Core.md</code></a>)</td>
 </tr>
 <tr>
 <td><code>id_token_signing_alg_values_supported</code></td>
@@ -410,27 +410,27 @@ changes to Discovery.</p>
 <td><code>request_parameter_supported</code>, <code>request_uri_parameter_supported</code></td>
 <td><strong>Gap</strong></td>
 <td>—</td>
-<td>Tracked under <a href="RFC_9101.md"><code>RFC_9101.md</code></a> JAR</td>
+<td>Tracked under <a href="/oneauth/specs/rfc-9101/"><code>RFC_9101.md</code></a> JAR</td>
 </tr>
 <tr>
 <td><code>pushed_authorization_request_endpoint</code></td>
 <td><strong>Implemented</strong></td>
 <td><code>ASServerMetadata.PushedAuthorizationRequestEndpoint</code>, with <code>RequirePushedAuthorizationRequests</code></td>
-<td>Since 0.1.38; the reference server advertises both with <code>code_flow.par.enabled</code> (0.1.54). See <a href="RFC_9126.md"><code>RFC_9126.md</code></a></td>
+<td>Since 0.1.38; the reference server advertises both with <code>code_flow.par.enabled</code> (0.1.54). See <a href="/oneauth/specs/rfc-9126/"><code>RFC_9126.md</code></a></td>
 </tr>
 <tr>
 <td><code>dpop_signing_alg_values_supported</code></td>
 <td><strong>Implemented</strong></td>
 <td><code>ASServerMetadata.DPoPSigningAlgValuesSupported</code></td>
-<td>Since 0.1.37. See <a href="RFC_9449.md"><code>RFC_9449.md</code></a></td>
+<td>Since 0.1.37. See <a href="/oneauth/specs/rfc-9449/"><code>RFC_9449.md</code></a></td>
 </tr>
 </tbody>
 </table>
 <h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
 <ul>
-<li><a href="OIDC_Core.md">OIDC Core</a> — the identity layer Discovery describes</li>
-<li><a href="RFC_8414.md">RFC 8414</a> — OAuth AS metadata; same content, different URL</li>
-<li><a href="RFC_7517.md">RFC 7517</a> — JWKS; <code>jwks_uri</code> points here</li>
+<li><a href="/oneauth/specs/oidc-core/">OIDC Core</a> — the identity layer Discovery describes</li>
+<li><a href="/oneauth/specs/rfc-8414/">RFC 8414</a> — OAuth AS metadata; same content, different URL</li>
+<li><a href="/oneauth/specs/rfc-7517/">RFC 7517</a> — JWKS; <code>jwks_uri</code> points here</li>
 <li><a href="https://datatracker.ietf.org/doc/rfc7033/">RFC 7033</a> — Webfinger; the predecessor for &ldquo;find the discovery URL&rdquo;</li>
 </ul>
 <h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>

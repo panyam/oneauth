@@ -428,7 +428,7 @@
 </span></span><span style="display:flex;"><span>    })
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre><h2 id="multi-tenant-jwt-validation">Multi-Tenant JWT Validation <a class="anchor" href="#multi-tenant-jwt-validation">¶</a></h2>
-<p>The resource server validates tokens from multiple apps using a shared <code>KeyStore</code>. See <a href="API_AUTH.md#multi-tenant-jwt-validation-keystore">API_AUTH.md</a> for the full <code>KeyStore</code> interface and validation details.</p>
+<p>The resource server validates tokens from multiple apps using a shared <code>KeyStore</code>. See <a href="/oneauth/guides/api-auth/#multi-tenant-jwt-validation-keystore">API_AUTH.md</a> for the full <code>KeyStore</code> interface and validation details.</p>
 <p>Key security feature: <strong>algorithm confusion prevention</strong>. The <code>KeyRecord.Algorithm</code> field ensures an app registered with <code>HS256</code> can&rsquo;t send a token with <code>alg: none</code> or <code>alg: RS256</code>.</p>
 <h2 id="keystore-implementations">KeyStore Implementations <a class="anchor" href="#keystore-implementations">¶</a></h2>
 <p>All persistent implementations satisfy <code>KeyStorage</code> (which embeds <code>KeyLookup</code>). Each stores <code>KeyRecord</code> values containing the client ID, key material, and algorithm. A shared test suite in <code>keystoretest/</code> ensures consistent behavior.</p>
@@ -464,7 +464,7 @@
 </tbody>
 </table>
 <p>All minted JWTs include a <code>kid</code> header (RFC 7638 thumbprint), enabling <code>GetKeyByKid()</code> lookups without parsing unverified claims.</p>
-<p>For store setup details, see <a href="STORES.md#keystore--writablekeystore">STORES.md</a>.</p>
+<p>For store setup details, see <a href="/oneauth/guides/stores/#keystore--writablekeystore">STORES.md</a>.</p>
 <h2 id="reference-server">Reference Server <a class="anchor" href="#reference-server">¶</a></h2>
 <p>The <code>cmd/oneauth-server/</code> directory contains a config-driven reference server that bundles <code>AppRegistrar</code>, <code>AdminAuth</code>, and KeyStore wiring.</p>
 <h3 id="yaml-configuration">YAML Configuration <a class="anchor" href="#yaml-configuration">¶</a></h3>
@@ -553,7 +553,7 @@
 <li><strong>Token lifetime</strong>: Resource tokens expire after 15 minutes. Apps should mint fresh tokens for each connection.</li>
 <li><strong>Algorithm confusion</strong>: <code>KeyRecord.Algorithm</code> prevents attacks where a token&rsquo;s <code>alg</code> header is manipulated.</li>
 <li><strong>Constant-time comparison</strong>: <code>APIKeyAuth</code> uses <code>crypto/subtle.ConstantTimeCompare</code> to prevent timing attacks on the admin key.</li>
-<li><strong>Encryption at rest</strong>: HS256 client secrets can be encrypted at rest using <code>EncryptedKeyStorage</code> with AES-256-GCM. Set <code>ONEAUTH_MASTER_KEY</code> (64 hex chars) on all services sharing the same KeyStore DB. See <a href="JWT_SIGNING.md#encryption-at-rest-encryptedkeystorage">JWT_SIGNING.md</a> for details.</li>
+<li><strong>Encryption at rest</strong>: HS256 client secrets can be encrypted at rest using <code>EncryptedKeyStorage</code> with AES-256-GCM. Set <code>ONEAUTH_MASTER_KEY</code> (64 hex chars) on all services sharing the same KeyStore DB. See <a href="/oneauth/design/jwt-signing/#encryption-at-rest-encryptedkeystorage">JWT_SIGNING.md</a> for details.</li>
 </ol>
 <h2 id="asymmetric-signing-rs256es256">Asymmetric Signing (RS256/ES256) <a class="anchor" href="#asymmetric-signing-rs256es256">¶</a></h2>
 <p>OneAuth supports asymmetric JWT signing alongside HS256. With asymmetric keys, apps keep their private key secret and register only the public key. Resource servers verify tokens using the public key without ever knowing the signing secret.</p>
@@ -572,7 +572,7 @@
 </span></span></code></pre><p><strong>Quick example</strong> — mint with asymmetric key:</p>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>privKey, _ <span style="color:#000;font-weight:bold">:=</span> utils.<span style="color:#900;font-weight:bold">ParsePrivateKeyPEM</span>(privPEM)
 </span></span><span style="display:flex;"><span>token, err <span style="color:#000;font-weight:bold">:=</span> oa.<span style="color:#900;font-weight:bold">MintResourceToken</span>(<span style="color:#d14">&#34;user-42&#34;</span>, <span style="color:#d14">&#34;app_abc&#34;</span>, privKey, customClaims, scopes, <span style="color:#000;font-weight:bold">nil</span>)
-</span></span></code></pre><p>For the full guide on key generation, algorithm selection, APIAuth configuration, key rotation, <code>DecodeVerifyKey</code>, and algorithm confusion prevention, see <strong><a href="JWT_SIGNING.md">JWT_SIGNING.md</a></strong>.</p>
+</span></span></code></pre><p>For the full guide on key generation, algorithm selection, APIAuth configuration, key rotation, <code>DecodeVerifyKey</code>, and algorithm confusion prevention, see <strong><a href="/oneauth/design/jwt-signing/">JWT_SIGNING.md</a></strong>.</p>
 <h2 id="jwks-public-key-discovery">JWKS Public Key Discovery <a class="anchor" href="#jwks-public-key-discovery">¶</a></h2>
 <p>Resource servers can auto-discover asymmetric public keys via a standard JWKS endpoint instead of sharing database access with the auth server.</p>
 <h3 id="auth-server-serving-jwks">Auth Server: Serving JWKS <a class="anchor" href="#auth-server-serving-jwks">¶</a></h3>
@@ -644,7 +644,7 @@
 </span></span><span style="display:flex;"><span>mux.<span style="color:#900;font-weight:bold">Handle</span>(<span style="color:#d14">&#34;GET /.well-known/oauth-protected-resource&#34;</span>,
 </span></span><span style="display:flex;"><span>    apiauth.<span style="color:#900;font-weight:bold">NewProtectedResourceHandler</span>(meta))
 </span></span></code></pre><p>This completes the standards-based discovery chain: clients discover the resource server&rsquo;s requirements via PRM, then discover the authorization server&rsquo;s endpoints via OIDC Discovery or AS Metadata (RFC 8414), then obtain tokens and present them to the resource server.</p>
-<p>See <a href="API_AUTH.md#protected-resource-metadata-rfc-9728">API_AUTH.md</a> for the full API reference.</p>
+<p>See <a href="/oneauth/guides/api-auth/#protected-resource-metadata-rfc-9728">API_AUTH.md</a> for the full API reference.</p>
 
 
     </div>

@@ -195,7 +195,7 @@
 <strong>Purpose:</strong> Compare Authlete&rsquo;s OAuth/OIDC backend service against OneAuth to identify gaps, surface architectural differences, and decide which (if any) to close.</p>
 <hr />
 <h2 id="executive-summary">Executive Summary <a class="anchor" href="#executive-summary">¶</a></h2>
-<p>Authlete and OneAuth answer different questions. Auth0 (covered in <a href="AUTH0_GAP_ANALYSIS.md">AUTH0_GAP_ANALYSIS.md</a>) is a full IdP-as-a-service. <strong>Authlete is a semi-hosted OAuth/OIDC <em>protocol engine</em></strong> — its customer builds an authorization-server frontend (login UI, consent screens, user store, sessions) and delegates all the protocol-correct token issuance, validation, and lifecycle work to Authlete via REST APIs. Authlete does not see end users.</p>
+<p>Authlete and OneAuth answer different questions. Auth0 (covered in <a href="/oneauth/design/gap-auth0/">AUTH0_GAP_ANALYSIS.md</a>) is a full IdP-as-a-service. <strong>Authlete is a semi-hosted OAuth/OIDC <em>protocol engine</em></strong> — its customer builds an authorization-server frontend (login UI, consent screens, user store, sessions) and delegates all the protocol-correct token issuance, validation, and lifecycle work to Authlete via REST APIs. Authlete does not see end users.</p>
 <p>OneAuth is a <strong>Go library</strong> that bundles user/identity/channel management <em>and</em> a transport-independent token engine into one importable package. It overlaps with Authlete in the token-engine layer; it overlaps with Auth0 in the user-mgmt layer.</p>
 <p><strong>Headline gap:</strong> Authlete is the leading <strong>spec-completeness</strong> play — FAPI 1 &amp; 2, JAR, JARM, PAR, RAR, CIBA, DPoP, mTLS, OpenID Federation 1.0, OID4VCI, Token Exchange, Device Flow, multiple regional Open Banking profiles. OneAuth covers a much narrower surface: bearer JWT issuance via password/client_credentials/refresh, RAR on the token endpoint, RFC-compliant introspection/revocation/discovery/DCR/JWKS metadata, and Keycloak interop. <strong>No id_token, no mTLS/PAR/JAR/JARM/CIBA/Federation/OID4VC</strong> (the <code>/authorize</code> endpoint shipped under #297, and DPoP shipped under #336).</p>
 <p>The honest framing: <strong>OneAuth doesn&rsquo;t compete with Authlete and shouldn&rsquo;t try to.</strong> Authlete is engineered to pass conformance suites for regulated industries (UK/AU/BR/KSA Open Banking, EUDI Wallet, GAIN, FAPI). OneAuth is engineered to make Go services easy to authenticate against an existing IdP (Keycloak, Authlete, Auth0, etc.). The right strategic posture is: pick a small set of Authlete-grade specs that have value <em>for the resource-server / federated-app niche</em> and adopt those; ignore the rest.</p>
@@ -658,7 +658,7 @@
 <tr>
 <td>4</td>
 <td><strong><code>authorization_code</code> grant + <code>/authorize</code> endpoint + id_token</strong></td>
-<td>Would make OneAuth a real (minimal) OIDC provider, not just a metadata advertiser. Big lift but is the door to &ldquo;use OneAuth instead of Keycloak for small deployments.&rdquo; Carefully decide if this is in scope vs. the stated &ldquo;we are not a full OIDC IdP&rdquo; position in <a href="../ROADMAP.md">ROADMAP.md</a>.</td>
+<td>Would make OneAuth a real (minimal) OIDC provider, not just a metadata advertiser. Big lift but is the door to &ldquo;use OneAuth instead of Keycloak for small deployments.&rdquo; Carefully decide if this is in scope vs. the stated &ldquo;we are not a full OIDC IdP&rdquo; position in <a href="/oneauth/design/roadmap/">ROADMAP.md</a>.</td>
 <td>Large</td>
 </tr>
 <tr>
@@ -671,7 +671,7 @@
 </table>
 <h3 id="probably-not-worth-it-out-of-niche">Probably not worth it (out of niche) <a class="anchor" href="#probably-not-worth-it-out-of-niche">¶</a></h3>
 <ul>
-<li><strong>FAPI 1/2 conformance, FAPI-CIBA, JARM, mTLS cert-bound tokens, OpenID Federation, OID4VCI, regional Open Banking profiles</strong> — these are Authlete&rsquo;s moat. Pursuing them means re-targeting OneAuth at regulated industries, which conflicts with the &ldquo;embeddable Go library&rdquo; identity in <a href="../ROADMAP.md">ROADMAP.md</a>.</li>
+<li><strong>FAPI 1/2 conformance, FAPI-CIBA, JARM, mTLS cert-bound tokens, OpenID Federation, OID4VCI, regional Open Banking profiles</strong> — these are Authlete&rsquo;s moat. Pursuing them means re-targeting OneAuth at regulated industries, which conflicts with the &ldquo;embeddable Go library&rdquo; identity in <a href="/oneauth/design/roadmap/">ROADMAP.md</a>.</li>
 <li><strong>CIBA</strong> — only relevant if you&rsquo;re issuing tokens for high-assurance decoupled flows.</li>
 <li><strong>Token Introspection of Authlete-issued tokens</strong> — already supported via <code>IntrospectionValidator</code>, no work needed.</li>
 </ul>
@@ -684,7 +684,7 @@
 <hr />
 <h2 id="7-recommended-position-statement">7. Recommended Position Statement <a class="anchor" href="#7-recommended-position-statement">¶</a></h2>
 <blockquote>
-<p>&ldquo;OneAuth is a Go library for building authenticated services and federated resource servers. For protocol-engine work that requires regulatory-grade conformance — FAPI, Open Banking, EUDI Wallet, OID4VCI, CIBA — pair OneAuth&rsquo;s user model and middleware with a dedicated AS backend like Authlete or Keycloak. OneAuth&rsquo;s Keycloak interop suite (<a href="../../tests/keycloak/"><code>tests/keycloak/</code></a>) demonstrates this pattern; an Authlete equivalent could be added if a real consumer needs it.&rdquo;</p>
+<p>&ldquo;OneAuth is a Go library for building authenticated services and federated resource servers. For protocol-engine work that requires regulatory-grade conformance — FAPI, Open Banking, EUDI Wallet, OID4VCI, CIBA — pair OneAuth&rsquo;s user model and middleware with a dedicated AS backend like Authlete or Keycloak. OneAuth&rsquo;s Keycloak interop suite (<a href="https://github.com/panyam/oneauth/blob/main/tests/keycloak"><code>tests/keycloak/</code></a>) demonstrates this pattern; an Authlete equivalent could be added if a real consumer needs it.&rdquo;</p>
 </blockquote>
 <p>If we eventually want to make this concrete, an <code>tests/authlete/</code> interop suite (mirroring <code>tests/keycloak/</code>) would prove the pairing the same way and give us the same one-liner credibility for regulated-industry conversations.</p>
 <hr />
@@ -698,7 +698,7 @@
 <li><a href="https://www.authlete.com/developers/api_protection/">Authlete API Protection Overview</a></li>
 <li><a href="https://www.authlete.com/kb/oauth-and-openid-connect/proof-of-possession-pop-tokens/dpop/">Authlete DPoP guide</a></li>
 <li><a href="https://kb.authlete.com/en/s/oauth-and-openid-connect/a/enabling-jarm">Authlete JARM guide</a></li>
-<li>OneAuth: <a href="../../README.md">README.md</a> · <a href="../../CAPABILITIES.md">CAPABILITIES.md</a> · <a href="../ROADMAP.md">ROADMAP.md</a> · <a href="../ARCHITECTURE.md">ARCHITECTURE.md</a> · <a href="AUTH0_GAP_ANALYSIS.md">AUTH0_GAP_ANALYSIS.md</a></li>
+<li>OneAuth: <a href="https://github.com/panyam/oneauth/blob/main/README.md">README.md</a> · <a href="https://github.com/panyam/oneauth/blob/main/CAPABILITIES.md">CAPABILITIES.md</a> · <a href="/oneauth/design/roadmap/">ROADMAP.md</a> · <a href="/oneauth/design/architecture/">ARCHITECTURE.md</a> · <a href="/oneauth/design/gap-auth0/">AUTH0_GAP_ANALYSIS.md</a></li>
 </ul>
 
 

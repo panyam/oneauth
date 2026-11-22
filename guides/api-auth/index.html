@@ -312,7 +312,7 @@ The client SDK&rsquo;s <code>ClientCredentialsToken</code> now sends form-encode
 <p>The middleware extracts tokens from two sources, in order of precedence:</p>
 <ol>
 <li><strong>Authorization header</strong> (default): <code>Authorization: Bearer &lt;token&gt;</code></li>
-<li><strong>Query parameter</strong> (when <code>LegacyQueryParamBearer</code> is set): <code>GET /ws?token=&lt;jwt&gt;</code> — OAuth 2.0 legacy path; OAuth 2.1 §5.4 retired query-param bearer carry. For WebSocket use cases see <a href="DEMOS.md">docs/DEMOS.md</a> for three header-clean alternatives.</li>
+<li><strong>Query parameter</strong> (when <code>LegacyQueryParamBearer</code> is set): <code>GET /ws?token=&lt;jwt&gt;</code> — OAuth 2.0 legacy path; OAuth 2.1 §5.4 retired query-param bearer carry. For WebSocket use cases see <a href="/oneauth/guides/demos/">docs/DEMOS.md</a> for three header-clean alternatives.</li>
 </ol>
 <p>The query parameter fallback is useful for WebSocket clients and other contexts where setting HTTP headers is not possible. If both are present, the header takes precedence.</p>
 <h3 id="protecting-endpoints">Protecting Endpoints <a class="anchor" href="#protecting-endpoints">¶</a></h3>
@@ -447,7 +447,7 @@ The client SDK&rsquo;s <code>ClientCredentialsToken</code> now sends form-encode
 </span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">DeleteKey</span>(clientID <span style="color:#458;font-weight:bold">string</span>) <span style="color:#458;font-weight:bold">error</span>
 </span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ListKeyIDs</span>() ([]<span style="color:#458;font-weight:bold">string</span>, <span style="color:#458;font-weight:bold">error</span>)
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre><p>For the full <code>KeyLookup</code> and <code>KeyStorage</code> interface details and persistent implementations, see <a href="STORES.md#keylookup--keystorage">STORES.md</a>.</p>
+</span></span></code></pre><p>For the full <code>KeyLookup</code> and <code>KeyStorage</code> interface details and persistent implementations, see <a href="/oneauth/guides/stores/#keylookup--keystorage">STORES.md</a>.</p>
 <h3 id="setting-up-multi-tenant-validation">Setting Up Multi-Tenant Validation <a class="anchor" href="#setting-up-multi-tenant-validation">¶</a></h3>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 1. Create a KeyStore and register client keys
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>keyStore <span style="color:#000;font-weight:bold">:=</span> keys.<span style="color:#900;font-weight:bold">NewInMemoryKeyStore</span>()
@@ -506,7 +506,7 @@ The client SDK&rsquo;s <code>ClientCredentialsToken</code> now sends form-encode
 <li><strong><code>AppRegistrar</code></strong>: An embeddable HTTP handler for app CRUD operations (register, list, get, delete, rotate secret). Stores app credentials in a <code>KeyStorage</code>.</li>
 <li><strong><code>MintResourceToken</code></strong>: A helper function that apps call after authenticating their own users, producing scoped JWTs that downstream resource servers can validate via KeyStore.</li>
 </ul>
-<p>For the full registration flow and architecture, see <a href="ARCHITECTURE.md">ARCHITECTURE.md</a>.</p>
+<p>For the full registration flow and architecture, see <a href="/oneauth/design/architecture/">ARCHITECTURE.md</a>.</p>
 <h2 id="recent-changes">Recent Changes <a class="anchor" href="#recent-changes">¶</a></h2>
 <h3 id="ratelimiter-interface-moved-to-core">RateLimiter interface moved to core <a class="anchor" href="#ratelimiter-interface-moved-to-core">¶</a></h3>
 <p>The <code>RateLimiter</code> interface previously in <code>apiauth</code> has moved to <code>core</code> so it can be shared with <code>localauth</code>. The interface is unchanged — update imports from <code>apiauth.RateLimiter</code> to <code>core.RateLimiter</code>. <code>core.InMemoryRateLimiter</code> is available for both API and browser auth.</p>
