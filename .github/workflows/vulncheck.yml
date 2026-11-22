@@ -1,8 +1,10 @@
 name: vulncheck
 
 # Scans every published module for known vulnerabilities, weekly and on each tag, and files a P1
-# issue when the scan fails, or comments on the open one (panyam/ci-actions#11). ci.yml scans on
-# each PR; this catches an advisory published against an unchanged tree.
+# issue when the scan fails, or comments on the open one (panyam/ci-actions#11). The issue's title
+# says what stopped the scan, advisories or a load failure (panyam/ci-actions#13), so a load
+# failure like issue 537's no longer reads as advisories. ci.yml scans on each PR; this catches an
+# advisory published against an unchanged tree.
 on:
   schedule:
     - cron: '30 6 * * 1'
@@ -24,6 +26,6 @@ jobs:
       # every sub-module that requires the new root version fails to load under GOWORK=off.
       # -mod=mod lets go fetch those hashes, checked against the checksum database, so the scan
       # covers exactly the tree an importer gets. ci.yml's PR scan stays strict.
-      - uses: panyam/ci-actions/vulncheck@v0.1.1
+      - uses: panyam/ci-actions/vulncheck@v0.1.4
         with:
           command: GOFLAGS=-mod=mod make vulncheck
