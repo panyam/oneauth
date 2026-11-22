@@ -348,7 +348,18 @@
 </span></span><span style="display:flex;"><span>    callbackURL,
 </span></span><span style="display:flex;"><span>    oneAuth.SaveUserAndRedirect,
 </span></span><span style="display:flex;"><span>).<span style="color:#900;font-weight:bold">Handler</span>())
-</span></span></code></pre><h3 id="pkce-proof-key-for-code-exchange">PKCE (Proof Key for Code Exchange) <a class="anchor" href="#pkce-proof-key-for-code-exchange">¶</a></h3>
+</span></span></code></pre><h3 id="any-openid-connect-provider">Any OpenID Connect provider <a class="anchor" href="#any-openid-connect-provider">¶</a></h3>
+<p><code>oauth2/oidc</code> signs people in through their organisation&rsquo;s identity provider (Entra ID, Okta, Google Workspace, Keycloak) by issuer URL. Discovery runs once, in <code>oidc.New</code>. <code>HandleUser</code> runs only after the ID token&rsquo;s signature, <code>iss</code>, <code>aud</code>, <code>exp</code> and <code>nonce</code> check out, and it receives the token&rsquo;s claims.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>p, err <span style="color:#000;font-weight:bold">:=</span> oidc.<span style="color:#900;font-weight:bold">New</span>(ctx, oidc.Config{
+</span></span><span style="display:flex;"><span>    Issuer:       <span style="color:#d14">&#34;https://login.microsoftonline.com/&lt;tenant&gt;/v2.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    ClientID:     clientID,
+</span></span><span style="display:flex;"><span>    ClientSecret: clientSecret,
+</span></span><span style="display:flex;"><span>    CallbackURL:  <span style="color:#d14">&#34;https://app.example.com/auth/oidc/callback/&#34;</span>,
+</span></span><span style="display:flex;"><span>    HandleUser:   oneAuth.SaveUserAndRedirect,
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>oneAuth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/oidc&#34;</span>, p.<span style="color:#900;font-weight:bold">Handler</span>())
+</span></span></code></pre><p><code>oidc.AllowList</code> decides who may sign in from those claims, by verified email domain, a <code>groups</code> value, or <code>sub</code>. A CLI signs in with <code>p.DeviceAuth</code> and <code>p.DeviceAccessToken</code> when the provider lists a device endpoint. <code>oauth2/oidc/example</code> runs both flows against the Keycloak in <code>docker-compose.yml</code>.</p>
+<h3 id="pkce-proof-key-for-code-exchange">PKCE (Proof Key for Code Exchange) <a class="anchor" href="#pkce-proof-key-for-code-exchange">¶</a></h3>
 <p>All OAuth2 flows use PKCE (RFC 7636) by default to prevent authorization code interception attacks. This is especially important for public clients (SPAs, mobile apps) where the client secret cannot be securely stored.</p>
 <pre><code>Authorization redirect:
   → code_challenge=SHA256(verifier) &amp; code_challenge_method=S256

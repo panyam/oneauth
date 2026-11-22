@@ -390,7 +390,7 @@ that can&rsquo;t yet manage asymmetric keys per client.</p>
 <td><code>aud</code> matches AS token endpoint</td>
 <td><strong>Implemented</strong></td>
 <td><code>apiauth/client_authenticator.go</code> against <code>AcceptedAudiences</code>; fallback <code>derivedAudience</code> in <code>apiauth/client_credentials.go</code></td>
-<td>Prevents cross-AS replay. Since 0.1.52 the derived audience comes from <code>r.TLS</code> and <code>r.Host</code> only, never <code>X-Forwarded-Host</code> / <code>X-Forwarded-Proto</code>, which had let a caller choose the audience its own assertion was checked against. The token endpoint also accepts the issuer (§3). Behind a TLS proxy set <code>OneAuthConfig.AcceptedAudiences</code>; the reference server sets it from <code>jwt.issuer</code> and <code>public_url</code>. Under <code>OneAuthConfig.FAPI2</code> the issuer is the only accepted audience and <code>aud</code> must be a single string</td>
+<td>Prevents cross-AS replay. Since 0.1.52 the derived audience never reads <code>X-Forwarded-Host</code>, which had let a caller choose the audience its own assertion was checked against. Its scheme is https when <code>r.TLS</code> is set or when a peer in <code>OneAuthConfig.TrustedProxies</code> sends <code>X-Forwarded-Proto: https</code> (issue 541); from any other peer that header is ignored. The token endpoint also accepts the issuer (§3). Behind a TLS proxy set <code>OneAuthConfig.AcceptedAudiences</code>; the reference server sets it from <code>jwt.issuer</code> and <code>public_url</code>. Under <code>OneAuthConfig.FAPI2</code> the issuer is the only accepted audience and <code>aud</code> must be a single string</td>
 </tr>
 <tr>
 <td><code>exp</code> short-lived enforcement</td>
