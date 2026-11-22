@@ -10,3 +10,5 @@ A fake server written from the provider's docs encodes our own reading of those 
 **Why:** the fake and the code under test were written by the same reader from the same docs, so they share every misreading. Only the real service breaks the tie. Same lesson as [[feedback_reference_comparison]], applied to fakes instead of our own server.
 
 **How to apply:** when shipping a fake for an external service, also ship an env-gated live test that exercises the same paths, run it once before merging, and turn each difference into a fake fix plus a unit test that fails against the old fake. Log (don't assert) behaviours the docs don't state, then pin them once seen.
+
+Second case, the `oauth2/oidc` device flow (PR 545): the fake issuer's `/device` accepted a request with no client secret, and so did the code under test, since `x/oauth2`'s `DeviceAuth` sends only `client_id`. Keycloak refused it with `unauthorized_client`. The fake now checks credentials at `/device`.
