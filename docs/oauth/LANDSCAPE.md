@@ -549,7 +549,7 @@ regulator can mandate each independently, and FAPI composes them.
 Each `RFC_xxxx.md` (or `OIDC_*.md`, `FAPI.md`, `GNAP.md`) should follow this
 shape — keep it terse, optimise for *scan*:
 
-```markdown
+````markdown
 # RFC xxxx — <Short Title>
 
 > **Status:** Standards Track / BCP / Informational / Draft
@@ -636,7 +636,7 @@ the network path, mTLS is cheaper.">
 
 - [Datatracker](https://datatracker.ietf.org/doc/rfcXXXX/)
 - [Errata](https://www.rfc-editor.org/errata_search.php?rfc=XXXX) (if any)
-```
+````
 
 **Four rules for these docs:**
 

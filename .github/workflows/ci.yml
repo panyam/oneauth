@@ -50,7 +50,7 @@ jobs:
 
       - name: Test (sub-modules)
         run: |
-          for mod in stores/gorm stores/gae grpc oauth2 cmd/oneauth-server; do
+          for mod in stores/gorm stores/gae grpc oauth2 cmd/oneauth-server cmd/oneauth docs/site; do
             echo "Testing $mod..."
             (cd $mod && go test -race -count=1 -short ./...)
           done
@@ -88,7 +88,7 @@ jobs:
       - name: Test (sub-modules)
         shell: bash
         run: |
-          for mod in stores/gorm stores/gae grpc oauth2 cmd/oneauth-server; do
+          for mod in stores/gorm stores/gae grpc oauth2 cmd/oneauth-server cmd/oneauth docs/site; do
             echo "Testing $mod..."
             (cd $mod && go test -count=1 -short ./...) || fail=1
           done

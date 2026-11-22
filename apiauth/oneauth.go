@@ -138,7 +138,7 @@ type OneAuthConfig struct {
 
 	// Signing configuration
 	SigningKey any    // []byte for HS256, *rsa.PrivateKey for RS256, etc.
-	SigningAlg string // "HS256", "RS256", "ES256" — default "HS256"
+	SigningAlg string // "HS256", "RS256", "PS256", "ES256" — default "HS256"
 
 	// VerifyKey is the public key for asymmetric token validation.
 	// When SigningKey is a private key (RS256 / ES256), VerifyKey is
@@ -381,8 +381,8 @@ type OneAuthConfig struct {
 	// scope includes "openid", and UserinfoHTTPHandler serves the user's
 	// claims. Nil (the default) treats "openid" as an ordinary scope.
 	//
-	// ID tokens are signed with SigningKey, which must be an RS256 or
-	// ES256 private key. NewOneAuth panics on an HS256 secret, because
+	// ID tokens are signed with SigningKey, which must be an RS256, PS256
+	// or ES256 private key. NewOneAuth panics on an HS256 secret, because
 	// OIDC Core §10.1 signs an HMAC ID token with the client's own secret
 	// and a shared one would let every resource server forge ID tokens.
 	OIDC *OIDCConfig
@@ -422,7 +422,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		if cfg.FAPI2 {
 			panic("apiauth: NewOneAuth: FAPI 2.0 allows registered confidential clients only; unset ClientIDMetadataDocuments")
 		}
-		cfg.AppStore = newCIMDAppStore(cfg)
+		cfg.AppStore = newCIMDAppStore(cfg, signingAlg)
 	}
 	if cfg.AllowImplicit && cfg.OIDC == nil {
 		panic("apiauth: NewOneAuth: AllowImplicit needs OIDC, since the implicit flow returns an ID token")
@@ -711,12 +711,24 @@ func (oa *OneAuth) HTTPMiddleware() *APIMiddleware {
 
 // newCIMDAppStore wraps cfg.AppStore for OneAuthConfig.ClientIDMetadataDocuments,
 // with the grant and response types this configuration serves.
-func newCIMDAppStore(cfg OneAuthConfig) *CIMDAppStore {
+func newCIMDAppStore(cfg OneAuthConfig, signingAlg string) *CIMDAppStore {
 	store := &CIMDAppStore{
 		AppRegistrationStore: cfg.AppStore,
 		Issuer:               cfg.Issuer,
 		GrantTypes:           []string{AuthorizationCodeGrantType, "refresh_token"},
 		ResponseTypes:        []string{"code"},
+	}
+	// The algorithms the AS signs userinfo and JARM responses with, as
+	// NewOneAuth builds those signers: the AS key's, or a custom JARM
+	// signer's own.
+	if cfg.OIDC != nil {
+		store.UserinfoSigningAlgs = []string{signingAlg}
+	}
+	if cfg.JARM != nil {
+		store.AuthorizationSigningAlgs = []string{signingAlg}
+		if cfg.JARM.Signer != nil {
+			store.AuthorizationSigningAlgs = cfg.JARM.Signer.AuthorizationSigningAlgs()
+		}
 	}
 	if cfg.DeviceAuthStore != nil {
 		store.GrantTypes = append(store.GrantTypes, DeviceCodeGrantType)

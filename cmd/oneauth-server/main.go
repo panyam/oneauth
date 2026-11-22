@@ -301,7 +301,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 	// registered in the keystore under a stable client_id so the JWKS handler
 	// exposes it — remote resource servers can then validate tokens without
 	// any shared secret.
-	if alg := cfg.JWT.SigningAlg; alg == "RS256" || alg == "ES256" {
+	if alg := cfg.JWT.SigningAlg; utils.IsAsymmetricAlg(alg) {
 		priv, pubPEM, err := loadOrGenerateSigningKey(cfg.JWT, alg)
 		if err != nil {
 			return nil, nil, fmt.Errorf("Failed to load/generate %s signing key: %w", alg, err)
@@ -338,7 +338,7 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 		oaCfg.OwnKeyClientID = issuerClientID
 	}
 	if cfg.JWT.KeyRotation.Enabled && signingSource == nil {
-		return nil, nil, fmt.Errorf("jwt.key_rotation needs an asymmetric jwt.signing_alg (RS256 or ES256)")
+		return nil, nil, fmt.Errorf("jwt.key_rotation needs an asymmetric jwt.signing_alg (RS256, PS256 or ES256)")
 	}
 
 	oaCfg.AllowImplicit = cfg.CodeFlow.Enabled && cfg.CodeFlow.OIDC && cfg.CodeFlow.Implicit
@@ -870,8 +870,8 @@ func loadOrGenerateSigningKey(cfg JWTConfig, alg string) (priv crypto.PrivateKey
 	return generateSigningKey(alg)
 }
 
-// generateSigningKey makes a fresh keypair for alg: RSA-2048 for RS256,
-// P-256 for ES256. It returns the private key and the public key as PEM.
+// generateSigningKey makes a fresh keypair for alg: RSA-2048 for RS256 and
+// PS256, P-256 for ES256. It returns the private key and the public key as PEM.
 func generateSigningKey(alg string) (crypto.PrivateKey, []byte, error) {
 	generate := func() ([]byte, []byte, error) { return utils.GenerateRSAKeyPair(2048) }
 	if alg == "ES256" {

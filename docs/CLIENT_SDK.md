@@ -410,6 +410,8 @@ resp, err := client.RegisterClient(asMetadata.RegistrationEndpoint, client.Clien
 // resp.RegistrationAccessToken, resp.RegistrationClientURI — RFC 7592 management credentials
 ```
 
+`ClientRegistrationRequest` carries every RFC 7591 / OIDC Registration field oneauth's DCR endpoint reads: `JWKS` (raw JSON) or `JWKSURI`, `TokenEndpointAuthSigningAlg`, the logo, policy and terms URIs, `SubjectType` and `SectorIdentifierURI`, `UserinfoSignedResponseAlg`, the back-channel logout pair, and `AuthorizationDetailsTypes`. `ClientRegistrationResponse` echoes what the AS stored. An AS ignores metadata it doesn't support (RFC 7591 §2), so compare the response with the request to see what took. From the CLI, `oneauth dcr register --metadata client.json` sends any of these fields, and explicit flags win over the file.
+
 `AuthorizationSignedResponseAlg` picks the algorithm for this client's signed (JARM) authorization responses. It must be one the AS lists in `authorization_signing_alg_values_supported`, and `none` is refused. It doesn't turn JARM on; `BrowserLoginRequest.ResponseMode` does.
 
 ### Read your own registration (RFC 7592 §2.1)

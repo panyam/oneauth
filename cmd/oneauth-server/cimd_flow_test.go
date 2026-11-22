@@ -289,3 +289,18 @@ func TestCIMD_RefusedUnderFAPI2(t *testing.T) {
 	cfg.FAPI2 = false
 	assert.NoError(t, checkClientIDMetadataDocuments(cfg))
 }
+
+// A document's require_pushed_authorization_requests holds, as a
+// registered client's does: a direct /authorize is refused (issue 557).
+// See: https://www.rfc-editor.org/rfc/rfc9126#section-6
+func TestCIMD_RequirePushedRequestsIsEnforced(t *testing.T) {
+	f, _ := newCIMDFixture(t, func(_ string, doc map[string]any) { doc["require_pushed_authorization_requests"] = true })
+	authorize := f.authorizePath()
+	f.postForm(t, "/auth/login?next="+url.QueryEscape(authorize), "/auth/login", url.Values{
+		"username": {loginTestEmail}, "password": {loginTestPassword}, "next": {authorize},
+	})
+	resp, body := f.get(t, authorize)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "the error page, not consent: %s", body)
+	assert.Empty(t, resp.Header.Get("Location"))
+	assert.Contains(t, body, "pushed authorization request")
+}

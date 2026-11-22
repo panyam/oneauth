@@ -469,7 +469,7 @@ func NewAuthServer(opts ...Option) (*TestAuthServer, error) {
 		GrantTypesSupported:      grants,
 		ResponseTypesSupported:   responseTypes,
 		TokenEndpointAuthMethods: []string{"client_secret_post", "client_secret_basic", "private_key_jwt"},
-		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256"},
+		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "PS256", "ES256"},
 		CodeChallengeMethodsSupported:              pkceMethodsSupported(cfg.allowPlainPKCE),
 		AuthorizationResponseIssParameterSupported: cfg.issParameterSupported,
 	})

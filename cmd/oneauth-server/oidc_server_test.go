@@ -106,5 +106,5 @@ code_flow:
 `)
 	err := checkOIDC(cfg)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "code_flow.oidc needs jwt.signing_alg RS256 or ES256")
+	assert.Contains(t, err.Error(), "code_flow.oidc needs jwt.signing_alg RS256, PS256 or ES256")
 }

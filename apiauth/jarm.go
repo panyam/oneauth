@@ -92,7 +92,7 @@ type JWTAuthorizationResponseSignerConfig struct {
 	// at construction even when SigningKeySource is set.
 	SigningKey any
 
-	// SigningAlg is the key's JWS algorithm, RS256 or ES256.
+	// SigningAlg is the key's JWS algorithm, RS256, PS256 or ES256.
 	SigningAlg string
 
 	// SigningKeySource, when set, supplies the key on every response in

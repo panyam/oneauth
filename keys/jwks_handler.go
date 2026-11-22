@@ -18,7 +18,7 @@ import (
 )
 
 // JWKSHandler serves a JWKS (JSON Web Key Set) endpoint at /.well-known/jwks.json.
-// Only asymmetric keys (RS256/ES256) are included — HS256 secrets are never exposed.
+// Only asymmetric keys (RS256/PS256/ES256) are included — HS256 secrets are never exposed.
 type JWKSHandler struct {
 	KeyStore KeyStorage // needs ListKeyIDs() and GetKey()
 	KidStore *KidStore  // optional: serves previous keys during grace period

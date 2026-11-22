@@ -719,7 +719,7 @@ OAuch (DistriNet) checks the reference server against RFC 6749, 6750, 6819, 7009
 
 | Class | Suite | Check | Expected | Issue | Reason |
 |---|---|---|---|---|---|
-| open | oidf | `fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails` (1 plan) | expected-skip | 330 | The harness runs this only with an RSA client key, and the plan's clients use ES256 because oneauth can't register a PS256 client yet (issue 330). The harness says the skip doesn't block certification. |
+| open | oidf | `fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails` (1 plan) | expected-skip | 558 | The harness runs this only with an RSA client key, and the plan's clients use ES256. oneauth can register a PS256 client since issue 330, so a plan client with an RSA key should turn this into a pass (issue 558). The harness says the skip doesn't block certification. |
 | open | oidf | `oidcc-ensure-request-object-with-redirect-uri` (10 plans) | expected-review | 338 | The outer redirect_uri is unregistered and the registered one is inside a request object, which oneauth doesn't read (JAR, issue 338). So it shows its request_not_supported error page instead of redirecting, and the harness asks for a screenshot of it. |
 | open | oidf | `oidcc-request-uri-signed-rs256` (6 plans) | expected-fail | 338 | oneauth doesn't support request objects, so discovery has no request_object_signing_alg_values_supported. That's JAR, issue 338. |
 | open | oidf | `oidcc-request-uri-unsigned` (6 plans) | expected-fail | 338 | oneauth refuses request_uri with request_uri_not_supported. Request objects by reference are JAR, issue 338. |

@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/panyam/oneauth/apiauth"
+	"github.com/panyam/oneauth/utils"
 )
 
 // serverASMetadata is the RFC 8414 document for this server, before the
@@ -22,7 +23,7 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 		RevocationEndpoint:       baseURL + "/oauth/revoke",
 		RegistrationEndpoint:     baseURL + "/apps/dcr",
 		TokenEndpointAuthMethods: []string{"client_secret_basic", "client_secret_post", "private_key_jwt", "client_secret_jwt"},
-		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "ES256", "HS256", "HS384", "HS512"},
+		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256", "PS256", "ES256", "HS256", "HS384", "HS512"},
 		CodeChallengeMethodsSupported:              []string{"S256"},
 		SubjectTypesSupported:                      subjectTypes(cfg),
 		ScopesSupported:                            cfg.JWT.ScopesSupported,
@@ -68,7 +69,7 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 		// FAPI 2.0 §5.3.2.1 #6 and §5.4.1: private_key_jwt only, with an
 		// algorithm the profile allows and oneauth verifies.
 		meta.TokenEndpointAuthMethods = []string{"private_key_jwt"}
-		meta.TokenEndpointAuthSigningAlgValuesSupported = []string{"ES256"}
+		meta.TokenEndpointAuthSigningAlgValuesSupported = []string{"PS256", "ES256"}
 	}
 	return meta
 }
@@ -94,11 +95,11 @@ func checkOIDC(cfg *Config) error {
 	if !cfg.CodeFlow.Enabled {
 		return fmt.Errorf("code_flow.oidc needs code_flow.enabled: ID tokens come from the authorization code grant")
 	}
-	if alg := cfg.JWT.SigningAlg; alg != "RS256" && alg != "ES256" {
+	if alg := cfg.JWT.SigningAlg; !utils.IsAsymmetricAlg(alg) {
 		if alg == "" {
 			alg = "HS256 (the default)"
 		}
-		return fmt.Errorf("code_flow.oidc needs jwt.signing_alg RS256 or ES256, got %s: clients verify ID tokens against the JWKS, which has no HMAC secret", alg)
+		return fmt.Errorf("code_flow.oidc needs jwt.signing_alg RS256, PS256 or ES256, got %s: clients verify ID tokens against the JWKS, which has no HMAC secret", alg)
 	}
 	return nil
 }
@@ -113,11 +114,11 @@ func checkJARM(cfg *Config) error {
 	if !cfg.CodeFlow.Enabled {
 		return fmt.Errorf("code_flow.jarm needs code_flow.enabled: JARM signs /authorize responses")
 	}
-	if alg := cfg.JWT.SigningAlg; alg != "RS256" && alg != "ES256" {
+	if alg := cfg.JWT.SigningAlg; !utils.IsAsymmetricAlg(alg) {
 		if alg == "" {
 			alg = "HS256 (the default)"
 		}
-		return fmt.Errorf("code_flow.jarm needs jwt.signing_alg RS256 or ES256, got %s: clients verify signed responses against the JWKS, which has no HMAC secret", alg)
+		return fmt.Errorf("code_flow.jarm needs jwt.signing_alg RS256, PS256 or ES256, got %s: clients verify signed responses against the JWKS, which has no HMAC secret", alg)
 	}
 	return nil
 }
@@ -129,12 +130,11 @@ func checkFAPI2(cfg *Config) error {
 	if !cfg.FAPI2 {
 		return nil
 	}
-	if cfg.JWT.SigningAlg != "ES256" {
-		alg := cfg.JWT.SigningAlg
+	if alg := cfg.JWT.SigningAlg; alg != "ES256" && alg != "PS256" {
 		if alg == "" {
 			alg = "HS256 (the default)"
 		}
-		return fmt.Errorf("fapi2 needs jwt.signing_alg: ES256, got %s: FAPI 2.0 §5.4.1 allows PS256, ES256 and EdDSA, and ES256 is the one oneauth signs with (PS256 is issue 330)", alg)
+		return fmt.Errorf("fapi2 needs jwt.signing_alg: ES256 or PS256, got %s: FAPI 2.0 §5.4.1 allows PS256, ES256 and EdDSA, and oneauth signs with the first two", alg)
 	}
 	if !cfg.DPoP.Enabled {
 		return fmt.Errorf("fapi2 needs dpop.enabled: FAPI 2.0 §5.3.2.1 allows sender-constrained access tokens only")
