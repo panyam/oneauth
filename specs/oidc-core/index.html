@@ -501,6 +501,12 @@ surface smaller.</li>
 <td>Left half of SHA-256 for RS256 / ES256</td>
 </tr>
 <tr>
+<td><code>jti</code> claim</td>
+<td><strong>Implemented</strong> (#563)</td>
+<td><code>jwtIDTokenIssuer.CreateIDToken</code></td>
+<td>32 random bytes, hex encoded, new on every ID token. A relying party that takes the ID token as an RFC 7523 assertion refuses a replay by it. Keycloak&rsquo;s JWT Authorization Grant does, checked in <code>make testkcl</code></td>
+</tr>
+<tr>
 <td>ID token on the refresh grant</td>
 <td><strong>Gap</strong> (#453)</td>
 <td>—</td>
