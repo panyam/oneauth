@@ -207,7 +207,7 @@ p, err := oidc.New(ctx, oidc.Config{
 oneAuth.AddAuth("/oidc", p.Handler())
 ```
 
-`oidc.AllowList` decides who may sign in from those claims, by verified email domain, a `groups` value, or `sub`. A CLI signs in with `p.DeviceAuth` and `p.DeviceAccessToken` when the provider lists a device endpoint. `oauth2/oidc/example` runs both flows against the Keycloak in `docker-compose.yml`.
+`oidc.AllowList` decides who may sign in from those claims, by verified email domain, a `groups` value, or `sub`. To sign the user out at the provider too (RP-Initiated Logout), clear your own session, then redirect to `p.LogoutURL(idTokenHint, postLogoutRedirectURI, state)`. `idTokenHint` is the raw ID token from sign-in, which `HandleUser` gets as `token.Extra("id_token")`, so keep it with the session. Most providers want it, and Keycloak shows its own confirmation page without it. `LogoutURL` returns `oidc.ErrNoEndSessionEndpoint` when the provider's discovery lists no `end_session_endpoint` (issue 546). A CLI signs in with `p.DeviceAuth` and `p.DeviceAccessToken` when the provider lists a device endpoint. `oauth2/oidc/example` runs both flows against the Keycloak in `docker-compose.yml`.
 
 ### PKCE (Proof Key for Code Exchange)
 

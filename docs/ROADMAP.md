@@ -223,6 +223,19 @@ The OIDF Dynamic OP plan (mission #489) found what a Dynamic OP needs that oneau
 
 PR #520 then put every OIDF plan in nightly CI and ran OAuch once by hand (`docs/conformance/oauch.md`). That run found two headers that stopped real browsers finishing an authorization (CSP `form-action`, and COOP on the authorization pages). Its three remaining gaps are #519. Still open: JAR (issue 338) and mTLS (issue 335).
 
+## JARM — signed authorization responses (mission #409) ✅ COMPLETE
+
+A FAPI client logs in with `response_mode=jwt` against oneauth and against Keycloak, and a tampered response is refused. `make exercise-jarm` checks all of it, and runs as the gating `jarm` suite in `make conformance`. See [JARM](oauth/JARM.md).
+
+| # | Delivery | Status |
+|---|---|---|
+| 548 | `make exercise-jarm`, and `oneauth token browser --response-mode` (issue 410) | Merged |
+| 551 | The AS signs `jwt`, `query.jwt`, `fragment.jwt` and `form_post.jwt` responses with its key, through PAR too (issue 411) | Merged |
+| 552 | The SDK verifies them against the JWKS, `iss`, `aud` and `exp` before the code exchange (issue 412) | Merged |
+| this PR | `authorization_signed_response_alg` through DCR, every app store, CIMD, the SDK and the CLI (issue 413) | Open |
+
+Not done: encrypted responses, and PS256 with an RSA key (the JWKS lists the key under RS256 only).
+
 ---
 
 ## Execution Order
