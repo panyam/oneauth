@@ -9,54 +9,13 @@
 package fapi2
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"math/big"
 
 	"github.com/panyam/oneauth/tests/oidf-conformance/oidfplan"
 )
 
 // PlanName is the harness plan this exercise runs.
 const PlanName = "fapi2-security-profile-final-test-plan"
-
-// ClientKey is an ES256 key pair for one test client. ES256 is the only
-// FAPI 2.0 algorithm oneauth can register a client key for (#330, #331).
-type ClientKey struct {
-	Private *ecdsa.PrivateKey
-	KeyID   string
-}
-
-// NewClientKey generates a P-256 key with an RFC 7638 thumbprint as its kid.
-func NewClientKey() (ClientKey, error) {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return ClientKey{}, err
-	}
-	k := ClientKey{Private: priv}
-	k.KeyID = thumbprint(priv)
-	return k, nil
-}
-
-// PublicJWK is the key's public half, as DCR registers it.
-func (k ClientKey) PublicJWK() map[string]string {
-	return map[string]string{
-		"kty": "EC", "crv": "P-256", "alg": "ES256", "use": "sig", "kid": k.KeyID,
-		"x": b64(k.Private.X, 32), "y": b64(k.Private.Y, 32),
-	}
-}
-
-// PrivateJWK adds `d`: the harness signs the client's assertions and DPoP
-// proofs itself, so the plan config carries the private key.
-func (k ClientKey) PrivateJWK() map[string]string {
-	j := k.PublicJWK()
-	j["d"] = b64(k.Private.D, 32)
-	return j
-}
 
 // RegisteredClient is a client registered with oneauth through DCR.
 type RegisteredClient struct {
@@ -222,20 +181,4 @@ func PlanConfig(s Setup) map[string]any {
 		"browser":  BrowserAutomation(s),
 		"override": overrides,
 	}
-}
-
-func b64(n *big.Int, size int) string {
-	return base64.RawURLEncoding.EncodeToString(n.FillBytes(make([]byte, size)))
-}
-
-// thumbprint is the RFC 7638 SHA-256 thumbprint of an EC public key.
-func thumbprint(k *ecdsa.PrivateKey) string {
-	canon, _ := json.Marshal(struct {
-		Crv string `json:"crv"`
-		Kty string `json:"kty"`
-		X   string `json:"x"`
-		Y   string `json:"y"`
-	}{"P-256", "EC", b64(k.X, 32), b64(k.Y, 32)})
-	sum := sha256.Sum256(canon)
-	return base64.RawURLEncoding.EncodeToString(sum[:])
 }

@@ -27,9 +27,9 @@
       "source": "tests/oidf-conformance/fapi2",
       "tracking": "mission 98",
       "result": "PASS",
-      "detail": "52 modules: map[PASSED:45 REVIEW:4 SKIPPED:1 WARNING:2], 0 against known-gaps.yaml",
-      "ran_at": "2026-11-22 11:25 UTC",
-      "commit": "3050a91",
+      "detail": "52 modules: map[PASSED:46 REVIEW:4 WARNING:2], 0 against known-gaps.yaml",
+      "ran_at": "2026-11-22 11:27 UTC",
+      "commit": "3050a91-dirty",
       "plan": {
         "plan": "fapi2-security-profile-final-test-plan",
         "variant": {
@@ -40,11 +40,10 @@
           "openid": "openid_connect",
           "sender_constrain": "dpop"
         },
-        "plan_id": "SWN9Yig7J43ov",
+        "plan_id": "SGUDh2yYiVGag",
         "counts": {
-          "PASSED": 45,
+          "PASSED": 46,
           "REVIEW": 4,
-          "SKIPPED": 1,
           "WARNING": 2
         },
         "against": 0,
@@ -238,10 +237,8 @@
           {
             "module": "fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails",
             "status": "FINISHED",
-            "result": "SKIPPED",
-            "verdict": "ok",
-            "expected": "expected-skip",
-            "issue": 558
+            "result": "PASSED",
+            "verdict": "ok"
           },
           {
             "module": "fapi2-security-profile-final-ensure-token-endpoint-fails-with-expired-auth-code",
@@ -3791,9 +3788,9 @@
       "covers": "Interop with a live Keycloak, as resource server and as client (tokens, DPoP, RAR, ID tokens)",
       "source": "tests/keycloak",
       "result": "PASS",
-      "detail": "go test: 71 passed, 0 skipped, 0 failed (top-level tests)",
-      "ran_at": "2026-11-22 11:25 UTC",
-      "commit": "3050a91"
+      "detail": "go test: 72 passed, 0 skipped, 0 failed (top-level tests)",
+      "ran_at": "2026-11-22 11:28 UTC",
+      "commit": "3050a91-dirty"
     },
     {
       "name": "jarm",
@@ -3871,17 +3868,6 @@
       "class": "accepted",
       "issue": 98,
       "reason": "A request_uri presented with another client's client_id gets oneauth's\nerror page. The harness asks for a screenshot of it."
-    },
-    {
-      "suite": "oidf",
-      "check": "fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails",
-      "plans": [
-        "fapi2-security-profile-final-test-plan"
-      ],
-      "status": "expected-skip",
-      "class": "open",
-      "issue": 558,
-      "reason": "The harness runs this only with an RSA client key, and the plan's\nclients use ES256. oneauth can register a PS256 client since issue\n330, so a plan client with an RSA key should turn this into a pass\n(issue 558). The harness says the skip doesn't block certification."
     },
     {
       "suite": "oidf",

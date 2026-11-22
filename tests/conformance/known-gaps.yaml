@@ -135,20 +135,6 @@
 
 - suite: oidf
   plan: fapi2-security-profile-final-test-plan
-  test: fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails
-  status: expected-skip
-  class: open
-  issue: 558
-  owner: panyam
-  reason: |
-    The harness runs this only with an RSA client key, and the plan's
-    clients use ES256. oneauth can register a PS256 client since issue
-    330, so a plan client with an RSA key should turn this into a pass
-    (issue 558). The harness says the skip doesn't block certification.
-  expires: 2027-12-31
-
-- suite: oidf
-  plan: fapi2-security-profile-final-test-plan
   test: fapi2-security-profile-final-happy-flow
   status: expected-warning
   class: accepted

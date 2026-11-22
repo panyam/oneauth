@@ -36,9 +36,9 @@ func isFAPI(a ClientAuthenticator) bool {
 	return ok
 }
 
-// fapi2AssertionAlgs are FAPI 2.0 §5.4.1's signing algorithms. oneauth
-// verifies ES256 client assertions today; PS256 and EdDSA keys can't be
-// registered yet, so in practice FAPI clients use ES256.
+// fapi2AssertionAlgs are FAPI 2.0 §5.4.1's signing algorithms. A client
+// can register an ES256 or PS256 key. EdDSA keys can't be registered yet
+// (issue 331).
 var fapi2AssertionAlgs = []string{"PS256", "ES256", "EdDSA"}
 
 // FAPI 2.0 §5.3.2.2 lifetimes.

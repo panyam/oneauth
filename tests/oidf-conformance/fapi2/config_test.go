@@ -14,9 +14,9 @@ import (
 
 func testSetup(t *testing.T) Setup {
 	t.Helper()
-	k1, err := NewClientKey()
+	k1, err := clientKey(0)
 	require.NoError(t, err)
-	k2, err := NewClientKey()
+	k2, err := clientKey(1)
 	require.NoError(t, err)
 	return Setup{
 		Alias:      "oneauth-fapi2",
@@ -81,7 +81,8 @@ func TestPlanConfig_ClientsCarryTheirPrivateKeys(t *testing.T) {
 		require.Len(t, c.JWKS.Keys, 1)
 		k := c.JWKS.Keys[0]
 		assert.NotEmpty(t, k["d"], "the harness signs client assertions, so it needs the private key")
-		assert.Equal(t, "ES256", k["alg"])
+		assert.Equal(t, []string{"PS256", "ES256"}[i], k["alg"])
+		assert.Equal(t, []string{"RSA", "EC"}[i], k["kty"])
 		assert.Equal(t, s.Clients[i].Key.KeyID, k["kid"])
 	}
 }

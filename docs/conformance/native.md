@@ -1,6 +1,6 @@
 # Go-native conformance report
 
-Generated: 2026-11-22 11:09:51 UTC  
+Generated: 2026-11-22 11:27:46 UTC  
 Package pattern: `./...`
 
 ## Summary
@@ -11,7 +11,7 @@ Package pattern: `./...`
 | Passing | 26 |
 | Failing | 0 |
 | Skipped (forbidden) | 0 |
-| Known gaps in manifest | 24 |
+| Known gaps in manifest | 23 |
 | Gapped tests observed | 0 |
 | Ratchet issues | 0 |
 
@@ -20,7 +20,6 @@ Package pattern: `./...`
 | Expires | Suite | Test | Issue | Owner | Status |
 |---|---|---|---|---|---|
 | 2027-12-31 | mcp | `mcp-auth-gosdk,mcp-auth-mcpkit,mcp-auth-ts/auth-iss-param-redirect-carries-iss` | 496 | panyam | expected-skip |
-| 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails` | 558 | panyam | expected-skip |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails` | 98 | panyam | expected-review |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-happy-flow` | 339 | panyam | expected-warning |
 | 2027-12-31 | oidf | `fapi2-security-profile-final-test-plan/fapi2-security-profile-final-par-attempt-reuse-request_uri` | 98 | panyam | expected-review |
