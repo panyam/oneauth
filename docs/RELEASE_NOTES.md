@@ -5,6 +5,34 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.17
+
+This release lets an app list every API key and sweep the expired ones through the store interface. It also adds OIDC RP-initiated logout, stops the GitHub and Google callbacks from echoing the state cookie, and adds the JARM mission's exercise.
+
+### Contract changes
+
+- **New optional `core.APIKeyAdmin` (issue 549, PR 550).** It has `ListAPIKeys` and `CleanupExpiredAPIKeys`. `APIKeyStore` doesn't change, so a custom store still compiles. Callers check for the new interface with a type assertion.
+- **The gorm `APIKeyModel` gets an index on `expires_at` (PR 550).** The next `AutoMigrate` creates it.
+- **`client.ASMetadata` gains `EndSessionEndpoint` (PR 547).**
+- **A browser login with a JARM response mode now refuses every callback (PR 548).** `LoginWithBrowser` returns `ErrUnverifiedAuthorizationResponse` until the SDK can verify signed responses (issue 412).
+
+### Listing and sweeping API keys (issue 549, PR 550)
+
+- `ListAPIKeys` returns every key in the store, across subjects, with `KeyHash` empty.
+- `CleanupExpiredAPIKeys` deletes every key whose `ExpiresAt` is at or before `req.Now`, revoked or not. It never deletes a key with no `ExpiresAt`. A zero `Now` means the current time, and `Removed` reports the count.
+- The fs, gorm and gae stores implement it. On fs, a listing skips a key file that another handle deletes mid-scan, where reading the directory directly used to fail.
+- `apikeytest.RunAdmin` is the shared contract suite for a custom store.
+
+### OAuth sign-in (issue 546, PR 547)
+
+- The GitHub and Google callbacks check state through `oauth2.VerifyState`. Every state failure answers 400 `invalid oauth state`. The old error page printed the real `oauthstate` cookie value.
+- `oidc.Provider.LogoutURL(idTokenHint, postLogoutRedirectURI, state)` builds the RP-initiated logout redirect from the issuer's `end_session_endpoint`, so a sign-out at the app can also end the issuer's session.
+
+### JARM mission exercise (issue 410, PR 548)
+
+- `oneauth token browser` takes `--response-mode`.
+- `make exercise-jarm` logs in headless with `response_mode=jwt` against oneauth-server and the test Keycloak realm. It prints each callback and the CLI's result. Both targets still fail at the step that issues 411 and 412 fix.
+
 ## Version 0.3.16
 
 This release adds a sign-in provider for any OpenID Connect identity provider, beside GitHub and Google. It also lets an authorization server behind a TLS-terminating proxy check DPoP proofs and client assertions without pinning its URLs.
