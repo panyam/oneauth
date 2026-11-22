@@ -113,22 +113,44 @@ func (r runner) oneauth(asURL string) (bool, string) {
 	if err := testutil.SignUp(hc, asURL, email, "jarm-exercise-password-1"); err != nil {
 		return false, "could not sign up: " + err.Error()
 	}
-	clientID, err := testutil.RegisterClient(hc, asURL+"/apps/dcr", map[string]any{
+	metadata := map[string]any{
 		"client_name":                "JARM exercise",
 		"redirect_uris":              []string{r.redirectURI()},
 		"grant_types":                []string{"authorization_code"},
 		"response_types":             []string{"code"},
 		"token_endpoint_auth_method": "none",
-		// JARM §3 (issue 413): the algorithm the AS signs this client's
-		// responses with, checked by DCR against what the AS can sign.
-		"authorization_signed_response_alg": "ES256",
-	})
+	}
+	// JARM §3 (issue 413): register the algorithm the AS signs this
+	// client's responses with, the first one discovery advertises, so the
+	// run works against an ES256 or a PS256 server.
+	alg := advertisedJARMAlg(hc, asURL)
+	if alg != "" {
+		metadata["authorization_signed_response_alg"] = alg
+	}
+	clientID, err := testutil.RegisterClient(hc, asURL+"/apps/dcr", metadata)
 	if err != nil {
 		return false, "could not register a client: " + err.Error()
 	}
-	fmt.Printf("registered client %s with authorization_signed_response_alg ES256\n", clientID)
+	fmt.Printf("registered client %s with authorization_signed_response_alg %q\n", clientID, alg)
 	hc.Transport = r.watch(http.DefaultTransport)
 	return r.login(asURL, clientID, client.ApproveConsent(hc))
+}
+
+// advertisedJARMAlg is the first authorization_signing_alg_values_supported
+// in asURL's metadata, or "" when it lists none.
+func advertisedJARMAlg(hc *http.Client, asURL string) string {
+	resp, err := hc.Get(asURL + "/.well-known/oauth-authorization-server")
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	var meta struct {
+		Algs []string `json:"authorization_signing_alg_values_supported"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&meta) != nil || len(meta.Algs) == 0 {
+		return ""
+	}
+	return meta.Algs[0]
 }
 
 // keycloak logs in to the test realm's JARM client through its login form.
