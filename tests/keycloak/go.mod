@@ -8,7 +8,7 @@ replace github.com/panyam/oneauth => ../..
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/panyam/oneauth v0.3.16
+	github.com/panyam/oneauth v0.3.17
 	github.com/stretchr/testify v1.12.1
 )
 

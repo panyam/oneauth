@@ -187,6 +187,15 @@ suites:
     source: tests/keycloak
     needs: [docker]
 
+  - name: jarm
+    kind: gating
+    timeout: 10m
+    covers: The JARM mission's exercise. A headless `oneauth token browser --response-mode jwt` logs in against oneauth-server and Keycloak, and a tampered response is refused
+    source: scripts/exercise-jarm.sh (tests/keycloak/cmd/exercise-jarm)
+    needs: [docker]
+    tracking: "issue 409"
+    note: Starts the test Keycloak through upkcl. One started before the test-jarm client was added needs make downkcl.
+
   - name: authlete
     kind: info
     timeout: 15m

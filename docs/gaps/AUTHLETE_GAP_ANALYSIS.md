@@ -82,7 +82,7 @@ Legend: **Full** = implemented and conformance-tested · **Partial** = implement
 | **Resource Indicators** | RFC 8707 | Full | Partial (via `MintResourceToken` audience) | Partial |
 | **PAR (Pushed Authorization Requests)** | RFC 9126 | Full | None | **None** |
 | **JAR (JWT-Secured Authz Request)** | RFC 9101 | Full | None | **None** |
-| **JARM (JWT-Secured Authz Response Mode)** | OpenID FAPI JARM | Full | AS signs responses (issue 411); SDK verification in issue 412 | **Partial** |
+| **JARM (JWT-Secured Authz Response Mode)** | OpenID FAPI JARM | Full | AS signs responses (issue 411), SDK verifies them (issue 412); per-client alg in issue 413; no encrypted responses | **Partial** |
 | **DPoP** | RFC 9449 | Full | Issuance + resource-server enforcement (§4–§7): `cnf.jkt`, `token_type: DPoP`, bound refresh tokens, `ath`, §7.2 downgrade refusal, AS + PR metadata | Nonce protocol (§8/§9), `dpop_jkt` on the authorization request (§10) |
 | **mTLS Client Auth + Cert-Bound Tokens** | RFC 8705 | Full | None | **None** |
 | **HTTP Message Signatures** | RFC 9421 (FAPI 2.0 MS) | Full | None | **None** |

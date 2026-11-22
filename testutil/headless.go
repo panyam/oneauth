@@ -86,8 +86,10 @@ var keycloakLoginForm = regexp.MustCompile(`<form[^>]*id="kc-form-login"[^>]*act
 // KeycloakPasswordLogin returns an OpenBrowser function for
 // client.BrowserLoginRequest that fills in Keycloak's login form as
 // username. client.FollowRedirects and client.ApproveConsent stop at that
-// form on purpose. Keycloak then redirects to the redirect_uri, and the
-// login's loopback server receives the callback.
+// form on purpose. Keycloak then redirects to the redirect_uri, or for a
+// form_post response mode serves a page that posts to it, which the
+// function submits. Either way the login's loopback server receives the
+// callback.
 //
 // Requests go through a copy of hc, so its Transport and CheckRedirect
 // still apply; a driver uses them to watch the callback go by. The copy
@@ -122,8 +124,52 @@ func KeycloakPasswordLogin(hc *http.Client, username, password string) func(stri
 		if err != nil {
 			return err
 		}
-		io.Copy(io.Discard, resp.Body)
+		page, _ = io.ReadAll(resp.Body)
 		resp.Body.Close()
+		return submitFormPost(&b, resp.Request.URL, page)
+	}
+}
+
+var (
+	formPostForm  = regexp.MustCompile(`(?is)<form[^>]*method="post"[^>]*action="([^"]+)"[^>]*>(.*?)</form>`)
+	formPostInput = regexp.MustCompile(`(?is)<input[^>]*type="hidden"[^>]*>`)
+	formPostAttr  = regexp.MustCompile(`(?i)\b(name|value)="([^"]*)"`)
+)
+
+// submitFormPost posts the hidden fields of a form_post response page to
+// its action, as the page's auto-submit script would in a browser. A page
+// without a POST form is left alone, since a redirect already reached the
+// redirect_uri.
+//
+// See: https://openid.net/specs/oauth-v2-form-post-response-mode-1_0.html
+func submitFormPost(b *http.Client, base *url.URL, page []byte) error {
+	m := formPostForm.FindSubmatch(page)
+	if m == nil {
 		return nil
 	}
+	action, err := base.Parse(html.UnescapeString(string(m[1])))
+	if err != nil {
+		return fmt.Errorf("form_post action: %w", err)
+	}
+	values := url.Values{}
+	for _, input := range formPostInput.FindAll(m[2], -1) {
+		var name, value string
+		for _, a := range formPostAttr.FindAllSubmatch(input, -1) {
+			if strings.EqualFold(string(a[1]), "name") {
+				name = html.UnescapeString(string(a[2]))
+			} else {
+				value = html.UnescapeString(string(a[2]))
+			}
+		}
+		if name != "" {
+			values.Add(name, value)
+		}
+	}
+	resp, err := b.PostForm(action.String(), values)
+	if err != nil {
+		return err
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	return nil
 }

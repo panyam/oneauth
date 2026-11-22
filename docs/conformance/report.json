@@ -3796,6 +3796,14 @@
       "commit": "2fec03e"
     },
     {
+      "name": "jarm",
+      "kind": "gating",
+      "covers": "The JARM mission's exercise. A headless `oneauth token browser --response-mode jwt` logs in against oneauth-server and Keycloak, and a tampered response is refused",
+      "source": "scripts/exercise-jarm.sh (tests/keycloak/cmd/exercise-jarm)",
+      "tracking": "issue 409",
+      "result": "not run"
+    },
+    {
       "name": "authlete",
       "kind": "info",
       "covers": "Interop with Authlete's java-oauth-server as the authorization server",

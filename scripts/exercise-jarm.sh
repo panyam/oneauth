@@ -11,7 +11,10 @@
 #
 # For each target it prints the callback the CLI received (the decoded
 # response JWT when there is one), then the token or the CLI's refusal,
-# and a result line. It exits 1 when either target ends without a token.
+# and a result line. A third run logs in to oneauth-server with one
+# character of the response's signature flipped, which the CLI must
+# refuse. It exits 1 when a target ends without a token or the tampered
+# run gets one.
 # `make exercise-jarm` starts Keycloak first. A Keycloak started before
 # realm.json gained the test-jarm client needs `make downkcl`.
 #

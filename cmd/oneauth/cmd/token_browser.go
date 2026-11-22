@@ -42,8 +42,9 @@ added to the scopes, a nonce goes on the request, and the ID token must
 verify against the issuer's JWKS before the token is printed.
 
 --response-mode sets response_mode on the authorization request. The
-JARM modes (jwt, query.jwt, ...) ask for a signed response, which the
-CLI can't verify yet, so it refuses the response and prints why.`,
+JARM modes (jwt, query.jwt, form_post.jwt) ask for a signed response,
+which the CLI verifies against the issuer's JWKS before it exchanges the
+code. A forged, expired or unsigned response is refused.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBrowser(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0], tf, bf)
