@@ -11,7 +11,7 @@ Go client library for OAuth 2.0 authentication: browser-based login (authorizati
 - **auth_method.go** — `TokenEndpointAuthMethod` type, `SelectAuthMethod` (negotiates `client_secret_basic` vs `client_secret_post` vs `none` from AS metadata), `applyAuthToForm`
 - **private_key_jwt.go** — `AuthMethodPrivateKeyJWT` constant, `ClientAssertionConfig`, `MintClientAssertion` (RFC 7523 §2.2 / OIDC Core §9 assertion minter — fresh `jti` + bounded lifetime per call)
 - **dpop.go** — `DPoPKey` (RFC 9449): ES256 proof-of-possession key. Mints a per-request proof (`htm`, `htu`, `jti`, `iat`, plus `ath` when presenting a token), exposes the RFC 7638 `Thumbprint()` for `dpop_jkt`, and `SupportedBy` checks the server's advertised algorithms. Wire it with `client.WithDPoPKey`. `ProofWithNonce` is for callers presenting tokens through their own transport, so they can answer a resource server's `use_dpop_nonce` challenge.
-- **discovery.go** — `ASMetadata`, `DiscoverAS` (RFC 8414 + OIDC Discovery fallback), `DiscoveryOption`
+- **discovery.go** — `ASMetadata`, `DiscoverAS` (RFC 8414 + OIDC Discovery fallback), `DiscoveryOption`. `ASMetadata.EndSessionEndpoint` carries the OIDC `end_session_endpoint` (issue 546)
 - **credentials.go** — `ServerCredential` (`IDToken` as received, `IDTokenClaims` when verified), `CredentialStore` interface
 - **transport.go** — `AuthTransport` (static Bearer token transport)
 - **dcr.go** — `RegisterClient` (RFC 7591 client-side Dynamic Client Registration), `ClientRegistrationRequest`, `ClientRegistrationResponse`

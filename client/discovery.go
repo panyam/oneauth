@@ -42,6 +42,12 @@ type ASMetadata struct {
 	UserinfoEndpoint            string `json:"userinfo_endpoint,omitempty"`
 	DeviceAuthorizationEndpoint string `json:"device_authorization_endpoint,omitempty"` // RFC 8628 §4
 
+	// EndSessionEndpoint is where a relying party sends the browser to end
+	// the person's session at the OpenID Provider (OpenID Connect
+	// RP-Initiated Logout 1.0 §2.1). Empty means the provider offers no
+	// RP-initiated logout.
+	EndSessionEndpoint string `json:"end_session_endpoint,omitempty"`
+
 	// Supported features
 	ScopesSupported                            []string `json:"scopes_supported,omitempty"`
 	ResponseTypesSupported                     []string `json:"response_types_supported,omitempty"`

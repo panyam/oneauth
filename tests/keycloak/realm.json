@@ -19,7 +19,7 @@
       "webOrigins": ["*"],
       "defaultClientScopes": ["basic", "openid", "email", "profile"],
       "optionalClientScopes": ["relay-connect", "relay-publish", "read", "write"],
-      "attributes": {"oauth2.device.authorization.grant.enabled": "true"},
+      "attributes": {"oauth2.device.authorization.grant.enabled": "true", "post.logout.redirect.uris": "+"},
       "protocolMappers": [
         {
           "name": "self-audience",
