@@ -37,6 +37,12 @@ type IntrospectionHandler struct {
 	// explicitly in production.
 	AcceptedAudiences []string
 
+	// TrustedProxies are the reverse proxies whose X-Forwarded-Proto is
+	// believed when the audience is derived from the request (empty
+	// AcceptedAudiences), so a TLS-terminating proxy yields an https
+	// audience. Empty uses r.TLS alone.
+	TrustedProxies core.TrustedProxies
+
 	// TracerProvider opts the introspection endpoint into SEP-414
 	// tracing. When set, ServeHTTP extracts an inbound `traceparent`
 	// header and emits an `oneauth.introspect` span carrying the
@@ -93,7 +99,7 @@ func (h *IntrospectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 	creds.Audiences = h.AcceptedAudiences
 	if len(creds.Audiences) == 0 {
-		creds.Audiences = []string{derivedAudience(r)}
+		creds.Audiences = []string{derivedAudience(r, h.TrustedProxies)}
 	}
 	if _, err := h.Authenticator.AuthenticateClient(r.Context(), creds); err != nil {
 		w.Header().Set("WWW-Authenticate", `Basic realm="introspection"`)

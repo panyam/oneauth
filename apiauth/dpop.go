@@ -107,9 +107,10 @@ type DPoPConfig struct {
 
 	// EndpointURL is the externally-visible URL a proof's `htu` must
 	// match, minus query and fragment. Leave empty to derive it from the
-	// inbound request, which is correct only when the process terminates
-	// TLS itself: behind a TLS-terminating proxy the derived scheme is
-	// http while the client signs https, and every proof fails. Set this
+	// inbound request. Behind a TLS-terminating proxy the request arrives
+	// as http while the client signs https, and every proof fails unless
+	// the proxy is in TrustedProxies. A proxy that rewrites the host or
+	// path needs this field. Set this
 	// to the URL clients actually call.
 	//
 	// This pins one exact URL, which suits a validator wired to a single
@@ -128,6 +129,15 @@ type DPoPConfig struct {
 	//
 	// EndpointURL wins when both are set.
 	BaseURL string
+
+	// TrustedProxies are the reverse proxies whose X-Forwarded-Proto is
+	// believed when the expected `htu` is derived from the request (no
+	// EndpointURL or BaseURL). Behind a TLS-terminating proxy in this
+	// list, a request it marks https is checked against an https `htu`,
+	// matching the URI the client called (RFC 9449 §4.3). From any other
+	// peer the header is ignored. X-Forwarded-Host is never read, so a
+	// proxy that rewrites the host still needs EndpointURL or BaseURL.
+	TrustedProxies core.TrustedProxies
 
 	// NonceSource issues and checks the server-provided nonces of
 	// RFC 9449 §8 (authorization server) and §9 (resource server). Nil
@@ -169,6 +179,7 @@ type DPoPProofValidator struct {
 	jtiStore    JTIStore
 	endpointURL string
 	baseURL     string
+	trusted     core.TrustedProxies
 	nonceSource NonceSource
 	noncePolicy func(r *http.Request) bool
 	now         func() time.Time
@@ -185,6 +196,7 @@ func NewDPoPProofValidator(cfg DPoPConfig) *DPoPProofValidator {
 		jtiStore:    cfg.JTIStore,
 		endpointURL: cfg.EndpointURL,
 		baseURL:     strings.TrimSuffix(cfg.BaseURL, "/"),
+		trusted:     cfg.TrustedProxies,
 		nonceSource: cfg.NonceSource,
 		noncePolicy: cfg.NoncePolicy,
 		now:         cfg.Now,
@@ -454,10 +466,9 @@ func (v *DPoPProofValidator) confirmAtOwnPath(ctx context.Context, r *http.Reque
 
 // requestURL returns the URL a proof's `htu` is compared against: the pinned
 // EndpointURL, else BaseURL joined to this request's path, else the inbound
-// request's own scheme, host and path. The derived form deliberately ignores
-// X-Forwarded-Proto — trusting it would let any client pick the scheme its
-// proof is checked against, and the honest fix for a proxied deployment is
-// to configure the URL.
+// request's own scheme, host and path. The derived scheme reads
+// X-Forwarded-Proto only from TrustedProxies: from any peer, it would let a
+// client pick the scheme its proof is checked against (CWE-348).
 func (v *DPoPProofValidator) requestURL(r *http.Request) string {
 	if v.endpointURL != "" {
 		return v.endpointURL
@@ -468,7 +479,7 @@ func (v *DPoPProofValidator) requestURL(r *http.Request) string {
 		return v.baseURL + r.URL.EscapedPath()
 	}
 	scheme := "http"
-	if r.TLS != nil {
+	if v.trusted.IsHTTPS(r) {
 		scheme = "https"
 	}
 	return scheme + "://" + r.Host + r.URL.EscapedPath()

@@ -82,15 +82,16 @@ func extractClientCredentials(r *http.Request, req *core.TokenRequest) (*Authent
 // explicit AcceptedAudiences list. Per OIDC Core §9 the audience SHOULD
 // be the AS endpoint URL the client is calling.
 //
-// The scheme is https when r.TLS is set and http otherwise; forwarded
-// headers are ignored (see the body).
-func derivedAudience(r *http.Request) string {
-	// X-Forwarded-Proto / X-Forwarded-Host are not read: anyone can send
-	// them, and letting a caller choose the audience its own assertion is
-	// checked against would accept an assertion minted for another server
-	// (CWE-346). Behind a proxy, set AcceptedAudiences.
+// The scheme is https when trusted.IsHTTPS(r): this process terminated
+// TLS, or a trusted proxy in front of it did and says so (issue 541).
+func derivedAudience(r *http.Request, trusted core.TrustedProxies) string {
+	// X-Forwarded-Host is never read, and X-Forwarded-Proto only from a
+	// trusted proxy: letting any caller choose the audience its own
+	// assertion is checked against would accept an assertion minted for
+	// another server (CWE-346). A proxy that rewrites the host or path
+	// still needs AcceptedAudiences.
 	scheme := "http"
-	if r.TLS != nil {
+	if trusted.IsHTTPS(r) {
 		scheme = "https"
 	}
 	return scheme + "://" + r.Host + r.URL.Path
