@@ -15,7 +15,7 @@ func Prepare(ctx context.Context, hc *http.Client, serverURL string, s *Setup) e
 		return fmt.Errorf("sign up the browser user: %w", err)
 	}
 	for i := range s.Clients {
-		key, err := NewClientKey()
+		key, err := clientKey(i)
 		if err != nil {
 			return err
 		}
@@ -26,6 +26,15 @@ func Prepare(ctx context.Context, hc *http.Client, serverURL string, s *Setup) e
 		s.Clients[i] = RegisteredClient{ID: id, Key: key}
 	}
 	return nil
+}
+
+// clientKey is the key for the plan's client number i: PS256 for the
+// first, ES256 for the second (see ClientKey).
+func clientKey(i int) (ClientKey, error) {
+	if i == 0 {
+		return NewRSAClientKey()
+	}
+	return NewClientKey()
 }
 
 // Plan is the harness plan for s, ready for oidfplan.RunPlan.

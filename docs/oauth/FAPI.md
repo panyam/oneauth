@@ -211,7 +211,7 @@ matrix is in [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md).
 | Refresh tokens | **Implemented as an option.** OneAuth rotates on every use with reuse detection by default (RFC 9700). `OneAuthConfig.DisableRefreshTokenRotation` (server: `jwt.disable_refresh_token_rotation`) turns it off, as FAPI 2.0 §5.3.2.1 asks, and `FAPI2` sets it | [`RFC_9700.md`](RFC_9700.md) |
 | `iss` on redirect | Implemented | [`RFC_9207.md`](RFC_9207.md) |
 | Strict redirect URI matching + HTTPS | Implemented (DCR + `/authorize`) | [`RFC_9700.md`](RFC_9700.md) |
-| OIDF conformance run | **Local** (0.2.5). `make testoidf` runs the FAPI 2.0 plan: 41 of 46 pass, 4 REVIEW error pages checked against `known-gaps.yaml`, 1 RS256 skip (issue 558). The CI workflow is manual-only and has not run | [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
+| OIDF conformance run | **Local** (0.2.5). `make testoidf` runs the FAPI 2.0 plan: 46 of 52 modules pass, 4 REVIEW error pages are checked against `known-gaps.yaml`, and 2 warn about the ID token `typ` claim (issue 339). The first plan client registers a PS256 key, so the harness runs `ensure-signed-client-assertion-with-RS256-fails`, and oneauth refuses the RS256 assertion (issue 558). `TestKeycloak_VerifiesOneauthPS256IDToken` has Keycloak verify a PS256 ID token that oneauth signed. The CI workflow is manual-only and has not run | [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
 
 What remains for the FAPI 2.0 Security Profile is a first OIDF conformance
 run, EdDSA client keys, and mTLS as a second sender constraint.

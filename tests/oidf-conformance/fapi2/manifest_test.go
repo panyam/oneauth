@@ -14,7 +14,9 @@ import (
 func TestLoadExpectations_RepositoryManifest(t *testing.T) {
 	got, err := oidfplan.LoadExpectations(filepath.Join("..", "..", "conformance", "known-gaps.yaml"), PlanName)
 	require.NoError(t, err)
-	assert.Equal(t, oidfplan.StatusExpectedSkip, got["fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails"].Status)
+	// The first plan client has a PS256 key, so the harness runs this module
+	// and it has to pass (issue 558).
+	assert.NotContains(t, got, "fapi2-security-profile-final-ensure-signed-client-assertion-with-RS256-fails")
 	reviews := 0
 	for _, e := range got {
 		if e.Status == oidfplan.StatusExpectedReview {
