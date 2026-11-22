@@ -192,6 +192,8 @@ oneAuth.AddAuth("/github", oauth2.NewGithubOAuth2(
 ).Handler())
 ```
 
+For GitHub Enterprise, call `SetEnterpriseURL` on the GitHub provider with the web host, such as `https://ghe.example.com` or `https://acme.ghe.com`. Code that starts from a REST API root instead, like a `--github-api` flag, calls `oauth2.GitHubHostsFor(api)`. It returns the web host, the API root, the OAuth endpoint and the `/user` URL for github.com, GitHub Enterprise Server (`<host>/api/v3`) and GHE.com (`api.<tenant>.ghe.com`). Any other root, such as a test's fake, serves everything on itself (issue 554).
+
 ### Any OpenID Connect provider
 
 `oauth2/oidc` signs people in through their organisation's identity provider (Entra ID, Okta, Google Workspace, Keycloak) by issuer URL. Discovery runs once, in `oidc.New`. `HandleUser` runs only after the ID token's signature, `iss`, `aud`, `exp` and `nonce` check out, and it receives the token's claims.
@@ -207,7 +209,26 @@ p, err := oidc.New(ctx, oidc.Config{
 oneAuth.AddAuth("/oidc", p.Handler())
 ```
 
-`oidc.AllowList` decides who may sign in from those claims, by verified email domain, a `groups` value, or `sub`. To sign the user out at the provider too (RP-Initiated Logout), clear your own session, then redirect to `p.LogoutURL(idTokenHint, postLogoutRedirectURI, state)`. `idTokenHint` is the raw ID token from sign-in, which `HandleUser` gets as `token.Extra("id_token")`, so keep it with the session. Most providers want it, and Keycloak shows its own confirmation page without it. `LogoutURL` returns `oidc.ErrNoEndSessionEndpoint` when the provider's discovery lists no `end_session_endpoint` (issue 546). A CLI signs in with `p.DeviceAuth` and `p.DeviceAccessToken` when the provider lists a device endpoint. `oauth2/oidc/example` runs both flows against the Keycloak in `docker-compose.yml`.
+`oidc.AllowList` decides who may sign in from those claims. It matches a verified email domain, a `groups` value, `sub`, or Google's `hd` claim (`HostedDomains`). `hd` admits only Workspace accounts in the domain, which Google recommends over the email domain. `Allows` returns a bool, and `Decide` also names the rule that matched.
+
+Entra ID leaves `groups` out of the ID token once a person is in more than 200 groups, and names it in `_claim_names` instead. `Decide` reports that as `GroupsOverage`, so the app can log it rather than a plain refusal. `Resolve` goes one step further and fetches the groups from Microsoft Graph. It needs a Graph permission on the app registration and its scope in `Config.Scopes` (issue 555):
+
+```go
+allow := oidc.AllowList{Groups: []string{"<group object ID>"}}
+
+// in oidc.Config:
+HandleUser: func(authtype, provider string, token *oauth2.Token, claims map[string]any, w http.ResponseWriter, r *http.Request) {
+    d, err := allow.Resolve(r.Context(), claims, oidc.EntraGroups{AccessToken: token.AccessToken}.Groups)
+    if !d.Allowed {
+        slog.Info("sign-in refused", "groups_overage", d.GroupsOverage, "err", err)
+        http.Redirect(w, r, "/auth/failed", http.StatusSeeOther)
+        return
+    }
+    oneAuth.SaveUserAndRedirect(authtype, provider, token, claims, w, r)
+},
+```
+
+To sign the user out at the provider too (RP-Initiated Logout), clear your own session, then redirect to `p.LogoutURL(idTokenHint, postLogoutRedirectURI, state)`. `idTokenHint` is the raw ID token from sign-in, which `HandleUser` gets as `token.Extra("id_token")`, so keep it with the session. Most providers want it, and Keycloak shows its own confirmation page without it. `LogoutURL` returns `oidc.ErrNoEndSessionEndpoint` when the provider's discovery lists no `end_session_endpoint` (issue 546). A CLI signs in with `p.DeviceAuth` and `p.DeviceAccessToken` when the provider lists a device endpoint. `oauth2/oidc/example` runs both flows against the Keycloak in `docker-compose.yml`.
 
 ### PKCE (Proof Key for Code Exchange)
 
