@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/panyam/oneauth/client"
 	"github.com/spf13/cobra"
@@ -54,6 +56,7 @@ type dcrRegisterFlags struct {
 	applicationType         string
 
 	authorizationSignedResponseAlg string
+	metadataFile                   string
 }
 
 func newDCRRegisterCommand(df *dcrFlags) *cobra.Command {
@@ -82,28 +85,31 @@ registration.`,
 	cmd.Flags().StringVar(&rf.tokenEndpointAuthMethod, "token-endpoint-auth-method", "", `auth method: "client_secret_basic" | "client_secret_post" | "private_key_jwt" | "none"`)
 	cmd.Flags().StringVar(&rf.applicationType, "application-type", "", `OIDC application type: "web" | "native"`)
 	cmd.Flags().StringVar(&rf.authorizationSignedResponseAlg, "authorization-signed-response-alg", "", `algorithm for signed (JARM) authorization responses, e.g. "ES256"`)
+	cmd.Flags().StringVar(&rf.metadataFile, "metadata", "", "JSON file of RFC 7591 client metadata (any field, e.g. jwks); flags win over it")
 	return cmd
 }
 
 func runDCRRegister(_ context.Context, stdout io.Writer, issuer string, df *dcrFlags, rf *dcrRegisterFlags) error {
+	req, err := loadMetadataFile(rf.metadataFile)
+	if err != nil {
+		return err
+	}
+	setString(&req.ClientName, rf.clientName)
+	setString(&req.ClientURI, rf.clientURI)
+	setStrings(&req.RedirectURIs, rf.redirectURIs)
+	setStrings(&req.GrantTypes, rf.grantTypes)
+	setStrings(&req.ResponseTypes, rf.responseTypes)
+	setString(&req.TokenEndpointAuthMethod, rf.tokenEndpointAuthMethod)
+	setString(&req.Scope, rf.scope)
+	setString(&req.ApplicationType, rf.applicationType)
+	setString(&req.AuthorizationSignedResponseAlg, rf.authorizationSignedResponseAlg)
+
 	_, meta, err := newAuthClient(issuer)
 	if err != nil {
 		return err
 	}
 	if meta.RegistrationEndpoint == "" {
 		return fmt.Errorf("registration_endpoint not advertised by %s", issuer)
-	}
-	req := client.ClientRegistrationRequest{
-		ClientName:              rf.clientName,
-		ClientURI:               rf.clientURI,
-		RedirectURIs:            rf.redirectURIs,
-		GrantTypes:              rf.grantTypes,
-		ResponseTypes:           rf.responseTypes,
-		TokenEndpointAuthMethod: rf.tokenEndpointAuthMethod,
-		Scope:                   rf.scope,
-		ApplicationType:         rf.applicationType,
-
-		AuthorizationSignedResponseAlg: rf.authorizationSignedResponseAlg,
 	}
 	resp, err := client.RegisterClient(meta.RegistrationEndpoint, req, http.DefaultClient)
 	if err != nil {
@@ -170,6 +176,7 @@ type dcrPutFlags struct {
 	applicationType         string
 
 	authorizationSignedResponseAlg string
+	metadataFile                   string
 }
 
 func newDCRPutCommand(df *dcrFlags) *cobra.Command {
@@ -197,12 +204,27 @@ on success; the new token is in the response.`,
 	cmd.Flags().StringVar(&pf.tokenEndpointAuthMethod, "token-endpoint-auth-method", "", "auth method")
 	cmd.Flags().StringVar(&pf.applicationType, "application-type", "", `OIDC application type: "web" | "native"`)
 	cmd.Flags().StringVar(&pf.authorizationSignedResponseAlg, "authorization-signed-response-alg", "", `algorithm for signed (JARM) authorization responses, e.g. "ES256"`)
+	cmd.Flags().StringVar(&pf.metadataFile, "metadata", "", "JSON file of RFC 7591 client metadata (any field, e.g. jwks); flags win over it")
 	_ = cmd.MarkFlagRequired("client-id")
 	_ = cmd.MarkFlagRequired("registration-access-token")
 	return cmd
 }
 
 func runDCRPut(ctx context.Context, stdout io.Writer, issuer string, df *dcrFlags, pf *dcrPutFlags) error {
+	md, err := loadMetadataFile(pf.metadataFile)
+	if err != nil {
+		return err
+	}
+	setString(&md.ClientName, pf.clientName)
+	setString(&md.ClientURI, pf.clientURI)
+	setStrings(&md.RedirectURIs, pf.redirectURIs)
+	setStrings(&md.GrantTypes, pf.grantTypes)
+	setStrings(&md.ResponseTypes, pf.responseTypes)
+	setString(&md.Scope, pf.scope)
+	setString(&md.TokenEndpointAuthMethod, pf.tokenEndpointAuthMethod)
+	setString(&md.ApplicationType, pf.applicationType)
+	setString(&md.AuthorizationSignedResponseAlg, pf.authorizationSignedResponseAlg)
+
 	uri, err := resolveManagementURI(issuer, pf.clientID, pf.registrationClientURI)
 	if err != nil {
 		return err
@@ -211,18 +233,7 @@ func runDCRPut(ctx context.Context, stdout io.Writer, issuer string, df *dcrFlag
 		RegistrationClientURI:   uri,
 		RegistrationAccessToken: pf.registrationAccessToken,
 		ClientID:                pf.clientID,
-		Metadata: client.ClientRegistrationRequest{
-			ClientName:              pf.clientName,
-			ClientURI:               pf.clientURI,
-			RedirectURIs:            pf.redirectURIs,
-			GrantTypes:              pf.grantTypes,
-			ResponseTypes:           pf.responseTypes,
-			Scope:                   pf.scope,
-			TokenEndpointAuthMethod: pf.tokenEndpointAuthMethod,
-			ApplicationType:         pf.applicationType,
-
-			AuthorizationSignedResponseAlg: pf.authorizationSignedResponseAlg,
-		},
+		Metadata:                md,
 	})
 	if err != nil {
 		return mapRegistrationErr(err, "dcr put")
@@ -354,4 +365,38 @@ func mapRegistrationErr(err error, prefix string) error {
 		return fmt.Errorf("%s: unauthorized — check --registration-access-token", prefix)
 	}
 	return fmt.Errorf("%s: %w", prefix, err)
+}
+
+// loadMetadataFile reads --metadata: RFC 7591 client metadata as JSON. A
+// field the SDK doesn't know is an error, so a misspelling isn't dropped
+// on the way to the AS. An empty path is no file.
+func loadMetadataFile(path string) (client.ClientRegistrationRequest, error) {
+	var req client.ClientRegistrationRequest
+	if path == "" {
+		return req, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return req, fmt.Errorf("--metadata: %w", err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		return req, fmt.Errorf("--metadata %s: %w", path, err)
+	}
+	return req, nil
+}
+
+// setString and setStrings apply a flag over the --metadata file's value
+// when the flag was given.
+func setString(dst *string, flag string) {
+	if flag != "" {
+		*dst = flag
+	}
+}
+
+func setStrings(dst *[]string, flag []string) {
+	if len(flag) > 0 {
+		*dst = flag
+	}
 }

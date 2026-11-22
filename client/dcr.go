@@ -56,6 +56,41 @@ type ClientRegistrationRequest struct {
 	// of the AS's authorization_signing_alg_values_supported. Empty takes
 	// the AS default. It doesn't turn JARM on; BrowserLoginRequest.ResponseMode does.
 	AuthorizationSignedResponseAlg string `json:"authorization_signed_response_alg,omitempty"`
+
+	// JWKS is the client's JWK Set as raw JSON (RFC 7591 §2), for
+	// private_key_jwt with keys sent inline. Use it or JWKSURI, not both.
+	JWKS json.RawMessage `json:"jwks,omitempty"`
+
+	// JWKSURI is where the AS fetches the client's JWK Set (RFC 7591 §2).
+	JWKSURI string `json:"jwks_uri,omitempty"`
+
+	// TokenEndpointAuthSigningAlg pins the algorithm of this client's
+	// private_key_jwt assertions (OIDC Registration §2).
+	TokenEndpointAuthSigningAlg string `json:"token_endpoint_auth_signing_alg,omitempty"`
+
+	// LogoURI, PolicyURI and TOSURI are shown on the consent page (RFC 7591 §2).
+	LogoURI   string `json:"logo_uri,omitempty"`
+	PolicyURI string `json:"policy_uri,omitempty"`
+	TOSURI    string `json:"tos_uri,omitempty"`
+
+	// SubjectType is "public" or "pairwise" (OIDC Core §8), and
+	// SectorIdentifierURI names the pairwise sector (OIDC Registration §5).
+	SubjectType         string `json:"subject_type,omitempty"`
+	SectorIdentifierURI string `json:"sector_identifier_uri,omitempty"`
+
+	// UserinfoSignedResponseAlg asks for userinfo as a signed JWT (OIDC
+	// Registration §2). It must be one the AS lists in
+	// userinfo_signing_alg_values_supported.
+	UserinfoSignedResponseAlg string `json:"userinfo_signed_response_alg,omitempty"`
+
+	// BackchannelLogoutURI receives logout tokens (OIDC Back-Channel
+	// Logout §2.2), with a sid in them when BackchannelLogoutSessionRequired.
+	BackchannelLogoutURI             string `json:"backchannel_logout_uri,omitempty"`
+	BackchannelLogoutSessionRequired bool   `json:"backchannel_logout_session_required,omitempty"`
+
+	// AuthorizationDetailsTypes lists the RFC 9396 authorization_details
+	// types this client may request.
+	AuthorizationDetailsTypes []string `json:"authorization_details_types,omitempty"`
 }
 
 // ClientRegistrationResponse is the parsed response from a DCR endpoint,
@@ -88,6 +123,23 @@ type ClientRegistrationResponse struct {
 	// AuthorizationSignedResponseAlg is the AS's record of the JARM §3
 	// authorization_signed_response_alg for this client.
 	AuthorizationSignedResponseAlg string `json:"authorization_signed_response_alg,omitempty"`
+
+	// The AS's record of the rest of the client's metadata, as registered.
+	// An AS leaves out what it didn't store; RFC 7591 §2 has it ignore
+	// metadata it doesn't support, so compare these with what was sent to
+	// see what took effect.
+	ResponseTypes                    []string `json:"response_types,omitempty"`
+	JWKSURI                          string   `json:"jwks_uri,omitempty"`
+	TokenEndpointAuthSigningAlg      string   `json:"token_endpoint_auth_signing_alg,omitempty"`
+	LogoURI                          string   `json:"logo_uri,omitempty"`
+	PolicyURI                        string   `json:"policy_uri,omitempty"`
+	TOSURI                           string   `json:"tos_uri,omitempty"`
+	SubjectType                      string   `json:"subject_type,omitempty"`
+	SectorIdentifierURI              string   `json:"sector_identifier_uri,omitempty"`
+	UserinfoSignedResponseAlg        string   `json:"userinfo_signed_response_alg,omitempty"`
+	BackchannelLogoutURI             string   `json:"backchannel_logout_uri,omitempty"`
+	BackchannelLogoutSessionRequired bool     `json:"backchannel_logout_session_required,omitempty"`
+	AuthorizationDetailsTypes        []string `json:"authorization_details_types,omitempty"`
 
 	// RFC 7592 §3 — management credentials. RegistrationClientURI is the
 	// management endpoint for this specific registration; RegistrationAccessToken

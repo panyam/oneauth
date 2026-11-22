@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,4 +57,43 @@ func TestDCR_AuthorizationSignedResponseAlgFlag(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, sub.Flags().Lookup("authorization-signed-response-alg"), name)
 	}
+}
+
+// --metadata reads any RFC 7591 field from a JSON file, and explicit flags
+// win over it (issue 557).
+func TestDCR_MetadataFile(t *testing.T) {
+	var bodies []map[string]any
+	as := bodyRecordingDCRAS(t, &bodies)
+	path := t.TempDir() + "/meta.json"
+	require.NoError(t, os.WriteFile(path, []byte(`{
+		"client_name": "from-file",
+		"jwks": {"keys": []},
+		"token_endpoint_auth_signing_alg": "PS256",
+		"subject_type": "pairwise",
+		"backchannel_logout_session_required": true
+	}`), 0o600))
+	df := &dcrFlags{format: "json"}
+
+	require.NoError(t, runDCRRegister(context.Background(), new(bytes.Buffer), as.URL, df, &dcrRegisterFlags{metadataFile: path, clientName: "from-flag"}))
+	require.NoError(t, runDCRPut(context.Background(), new(bytes.Buffer), as.URL, df, &dcrPutFlags{
+		clientID: "c1", registrationAccessToken: "tok", registrationClientURI: as.URL + "/apps/dcr/c1", metadataFile: path,
+	}))
+	require.Len(t, bodies, 2)
+	for _, b := range bodies {
+		assert.Equal(t, "PS256", b["token_endpoint_auth_signing_alg"])
+		assert.Equal(t, "pairwise", b["subject_type"])
+		assert.Equal(t, true, b["backchannel_logout_session_required"])
+		assert.Equal(t, map[string]any{"keys": []any{}}, b["jwks"])
+	}
+	assert.Equal(t, "from-flag", bodies[0]["client_name"], "a flag wins over the file")
+	assert.Equal(t, "from-file", bodies[1]["client_name"])
+}
+
+// A misspelled field in the file is an error, not silently dropped.
+func TestDCR_MetadataFileRefusesUnknownFields(t *testing.T) {
+	path := t.TempDir() + "/meta.json"
+	require.NoError(t, os.WriteFile(path, []byte(`{"client_name":"x","subjet_type":"pairwise"}`), 0o600))
+	err := runDCRRegister(context.Background(), new(bytes.Buffer), "http://127.0.0.1:1", &dcrFlags{format: "json"}, &dcrRegisterFlags{metadataFile: path})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "subjet_type")
 }
