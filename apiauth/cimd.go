@@ -131,6 +131,15 @@ type CIMDAppStore struct {
 	GrantTypes    []string
 	ResponseTypes []string
 
+	// UserinfoSigningAlgs and AuthorizationSigningAlgs are the algorithms
+	// the AS signs userinfo and JARM responses with. A document asking for
+	// another userinfo_signed_response_alg or
+	// authorization_signed_response_alg is invalid, as DCR refuses it, so
+	// `none` is too. Empty refuses any, which is right when OIDC or JARM
+	// is off. NewOneAuth sets both.
+	UserinfoSigningAlgs      []string
+	AuthorizationSigningAlgs []string
+
 	// AllowPrivateHosts lets the fetcher dial loopback and private
 	// addresses. For test harnesses and closed networks only. Draft §10.7
 	// says a production AS MUST NOT fetch them.
@@ -231,7 +240,12 @@ func (s *CIMDAppStore) fetch(ctx context.Context, clientID string) (*core.AppReg
 	if len(body) > cimdMaxBytes {
 		return nil, 0, fmt.Errorf("%w: document is over %d bytes", ErrInvalidClientMetadata, cimdMaxBytes)
 	}
-	app, err := validateClientMetadataDocument(clientID, body, orStrings(s.GrantTypes, cimdDefaultGrantTypes), orStrings(s.ResponseTypes, cimdDefaultResponseTypes))
+	app, err := validateClientMetadataDocument(clientID, body, cimdSupport{
+		grants:       orStrings(s.GrantTypes, cimdDefaultGrantTypes),
+		responses:    orStrings(s.ResponseTypes, cimdDefaultResponseTypes),
+		userinfoAlgs: s.UserinfoSigningAlgs,
+		jarmAlgs:     s.AuthorizationSigningAlgs,
+	})
 	if err != nil {
 		return nil, 0, err
 	}
@@ -252,22 +266,25 @@ var (
 // clientMetadataDocument is the part of an RFC 7591 client metadata
 // document a CIMD client's registration uses.
 type clientMetadataDocument struct {
-	ClientID                       string          `json:"client_id"`
-	ClientName                     string          `json:"client_name"`
-	ClientURI                      string          `json:"client_uri"`
-	RedirectURIs                   []string        `json:"redirect_uris"`
-	GrantTypes                     []string        `json:"grant_types"`
-	ResponseTypes                  []string        `json:"response_types"`
-	Scope                          string          `json:"scope"`
-	TokenEndpointAuthMethod        string          `json:"token_endpoint_auth_method"`
-	TokenEndpointAuthSigningAlg    string          `json:"token_endpoint_auth_signing_alg"`
-	AuthorizationSignedResponseAlg string          `json:"authorization_signed_response_alg"`
-	JWKSURI                        string          `json:"jwks_uri"`
-	JWKS                           json.RawMessage `json:"jwks"`
-	PolicyURI                      string          `json:"policy_uri"`
-	TOSURI                         string          `json:"tos_uri"`
-	ClientSecret                   *string         `json:"client_secret"`
-	ClientSecretExpiresAt          json.RawMessage `json:"client_secret_expires_at"`
+	ClientID                           string          `json:"client_id"`
+	ClientName                         string          `json:"client_name"`
+	ClientURI                          string          `json:"client_uri"`
+	RedirectURIs                       []string        `json:"redirect_uris"`
+	GrantTypes                         []string        `json:"grant_types"`
+	ResponseTypes                      []string        `json:"response_types"`
+	Scope                              string          `json:"scope"`
+	TokenEndpointAuthMethod            string          `json:"token_endpoint_auth_method"`
+	TokenEndpointAuthSigningAlg        string          `json:"token_endpoint_auth_signing_alg"`
+	AuthorizationSignedResponseAlg     string          `json:"authorization_signed_response_alg"`
+	UserinfoSignedResponseAlg          string          `json:"userinfo_signed_response_alg"`
+	DPoPBoundAccessTokens              bool            `json:"dpop_bound_access_tokens"`
+	RequirePushedAuthorizationRequests bool            `json:"require_pushed_authorization_requests"`
+	JWKSURI                            string          `json:"jwks_uri"`
+	JWKS                               json.RawMessage `json:"jwks"`
+	PolicyURI                          string          `json:"policy_uri"`
+	TOSURI                             string          `json:"tos_uri"`
+	ClientSecret                       *string         `json:"client_secret"`
+	ClientSecretExpiresAt              json.RawMessage `json:"client_secret_expires_at"`
 }
 
 // validateClientMetadataDocument checks body as the metadata document for
@@ -282,7 +299,14 @@ type clientMetadataDocument struct {
 //     holding public keys only;
 //   - grant_types and response_types cut down to what the AS supports, not
 //     empty.
-func validateClientMetadataDocument(clientID string, body []byte, supportedGrants, supportedResponses []string) (*core.AppRegistration, error) {
+//
+// cimdSupport is what the AS supports, which a document is checked against.
+type cimdSupport struct {
+	grants, responses      []string
+	userinfoAlgs, jarmAlgs []string
+}
+
+func validateClientMetadataDocument(clientID string, body []byte, support cimdSupport) (*core.AppRegistration, error) {
 	var doc clientMetadataDocument
 	if err := json.Unmarshal(body, &doc); err != nil {
 		return nil, fmt.Errorf("%w: document is not a JSON object: %v", ErrInvalidClientMetadata, err)
@@ -321,28 +345,42 @@ func validateClientMetadataDocument(clientID string, body []byte, supportedGrant
 			return nil, err
 		}
 	}
-	grants := intersect(orStrings(doc.GrantTypes, []string{AuthorizationCodeGrantType}), supportedGrants)
+	for field, alg := range map[string]struct {
+		got       string
+		supported []string
+	}{
+		"userinfo_signed_response_alg":      {doc.UserinfoSignedResponseAlg, support.userinfoAlgs},
+		"authorization_signed_response_alg": {doc.AuthorizationSignedResponseAlg, support.jarmAlgs},
+	} {
+		if alg.got != "" && !slices.Contains(alg.supported, alg.got) {
+			return nil, fmt.Errorf("%w: %s %q is not one this server signs with", ErrInvalidClientMetadata, field, alg.got)
+		}
+	}
+	grants := intersect(orStrings(doc.GrantTypes, []string{AuthorizationCodeGrantType}), support.grants)
 	if len(grants) == 0 {
 		return nil, fmt.Errorf("%w: none of the document's grant_types is supported", ErrInvalidClientMetadata)
 	}
-	responses := intersect(orStrings(doc.ResponseTypes, []string{"code"}), supportedResponses)
+	responses := intersect(orStrings(doc.ResponseTypes, []string{"code"}), support.responses)
 	if len(responses) == 0 {
 		return nil, fmt.Errorf("%w: none of the document's response_types is supported", ErrInvalidClientMetadata)
 	}
 	app := &core.AppRegistration{
-		ClientID:                       clientID,
-		ClientName:                     doc.ClientName,
-		ClientURI:                      doc.ClientURI,
-		RedirectURIs:                   doc.RedirectURIs,
-		GrantTypes:                     grants,
-		ResponseTypes:                  responses,
-		Scope:                          doc.Scope,
-		TokenEndpointAuthMethod:        method,
-		TokenEndpointAuthSigningAlg:    doc.TokenEndpointAuthSigningAlg,
-		AuthorizationSignedResponseAlg: doc.AuthorizationSignedResponseAlg,
-		JWKSURI:                        doc.JWKSURI,
-		PolicyURI:                      doc.PolicyURI,
-		TOSURI:                         doc.TOSURI,
+		ClientID:                           clientID,
+		ClientName:                         doc.ClientName,
+		ClientURI:                          doc.ClientURI,
+		RedirectURIs:                       doc.RedirectURIs,
+		GrantTypes:                         grants,
+		ResponseTypes:                      responses,
+		Scope:                              doc.Scope,
+		TokenEndpointAuthMethod:            method,
+		TokenEndpointAuthSigningAlg:        doc.TokenEndpointAuthSigningAlg,
+		AuthorizationSignedResponseAlg:     doc.AuthorizationSignedResponseAlg,
+		UserinfoSignedResponseAlg:          doc.UserinfoSignedResponseAlg,
+		DPoPBoundAccessTokens:              doc.DPoPBoundAccessTokens,
+		RequirePushedAuthorizationRequests: doc.RequirePushedAuthorizationRequests,
+		JWKSURI:                            doc.JWKSURI,
+		PolicyURI:                          doc.PolicyURI,
+		TOSURI:                             doc.TOSURI,
 	}
 	if hasJWKS {
 		app.JWKS = doc.JWKS
