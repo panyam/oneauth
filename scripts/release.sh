@@ -5,7 +5,8 @@
 #   2. Sets every github.com/panyam/oneauth* require in every published
 #      go.mod to V. That version doesn't exist until step 5, which is fine:
 #      the workspace (go.work) builds the checkout, and consumers fetch the
-#      tags after they are pushed.
+#      tags after they are pushed. The unpublished modules' oneauth
+#      requires move to V as well.
 #      workspace-replace.sh maps V to this checkout in go.work, since Go
 #      reads a workspace module's go.mod at the required version.
 #   3. Runs verify-submodule-deps with RELEASING=V and builds every module
@@ -31,6 +32,17 @@ if git rev-parse -q --verify "refs/tags/$V" >/dev/null; then echo "$V is already
 PUBLISHED=$(awk '/^PUBLISHED=\(/{f=1;next} f&&/^\)/{f=0} f{gsub(/[" ]/,""); print}' scripts/verify-submodule-deps.sh)
 for mod in $PUBLISHED; do
     for dep in $(cd "$mod" && go mod edit -json | python3 -I -c 'import json,sys; d=json.load(sys.stdin); print(" ".join(r["Path"] for r in (d.get("Require") or []) if r["Path"].startswith("github.com/panyam/oneauth")))'); do
+        (cd "$mod" && go mod edit -require="$dep@$V")
+    done
+done
+
+# Unpublished modules (tests/*, docs/site) replace oneauth modules with this
+# checkout. A replaced published module now requires V, so each oneauth
+# require naming a release moves to V too, or GOWORK=off runs there stop at
+# "updates to go.mod needed" (issue 553). The v0.0.0 placeholder some of
+# them use beside a replace isn't a release, and stays.
+for mod in $(bash scripts/verify-submodule-deps.sh --unpublished); do
+    for dep in $(cd "$mod" && go mod edit -json | python3 -I -c 'import json,sys; d=json.load(sys.stdin); print(" ".join(r["Path"] for r in (d.get("Require") or []) if r["Path"].startswith("github.com/panyam/oneauth") and not r["Version"].startswith("v0.0.0-")))'); do
         (cd "$mod" && go mod edit -require="$dep@$V")
     done
 done
