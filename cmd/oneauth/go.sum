@@ -19,8 +19,8 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/mdp/qrterminal/v3 v3.2.1 h1:6+yQjiiOsSuXT5n9/m60E54vdgFsw0zhADHhHLrFet4=
 github.com/mdp/qrterminal/v3 v3.2.1/go.mod h1:jOTmXvnBsMy5xqLniO0R++Jmjs2sTm9dFSuQ5kpz/SU=
-github.com/panyam/oneauth v0.3.16 h1:td3enH35qYU5Xfr1h40JumtdV7XnM858cb71PO2sILw=
-github.com/panyam/oneauth v0.3.16/go.mod h1:KovKb74ntC7sroSeMafW/lZ6lzjuC/KI0uhxezRcN+8=
+github.com/panyam/oneauth v0.3.17 h1:+kyrcBBXMPEXMXoM1WUiM5MbjwDfSO4vL2h6TXJnEFk=
+github.com/panyam/oneauth v0.3.17/go.mod h1:KovKb74ntC7sroSeMafW/lZ6lzjuC/KI0uhxezRcN+8=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/spf13/cobra v1.10.1 h1:lJeBwCfmrnXthfAupyUTzJ/J4Nc1RsHC/mSRU2dll/s=
 github.com/spf13/cobra v1.10.1/go.mod h1:7SmJGaTHFVBY0jW4NXGluQoLvhqFQM+6XSKD+P4XaB0=
