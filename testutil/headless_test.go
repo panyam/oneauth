@@ -80,3 +80,28 @@ func TestKeycloakPasswordLogin_NoForm(t *testing.T) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// For a form_post response mode Keycloak answers the login with a page
+// that posts the response to the redirect_uri. The opener submits it.
+func TestKeycloakPasswordLogin_SubmitsAFormPostPage(t *testing.T) {
+	var got string
+	cb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			r.ParseForm()
+			got = r.PostForm.Get("response")
+		}
+	}))
+	defer cb.Close()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /auth", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<form id="kc-form-login" action="/login" method="post"></form>`)
+	})
+	mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `<html><body onload="javascript:document.forms[0].submit()"><form method="post" action="%s/callback"><input type="hidden" name="response" value="a.b&#43;c"/></form></body></html>`, cb.URL)
+	})
+	kc := httptest.NewServer(mux)
+	defer kc.Close()
+
+	require.NoError(t, testutil.KeycloakPasswordLogin(nil, "u", "p")(kc.URL+"/auth"))
+	assert.Equal(t, "a.b+c", got)
+}

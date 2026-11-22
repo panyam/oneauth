@@ -11,7 +11,7 @@
 ROOT := ..
 
 .PHONY: test report conf-native conf-oidf-config conf-oidf-fapi2 conf-oidf-basic-op conf-oidf-formpost-basic conf-oidf-implicit conf-oidf-formpost-implicit conf-oidf-dynamic-op conf-oidf-dynamic-id-token conf-oidf-dynamic-id-token-token \
-	conf-oidf-tp-post conf-oidf-tp-secret-jwt conf-oidf-tp-private-key-jwt conf-mcp-auth-gosdk conf-mcp-auth-mcpkit conf-mcp-auth-ts conf-mcp-auth-as conf-keycloak conf-authlete
+	conf-oidf-tp-post conf-oidf-tp-secret-jwt conf-oidf-tp-private-key-jwt conf-mcp-auth-gosdk conf-mcp-auth-mcpkit conf-mcp-auth-ts conf-mcp-auth-as conf-keycloak conf-jarm conf-authlete
 
 RUNNER = cd $(ROOT)/tests/conformance && GOWORK=off go run ./cmd/suites \
 		-registry ../../conformance/suites.yaml \
@@ -68,6 +68,9 @@ conf-oidf-tp-private-key-jwt:
 
 conf-keycloak:
 	$(MAKE) -C $(ROOT) testkcl
+
+conf-jarm:
+	$(MAKE) -C $(ROOT) exercise-jarm
 
 conf-mcp-auth-gosdk:
 	$(MAKE) -C $(ROOT) exercise-mcpauth SDK=gosdk

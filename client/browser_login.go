@@ -155,15 +155,19 @@ type BrowserLoginRequest struct {
 	// ResponseMode, when set, is sent as `response_mode` on the
 	// authorization request. Empty leaves it out, and the AS uses the
 	// default for response_type=code, which is query. The loopback server
-	// reads the callback's query string, so fragment and form_post
-	// responses never reach it.
+	// reads the callback's query string and a form_post POST body.
 	//
-	// The JARM modes (jwt, query.jwt, fragment.jwt, form_post.jwt) ask the
-	// AS to sign its response. With one of them set, LoginWithBrowser
-	// refuses every callback with ErrUnverifiedAuthorizationResponse: a
-	// plain code would be an unsigned response, and verifying a signed one
-	// is not implemented yet (issue 412). An AS error still comes back as
-	// a *CallbackError.
+	// The JARM modes jwt, query.jwt and form_post.jwt ask the AS to sign
+	// its response. LoginWithBrowser then takes code, state and iss only
+	// from a `response` JWT that VerifyAuthorizationResponse accepts
+	// against the discovered issuer and JWKS, which a caller with explicit
+	// endpoints supplies through WithASMetadata. A callback without one, a
+	// plain code included, fails with ErrUnverifiedAuthorizationResponse,
+	// since accepting it would let an attacker strip the signature. An
+	// error inside a verified response comes back as a *CallbackError.
+	//
+	// fragment and fragment.jwt fail before the browser opens, since a
+	// fragment never reaches the loopback server.
 	//
 	// See: https://openid.net/specs/oauth-v2-jarm.html
 	ResponseMode string
@@ -227,6 +231,10 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 	if cfg.ClientID == "" {
 		return nil, fmt.Errorf("ClientID is required")
 	}
+	if isFragmentResponseMode(cfg.ResponseMode) {
+		return nil, fmt.Errorf("response_mode=%s puts the response in the URL fragment, which never reaches the loopback server", cfg.ResponseMode)
+	}
+	jarm := isJARMResponseMode(cfg.ResponseMode)
 
 	timeout := cfg.Timeout
 	if timeout == 0 {
@@ -258,7 +266,9 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 	// Serve the callback
 	mux := http.NewServeMux()
 	mux.HandleFunc(callbackPath, func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
+		// Form reads the query, and a form_post response's POST body too.
+		_ = r.ParseForm()
+		q := r.Form
 		if errParam := q.Get("error"); errParam != "" {
 			desc := q.Get("error_description")
 			resultCh <- callbackResult{Err: &CallbackError{Code: errParam, Description: desc}}
@@ -336,6 +346,20 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		return nil, fmt.Errorf("token_endpoint not found")
 	}
 
+	// A signed response is checked against the issuer and keys discovery
+	// names, as an ID token is, so a caller with explicit endpoints still
+	// needs the metadata.
+	if jarm {
+		if meta == nil {
+			if meta, err = c.idTokenMetadata(cfg.HTTPClient); err != nil {
+				return nil, err
+			}
+		}
+		if meta.Issuer == "" || meta.JWKSURI == "" {
+			return nil, fmt.Errorf("response_mode=%s: AS metadata has no issuer or jwks_uri to verify the signed response against", cfg.ResponseMode)
+		}
+	}
+
 	// An ID token is checked against the issuer and keys discovery names,
 	// so a caller with explicit endpoints still needs the metadata.
 	nonce := ""
@@ -399,11 +423,27 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 	if result.Err != nil {
 		return nil, result.Err
 	}
-	if isJARMResponseMode(cfg.ResponseMode) {
+	if jarm {
 		if result.Response == "" {
 			return nil, fmt.Errorf("%w: response_mode=%s but the callback carried no signed response", ErrUnverifiedAuthorizationResponse, cfg.ResponseMode)
 		}
-		return nil, fmt.Errorf("%w: verifying signed responses is not implemented yet (issue 412)", ErrUnverifiedAuthorizationResponse)
+		keyClient := cfg.HTTPClient
+		if keyClient == nil {
+			keyClient = http.DefaultClient
+		}
+		params, err := VerifyAuthorizationResponse(ctx, &VerifyAuthorizationResponseRequest{
+			Response: result.Response,
+			Issuer:   meta.Issuer,
+			ClientID: cfg.ClientID,
+			Keys:     keys.NewJWKSKeyStore(meta.JWKSURI, keys.WithHTTPClient(keyClient)),
+		})
+		if err != nil {
+			return nil, err
+		}
+		if code := params.Get("error"); code != "" {
+			return nil, &CallbackError{Code: code, Description: params.Get("error_description")}
+		}
+		result.Code, result.State, result.Iss = params.Get("code"), params.Get("state"), params.Get("iss")
 	}
 
 	// Validate state
@@ -892,12 +932,4 @@ func openBrowserDefault(url string) error {
 	default:
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
-}
-
-// isJARMResponseMode reports whether mode asks for a signed authorization
-// response: jwt, or one of query.jwt, fragment.jwt and form_post.jwt.
-//
-// See: https://openid.net/specs/oauth-v2-jarm.html#section-2.3
-func isJARMResponseMode(mode string) bool {
-	return mode == "jwt" || strings.HasSuffix(mode, ".jwt")
 }

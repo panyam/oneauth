@@ -85,7 +85,7 @@ func TestLoginWithBrowser_NoResponseModeByDefault(t *testing.T) {
 //
 // See: https://openid.net/specs/oauth-v2-jarm.html#section-4.4
 func TestLoginWithBrowser_JWTModeRefusesPlainCode(t *testing.T) {
-	for _, mode := range []string{"jwt", "query.jwt", "form_post.jwt", "fragment.jwt"} {
+	for _, mode := range []string{"jwt", "query.jwt", "form_post.jwt"} {
 		t.Run(mode, func(t *testing.T) {
 			_, err := loginWithResponseMode(t, mode, url.Values{"code": {"mock-code"}})
 			require.Error(t, err)
@@ -94,11 +94,10 @@ func TestLoginWithBrowser_JWTModeRefusesPlainCode(t *testing.T) {
 	}
 }
 
-// The SDK can't verify a signed response yet (issue 412), so it must not
-// exchange anything taken from one.
-func TestLoginWithBrowser_JWTModeRefusesSignedResponseUntilVerified(t *testing.T) {
+// A `response` that doesn't verify is refused, and nothing in it is
+// exchanged.
+func TestLoginWithBrowser_JWTModeRefusesAnUnverifiableResponse(t *testing.T) {
 	_, err := loginWithResponseMode(t, "jwt", url.Values{"response": {"eyJhbGciOiJQUzI1NiJ9.e30.sig"}, "state": nil})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrUnverifiedAuthorizationResponse), "got %v", err)
-	assert.Contains(t, err.Error(), "issue 412")
 }

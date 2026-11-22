@@ -11,8 +11,13 @@
 // verifying it and prints its header and claims. Then the CLI gets the
 // callback and prints a token, or the reason it refused.
 //
+// With -tamper (on by default) it logs in to oneauth-server once more and
+// flips one character of the response's signature on the way past. That
+// run passes only when the CLI refuses the response.
+//
 // scripts/exercise-jarm.sh builds the binaries, starts the server and runs
-// this. It exits 1 when any target fails to end with an access token.
+// this. It exits 1 when a target fails to end with an access token, or the
+// tampered run gets one.
 package main
 
 import (
@@ -46,6 +51,7 @@ func main() {
 	kcPassword := flag.String("keycloak-password", "testpassword", "Keycloak password")
 	port := flag.Int("callback-port", 18501, "loopback callback port the CLI listens on")
 	mode := flag.String("response-mode", "jwt", "response_mode to request")
+	tamper := flag.Bool("tamper", true, "also log in to oneauth-server with a tampered response, which must be refused")
 	flag.Parse()
 
 	r := runner{cli: *cli, port: *port, mode: *mode}
@@ -55,6 +61,20 @@ func main() {
 		ok, summary := r.oneauth(*asURL)
 		failed = failed || !ok
 		results = append(results, "oneauth-server: "+summary)
+		if *tamper && strings.HasSuffix(r.mode, "jwt") {
+			fmt.Println("\n== oneauth-server again, with one character of the response's signature flipped")
+			t := r
+			t.tamper = true
+			ok, summary := t.oneauth(*asURL)
+			refused := !ok && strings.Contains(summary, "unverified authorization response")
+			failed = failed || !refused
+			if refused {
+				summary = "PASS: refused: " + strings.TrimPrefix(summary, "FAIL: ")
+			} else if ok {
+				summary = "FAIL: the CLI accepted a tampered response (" + summary + ")"
+			}
+			results = append(results, "oneauth tamper: "+summary)
+		}
 	}
 	if *kcIssuer != "" {
 		ok, summary := r.keycloak(*kcIssuer, *kcClient, *kcUser, *kcPassword)
@@ -71,9 +91,10 @@ func main() {
 }
 
 type runner struct {
-	cli  string
-	port int
-	mode string
+	cli    string
+	port   int
+	mode   string
+	tamper bool // flip a character of the response's signature on the way past
 }
 
 // redirectURI is the redirect URI the CLI sends for --callback-port, as
@@ -190,9 +211,16 @@ func (r runner) watch(rt http.RoundTripper) http.RoundTripper {
 		"localhost:" + strconv.Itoa(r.port): true,
 		"127.0.0.1:" + strconv.Itoa(r.port): true,
 	}
+	tamper := r.tamper
 	return roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if hosts[req.URL.Host] {
-			printCallback(req.URL.Query())
+			q := req.URL.Query()
+			printCallback(q)
+			if jwt := q.Get("response"); tamper && jwt != "" {
+				q.Set("response", flipSignature(jwt))
+				req.URL.RawQuery = q.Encode()
+				fmt.Println("  tampered: flipped one character of the signature")
+			}
 		}
 		return rt.RoundTrip(req)
 	})
@@ -232,6 +260,19 @@ func printCallback(q url.Values) {
 	if exp := claimsExp(parts[1]); !exp.IsZero() {
 		fmt.Printf("    exp is %s from now\n", time.Until(exp).Round(time.Second))
 	}
+}
+
+// flipSignature changes one character of a compact JWS's signature. It
+// picks the tenth from the end, since the last character of an unpadded
+// base64url string can carry padding bits, and changing those leaves the
+// decoded signature the same.
+func flipSignature(s string) string {
+	i := len(s) - 10
+	repl := byte('A')
+	if s[i] == 'A' {
+		repl = 'B'
+	}
+	return s[:i] + string(repl) + s[i+1:]
 }
 
 // abbreviate shortens a code so the output doesn't hand one out whole.
