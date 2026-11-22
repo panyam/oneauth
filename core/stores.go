@@ -284,3 +284,55 @@ type APIKeyStore interface {
 	// UpdateAPIKeyLastUsed updates the last-used timestamp.
 	UpdateAPIKeyLastUsed(ctx context.Context, req *UpdateAPIKeyLastUsedRequest) (*UpdateAPIKeyLastUsedResponse, error)
 }
+
+// ListAPIKeysRequest asks for every API key in the store. It has no
+// fields yet; a page token can be added later without breaking callers.
+type ListAPIKeysRequest struct{}
+
+// ListAPIKeysResponse holds every key in the store, in no particular
+// order, with KeyHash empty.
+type ListAPIKeysResponse struct {
+	APIKeys []*APIKey
+}
+
+// CleanupExpiredAPIKeysRequest asks for every key whose ExpiresAt is at or
+// before Now to be deleted. A zero Now means time.Now().
+type CleanupExpiredAPIKeysRequest struct {
+	Now time.Time
+}
+
+// CleanupExpiredAPIKeysResponse reports how many keys the cleanup deleted.
+type CleanupExpiredAPIKeysResponse struct {
+	Removed int
+}
+
+// CleanupTime returns req.Now, or time.Now() when req is nil or Now is
+// zero. Backends call it so they agree on what a zero Now means.
+func (req *CleanupExpiredAPIKeysRequest) CleanupTime() time.Time {
+	if req == nil || req.Now.IsZero() {
+		return time.Now()
+	}
+	return req.Now
+}
+
+// APIKeyAdmin is an optional interface for an APIKeyStore that can list
+// every key and delete the expired ones. An app that mints a key per
+// sign-in uses it to show all tokens and to sweep old ones on a timer.
+// It's separate from APIKeyStore so a custom store still compiles;
+// callers check for it with a type assertion. The bundled fs, gorm and
+// gae stores implement it.
+//
+// Implementations must:
+//   - leave KeyHash empty in every listed key, as ListSubjectAPIKeys does;
+//   - leave out a key deleted while the listing runs, rather than fail;
+//   - delete a key when ExpiresAt is set and at or before req.Now,
+//     whether or not it's revoked, since an expired key can't validate
+//     either way;
+//   - keep every key with no ExpiresAt, revoked or not;
+//   - make CleanupExpiredAPIKeys safe to repeat; a second run removes 0.
+//
+// The shared contract suite is apikeytest.RunAdmin.
+type APIKeyAdmin interface {
+	ListAPIKeys(ctx context.Context, req *ListAPIKeysRequest) (*ListAPIKeysResponse, error)
+	CleanupExpiredAPIKeys(ctx context.Context, req *CleanupExpiredAPIKeysRequest) (*CleanupExpiredAPIKeysResponse, error)
+}

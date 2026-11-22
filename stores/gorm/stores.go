@@ -801,6 +801,38 @@ func (s *APIKeyStore) ListSubjectAPIKeys(ctx context.Context, req *core.ListSubj
 	return &core.ListSubjectAPIKeysResponse{APIKeys: keys}, nil
 }
 
+// ListAPIKeys returns every row in api_keys, revoked and expired ones
+// included, with KeyHash cleared. A single SELECT reads one snapshot, so a
+// concurrent cleanup either removed a row before the read or after it.
+// Order is unspecified.
+func (s *APIKeyStore) ListAPIKeys(ctx context.Context, req *core.ListAPIKeysRequest) (*core.ListAPIKeysResponse, error) {
+	var models []APIKeyModel
+	if err := s.db.WithContext(ctx).Find(&models).Error; err != nil {
+		return nil, err
+	}
+	keys := make([]*core.APIKey, len(models))
+	for i, m := range models {
+		keys[i] = m.ToAPIKey()
+		keys[i].KeyHash = ""
+	}
+	return &core.ListAPIKeysResponse{APIKeys: keys}, nil
+}
+
+// CleanupExpiredAPIKeys deletes every row with expires_at at or before
+// req.CleanupTime(), revoked or not, in one DELETE on the expires_at
+// index. Rows with a NULL expires_at never match, so keys without expiry
+// stay. Removed is the statement's RowsAffected, so two racing cleanups
+// count each row once between them.
+func (s *APIKeyStore) CleanupExpiredAPIKeys(ctx context.Context, req *core.CleanupExpiredAPIKeysRequest) (*core.CleanupExpiredAPIKeysResponse, error) {
+	res := s.db.WithContext(ctx).
+		Where("expires_at IS NOT NULL AND expires_at <= ?", req.CleanupTime()).
+		Delete(&APIKeyModel{})
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	return &core.CleanupExpiredAPIKeysResponse{Removed: int(res.RowsAffected)}, nil
+}
+
 // UpdateAPIKeyLastUsed sets last_used_at to now. It is a best-effort
 // stamp for display: a missing key is not an error, and two racing
 // calls leave one of the two times.

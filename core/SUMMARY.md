@@ -7,7 +7,7 @@ and [`localauth/`](../localauth/SUMMARY.md) (username/password) and
 [`federatedauth/`](../federatedauth/SUMMARY.md) (OAuth/SAML callbacks).
 
 ## Contents
-- **stores.go** — Store interfaces: `RefreshTokenStore` (`RecordAccessToken` + `RevokeTokenFamily` returning the family's access tokens, RFC 7009 §2.1), `APIKeyStore`
+- **stores.go** — Store interfaces: `RefreshTokenStore` (`RecordAccessToken` + `RevokeTokenFamily` returning the family's access tokens, RFC 7009 §2.1), `APIKeyStore`, optional `APIKeyAdmin` (`ListAPIKeys` + `CleanupExpiredAPIKeys`; contract suite `apikeytest.RunAdmin`)
 - **tokens.go** — `RefreshToken`, `IssuedAccessToken` (+ `AppendIssuedAccessToken` / `LiveIssuedAccessTokens` pruning helpers), `APIKey`, `TokenPair` (with `IDToken` for OIDC), `TokenRequest`, `TokenError`, error vars, expiry constants, `GenerateSecureToken`, `GenerateAPIKeyID`, `GenerateAPIKeySecret`
 - **scopes.go** — Scope constants (`ScopeRead`, etc.), `GetUserScopesFunc`, `ParseScopes`, `JoinScopes`, `IntersectScopes`, `UnionScopes`
 - **context.go** — `GetUserIDFromContext()`, `SetUserIDInContext()`, `DefaultUserParamName`

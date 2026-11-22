@@ -1527,6 +1527,62 @@ func (s *APIKeyStore) ListSubjectAPIKeys(ctx context.Context, req *core.ListSubj
 	return &core.ListSubjectAPIKeysResponse{APIKeys: keys}, nil
 }
 
+// ListAPIKeys returns every API key in the namespace, revoked and
+// expired ones included, with KeyHash cleared. A Datastore query reads
+// from the index, so a key a concurrent cleanup deletes is either in the
+// results or not, never an error. Order is unspecified.
+func (s *APIKeyStore) ListAPIKeys(ctx context.Context, req *core.ListAPIKeysRequest) (*core.ListAPIKeysResponse, error) {
+	query := datastore.NewQuery(KindAPIKey)
+	if s.namespace != "" {
+		query = query.Namespace(s.namespace)
+	}
+	var entities []APIKeyEntity
+	keys, err := s.client.GetAll(ctx, query, &entities)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*core.APIKey, len(entities))
+	for i := range entities {
+		entities[i].Key = keys[i]
+		out[i] = s.entityToAPIKey(&entities[i])
+		out[i].KeyHash = ""
+	}
+	return &core.ListAPIKeysResponse{APIKeys: out}, nil
+}
+
+// CleanupExpiredAPIKeys deletes every key whose expires_at is at or
+// before req.CleanupTime(), revoked or not. The query filters on
+// expires_at alone, so the built-in single-property index serves it and
+// no composite index is needed. It then skips entities with HasExpiry
+// unset, which guards a record that stored a zero expires_at. Deletes go
+// in batches of 500, Datastore's cap per DeleteMulti. Deleting a key that
+// another cleanup already removed succeeds, so two racing cleanups may
+// both count it.
+func (s *APIKeyStore) CleanupExpiredAPIKeys(ctx context.Context, req *core.CleanupExpiredAPIKeysRequest) (*core.CleanupExpiredAPIKeysResponse, error) {
+	query := datastore.NewQuery(KindAPIKey).FilterField("expires_at", "<=", req.CleanupTime())
+	if s.namespace != "" {
+		query = query.Namespace(s.namespace)
+	}
+	var entities []APIKeyEntity
+	keys, err := s.client.GetAll(ctx, query, &entities)
+	if err != nil {
+		return nil, err
+	}
+	var expired []*datastore.Key
+	for i := range entities {
+		if entities[i].HasExpiry {
+			expired = append(expired, keys[i])
+		}
+	}
+	for i := 0; i < len(expired); i += 500 {
+		end := min(i+500, len(expired))
+		if err := s.client.DeleteMulti(ctx, expired[i:end]); err != nil {
+			return &core.CleanupExpiredAPIKeysResponse{Removed: i}, err
+		}
+	}
+	return &core.CleanupExpiredAPIKeysResponse{Removed: len(expired)}, nil
+}
+
 // UpdateAPIKeyLastUsed bumps LastUsedAt to time.Now() under transaction.
 // Returns an unwrapped datastore.ErrNoSuchEntity (not core.ErrAPIKeyNotFound)
 // when the key is missing — this is on the validation hot path and a

@@ -235,3 +235,92 @@ func (s *FSAPIKeyStore) UpdateAPIKeyLastUsed(ctx context.Context, req *core.Upda
 	}
 	return &core.UpdateAPIKeyLastUsedResponse{}, nil
 }
+
+// ListAPIKeys returns every key under api_keys/, with KeyHash cleared. A
+// file deleted between the directory read and the file read is another
+// handle's cleanup at work, so the key is left out rather than failing the
+// listing (agni issue 1796). Any other read or decode error fails it.
+// Order is unspecified.
+func (s *FSAPIKeyStore) ListAPIKeys(ctx context.Context, req *core.ListAPIKeysRequest) (*core.ListAPIKeysResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	keys, err := s.readAllKeys()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*core.APIKey, len(keys))
+	for i, k := range keys {
+		k.key.KeyHash = ""
+		out[i] = k.key
+	}
+	return &core.ListAPIKeysResponse{APIKeys: out}, nil
+}
+
+// CleanupExpiredAPIKeys deletes every key whose ExpiresAt is at or before
+// req.CleanupTime(), revoked or not, and keeps keys with no expiry. A file
+// that's already gone when the delete runs was removed by another handle,
+// so it isn't counted and isn't an error. Removed counts the files this
+// call deleted.
+func (s *FSAPIKeyStore) CleanupExpiredAPIKeys(ctx context.Context, req *core.CleanupExpiredAPIKeysRequest) (*core.CleanupExpiredAPIKeysResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := req.CleanupTime()
+	keys, err := s.readAllKeys()
+	if err != nil {
+		return nil, err
+	}
+	removed := 0
+	for _, k := range keys {
+		if k.key.ExpiresAt == nil || k.key.ExpiresAt.After(now) {
+			continue
+		}
+		if err := os.Remove(k.path); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return &core.CleanupExpiredAPIKeysResponse{Removed: removed}, err
+		}
+		removed++
+	}
+	return &core.CleanupExpiredAPIKeysResponse{Removed: removed}, nil
+}
+
+type storedAPIKey struct {
+	path string
+	key  *core.APIKey
+}
+
+// readAllKeys decodes every .json file in the key directory, skipping files
+// that vanish mid-scan. The caller holds s.mu.
+func (s *FSAPIKeyStore) readAllKeys() ([]storedAPIKey, error) {
+	dir := s.getKeyDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var keys []storedAPIKey
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
+		var k core.APIKey
+		if err := json.Unmarshal(data, &k); err != nil {
+			return nil, fmt.Errorf("api key file %s: %w", entry.Name(), err)
+		}
+		keys = append(keys, storedAPIKey{path: path, key: &k})
+	}
+	return keys, nil
+}

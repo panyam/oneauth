@@ -318,7 +318,7 @@ type APIKeyModel struct {
 	Name       string      `gorm:"size:255"`
 	Scopes     StringSlice `gorm:"type:jsonb"`
 	CreatedAt  time.Time   `gorm:"autoCreateTime"`
-	ExpiresAt  *time.Time
+	ExpiresAt  *time.Time  `gorm:"index"` // CleanupExpiredAPIKeys filters on it
 	LastUsedAt time.Time
 	RevokedAt  *time.Time
 	Revoked    bool `gorm:"default:false;index"`

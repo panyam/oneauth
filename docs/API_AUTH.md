@@ -259,6 +259,20 @@ DELETE /api/keys/oa_abc123
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 ```
 
+### Listing every key and sweeping expired ones
+
+The endpoints above work on one user's keys. An operator view needs every key, and an app that mints a key per sign-in needs to delete old keys on a timer. The fs, gorm and gae stores implement `core.APIKeyAdmin` for that. A custom store may not, so check with a type assertion:
+
+```go
+if admin, ok := keyStore.(core.APIKeyAdmin); ok {
+    all, _ := admin.ListAPIKeys(ctx, &core.ListAPIKeysRequest{})       // KeyHash is empty
+    res, _ := admin.CleanupExpiredAPIKeys(ctx, &core.CleanupExpiredAPIKeysRequest{})
+    log.Printf("%d keys, removed %d expired", len(all.APIKeys), res.Removed)
+}
+```
+
+Cleanup deletes every key whose `ExpiresAt` has passed, revoked or not. A key with no `ExpiresAt` is never deleted. A zero `Now` in the request means the current time.
+
 ### Using API Keys
 
 API keys can be used instead of JWTs:
