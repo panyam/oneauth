@@ -5,6 +5,58 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.16
+
+This release adds a sign-in provider for any OpenID Connect identity provider, beside GitHub and Google. It also lets an authorization server behind a TLS-terminating proxy check DPoP proofs and client assertions without pinning its URLs.
+
+### Contract changes
+
+- **`oauth2` now requires the root module (PR 545).** The new `oauth2/oidc` package imports `client` and `keys` for discovery and ID token checks, so `go.sum` for an `oauth2` user lists jwt, fernet and otel. The base `oauth2` package still imports nothing from oneauth, so an app using only GitHub or Google compiles none of it.
+- **New optional `TrustedProxies` fields (PR 544).** These are `OneAuthConfig.TrustedProxies`, `DPoPConfig.TrustedProxies`, and the field of that name on `IntrospectionHandler`, `RevocationHandler` and `PARHandler`. `NewTokenEndpointHandler` copies `OneAuth.TrustedProxies` into the handler's existing field, which also gates `X-Forwarded-For` for rate limiting. Empty keeps today's behavior.
+- **`oauth2` exports `RedirectWithPKCE` and `VerifyState` (PR 545).** A provider in another package uses them to set and check the same state, PKCE and callback cookies.
+
+### Generic OpenID Connect sign-in (issue 542, PR 545)
+
+- `oidc.New(ctx, oidc.Config{Issuer, ClientID, ClientSecret, CallbackURL, HandleUser})` signs people in through Entra ID, Okta, Google Workspace, Keycloak, or any other provider, by issuer URL. It mounts like the GitHub provider.
+- Discovery runs once in `New`. The JWKS is fetched on first use and again when a token names an unknown `kid`, so a key rotation needs no restart. The issuer must be https, or http on a loopback host.
+- The browser flow sends PKCE and a `nonce`. `HandleUser` runs only after `client.VerifyIDToken` checks the ID token's signature, `iss`, `aud`, `exp`, `nonce` and `at_hash`, and it receives the token's claims.
+- `DeviceAuth` and `DeviceAccessToken` sign in from a CLI when discovery lists a device endpoint. They send the client secret at the device endpoint, which `x/oauth2` leaves out and Keycloak requires for a confidential client.
+- `oidc.AllowList` decides who may sign in, by verified email domain, a `groups` value or `sub`. An empty list allows nobody.
+- `oauth2/oidc/example` runs both flows against the Keycloak in `docker-compose.yml`.
+
+### Proxied deployments (issue 541, PR 544)
+
+- `core.TrustedProxies.IsHTTPS(r)` reports whether the client used https. It is true when `r.TLS` is set. It is also true when the TCP peer is a trusted proxy and that proxy's first `X-Forwarded-Proto` value says https, or else the first `Forwarded` element's `proto` does. From any other peer the headers are ignored.
+- With no pinned `EndpointURL` or `BaseURL`, a DPoP validator derives the expected `htu` from the request. Behind a trusted proxy that says https, the `htu` is now https, matching the URI the client called (RFC 9449 §4.3).
+- With no `AcceptedAudiences`, the token, PAR, introspection and revocation endpoints derive the client-assertion audience the same way. `X-Forwarded-Host` is still never read.
+
+### Tests
+
+- The Keycloak test realm gains `email` and `profile` client scopes and the device grant on `test-confidential`. Run `make downkcl` before `make testkcl` so a running container picks up the new realm.
+- Keycloak interop CI now also runs on changes under `oauth2/`.
+
+## Version 0.3.15
+
+This release moves oneauth onto new releases of its panyam dependencies. It also carries release tooling fixes made after v0.3.14. The library API is unchanged.
+
+### Fixed
+
+- The vulncheck workflow now scans release tags with `GOFLAGS=-mod=mod`. A release commit can't hold its own `go.sum` hashes, so the scan failed on tags before this fix (issue 537, PR 538).
+- The sub-modules' `go.sum` files now record the v0.3.14 module hashes. This covers `cmd/*`, `grpc`, `sshkeys`, `stores/gae` and `stores/gorm`.
+
+### Changed
+
+- The mcpauth TypeScript fixture now uses pnpm instead of npm, at the same resolved versions. It pins pnpm 12.11.2, and `scripts/exercise-mcpauth.sh` installs and runs it with pnpm (PR 539).
+- The conformance report now covers a full `make conformance` run on main at v0.3.14. Every suite passes.
+
+### Dependencies
+
+- `github.com/panyam/demokit` and `demokit/notebook` move from v0.0.25 to v0.0.33.
+- `github.com/panyam/gocurrent` moves from v0.1.1 to v0.1.3 in the root module and `tests/mcpauth`.
+- `github.com/panyam/goutils` moves from v0.1.13 to v0.1.16 in `docs/site` and `tests/mcpauth`.
+- `github.com/panyam/servicekit` moves from v0.2.2 to its latest release in `tests/mcpauth`.
+- The docs site moves to s3gen v0.1.6 and drops its templar v0.0.20 pin (PR 540).
+
 ## Version 0.3.14
 
 This release lets a client use an https URL it controls as its `client_id`, through Client ID Metadata Documents (CIMD). The MCP authorization spec asks authorization servers to support them. It also adds the MCP conformance framework's authorization-server scenarios to `make conformance`. Every expected outcome in `known-gaps.yaml` is now marked as an open gap or an accepted one.
