@@ -5,6 +5,43 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.19
+
+This release adds PS256 as an authorization-server signing algorithm, which FAPI 2.0 allows where RS256 isn't. The client SDK and CLI now carry every client metadata field the DCR endpoint does. Relative links on the docsite stop 404ing.
+
+### Contract changes
+
+- **`jwt.signing_alg: PS256` / `OneAuthConfig.SigningAlg: "PS256"` (issue 330, PR 559).** An RSA key signs access tokens, ID tokens, JARM responses and signed userinfo with RSASSA-PSS, and the JWKS lists the key as PS256. One key still signs under one algorithm, so an RS256 server can't sign PS256 for a single client.
+- **`utils.IsAsymmetricAlg` includes PS256 (PR 559).** The JWKS handler publishes PS256 records, the registrar stores PS256 client keys, and `DecodeVerifyKey` parses them as RSA. Nothing changes for a deployment that never configures PS256.
+- **`fapi2` accepts `jwt.signing_alg: PS256` as well as ES256 (PR 559).** Under `fapi2`, `token_endpoint_auth_signing_alg_values_supported` is now `[PS256, ES256]`.
+- **New fields on `client.ClientRegistrationRequest` and `ClientRegistrationResponse` (issue 557, PR 559).** These are `JWKS` (raw JSON), `JWKSURI`, `TokenEndpointAuthSigningAlg`, the logo, policy and terms URIs, `SubjectType`, `SectorIdentifierURI`, `UserinfoSignedResponseAlg`, the back-channel logout pair and `AuthorizationDetailsTypes`, plus `ResponseTypes` on the response.
+- **New `CIMDAppStore.UserinfoSigningAlgs` and `AuthorizationSigningAlgs` (PR 559).** A CIMD document asking for a userinfo or JARM algorithm the AS doesn't sign with is now invalid, where before it failed at the response. `NewOneAuth` sets both.
+
+### PS256 (issue 330, PR 559)
+
+- ID tokens accept PS256, with `at_hash` over SHA-256.
+- A client key stored as PS256 authenticates with `private_key_jwt`.
+- oneauth-server's `code_flow.oidc`, `code_flow.jarm` and key rotation accept PS256, and the ephemeral PS256 key is RSA-2048.
+- `make exercise-jarm` registers its client with the algorithm the server advertises, so it passes against an ES256 server and against a PS256 one.
+
+### Client metadata parity (issue 557, PR 559)
+
+- A drift test compares the SDK's DCR structs with the server's, so the next server field can't lag.
+- `oneauth dcr register` and `put` take `--metadata FILE`, which sets any RFC 7591 field from JSON, with explicit flags winning. A field the CLI doesn't know is an error, so a misspelling isn't dropped silently.
+- CIMD documents carry `dpop_bound_access_tokens`, `require_pushed_authorization_requests` and `userinfo_signed_response_alg`, and the AS enforces them as it does for a registered client.
+- DCR keeps ignoring metadata it doesn't understand, as RFC 7591 §2 requires, and a test now pins it. The response echoes what was stored.
+
+### Docsite (PR 559)
+
+- Relative links in rendered markdown now point at the page that renders the target, or at the file on GitHub. A build had 501 broken `.md` links across 52 pages, and now has none.
+- LANDSCAPE.md's per-RFC template renders as one code block again.
+
+### CI and tests
+
+- CI now runs the `cmd/oneauth` and `docs/site` tests. Before, the CLI tests never ran there.
+- `tests/keycloak/go.mod` follows the root version again (issue 553, which keeps recurring with each release).
+- Not done: an OIDF FAPI 2.0 run with a PS256 client, and Keycloak verifying oneauth's PS256 tokens (issue 558).
+
 ## Version 0.3.18
 
 This release finishes JWT Secured Authorization Response Mode (JARM). A FAPI client can ask for `response_mode=jwt` and get its authorization response back as one JWT that the AS signs. The client SDK verifies it before it uses the code. `make exercise-jarm` logs in this way against oneauth-server and against Keycloak, and refuses a response with a tampered signature.
