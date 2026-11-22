@@ -151,16 +151,15 @@ func (g *GithubOAuth2) SetEnterpriseURL(baseURL string) error {
 	if u.Scheme != "https" && !(u.Scheme == "http" && isLoopback(u.Hostname())) {
 		return fmt.Errorf("github enterprise URL %q must use https", baseURL)
 	}
-	base := u.Scheme + "://" + u.Host
-	userInfo := base + "/api/v3/user"
+	api := u.Scheme + "://" + u.Host + "/api/v3"
 	if strings.HasSuffix(strings.ToLower(u.Hostname()), ".ghe.com") {
-		userInfo = u.Scheme + "://api." + u.Host + "/user"
+		api = u.Scheme + "://api." + u.Host
 	}
-	g.SetOAuthEndpoint(oauth2.Endpoint{
-		AuthURL:       base + "/login/oauth/authorize",
-		TokenURL:      base + "/login/oauth/access_token",
-		DeviceAuthURL: base + "/login/device/code",
-	})
-	g.UserInfoURL = userInfo
+	hosts, err := GitHubHostsFor(api)
+	if err != nil {
+		return err
+	}
+	g.SetOAuthEndpoint(hosts.Endpoint)
+	g.UserInfoURL = hosts.UserInfoURL
 	return nil
 }
