@@ -5,7 +5,7 @@ go 1.26.9
 toolchain go1.27.4
 
 require (
-	github.com/panyam/oneauth v0.3.16
+	github.com/panyam/oneauth v0.3.17
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/crypto v0.57.0
 	gorm.io/driver/postgres v1.6.0
