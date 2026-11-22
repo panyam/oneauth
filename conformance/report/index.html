@@ -328,6 +328,13 @@
 <td>2026-11-21 10:53 UTC, 2fec03e</td>
 </tr>
 <tr>
+<td>jarm</td>
+<td>gating</td>
+<td>not run</td>
+<td></td>
+<td>never</td>
+</tr>
+<tr>
 <td>authlete</td>
 <td>info</td>
 <td>PASS</td>
@@ -3742,6 +3749,8 @@
 </table>
 <h2 id="keycloak">keycloak <a class="anchor" href="#keycloak">¶</a></h2>
 <p>Interop with a live Keycloak, as resource server and as client (tokens, DPoP, RAR, ID tokens) Source: <code>tests/keycloak</code>.</p>
+<h2 id="jarm">jarm <a class="anchor" href="#jarm">¶</a></h2>
+<p>The JARM mission&rsquo;s exercise. A headless <code>oneauth token browser --response-mode jwt</code> logs in against oneauth-server and Keycloak, and a tampered response is refused Source: <code>scripts/exercise-jarm.sh (tests/keycloak/cmd/exercise-jarm)</code>. Tracking: issue 409.</p>
 <h2 id="authlete">authlete <a class="anchor" href="#authlete">¶</a></h2>
 <p>Interop with Authlete&rsquo;s java-oauth-server as the authorization server Source: <code>tests/authlete</code>.</p>
 <h2 id="oauch">oauch <a class="anchor" href="#oauch">¶</a></h2>
