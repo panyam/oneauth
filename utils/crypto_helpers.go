@@ -138,7 +138,7 @@ func EncodePrivateKeyPEM(priv crypto.PrivateKey) ([]byte, error) {
 // DecodeVerifyKey converts raw key material from a KeyStore into the appropriate
 // type for JWT verification based on the algorithm.
 //   - For HMAC algorithms (HS256/HS384/HS512): returns the key as-is (expected to be []byte)
-//   - For RS256: if key is []byte, parses as PEM to *rsa.PublicKey; if already *rsa.PublicKey, returns as-is
+//   - For RS256 and PS256: if key is []byte, parses as PEM to *rsa.PublicKey; if already *rsa.PublicKey, returns as-is
 //   - For ES256: if key is []byte, parses as PEM to *ecdsa.PublicKey; if already *ecdsa.PublicKey, returns as-is
 func DecodeVerifyKey(rawKey any, alg string) (any, error) {
 	if !IsAsymmetricAlg(alg) {
@@ -146,22 +146,22 @@ func DecodeVerifyKey(rawKey any, alg string) (any, error) {
 	}
 
 	switch alg {
-	case "RS256":
+	case "RS256", "PS256":
 		switch k := rawKey.(type) {
 		case *rsa.PublicKey:
 			return k, nil
 		case []byte:
 			pub, err := ParsePublicKeyPEM(k)
 			if err != nil {
-				return nil, fmt.Errorf("RS256: %w", err)
+				return nil, fmt.Errorf("%s: %w", alg, err)
 			}
 			rsaPub, ok := pub.(*rsa.PublicKey)
 			if !ok {
-				return nil, fmt.Errorf("RS256: expected RSA public key, got %T", pub)
+				return nil, fmt.Errorf("%s: expected RSA public key, got %T", alg, pub)
 			}
 			return rsaPub, nil
 		default:
-			return nil, fmt.Errorf("RS256: unsupported key type %T", rawKey)
+			return nil, fmt.Errorf("%s: unsupported key type %T", alg, rawKey)
 		}
 	case "ES256":
 		switch k := rawKey.(type) {
@@ -185,9 +185,12 @@ func DecodeVerifyKey(rawKey any, alg string) (any, error) {
 	}
 }
 
-// IsAsymmetricAlg returns true if the algorithm uses asymmetric keys (RS256, ES256).
+// IsAsymmetricAlg returns true if the algorithm uses asymmetric keys:
+// RS256 and PS256 (RSA) or ES256 (P-256). These are the algorithms oneauth
+// signs with and stores keys for. PS256 is the RSA algorithm FAPI 2.0 §5.4
+// allows (issue 330).
 func IsAsymmetricAlg(alg string) bool {
-	return alg == "RS256" || alg == "ES256"
+	return alg == "RS256" || alg == "PS256" || alg == "ES256"
 }
 
 // SigningMethodForAlg returns the jwt.SigningMethod for the given algorithm string.
@@ -199,6 +202,8 @@ func SigningMethodForAlg(alg string) (jwt.SigningMethod, error) {
 		return jwt.SigningMethodHS256, nil
 	case "RS256":
 		return jwt.SigningMethodRS256, nil
+	case "PS256":
+		return jwt.SigningMethodPS256, nil
 	case "ES256":
 		return jwt.SigningMethodES256, nil
 	case "HS384":

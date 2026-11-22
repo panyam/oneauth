@@ -118,7 +118,7 @@ func main() {
 		ScopesSupported:        []string{"read", "write", "relay:connect", "relay:publish"},
 		BearerMethodsSupported: []string{"header"},
 		TokenFormatsSupported:  []string{"jwt"},
-		SigningAlgsSupported:   []string{"HS256", "RS256", "ES256"},
+		SigningAlgsSupported:   []string{"HS256", "RS256", "PS256", "ES256"},
 	})
 	mux.Handle("GET /.well-known/oauth-protected-resource", prmHandler)
 

@@ -3,7 +3,7 @@
 > **Status:** OpenID Foundation Specifications (final)
 > **Published:** FAPI 1.0 (2021), FAPI 2.0 Security Profile (final, 2025)
 > **L-tier / T-tier:** L8 · T0 (profile of all)
-> **OneAuth coverage:** FAPI 2.0 Security Profile §5.3.2 / §5.3.4 met through `OneAuthConfig.FAPI2` (0.1.52; reference server 0.1.54), with three caveats: DPoP is the only sender constraint (mTLS is #335), only ES256 client keys can be registered (#330, #331), and the OIDF conformance suite has never been run (mission #98, #433). FAPI 2.0 Message Signing is half done: signed responses work ([JARM](JARM.md), mission #409) and signed requests don't (JAR, #338). FAPI 1.0 (ID tokens for `s_hash`, #339) is not supported
+> **OneAuth coverage:** FAPI 2.0 Security Profile §5.3.2 / §5.3.4 met through `OneAuthConfig.FAPI2` (0.1.52; reference server 0.1.54), with three caveats: DPoP is the only sender constraint (mTLS is #335), EdDSA client keys can't be registered (#331), and the OIDF conformance suite has never been run (mission #98, #433). FAPI 2.0 Message Signing is half done: signed responses work ([JARM](JARM.md), mission #409) and signed requests don't (JAR, #338). FAPI 1.0 (ID tokens for `s_hash`, #339) is not supported
 > **See also:** [`RFC_9126.md`](RFC_9126.md) · [`RFC_9101.md`](RFC_9101.md) · [`RFC_9449.md`](RFC_9449.md) · [`RFC_8705.md`](RFC_8705.md) · [`LANDSCAPE.md`](LANDSCAPE.md)
 
 ## In one sentence
@@ -188,9 +188,8 @@ the harness's `fapi2-security-profile-final-test-plan` runs locally through `mak
 the profile's authorization-server and resource-server requirements (§5.3.2,
 §5.3.4) through `OneAuthConfig.FAPI2`, and the reference server runs the
 profile with `deploy-examples/fapi-dpop.yaml`. There are three caveats. DPoP
-is the only sender constraint (mTLS is #335). Only ES256 client keys can be
-registered, so FAPI clients use ES256 (PS256 is #330, EdDSA client keys
-#331). The OIDF FAPI 2.0 plan runs locally in `make testoidf` (mission #98)
+is the only sender constraint (mTLS is #335). FAPI clients register ES256
+or PS256 keys, since EdDSA client keys can't be registered yet (#331). The OIDF FAPI 2.0 plan runs locally in `make testoidf` (mission #98)
 but not yet in CI. Beyond it, everything here is checked by oneauth's own
 tests and, where Keycloak supports the feature, side by side with Keycloak 26. The requirement-by-requirement
 matrix is in [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md).
@@ -198,14 +197,14 @@ matrix is in [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md).
 | FAPI requirement | OneAuth status | Doc |
 |---|---|---|
 | FAPI 2.0 profile switch | **Implemented** (0.1.52). `OneAuthConfig.FAPI2` requires DPoP (sets `RequireDPoP`), turns off refresh-token rotation, accepts only `private_key_jwt` client authentication with the issuer as a string `aud`, refuses the password grant and public or unregistered clients, and makes `MountAuthorize` PAR-only with the code lifetime capped at 60 seconds and the `request_uri` lifetime under 600 seconds. `MountAuthorize` panics under `FAPI2` without a `PushedStore`. `OneAuthConfig.DPoP` must be set too, or every token request is refused | [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
-| Reference server | **Implemented** (0.1.54). `fapi2: true` sets `OneAuthConfig.FAPI2`. The server refuses to start without `dpop.enabled`, with a `jwt.signing_alg` other than ES256 (HS256 is the default, and FAPI 2.0 §5.4.1 allows PS256, ES256 and EdDSA), or with `code_flow` on but no `code_flow.par.enabled`. `code_flow.par.enabled` mounts `POST /par`, and `code_flow.par.required` refuses direct `/authorize`. Under `fapi2` the metadata lists `private_key_jwt` / ES256 only, the PAR endpoint, `require_pushed_authorization_requests`, and no password grant. `deploy-examples/fapi-dpop.yaml` runs the whole profile, signing with ES256 from `JWT_PRIVATE_KEY_PATH` or a key made at startup | [`RFC_9126.md`](RFC_9126.md) |
+| Reference server | **Implemented** (0.1.54). `fapi2: true` sets `OneAuthConfig.FAPI2`. The server refuses to start without `dpop.enabled`, with a `jwt.signing_alg` other than ES256 or PS256 (HS256 is the default, and FAPI 2.0 §5.4.1 allows PS256, ES256 and EdDSA), or with `code_flow` on but no `code_flow.par.enabled`. `code_flow.par.enabled` mounts `POST /par`, and `code_flow.par.required` refuses direct `/authorize`. Under `fapi2` the metadata lists `private_key_jwt` with PS256 and ES256 only, the PAR endpoint, `require_pushed_authorization_requests`, and no password grant. `deploy-examples/fapi-dpop.yaml` runs the whole profile, signing with ES256 from `JWT_PRIVATE_KEY_PATH` or a key made at startup | [`RFC_9126.md`](RFC_9126.md) |
 | PAR | **Implemented** (repo issue 337). Required under `FAPI2` | [`RFC_9126.md`](RFC_9126.md) |
 | JAR | Gap (#338). Not part of the FAPI 2.0 Security Profile; FAPI 2.0 Message Signing and FAPI 1.0 Advanced use it | [`RFC_9101.md`](RFC_9101.md) |
 | RAR | **Implemented** | [`RFC_9396.md`](RFC_9396.md) |
 | DPoP (sender constraint) | **Implemented**. `OneAuthConfig.RequireDPoP` makes the AS issue only bound tokens (§5.3.2.1), and `FAPI2` sets it. `APIMiddleware.RequireDPoP` makes the RS accept only bound tokens (§5.3.4), and `apiauth.FAPIDPoPAlgs()` limits proofs to ES256 / EdDSA / PS256. The reference server turns all of it on with `deploy-examples/fapi-dpop.yaml` | [`RFC_9449.md`](RFC_9449.md), [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
 | mTLS (sender constraint, PKI clients) | Gap (#335). FAPI allows DPoP instead, so this is not blocking | [`RFC_8705.md`](RFC_8705.md) |
 | Client authentication (§5.3.2.1 #6, #8) | **Implemented** under `FAPI2`: `private_key_jwt` only, with the issuer as the sole string `aud`. Since 0.1.52 the expected audience comes from `r.TLS` and `r.Host` (and the issuer), never from forwarded headers; behind a TLS proxy set `OneAuthConfig.AcceptedAudiences` | [`RFC_7523.md`](RFC_7523.md) |
-| Algorithms (§5.4.1) | **Partial.** Under `FAPI2` only PS256 / ES256 / EdDSA client assertions pass (`AuthenticateClientRequest.AllowedAssertionAlgs`), but only ES256 client keys can be registered (PS256 #330, EdDSA #331). DPoP proofs accept ES256, EdDSA (0.1.43) and PS256. The AS signs tokens with ES256 but not PS256 (#330). RSA keys under 2048 bits are refused at load | [`RFC_7518.md`](RFC_7518.md) |
+| Algorithms (§5.4.1) | **Partial.** Under `FAPI2` only PS256 / ES256 / EdDSA client assertions pass (`AuthenticateClientRequest.AllowedAssertionAlgs`), and ES256 and PS256 client keys can be registered (EdDSA is #331). DPoP proofs accept ES256, EdDSA (0.1.43) and PS256. The AS signs with ES256 or PS256 (`jwt.signing_alg`, issue 330), and the JWKS lists the key under that algorithm. RSA keys under 2048 bits are refused at load | [`RFC_7518.md`](RFC_7518.md) |
 | OIDC Core (id_token issuance) | Gap (#339). Not needed for the FAPI 2.0 Security Profile; FAPI 1.0's `s_hash` rides on ID tokens | [`OIDC_Core.md`](OIDC_Core.md) |
 | JARM (signed authz responses; FAPI 1.0 and FAPI 2.0 Message Signing) | **Implemented**, opt-in. `OneAuthConfig.JARM` (server: `code_flow.jarm.enabled`) signs the `jwt` modes with the AS key, and the SDK verifies them. ES256 or RS256, not PS256 yet | [`JARM.md`](JARM.md) |
 | 2.1 spine alignment (PKCE everywhere, no implicit, etc.) | Mostly compliant | [`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md) |
@@ -215,7 +214,7 @@ matrix is in [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md).
 | OIDF conformance run | **Local** (0.2.5). `make testoidf` runs the FAPI 2.0 plan: 41 of 46 pass, 4 REVIEW error pages checked against `known-gaps.yaml`, 1 RS256 skip (#330). The CI workflow is manual-only and has not run | [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md) |
 
 What remains for the FAPI 2.0 Security Profile is a first OIDF conformance
-run, PS256 and EdDSA client keys, and mTLS as a second sender constraint.
+run, EdDSA client keys, and mTLS as a second sender constraint.
 FAPI 2.0 Message Signing still needs JAR, now that JARM is in, and FAPI 1.0 adds OIDC ID tokens.
 
 **The strategic question** for OneAuth isn't *whether* FAPI is reachable

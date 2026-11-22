@@ -128,7 +128,7 @@ type JWTIDTokenIssuerConfig struct {
 	// a key the AS shares with resource servers.
 	SigningKey any
 
-	// SigningAlg names the JWS algorithm, RS256 or ES256.
+	// SigningAlg names the JWS algorithm, RS256, PS256 or ES256.
 	SigningAlg string
 
 	// Issuer is the `iss` claim, the AS issuer identifier.
@@ -174,7 +174,7 @@ func NewJWTIDTokenIssuer(cfg JWTIDTokenIssuerConfig) (IDTokenIssuer, error) {
 		return nil, fmt.Errorf("oidc: %w", err)
 	}
 	if !atHashSupported(method.Alg()) {
-		return nil, fmt.Errorf("oidc: ID tokens are signed with RS256 or ES256, not %q", method.Alg())
+		return nil, fmt.Errorf("oidc: ID tokens are signed with RS256, PS256 or ES256, not %q", method.Alg())
 	}
 	expiry := cfg.Expiry
 	if expiry <= 0 {
@@ -280,10 +280,10 @@ func tokenHash(alg, token string) (string, error) {
 }
 
 // atHashSupported reports whether tokenHash knows the hash for alg. The
-// AS signs with RS256 or ES256 (utils.SigningMethodForAlg), both of which
-// hash with SHA-256.
+// AS signs with RS256, PS256 or ES256 (utils.SigningMethodForAlg), all of
+// which hash with SHA-256.
 func atHashSupported(alg string) bool {
-	return alg == "RS256" || alg == "ES256"
+	return alg == "RS256" || alg == "PS256" || alg == "ES256"
 }
 
 var _ IDTokenIssuer = (*jwtIDTokenIssuer)(nil)

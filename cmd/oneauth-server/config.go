@@ -295,17 +295,17 @@ type JWTConfig struct {
 	ClaimsSupported []string `yaml:"claims_supported"`
 
 	// SigningAlg controls how access tokens are signed. Defaults to HS256
-	// (uses SecretKey). Set to "RS256" / "ES256" for asymmetric signing —
-	// the public half is exposed via JWKS so remote resource servers can
-	// validate without a shared secret. See issue 184. fapi2 requires
-	// ES256 (FAPI 2.0 §5.4.1).
+	// (uses SecretKey). Set to "RS256", "PS256" or "ES256" for asymmetric
+	// signing — the public half is exposed via JWKS so remote resource
+	// servers can validate without a shared secret. See issue 184. fapi2
+	// requires ES256 or PS256 (FAPI 2.0 §5.4.1, issue 330).
 	SigningAlg string `yaml:"signing_alg"`
 
 	// PrivateKeyPath is the path to a PEM-encoded private key (RSA / EC)
-	// used for asymmetric signing. Required for RS256/ES256 in production.
+	// used for asymmetric signing. Required for RS256/PS256/ES256 in production.
 	PrivateKeyPath string `yaml:"private_key_path"`
 
-	// EphemeralSigningKey, when true with SigningAlg=RS256/ES256 and no
+	// EphemeralSigningKey, when true with SigningAlg=RS256/PS256/ES256 and no
 	// PrivateKeyPath, generates a fresh keypair for that algorithm (RSA-2048
 	// or P-256) on each startup. Tokens issued under one instance are
 	// invalid after a restart (kid changes, JWKS rotates). This is a

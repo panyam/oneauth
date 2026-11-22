@@ -138,7 +138,7 @@ type OneAuthConfig struct {
 
 	// Signing configuration
 	SigningKey any    // []byte for HS256, *rsa.PrivateKey for RS256, etc.
-	SigningAlg string // "HS256", "RS256", "ES256" — default "HS256"
+	SigningAlg string // "HS256", "RS256", "PS256", "ES256" — default "HS256"
 
 	// VerifyKey is the public key for asymmetric token validation.
 	// When SigningKey is a private key (RS256 / ES256), VerifyKey is
@@ -381,8 +381,8 @@ type OneAuthConfig struct {
 	// scope includes "openid", and UserinfoHTTPHandler serves the user's
 	// claims. Nil (the default) treats "openid" as an ordinary scope.
 	//
-	// ID tokens are signed with SigningKey, which must be an RS256 or
-	// ES256 private key. NewOneAuth panics on an HS256 secret, because
+	// ID tokens are signed with SigningKey, which must be an RS256, PS256
+	// or ES256 private key. NewOneAuth panics on an HS256 secret, because
 	// OIDC Core §10.1 signs an HMAC ID token with the client's own secret
 	// and a shared one would let every resource server forge ID tokens.
 	OIDC *OIDCConfig
