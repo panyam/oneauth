@@ -473,7 +473,7 @@ matrix is in <a href="/oneauth/conformance/security-audit/"><code>SECURITY_AUDIT
 </tr>
 <tr>
 <td>JARM (signed authz responses; FAPI 1.0 and FAPI 2.0 Message Signing)</td>
-<td><strong>Implemented</strong>, opt-in. <code>OneAuthConfig.JARM</code> (server: <code>code_flow.jarm.enabled</code>) signs the <code>jwt</code> modes with the AS key, and the SDK verifies them. ES256 or RS256, not PS256 yet</td>
+<td><strong>Implemented</strong>, opt-in. <code>OneAuthConfig.JARM</code> (server: <code>code_flow.jarm.enabled</code>) signs the <code>jwt</code> modes with the AS key, and the SDK verifies them. ES256, PS256 or RS256, following <code>jwt.signing_alg</code></td>
 <td><a href="/oneauth/specs/jarm/"><code>JARM.md</code></a></td>
 </tr>
 <tr>
@@ -498,7 +498,7 @@ matrix is in <a href="/oneauth/conformance/security-audit/"><code>SECURITY_AUDIT
 </tr>
 <tr>
 <td>OIDF conformance run</td>
-<td><strong>Local</strong> (0.2.5). <code>make testoidf</code> runs the FAPI 2.0 plan: 41 of 46 pass, 4 REVIEW error pages checked against <code>known-gaps.yaml</code>, 1 RS256 skip (issue 558). The CI workflow is manual-only and has not run</td>
+<td><strong>Local</strong> (0.2.5). <code>make testoidf</code> runs the FAPI 2.0 plan: 46 of 52 modules pass, 4 REVIEW error pages are checked against <code>known-gaps.yaml</code>, and 2 warn about the ID token <code>typ</code> claim (issue 339). The first plan client registers a PS256 key, so the harness runs <code>ensure-signed-client-assertion-with-RS256-fails</code>, and oneauth refuses the RS256 assertion (issue 558). <code>TestKeycloak_VerifiesOneauthPS256IDToken</code> has Keycloak verify a PS256 ID token that oneauth signed. The CI workflow is manual-only and has not run</td>
 <td><a href="/oneauth/conformance/security-audit/"><code>SECURITY_AUDIT.md</code></a></td>
 </tr>
 </tbody>
