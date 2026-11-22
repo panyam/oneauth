@@ -8,7 +8,7 @@ require (
 	github.com/alexedwards/scs/v2 v2.8.0
 	github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/panyam/demokit v0.0.25
+	github.com/panyam/demokit v0.0.33
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
@@ -46,8 +46,8 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
-	github.com/panyam/demokit/notebook v0.0.25 // indirect
-	github.com/panyam/gocurrent v0.1.1 // indirect
+	github.com/panyam/demokit/notebook v0.0.33 // indirect
+	github.com/panyam/gocurrent v0.1.3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect

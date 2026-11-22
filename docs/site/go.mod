@@ -20,8 +20,8 @@ require (
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/morrisxyang/xreflect v0.0.0-20231001053442-6df0df9858ba // indirect
-	github.com/panyam/goutils v0.1.13 // indirect
-	github.com/panyam/templar v0.1.0 // indirect
+	github.com/panyam/goutils v0.1.16 // indirect
+	github.com/panyam/templar v0.1.3 // indirect
 	github.com/radovskyb/watcher v1.0.7 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
