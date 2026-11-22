@@ -39,6 +39,7 @@
       { "name": "OAuth landscape", "url": "specs/landscape/" },
       { "name": "OAuth 2.1",       "url": "specs/rfc-oauth21/" },
       { "name": "FAPI 1.0 / 2.0",  "url": "specs/fapi/" },
+      { "name": "JARM",            "url": "specs/jarm/" },
       { "name": "DPoP (RFC 9449)", "url": "specs/rfc-9449/" },
       { "name": "PAR (RFC 9126)",  "url": "specs/rfc-9126/" }
     ]

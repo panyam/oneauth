@@ -122,6 +122,8 @@
                 
                 <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
                 
+                <li><a href="/oneauth/specs/jarm/">JARM</a></li>
+                
                 <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
                 
                 <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
@@ -256,6 +258,7 @@
   <tbody>
       <tr><td><a href="specs/rfc-9126/">RFC 9126 — OAuth 2.0 Pushed Authorization Requests (PAR)</a></td><td class="cov-yes">Implemented (<code>apiauth.PARHandler</code> via <code>MountAuthorize</code>; in-memory + GORM stores)</td></tr>
       <tr><td><a href="specs/rfc-9101/">RFC 9101 — JWT-Secured Authorization Request (JAR)</a></td><td class="cov-no">Gap (tracked under issue 338; issue 150 was consolidated into it)</td></tr>
+      <tr><td><a href="specs/jarm/">JWT Secured Authorization Response Mode (JARM)</a></td><td class="cov-yes">Implemented, opt-in (<code>OneAuthConfig.JARM</code>, <code>client.VerifyAuthorizationResponse</code>)</td></tr>
       <tr><td><a href="specs/rfc-9396/">RFC 9396 — OAuth 2.0 Rich Authorization Requests (RAR)</a></td><td class="cov-yes">Implemented (<code>core/authorization_details.go</code> + <code>apiauth/</code> token / introspection / middleware)</td></tr>
       <tr><td><a href="specs/rfc-9449/">RFC 9449 — OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP)</a></td><td class="cov-yes">Implemented — issuance (<code>cnf.jkt</code>, bound refresh tokens), resource-server enforcement, <code>dpop_jkt</code> at <code>/authorize</code> and on a pushed request, client SDK proof minting. Nonce protocol (§8/§9) outstanding</td></tr>
   </tbody>

@@ -122,6 +122,8 @@
                 
                 <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
                 
+                <li><a href="/oneauth/specs/jarm/">JARM</a></li>
+                
                 <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
                 
                 <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
@@ -485,6 +487,40 @@
 </tbody>
 </table>
 <p>PR #520 then put every OIDF plan in nightly CI and ran OAuch once by hand (<code>docs/conformance/oauch.md</code>). That run found two headers that stopped real browsers finishing an authorization (CSP <code>form-action</code>, and COOP on the authorization pages). Its three remaining gaps are #519. Still open: JAR (issue 338) and mTLS (issue 335).</p>
+<h2 id="jarm--signed-authorization-responses-mission-409--complete">JARM — signed authorization responses (mission #409) ✅ COMPLETE <a class="anchor" href="#jarm--signed-authorization-responses-mission-409--complete">¶</a></h2>
+<p>A FAPI client logs in with <code>response_mode=jwt</code> against oneauth and against Keycloak, and a tampered response is refused. <code>make exercise-jarm</code> checks all of it, and runs as the gating <code>jarm</code> suite in <code>make conformance</code>. See <a href="oauth/JARM.md">JARM</a>.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Delivery</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>548</td>
+<td><code>make exercise-jarm</code>, and <code>oneauth token browser --response-mode</code> (issue 410)</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>551</td>
+<td>The AS signs <code>jwt</code>, <code>query.jwt</code>, <code>fragment.jwt</code> and <code>form_post.jwt</code> responses with its key, through PAR too (issue 411)</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>552</td>
+<td>The SDK verifies them against the JWKS, <code>iss</code>, <code>aud</code> and <code>exp</code> before the code exchange (issue 412)</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>556</td>
+<td><code>authorization_signed_response_alg</code> through DCR, every app store, CIMD, the SDK and the CLI (issue 413)</td>
+<td>In review</td>
+</tr>
+</tbody>
+</table>
+<p>Not done: encrypted responses, and PS256 with an RSA key (the JWKS lists the key under RS256 only).</p>
 <hr />
 <h2 id="execution-order">Execution Order <a class="anchor" href="#execution-order">¶</a></h2>
 <pre><code class="language-mermaid">flowchart TD

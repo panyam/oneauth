@@ -122,6 +122,8 @@
                 
                 <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
                 
+                <li><a href="/oneauth/specs/jarm/">JARM</a></li>
+                
                 <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
                 
                 <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
@@ -420,7 +422,7 @@
 <td><strong>JARM (JWT-Secured Authz Response Mode)</strong></td>
 <td>OpenID FAPI JARM</td>
 <td>Full</td>
-<td>AS signs responses (issue 411), SDK verifies them (issue 412); per-client alg in issue 413; no encrypted responses</td>
+<td>AS signs responses (issue 411), SDK verifies them (issue 412), per-client <code>authorization_signed_response_alg</code> (issue 413); no encrypted responses, no PS256 with an RSA key</td>
 <td><strong>Partial</strong></td>
 </tr>
 <tr>

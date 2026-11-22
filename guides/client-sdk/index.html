@@ -122,6 +122,8 @@
                 
                 <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
                 
+                <li><a href="/oneauth/specs/jarm/">JARM</a></li>
+                
                 <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
                 
                 <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
@@ -383,7 +385,16 @@ authorization request, so generate one per login if that is the goal.</li>
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">case</span> err <span style="color:#000;font-weight:bold">!=</span> <span style="color:#000;font-weight:bold">nil</span>:
 </span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> err <span style="color:#998;font-style:italic">// includes *client.CallbackError{Code: &#34;access_denied&#34;}: don&#39;t reopen the consent page
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
-</span></span></code></pre><p><code>*client.TokenError</code> comes back from every grant, not just this one: <code>Login</code>, <code>ClientCredentials</code>, <code>RefreshToken</code>, <code>JwtBearerGrant</code>, <code>TokenExchange</code>, and <code>PollDeviceToken</code> for codes other than its four RFC 8628 polling sentinels.</p>
+</span></span></code></pre><p><strong>Signed authorization responses (JARM, issues 412 and 413):</strong> set <code>ResponseMode</code> to <code>jwt</code>, <code>query.jwt</code> or <code>form_post.jwt</code> and the AS signs its response. <code>LoginWithBrowser</code> checks the <code>response</code> JWT with <code>client.VerifyAuthorizationResponse</code> before it exchanges the code. The JWT&rsquo;s signature must verify against the AS&rsquo;s JWKS, its <code>iss</code> must be the issuer discovery found, its <code>aud</code> must be your client_id, and its <code>exp</code> must not have passed. Verification needs the issuer and <code>jwks_uri</code>, so with explicit endpoints pass <code>WithASMetadata</code>.</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>cred, err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">LoginWithBrowser</span>(ctx, <span style="color:#000;font-weight:bold">&amp;</span>client.BrowserLoginRequest{
+</span></span><span style="display:flex;"><span>    ClientID:     <span style="color:#d14">&#34;my-app&#34;</span>,
+</span></span><span style="display:flex;"><span>    ResponseMode: <span style="color:#d14">&#34;jwt&#34;</span>,
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span> errors.<span style="color:#900;font-weight:bold">Is</span>(err, client.ErrUnverifiedAuthorizationResponse) {
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// Forged, replayed, expired, or a plain code from an AS that ignored the mode.
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><p>A user&rsquo;s denial inside a verified response is still a <code>*client.CallbackError</code>. <code>fragment</code> and <code>fragment.jwt</code> fail before the browser opens, since a fragment never reaches the loopback server. To pick the signing algorithm, register <code>AuthorizationSignedResponseAlg</code> through DCR (below). The CLI flags are <code>oneauth token browser --response-mode jwt</code> and <code>oneauth dcr register --authorization-signed-response-alg</code>. See <a href="oauth/JARM.md">JARM</a>.</p>
+<p><code>*client.TokenError</code> comes back from every grant, not just this one: <code>Login</code>, <code>ClientCredentials</code>, <code>RefreshToken</code>, <code>JwtBearerGrant</code>, <code>TokenExchange</code>, and <code>PollDeviceToken</code> for codes other than its four RFC 8628 polling sentinels.</p>
 <h4 id="logout">Logout <a class="anchor" href="#logout">¶</a></h4>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>err <span style="color:#000;font-weight:bold">:=</span> authClient.<span style="color:#900;font-weight:bold">Logout</span>()
 </span></span></code></pre><p>Removes the stored credential for this server.</p>
@@ -488,7 +499,8 @@ authorization request, so generate one per login if that is the goal.</li>
 </span></span><span style="display:flex;"><span>}, <span style="color:#000;font-weight:bold">nil</span>)
 </span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// resp.ClientID, resp.ClientSecret — the credentials
 </span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic">// resp.RegistrationAccessToken, resp.RegistrationClientURI — RFC 7592 management credentials
-</span></span></span></code></pre><h3 id="read-your-own-registration-rfc-7592-21">Read your own registration (RFC 7592 §2.1) <a class="anchor" href="#read-your-own-registration-rfc-7592-21">¶</a></h3>
+</span></span></span></code></pre><p><code>AuthorizationSignedResponseAlg</code> picks the algorithm for this client&rsquo;s signed (JARM) authorization responses. It must be one the AS lists in <code>authorization_signing_alg_values_supported</code>, and <code>none</code> is refused. It doesn&rsquo;t turn JARM on; <code>BrowserLoginRequest.ResponseMode</code> does.</p>
+<h3 id="read-your-own-registration-rfc-7592-21">Read your own registration (RFC 7592 §2.1) <a class="anchor" href="#read-your-own-registration-rfc-7592-21">¶</a></h3>
 <p>Once registered, the client holds two extra fields — <code>RegistrationAccessToken</code> and <code>RegistrationClientURI</code>. They are the management credentials for <em>that specific registration</em>.</p>
 <p>The SDK follows the library-wide <code>(ctx, *Request) → (*Response, error)</code> convention so calls thread cancellation/deadlines through and stay shaped for future gRPC stubs.</p>
 <pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>got, err <span style="color:#000;font-weight:bold">:=</span> client.<span style="color:#900;font-weight:bold">GetRegistration</span>(ctx, <span style="color:#000;font-weight:bold">&amp;</span>client.GetRegistrationRequest{

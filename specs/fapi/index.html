@@ -122,6 +122,8 @@
                 
                 <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
                 
+                <li><a href="/oneauth/specs/jarm/">JARM</a></li>
+                
                 <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
                 
                 <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
@@ -193,7 +195,7 @@
 <p><strong>Status:</strong> OpenID Foundation Specifications (final)<br />
 <strong>Published:</strong> FAPI 1.0 (2021), FAPI 2.0 Security Profile (final, 2025)<br />
 <strong>L-tier / T-tier:</strong> L8 · T0 (profile of all)<br />
-<strong>OneAuth coverage:</strong> FAPI 2.0 Security Profile §5.3.2 / §5.3.4 met through <code>OneAuthConfig.FAPI2</code> (0.1.52; reference server 0.1.54), with three caveats: DPoP is the only sender constraint (mTLS is #335), only ES256 client keys can be registered (#330, #331), and the OIDF conformance suite has never been run (mission #98, #433). FAPI 2.0 Message Signing (JAR #338, JARM mission #409) and FAPI 1.0 (ID tokens for <code>s_hash</code>, #339) are not supported<br />
+<strong>OneAuth coverage:</strong> FAPI 2.0 Security Profile §5.3.2 / §5.3.4 met through <code>OneAuthConfig.FAPI2</code> (0.1.52; reference server 0.1.54), with three caveats: DPoP is the only sender constraint (mTLS is #335), only ES256 client keys can be registered (#330, #331), and the OIDF conformance suite has never been run (mission #98, #433). FAPI 2.0 Message Signing is half done: signed responses work (<a href="JARM.md">JARM</a>, mission #409) and signed requests don&rsquo;t (JAR, #338). FAPI 1.0 (ID tokens for <code>s_hash</code>, #339) is not supported<br />
 <strong>See also:</strong> <a href="RFC_9126.md"><code>RFC_9126.md</code></a> · <a href="RFC_9101.md"><code>RFC_9101.md</code></a> · <a href="RFC_9449.md"><code>RFC_9449.md</code></a> · <a href="RFC_8705.md"><code>RFC_8705.md</code></a> · <a href="LANDSCAPE.md"><code>LANDSCAPE.md</code></a></p>
 </blockquote>
 <h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
@@ -472,8 +474,8 @@ matrix is in <a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a>.<
 </tr>
 <tr>
 <td>JARM (signed authz responses; FAPI 1.0 and FAPI 2.0 Message Signing)</td>
-<td>Gap (mission #409)</td>
-<td>—</td>
+<td><strong>Implemented</strong>, opt-in. <code>OneAuthConfig.JARM</code> (server: <code>code_flow.jarm.enabled</code>) signs the <code>jwt</code> modes with the AS key, and the SDK verifies them. ES256 or RS256, not PS256 yet</td>
+<td><a href="JARM.md"><code>JARM.md</code></a></td>
 </tr>
 <tr>
 <td>2.1 spine alignment (PKCE everywhere, no implicit, etc.)</td>
@@ -504,7 +506,7 @@ matrix is in <a href="../SECURITY_AUDIT.md"><code>SECURITY_AUDIT.md</code></a>.<
 </table>
 <p>What remains for the FAPI 2.0 Security Profile is a first OIDF conformance<br />
 run, PS256 and EdDSA client keys, and mTLS as a second sender constraint.<br />
-FAPI 2.0 Message Signing adds JAR and JARM, and FAPI 1.0 adds OIDC ID tokens.</p>
+FAPI 2.0 Message Signing still needs JAR, now that JARM is in, and FAPI 1.0 adds OIDC ID tokens.</p>
 <p><strong>The strategic question</strong> for OneAuth isn&rsquo;t <em>whether</em> FAPI is reachable<br />
 (the Security Profile is met), but <em>whether the user base needs</em> the rest. If demand exists for<br />
 banking-grade APIs the work pays off. If consumer SSO is the primary<br />

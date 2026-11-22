@@ -122,6 +122,8 @@
                 
                 <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
                 
+                <li><a href="/oneauth/specs/jarm/">JARM</a></li>
+                
                 <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
                 
                 <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
@@ -1169,9 +1171,9 @@ Profile have shipped. What the matrix still leaves open:</p>
 <ol>
 <li><strong>L5 mTLS</strong> (RFC 8705, #335). The other sender-constraint option FAPI<br />
 allows, and certificate-bound client authentication.</li>
-<li><strong>L6 JAR and JARM</strong> (RFC 9101, #338; JARM is mission #409). Signed<br />
-authorization requests and responses, which FAPI 2.0 Message Signing<br />
-needs.</li>
+<li><strong>L6 JAR</strong> (RFC 9101, #338). Signed authorization requests, which FAPI<br />
+2.0 Message Signing needs. Its other half, signed responses, shipped as<br />
+<a href="JARM.md">JARM</a> (mission #409).</li>
 <li><strong>OIDC ID tokens</strong> (#339). ID tokens, <code>nonce</code> and userinfo on top of the<br />
 existing <code>/authorize</code>.</li>
 </ol>

@@ -122,6 +122,8 @@
                 
                 <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
                 
+                <li><a href="/oneauth/specs/jarm/">JARM</a></li>
+                
                 <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
                 
                 <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
@@ -358,7 +360,7 @@
 </span></span><span style="display:flex;"><span>    HandleUser:   oneAuth.SaveUserAndRedirect,
 </span></span><span style="display:flex;"><span>})
 </span></span><span style="display:flex;"><span>oneAuth.<span style="color:#900;font-weight:bold">AddAuth</span>(<span style="color:#d14">&#34;/oidc&#34;</span>, p.<span style="color:#900;font-weight:bold">Handler</span>())
-</span></span></code></pre><p><code>oidc.AllowList</code> decides who may sign in from those claims, by verified email domain, a <code>groups</code> value, or <code>sub</code>. A CLI signs in with <code>p.DeviceAuth</code> and <code>p.DeviceAccessToken</code> when the provider lists a device endpoint. <code>oauth2/oidc/example</code> runs both flows against the Keycloak in <code>docker-compose.yml</code>.</p>
+</span></span></code></pre><p><code>oidc.AllowList</code> decides who may sign in from those claims, by verified email domain, a <code>groups</code> value, or <code>sub</code>. To sign the user out at the provider too (RP-Initiated Logout), clear your own session, then redirect to <code>p.LogoutURL(idTokenHint, postLogoutRedirectURI, state)</code>. <code>idTokenHint</code> is the raw ID token from sign-in, which <code>HandleUser</code> gets as <code>token.Extra(&quot;id_token&quot;)</code>, so keep it with the session. Most providers want it, and Keycloak shows its own confirmation page without it. <code>LogoutURL</code> returns <code>oidc.ErrNoEndSessionEndpoint</code> when the provider&rsquo;s discovery lists no <code>end_session_endpoint</code> (issue 546). A CLI signs in with <code>p.DeviceAuth</code> and <code>p.DeviceAccessToken</code> when the provider lists a device endpoint. <code>oauth2/oidc/example</code> runs both flows against the Keycloak in <code>docker-compose.yml</code>.</p>
 <h3 id="pkce-proof-key-for-code-exchange">PKCE (Proof Key for Code Exchange) <a class="anchor" href="#pkce-proof-key-for-code-exchange">¶</a></h3>
 <p>All OAuth2 flows use PKCE (RFC 7636) by default to prevent authorization code interception attacks. This is especially important for public clients (SPAs, mobile apps) where the client secret cannot be securely stored.</p>
 <pre><code>Authorization redirect:

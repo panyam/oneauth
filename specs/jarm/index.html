@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Implemented, opt-in (OneAuthConfig.JARM, client.VerifyAuthorizationResponse)">
+    <title>JWT Secured Authorization Response Mode (JARM) · OneAuth</title>
+
+    <link rel="stylesheet" href="/oneauth/static/css/main.css">
+</head>
+<body>
+    
+<header class="site-header">
+    <div class="site-header-inner">
+        
+        <a class="brand" href="/oneauth/">
+            <span class="brand-name">OneAuth</span>
+        </a>
+        <nav class="top-nav">
+            
+            
+            <a class="top-nav-link" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <a class="top-nav-link" href="/oneauth/conformance/">Conformance</a>
+            
+            <a class="top-nav-link" href="/oneauth/specs/">Specs</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <a class="top-nav-link" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <a class="top-nav-link external" href="https://github.com/panyam/oneauth">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+    <div class="page">
+        
+<aside class="sidebar">
+    
+    
+    <nav class="sidebar-nav">
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/guides/getting-started/">Guides</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/guides/getting-started/">Getting started</a></li>
+                
+                <li><a href="/oneauth/guides/user-guide/">User guide</a></li>
+                
+                <li><a href="/oneauth/guides/developer-guide/">Developer guide</a></li>
+                
+                <li><a href="/oneauth/guides/client-sdk/">Client SDK</a></li>
+                
+                <li><a href="/oneauth/guides/api-auth/">API auth</a></li>
+                
+                <li><a href="/oneauth/guides/browser-auth/">Browser auth</a></li>
+                
+                <li><a href="/oneauth/guides/stores/">Stores</a></li>
+                
+                <li><a href="/oneauth/guides/grpc/">gRPC</a></li>
+                
+                <li><a href="/oneauth/guides/demos/">Demos</a></li>
+                
+                <li><a href="/oneauth/guides/testing/">Testing</a></li>
+                
+                <li><a href="/oneauth/guides/migration/">Migration</a></li>
+                
+                <li><a href="/oneauth/guides/oauth21-alignment/">OAuth 2.1 alignment</a></li>
+                
+                <li><a href="/oneauth/guides/release-notes/">Release notes</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/conformance/">Conformance</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/conformance/">Overview</a></li>
+                
+                <li><a href="/oneauth/conformance/report/">Latest run</a></li>
+                
+                <li><a href="/oneauth/conformance/oidf/">OIDF scorecard</a></li>
+                
+                <li><a href="/oneauth/conformance/native/">Go-native ratchet</a></li>
+                
+                <li><a href="/oneauth/conformance/keycloak/">Keycloak interop</a></li>
+                
+                <li><a href="/oneauth/conformance/authlete/">Authlete interop</a></li>
+                
+                <li><a href="/oneauth/conformance/security-audit/">Security audit</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/specs/">Specs</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/specs/">Spec library</a></li>
+                
+                <li><a href="/oneauth/specs/landscape/">OAuth landscape</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-oauth21/">OAuth 2.1</a></li>
+                
+                <li><a href="/oneauth/specs/fapi/">FAPI 1.0 / 2.0</a></li>
+                
+                <li><a href="/oneauth/specs/jarm/">JARM</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9449/">DPoP (RFC 9449)</a></li>
+                
+                <li><a href="/oneauth/specs/rfc-9126/">PAR (RFC 9126)</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/architecture/">Architecture</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/architecture/">Architecture</a></li>
+                
+                <li><a href="/oneauth/design/roadmap/">Roadmap</a></li>
+                
+                <li><a href="/oneauth/design/auth-flows/">Auth flows</a></li>
+                
+                <li><a href="/oneauth/design/federated-auth/">Federated auth</a></li>
+                
+                <li><a href="/oneauth/design/jwt-signing/">JWT signing</a></li>
+                
+                <li><a href="/oneauth/design/outbound-credentials/">Outbound credentials</a></li>
+                
+                <li><a href="/oneauth/design/summary/">Package summary</a></li>
+                
+            </ul>
+            
+        </div>
+        
+        <div class="sidebar-section">
+            <a class="sidebar-section-title" href="/oneauth/design/gap-authlete/">Gap analyses</a>
+            
+            <ul class="sidebar-list">
+                
+                <li><a href="/oneauth/design/gap-authlete/">vs Authlete</a></li>
+                
+                <li><a href="/oneauth/design/gap-auth0/">vs Auth0</a></li>
+                
+            </ul>
+            
+        </div>
+        
+    </nav>
+</aside>
+
+        <main class="main">
+            
+<article class="content">
+    
+    <header class="content-header">
+        <h1>JWT Secured Authorization Response Mode (JARM)</h1>
+        
+        <p class="lead">Implemented, opt-in (OneAuthConfig.JARM, client.VerifyAuthorizationResponse)</p>
+        
+        
+        <p class="source-link">
+            Source: <a href="https://github.com/panyam/oneauth/blob/main/docs/oauth/JARM.md"><code>docs/oauth/JARM.md</code></a>
+        </p>
+        
+    </header>
+    
+
+    <div class="content-body">
+        
+<h1 id="jwt-secured-authorization-response-mode-jarm">JWT Secured Authorization Response Mode (JARM) <a class="anchor" href="#jwt-secured-authorization-response-mode-jarm">¶</a></h1>
+<blockquote>
+<p><strong>Status:</strong> OpenID Foundation final specification (2022), part of FAPI 1.0 Advanced and FAPI 2.0 Message Signing<br />
+<strong>L-tier / T-tier:</strong> L6 · T1 (authorization response)<br />
+<strong>OneAuth coverage:</strong> Implemented, opt-in. The AS signs (<code>OneAuthConfig.JARM</code>), the SDK verifies (<code>BrowserLoginRequest.ResponseMode</code>, <code>client.VerifyAuthorizationResponse</code>), and DCR takes <code>authorization_signed_response_alg</code><br />
+<strong>See also:</strong> <a href="FAPI.md"><code>FAPI.md</code></a> · <a href="RFC_9207.md"><code>RFC_9207.md</code></a> · <a href="RFC_9126.md"><code>RFC_9126.md</code></a> · <a href="RFC_7591.md"><code>RFC_7591.md</code></a></p>
+</blockquote>
+<h2 id="in-one-sentence">In one sentence <a class="anchor" href="#in-one-sentence">¶</a></h2>
+<p>The authorization server returns its authorization response as one JWT it signs, so the client can check who sent the code and who it was meant for before it uses it.</p>
+<h2 id="what-problem-does-it-solve">What problem does it solve? <a class="anchor" href="#what-problem-does-it-solve">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Plain authorization response</th>
+<th>JARM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>?code=...&amp;state=...</code> arrives as loose URL parameters that anyone on the path can swap or replay</td>
+<td>One <code>response</code> parameter, a JWT signed with the AS key</td>
+</tr>
+<tr>
+<td>The client learns which AS sent it only from RFC 9207&rsquo;s <code>iss</code>, which is unsigned</td>
+<td><code>iss</code> is a signed claim, checked against the issuer the client discovered</td>
+</tr>
+<tr>
+<td>A code minted for another client looks the same as one minted for you</td>
+<td><code>aud</code> names the client, and a response for anyone else is refused</td>
+</tr>
+<tr>
+<td>An old response can be replayed</td>
+<td><code>exp</code> limits it to about a minute</td>
+</tr>
+<tr>
+<td>Errors (<code>access_denied</code>) can be injected as easily as codes</td>
+<td>Errors are signed too</td>
+</tr>
+</tbody>
+</table>
+<h2 id="relatable-example">Relatable example <a class="anchor" href="#relatable-example">¶</a></h2>
+<p>A CLI logs in with <code>oneauth token browser --response-mode jwt</code>. The user approves at the AS, and the browser arrives at the CLI&rsquo;s loopback with <code>?response=eyJ...</code>. The CLI fetches the AS&rsquo;s JWKS, finds the key by the JWT&rsquo;s <code>kid</code>, and checks the signature. Then it checks that <code>iss</code> is the AS it discovered, that <code>aud</code> is its own client_id and that <code>exp</code> hasn&rsquo;t passed. Only then does it read <code>code</code> and <code>state</code> and exchange the code. If someone on the way flips one character of the JWT, the signature check fails and the CLI never contacts the token endpoint.</p>
+<h2 id="key-concepts">Key concepts <a class="anchor" href="#key-concepts">¶</a></h2>
+<ul>
+<li><strong>Response modes.</strong> <code>jwt</code> is the default for the response type: <code>query.jwt</code> for <code>code</code>, and <code>fragment.jwt</code> for the implicit types. <code>query.jwt</code>, <code>fragment.jwt</code> and <code>form_post.jwt</code> deliver the JWT the way <code>query</code>, <code>fragment</code> and <code>form_post</code> deliver parameters.</li>
+<li><strong>The JWT&rsquo;s claims.</strong> <code>iss</code>, <code>aud</code> and <code>exp</code> are required. The response parameters become string claims beside them: <code>code</code> and <code>state</code>, or <code>error</code> and <code>error_description</code>.</li>
+<li><strong><code>authorization_signed_response_alg</code>.</strong> A client registration field (JARM §3) that picks the signing algorithm. <code>none</code> is not allowed.</li>
+<li><strong>Fail closed.</strong> A client that asked for a JARM mode must refuse a response without a valid JWT, even one with a perfectly good plain <code>code</code>. Accepting it would let an attacker strip the signature.</li>
+</ul>
+<h2 id="wire-example">Wire example <a class="anchor" href="#wire-example">¶</a></h2>
+<p>Request:</p>
+<pre><code>GET /authorize?response_type=code&amp;client_id=app_1&amp;redirect_uri=http://localhost:18501/callback
+  &amp;response_mode=jwt&amp;state=NrYu...&amp;code_challenge=...&amp;code_challenge_method=S256
+</code></pre>
+<p>Response, a redirect with one parameter:</p>
+<pre><code>HTTP/1.1 302 Found
+Location: http://localhost:18501/callback?response=eyJhbGciOiJFUzI1NiIsImtpZCI6Ii4uLiJ9...
+</code></pre>
+<p>The JWT&rsquo;s header and claims, as oneauth-server signs them:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{ <span style="color:#000080">&#34;alg&#34;</span>: <span style="color:#d14">&#34;ES256&#34;</span>, <span style="color:#000080">&#34;kid&#34;</span>: <span style="color:#d14">&#34;qx0gEPiQTfOgueia30P4pIpVLsMBOhdHSjs4mjihn7w&#34;</span>, <span style="color:#000080">&#34;typ&#34;</span>: <span style="color:#d14">&#34;JWT&#34;</span> }
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;iss&#34;</span>: <span style="color:#d14">&#34;http://localhost:18500&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;aud&#34;</span>: <span style="color:#d14">&#34;app_1&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;exp&#34;</span>: <span style="color:#099">1795340066</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;code&#34;</span>: <span style="color:#d14">&#34;a1e8d9b4...&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;state&#34;</span>: <span style="color:#d14">&#34;NrYu...&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><p>Discovery advertises it:</p>
+<pre tabindex="0" style="background-color:#fff;"><code><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;response_modes_supported&#34;</span>: [<span style="color:#d14">&#34;query&#34;</span>, <span style="color:#d14">&#34;form_post&#34;</span>, <span style="color:#d14">&#34;jwt&#34;</span>, <span style="color:#d14">&#34;query.jwt&#34;</span>, <span style="color:#d14">&#34;fragment.jwt&#34;</span>, <span style="color:#d14">&#34;form_post.jwt&#34;</span>],
+</span></span><span style="display:flex;"><span>  <span style="color:#000080">&#34;authorization_signing_alg_values_supported&#34;</span>: [<span style="color:#d14">&#34;ES256&#34;</span>]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="where-it-lands-on-the-oauth-abstraction">Where it lands on the OAuth abstraction <a class="anchor" href="#where-it-lands-on-the-oauth-abstraction">¶</a></h2>
+<ul>
+<li><strong>L6 message signing.</strong> It signs the front-channel response, as JAR (RFC 9101) signs the request.</li>
+<li><strong>T1 (authorization response).</strong> It changes only how <code>/authorize</code> answers, and the token endpoint is unchanged.</li>
+</ul>
+<h2 id="oauth-20-and-21-status">OAuth 2.0 and 2.1 status <a class="anchor" href="#oauth-20-and-21-status">¶</a></h2>
+<p>Neither OAuth 2.0 nor the OAuth 2.1 draft requires it. RFC 9207&rsquo;s <code>iss</code> parameter covers the mix-up attack for most deployments. FAPI 1.0 Advanced and FAPI 2.0 Message Signing require JARM, so a deployment aiming at either needs it.</p>
+<h2 id="oneauth-status">OneAuth status <a class="anchor" href="#oneauth-status">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>JARM surface</th>
+<th>Status</th>
+<th>Where</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jwt</code>, <code>query.jwt</code>, <code>fragment.jwt</code>, <code>form_post.jwt</code> at <code>/authorize</code> and through PAR</td>
+<td><strong>Implemented</strong></td>
+<td><code>AuthorizationHandler.ResponseSigner</code>, set by <code>MountAuthorize</code></td>
+<td><code>query.jwt</code> is refused for the implicit types, like <code>query</code>. <code>fragment.jwt</code> is offered for <code>code</code> too, since §2.3.2 defines it for every response type</td>
+</tr>
+<tr>
+<td>Opt-in</td>
+<td><strong>Implemented</strong></td>
+<td><code>OneAuthConfig.JARM</code>; reference server <code>code_flow.jarm.enabled</code></td>
+<td>Needs an RS256 or ES256 key. <code>NewOneAuth</code> panics on an HMAC secret, and the reference server refuses to start</td>
+</tr>
+<tr>
+<td>Signing</td>
+<td><strong>Implemented</strong></td>
+<td><code>NewJWTAuthorizationResponseSigner</code>, <code>AuthorizationResponseSigner</code></td>
+<td>The AS key, with the <code>kid</code> the JWKS publishes. <code>exp</code> is 60 seconds (<code>DefaultAuthorizationResponseExpiry</code>, <code>JARMConfig.Expiry</code>). Signing happens at delivery, and a response that can&rsquo;t be signed shows a <code>server_error</code> page rather than going out unsigned</td>
+</tr>
+<tr>
+<td>Signed errors</td>
+<td><strong>Implemented</strong></td>
+<td><code>AuthorizationHandler.ErrorResponse</code></td>
+<td>Errors that go to the redirect_uri are signed. Errors shown on the AS&rsquo;s own page, such as a bad redirect_uri, are not</td>
+</tr>
+<tr>
+<td>RFC 9207 <code>iss</code></td>
+<td><strong>Moved inside</strong></td>
+<td><code>AuthorizationHandler.newResponse</code></td>
+<td>A JARM response carries <code>iss</code> as a claim and not on the URL</td>
+</tr>
+<tr>
+<td>Metadata</td>
+<td><strong>Implemented</strong></td>
+<td><code>ASServerMetadata.AuthorizationSigningAlgValuesSupported</code>, <code>OneAuth.AuthorizationSigningAlgs</code></td>
+<td>The reference server sets both fields when JARM is on</td>
+</tr>
+<tr>
+<td><code>authorization_signed_response_alg</code> (§3)</td>
+<td><strong>Implemented</strong></td>
+<td><code>core.AppRegistration</code>, <code>admin.DCRRequest</code>, every app store, CIMD</td>
+<td>DCR accepts only <code>AppRegistrar.AuthorizationSigningAlgs</code>, so <code>none</code> is refused. A registered alg the AS can&rsquo;t sign with fails the response with <code>server_error</code></td>
+</tr>
+<tr>
+<td>Registration turning JARM on</td>
+<td><strong>Not done, on purpose</strong></td>
+<td>None</td>
+<td>The registered alg sets the algorithm only. The client still asks with <code>response_mode=jwt</code>, as Keycloak does, so existing clients don&rsquo;t change behavior</td>
+</tr>
+<tr>
+<td>Default alg</td>
+<td><strong>AS key&rsquo;s alg</strong></td>
+<td><code>NewJWTAuthorizationResponseSigner</code></td>
+<td>§3 says RS256 when a client registers none. An AS with an EC key can&rsquo;t sign RS256, so oneauth uses its own algorithm</td>
+</tr>
+<tr>
+<td>PS256 with an RSA key</td>
+<td><strong>Not implemented</strong></td>
+<td>None</td>
+<td>FAPI 2.0 prefers PS256 over RS256. The JWKS lists the RSA key under RS256, and a verifier that checks a key&rsquo;s alg against the token&rsquo;s (oneauth&rsquo;s does) would refuse PS256. Use an ES256 key for FAPI</td>
+</tr>
+<tr>
+<td>Client verification</td>
+<td><strong>Implemented</strong></td>
+<td><code>client.VerifyAuthorizationResponse</code>, <code>BrowserLoginRequest.ResponseMode</code>, <code>oneauth token browser --response-mode</code></td>
+<td>§2.4&rsquo;s checks: an asymmetric signature by a key in the JWKS, <code>iss</code>, <code>aud</code>, <code>exp</code>. Failures wrap <code>ErrUnverifiedAuthorizationResponse</code>. An <code>error</code> inside a verified JWT is a <code>*CallbackError</code></td>
+</tr>
+<tr>
+<td><code>form_post.jwt</code> at the client</td>
+<td><strong>Implemented</strong></td>
+<td><code>LoginWithBrowser</code></td>
+<td>The loopback reads a POSTed form. <code>fragment</code> modes fail before the browser opens, since a fragment never reaches the loopback</td>
+</tr>
+<tr>
+<td>DCR from the SDK and CLI</td>
+<td><strong>Implemented</strong></td>
+<td><code>client.ClientRegistrationRequest.AuthorizationSignedResponseAlg</code>, <code>oneauth dcr register --authorization-signed-response-alg</code></td>
+<td></td>
+</tr>
+<tr>
+<td>Encrypted responses (<code>authorization_encrypted_response_alg</code>)</td>
+<td><strong>Not implemented</strong></td>
+<td>None</td>
+<td>Out of the JARM mission. A consumer asking for it would reopen it</td>
+</tr>
+</tbody>
+</table>
+<p>Two runs check it end to end. <code>make exercise-jarm</code> (the <code>jarm</code> suite in <code>make conformance</code>) logs in against oneauth-server and against Keycloak, and refuses a response with one character of its signature flipped. <code>TestKeycloak_JARMLogin</code> logs in with all three loopback modes against Keycloak&rsquo;s PS256 responses.</p>
+<h2 id="when-not-to-use-it">When NOT to use it <a class="anchor" href="#when-not-to-use-it">¶</a></h2>
+<ul>
+<li><strong>Clients that can&rsquo;t verify JWTs.</strong> A client that would accept the response without checking it gets nothing over a plain response, and loses the error details it could read from the URL.</li>
+<li><strong>Deployments that RFC 9207 already covers.</strong> If the threat is the mix-up attack alone, <code>iss</code> on a plain redirect handles it with less machinery.</li>
+<li><strong>Responses that must stay secret from the browser.</strong> JARM signs and doesn&rsquo;t encrypt, so anyone holding the URL can read the code.</li>
+</ul>
+<h2 id="related-specs">Related specs <a class="anchor" href="#related-specs">¶</a></h2>
+<ul>
+<li><a href="FAPI.md">FAPI</a> covers FAPI 1.0 Advanced and FAPI 2.0 Message Signing, which require JARM.</li>
+<li><a href="RFC_9207.md">RFC 9207</a> covers the unsigned <code>iss</code> parameter, which JARM&rsquo;s <code>iss</code> claim replaces.</li>
+<li><a href="RFC_9126.md">RFC 9126</a> covers PAR, which carries <code>response_mode=jwt</code> like any other parameter.</li>
+<li><a href="RFC_7591.md">RFC 7591</a> covers DCR, where <code>authorization_signed_response_alg</code> is registered.</li>
+<li><a href="RFC_9101.md">RFC 9101</a> covers JAR, the signed request that pairs with JARM in FAPI Message Signing (not implemented, issue 338).</li>
+</ul>
+<h2 id="spec-links">Spec links <a class="anchor" href="#spec-links">¶</a></h2>
+<ul>
+<li><a href="https://openid.net/specs/oauth-v2-jarm.html">JARM (OpenID Foundation)</a></li>
+<li><a href="https://openid.net/specs/fapi-message-signing-2_0.html">FAPI 2.0 Message Signing</a></li>
+</ul>
+
+
+    </div>
+</article>
+
+        </main>
+    </div>
+
+    
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <p>
+            <a href="https://github.com/panyam/oneauth">https://github.com/panyam/oneauth</a> ·
+            Licensed under Apache-2.0 ·
+            Source rendered by <a href="https://github.com/panyam/s3gen">s3gen</a>.
+        </p>
+    </div>
+</footer>
+
+
+    
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+
+      const blocks = document.querySelectorAll('pre > code.language-mermaid');
+      for (const code of blocks) {
+        const pre = code.parentElement;
+        const holder = document.createElement('pre');
+        holder.className = 'mermaid';
+        holder.textContent = code.textContent;
+        pre.replaceWith(holder);
+      }
+
+      if (blocks.length > 0) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'neutral',
+          fontFamily: 'var(--sans)',
+        });
+        
+        
+        try {
+          await mermaid.run({ querySelector: 'pre.mermaid' });
+        } catch (err) {
+          console.error('mermaid render failed', err);
+        }
+      }
+    </script>
+</body>
+</html>
