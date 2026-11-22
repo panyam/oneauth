@@ -55,7 +55,8 @@ type ASServerMetadata struct {
 	ResponseTypesSupported []string `json:"response_types_supported,omitempty"`
 	// ResponseModesSupported lists the `response_mode` values /authorize
 	// accepts (OIDC Discovery §3). MountAuthorize accepts query and
-	// form_post, plus fragment when it serves the implicit types;
+	// form_post, plus fragment when it serves the implicit types, plus the
+	// JARM modes with OneAuthConfig.JARM;
 	// AuthorizationHandler.ResponseModesSupported returns that list.
 	// Empty means the RFC 8414 default of query and fragment, which
 	// would hide form_post from clients.
@@ -119,6 +120,13 @@ type ASServerMetadata struct {
 	// userinfo_signed_response_alg (OIDC Discovery §3). Set it to
 	// OneAuth.UserinfoSigningAlgs().
 	UserinfoSigningAlgValuesSupported []string `json:"userinfo_signing_alg_values_supported,omitempty"`
+
+	// AuthorizationSigningAlgValuesSupported lists the algorithms signed
+	// (JARM) authorization responses use (JARM §4). Set it to
+	// OneAuth.AuthorizationSigningAlgs() when OneAuthConfig.JARM is on.
+	//
+	// See: https://openid.net/specs/oauth-v2-jarm.html#section-4
+	AuthorizationSigningAlgValuesSupported []string `json:"authorization_signing_alg_values_supported,omitempty"`
 
 	// ACRValuesSupported lists the authentication context classes the AS
 	// can report in an ID token's `acr` (OIDC Discovery §3). Advertise

@@ -2,6 +2,7 @@ package apiauth
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -24,20 +25,27 @@ const (
 // ResponseModesSupported lists the response modes h accepts, for AS
 // metadata's `response_modes_supported`: query and form_post always, and
 // fragment only when h serves the implicit types. Without them nothing
-// defaults to fragment, so oneauth doesn't offer it.
+// defaults to fragment, so oneauth doesn't offer it. With a ResponseSigner
+// the four JARM modes follow. fragment.jwt is among them even for code,
+// since JARM §2.3.2 defines it for every response type.
 func (h *AuthorizationHandler) ResponseModesSupported() []string {
+	modes := []string{ResponseModeQuery, ResponseModeFormPost}
 	if h.Implicit != nil {
-		return []string{ResponseModeQuery, ResponseModeFragment, ResponseModeFormPost}
+		modes = []string{ResponseModeQuery, ResponseModeFragment, ResponseModeFormPost}
 	}
-	return []string{ResponseModeQuery, ResponseModeFormPost}
+	if h.ResponseSigner != nil {
+		modes = append(modes, jarmModes...)
+	}
+	return modes
 }
 
 // checkResponseMode validates req.ResponseMode and returns an OAuth error
 // code and description, or two empty strings. An unknown or unoffered
-// mode is invalid_request. So is query for the implicit types: Multiple
-// Response Type Encoding Practices §5 forbids query encoding for a
-// response that carries tokens, since the URL ends up in logs, history
-// and Referer headers.
+// mode is invalid_request. So is query, or query.jwt, for the implicit
+// types: Multiple Response Type Encoding Practices §5 forbids query
+// encoding for a response that carries tokens, since the URL ends up in
+// logs, history and Referer headers. JARM §2.3.1 says the same of
+// query.jwt for an unencrypted response.
 func (h *AuthorizationHandler) checkResponseMode(req *AuthorizationRequest) (errCode, errDescription string) {
 	mode := req.ResponseMode
 	if mode == "" {
@@ -46,26 +54,30 @@ func (h *AuthorizationHandler) checkResponseMode(req *AuthorizationRequest) (err
 	if !slices.Contains(h.ResponseModesSupported(), mode) {
 		return "invalid_request", fmt.Sprintf("unsupported response_mode %q (this server accepts %v)", mode, h.ResponseModesSupported())
 	}
-	if mode == ResponseModeQuery && h.isImplicit(req) {
-		return "invalid_request", "response_mode=query is not allowed for a response_type that returns tokens"
+	if base, _ := splitResponseMode(mode); base == ResponseModeQuery && h.isImplicit(req) {
+		return "invalid_request", fmt.Sprintf("response_mode=%s is not allowed for a response_type that returns tokens", mode)
 	}
 	return "", ""
 }
 
-// responseMode is the mode req's response goes back in: the one the client
-// asked for when checkResponseMode accepts it, and otherwise the default
-// for its response type. Errors use it too, so a request refused for its
-// response_mode hears about it in the default mode.
-func (h *AuthorizationHandler) responseMode(req *AuthorizationRequest) string {
+// responseMode is how req's response goes back: the base mode it is
+// delivered in, and whether it is signed (JARM). That is the mode the
+// client asked for when checkResponseMode accepts it, and otherwise the
+// default for its response type, unsigned. Errors use it too, so a request
+// refused for its response_mode hears about it in the default mode.
+func (h *AuthorizationHandler) responseMode(req *AuthorizationRequest) (mode string, signed bool) {
 	if req.ResponseMode != "" {
 		if code, _ := h.checkResponseMode(req); code == "" {
-			return req.ResponseMode
+			mode, signed = splitResponseMode(req.ResponseMode)
 		}
 	}
-	if h.isImplicit(req) {
-		return ResponseModeFragment
+	if mode == "" {
+		mode = ResponseModeQuery
+		if h.isImplicit(req) {
+			mode = ResponseModeFragment
+		}
 	}
-	return ResponseModeQuery
+	return mode, signed
 }
 
 // AuthorizationResponse is an authorization response before delivery:
@@ -76,42 +88,89 @@ type AuthorizationResponse struct {
 	// RedirectURI is the client's checked redirect_uri.
 	RedirectURI string
 
-	// Mode is ResponseModeQuery, ResponseModeFragment or
-	// ResponseModeFormPost.
+	// Mode is how the parameters are delivered: ResponseModeQuery,
+	// ResponseModeFragment or ResponseModeFormPost. A JARM response has
+	// its base mode here, so query.jwt is ResponseModeQuery.
 	Mode string
 
 	// Values are the response parameters: code or tokens, or error and
-	// error_description, with state and iss.
+	// error_description, with state and iss. For a JARM response they are
+	// what the JWT carries, and Params wraps them.
 	Values url.Values
+
+	// Signed reports a JARM response, whose Values go out inside one
+	// signed `response` parameter.
+	Signed bool
+
+	// sign signs Values for a JARM response.
+	sign func(url.Values) (string, error)
+}
+
+// Params returns the parameters as delivered. For a JARM response that is
+// one `response` parameter, signed now, and an error means the response
+// can't be sent at all. Otherwise it is Values.
+func (a *AuthorizationResponse) Params() (url.Values, error) {
+	if !a.Signed {
+		return a.Values, nil
+	}
+	if a.sign == nil {
+		return nil, fmt.Errorf("apiauth: a signed authorization response has no signer")
+	}
+	jwt, err := a.sign(a.Values)
+	if err != nil {
+		return nil, err
+	}
+	return url.Values{"response": {jwt}}, nil
 }
 
 // RedirectURL encodes the response into the redirect_uri for the query
 // and fragment modes. A form_post response has no redirect URL, since its
-// values go in a POST body; RedirectURL returns an error for one.
+// values go in a POST body; RedirectURL returns an error for one, as it
+// does when a JARM response can't be signed.
 func (a *AuthorizationResponse) RedirectURL() (string, error) {
-	switch a.Mode {
-	case ResponseModeFragment:
-		return appendFragment(a.RedirectURI, a.Values)
-	case ResponseModeFormPost:
+	if a.Mode == ResponseModeFormPost {
 		return "", fmt.Errorf("apiauth: a form_post response has no redirect URL; render it with the FormPost template")
-	default:
-		return appendQuery(a.RedirectURI, a.Values)
 	}
+	params, err := a.Params()
+	if err != nil {
+		return "", err
+	}
+	return a.redirectURL(params)
+}
+
+func (a *AuthorizationResponse) redirectURL(params url.Values) (string, error) {
+	if a.Mode == ResponseModeFragment {
+		return appendFragment(a.RedirectURI, params)
+	}
+	return appendQuery(a.RedirectURI, params)
 }
 
 // newResponse adds state and RFC 9207 iss to values, applies
-// RedirectOverride, and picks the response mode for req.
+// RedirectOverride, and picks the response mode for req. A JARM response
+// leaves iss out of values, since the JWT's own iss claim carries it.
 func (h *AuthorizationHandler) newResponse(req *AuthorizationRequest, values url.Values) *AuthorizationResponse {
+	mode, signed := h.responseMode(req)
 	if req.State != "" {
 		values.Set("state", req.State)
 	}
-	if h.EmitIssParameter && h.IssuerURL != "" {
+	if h.EmitIssParameter && h.IssuerURL != "" && !signed {
 		values.Set("iss", h.IssuerURL)
 	}
 	if h.RedirectOverride != nil {
 		h.RedirectOverride(values)
 	}
-	return &AuthorizationResponse{RedirectURI: req.RedirectURI, Mode: h.responseMode(req), Values: values}
+	resp := &AuthorizationResponse{RedirectURI: req.RedirectURI, Mode: mode, Values: values, Signed: signed}
+	if signed && h.ResponseSigner != nil {
+		signer, clientID := h.ResponseSigner, req.ClientID
+		resp.sign = func(params url.Values) (string, error) {
+			out, err := signer.SignAuthorizationResponse(context.Background(), &SignAuthorizationResponseRequest{ClientID: clientID, Params: params})
+			if err != nil {
+				return "", err
+			}
+			return out.Response, nil
+		}
+	}
+	return resp
 }
 
 // authorizeFormPostData drives the FormPost template. Fields are the
@@ -129,7 +188,7 @@ type authorizeFormField struct {
 }
 
 // writeFormPost renders a form_post response: an HTML form that POSTs
-// resp.Values to the redirect_uri, submitted by a script, with a button
+// params to resp's redirect_uri, submitted by a script, with a button
 // inside <noscript> for a browser without one.
 //
 // The page carries a code or tokens, so it is no-store and refuses
@@ -139,20 +198,20 @@ type authorizeFormField struct {
 // without 'unsafe-inline'. The policy has no form-action: browsers apply
 // it to redirects that follow the POST, and the client may redirect from
 // its callback (issue 497).
-func (h *AuthorizeVerificationHandler) writeFormPost(w http.ResponseWriter, resp *AuthorizationResponse) {
+func (h *AuthorizeVerificationHandler) writeFormPost(w http.ResponseWriter, resp *AuthorizationResponse, params url.Values) {
 	nonce, err := cspNonce()
 	if err != nil {
 		http.Error(w, "server_error", http.StatusInternalServerError)
 		return
 	}
 	data := authorizeFormPostData{RedirectURI: resp.RedirectURI, CSPNonce: nonce}
-	names := make([]string, 0, len(resp.Values))
-	for name := range resp.Values {
+	names := make([]string, 0, len(params))
+	for name := range params {
 		names = append(names, name)
 	}
 	slices.Sort(names)
 	for _, name := range names {
-		for _, v := range resp.Values[name] {
+		for _, v := range params[name] {
 			data.Fields = append(data.Fields, authorizeFormField{Name: name, Value: v})
 		}
 	}

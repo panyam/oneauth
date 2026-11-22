@@ -86,6 +86,9 @@ func main() {
 	if err := checkOIDC(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
+	if err := checkJARM(cfg); err != nil {
+		log.Fatalf("Invalid server config: %v", err)
+	}
 	if err := checkImplicit(cfg); err != nil {
 		log.Fatalf("Invalid server config: %v", err)
 	}
@@ -344,6 +347,10 @@ func buildServer(cfg *Config) (handler http.Handler, cleanup func(), err error) 
 			UserClaims:   localauth.ProfileClaims(stores.userStore, stores.identityStore),
 			PairwiseSalt: []byte(cfg.CodeFlow.PairwiseSalt),
 		}
+	}
+
+	if cfg.CodeFlow.Enabled && cfg.CodeFlow.JARM.Enabled {
+		oaCfg.JARM = &apiauth.JARMConfig{Expiry: cfg.CodeFlow.JARM.Expiry}
 	}
 
 	oa := apiauth.NewOneAuth(oaCfg)
