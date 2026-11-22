@@ -44,6 +44,13 @@ type formPostFixture struct {
 // logged in and sees it.
 func newFormPostFixture(t *testing.T, autoApprove, implicit bool) *formPostFixture {
 	t.Helper()
+	return newAuthorizeFixture(t, autoApprove, implicit, nil)
+}
+
+// newAuthorizeFixture is newFormPostFixture with a hook that adjusts the
+// OneAuthConfig before NewOneAuth, and the OneAuth before MountAuthorize.
+func newAuthorizeFixture(t *testing.T, autoApprove, implicit bool, adjust func(*OneAuthConfig, *ecdsa.PrivateKey)) *formPostFixture {
+	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	apps := core.NewInMemoryAppStore()
@@ -52,11 +59,15 @@ func newFormPostFixture(t *testing.T, autoApprove, implicit bool) *formPostFixtu
 		ResponseTypes: []string{"code", "id_token", "id_token token"},
 	}})
 	require.NoError(t, err)
-	oa := NewOneAuth(OneAuthConfig{
+	oaCfg := OneAuthConfig{
 		SigningKey: key, SigningAlg: "ES256", VerifyKey: &key.PublicKey, Issuer: formPostIssuer,
 		AuthorizationCodeStore: core.NewInMemoryAuthorizationCodeStore(), AppStore: apps, AllowImplicit: implicit,
 		OIDC: &OIDCConfig{},
-	})
+	}
+	if adjust != nil {
+		adjust(&oaCfg, key)
+	}
+	oa := NewOneAuth(oaCfg)
 	cfg := AuthorizeMountConfig{
 		OneAuth: oa, IssuerURL: formPostIssuer, EmitIssParameter: true,
 		SubjectFromRequest:   func(*http.Request) string { return "alice" },

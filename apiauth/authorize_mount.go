@@ -199,6 +199,7 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 		PKCEPolicy:            cfg.OneAuth.PKCEPolicy,
 		PushedStore:           cfg.PushedStore,
 		RequirePushedRequests: cfg.RequirePushedRequests,
+		ResponseSigner:        cfg.OneAuth.AuthorizationResponseSigner,
 	}
 	if cfg.OneAuth.AllowImplicit && cfg.OneAuth.IDTokenIssuer != nil {
 		authzHandler.Implicit = &ImplicitTokens{Issuer: cfg.OneAuth.Issuer, IDTokens: cfg.OneAuth.IDTokenIssuer}

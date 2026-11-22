@@ -243,6 +243,13 @@ type AuthorizationHandler struct {
 	// with `require_pushed_authorization_requests` in AS metadata so
 	// clients learn the policy before hitting it.
 	RequirePushedRequests bool
+
+	// ResponseSigner signs responses for the JARM response modes (jwt,
+	// query.jwt, fragment.jwt, form_post.jwt), which h accepts only when
+	// it is set. MountAuthorize sets it from OneAuthConfig.JARM.
+	//
+	// See: https://openid.net/specs/oauth-v2-jarm.html
+	ResponseSigner AuthorizationResponseSigner
 }
 
 // ParseAndValidate parses an HTTP request's query / form into an

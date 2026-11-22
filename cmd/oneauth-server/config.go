@@ -76,6 +76,10 @@ type CodeFlowConfig struct {
 	// the same store backend as the codes.
 	PAR PARConfig `yaml:"par"`
 
+	// JARM signs authorization responses for clients that ask with
+	// response_mode=jwt (issue 411).
+	JARM JARMServerConfig `yaml:"jarm"`
+
 	// Consent remembers each user's approvals on the same store backend as
 	// the codes, so a request an earlier approval covers skips the
 	// consent screen. OpenID Connect's prompt=none needs it to succeed.
@@ -146,6 +150,22 @@ type ConsentConfig struct {
 }
 
 // PARConfig configures the pushed authorization request endpoint.
+// JARMServerConfig turns on signed authorization responses (JARM). It needs
+// an asymmetric jwt.signing_alg, since clients verify the responses
+// against the JWKS.
+//
+// See: https://openid.net/specs/oauth-v2-jarm.html
+type JARMServerConfig struct {
+	// Enabled accepts the jwt, query.jwt, fragment.jwt and form_post.jwt
+	// response modes and advertises them, with
+	// authorization_signing_alg_values_supported.
+	Enabled bool `yaml:"enabled"`
+
+	// Expiry is each response's exp. Zero uses
+	// apiauth.DefaultAuthorizationResponseExpiry (60s).
+	Expiry time.Duration `yaml:"expiry"`
+}
+
 type PARConfig struct {
 	// Enabled mounts POST /par and advertises it.
 	Enabled bool `yaml:"enabled"`

@@ -107,6 +107,10 @@ type OneAuth struct {
 	// returns for an `openid` scope. Nil when OIDC is off.
 	IDTokenIssuer IDTokenIssuer
 
+	// AuthorizationResponseSigner signs JARM authorization responses. Nil
+	// when OneAuthConfig.JARM is.
+	AuthorizationResponseSigner AuthorizationResponseSigner
+
 	// Hooks — lifecycle callbacks grouped by concern.
 	Hooks Hooks
 }
@@ -363,6 +367,15 @@ type OneAuthConfig struct {
 	// into SEP-414 tracing. Nil keeps it on the no-op fast path.
 	TracerProvider trace.TracerProvider
 
+	// JARM, when non-nil, turns on signed authorization responses: a
+	// client asking for response_mode=jwt (or query.jwt, fragment.jwt,
+	// form_post.jwt) gets the response as one JWT signed with SigningKey.
+	// NewOneAuth panics on an HS256 secret or an empty Issuer, since a
+	// client verifies the response against the JWKS and checks its iss.
+	//
+	// See: https://openid.net/specs/oauth-v2-jarm.html
+	JARM *JARMConfig
+
 	// OIDC, when non-nil, turns on OpenID Connect Core: the
 	// authorization-code grant returns an ID token whenever the granted
 	// scope includes "openid", and UserinfoHTTPHandler serves the user's
@@ -434,6 +447,24 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		})
 		if err != nil {
 			panic("apiauth: NewOneAuth: OIDC: " + err.Error())
+		}
+	}
+
+	var responseSigner AuthorizationResponseSigner
+	if cfg.JARM != nil {
+		responseSigner = cfg.JARM.Signer
+		if responseSigner == nil {
+			var err error
+			responseSigner, err = NewJWTAuthorizationResponseSigner(JWTAuthorizationResponseSignerConfig{
+				SigningKey:       cfg.SigningKey,
+				SigningAlg:       signingAlg,
+				SigningKeySource: cfg.SigningKeySource,
+				Issuer:           cfg.Issuer,
+				Expiry:           cfg.JARM.Expiry,
+			})
+			if err != nil {
+				panic("apiauth: NewOneAuth: JARM: " + err.Error())
+			}
 		}
 	}
 
@@ -600,8 +631,20 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		OIDC:                     cfg.OIDC,
 		IDTokenIssuer:            idTokens,
 		Hooks:                    cfg.Hooks,
+
+		AuthorizationResponseSigner: responseSigner,
 	}
 	return oa
+}
+
+// AuthorizationSigningAlgs lists the algorithms JARM authorization
+// responses are signed with, for authorization_signing_alg_values_supported
+// in AS metadata. It is nil when OneAuthConfig.JARM is.
+func (oa *OneAuth) AuthorizationSigningAlgs() []string {
+	if oa.AuthorizationResponseSigner == nil {
+		return nil
+	}
+	return oa.AuthorizationResponseSigner.AuthorizationSigningAlgs()
 }
 
 // UserinfoSigningAlgs lists the algorithms the userinfo endpoint signs

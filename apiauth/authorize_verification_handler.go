@@ -436,13 +436,20 @@ func (h *AuthorizeVerificationHandler) redirectError(w http.ResponseWriter, r *h
 // respond delivers an authorization response in its mode: a form page for
 // form_post, a 302 to the redirect URL otherwise. Either way it is
 // no-store, since it carries a code, tokens or state. When the redirect
-// URL can't be built, the user sees failCode and failDescription.
+// URL can't be built, the user sees failCode and failDescription. A JARM
+// response that can't be signed shows a server_error page and is never
+// sent unsigned.
 func (h *AuthorizeVerificationHandler) respond(w http.ResponseWriter, r *http.Request, resp *AuthorizationResponse, failCode, failDescription string) {
-	if resp.Mode == ResponseModeFormPost {
-		h.writeFormPost(w, resp)
+	params, err := resp.Params()
+	if err != nil {
+		h.renderError(w, r, "server_error", "the authorization response could not be signed")
 		return
 	}
-	redirect, err := resp.RedirectURL()
+	if resp.Mode == ResponseModeFormPost {
+		h.writeFormPost(w, resp, params)
+		return
+	}
+	redirect, err := resp.redirectURL(params)
 	if err != nil {
 		h.renderError(w, r, failCode, failDescription)
 		return

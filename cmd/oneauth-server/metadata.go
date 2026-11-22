@@ -52,6 +52,10 @@ func serverASMetadata(cfg *Config, baseURL string, codeFlow bool) *apiauth.ASSer
 			// OIDC Core §5.5: authorize and the tokens honour `claims`.
 			meta.ClaimsParameterSupported = true
 		}
+		if cfg.CodeFlow.JARM.Enabled {
+			// JARM §4: the algorithms signed responses use, the AS key's.
+			meta.AuthorizationSigningAlgValuesSupported = []string{cfg.JWT.SigningAlg}
+		}
 		if cfg.CodeFlow.PAR.Enabled {
 			meta.PushedAuthorizationRequestEndpoint = baseURL + "/par"
 			if cfg.CodeFlow.PAR.Required || cfg.FAPI2 {
@@ -99,6 +103,25 @@ func checkOIDC(cfg *Config) error {
 	return nil
 }
 
+// checkJARM refuses code_flow.jarm without the code flow or without an
+// asymmetric signing key: a client verifies a signed response against the
+// JWKS, which publishes no HMAC secret.
+func checkJARM(cfg *Config) error {
+	if !cfg.CodeFlow.JARM.Enabled {
+		return nil
+	}
+	if !cfg.CodeFlow.Enabled {
+		return fmt.Errorf("code_flow.jarm needs code_flow.enabled: JARM signs /authorize responses")
+	}
+	if alg := cfg.JWT.SigningAlg; alg != "RS256" && alg != "ES256" {
+		if alg == "" {
+			alg = "HS256 (the default)"
+		}
+		return fmt.Errorf("code_flow.jarm needs jwt.signing_alg RS256 or ES256, got %s: clients verify signed responses against the JWKS, which has no HMAC secret", alg)
+	}
+	return nil
+}
+
 // checkFAPI2 refuses a fapi2 config the server can't honor: FAPI 2.0
 // needs sender-constrained tokens (dpop), an access-token signing algorithm
 // it allows, and, when /authorize is served, PAR.
@@ -126,13 +149,18 @@ func checkFAPI2(cfg *Config) error {
 }
 
 // responseModes is response_modes_supported: the modes MountAuthorize
-// accepts. Fragment is there only with code_flow.implicit, as
-// AuthorizationHandler.ResponseModesSupported has it.
+// accepts. Fragment is there only with code_flow.implicit, and the JARM
+// modes only with code_flow.jarm, as AuthorizationHandler.ResponseModesSupported
+// has them.
 func responseModes(cfg *Config) []string {
+	modes := []string{apiauth.ResponseModeQuery, apiauth.ResponseModeFormPost}
 	if cfg.CodeFlow.Implicit {
-		return []string{apiauth.ResponseModeQuery, apiauth.ResponseModeFragment, apiauth.ResponseModeFormPost}
+		modes = []string{apiauth.ResponseModeQuery, apiauth.ResponseModeFragment, apiauth.ResponseModeFormPost}
 	}
-	return []string{apiauth.ResponseModeQuery, apiauth.ResponseModeFormPost}
+	if cfg.CodeFlow.JARM.Enabled {
+		modes = append(modes, apiauth.ResponseModeJWT, apiauth.ResponseModeQueryJWT, apiauth.ResponseModeFragmentJWT, apiauth.ResponseModeFormPostJWT)
+	}
+	return modes
 }
 
 // checkImplicit refuses code_flow.implicit without OIDC, since the
