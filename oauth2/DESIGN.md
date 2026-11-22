@@ -138,8 +138,8 @@ sequenceDiagram
 
 - **Each provider gets its own `http.ServeMux`.** `BaseOAuth2.mux` is private and only reachable via `Handler()`. Two providers must be mounted under distinct route prefixes by the host (e.g., `/auth/google/` and `/auth/github/`) — they cannot share a mux. The `/` and `/callback/` patterns inside each mux are relative to the mount prefix.
 
-- **Separate Go module — no oneauth import path.** `go.mod` is `github.com/panyam/oneauth/oauth2` with only `golang.org/x/oauth2` and `testify` as deps; the rest of oneauth is not importable from here, and `go.work` wires it via a replace directive for local dev. Don't reach for `core/` or `apiauth/` types here — that breaks the "embed social login without the rest" guarantee.
+- **The base package imports nothing from oneauth.** An app using only GitHub or Google compiles `golang.org/x/oauth2` and this package. Don't reach for `core/` or `apiauth/` types in it. The `oidc` subpackage does import the root module (`client`, `keys`) for discovery and ID token verification, so the module's `go.mod` requires it, and `go.sum` lists jwt, fernet and otel for every consumer. Only an app importing `oauth2/oidc` compiles them (issue 542).
 
 ## Depends on
 
-*(no sibling-folder dependencies)*
+- `oidc/` imports the root module's `client` (discovery, `VerifyIDToken`) and `keys` (`JWKSKeyStore`). The base package depends on nothing in oneauth.

@@ -303,7 +303,7 @@ go mod tidy
 | `.../stores/gae` | Google Datastore stores | cloud.google.com/go/datastore + GCP SDK |
 | `.../saml` | SAML SP | crewjam/saml, XML libs |
 | `.../grpc` | gRPC interceptors | google.golang.org/grpc, protobuf |
-| `.../oauth2` | OAuth2 provider clients | golang.org/x/oauth2/google |
+| `.../oauth2` | OAuth2 provider clients; `oauth2/oidc` for any OpenID Connect provider | golang.org/x/oauth2/google; `oauth2/oidc` imports the root module |
 
 ## Common Scenarios
 

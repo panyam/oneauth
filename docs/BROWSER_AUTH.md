@@ -192,6 +192,23 @@ oneAuth.AddAuth("/github", oauth2.NewGithubOAuth2(
 ).Handler())
 ```
 
+### Any OpenID Connect provider
+
+`oauth2/oidc` signs people in through their organisation's identity provider (Entra ID, Okta, Google Workspace, Keycloak) by issuer URL. Discovery runs once, in `oidc.New`. `HandleUser` runs only after the ID token's signature, `iss`, `aud`, `exp` and `nonce` check out, and it receives the token's claims.
+
+```go
+p, err := oidc.New(ctx, oidc.Config{
+    Issuer:       "https://login.microsoftonline.com/<tenant>/v2.0",
+    ClientID:     clientID,
+    ClientSecret: clientSecret,
+    CallbackURL:  "https://app.example.com/auth/oidc/callback/",
+    HandleUser:   oneAuth.SaveUserAndRedirect,
+})
+oneAuth.AddAuth("/oidc", p.Handler())
+```
+
+`oidc.AllowList` decides who may sign in from those claims, by verified email domain, a `groups` value, or `sub`. A CLI signs in with `p.DeviceAuth` and `p.DeviceAccessToken` when the provider lists a device endpoint. `oauth2/oidc/example` runs both flows against the Keycloak in `docker-compose.yml`.
+
 ### PKCE (Proof Key for Code Exchange)
 
 All OAuth2 flows use PKCE (RFC 7636) by default to prevent authorization code interception attacks. This is especially important for public clients (SPAs, mobile apps) where the client secret cannot be securely stored.

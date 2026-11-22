@@ -93,7 +93,7 @@ Every package has a `DESIGN.md` (rich) and `SUMMARY.md` (LLM-friendly index). Th
 | [`httpauth/`](httpauth/DESIGN.md) | Session/JWT-aware login mux, CSRF, body-limit, security-header middleware |
 | [`apiauth/`](apiauth/DESIGN.md) | Token issuance, JWT middleware, introspection, revocation, discovery |
 | [`admin/`](admin/DESIGN.md) | App registration (DCR + RFC 7592 + admin CRUD), resource-token minting |
-| [`oauth2/`](oauth2/DESIGN.md) | Google / GitHub social-login providers with PKCE |
+| [`oauth2/`](oauth2/DESIGN.md) | Google / GitHub social-login providers with PKCE, and `oauth2/oidc` for any OpenID Connect provider |
 | [`saml/`](saml/DESIGN.md) | SAML 2.0 SP adapter (POC) |
 | [`client/`](client/DESIGN.md) | Client SDK — discovery, browser/CLI/M2M login, token cache, auto-refresh |
 | [`grpc/`](grpc/DESIGN.md) | Auth context propagation across HTTP↔gRPC boundary, and `connectauth` for refusing Connect / gRPC / gRPC-Web calls in their own protocol |
