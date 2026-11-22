@@ -42,8 +42,8 @@ github.com/googleapis/enterprise-certificate-proxy v0.3.11 h1:vAe81Msw+8tKUxi2Dq
 github.com/googleapis/enterprise-certificate-proxy v0.3.11/go.mod h1:RFV7MUdlb7AgEq2v7FmMCfeSMCllAzWxFgRdusoGks8=
 github.com/googleapis/gax-go/v2 v2.17.0 h1:RksgfBpxqff0EZkDWYuz9q/uWsTVz+kf43LsZ1J6SMc=
 github.com/googleapis/gax-go/v2 v2.17.0/go.mod h1:mzaqghpQp4JDh3HvADwrat+6M3MOIDp5YKHhb9PAgDY=
-github.com/panyam/oneauth v0.3.19 h1:OnL6n0QHaTbf93DSqnh3HaVH2ljozlWoUa3FqMnIxtg=
-github.com/panyam/oneauth v0.3.19/go.mod h1:KovKb74ntC7sroSeMafW/lZ6lzjuC/KI0uhxezRcN+8=
+github.com/panyam/oneauth v0.3.20 h1:N/4gVdcYWrzstsSlAZikIkO5Tm/Rt8fHDGyS7au4CAE=
+github.com/panyam/oneauth v0.3.20/go.mod h1:KovKb74ntC7sroSeMafW/lZ6lzjuC/KI0uhxezRcN+8=
 github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 h1:GFCKgmp0tecUJ0sJuv4pzYCqS9+RGSn52M3FUwPs+uo=
 github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10/go.mod h1:t/avpk3KcrXxUnYOhZhMXJlSEyie6gQbtLq5NM3loB8=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
