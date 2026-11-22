@@ -43,9 +43,12 @@ type TokenEndpointHandler struct {
 	Lockout *core.AccountLockout
 
 	// TrustedProxies are the reverse proxies whose X-Forwarded-For is
-	// believed for rate-limit keys and the refresh token's recorded IP.
-	// Empty uses the TCP peer, so a spoofed header can't buy a fresh
-	// bucket (CWE-348).
+	// believed for rate-limit keys and the refresh token's recorded IP,
+	// and whose X-Forwarded-Proto sets the scheme of the client-assertion
+	// audience derived when AcceptedAudiences is empty. Empty uses the TCP
+	// peer and r.TLS, so a spoofed header can't buy a fresh bucket or pick
+	// the audience (CWE-348). NewTokenEndpointHandler copies
+	// OneAuth.TrustedProxies.
 	TrustedProxies core.TrustedProxies
 
 	// TracerProvider opts the handler into SEP-414 tracing. Nil keeps
@@ -56,7 +59,11 @@ type TokenEndpointHandler struct {
 // NewTokenEndpointHandler constructs a handler over the supplied
 // OneAuth instance. RateLimiter and TracerProvider are optional.
 func NewTokenEndpointHandler(oa *OneAuth) *TokenEndpointHandler {
-	return &TokenEndpointHandler{OneAuth: oa}
+	h := &TokenEndpointHandler{OneAuth: oa}
+	if oa != nil {
+		h.TrustedProxies = oa.TrustedProxies
+	}
+	return h
 }
 
 // ServeHTTP routes the token-endpoint request to the granter matching
@@ -756,9 +763,9 @@ func (h *TokenEndpointHandler) acceptedAudiences(r *http.Request) []string {
 	// RFC 7523 §3 lets the aud be the issuer as well as the token
 	// endpoint URL.
 	if h.OneAuth != nil && h.OneAuth.IssuerURL != "" {
-		return []string{h.OneAuth.IssuerURL, derivedAudience(r)}
+		return []string{h.OneAuth.IssuerURL, derivedAudience(r, h.TrustedProxies)}
 	}
-	return []string{derivedAudience(r)}
+	return []string{derivedAudience(r, h.TrustedProxies)}
 }
 
 // fireOnLoginSuccess invokes Hooks.Auth.OnLoginSuccess when set.

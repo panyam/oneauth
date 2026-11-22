@@ -72,6 +72,12 @@ type PARHandler struct {
 	// client_secret_jwt client assertion (OIDC Core §9), as at the token
 	// endpoint. Empty falls back to the request URL.
 	AcceptedAudiences []string
+
+	// TrustedProxies are the reverse proxies whose X-Forwarded-Proto is
+	// believed when the audience is derived from the request (empty
+	// AcceptedAudiences), so a TLS-terminating proxy yields an https
+	// audience. Empty uses r.TLS alone.
+	TrustedProxies core.TrustedProxies
 }
 
 // ServeHTTP handles POST /par.
@@ -263,7 +269,7 @@ func (h *PARHandler) acceptedAudiences(r *http.Request) []string {
 	if len(h.AcceptedAudiences) > 0 {
 		return h.AcceptedAudiences
 	}
-	return []string{derivedAudience(r)}
+	return []string{derivedAudience(r, h.TrustedProxies)}
 }
 
 func (h *PARHandler) writeError(w http.ResponseWriter, err *GrantError) {

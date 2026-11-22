@@ -235,6 +235,7 @@ func MountAuthorize(mux *http.ServeMux, cfg AuthorizeMountConfig) {
 			DPoP:              cfg.OneAuth.DPoP,
 			Expiry:            cfg.PushedRequestExpiry,
 			AcceptedAudiences: cfg.OneAuth.AcceptedAudiences,
+			TrustedProxies:    cfg.OneAuth.TrustedProxies,
 		})
 	}
 }

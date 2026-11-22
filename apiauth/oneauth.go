@@ -78,6 +78,10 @@ type OneAuth struct {
 	// AllowedResources is OneAuthConfig.AllowedResources.
 	AllowedResources []string
 
+	// TrustedProxies is OneAuthConfig.TrustedProxies. The handlers OneAuth
+	// builds copy it.
+	TrustedProxies core.TrustedProxies
+
 	// IssuerURL is OneAuthConfig.Issuer. With no AcceptedAudiences the
 	// token endpoint accepts it as a client-assertion aud (RFC 7523 §3).
 	IssuerURL string
@@ -208,6 +212,14 @@ type OneAuthConfig struct {
 	// client assertion. Typically the token endpoint URL plus the AS
 	// issuer URL. Empty falls back to the request URL.
 	AcceptedAudiences []string
+
+	// TrustedProxies are the reverse proxies in front of the AS. When
+	// AcceptedAudiences is empty, the token, PAR, introspection and
+	// revocation endpoints derive the client-assertion audience from the
+	// request, and a trusted proxy's X-Forwarded-Proto: https makes it an
+	// https URL (issue 541). The token endpoint also reads X-Forwarded-For
+	// from them for rate limiting. Empty trusts no forwarded header.
+	TrustedProxies core.TrustedProxies
 
 	// AllowedResources are the RFC 8707 resource indicators the AS issues
 	// tokens for, such as the URLs of the MCP servers it fronts. A client
@@ -581,6 +593,7 @@ func NewOneAuth(cfg OneAuthConfig) *OneAuth {
 		AllowImplicit:            cfg.AllowImplicit,
 		PKCEPolicy:               cfg.PKCEPolicy,
 		AcceptedAudiences:        cfg.AcceptedAudiences,
+		TrustedProxies:           cfg.TrustedProxies,
 		AllowedResources:         cfg.AllowedResources,
 		DPoP:                     cfg.DPoP,
 		RequireDPoP:              cfg.RequireDPoP,
@@ -629,6 +642,7 @@ func (oa *OneAuth) IntrospectionHTTPHandler() *IntrospectionHandler {
 		Introspector:      oa.Introspector,
 		Authenticator:     oa.Authenticator,
 		AcceptedAudiences: oa.AcceptedAudiences,
+		TrustedProxies:    oa.TrustedProxies,
 	}
 }
 
@@ -638,6 +652,7 @@ func (oa *OneAuth) RevocationHTTPHandler() *RevocationHandler {
 		Revoker:           oa.Revoker,
 		Authenticator:     oa.Authenticator,
 		AcceptedAudiences: oa.AcceptedAudiences,
+		TrustedProxies:    oa.TrustedProxies,
 	}
 }
 

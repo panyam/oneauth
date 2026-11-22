@@ -61,12 +61,8 @@ func (tp TrustedProxies) Contains(addr netip.Addr) bool {
 // client. Entries to its left were written by the client and are ignored.
 // X-Real-IP is used only when a trusted peer sent no X-Forwarded-For.
 func ClientIP(r *http.Request, trusted TrustedProxies) string {
-	peerStr := r.RemoteAddr
-	if host, _, err := net.SplitHostPort(peerStr); err == nil {
-		peerStr = host
-	}
-	peer, err := netip.ParseAddr(peerStr)
-	if err != nil || !trusted.Contains(peer) {
+	peerStr, peer, ok := trusted.trustedPeer(r)
+	if !ok {
 		return peerStr
 	}
 
@@ -87,4 +83,52 @@ func ClientIP(r *http.Request, trusted TrustedProxies) string {
 		return xri.Unmap().String()
 	}
 	return peer.String()
+}
+
+// IsHTTPS reports whether the client reached this server over HTTPS. It is
+// true when this process terminated TLS itself (r.TLS is set). Behind a
+// TLS-terminating proxy the request arrives as plain HTTP, so it is also
+// true when the TCP peer is a trusted proxy and that proxy says https: the
+// first X-Forwarded-Proto value, or the proto of the first Forwarded
+// element (RFC 7239) when X-Forwarded-Proto is absent.
+//
+// Both headers are client-supplied, so from a peer outside tp they are
+// ignored and the answer is r.TLS != nil (CWE-348). An empty tp therefore
+// never reads them.
+func (tp TrustedProxies) IsHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	if _, _, ok := tp.trustedPeer(r); !ok {
+		return false
+	}
+	if xfp := r.Header.Values("X-Forwarded-Proto"); len(xfp) > 0 {
+		first, _, _ := strings.Cut(xfp[0], ",")
+		return strings.EqualFold(strings.TrimSpace(first), "https")
+	}
+	if fwd := r.Header.Values("Forwarded"); len(fwd) > 0 {
+		first, _, _ := strings.Cut(fwd[0], ",")
+		for _, pair := range strings.Split(first, ";") {
+			k, v, _ := strings.Cut(strings.TrimSpace(pair), "=")
+			if strings.EqualFold(k, "proto") {
+				return strings.EqualFold(strings.Trim(v, `"`), "https")
+			}
+		}
+	}
+	return false
+}
+
+// trustedPeer parses r.RemoteAddr and reports whether it is in tp. It
+// returns the peer's host string either way, for callers that fall back
+// to it.
+func (tp TrustedProxies) trustedPeer(r *http.Request) (string, netip.Addr, bool) {
+	peerStr := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(peerStr); err == nil {
+		peerStr = host
+	}
+	peer, err := netip.ParseAddr(peerStr)
+	if err != nil || !tp.Contains(peer) {
+		return peerStr, peer, false
+	}
+	return peerStr, peer, true
 }
