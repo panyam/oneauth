@@ -75,7 +75,7 @@ Rationale in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Shipped vs in flight 
 
 ## Issues, gaps, memories
 
-- Work is ranked by mission (`~/.claude/skills/retriage/queue.sh`). The active mission is #489 (every applicable external conformance suite, run from `make conformance`); JARM (#409) is parked. A new issue gets `P0` to `P3` and a mission link or `waiting` with its trigger. Status lives in issues and [NEXTSTEPS.md](NEXTSTEPS.md).
+- Work is ranked by mission (`~/.claude/skills/retriage/queue.sh`). The active mission is JARM (#409): a FAPI client logs in with `response_mode=jwt` against oneauth and Keycloak. `make conformance` runs every external suite, and a new feature keeps it green. A new issue gets `P0` to `P3` and a mission link or `waiting` with its trigger. Status lives in issues and [NEXTSTEPS.md](NEXTSTEPS.md).
 - Gap analyses: [Auth0](docs/gaps/AUTH0_GAP_ANALYSIS.md), [Authlete](docs/gaps/AUTHLETE_GAP_ANALYSIS.md) (#163).
 - Federated auth (oneauth + massrelay + excaliframe): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - Design lessons are in `memories/` (index `memories/MEMORY.md`). Save memories there, not in `~/.claude/`.
