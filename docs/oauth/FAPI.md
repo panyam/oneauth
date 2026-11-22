@@ -3,7 +3,7 @@
 > **Status:** OpenID Foundation Specifications (final)
 > **Published:** FAPI 1.0 (2021), FAPI 2.0 Security Profile (final, 2025)
 > **L-tier / T-tier:** L8 · T0 (profile of all)
-> **OneAuth coverage:** FAPI 2.0 Security Profile §5.3.2 / §5.3.4 met through `OneAuthConfig.FAPI2` (0.1.52; reference server 0.1.54), with three caveats: DPoP is the only sender constraint (mTLS is #335), only ES256 client keys can be registered (#330, #331), and the OIDF conformance suite has never been run (mission #98, #433). FAPI 2.0 Message Signing (JAR #338, JARM mission #409) and FAPI 1.0 (ID tokens for `s_hash`, #339) are not supported
+> **OneAuth coverage:** FAPI 2.0 Security Profile §5.3.2 / §5.3.4 met through `OneAuthConfig.FAPI2` (0.1.52; reference server 0.1.54), with three caveats: DPoP is the only sender constraint (mTLS is #335), only ES256 client keys can be registered (#330, #331), and the OIDF conformance suite has never been run (mission #98, #433). FAPI 2.0 Message Signing is half done: signed responses work ([JARM](JARM.md), mission #409) and signed requests don't (JAR, #338). FAPI 1.0 (ID tokens for `s_hash`, #339) is not supported
 > **See also:** [`RFC_9126.md`](RFC_9126.md) · [`RFC_9101.md`](RFC_9101.md) · [`RFC_9449.md`](RFC_9449.md) · [`RFC_8705.md`](RFC_8705.md) · [`LANDSCAPE.md`](LANDSCAPE.md)
 
 ## In one sentence
@@ -207,7 +207,7 @@ matrix is in [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md).
 | Client authentication (§5.3.2.1 #6, #8) | **Implemented** under `FAPI2`: `private_key_jwt` only, with the issuer as the sole string `aud`. Since 0.1.52 the expected audience comes from `r.TLS` and `r.Host` (and the issuer), never from forwarded headers; behind a TLS proxy set `OneAuthConfig.AcceptedAudiences` | [`RFC_7523.md`](RFC_7523.md) |
 | Algorithms (§5.4.1) | **Partial.** Under `FAPI2` only PS256 / ES256 / EdDSA client assertions pass (`AuthenticateClientRequest.AllowedAssertionAlgs`), but only ES256 client keys can be registered (PS256 #330, EdDSA #331). DPoP proofs accept ES256, EdDSA (0.1.43) and PS256. The AS signs tokens with ES256 but not PS256 (#330). RSA keys under 2048 bits are refused at load | [`RFC_7518.md`](RFC_7518.md) |
 | OIDC Core (id_token issuance) | Gap (#339). Not needed for the FAPI 2.0 Security Profile; FAPI 1.0's `s_hash` rides on ID tokens | [`OIDC_Core.md`](OIDC_Core.md) |
-| JARM (signed authz responses; FAPI 1.0 and FAPI 2.0 Message Signing) | Gap (mission #409) | — |
+| JARM (signed authz responses; FAPI 1.0 and FAPI 2.0 Message Signing) | **Implemented**, opt-in. `OneAuthConfig.JARM` (server: `code_flow.jarm.enabled`) signs the `jwt` modes with the AS key, and the SDK verifies them. ES256 or RS256, not PS256 yet | [`JARM.md`](JARM.md) |
 | 2.1 spine alignment (PKCE everywhere, no implicit, etc.) | Mostly compliant | [`docs/OAUTH21_ALIGNMENT.md`](../OAUTH21_ALIGNMENT.md) |
 | Refresh tokens | **Implemented as an option.** OneAuth rotates on every use with reuse detection by default (RFC 9700). `OneAuthConfig.DisableRefreshTokenRotation` (server: `jwt.disable_refresh_token_rotation`) turns it off, as FAPI 2.0 §5.3.2.1 asks, and `FAPI2` sets it | [`RFC_9700.md`](RFC_9700.md) |
 | `iss` on redirect | Implemented | [`RFC_9207.md`](RFC_9207.md) |
@@ -216,7 +216,7 @@ matrix is in [`SECURITY_AUDIT.md`](../SECURITY_AUDIT.md).
 
 What remains for the FAPI 2.0 Security Profile is a first OIDF conformance
 run, PS256 and EdDSA client keys, and mTLS as a second sender constraint.
-FAPI 2.0 Message Signing adds JAR and JARM, and FAPI 1.0 adds OIDC ID tokens.
+FAPI 2.0 Message Signing still needs JAR, now that JARM is in, and FAPI 1.0 adds OIDC ID tokens.
 
 **The strategic question** for OneAuth isn't *whether* FAPI is reachable
 (the Security Profile is met), but *whether the user base needs* the rest. If demand exists for

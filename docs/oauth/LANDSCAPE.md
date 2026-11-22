@@ -459,9 +459,9 @@ Profile have shipped. What the matrix still leaves open:
 
 1. **L5 mTLS** (RFC 8705, #335). The other sender-constraint option FAPI
    allows, and certificate-bound client authentication.
-2. **L6 JAR and JARM** (RFC 9101, #338; JARM is mission #409). Signed
-   authorization requests and responses, which FAPI 2.0 Message Signing
-   needs.
+2. **L6 JAR** (RFC 9101, #338). Signed authorization requests, which FAPI
+   2.0 Message Signing needs. Its other half, signed responses, shipped as
+   [JARM](JARM.md) (mission #409).
 3. **OIDC ID tokens** (#339). ID tokens, `nonce` and userinfo on top of the
    existing `/authorize`.
 

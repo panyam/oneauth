@@ -50,6 +50,12 @@ type ClientRegistrationRequest struct {
 	// RequirePushedAuthorizationRequests asks the AS to accept this
 	// client's authorization requests only through PAR (RFC 9126 §6).
 	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
+
+	// AuthorizationSignedResponseAlg picks the algorithm the AS signs this
+	// client's JARM authorization responses with (JARM §3). It must be one
+	// of the AS's authorization_signing_alg_values_supported. Empty takes
+	// the AS default. It doesn't turn JARM on; BrowserLoginRequest.ResponseMode does.
+	AuthorizationSignedResponseAlg string `json:"authorization_signed_response_alg,omitempty"`
 }
 
 // ClientRegistrationResponse is the parsed response from a DCR endpoint,
@@ -78,6 +84,10 @@ type ClientRegistrationResponse struct {
 	// RequirePushedAuthorizationRequests is the AS's record of RFC 9126 §6
 	// require_pushed_authorization_requests for this client.
 	RequirePushedAuthorizationRequests bool `json:"require_pushed_authorization_requests,omitempty"`
+
+	// AuthorizationSignedResponseAlg is the AS's record of the JARM §3
+	// authorization_signed_response_alg for this client.
+	AuthorizationSignedResponseAlg string `json:"authorization_signed_response_alg,omitempty"`
 
 	// RFC 7592 §3 — management credentials. RegistrationClientURI is the
 	// management endpoint for this specific registration; RegistrationAccessToken

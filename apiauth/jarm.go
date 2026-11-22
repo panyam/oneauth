@@ -67,7 +67,10 @@ type SignAuthorizationResponseRequest struct {
 	// ClientID is the client the response goes to, its `aud`. Required.
 	ClientID string
 
-	// Alg is the algorithm to sign with. Empty uses the signer's default.
+	// Alg is the algorithm to sign with: the client's registered
+	// authorization_signed_response_alg. Empty uses the signer's default.
+	// One the signer can't sign with is an error, never a fallback to
+	// another algorithm or an unsigned response.
 	Alg string
 
 	// Params are the response parameters: code or tokens, or error and

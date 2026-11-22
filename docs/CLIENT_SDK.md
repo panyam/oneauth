@@ -240,6 +240,20 @@ case err != nil:
 }
 ```
 
+**Signed authorization responses (JARM, issues 412 and 413):** set `ResponseMode` to `jwt`, `query.jwt` or `form_post.jwt` and the AS signs its response. `LoginWithBrowser` checks the `response` JWT with `client.VerifyAuthorizationResponse` before it exchanges the code. The JWT's signature must verify against the AS's JWKS, its `iss` must be the issuer discovery found, its `aud` must be your client_id, and its `exp` must not have passed. Verification needs the issuer and `jwks_uri`, so with explicit endpoints pass `WithASMetadata`.
+
+```go
+cred, err := authClient.LoginWithBrowser(ctx, &client.BrowserLoginRequest{
+    ClientID:     "my-app",
+    ResponseMode: "jwt",
+})
+if errors.Is(err, client.ErrUnverifiedAuthorizationResponse) {
+    // Forged, replayed, expired, or a plain code from an AS that ignored the mode.
+}
+```
+
+A user's denial inside a verified response is still a `*client.CallbackError`. `fragment` and `fragment.jwt` fail before the browser opens, since a fragment never reaches the loopback server. To pick the signing algorithm, register `AuthorizationSignedResponseAlg` through DCR (below). The CLI flags are `oneauth token browser --response-mode jwt` and `oneauth dcr register --authorization-signed-response-alg`. See [JARM](oauth/JARM.md).
+
 `*client.TokenError` comes back from every grant, not just this one: `Login`, `ClientCredentials`, `RefreshToken`, `JwtBearerGrant`, `TokenExchange`, and `PollDeviceToken` for codes other than its four RFC 8628 polling sentinels.
 
 #### Logout
@@ -395,6 +409,8 @@ resp, err := client.RegisterClient(asMetadata.RegistrationEndpoint, client.Clien
 // resp.ClientID, resp.ClientSecret — the credentials
 // resp.RegistrationAccessToken, resp.RegistrationClientURI — RFC 7592 management credentials
 ```
+
+`AuthorizationSignedResponseAlg` picks the algorithm for this client's signed (JARM) authorization responses. It must be one the AS lists in `authorization_signing_alg_values_supported`, and `none` is refused. It doesn't turn JARM on; `BrowserLoginRequest.ResponseMode` does.
 
 ### Read your own registration (RFC 7592 §2.1)
 

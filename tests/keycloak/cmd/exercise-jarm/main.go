@@ -119,11 +119,14 @@ func (r runner) oneauth(asURL string) (bool, string) {
 		"grant_types":                []string{"authorization_code"},
 		"response_types":             []string{"code"},
 		"token_endpoint_auth_method": "none",
+		// JARM §3 (issue 413): the algorithm the AS signs this client's
+		// responses with, checked by DCR against what the AS can sign.
+		"authorization_signed_response_alg": "ES256",
 	})
 	if err != nil {
 		return false, "could not register a client: " + err.Error()
 	}
-	fmt.Printf("registered client %s\n", clientID)
+	fmt.Printf("registered client %s with authorization_signed_response_alg ES256\n", clientID)
 	hc.Transport = r.watch(http.DefaultTransport)
 	return r.login(asURL, clientID, client.ApproveConsent(hc))
 }

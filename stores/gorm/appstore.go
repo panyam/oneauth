@@ -56,10 +56,11 @@ type AppRegistrationModel struct {
 	TOSURI                      string `gorm:"column:tos_uri;size:512"`
 
 	// OIDC Core §8 pairwise subjects (issue 507).
-	SubjectType               string `gorm:"size:16"`
-	UserinfoSignedResponseAlg string `gorm:"size:16"`
-	SectorIdentifierURI       string `gorm:"size:512"`
-	SectorIdentifier          string `gorm:"size:256"`
+	SubjectType                    string `gorm:"size:16"`
+	UserinfoSignedResponseAlg      string `gorm:"size:16"`
+	AuthorizationSignedResponseAlg string `gorm:"size:16"`
+	SectorIdentifierURI            string `gorm:"size:512"`
+	SectorIdentifier               string `gorm:"size:256"`
 
 	// RFC 7591 §2 response_types (issue 507).
 	ResponseTypes []string `gorm:"serializer:json"`
@@ -179,6 +180,7 @@ func appRegistrationToModel(app *core.AppRegistration) *AppRegistrationModel {
 		TOSURI:                             app.TOSURI,
 		SubjectType:                        app.SubjectType,
 		UserinfoSignedResponseAlg:          app.UserinfoSignedResponseAlg,
+		AuthorizationSignedResponseAlg:     app.AuthorizationSignedResponseAlg,
 		SectorIdentifierURI:                app.SectorIdentifierURI,
 		SectorIdentifier:                   app.SectorIdentifier,
 		ResponseTypes:                      app.ResponseTypes,
@@ -213,6 +215,7 @@ func modelToAppRegistration(m *AppRegistrationModel) *core.AppRegistration {
 		TOSURI:                             m.TOSURI,
 		SubjectType:                        m.SubjectType,
 		UserinfoSignedResponseAlg:          m.UserinfoSignedResponseAlg,
+		AuthorizationSignedResponseAlg:     m.AuthorizationSignedResponseAlg,
 		SectorIdentifierURI:                m.SectorIdentifierURI,
 		SectorIdentifier:                   m.SectorIdentifier,
 		ResponseTypes:                      m.ResponseTypes,

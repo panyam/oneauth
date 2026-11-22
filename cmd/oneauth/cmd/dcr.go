@@ -52,6 +52,8 @@ type dcrRegisterFlags struct {
 	scope                   string
 	tokenEndpointAuthMethod string
 	applicationType         string
+
+	authorizationSignedResponseAlg string
 }
 
 func newDCRRegisterCommand(df *dcrFlags) *cobra.Command {
@@ -79,6 +81,7 @@ registration.`,
 	cmd.Flags().StringVar(&rf.scope, "scope", "", `space-delimited OAuth scopes (e.g., "read write")`)
 	cmd.Flags().StringVar(&rf.tokenEndpointAuthMethod, "token-endpoint-auth-method", "", `auth method: "client_secret_basic" | "client_secret_post" | "private_key_jwt" | "none"`)
 	cmd.Flags().StringVar(&rf.applicationType, "application-type", "", `OIDC application type: "web" | "native"`)
+	cmd.Flags().StringVar(&rf.authorizationSignedResponseAlg, "authorization-signed-response-alg", "", `algorithm for signed (JARM) authorization responses, e.g. "ES256"`)
 	return cmd
 }
 
@@ -99,6 +102,8 @@ func runDCRRegister(_ context.Context, stdout io.Writer, issuer string, df *dcrF
 		TokenEndpointAuthMethod: rf.tokenEndpointAuthMethod,
 		Scope:                   rf.scope,
 		ApplicationType:         rf.applicationType,
+
+		AuthorizationSignedResponseAlg: rf.authorizationSignedResponseAlg,
 	}
 	resp, err := client.RegisterClient(meta.RegistrationEndpoint, req, http.DefaultClient)
 	if err != nil {
@@ -163,6 +168,8 @@ type dcrPutFlags struct {
 	scope                   string
 	tokenEndpointAuthMethod string
 	applicationType         string
+
+	authorizationSignedResponseAlg string
 }
 
 func newDCRPutCommand(df *dcrFlags) *cobra.Command {
@@ -189,6 +196,7 @@ on success; the new token is in the response.`,
 	cmd.Flags().StringVar(&pf.scope, "scope", "", `space-delimited OAuth scopes`)
 	cmd.Flags().StringVar(&pf.tokenEndpointAuthMethod, "token-endpoint-auth-method", "", "auth method")
 	cmd.Flags().StringVar(&pf.applicationType, "application-type", "", `OIDC application type: "web" | "native"`)
+	cmd.Flags().StringVar(&pf.authorizationSignedResponseAlg, "authorization-signed-response-alg", "", `algorithm for signed (JARM) authorization responses, e.g. "ES256"`)
 	_ = cmd.MarkFlagRequired("client-id")
 	_ = cmd.MarkFlagRequired("registration-access-token")
 	return cmd
@@ -212,6 +220,8 @@ func runDCRPut(ctx context.Context, stdout io.Writer, issuer string, df *dcrFlag
 			Scope:                   pf.scope,
 			TokenEndpointAuthMethod: pf.tokenEndpointAuthMethod,
 			ApplicationType:         pf.applicationType,
+
+			AuthorizationSignedResponseAlg: pf.authorizationSignedResponseAlg,
 		},
 	})
 	if err != nil {
