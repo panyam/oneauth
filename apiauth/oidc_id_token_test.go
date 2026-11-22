@@ -200,7 +200,7 @@ func TestOIDC_UserClaimsCannotOverrideRegisteredClaims(t *testing.T) {
 	// azp names the party the ID token was issued to (OIDC Core §2); a
 	// forged one would point a relying party at another client.
 	assert.Nil(t, claims["azp"])
-	assert.Nil(t, claims["jti"])
+	assert.Regexp(t, `^[0-9a-f]{64}$`, claims["jti"], "the issuer's own jti, not the forged one")
 }
 
 // OIDC Core §10.1 signs an HMAC ID token with the client's own secret. A

@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/utils"
 )
 
@@ -68,7 +69,8 @@ type OIDCConfig struct {
 // convention (175): a single method taking a request struct.
 type IDTokenIssuer interface {
 	// CreateIDToken mints a signed ID token for the subject, addressed to
-	// the client.
+	// the client. Each token carries a random `jti`, so a relying party
+	// can refuse to accept the same token twice.
 	CreateIDToken(ctx context.Context, req *CreateIDTokenRequest) (*CreateIDTokenResponse, error)
 }
 
@@ -236,6 +238,13 @@ func (i *jwtIDTokenIssuer) CreateIDToken(ctx context.Context, req *CreateIDToken
 	claims["iat"] = now.Unix()
 	claims["exp"] = expiresAt.Unix()
 	claims["typ"] = IDTokenTypeClaim
+	// A fresh jti lets a relying party that takes the ID token as an
+	// RFC 7523 assertion refuse a replay (issue 563).
+	jti, err := core.GenerateSecureToken()
+	if err != nil {
+		return nil, fmt.Errorf("oidc: jti: %w", err)
+	}
+	claims["jti"] = jti
 	if req.Nonce != "" {
 		claims["nonce"] = req.Nonce
 	}
