@@ -15,6 +15,9 @@
 #   4. Outside a release, each published go.sum has EXPECTED's hashes, so
 #      the module builds with GOWORK=off.
 #
+#   5. Each unpublished module (tests/*, docs/site) resolves with
+#      GOWORK=off, so its oneauth requires haven't fallen behind.
+#
 # A release commit sets every such require to the version it is about to
 # tag, so stores/gorm@vX requires oneauth@vX and cmd/oneauth-server@vX
 # requires stores/gorm@vX. Between releases the requires keep naming the
@@ -46,6 +49,22 @@ fi
 if [ -z "$EXPECTED" ]; then
     echo "FAIL: no root tag found and RELEASING not set"
     exit 1
+fi
+
+# Unpublished modules: every go.work module that is neither the root nor in
+# PUBLISHED, such as tests/keycloak and docs/site. They aren't tagged, and
+# they keep their replace directives. release.sh lists them the same way.
+unpublished_modules() {
+    awk '/^use[[:space:]]*\(/{f=1;next} f&&/^\)/{f=0} f{sub(/^\.\//,"",$1); print $1}' "$REPO_ROOT/go.work" |
+        while read -r m; do
+            [ -z "$m" ] || [ "$m" = "." ] && continue
+            case " ${PUBLISHED[*]} " in *" $m "*) continue ;; esac
+            echo "$m"
+        done
+}
+if [ "${1:-}" = "--unpublished" ]; then
+    unpublished_modules
+    exit 0
 fi
 
 fail=0
@@ -105,9 +124,26 @@ if ! grep -q "github.com/panyam/oneauth $EXPECTED => ./" "$REPO_ROOT/go.work"; t
     fail=1
 fi
 
+# 5. Each unpublished module resolves its requirements under GOWORK=off
+#    without editing go.mod. Such a module replaces oneauth modules with
+#    this checkout, and a replaced published module can require a newer
+#    oneauth than the unpublished module names. Go then stops with "updates
+#    to go.mod needed", which broke make testkcl after v0.3.17 (issue 553).
+#    release.sh bumps those requires, and this catches drift from any other
+#    source. It doesn't use go mod tidy -diff, which also fails on stale
+#    go.sum lines that do no harm.
+for sub in $(unpublished_modules); do
+    if ! out=$(cd "$REPO_ROOT/$sub" && GOWORK=off go list -mod=readonly -deps -test ./... 2>&1 >/dev/null); then
+        echo "FAIL: $sub doesn't resolve with GOWORK=off:"
+        echo "$out" | head -5 | sed 's/^/    /'
+        fail=1
+    fi
+done
+
 if [ $fail -ne 0 ]; then
     echo ""
     echo "Fix by hand, or cut a release with: make release V=vX.Y.Z"
     exit 1
 fi
 echo "All published modules require oneauth modules at $EXPECTED, with no replace directives."
+echo "All unpublished modules resolve with GOWORK=off."

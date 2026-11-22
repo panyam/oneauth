@@ -44,6 +44,15 @@ jobs:
             (cd $mod && go build ./...)
           done
 
+      # Every published module requires the latest tag, and every
+      # unpublished one (tests/*, docs/site) resolves with GOWORK=off, as
+      # make testkcl and the Keycloak workflow run it (issue 553). The
+      # script reads the latest tag, and the checkout fetches none.
+      - name: Sub-module requires
+        run: |
+          git fetch --quiet --depth=1 origin 'refs/tags/v*:refs/tags/v*'
+          make verify-submodule-deps
+
       # The harness client and the FAPI 2.0 exercise's plan config. The
       # tests that drive a live harness skip when it isn't running.
       - name: Test (OIDF conformance tooling)
