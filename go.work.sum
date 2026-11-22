@@ -389,8 +389,6 @@ github.com/panyam/gocurrent v0.1.0/go.mod h1:jIIhcNfNnnIe2JXH8aY2+ba+/5G1fzwCWoZ
 github.com/panyam/servicekit v0.0.26/go.mod h1:9TkF2LRqiPC9bgu0bYVdky7rnHEuBvzGzrsoL++Ra5c=
 github.com/panyam/servicekit v0.1.1 h1:aIvVWjpIw2xBF5V4hpf7GY4RqinkY7u3OBbjQd8a1vU=
 github.com/panyam/servicekit v0.1.1/go.mod h1:kvuEgs3iJjwRyqGlKTkppwiFDpM69MPeihVi1m/B97o=
-github.com/panyam/templar v0.1.0 h1:yy4sqois9gvNhIy2xsNyRoI5r/qvz1tVY+YuxnmzbWY=
-github.com/panyam/templar v0.1.0/go.mod h1:Pqn7VhOod9MGZ0GqrwoHw16jFjiAxPgWXZBAFou1fZ0=
 github.com/pelletier/go-toml/v2 v2.2.4/go.mod h1:2gIqNv+qfxSVS7cM2xJQKtLSTLUE9V8t9Stt+h56mCY=
 github.com/pierrec/lz4/v4 v4.1.18/go.mod h1:gZWDp/Ze/IJXGXf23ltt2EXimqmTUXEy0GFuRQyBid4=
 github.com/pkg/sftp v1.13.1/go.mod h1:3HaPG6Dq1ILlpPZRO0HVMrsydcdLt6HRDccSgb87qRg=
@@ -410,6 +408,7 @@ github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8/go.mod h1:3n1Cw
 github.com/spf13/afero v1.10.0/go.mod h1:UBogFpq8E9Hx+xc5CNTTEpTnuHVmXDwZcZcE1eb/UhQ=
 github.com/spf13/afero v1.15.0/go.mod h1:NC2ByUVxtQs4b3sIUphxK0NioZnmxgyCrfzeuq8lxMg=
 github.com/spf13/cast v1.10.0/go.mod h1:jNfB8QC9IA6ZuY2ZjDp0KtFO2LZZlg4S/7bzP6qqeHo=
+github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
 github.com/spf13/cobra v1.10.2/go.mod h1:7C1pvHqHw5A4vrJfjNwvOdzYu0Gml16OCs2GRiTUUS4=
 github.com/spf13/viper v1.21.0/go.mod h1:P0lhsswPGWD/1lZJ9ny3fYnVqxiegrlNrEmgLjbTCAY=
 github.com/spiffe/go-spiffe/v2 v2.5.0/go.mod h1:P+NxobPc6wXhVtINNtFjNWGBTreew1GBUCwT2wPmb7g=
