@@ -6,7 +6,7 @@ toolchain go1.27.4
 
 require (
 	cloud.google.com/go/datastore v1.21.0
-	github.com/panyam/oneauth v0.3.18
+	github.com/panyam/oneauth v0.3.19
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/crypto v0.57.0
 	google.golang.org/api v0.264.0

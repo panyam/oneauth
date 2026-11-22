@@ -5,8 +5,8 @@ go 1.26.9
 toolchain go1.27.4
 
 require (
-	github.com/panyam/oneauth v0.3.18
-	github.com/panyam/oneauth/stores/gorm v0.3.18
+	github.com/panyam/oneauth v0.3.19
+	github.com/panyam/oneauth/stores/gorm v0.3.19
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
 )
