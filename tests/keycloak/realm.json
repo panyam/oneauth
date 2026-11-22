@@ -105,6 +105,20 @@
         "pkce.code.challenge.method": "S256",
         "dpop.bound.access.tokens": "true"
       }
+    },
+    {
+      "clientId": "test-jarm",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:*", "http://127.0.0.1:*"],
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["basic", "openid", "email", "profile"],
+      "optionalClientScopes": ["read", "write"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "authorization.signed.response.alg": "PS256"
+      }
     }
   ],
   "clientScopes": [

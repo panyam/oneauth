@@ -5,7 +5,7 @@
 # Why: a release commit sets every oneauth require to V before V exists,
 # so it can't carry V's hashes. go install <cmd>@V and the workspace don't
 # need them, but any build of a published module outside the workspace
-# (GOWORK=off, as the Keycloak suite builds cmd/oneauth) does, and fails
+# (GOWORK=off, as `make vulncheck` scans each module) does, and fails
 # with "missing go.sum entry" until they are recorded.
 #
 # Waits for the module proxy to serve V, runs GOWORK=off go mod tidy in

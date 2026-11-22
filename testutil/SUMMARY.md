@@ -19,6 +19,16 @@ token, _ := srv.MintToken("user-42", []string{"read", "write"})
 
 **Token minting:** `MintToken(userID, scopes)` and `MintTokenWithClaims(claims)` — direct RS256 JWT creation, no HTTP round-trip.
 
+## Headless Login Helpers (headless.go)
+
+For exercises and interop tests that drive an AS with no person at a browser. They return errors instead of taking `*testing.T`, so a standalone `make exercise-*` driver can use them.
+
+| Function | What |
+|----------|------|
+| `SignUp(hc, serverURL, email, password)` | oneauth-server's signup form; leaves the session in `hc`'s jar for `client.ApproveConsent` |
+| `RegisterClient(hc, registrationEndpoint, metadata)` | RFC 7591 open registration; returns the client_id |
+| `KeycloakPasswordLogin(hc, user, password)` | an `OpenBrowser` that fills in Keycloak's login form, through `hc`'s Transport |
+
 ## Shared OAuth Helpers (helpers.go)
 
 Standalone functions that work against any RFC-compliant OAuth server (TestAuthServer, Keycloak, Auth0, etc.). All take `*testing.T` and call `t.Fatal` on error for test ergonomics.

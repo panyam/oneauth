@@ -151,6 +151,22 @@ type BrowserLoginRequest struct {
 	//
 	// See: https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowAuth
 	VerifyIDToken bool
+
+	// ResponseMode, when set, is sent as `response_mode` on the
+	// authorization request. Empty leaves it out, and the AS uses the
+	// default for response_type=code, which is query. The loopback server
+	// reads the callback's query string, so fragment and form_post
+	// responses never reach it.
+	//
+	// The JARM modes (jwt, query.jwt, fragment.jwt, form_post.jwt) ask the
+	// AS to sign its response. With one of them set, LoginWithBrowser
+	// refuses every callback with ErrUnverifiedAuthorizationResponse: a
+	// plain code would be an unsigned response, and verifying a signed one
+	// is not implemented yet (issue 412). An AS error still comes back as
+	// a *CallbackError.
+	//
+	// See: https://openid.net/specs/oauth-v2-jarm.html
+	ResponseMode string
 }
 
 // CallbackParams carries the loopback-redirect query parameters that the
@@ -180,7 +196,10 @@ type callbackResult struct {
 	Code  string
 	State string
 	Iss   string // RFC 9207 — see CallbackParams.Iss
-	Err   error
+	// Response is the JARM `response` parameter: the signed authorization
+	// response, when the AS sent one.
+	Response string
+	Err      error
 }
 
 // LoginWithBrowser performs an OAuth 2.0 authorization code flow with PKCE
@@ -251,7 +270,7 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 		code := q.Get("code")
 		callbackState := q.Get("state")
 		iss := q.Get("iss")
-		resultCh <- callbackResult{Code: code, State: callbackState, Iss: iss}
+		resultCh <- callbackResult{Code: code, State: callbackState, Iss: iss, Response: q.Get("response")}
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, "<html><body><h1>Login Successful</h1><p>You can close this tab and return to the terminal.</p></body></html>")
 	})
@@ -351,7 +370,7 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 	if c.dpopKey != nil {
 		dpopJKT = c.dpopKey.Thumbprint()
 	}
-	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, nonce, cfg.Scopes, cfg.Resource, dpopJKT)
+	authURL := buildAuthorizationURL(authEndpoint, cfg.ClientID, redirectURI, challenge, state, nonce, cfg.Scopes, cfg.Resource, dpopJKT, cfg.ResponseMode)
 
 	// Open browser
 	openFn := cfg.OpenBrowser
@@ -379,6 +398,12 @@ func (c *AuthClient) LoginWithBrowser(ctx context.Context, req *BrowserLoginRequ
 
 	if result.Err != nil {
 		return nil, result.Err
+	}
+	if isJARMResponseMode(cfg.ResponseMode) {
+		if result.Response == "" {
+			return nil, fmt.Errorf("%w: response_mode=%s but the callback carried no signed response", ErrUnverifiedAuthorizationResponse, cfg.ResponseMode)
+		}
+		return nil, fmt.Errorf("%w: verifying signed responses is not implemented yet (issue 412)", ErrUnverifiedAuthorizationResponse)
 	}
 
 	// Validate state
@@ -575,13 +600,13 @@ const idTokenClaimsRequest = `{"id_token":{"email":null,"email_verified":null,"n
 
 // buildAuthorizationURL constructs the full authorization URL with PKCE, state,
 // an optional OIDC nonce, an optional resource indicator (RFC 8707), and an
-// optional dpop_jkt (RFC 9449 §10).
+// optional dpop_jkt (RFC 9449 §10), and an optional response_mode.
 //
 // dpopJKT binds the authorization code to the client's DPoP key, so an
 // intercepted code cannot be redeemed with a different one. §10 is explicit
 // that this adds protection over PKCE alone only when the key is unique per
 // authorization request.
-func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state, nonce string, scopes []string, resource, dpopJKT string) string {
+func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state, nonce string, scopes []string, resource, dpopJKT, responseMode string) string {
 	u, _ := url.Parse(endpoint)
 	q := u.Query()
 	q.Set("response_type", "code")
@@ -602,6 +627,9 @@ func buildAuthorizationURL(endpoint, clientID, redirectURI, challenge, state, no
 	}
 	if dpopJKT != "" {
 		q.Set("dpop_jkt", dpopJKT)
+	}
+	if responseMode != "" {
+		q.Set("response_mode", responseMode)
 	}
 	u.RawQuery = q.Encode()
 	return u.String()
@@ -864,4 +892,12 @@ func openBrowserDefault(url string) error {
 	default:
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
+}
+
+// isJARMResponseMode reports whether mode asks for a signed authorization
+// response: jwt, or one of query.jwt, fragment.jwt and form_post.jwt.
+//
+// See: https://openid.net/specs/oauth-v2-jarm.html#section-2.3
+func isJARMResponseMode(mode string) bool {
+	return mode == "jwt" || strings.HasSuffix(mode, ".jwt")
 }

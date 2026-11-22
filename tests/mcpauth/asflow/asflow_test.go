@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/panyam/oneauth/client"
+	"github.com/panyam/oneauth/testutil"
 )
 
 // stubAS serves a signup form that signs the user in, open DCR, and an
@@ -85,7 +86,7 @@ func jarClient() *http.Client {
 func TestSignUp_LeavesTheSessionInTheJar(t *testing.T) {
 	as := newStubAS(t)
 	hc := jarClient()
-	if err := SignUp(hc, as.URL, "u@example.com", "pw-123456789"); err != nil {
+	if err := testutil.SignUp(hc, as.URL, "u@example.com", "pw-123456789"); err != nil {
 		t.Fatal(err)
 	}
 	u, _ := url.Parse(as.URL)
@@ -100,7 +101,7 @@ func TestSignUp_LeavesTheSessionInTheJar(t *testing.T) {
 
 func TestSignUp_NeedsAJar(t *testing.T) {
 	as := newStubAS(t)
-	if err := SignUp(&http.Client{}, as.URL, "u@example.com", "pw"); err == nil {
+	if err := testutil.SignUp(&http.Client{}, as.URL, "u@example.com", "pw"); err == nil {
 		t.Fatal("SignUp without a cookie jar should fail, since the session would be lost")
 	}
 }
@@ -185,7 +186,7 @@ func TestWatch_WithApproveConsent_ReachesTheCallback(t *testing.T) {
 	defer callback.Close()
 
 	hc := jarClient()
-	if err := SignUp(hc, as.URL, "u@example.com", "pw-123456789"); err != nil {
+	if err := testutil.SignUp(hc, as.URL, "u@example.com", "pw-123456789"); err != nil {
 		t.Fatal(err)
 	}
 	authURL := as.URL + "/authorize?" + url.Values{

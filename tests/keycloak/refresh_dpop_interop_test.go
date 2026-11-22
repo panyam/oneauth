@@ -21,16 +21,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
-	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +36,7 @@ import (
 	"github.com/panyam/oneauth/core"
 	"github.com/panyam/oneauth/keys"
 	"github.com/panyam/oneauth/stores/fs"
+	"github.com/panyam/oneauth/testutil"
 )
 
 func keycloakTokenEndpoint() string {
@@ -351,41 +348,12 @@ func TestKeycloakDPoP_SDKBrowserLogin(t *testing.T) {
 	skipIfKeycloakNotRunning(t)
 	key, err := client.NewDPoPKey()
 	require.NoError(t, err)
-	req, _ := headlessLoginRequest(t, dpopClientID, keycloakPasswordLogin(t, testUsername, testPassword))
+	req, _ := headlessLoginRequest(t, dpopClientID, testutil.KeycloakPasswordLogin(nil, testUsername, testPassword))
 	req.Scopes = []string{"openid"}
 
 	cred, err := client.NewAuthClient(keycloakURL(), nil, client.WithDPoPKey(key)).LoginWithBrowser(context.Background(), req)
 	require.NoError(t, err)
 	assert.Equal(t, key.Thumbprint(), jktOf(t, cred.AccessToken))
-}
-
-// keycloakPasswordLogin is an OpenBrowser that fills in Keycloak's login
-// form, then follows the redirects to the SDK's loopback listener.
-func keycloakPasswordLogin(t *testing.T, username, password string) func(string) error {
-	action := regexp.MustCompile(`<form[^>]*id="kc-form-login"[^>]*action="([^"]+)"`)
-	return func(authURL string) error {
-		jar, _ := cookiejar.New(nil)
-		browser := &http.Client{Jar: jar, Timeout: 20 * time.Second}
-		resp, err := browser.Get(authURL)
-		if err != nil {
-			return err
-		}
-		page, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		m := action.FindSubmatch(page)
-		if m == nil {
-			return fmt.Errorf("no Keycloak login form at %s (HTTP %d)", authURL, resp.StatusCode)
-		}
-		resp, err = browser.PostForm(html.UnescapeString(string(m[1])), url.Values{
-			"username": {username}, "password": {password}, "credentialId": {""},
-		})
-		if err != nil {
-			return err
-		}
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		return nil
-	}
 }
 
 func jktOf(t *testing.T, accessToken string) string {

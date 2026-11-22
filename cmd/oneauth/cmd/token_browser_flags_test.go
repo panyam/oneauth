@@ -24,3 +24,20 @@ func TestBrowserCommand_VerifyIDTokenFlag(t *testing.T) {
 		assert.Equal(t, tc.want, browserLoginRequest(bf, io.Discard).VerifyIDToken, "%v", tc.args)
 	}
 }
+
+// --response-mode reaches BrowserLoginRequest.ResponseMode (issue 410).
+func TestBrowserCommand_ResponseModeFlag(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--client-id", "c"}, ""},
+		{[]string{"--client-id", "c", "--response-mode", "jwt"}, "jwt"},
+	} {
+		cmd := newBrowserCommand(&tokenFlags{})
+		require.NoError(t, cmd.ParseFlags(tc.args))
+		bf := &browserFlags{}
+		bf.responseMode, _ = cmd.Flags().GetString("response-mode")
+		assert.Equal(t, tc.want, browserLoginRequest(bf, io.Discard).ResponseMode, "%v", tc.args)
+	}
+}

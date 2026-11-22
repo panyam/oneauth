@@ -44,7 +44,10 @@ func buildOneauthCLI(t *testing.T) string {
 	dir := t.TempDir()
 	binPath := filepath.Join(dir, "oneauth")
 	cmd := exec.Command("go", "build", "-o", binPath, "github.com/panyam/oneauth/cmd/oneauth")
-	cmd.Env = append(cmd.Environ(), "GOWORK=off")
+	// Build against this checkout through go.work, even when the test runs
+	// with GOWORK=off: the CLI's go.mod names the last tagged root, which
+	// lacks root API added since (issue 410).
+	cmd.Env = append(cmd.Environ(), "GOWORK="+filepath.Join(oneauthCLIDir(t), "..", "..", "go.work"))
 	cmd.Dir = oneauthCLIDir(t)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
