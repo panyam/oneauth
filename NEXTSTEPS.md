@@ -6,7 +6,7 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 ## At a glance
 
 - No mission is active, and #543 has nothing ready. The next pick goes through `retriage`.
-- No open threads on main. PRs 561, 562, 564 and 565 merged after v0.3.19, and v0.3.20 is being cut next. #563 (goapplib and agni consumers) waits on that release.
+- No open threads on main. v0.3.20 carries PRs 561, 562, 564 and 565. Its release fires the trigger on #563, so goapplib and agni can now move to `GitHubHostsFor` and `Resolve`.
 - This run: dropped fix/553-unpublished-module-bumps and feat/563-id-token-jti (both merged), and removed their worktrees.
 
 ## Across threads
