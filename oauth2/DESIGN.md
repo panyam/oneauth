@@ -75,7 +75,7 @@ sequenceDiagram
     Provider-->>Browser: 302 to /callback/?code=...&state=...
     Browser->>Mux: GET /callback/ (Cookie: oauthstate, pkce_verifier)
     Mux->>Cb: dispatch
-    Cb->>Cb: compare r.FormValue("state") vs oauthstate cookie
+    Cb->>Cb: VerifyState: r.FormValue("state") vs oauthstate cookie
     alt missing or mismatch
         Cb-->>Browser: 400 "invalid oauth state" (clear oauthstate)
     else state ok
@@ -128,7 +128,7 @@ sequenceDiagram
 
 - **`oauthCallbackURL` is taken verbatim from the query string.** Both `OauthRedirectorWithPKCE` and `OauthRedirectorNoPKCE` copy `r.URL.Query().Get("callbackURL")` straight into a cookie with no allowlist or origin check. The package never reads it back itself — that's the host app's job — but a host that blindly redirects to its value is an open-redirect waiting to happen. Validate against an allowlist on the consuming side.
 
-- **State-cookie expiry mismatch.** The oauthstate cookie uses `Expires: now+10m` (absolute) while the `oauthCallbackURL` cookie uses `MaxAge: 120` (2 minutes) with a 24h `Expires`. The shorter `MaxAge` wins on compliant browsers, so a slow user can lose the callbackURL even if the state cookie is still valid. On failure, the mismatch branch in `handleCallback` deletes the state cookie (`MaxAge: -1`).
+- **State-cookie expiry mismatch.** The oauthstate cookie uses `Expires: now+10m` (absolute) while the `oauthCallbackURL` cookie uses `MaxAge: 120` (2 minutes) with a 24h `Expires`. The shorter `MaxAge` wins on compliant browsers, so a slow user can lose the callbackURL even if the state cookie is still valid. On a mismatch, `VerifyState` deletes the state cookie (`MaxAge: -1`).
 
 - **`OauthRedirector` (no suffix) is *not* the PKCE-disabled path.** Despite the naming, `OauthRedirector(cfg)` is just `OauthRedirectorWithPKCE(cfg)`. For "PKCE off" you want `OauthRedirectorNoPKCE`. `BaseOAuth2` wires the right one automatically via `DisablePKCE`; reach for these helpers directly only if you're bypassing `BaseOAuth2`.
 

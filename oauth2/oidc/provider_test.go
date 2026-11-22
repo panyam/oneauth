@@ -54,6 +54,7 @@ type fakeIssuer struct {
 
 	// knobs
 	noDevice       bool
+	noEndSession   bool
 	claimIssuer    string // discovery issuer override
 	tamper         bool
 	wrongNonce     bool
@@ -81,6 +82,9 @@ func newFakeIssuer(t *testing.T) *fakeIssuer {
 		}
 		if !f.noDevice {
 			doc["device_authorization_endpoint"] = f.srv.URL + "/device"
+		}
+		if !f.noEndSession {
+			doc["end_session_endpoint"] = f.srv.URL + "/logout?tenant=keep"
 		}
 		_ = json.NewEncoder(w).Encode(doc)
 	})

@@ -43,7 +43,13 @@ func TestKeycloakOIDCSignIn_WebFlow(t *testing.T) {
 	skipIfKeycloakNotRunning(t)
 
 	signedIn := make(chan map[string]any, 1)
+	idTokens := make(chan string, 1)
+	loggedOut := make(chan string, 1)
 	mux := http.NewServeMux()
+	mux.HandleFunc("/bye", func(w http.ResponseWriter, r *http.Request) {
+		loggedOut <- r.URL.Query().Get("state")
+		_, _ = io.WriteString(w, "logged out")
+	})
 	app := httptest.NewServer(mux)
 	t.Cleanup(app.Close)
 
@@ -56,6 +62,8 @@ func TestKeycloakOIDCSignIn_WebFlow(t *testing.T) {
 		HandleUser: func(authtype, provider string, token *xoauth2.Token, claims map[string]any, w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "keycloak", provider)
 			signedIn <- claims
+			idToken, _ := token.Extra("id_token").(string)
+			idTokens <- idToken
 			_, _ = io.WriteString(w, "signed in")
 		},
 	})
@@ -87,6 +95,29 @@ func TestKeycloakOIDCSignIn_WebFlow(t *testing.T) {
 	assert.Equal(t, "testuser@example.com", claims["email"])
 	assert.True(t, oidc.AllowList{EmailDomains: []string{"example.com"}}.Allows(claims))
 	assert.False(t, oidc.AllowList{EmailDomains: []string{"other.example"}}.Allows(claims))
+
+	// RP-initiated logout: Keycloak ends its session and redirects to /bye
+	// with our state. A new sign-in then shows the login form again.
+	logout, err := p.LogoutURL(<-idTokens, app.URL+"/bye", "bye-state")
+	require.NoError(t, err)
+	resp, err = browser.Get(logout)
+	require.NoError(t, err)
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(body))
+	require.Equal(t, "logged out", string(body), "Keycloak did not redirect to post_logout_redirect_uri")
+	select {
+	case state := <-loggedOut:
+		assert.Equal(t, "bye-state", state)
+	case <-time.After(5 * time.Second):
+		t.Fatal("post-logout redirect never reached the app")
+	}
+
+	resp, err = browser.Get(app.URL + "/auth/oidc/")
+	require.NoError(t, err)
+	page, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	assert.Regexp(t, `id="kc-form-login"`, string(page), "Keycloak session survived logout")
 }
 
 // A CLI signs in with the device flow. The test plays the person: it opens

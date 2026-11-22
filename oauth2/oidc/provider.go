@@ -47,6 +47,10 @@ const NonceCookieName = "oidc_nonce"
 // discovery document lists no device_authorization_endpoint.
 var ErrNoDeviceEndpoint = errors.New("oidc: provider has no device_authorization_endpoint")
 
+// ErrNoEndSessionEndpoint is returned by LogoutURL when the provider's
+// discovery document lists no end_session_endpoint.
+var ErrNoEndSessionEndpoint = errors.New("oidc: provider has no end_session_endpoint")
+
 // Config configures a Provider. Issuer, ClientID and HandleUser are
 // required. CallbackURL is required for the browser flow and unused by
 // the device flow.
@@ -303,4 +307,40 @@ func randomToken() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// LogoutURL returns the URL that ends the person's session at the provider
+// (OpenID Connect RP-Initiated Logout 1.0 §2). Clear the app's own session
+// first, then redirect the browser here.
+//
+// idTokenHint is the raw ID token from sign-in. HandleUser receives it as
+// token.Extra("id_token"), so keep it with the session if you plan to log
+// out. Most providers want it, and some refuse a post-logout redirect
+// without it. postLogoutRedirectURI must be registered with the provider.
+// state comes back on that redirect. Empty arguments are left out of the
+// URL. client_id is always sent.
+//
+// It returns ErrNoEndSessionEndpoint when discovery listed no
+// end_session_endpoint.
+func (p *Provider) LogoutURL(idTokenHint, postLogoutRedirectURI, state string) (string, error) {
+	if p.meta.EndSessionEndpoint == "" {
+		return "", ErrNoEndSessionEndpoint
+	}
+	u, err := url.Parse(p.meta.EndSessionEndpoint)
+	if err != nil {
+		return "", fmt.Errorf("oidc: end_session_endpoint: %w", err)
+	}
+	q := u.Query()
+	q.Set("client_id", p.cfg.ClientID)
+	for k, v := range map[string]string{
+		"id_token_hint":            idTokenHint,
+		"post_logout_redirect_uri": postLogoutRedirectURI,
+		"state":                    state,
+	} {
+		if v != "" {
+			q.Set(k, v)
+		}
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }
