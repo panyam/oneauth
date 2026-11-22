@@ -81,7 +81,7 @@ Result after `make authlete-provision`: **6 PASS + 1 SKIP** (the JWT-sub interop
 |---|---|---|
 | `AUTHLETE_SERVICEID` | Numeric service identifier (your tenant) | Container back-channel |
 | `AUTHLETE_ACCESS_TOKEN` | Service Access Token (Bearer auth to Authlete cloud) | Container back-channel |
-| `AUTHLETE_CLIENTID` | OAuth client identifier — **alias if one is set, else numeric** | Tests (token endpoint) |
+| `AUTHLETE_CLIENTID` | OAuth client identifier — **alias if one is set, else numeric**. Use the test client (`TestClientId`). `make authlete-provision` registers `oneauth-test-introspector` for its own use, and that client has no RAR types, so the suite fails with `A493304` under it. | Tests (token endpoint) |
 | `AUTHLETE_CLIENTSECRET` | OAuth client secret | Tests (token + introspection) |
 | `AUTH_API_SERVER` | Authlete cloud cluster your service is on. Defaults to `https://us.authlete.com`; set `jp`, `eu` or `br.authlete.com` for a service there. `upauthlete` checks it first and names the problem on a 404 or 403. | Container back-channel |
 | `AUTHLETE_AS_URL` | Frontend base URL — defaults `http://localhost:8280`; set by `make testauthlete` | Tests |
