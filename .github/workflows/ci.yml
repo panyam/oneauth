@@ -11,13 +11,13 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  # gofmt, the build, and the conformance tooling's own tests, which are
+  # quick and don't need to wait on the test matrix.
+  lint:
     runs-on: ubuntu-latest
     steps:
       # Pin actions by SHA to prevent supply chain attacks (CVE-2025-30066)
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 0 # needed for gitleaks to scan commit history
 
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
@@ -44,17 +44,6 @@ jobs:
             (cd $mod && go build ./...)
           done
 
-      # Test all modules with race detector
-      - name: Test (core)
-        run: go test -race -count=1 -short ./...
-
-      - name: Test (sub-modules)
-        run: |
-          for mod in stores/gorm stores/gae grpc oauth2 cmd/oneauth-server cmd/oneauth docs/site; do
-            echo "Testing $mod..."
-            (cd $mod && go test -race -count=1 -short ./...)
-          done
-
       # The harness client and the FAPI 2.0 exercise's plan config. The
       # tests that drive a live harness skip when it isn't running.
       - name: Test (OIDF conformance tooling)
@@ -71,10 +60,18 @@ jobs:
       - name: Test (conformance tooling)
         run: make conformance-check
 
-  # Every module's tests on Windows. No -race, since the race detector
-  # needs cgo there. See issues 502 and 505.
-  windows:
-    runs-on: windows-latest
+  # Every module's tests, on Linux and Windows, with the root module and the
+  # sub-modules as separate jobs so all four run at once. Linux runs with
+  # -race. Windows runs without it, since the race detector needs cgo there
+  # (issues 502 and 505).
+  test:
+    name: test (${{ matrix.os }}, ${{ matrix.group }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        group: [core, sub-modules]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -82,15 +79,26 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Test (core)
-        run: go test -count=1 -short ./...
+      # Each job compiles a different set of packages, so each keeps its own
+      # rolling build cache, saved from main.
+      - uses: panyam/ci-actions/go-build-cache@v0.1.4
+        with:
+          key: test-${{ matrix.group }}
 
-      - name: Test (sub-modules)
+      - name: Test (${{ matrix.group }})
         shell: bash
+        env:
+          GROUP: ${{ matrix.group }}
         run: |
+          race=""
+          if [ "$RUNNER_OS" = "Linux" ]; then race="-race"; fi
+          if [ "$GROUP" = "core" ]; then
+            go test $race -count=1 -short ./...
+            exit
+          fi
           for mod in stores/gorm stores/gae grpc oauth2 cmd/oneauth-server cmd/oneauth docs/site; do
             echo "Testing $mod..."
-            (cd $mod && go test -count=1 -short ./...) || fail=1
+            (cd $mod && go test $race -count=1 -short ./...) || fail=1
           done
           exit ${fail:-0}
 
