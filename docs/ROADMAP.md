@@ -232,7 +232,7 @@ A FAPI client logs in with `response_mode=jwt` against oneauth and against Keycl
 | 548 | `make exercise-jarm`, and `oneauth token browser --response-mode` (issue 410) | Merged |
 | 551 | The AS signs `jwt`, `query.jwt`, `fragment.jwt` and `form_post.jwt` responses with its key, through PAR too (issue 411) | Merged |
 | 552 | The SDK verifies them against the JWKS, `iss`, `aud` and `exp` before the code exchange (issue 412) | Merged |
-| this PR | `authorization_signed_response_alg` through DCR, every app store, CIMD, the SDK and the CLI (issue 413) | Open |
+| 556 | `authorization_signed_response_alg` through DCR, every app store, CIMD, the SDK and the CLI (issue 413) | In review |
 
 Not done: encrypted responses, and PS256 with an RSA key (the JWKS lists the key under RS256 only).
 
