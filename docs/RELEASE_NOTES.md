@@ -5,6 +5,32 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.20
+
+This release adds two helpers to the `oauth2` module for apps that sign people in with GitHub or Entra ID. `GitHubHostsFor` maps a GitHub API root to the hosts and endpoints a sign-in needs. `AllowList.Resolve` fetches an Entra user's groups from Microsoft Graph when the ID token leaves them out. ID tokens now carry a `jti`, and Keycloak verifies oneauth's PS256 ID tokens in the interop suite. `make release` now bumps the test modules too, so `make testkcl` works after a release without a manual fix.
+
+### Contract changes
+
+- **New `oauth2.GitHubHostsFor(api)` and `oauth2.GitHubHosts` (issue 554, PR 561).** Give it an API root for github.com, a GitHub Enterprise Server host (`<host>/api/v3`) or GHE.com (`api.<tenant>.ghe.com`). It returns the web host, the API root, the OAuth endpoint with the device flow, and the `/user` URL. It refuses a non-https URL unless the host is loopback, and it refuses credentials, a query or a fragment. `SetEnterpriseURL` uses it and sets the same URLs as before.
+- **New `oidc.AllowList.Decide`, `Decision` and `Rule` (issue 555, PR 561).** `Decide` says which rule let a person in: subject, email domain, hosted domain or group. It sets `GroupsOverage` when Entra left `groups` out because the person is in too many. `Allows` still returns a bool and delegates to it.
+- **New `oidc.AllowList.HostedDomains` (issue 555, PR 561).** It matches Google's `hd` claim.
+- **New `oidc.AllowList.Resolve`, `GroupsSource` and `EntraGroups` (issue 555, PR 561).** `Resolve` calls the source only when nothing matched, overage is set, and the list has groups. `EntraGroups` posts to Graph's `/me/getMemberObjects` with the sign-in's access token. When the source fails, `Resolve` refuses and returns the error.
+- **ID tokens carry a random `jti` (issue 563, PR 565).** It's 32 random bytes, hex encoded, and new on every token. A relying party that takes the ID token as an RFC 7523 assertion can now refuse a replay. Keycloak's JWT Authorization Grant needs one unless its identity provider allows reuse.
+
+### Interop and conformance (issue 558, PR 562)
+
+- The OIDF FAPI 2.0 plan's first client registers a PS256 key, and the second keeps ES256. The harness now runs `ensure-signed-client-assertion-with-RS256-fails`, and it passes. The plan is at 46 of 52 modules passed, with 4 in review and 2 warnings, all accepted gaps.
+- `TestKeycloak_VerifiesOneauthPS256IDToken` has Keycloak 26.6 exchange a oneauth PS256 ID token through its JWT Authorization Grant. Keycloak refuses the same claims under another key, as RS256, or a second time.
+
+### Release tooling (issue 553, PR 564)
+
+- `make release` moves the oneauth requires in the unpublished modules (`tests/*`, `docs/site`) to the new version. Before, `tests/keycloak` fell one version behind at each release, and `make testkcl` stopped at `updates to go.mod needed`.
+- `verify-submodule-deps` checks that every unpublished module resolves with `GOWORK=off`. `make test` runs it, and CI's lint job now does too.
+
+### CI (PR 560)
+
+- The core and sub-module tests run as a parallel matrix of OS and group.
+
 ## Version 0.3.19
 
 This release adds PS256 as an authorization-server signing algorithm, which FAPI 2.0 allows where RS256 isn't. The client SDK and CLI now carry every client metadata field the DCR endpoint does. Relative links on the docsite stop 404ing.
