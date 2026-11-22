@@ -14,6 +14,16 @@ import (
 // caller can tell "the user walked away" from "we gave up".
 var ErrLoginTimeout = errors.New("login timed out")
 
+// ErrUnverifiedAuthorizationResponse is returned by LoginWithBrowser when
+// BrowserLoginRequest.ResponseMode asks for a signed (JARM) response and
+// the callback did not deliver one it could verify. A plain `code` on the
+// callback means the AS ignored the mode, and accepting it would let an
+// attacker strip the signature. The code is never exchanged. The returned
+// error wraps it with the reason, so match it with errors.Is.
+//
+// See: https://openid.net/specs/oauth-v2-jarm.html#section-4.4
+var ErrUnverifiedAuthorizationResponse = errors.New("unverified authorization response")
+
 // AuthorizeError is an error response from the authorization endpoint
 // itself, before any redirect back to the client: the AS refused to start
 // the flow, e.g. an unknown client_id or an unregistered redirect_uri

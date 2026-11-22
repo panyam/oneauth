@@ -1,0 +1,38 @@
+# The JARM mission's exercise server (issue 409): `make exercise-jarm`
+# starts it and logs in with response_mode=jwt (scripts/exercise-jarm.sh).
+#
+# It runs the code flow with an ephemeral ES256 key, so the JWKS a client
+# checks a signed response against is the one access tokens verify
+# against. Open DCR lets the exercise register its loopback client, and
+# the signup form gives it a user to approve consent as. All state is in
+# memory.
+#
+# It has no JARM setting yet. Issue 411 adds one, and until then the
+# server refuses response_mode=jwt with invalid_request.
+#
+# Usage:
+#   oneauth-server --config deploy-examples/jarm.yaml
+
+server:
+  port: ${JARM_AS_PORT:-18500}
+  host: 127.0.0.1
+  public_url: http://localhost:${JARM_AS_PORT:-18500}
+
+keystore:
+  type: memory
+
+user_stores:
+  type: memory
+
+jwt:
+  issuer: ""
+  signing_alg: ES256
+  ephemeral_signing_key: true
+  secret_key: ${JWT_SECRET_KEY:-jarm-exercise-session-secret-32by}
+
+admin_auth:
+  type: none    # the exercise registers its client through open DCR
+  allow_open: true
+
+code_flow:
+  enabled: true

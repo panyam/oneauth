@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/panyam/oneauth/client"
+	"github.com/panyam/oneauth/testutil"
 )
 
 // sharedIDTokenClaims are the claims both oneauth and Keycloak put in a
@@ -29,7 +30,7 @@ func TestKeycloakOIDC_SDKVerifiesTheIDToken(t *testing.T) {
 	meta, err := client.DiscoverAS(realmURL())
 	require.NoError(t, err)
 
-	req, _ := headlessLoginRequest(t, confidentialClientID, keycloakPasswordLogin(t, testUsername, testPassword))
+	req, _ := headlessLoginRequest(t, confidentialClientID, testutil.KeycloakPasswordLogin(nil, testUsername, testPassword))
 	req.ClientSecret = confidentialClientSecret
 	req.VerifyIDToken = true
 

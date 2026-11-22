@@ -814,6 +814,14 @@ exercise-oidcdyn:
 exercise-mcpauth:
 	@set -e; for s in $(or $(SDK),gosdk mcpkit ts as); do ./scripts/exercise-mcpauth.sh $$s; done
 
+# Issue 410: the JARM mission's exercise (issue 409). A headless
+# `oneauth token browser --response-mode jwt` login against oneauth-server
+# and the test Keycloak realm, printing the decoded response JWT. MODE=
+# overrides jwt. See scripts/exercise-jarm.sh.
+exercise-jarm:
+	@$(MAKE) --no-print-directory upkcl KC_PORT=$(KC_PORT)
+	KC_PORT=$(KC_PORT) MODE="$(MODE)" ./scripts/exercise-jarm.sh
+
 # Issue 494: oidcc-test-plan on :8892 with AUTH's client auth method, or each
 # of OIDCCTP_AUTH_TYPES in turn when AUTH is unset. MODULE=<substring> as above.
 exercise-oidcctp:
@@ -1079,7 +1087,7 @@ audit: vulncheck secrets
 	build install \
 	unit postgres datastore keycloak zap lint secrets vulncheck \
 	up-all down-all ps-all logs-all updb downdb dblogs testpg upds downds dslogs testds testrealDS fmt fmtcheck server-css \
-	upkcl downkcl kcllogs testkcl upauthlete downauthlete authletelogs uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report gapcheck deploygae gaelogs integ docs \
+	upkcl downkcl kcllogs testkcl upauthlete downauthlete authletelogs uprar downrar upoidf downoidf upoidf-as oidflogs exercise-fapi2 exercise-oidcc exercise-oidccfp exercise-oidcci exercise-oidccfpi exercise-oidcdyn exercise-oidcctp exercise-jarm testoidf testoidf-config oidf-discovery-up conformance conformance-check conformance-report gapcheck deploygae gaelogs integ docs \
 	setup-tools setup-hooks setup ball tallmods tidy tidy-all release pushrelease verify-install testgh \
 	deps tag pushtag seccheck verify-submodule-deps \
 	cover cover-html cover-func cover-all

@@ -21,6 +21,7 @@ type browserFlags struct {
 	noBrowser    bool
 	timeout      time.Duration
 	verifyID     bool
+	responseMode string
 }
 
 func newBrowserCommand(tf *tokenFlags) *cobra.Command {
@@ -38,7 +39,11 @@ useful for SSH sessions where the browser lives on a different host.
 
 With --verify-id-token, the login is an OpenID Connect one: openid is
 added to the scopes, a nonce goes on the request, and the ID token must
-verify against the issuer's JWKS before the token is printed.`,
+verify against the issuer's JWKS before the token is printed.
+
+--response-mode sets response_mode on the authorization request. The
+JARM modes (jwt, query.jwt, ...) ask for a signed response, which the
+CLI can't verify yet, so it refuses the response and prints why.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBrowser(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0], tf, bf)
@@ -52,6 +57,7 @@ verify against the issuer's JWKS before the token is printed.`,
 	cmd.Flags().BoolVar(&bf.noBrowser, "no-browser", false, "print the auth URL to stderr instead of opening a browser")
 	cmd.Flags().DurationVar(&bf.timeout, "timeout", 5*time.Minute, "how long to wait for the browser callback")
 	cmd.Flags().BoolVar(&bf.verifyID, "verify-id-token", false, "OpenID Connect login: require and verify an ID token (adds openid)")
+	cmd.Flags().StringVar(&bf.responseMode, "response-mode", "", `response_mode for the authorization request (e.g., "query", "jwt")`)
 	_ = cmd.MarkFlagRequired("client-id")
 	return cmd
 }
@@ -82,6 +88,7 @@ func browserLoginRequest(bf *browserFlags, stderr io.Writer) *client.BrowserLogi
 		CallbackPort:  bf.callbackPort,
 		Timeout:       bf.timeout,
 		VerifyIDToken: bf.verifyID,
+		ResponseMode:  bf.responseMode,
 	}
 	if bf.noBrowser {
 		req.OpenBrowser = printAuthURL(stderr)

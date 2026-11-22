@@ -29,6 +29,7 @@ import (
 	"github.com/panyam/oneauth/client"
 	"github.com/panyam/oneauth/tests/mcpauth/asflow"
 	"github.com/panyam/oneauth/tests/mcpauth/judge"
+	"github.com/panyam/oneauth/testutil"
 )
 
 // Plan names the run in known-gaps.yaml and in its run record.
@@ -65,7 +66,7 @@ func main() {
 
 	jar, _ := cookiejar.New(nil)
 	hc := &http.Client{Jar: jar, Timeout: 30 * time.Second}
-	if err := asflow.SignUp(hc, *asURL, "mcp-as@example.com", "mcp-as-exercise-password-1"); err != nil {
+	if err := testutil.SignUp(hc, *asURL, "mcp-as@example.com", "mcp-as-exercise-password-1"); err != nil {
 		log.Fatalf("sign up the exercise user: %v", err)
 	}
 	redirect := fmt.Sprintf("http://127.0.0.1:%d/callback", *port)
