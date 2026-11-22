@@ -15,6 +15,7 @@ package keycloak_test
 // See: https://www.rfc-editor.org/rfc/rfc7523#section-2.1
 // See: https://www.rfc-editor.org/rfc/rfc8017#section-8.1
 // See: https://github.com/panyam/oneauth/issues/558
+// See: https://github.com/panyam/oneauth/issues/563
 
 import (
 	"bytes"
@@ -78,6 +79,18 @@ func TestKeycloak_VerifiesOneauthPS256IDToken(t *testing.T) {
 		claims := parseJWTClaims(t, tok.AccessToken)
 		assert.Equal(t, realmURL(), claims["iss"])
 		assert.Equal(t, grant.userID, claims["sub"], "the token is for the user linked to the oneauth subject")
+	})
+
+	// Keycloak records each assertion's jti and refuses it a second time.
+	// It needs the jti oneauth puts on every ID token (issue 563).
+	t.Run("replay refused", func(t *testing.T) {
+		idToken := mint()
+		assert.NotEmpty(t, parseJWTClaims(t, idToken)["jti"])
+		status, body := grant.exchange(t, idToken)
+		require.Equal(t, http.StatusOK, status, body)
+		status, body = grant.exchange(t, idToken)
+		assert.Equal(t, http.StatusBadRequest, status, body)
+		assert.Contains(t, body, "invalid_grant")
 	})
 
 	// The same claims under another key, or as RS256 under the right key,
@@ -160,9 +173,6 @@ func setupJWTGrant(t *testing.T, pub *rsa.PublicKey) jwtGrant {
 			"allowClientIdAsAudience":      "true",
 			"jwtAuthorizationGrantEnabled": "true",
 			"jwtAuthorizationGrantAssertionSignatureAlg": "PS256",
-			// oneauth's ID tokens carry no jti, which Keycloak needs to
-			// refuse a replay. The test mints a fresh token per case anyway.
-			"jwtAuthorizationGrantAssertionReuseAllowed": "true",
 		},
 	}, http.StatusCreated)
 	t.Cleanup(func() {
