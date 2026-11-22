@@ -6,11 +6,11 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 ## At a glance
 
 - Active mission: JARM (#409), at 0/4 tickets. Next ready is #410, which makes `make exercise-jarm` runnable. Its exercise hasn't run yet.
-- No open threads. Release v0.3.16 carries `TrustedProxies.IsHTTPS` (PR #544, issue 541) and `oauth2/oidc` (PR #545, issue 542). Both were off-mission pushdowns for agni issues 1810 and 1811.
-- This run: no threads to drop. feat/541-is-https and feat/542-oidc-signin merged and were deleted.
+- No open threads. PR 547 (issue 546, off-mission) merged after v0.3.16 and is unreleased: GitHub/Google callbacks use `VerifyState`, and `oidc.Provider.LogoutURL` adds RP-initiated logout.
+- This run: feat/546-oauth2-logout merged and was deleted.
 
 ## Across threads
 
 - Token-slice candidates not filed: real logout tokens / ID-JAGs at the middleware (e2e), GORM rotation under real Postgres concurrency, a test on the server's own `/api/revoke`, the SDK on 403.
 - OAuch runs by hand (`docs/conformance/oauch.md`). Rerun it after a change to security headers or the authorization pages, and update the `oauch` entry in `conformance/suites.yaml`.
-- A Keycloak container started before v0.3.16 has the old realm, and the `oauth2/oidc` interop tests fail on it with `invalid_scope`. Run `make downkcl` before `make testkcl`.
+- `realm.json` changed in PRs 545 and 547. A Keycloak container started before PR 547 has the old realm, and the `oauth2/oidc` interop tests fail on it. Run `make downkcl` before `make testkcl`.
