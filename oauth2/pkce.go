@@ -45,11 +45,11 @@ func GenerateCodeVerifier() (string, error) {
 }
 
 // computeCodeChallenge inlines the RFC 7636 §4.2 S256 transformation
-// for use by this sub-module's cookie helpers. Duplicates
+// for use by this package's cookie helpers. Duplicates
 // core.ComputeCodeChallenge (kept tiny and stable to avoid drift) so
-// the oauth2/ sub-module stays free of a dep on the root module —
-// downstream consumers of oauth2 (client-only browser apps) don't need
-// to pull in core's server-side surface.
+// this package imports nothing from the root module, and an app using
+// only GitHub or Google compiles none of it. oauth2/oidc does import
+// the root module.
 func computeCodeChallenge(verifier string) string {
 	hash := sha256.Sum256([]byte(verifier))
 	return base64.RawURLEncoding.EncodeToString(hash[:])

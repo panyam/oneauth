@@ -93,3 +93,28 @@ func oauthRedirectWithPKCE(oauthConfig *oauth2.Config, w http.ResponseWriter, r 
 	)
 	http.Redirect(w, r, oauthConfig.AuthCodeURL(oauthState, opts...), http.StatusFound)
 }
+
+// RedirectWithPKCE starts an authorization code flow from a handler: it
+// sets the oauthstate, PKCE verifier and (from ?callbackURL=) callback
+// cookies, then redirects to cfg's authorize URL with an S256
+// code_challenge. opts add parameters to the authorize URL, such as an
+// OpenID Connect nonce. A provider outside this package, like
+// oauth2/oidc, uses it so every provider sets the same cookies.
+func RedirectWithPKCE(cfg *oauth2.Config, w http.ResponseWriter, r *http.Request, opts ...oauth2.AuthCodeOption) {
+	oauthRedirectWithPKCE(cfg, w, r, opts...)
+}
+
+// VerifyState reports whether the callback's state parameter equals the
+// oauthstate cookie RedirectWithPKCE set. A missing cookie or a mismatch
+// is false, and a mismatch also clears the cookie so a retry starts over.
+func VerifyState(w http.ResponseWriter, r *http.Request) bool {
+	c, err := r.Cookie("oauthstate")
+	if err != nil || c.Value == "" {
+		return false
+	}
+	if r.FormValue("state") != c.Value {
+		http.SetCookie(w, &http.Cookie{Name: "oauthstate", Path: "/", MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
+		return false
+	}
+	return true
+}
