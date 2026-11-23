@@ -69,7 +69,16 @@ work=$(mktemp -d)
 server_log=/tmp/oneauth-mcpauth-$sdk-server.log
 fixture_log=/tmp/oneauth-mcpauth-$sdk-fixture.log
 pids=()
-cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$work"; }
+# kill_tree stops a process and its descendants. The ts fixture runs under
+# pnpm, which starts node, and tsx starts another node. On Linux pnpm doesn't
+# pass the signal on, so killing pnpm alone left node holding :18300 for the
+# next suite (issue 571).
+kill_tree() {
+  local child
+  for child in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$child"; done
+  kill "$1" 2>/dev/null || true
+}
+cleanup() { for p in "${pids[@]}"; do kill_tree "$p"; done; rm -rf "$work"; }
 trap cleanup EXIT
 
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$work/signing.pem" 2>/dev/null

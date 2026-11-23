@@ -70,9 +70,15 @@ jobs:
           AUTHLETE_CLIENTSECRET: ${{ secrets.AUTHLETE_CLIENTSECRET }}
         run: make conformance
 
+      # The server logs go under test-reports/, so every path in the
+      # artifact stays relative to the checkout. pages.yml copies the
+      # artifact's docs/conformance/ over its own to publish the report.
       - name: Report
         if: always()
-        run: cat docs/conformance/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          cat docs/conformance/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p test-reports/server-logs
+          cp /tmp/oneauth-*.log test-reports/server-logs/ 2>/dev/null || true
 
       - name: Keep the logs and the report
         if: always()
@@ -82,7 +88,47 @@ jobs:
           path: |
             test-reports/conformance/
             test-reports/oauch/
+            test-reports/server-logs/
             docs/conformance/report.json
             docs/conformance/REPORT.md
-            /tmp/oneauth-*.log
           retention-days: 14
+
+  # One tracking issue, labeled conformance-nightly. A failed nightly or
+  # manual run opens it, or comments on it when it's already open, listing
+  # the suites that failed. The next green run closes it.
+  notify:
+    needs: conformance
+    if: always() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: conformance
+          path: nightly
+
+      - name: Open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULT: ${{ needs.conformance.result }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          issue=$(gh issue list --label conformance-nightly --state open --json number --jq '.[0].number // empty')
+          if [ "$RESULT" = success ]; then
+            if [ -n "$issue" ]; then gh issue close "$issue" --comment "Conformance passes again: $run_url"; fi
+            exit 0
+          fi
+          failing=$(jq -r '.suites[] | select(.result == "FAIL") | "- `\(.name)` (\(.kind)): \(.detail)"' nightly/docs/conformance/report.json 2>/dev/null || true)
+          [ -n "$failing" ] || failing="- No suite reported FAIL, so the job itself stopped ($RESULT). The run's log says where."
+          body=$(printf 'The %s conformance run on %s ended with %s.\n\n%s\n\nRun: %s\nThe artifact `conformance` holds each suite'"'"'s log.\n' "$GITHUB_EVENT_NAME" "${GITHUB_SHA:0:7}" "$RESULT" "$failing" "$run_url")
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "$body"
+          else
+            gh label create conformance-nightly --color B60205 --description "Opened and closed by the nightly conformance run" --force
+            gh issue create --title "Nightly conformance is failing" --label conformance-nightly --label P1 --body "$body"
+          fi

@@ -14,9 +14,16 @@ on:
       - 'README.md'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
+  # A finished nightly or manual conformance run republishes the site with
+  # that run's report (issue 571).
+  workflow_run:
+    workflows: [Conformance]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: pages-${{ github.ref }}
@@ -24,9 +31,34 @@ concurrency:
 
 jobs:
   build:
+    # A conformance run on a PR doesn't publish.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.event != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # The run's artifact holds docs/conformance/ as that run left it. It
+      # unpacks outside the checkout, and only the two report files come in,
+      # so the artifact can't replace anything else the build reads. When
+      # the run left no artifact, the site keeps the committed report.
+      - name: Download the conformance run's artifact
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: conformance
+          path: ${{ runner.temp }}/conformance
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Take its report
+        if: github.event_name == 'workflow_run'
+        env:
+          SRC: ${{ runner.temp }}/conformance/docs/conformance
+        run: |
+          for f in REPORT.md report.json; do
+            if [ -f "$SRC/$f" ] && [ ! -L "$SRC/$f" ]; then cp "$SRC/$f" "docs/conformance/$f"; fi
+          done
 
       - uses: actions/setup-go@v5
         with:
@@ -43,7 +75,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_run'
     needs: build
     runs-on: ubuntu-latest
     steps:
