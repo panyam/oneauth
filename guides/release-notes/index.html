@@ -198,9 +198,34 @@
 <blockquote>
 <p>0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.</p>
 </blockquote>
+<h2 id="version-0321">Version 0.3.21 <a class="anchor" href="#version-0321">¶</a></h2>
+<p>This release adds <code>oauth2/oidc/oidctest</code>, a fake OpenID Provider for testing an app&rsquo;s sign-in wiring. It also fixes a device-flow bug the fake found. A denied CLI sign-in through <code>oauth2/oidc</code> kept polling until the device code expired. The OAuch security analysis now runs in <code>make conformance</code>, so no conformance suite is left to run by hand.</p>
+<h3 id="contract-changes">Contract changes <a class="anchor" href="#contract-changes">¶</a></h3>
+<ul>
+<li><strong>New package <code>oauth2/oidc/oidctest</code> (issue 566, PR 568).</strong> <code>oidctest.New(t, oidctest.WithClient(id, secret, redirectURIs...))</code> starts a fake issuer on an <code>httptest.Server</code>.
+<ul>
+<li>It serves discovery, an RS256 JWKS, the code flow with S256 PKCE, the device flow (RFC 8628), RP-initiated logout and a Graph <code>getMemberObjects</code> route.</li>
+<li><code>AddUser</code> makes a person, and <code>SignInAs</code> picks who the next <code>/authorize</code> signs in. <code>Approve(userCode, sub)</code> and <code>Deny</code> answer a device code.</li>
+<li><code>WithGroupsOverage</code> leaves <code>groups</code> out of ID tokens the way Entra ID does. <code>EntraGroups{GraphURL: iss.GraphURL()}</code> resolves them through the fake.</li>
+<li><code>WithDiscovery</code>, <code>WithIDTokenClaims</code> and <code>WithTokenResponse</code> edit what the fake sends, for negative tests.</li>
+<li>The fake redirects only to a registered URI that matches exactly. It answers <code>slow_down</code> to a device poll that comes sooner than its interval, as Keycloak does.</li>
+</ul>
+</li>
+<li><strong><code>oidc.New</code> sets the token endpoint&rsquo;s auth style from discovery (PR 568).</strong> Before, <code>x/oauth2</code> probed. It resent every failed token request in the other auth style straight away. In the device flow every pending or denied poll fails, so each poll went out twice. Keycloak answered the second copy with <code>slow_down</code>. A denied sign-in then polled until the code expired, and a pending one waited 5 seconds longer on every poll.
+<ul>
+<li>Now <code>oidc.New</code> picks the style through <code>client.SelectAuthMethod</code> from <code>token_endpoint_auth_methods_supported</code>, as <code>LoginWithBrowser</code> does.</li>
+<li>Token requests now go out in one style. A provider that advertises <code>client_secret_basic</code> but only accepts the secret in the form body would now fail. Keycloak, Entra ID, Okta and Google all accept Basic.</li>
+</ul>
+</li>
+</ul>
+<h3 id="interop-and-conformance">Interop and conformance <a class="anchor" href="#interop-and-conformance">¶</a></h3>
+<ul>
+<li><code>tests/keycloak/oidctest_parity_test.go</code> sends the same code-flow and device-flow requests to <code>oidctest</code> and to Keycloak. It checks that both give the same error codes (PR 568). <code>TestKeycloakOIDCSignIn_DeviceFlowDenied</code> covers the denied CLI sign-in against Keycloak.</li>
+<li><code>tests/oauch</code> drives OAuch&rsquo;s dashboard with playwright-go (issue 567, PR 569). It imports a site, runs the test set, handles each popup, waits out the timed tests, and checks every result against <code>tests/oauch/expected.yaml</code>. A test missing from the file that doesn&rsquo;t pass fails the suite. <code>oauch</code> moves from <code>manual</code> to <code>info</code> in <code>conformance/suites.yaml</code>. The first automated run reports 133 tests, with 87 passed and 46 known.</li>
+</ul>
 <h2 id="version-0320">Version 0.3.20 <a class="anchor" href="#version-0320">¶</a></h2>
 <p>This release adds two helpers to the <code>oauth2</code> module for apps that sign people in with GitHub or Entra ID. <code>GitHubHostsFor</code> maps a GitHub API root to the hosts and endpoints a sign-in needs. <code>AllowList.Resolve</code> fetches an Entra user&rsquo;s groups from Microsoft Graph when the ID token leaves them out. ID tokens now carry a <code>jti</code>, and Keycloak verifies oneauth&rsquo;s PS256 ID tokens in the interop suite. <code>make release</code> now bumps the test modules too, so <code>make testkcl</code> works after a release without a manual fix.</p>
-<h3 id="contract-changes">Contract changes <a class="anchor" href="#contract-changes">¶</a></h3>
+<h3 id="contract-changes-1">Contract changes <a class="anchor" href="#contract-changes-1">¶</a></h3>
 <ul>
 <li><strong>New <code>oauth2.GitHubHostsFor(api)</code> and <code>oauth2.GitHubHosts</code> (issue 554, PR 561).</strong> Give it an API root for github.com, a GitHub Enterprise Server host (<code>&lt;host&gt;/api/v3</code>) or GHE.com (<code>api.&lt;tenant&gt;.ghe.com</code>). It returns the web host, the API root, the OAuth endpoint with the device flow, and the <code>/user</code> URL. It refuses a non-https URL unless the host is loopback, and it refuses credentials, a query or a fragment. <code>SetEnterpriseURL</code> uses it and sets the same URLs as before.</li>
 <li><strong>New <code>oidc.AllowList.Decide</code>, <code>Decision</code> and <code>Rule</code> (issue 555, PR 561).</strong> <code>Decide</code> says which rule let a person in: subject, email domain, hosted domain or group. It sets <code>GroupsOverage</code> when Entra left <code>groups</code> out because the person is in too many. <code>Allows</code> still returns a bool and delegates to it.</li>
@@ -224,7 +249,7 @@
 </ul>
 <h2 id="version-0319">Version 0.3.19 <a class="anchor" href="#version-0319">¶</a></h2>
 <p>This release adds PS256 as an authorization-server signing algorithm, which FAPI 2.0 allows where RS256 isn&rsquo;t. The client SDK and CLI now carry every client metadata field the DCR endpoint does. Relative links on the docsite stop 404ing.</p>
-<h3 id="contract-changes-1">Contract changes <a class="anchor" href="#contract-changes-1">¶</a></h3>
+<h3 id="contract-changes-2">Contract changes <a class="anchor" href="#contract-changes-2">¶</a></h3>
 <ul>
 <li><strong><code>jwt.signing_alg: PS256</code> / <code>OneAuthConfig.SigningAlg: &quot;PS256&quot;</code> (issue 330, PR 559).</strong> An RSA key signs access tokens, ID tokens, JARM responses and signed userinfo with RSASSA-PSS, and the JWKS lists the key as PS256. One key still signs under one algorithm, so an RS256 server can&rsquo;t sign PS256 for a single client.</li>
 <li><strong><code>utils.IsAsymmetricAlg</code> includes PS256 (PR 559).</strong> The JWKS handler publishes PS256 records, the registrar stores PS256 client keys, and <code>DecodeVerifyKey</code> parses them as RSA. Nothing changes for a deployment that never configures PS256.</li>
@@ -259,7 +284,7 @@
 </ul>
 <h2 id="version-0318">Version 0.3.18 <a class="anchor" href="#version-0318">¶</a></h2>
 <p>This release finishes JWT Secured Authorization Response Mode (JARM). A FAPI client can ask for <code>response_mode=jwt</code> and get its authorization response back as one JWT that the AS signs. The client SDK verifies it before it uses the code. <code>make exercise-jarm</code> logs in this way against oneauth-server and against Keycloak, and refuses a response with a tampered signature.</p>
-<h3 id="contract-changes-2">Contract changes <a class="anchor" href="#contract-changes-2">¶</a></h3>
+<h3 id="contract-changes-3">Contract changes <a class="anchor" href="#contract-changes-3">¶</a></h3>
 <ul>
 <li><strong>New optional <code>OneAuthConfig.JARM</code> (PR 551).</strong> Nil, the default, keeps today&rsquo;s behavior, and the JARM modes stay refused with <code>invalid_request</code>. Set, it needs an RS256 or ES256 key, and <code>NewOneAuth</code> panics on an HMAC secret or an empty issuer.</li>
 <li><strong><code>AuthorizationResponse</code> gains <code>Signed</code> and <code>Params()</code> (PR 551).</strong> For a JARM response, <code>Mode</code> is the base delivery mode (<code>query.jwt</code> is <code>ResponseModeQuery</code>), and <code>Params()</code> returns the one <code>response</code> parameter. <code>RedirectURL</code> signs too, and it returns an error when signing fails.</li>
@@ -308,7 +333,7 @@
 </ul>
 <h2 id="version-0317">Version 0.3.17 <a class="anchor" href="#version-0317">¶</a></h2>
 <p>This release lets an app list every API key and sweep the expired ones through the store interface. It also adds OIDC RP-initiated logout, stops the GitHub and Google callbacks from echoing the state cookie, and adds the JARM mission&rsquo;s exercise.</p>
-<h3 id="contract-changes-3">Contract changes <a class="anchor" href="#contract-changes-3">¶</a></h3>
+<h3 id="contract-changes-4">Contract changes <a class="anchor" href="#contract-changes-4">¶</a></h3>
 <ul>
 <li><strong>New optional <code>core.APIKeyAdmin</code> (issue 549, PR 550).</strong> It has <code>ListAPIKeys</code> and <code>CleanupExpiredAPIKeys</code>. <code>APIKeyStore</code> doesn&rsquo;t change, so a custom store still compiles. Callers check for the new interface with a type assertion.</li>
 <li><strong>The gorm <code>APIKeyModel</code> gets an index on <code>expires_at</code> (PR 550).</strong> The next <code>AutoMigrate</code> creates it.</li>
@@ -334,7 +359,7 @@
 </ul>
 <h2 id="version-0316">Version 0.3.16 <a class="anchor" href="#version-0316">¶</a></h2>
 <p>This release adds a sign-in provider for any OpenID Connect identity provider, beside GitHub and Google. It also lets an authorization server behind a TLS-terminating proxy check DPoP proofs and client assertions without pinning its URLs.</p>
-<h3 id="contract-changes-4">Contract changes <a class="anchor" href="#contract-changes-4">¶</a></h3>
+<h3 id="contract-changes-5">Contract changes <a class="anchor" href="#contract-changes-5">¶</a></h3>
 <ul>
 <li><strong><code>oauth2</code> now requires the root module (PR 545).</strong> The new <code>oauth2/oidc</code> package imports <code>client</code> and <code>keys</code> for discovery and ID token checks, so <code>go.sum</code> for an <code>oauth2</code> user lists jwt, fernet and otel. The base <code>oauth2</code> package still imports nothing from oneauth, so an app using only GitHub or Google compiles none of it.</li>
 <li><strong>New optional <code>TrustedProxies</code> fields (PR 544).</strong> These are <code>OneAuthConfig.TrustedProxies</code>, <code>DPoPConfig.TrustedProxies</code>, and the field of that name on <code>IntrospectionHandler</code>, <code>RevocationHandler</code> and <code>PARHandler</code>. <code>NewTokenEndpointHandler</code> copies <code>OneAuth.TrustedProxies</code> into the handler&rsquo;s existing field, which also gates <code>X-Forwarded-For</code> for rate limiting. Empty keeps today&rsquo;s behavior.</li>
@@ -382,7 +407,7 @@
 </ul>
 <h2 id="version-0314">Version 0.3.14 <a class="anchor" href="#version-0314">¶</a></h2>
 <p>This release lets a client use an https URL it controls as its <code>client_id</code>, through Client ID Metadata Documents (CIMD). The MCP authorization spec asks authorization servers to support them. It also adds the MCP conformance framework&rsquo;s authorization-server scenarios to <code>make conformance</code>. Every expected outcome in <code>known-gaps.yaml</code> is now marked as an open gap or an accepted one.</p>
-<h3 id="contract-changes-5">Contract changes <a class="anchor" href="#contract-changes-5">¶</a></h3>
+<h3 id="contract-changes-6">Contract changes <a class="anchor" href="#contract-changes-6">¶</a></h3>
 <ul>
 <li><strong>The token endpoint answers a failed client lookup with an OAuth error instead of 500 (PR 536).</strong> The confidential-client check, the <code>dpop_bound_access_tokens</code> lookup and the registered-scope lookup each turned any lookup error other than &ldquo;not found&rdquo; into <code>server_error</code>. A bad client metadata document now gets <code>invalid_client</code>, and an unreachable one gets 503 <code>temporarily_unavailable</code>. Other store errors are still 500.</li>
 <li><strong>Device authorization passes a lookup error&rsquo;s own status through (PR 536).</strong> Only the CIMD errors carry one, so registered clients see no change.</li>
@@ -413,7 +438,7 @@
 </ul>
 <h2 id="version-0312">Version 0.3.12 <a class="anchor" href="#version-0312">¶</a></h2>
 <p>This release binds access tokens to the RFC 8707 resource a client names, on every grant. It closes the code findings from the OAuch run, adds <code>response_mode=form_post</code>, and lets a user withdraw consent from a connected-apps page. The FS refresh-token store stops keeping tokens in plaintext. Three OIDF plans (Form Post Basic, Implicit and Form Post Implicit) and a third MCP server-auth suite join <code>make conformance</code>.</p>
-<h3 id="contract-changes-6">Contract changes <a class="anchor" href="#contract-changes-6">¶</a></h3>
+<h3 id="contract-changes-7">Contract changes <a class="anchor" href="#contract-changes-7">¶</a></h3>
 <ul>
 <li><strong>Client credentials in the request URI get a 400 (PR 525).</strong> A <code>client_secret</code>, <code>client_assertion</code> or <code>client_assertion_type</code> in the query string of the token, PAR, introspection, revocation or device endpoint is <code>invalid_request</code>. Those endpoints read every other parameter from the body only.</li>
 <li><strong>A repeated parameter gets <code>invalid_request</code> (PR 525).</strong> It used to take the first value. <code>resource</code> and <code>audience</code> may still repeat. At <code>/authorize</code>, a repeated <code>client_id</code> or <code>redirect_uri</code> shows the error page.</li>
@@ -445,7 +470,7 @@
 </ul>
 <h2 id="version-0311">Version 0.3.11 <a class="anchor" href="#version-0311">¶</a></h2>
 <p>This release finishes what the OIDF Dynamic OP plan asked of oneauth: pairwise subjects, runtime signing-key rotation, and an opt-in implicit flow. It also makes logout cut off access tokens, issues ID tokens on the refresh grant, and fixes two security headers that stopped real browsers finishing an authorization with the reference server. The OIDF plans now run nightly in CI, and two MCP server-auth suites join <code>make conformance</code>.</p>
-<h3 id="contract-changes-7">Contract changes <a class="anchor" href="#contract-changes-7">¶</a></h3>
+<h3 id="contract-changes-8">Contract changes <a class="anchor" href="#contract-changes-8">¶</a></h3>
 <ul>
 <li><strong>Custom refresh-token stores should fill <code>RevokeSubjectTokensResponse</code> (PR 517).</strong> It now carries the unexpired access tokens of every revoked family, as <code>RevokeTokenFamilyResponse</code> already did. Logout-all and password reset blacklist them. A store that returns the empty struct still compiles, but its access tokens keep working until they expire.</li>
 <li><strong>New stored client and token fields (PRs 513, 515, 517).</strong> Apps gain <code>subject_type</code>, <code>sector_identifier_uri</code>, <code>response_types</code> and <code>userinfo_signed_response_alg</code>, and refresh tokens gain the login&rsquo;s OIDC context (<code>RefreshToken.OIDC</code>). GORM adds the columns through <code>AutoMigrate</code>, and GAE adds unindexed properties. Old rows read them as empty.</li>
@@ -479,7 +504,7 @@
 </ul>
 <h2 id="version-0310">Version 0.3.10 <a class="anchor" href="#version-0310">¶</a></h2>
 <p>This release fixes the GitHub and Google sign-in providers in the <code>oauth2</code> module, which agni needs for Sign in with GitHub. It also lets a <code>private_key_jwt</code> client register a <code>jwks_uri</code> and puts the client&rsquo;s logo, policy and terms on the consent page. Two changes alter what a consumer sees, and both are listed under contract changes.</p>
-<h3 id="contract-changes-8">Contract changes <a class="anchor" href="#contract-changes-8">¶</a></h3>
+<h3 id="contract-changes-9">Contract changes <a class="anchor" href="#contract-changes-9">¶</a></h3>
 <ul>
 <li><strong>A userinfo answer other than 200 fails the sign-in (PR 512).</strong> GitHub answers a bad token with 401 and a JSON body, and that body used to reach <code>HandleUser</code> as the person&rsquo;s profile. The Google and GitHub callbacks now redirect to <code>AuthFailureUrl</code> instead. A fake provider in tests that answers 201 or similar will now fail.</li>
 <li><strong>Five new <code>app_registrations</code> columns (PR 509).</strong> GORM adds them through <code>AutoMigrate</code>, and GAE adds five unindexed properties. Old rows read them as empty.</li>
@@ -501,7 +526,7 @@
 </ul>
 <h2 id="version-039">Version 0.3.9 <a class="anchor" href="#version-039">¶</a></h2>
 <p>The whole repo&rsquo;s tests now run on Windows. That run found two bugs in the FS stores, and this release fixes both. It also adds <code>make conformance</code>, which runs every conformance suite from one command and publishes a report. One change alters what a consumer sees, and it&rsquo;s listed under contract changes.</p>
-<h3 id="contract-changes-9">Contract changes <a class="anchor" href="#contract-changes-9">¶</a></h3>
+<h3 id="contract-changes-10">Contract changes <a class="anchor" href="#contract-changes-10">¶</a></h3>
 <ul>
 <li><strong>FS stores refuse a key whose file holds another key (issue 505, PR 506).</strong> The FS stores turn <code>/</code>, <code>\</code> and <code>:</code> in a key into <code>_</code> to build a file name. So user ID <code>a/b</code> used to read, overwrite or delete the record for <code>a_b</code>. On Windows and on a default macOS volume, <code>Alice</code> did the same to <code>alice</code>. The user, username, app, key, kid and API key stores now check the key inside the file before they read, write or delete it, and return <code>fs.ErrKeyCollision</code> when it differs. The identity and channel stores already did this (issue 88).</li>
 </ul>
@@ -522,7 +547,7 @@
 </ul>
 <h2 id="version-038">Version 0.3.8 <a class="anchor" href="#version-038">¶</a></h2>
 <p>Most of this release moves <code>/authorize</code>, the ID token and userinfo closer to OIDC Core, driven by the OIDF Basic OP plan that <code>make exercise-oidcc</code> now runs. It also fixes <code>file:</code> secret refs on Windows, which agni needs. Two changes alter what a consumer sees, and both are listed under contract changes.</p>
-<h3 id="contract-changes-10">Contract changes <a class="anchor" href="#contract-changes-10">¶</a></h3>
+<h3 id="contract-changes-11">Contract changes <a class="anchor" href="#contract-changes-11">¶</a></h3>
 <ul>
 <li><strong>The ID token no longer carries scope claims (issue 480, PR 488).</strong> A request for <code>scope=openid email</code> used to put <code>email</code> in the ID token as well as userinfo. OIDC Core §5.4 sends those claims to userinfo, so the ID token now carries only claims the request asks for by name with the <code>claims</code> parameter. The client SDK&rsquo;s <code>LoginWithBrowser</code> with <code>VerifyIDToken</code> asks for the four claims <code>IDTokenClaims</code> reads, so SDK users keep them. Other clients that read profile claims from the ID token should call userinfo or send <code>claims</code>.</li>
 <li><strong>An <code>APIMiddleware</code> without <code>DPoP</code> refuses DPoP-bound tokens (issue 486, PR 488).</strong> A token with <code>cnf.jkt</code> sent as Bearer used to pass, so a stolen bound token worked at any resource server that hadn&rsquo;t wired DPoP. It now gets 401 <code>invalid_token</code>.</li>
