@@ -92,7 +92,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 
 ### 2.1 What we run today
 
-`make conformance` runs every external and cross-spec suite registered in `conformance/suites.yaml` and prints one line per suite (mission 489). `SUITE=<name>` runs one, and each log goes to `test-reports/conformance/<name>.log`. A gating suite's failure fails the run; an info suite is only reported. `make test` checks that the registry and `conformance/Makefile` agree.
+`make conformance` runs every external and cross-spec suite registered in `conformance/suites.yaml` and prints one line per suite (mission 489). `SUITE=<name>` runs one, and each log goes to `test-reports/conformance/<name>.log`. A gating suite's failure fails the run; an info suite is only reported. `make test` checks that the registry and `conformance/Makefile` agree. CI runs the whole thing nightly and on demand (`conformance.yml`, issue 571), with `REPORT.md` in the job summary and the logs as an artifact. Authlete needs the `AUTHLETE_*` repo secrets, and skips without them.
 
 | Suite | Location | Specs covered |
 |---|---|---|
@@ -100,7 +100,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 | RAR conformance | `tests/keycloak/rar_interop_test.go` | RFC 9396 round-trip — currently the most thorough public RAR interop test we know of |
 | In-process e2e | `tests/e2e/` | All endpoints end-to-end against `cmd/oneauth-server` |
 | Conformance ratchet | `tests/conformance/` | RFC 8414 dual-path (`as_metadata/`), RFC 7662 (`introspection/`), `private_key_jwt` (`client_auth/`); expected failures in `known-gaps.yaml`, run by `make testconformance` |
-| OIDF discovery plan | `tests/oidf-conformance/` | `oidcc-config-certification-test-plan` through `make testoidf`. CI runs every OIDF plan nightly and on demand (`oidf-conformance.yml`, issue 498), against the harness release pinned in the compose file. |
+| OIDF discovery plan | `tests/oidf-conformance/` | `oidcc-config-certification-test-plan` through `make testoidf`. CI runs every OIDF plan nightly and on demand, as part of `make conformance` (`conformance.yml`, issues 498 and 571), against the harness release pinned in the compose file. |
 | OIDF FAPI 2.0 plan | `tests/oidf-conformance/fapi2/` | `fapi2-security-profile-final-test-plan` through `make testoidf` (and `make exercise-fapi2`); whole-module `expected-review` / `expected-skip` entries in `known-gaps.yaml`. Local only, like the discovery plan. |
 | OIDF OIDC Basic OP plan | `tests/oidf-conformance/oidcc/` | `oidcc-basic-certification-test-plan` through `make testoidf` (and `make exercise-oidcc`), mission 477; whole-module entries in `known-gaps.yaml` like FAPI 2.0. The same package runs `oidcc-formpost-basic-certification-test-plan` (`make exercise-oidccfp`, issue 500), the Basic OP modules with `response_mode=form_post`. It also runs the Implicit OP plan and its Form Post twin (`make exercise-oidcci`, `make exercise-oidccfpi`, issue 526). Local only. |
 | OIDF Dynamic OP plan and `oidcc-test-plan` | `tests/oidf-conformance/oidcdyn/` | `oidcc-dynamic-certification-test-plan` (`make exercise-oidcdyn`, issue 493) and `oidcc-test-plan` once per client auth method (`make exercise-oidcctp AUTH=<method>`, issue 494), both through `make testoidf`. The harness registers its own clients through DCR. One `known-gaps.yaml` entry can name several plans with `plans:`. Local only. |
