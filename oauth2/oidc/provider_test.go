@@ -35,13 +35,14 @@ const (
 	testClientID = "app"
 	testSecret   = "app-secret"
 	testSub      = "user-42"
+	testCallback = "http://app.test/auth/oidc/callback/"
 )
 
 // newIssuer starts the fake issuer with the app's client and one person,
 // who is signed in for the web flow.
 func newIssuer(t *testing.T, opts ...oidctest.Option) *oidctest.Server {
 	t.Helper()
-	iss := oidctest.New(t, append([]oidctest.Option{oidctest.WithClient(testClientID, testSecret)}, opts...)...)
+	iss := oidctest.New(t, append([]oidctest.Option{oidctest.WithClient(testClientID, testSecret, testCallback)}, opts...)...)
 	iss.AddUser(testSub, map[string]any{"email": "ada@example.com", "email_verified": true})
 	iss.SignInAs(testSub)
 	return iss
@@ -68,7 +69,7 @@ func newProvider(t *testing.T, iss *oidctest.Server) (*oidc.Provider, *signedIn)
 	got := &signedIn{}
 	p, err := oidc.New(context.Background(), oidc.Config{
 		Issuer: iss.URL, ClientID: testClientID, ClientSecret: testSecret,
-		CallbackURL: "http://app.test/auth/oidc/callback/",
+		CallbackURL: testCallback,
 		HandleUser: func(authtype, provider string, token *xoauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {
 			got.called, got.provider, got.claims = true, provider, userInfo
 			w.WriteHeader(http.StatusOK)

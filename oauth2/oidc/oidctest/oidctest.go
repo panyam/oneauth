@@ -10,7 +10,7 @@
 // redirects straight back with a code and no login page. Approve and Deny
 // answer a pending device code.
 //
-//	iss := oidctest.New(t, oidctest.WithClient("app", "secret"))
+//	iss := oidctest.New(t, oidctest.WithClient("app", "secret", "http://127.0.0.1:8080/callback/"))
 //	iss.AddUser("u-123", map[string]any{"email": "ada@example.com", "email_verified": true})
 //	iss.SignInAs("u-123")
 //	// oidc.Config{Issuer: iss.URL, ClientID: "app", ClientSecret: "secret", ...}
@@ -68,7 +68,8 @@ const DefaultDeviceExpiry = 5 * time.Minute
 type Server struct {
 	*httptest.Server
 
-	clients        map[string]string // client id -> secret, "" for a public client
+	clients        map[string]string   // client id -> secret, "" for a public client
+	redirects      map[string][]string // client id -> registered redirect URIs
 	discovery      []func(map[string]any)
 	idTokenClaims  []func(map[string]any)
 	tokenResponse  []func(map[string]any)
@@ -92,8 +93,17 @@ type Option func(*Server)
 // which authenticates with client_id alone. A confidential client may send
 // its secret as HTTP Basic auth or as client_secret in the form. Pass it
 // once per client. New fails the test when no client is registered.
-func WithClient(id, secret string) Option {
-	return func(s *Server) { s.clients[id] = secret }
+//
+// redirectURIs are the URIs /authorize may send the browser back to, and
+// /logout's post_logout_redirect_uri too. A request's URI must equal one
+// exactly (RFC 9700 §4.1.1), or the fake answers 400 and redirects
+// nowhere, as Keycloak does. A client used only for the device flow needs
+// none.
+func WithClient(id, secret string, redirectURIs ...string) Option {
+	return func(s *Server) {
+		s.clients[id] = secret
+		s.redirects[id] = append(s.redirects[id], redirectURIs...)
+	}
 }
 
 // WithDiscovery edits the discovery document before each response. Delete
@@ -145,6 +155,7 @@ func New(t testing.TB, opts ...Option) *Server {
 	t.Helper()
 	s := &Server{
 		clients:        map[string]string{},
+		redirects:      map[string][]string{},
 		deviceInterval: DefaultDeviceInterval,
 		deviceExpiry:   DefaultDeviceExpiry,
 		users:          map[string]map[string]any{},

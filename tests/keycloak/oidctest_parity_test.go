@@ -58,7 +58,7 @@ type parityIdP struct {
 }
 
 func parityFake(t *testing.T) parityIdP {
-	iss := oidctest.New(t, oidctest.WithClient(confidentialClientID, confidentialClientSecret))
+	iss := oidctest.New(t, oidctest.WithClient(confidentialClientID, confidentialClientSecret, parityRedirectURI))
 	iss.AddUser("u-1", map[string]any{"email": "testuser@example.com"})
 	iss.SignInAs("u-1")
 	return parityIdP{
@@ -300,5 +300,21 @@ func TestOidctestParity_DeviceRefusals(t *testing.T) {
 		status, resp = parityPoll(t, idp, meta, map[string]any{"device_code": "not-a-code"})
 		assert.Equal(t, http.StatusBadRequest, status)
 		assert.Equal(t, "invalid_grant", resp["error"])
+	})
+}
+
+// An unregistered redirect_uri gets 400 and no redirect from both, so a
+// wrong callback URL in an app fails against the fake as it would live.
+func TestOidctestParity_UnregisteredRedirectURI(t *testing.T) {
+	forEachIdP(t, func(t *testing.T, idp parityIdP, meta *client.ASMetadata) {
+		noRedirect := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		resp, err := noRedirect.Get(meta.AuthorizationEndpoint + "?" + url.Values{
+			"client_id": {idp.clientID}, "redirect_uri": {"https://evil.example/cb"}, "response_type": {"code"},
+			"scope": {"openid"}, "state": {"st-1"}, "code_challenge": {"x"}, "code_challenge_method": {"S256"},
+		}.Encode())
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("Location"))
 	})
 }

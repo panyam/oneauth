@@ -39,13 +39,13 @@ func (j plainHTTPJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 }
 
 func TestOIDCSignIn_AppWithBrowser(t *testing.T) {
-	iss := oidctest.New(t, oidctest.WithClient("agni", "secret"))
-	iss.AddUser("u-123", map[string]any{"email": "ada@example.com", "email_verified": true})
-	iss.SignInAs("u-123")
-
 	mux := http.NewServeMux()
 	app := httptest.NewServer(mux)
 	t.Cleanup(app.Close)
+
+	iss := oidctest.New(t, oidctest.WithClient("agni", "secret", app.URL+"/auth/oidc/callback/"))
+	iss.AddUser("u-123", map[string]any{"email": "ada@example.com", "email_verified": true})
+	iss.SignInAs("u-123")
 	signedIn := make(chan map[string]any, 1)
 	p, err := oidc.New(context.Background(), oidc.Config{
 		Issuer: iss.URL, ClientID: "agni", ClientSecret: "secret",

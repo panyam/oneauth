@@ -39,7 +39,7 @@ const (
 var noRedirect = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 func newIssuer(t *testing.T, opts ...oidctest.Option) *oidctest.Server {
-	iss := oidctest.New(t, append([]oidctest.Option{oidctest.WithClient(clientID, secret)}, opts...)...)
+	iss := oidctest.New(t, append([]oidctest.Option{oidctest.WithClient(clientID, secret, redirectURI, "http://app.test/bye")}, opts...)...)
 	iss.AddUser("u-123", map[string]any{
 		"email": "ada@example.com", "email_verified": true, "groups": []string{"g-eng"}, "sub": "ignored",
 	})
@@ -208,14 +208,16 @@ func TestAuthorize_Refusals(t *testing.T) {
 	}
 }
 
-// An unknown client or a bad redirect_uri must not redirect anywhere
-// (RFC 6749 §4.1.2.1).
+// An unknown client or an unregistered redirect_uri must not redirect
+// anywhere (RFC 6749 §4.1.2.1). The match is exact (RFC 9700 §4.1.1).
 func TestAuthorize_NoRedirectToUntrustedURI(t *testing.T) {
 	iss := newIssuer(t)
 	iss.SignInAs("u-123")
 	for name, edit := range map[string]func(url.Values){
 		"unknown client":       func(q url.Values) { q.Set("client_id", "someone") },
 		"relative redirect":    func(q url.Values) { q.Set("redirect_uri", "/cb") },
+		"unregistered":         func(q url.Values) { q.Set("redirect_uri", "https://evil.example/cb") },
+		"registered plus path": func(q url.Values) { q.Set("redirect_uri", redirectURI+"/extra") },
 		"missing redirect_uri": func(q url.Values) { q.Del("redirect_uri") },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -416,12 +418,30 @@ func TestGraph_RefusesUnknownToken(t *testing.T) {
 func TestLogout_RedirectsWithState(t *testing.T) {
 	iss := newIssuer(t)
 	resp, err := noRedirect.Get(iss.URL + "/logout?" + url.Values{
-		"post_logout_redirect_uri": {"http://app.test/bye"}, "state": {"s-9"},
+		"client_id": {clientID}, "post_logout_redirect_uri": {"http://app.test/bye"}, "state": {"s-9"},
 	}.Encode())
 	require.NoError(t, err)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusFound, resp.StatusCode)
 	assert.Equal(t, "http://app.test/bye?state=s-9", resp.Header.Get("Location"))
+}
+
+func TestLogout_UnregisteredURIDoesNotRedirect(t *testing.T) {
+	iss := newIssuer(t)
+	for name, q := range map[string]url.Values{
+		"unregistered":   {"client_id": {clientID}, "post_logout_redirect_uri": {"https://evil.example/"}},
+		"other client":   {"client_id": {"someone"}, "post_logout_redirect_uri": {"http://app.test/bye"}},
+		"no client_id":   {"post_logout_redirect_uri": {"http://app.test/bye"}},
+		"no redirect at": {"client_id": {clientID}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resp, err := noRedirect.Get(iss.URL + "/logout?" + q.Encode())
+			require.NoError(t, err)
+			resp.Body.Close()
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Empty(t, resp.Header.Get("Location"))
+		})
+	}
 }
 
 func TestEdits_IDTokenClaimsAndTokenResponse(t *testing.T) {

@@ -24,10 +24,10 @@ type deviceGrant struct {
 }
 
 // authorize answers the authorization endpoint for the person SignInAs
-// picked. Like a real provider it never redirects to a redirect_uri it
-// can't trust: an unknown client or a missing redirect_uri answers 400
-// here (RFC 6749 §4.1.2.1). Every other error goes back to the
-// redirect_uri, with state and iss (RFC 9207).
+// picked. An unknown client, or a redirect_uri the client didn't
+// register, answers 400 here and redirects nowhere (RFC 6749 §4.1.2.1).
+// Every other error goes back to the redirect_uri, with state and iss
+// (RFC 9207).
 func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	clientID, redirectURI := q.Get("client_id"), q.Get("redirect_uri")
@@ -35,9 +35,9 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown client_id", http.StatusBadRequest)
 		return
 	}
-	back, err := url.Parse(redirectURI)
-	if err != nil || !back.IsAbs() {
-		http.Error(w, "redirect_uri must be an absolute URL", http.StatusBadRequest)
+	back, ok := s.registeredRedirect(clientID, redirectURI)
+	if !ok {
+		http.Error(w, "redirect_uri is not registered for this client; pass it to WithClient", http.StatusBadRequest)
 		return
 	}
 	reply := func(params url.Values) {
@@ -265,12 +265,14 @@ func (s *Server) pendingLocked(userCode string) *deviceGrant {
 	return g
 }
 
-// logout answers RP-initiated logout by redirecting to
-// post_logout_redirect_uri with state, or with a page when there is none.
+// logout answers RP-initiated logout. It redirects to
+// post_logout_redirect_uri with state when that URI is registered for
+// client_id, as Keycloak does for a client whose post-logout URIs are its
+// redirect URIs. Otherwise it answers with a page and redirects nowhere.
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	back, err := url.Parse(q.Get("post_logout_redirect_uri"))
-	if q.Get("post_logout_redirect_uri") == "" || err != nil || !back.IsAbs() {
+	back, ok := s.registeredRedirect(q.Get("client_id"), q.Get("post_logout_redirect_uri"))
+	if !ok {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte("logged out"))
 		return
@@ -281,6 +283,19 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 		back.RawQuery = bq.Encode()
 	}
 	http.Redirect(w, r, back.String(), http.StatusFound)
+}
+
+// registeredRedirect finds uri among clientID's registered redirect URIs
+// and returns the registered copy, parsed. The redirect target then comes
+// from the test's own configuration, never from the request.
+func (s *Server) registeredRedirect(clientID, uri string) (*url.URL, bool) {
+	for _, reg := range s.redirects[clientID] {
+		if reg == uri {
+			u, err := url.Parse(reg)
+			return u, err == nil && u.IsAbs()
+		}
+	}
+	return nil, false
 }
 
 // authenticateClient reads client credentials from HTTP Basic auth or the
