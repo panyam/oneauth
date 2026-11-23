@@ -5,6 +5,27 @@
 
 > 0.3.0 through 0.3.2 have their notes on the GitHub releases page only, and 0.3.3 and 0.3.4 shipped tag-only.
 
+## Version 0.3.21
+
+This release adds `oauth2/oidc/oidctest`, a fake OpenID Provider for testing an app's sign-in wiring. It also fixes a device-flow bug the fake found. A denied CLI sign-in through `oauth2/oidc` kept polling until the device code expired. The OAuch security analysis now runs in `make conformance`, so no conformance suite is left to run by hand.
+
+### Contract changes
+
+- **New package `oauth2/oidc/oidctest` (issue 566, PR 568).** `oidctest.New(t, oidctest.WithClient(id, secret, redirectURIs...))` starts a fake issuer on an `httptest.Server`.
+  - It serves discovery, an RS256 JWKS, the code flow with S256 PKCE, the device flow (RFC 8628), RP-initiated logout and a Graph `getMemberObjects` route.
+  - `AddUser` makes a person, and `SignInAs` picks who the next `/authorize` signs in. `Approve(userCode, sub)` and `Deny` answer a device code.
+  - `WithGroupsOverage` leaves `groups` out of ID tokens the way Entra ID does. `EntraGroups{GraphURL: iss.GraphURL()}` resolves them through the fake.
+  - `WithDiscovery`, `WithIDTokenClaims` and `WithTokenResponse` edit what the fake sends, for negative tests.
+  - The fake redirects only to a registered URI that matches exactly. It answers `slow_down` to a device poll that comes sooner than its interval, as Keycloak does.
+- **`oidc.New` sets the token endpoint's auth style from discovery (PR 568).** Before, `x/oauth2` probed. It resent every failed token request in the other auth style straight away. In the device flow every pending or denied poll fails, so each poll went out twice. Keycloak answered the second copy with `slow_down`. A denied sign-in then polled until the code expired, and a pending one waited 5 seconds longer on every poll.
+  - Now `oidc.New` picks the style through `client.SelectAuthMethod` from `token_endpoint_auth_methods_supported`, as `LoginWithBrowser` does.
+  - Token requests now go out in one style. A provider that advertises `client_secret_basic` but only accepts the secret in the form body would now fail. Keycloak, Entra ID, Okta and Google all accept Basic.
+
+### Interop and conformance
+
+- `tests/keycloak/oidctest_parity_test.go` sends the same code-flow and device-flow requests to `oidctest` and to Keycloak. It checks that both give the same error codes (PR 568). `TestKeycloakOIDCSignIn_DeviceFlowDenied` covers the denied CLI sign-in against Keycloak.
+- `tests/oauch` drives OAuch's dashboard with playwright-go (issue 567, PR 569). It imports a site, runs the test set, handles each popup, waits out the timed tests, and checks every result against `tests/oauch/expected.yaml`. A test missing from the file that doesn't pass fails the suite. `oauch` moves from `manual` to `info` in `conformance/suites.yaml`. The first automated run reports 133 tests, with 87 passed and 46 known.
+
 ## Version 0.3.20
 
 This release adds two helpers to the `oauth2` module for apps that sign people in with GitHub or Entra ID. `GitHubHostsFor` maps a GitHub API root to the hosts and endpoints a sign-in needs. `AllowList.Resolve` fetches an Entra user's groups from Microsoft Graph when the ID token leaves them out. ID tokens now carry a `jti`, and Keycloak verifies oneauth's PS256 ID tokens in the interop suite. `make release` now bumps the test modules too, so `make testkcl` works after a release without a manual fix.
