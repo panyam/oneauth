@@ -23,6 +23,7 @@ Each package has a `SUMMARY.md`. Subsystem gotchas live in a `CLAUDE.md` beside 
 | `cmd/oneauth/` | Cobra client CLI (`oneauth token ...`) | |
 | `tests/keycloak/`, `tests/oidf-conformance/` | Keycloak interop, OIDF FAPI 2.0 harness | [keycloak](tests/keycloak/CLAUDE.md), [oidf](tests/oidf-conformance/CLAUDE.md) |
 | `tests/mcpauth/` | MCP server-auth conformance through the Go SDK, mcpkit and the TS SDK | [mcpauth](tests/mcpauth/CLAUDE.md) |
+| `tests/oauch/` | OAuch security analysis, driven through its dashboard with playwright-go | [oauch](tests/oauch/CLAUDE.md) |
 | `docs/site/` | Docsite | [docs/site/CLAUDE.md](docs/site/CLAUDE.md) |
 | `examples/` | 10 progressive examples with demokit | [examples/README.md](examples/README.md) |
 

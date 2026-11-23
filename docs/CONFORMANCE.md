@@ -232,7 +232,7 @@ This is also the suite that surfaced bug 74 (`TokenEndpointAuthMethods` negotiat
 #### OAuch
 
 - **Repo:** [github.com/DistriNet/OAuch](https://github.com/DistriNet/OAuch), an analyzer for OAuth 2.0 authorization servers that checks best practices and known threats rather than certifying conformance.
-- **Runs:** by hand, since OAuch has only a web UI, as the `manual` suite `oauch` in `conformance/suites.yaml`. [`docs/conformance/oauch.md`](conformance/oauch.md) has the last run, each finding's verdict (a ticket, test setup, or an accepted reason) and the steps to run it again (issue 497).
+- **Runs:** as the `info` suite `oauch` in `make conformance`. OAuch has only a web UI, so `tests/oauch` drives it with playwright-go and checks each result against `tests/oauch/expected.yaml` (issue 567). [`docs/conformance/oauch.md`](conformance/oauch.md) has the last run and each finding's verdict (a ticket, test setup, or an accepted reason).
 
 ### 2.5 Self-written suites (filling public gaps)
 
