@@ -92,7 +92,7 @@ This is the same pattern Web Platform Tests, V8, and Google Tricorder use. It is
 
 ### 2.1 What we run today
 
-`make conformance` runs every external and cross-spec suite registered in `conformance/suites.yaml` and prints one line per suite (mission 489). `SUITE=<name>` runs one, and each log goes to `test-reports/conformance/<name>.log`. A gating suite's failure fails the run; an info suite is only reported. `make test` checks that the registry and `conformance/Makefile` agree. CI runs the whole thing nightly and on demand (`conformance.yml`, issue 571), with `REPORT.md` in the job summary and the logs as an artifact. Authlete needs the `AUTHLETE_*` repo secrets, and skips without them.
+`make conformance` runs every external and cross-spec suite registered in `conformance/suites.yaml` and prints one line per suite (mission 489). `SUITE=<name>` runs one, and each log goes to `test-reports/conformance/<name>.log`. A gating suite's failure fails the run; an info suite is only reported. `make test` checks that the registry and `conformance/Makefile` agree. CI runs the whole thing nightly and on demand (`conformance.yml`, issue 571), with `REPORT.md` in the job summary and the logs as an artifact. Authlete needs the `AUTHLETE_*` repo secrets, and skips without them. When a run on `main` finishes, the docsite republishes with that run's report, so the site shows the nightly results and the committed `REPORT.md` shows the last local run. A failed run opens one issue labeled `conformance-nightly`, or comments on it if it's already open, and the next green run closes it.
 
 | Suite | Location | Specs covered |
 |---|---|---|
