@@ -7,8 +7,8 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 
 - No mission is active, and #543 has nothing ready. The next pick goes through `retriage`.
 - No open threads on main. v0.3.20 carries PRs 561, 562, 564 and 565. Its release fires the trigger on #563, so goapplib and agni can now move to `GitHubHostsFor` and `Resolve`.
-- PRs 568 (`oauth2/oidc/oidctest`, plus the device-flow `AuthStyle` fix) and 569 are on main and in no release yet. agni#1811 moves to `oidctest` once the next release is tagged.
-- This run: dropped feat/566-oidctest (PR 568 merged) and removed its worktree.
+- v0.3.21 carries PRs 568 (`oauth2/oidc/oidctest`, plus the device-flow `AuthStyle` fix) and 569 (automated OAuch run). agni#1811 can now move to `oidctest`.
+- This run: released v0.3.21.
 
 ## Across threads
 
