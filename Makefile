@@ -818,6 +818,58 @@ exercise-mcpauth:
 # `oneauth token browser --response-mode jwt` login against oneauth-server
 # and the test Keycloak realm, printing the decoded response JWT. MODE=
 # overrides jwt. See scripts/exercise-jarm.sh.
+# =============================================================================
+# OAuch (issue 567)
+# =============================================================================
+# OAuch (DistriNet) checks the reference server against RFC 6749, 6750,
+# 6819, 7009, 7636, 9700 and OIDC. It has only a web UI, so
+# tests/oauch drives its dashboard with playwright-go and checks the results
+# against tests/oauch/expected.yaml. docs/conformance/oauch.md has the triage.
+#
+#   make testoauch       # build and start OAuch if needed, then a full run (~15 min)
+#   make upoauch / downoauch
+#   make oauch-browser   # install playwright-go's driver and Chromium (once)
+OAUCH_REF := 4f18c30f58517915eff6cd72fd399ab1a1cf035e
+OAUCH_DIR := tests/oauch/.oauch
+OAUCH_IMAGE := oneauth-test/oauch:$(shell echo $(OAUCH_REF) | cut -c1-12)
+OAUCH_CONTAINER := oneauth-test-oauch
+OAUCH_PORT := 9443
+PLAYWRIGHT_GO := github.com/mxschmitt/playwright-go/cmd/playwright
+
+$(OAUCH_DIR)/src:
+	@echo "Cloning DistriNet/OAuch@$(OAUCH_REF)..."
+	@git clone --quiet https://github.com/DistriNet/OAuch $(OAUCH_DIR)/src
+	@cd $(OAUCH_DIR)/src && git checkout --quiet $(OAUCH_REF)
+
+oauch-image: $(OAUCH_DIR)/src
+	@if ! docker image inspect $(OAUCH_IMAGE) > /dev/null 2>&1; then \
+		echo "Building $(OAUCH_IMAGE) from source (a few minutes the first time)..."; \
+		docker build -t $(OAUCH_IMAGE) $(OAUCH_DIR)/src/src/OAuch; \
+	fi
+
+# OAuch reaches oneauth-server at localhost.emobix.co.uk, which must point at
+# the host's IPv4 address inside the container: oneauth-server listens on
+# IPv4 only. Docker Desktop resolves host.docker.internal to it; elsewhere
+# the bridge gateway is the host. The site database starts empty each time.
+upoauch: oauch-image
+	@if docker ps --format '{{.Names}}' | grep -q '^$(OAUCH_CONTAINER)$$'; then exit 0; fi; \
+	docker rm -f $(OAUCH_CONTAINER) > /dev/null 2>&1 || true; \
+	host_ip=$$(docker run --rm --entrypoint getent $(OAUCH_IMAGE) ahostsv4 host.docker.internal | awk 'NR==1{print $$1}'); \
+	[ -n "$$host_ip" ] || host_ip=$$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'); \
+	rm -rf $(CURDIR)/$(OAUCH_DIR)/db && mkdir -p $(CURDIR)/$(OAUCH_DIR)/db; \
+	docker run -d --name $(OAUCH_CONTAINER) -p $(OAUCH_PORT):443 \
+		--add-host localhost.emobix.co.uk:$$host_ip -v $(CURDIR)/$(OAUCH_DIR)/db:/db $(OAUCH_IMAGE) > /dev/null; \
+	./scripts/wait-for.sh 60 OAuch -- -k -o /dev/null https://localhost:$(OAUCH_PORT)/ && echo "OAuch on https://localhost:$(OAUCH_PORT) (localhost.emobix.co.uk -> $$host_ip)"
+
+downoauch:
+	@docker rm -f $(OAUCH_CONTAINER) > /dev/null 2>&1 || true
+
+oauch-browser:
+	cd tests/oauch && GOWORK=off go run $(PLAYWRIGHT_GO) install chromium
+
+testoauch: upoauch
+	OAUCH_URL=https://localhost:$(OAUCH_PORT) ./scripts/exercise-oauch.sh
+
 exercise-jarm:
 	@$(MAKE) --no-print-directory upkcl KC_PORT=$(KC_PORT)
 	KC_PORT=$(KC_PORT) MODE="$(MODE)" ./scripts/exercise-jarm.sh

@@ -19,6 +19,7 @@ use (
 	./tests/conformance
 	./tests/keycloak
 	./tests/mcpauth
+	./tests/oauch
 	./tests/oidf-conformance
 )
 

@@ -1,45 +1,42 @@
 # OAuch run against oneauth-server
 
-[OAuch](https://github.com/DistriNet/OAuch) (DistriNet, MIT) checks an OAuth 2.0 / OpenID Connect authorization server against RFC 6749, 6750, 6819, 7009, 7636, 9700 (the Security BCP) and OIDC Core, and against the threats in RFC 6819 and the BCP. It has only an interactive web UI, so it runs by hand, and `conformance/suites.yaml` records it as a `manual` suite (issue 497).
+[OAuch](https://github.com/DistriNet/OAuch) (DistriNet, MIT) checks an OAuth 2.0 / OpenID Connect authorization server against RFC 6749, 6750, 6819, 7009, 7636, 9700 (the Security BCP) and OIDC Core, and against the threats in RFC 6819 and the BCP. It has only a web UI. `tests/oauch` drives that UI with playwright-go, so `make conformance` runs it as an `info` suite (issue 567). The first runs were by hand (issue 497).
+
+```
+make testoauch                    # or: make conformance SUITE=oauch
+```
+
+## How a run works
+
+1. `make upoauch` builds OAuch from a pinned commit (`OAUCH_REF` in the Makefile) and starts it on `https://localhost:9443`, with an empty site database.
+2. `scripts/exercise-oauch.sh` starts oneauth-server with `tests/oauch/oneauth-oauch.yaml`: code flow, OIDC, PKCE required, remembered consent, ES256. It answers at `https://localhost.emobix.co.uk:8895`, a name that resolves to 127.0.0.1.
+3. `TestOAuch` signs up a user and registers two confidential clients through open DCR. It imports a site into OAuch with those clients and the documents RFC 6749, 6750, 6819, 7009, 7523, 7636, 9700 and OIDC.
+4. It runs the test set in headless Chromium. In each popup it logs in and approves consent. When oneauth shows an error page instead of redirecting, which is the expected answer to several of OAuch's attacks, it presses "Stalled test".
+5. Two timed tests need a resume 12 to 15 minutes later, after authorization codes and access tokens expire. The run waits and resumes, so it takes about 15 minutes in all.
+6. It exports the results and checks each one against `tests/oauch/expected.yaml`. An unlisted test that doesn't pass fails the suite. A listed test that passes gets logged, so its line can come out. The export lands in `test-reports/oauch/oauch-export.json`.
 
 ## Last run
 
-- **When:** 2026-11-20, against the reference server built from the commit in `conformance/suites.yaml`.
-- **Server config:** `tests/oauch/oneauth-oauch.yaml`: code flow, OIDC, PKCE required, remembered consent, ES256.
-- **Documents selected:** RFC 6749, 6750, 6819, 7009, 7523, 7636, 9700, OIDC.
-- **Outcome:** 109 tests run, including OAuch's two timed tests, which pass on a resume 10 minutes later (authorization codes and access tokens have short lifetimes). 9 failed:
-  - 3 of 55 mandatory;
-  - 3 of 16 recommended;
-  - 3 of 7 optional.
-- **Threats:** 33 mitigated, 5 partly mitigated, 2 not mitigated.
-- **Since the first run:** the first run, at `c46fedf`, failed 13. Issue 519 fixed the four it found in the code (repeated parameters at `/authorize` and the token endpoint, client credentials in the request URI, and the redirect fragment), and those four now pass.
+- **When:** 2026-11-23, at the commit in `docs/conformance/report.json`.
+- **Outcome:** 133 OAuch tests. 87 passed. The other 46 match `expected.yaml`: 22 not implemented and 24 skipped.
+- **Since the hand runs:** "Does the server support Post Form response mode" passes now, since issue 500. The hand runs reported OAuch's per-document scores (109 tests and 9 failures on 2026-11-20). The automated run counts every test result, including the feature probes, so its numbers differ.
 
-| Document | Failure rate |
-|---|---|
-| RFC 6749 | 5.0 % |
-| RFC 6750 | 30.0 % |
-| RFC 7636 | 15.4 % |
-| RFC 6819 | 11.1 % |
-| RFC 7009 | 12.5 % |
-| RFC 9700 | 19.2 % |
-| OIDC | 0.0 % |
-| RFC 7523 | not supported for this run's clients (see below) |
+## The tests that don't pass
 
-## Each failure, and what it means
+`expected.yaml` lists each one with its verdict. By group:
 
-| OAuch test | Level | Verdict |
+| Verdict | Tests | Why |
 |---|---|---|
-| Trusted token certificate | mandatory | Test setup. The run uses the OIDF test CA's certificate, which no browser or OS trusts. A deployment with a public certificate passes. |
-| Trusted authorization certificate | mandatory | Test setup, as above. |
-| Trusted API certificate | mandatory | Test setup, as above. |
-| Are the access tokens bearer tokens? | recommended | Configuration. oneauth supports DPoP (`dpop.enabled`, `dpop.require`); this run's config leaves it off, as most deployments start. |
-| Does the server support asymmetric client authentication | recommended | Test setup. oneauth supports `private_key_jwt` with inline keys or `jwks_uri` (issue 507); OAuch needs a client certificate or key configured to test it, and the run used secret-based clients. |
-| Does the server support RFC8705 (mTLS) | recommended | Not supported: issue 335. |
-| Are refresh tokens revoked after access token revocation | optional | Accepted. RFC 7009 §2.1 lets the AS revoke the refresh token too (MAY); oneauth revokes only the token presented. |
-| Is JAR supported at the authorization endpoint | optional | Not supported: issue 338. |
-| Does the server support Post Form response mode | optional | Supported since issue 500, which came after this run. The next run should pass it. |
-
-The two threats not mitigated are "Eavesdropping access tokens on transport" at the token endpoint and at the API. Both depend on the certificate and bearer-token findings above, so they come from the test certificate and DPoP being off, not from code.
+| Test setup | 3 certificate tests | The run uses the OIDF test CA's certificate, which no browser or OS trusts. A deployment with a public certificate passes. |
+| Test setup | asymmetric client auth, JWT client auth, RFC 7523, and 9 `Jwt.*` tests | Both clients use `client_secret_basic`. oneauth supports `private_key_jwt` with inline keys or `jwks_uri` (issue 507), and OAuch needs a client key configured to test it. |
+| Test setup | `IsClientIdRequired`, `RequireUserConsent` | They need a public client, and both clients are confidential. |
+| Config | bearer tokens, PAR supported and required | The config leaves `dpop.enabled` and `code_flow.par.enabled` off, as most deployments start. |
+| Not supported | RFC 8705 (mTLS), JAR | Issues 335 and 338. |
+| Accepted | refresh token revoked with the access token | RFC 7009 §2.1 lets the AS revoke the refresh token too (MAY). oneauth revokes only the token presented. |
+| By design | implicit, hybrid, password and device grants, and 5 tests built on them | oneauth offers the code flow, and this config leaves the password and device grants off. |
+| Secure | plain PKCE, deprecated TLS, token in the URL, and 2 tests that run only when those are allowed | A secure server refuses these. OAuch reports a refusal as "not implemented". |
+| Not applicable | 4 `IdTokens.*` tests | ID tokens are ES256 with one audience, so MAC and `azp` checks don't apply. |
+| Harness | `InvalidRedirectTest` | oneauth shows an error page for a wrong `redirect_uri` instead of redirecting to it (RFC 6749 §4.1.2.1). OAuch sees that only as a stalled test, so it can't score the refusal. |
 
 ## Bugs the first run found
 
@@ -48,18 +45,8 @@ Running OAuch meant driving a real Chrome through the flow, which the OIDF harne
 - **`form-action 'self'` in the CSP.** Chrome applies `form-action` to every redirect a form submission causes. The login and consent forms both end in a redirect to the client's `redirect_uri`, on another origin, so Chrome blocked every authorization at that step. The CSP now has no `form-action`, which doesn't fall back to `default-src`.
 - **`Cross-Origin-Opener-Policy: same-origin` on the authorization pages.** A client that opens `/authorize` in a popup (an SPA's popup login, or OAuch) loses its `window.opener` when the popup reaches oneauth, so the callback can't hand the result back. `/authorize` and `/auth/` pages now send `unsafe-none`; every other page keeps `same-origin`.
 
-## Running it again
+The first run also found four bugs in the code, which issue 519 fixed: repeated parameters at `/authorize` and the token endpoint, client credentials in the request URI, and the redirect fragment.
 
-1. Build OAuch's image from a clone: `cd src/OAuch && docker build -t oauch:local .` (it has no published image).
-2. Start oneauth-server with `tests/oauch/oneauth-oauch.yaml`. It answers at `https://localhost.emobix.co.uk:8895`, a name that resolves to 127.0.0.1 for the browser.
-3. Start OAuch with that name pointing at the host, on a port the OIDF harness doesn't use:
-   ```
-   docker run -d --name oauch -p 9443:443 --add-host localhost.emobix.co.uk:<host IPv4> -v <dir>:/db oauch:local
-   ```
-   OAuch keeps its sites in SQLite under `/db`, so the volume is required, and it keeps the site's settings between runs. On Docker Desktop the host's IPv4 is what `host.docker.internal` resolves to inside a container. oneauth-server listens on IPv4 only, so the IPv6 `host-gateway` address won't do.
-4. Sign up a user at `/auth/signup`, and register two confidential clients through `POST /apps/dcr` with redirect URI `https://localhost:9443/Callback`.
-5. In OAuch (`https://localhost:9443`), add a site with metadata URL `https://localhost.emobix.co.uk:8895`. Set the callback URI, both clients, the scope `openid profile email offline_access` and the documents above, then run the test set.
-6. Log in and approve consent in the popup once per client. When the popup shows oneauth's error page (an expected refusal), press OAuch's "Stalled test" to move on. The test config keeps users in memory, so after a server restart clear the browser's cookies for the server first. Otherwise the popup skips login with a session for a user the server no longer has, userinfo fails, and OAuch skips every RFC 6750 test.
-7. Update the `oauch` entry in `conformance/suites.yaml` and this page.
+## Looking at a run in OAuch's UI
 
-Automating the run is waiting on OAuch growing an API, or on someone scripting its UI.
+OAuch keeps running after `make testoauch`. Its sites belong to the throwaway user each browser gets, so a fresh browser doesn't see the run's site. Open `https://localhost:9443`, accept the certificate, and import `test-reports/oauch/oauch-export.json` through "Import site data" to browse the run's results and logs. `make downoauch` stops OAuch, and the next `make upoauch` starts with an empty database.

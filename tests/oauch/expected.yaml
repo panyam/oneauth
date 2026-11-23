@@ -1,0 +1,97 @@
+# Every OAuch test that doesn't pass against tests/oauch/oneauth-oauch.yaml,
+# with its outcome and the reason (issue 567). An unlisted test that doesn't
+# pass fails the run. A listed test that passes gets logged, so its line can
+# come out. Outcomes: not-implemented, partial, skipped, failed.
+# docs/conformance/oauch.md explains the verdicts.
+
+not_passing:
+  # The run uses the OIDF harness's test CA, which nothing trusts.
+  AuthEndpoint.HasValidCertificateTest:
+    outcome: not-implemented
+    verdict: "test setup: the OIDF test CA's certificate"
+  TokenEndpoint.HasValidCertificateTest:
+    outcome: not-implemented
+    verdict: "test setup: the OIDF test CA's certificate"
+  ApiEndpoint.HasValidCertificateTest:
+    outcome: not-implemented
+    verdict: "test setup: the OIDF test CA's certificate"
+
+  # Both clients use client_secret_basic. oneauth supports private_key_jwt
+  # (issue 507), and OAuch needs a client key configured to test it.
+  TokenEndpoint.IsAsymmetricClientAuthenticationUsedTest:
+    outcome: not-implemented
+    verdict: "test setup: secret-based clients"
+  Jwt.SupportsJwtClientAuthenticationTest:
+    outcome: not-implemented
+    verdict: "test setup: secret-based clients"
+  DocumentSupport.RFC7523SupportedTest:
+    outcome: not-implemented
+    verdict: "test setup: secret-based clients"
+  Jwt.HasIssuerClaimTest: {outcome: skipped, verdict: "test setup: needs a JWT-authenticated client"}
+  Jwt.HasSubjectClaimTest: {outcome: skipped, verdict: "test setup: needs a JWT-authenticated client"}
+  Jwt.HasAudienceClaimTest: {outcome: skipped, verdict: "test setup: needs a JWT-authenticated client"}
+  Jwt.IsExpirationCheckedTest: {outcome: skipped, verdict: "test setup: needs a JWT-authenticated client"}
+  Jwt.IsNotBeforeCheckedTest: {outcome: skipped, verdict: "test setup: needs a JWT-authenticated client"}
+  Jwt.IsIssuedAtCheckedTest: {outcome: skipped, verdict: "test setup: needs a JWT-authenticated client"}
+  Jwt.IsJwtReplayDetectedTest: {outcome: skipped, verdict: "test setup: needs a JWT-authenticated client"}
+  Jwt.IsSignatureRequiredTest: {outcome: skipped, verdict: "test setup: needs a JWT-authenticated client"}
+  Jwt.IsSignatureCheckedTest: {outcome: skipped, verdict: "test setup: needs a JWT-authenticated client"}
+
+  # Both clients are confidential.
+  TokenEndpoint.IsClientIdRequiredTest: {outcome: skipped, verdict: "test setup: needs a public client"}
+  AuthEndpoint.RequireUserConsentTest: {outcome: skipped, verdict: "test setup: needs a public client"}
+
+  # Features this config leaves off.
+  ApiEndpoint.AreBearerTokensDisabledTest:
+    outcome: not-implemented
+    verdict: "config: dpop.enabled is off, as most deployments start"
+  ParEndpoint.IsParSupportedTest:
+    outcome: not-implemented
+    verdict: "config: code_flow.par.enabled is off"
+  ParEndpoint.IsParRequiredTest: {outcome: skipped, verdict: "config: PAR is off"}
+
+  # Not supported yet, each with its issue.
+  DocumentSupport.RFC8705SupportedTest:
+    outcome: not-implemented
+    verdict: "not supported: mTLS, issue 335"
+  AuthEndpoint.IsJarSupportedTest:
+    outcome: not-implemented
+    verdict: "not supported: JAR, issue 338"
+
+  Revocation.AccessRevokesRefreshTest:
+    outcome: not-implemented
+    verdict: "accepted: RFC 7009 2.1 lets the AS revoke only the token presented"
+
+  # oneauth offers the code flow only. OAuch probes the implicit, hybrid,
+  # password and device grants, and skips the tests built on them.
+  Features.TokenFlowSupportedTest: {outcome: not-implemented, verdict: "by design: no implicit grant"}
+  Features.IdTokenFlowSupportedTest: {outcome: not-implemented, verdict: "by design: no implicit grant"}
+  Features.IdTokenTokenFlowSupportedTest: {outcome: not-implemented, verdict: "by design: no implicit grant"}
+  Features.CodeTokenFlowSupportedTest: {outcome: not-implemented, verdict: "by design: no hybrid grant"}
+  Features.CodeIdTokenFlowSupportedTest: {outcome: not-implemented, verdict: "by design: no hybrid grant"}
+  Features.CodeIdTokenTokenFlowSupportedTest: {outcome: not-implemented, verdict: "by design: no hybrid grant"}
+  Features.PasswordFlowSupportedTest: {outcome: not-implemented, verdict: "by design: password grant off in this config"}
+  Features.DeviceFlowSupportedTest: {outcome: not-implemented, verdict: "by design: device grant off in this config"}
+  AuthEndpoint.RefreshTokenPresentTest: {outcome: skipped, verdict: "by design: needs the implicit grant"}
+  AuthEndpoint.NonceRequiredTest: {outcome: skipped, verdict: "by design: needs the OpenID implicit flow"}
+  IdTokens.IsAccessTokenHashPresentTest: {outcome: skipped, verdict: "by design: needs the implicit grant"}
+  IdTokens.IsAuthorizationCodeHashPresentTest: {outcome: skipped, verdict: "by design: needs the hybrid grant"}
+  IdTokens.CodeHashValidTest: {outcome: skipped, verdict: "by design: c_hash comes only from the hybrid grant"}
+
+  # Answers a secure server gives. OAuch reports them as not implemented.
+  Features.PlainPkceTest: {outcome: not-implemented, verdict: "secure: S256 only"}
+  Features.IsDeprecatedTlsSupportedTest: {outcome: not-implemented, verdict: "secure: no TLS 1.0 or 1.1"}
+  Features.TokenAsQueryParameterTest: {outcome: not-implemented, verdict: "secure: no access token in the URL (RFC 6750 2.3)"}
+  ApiEndpoint.CacheControlTest: {outcome: skipped, verdict: "secure: runs only when the URL may carry the token"}
+  AuthEndpoint.CodePollutionTest: {outcome: skipped, verdict: "secure: runs only when redirect URIs aren't matched exactly"}
+
+  # ID tokens are ES256 with one audience.
+  IdTokens.HasCorrectMacTest: {outcome: skipped, verdict: "n/a: ID tokens are signed with ES256, not a MAC"}
+  IdTokens.ClientSecretLongEnoughTest: {outcome: skipped, verdict: "n/a: ID tokens are signed with ES256, not a MAC"}
+  IdTokens.HasAuthorizedPartyTest: {outcome: skipped, verdict: "n/a: one audience, so azp is optional"}
+  IdTokens.HasAzpForMultiAudienceTest: {outcome: skipped, verdict: "n/a: one audience"}
+
+  # oneauth shows an error page for a wrong redirect_uri instead of
+  # redirecting to it (RFC 6749 4.1.2.1). The run presses "Stalled test"
+  # there, so OAuch records neither redirect URI test as denied.
+  AuthEndpoint.InvalidRedirectTest: {outcome: skipped, verdict: "harness: the refusal reaches OAuch only as a stalled test"}
