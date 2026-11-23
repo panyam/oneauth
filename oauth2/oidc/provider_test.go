@@ -1,196 +1,60 @@
 package oidc_test
 
-// The OIDC sign-in provider against a fake issuer. The fake checks PKCE
-// and signs ID tokens with a real key, and the knobs make it misbehave.
+// The OIDC sign-in provider against oidctest, the fake issuer apps use
+// too. The fake checks PKCE and signs ID tokens with a real key, and its
+// With* options make it misbehave.
 // HandleUser must run only for an ID token whose signature, iss, aud,
 // exp, nonce and at_hash all check out.
 //
 // See: https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
 // See: https://www.rfc-editor.org/rfc/rfc8628
 // See: https://github.com/panyam/oneauth/issues/542
+// See: https://github.com/panyam/oneauth/issues/566
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	xoauth2 "golang.org/x/oauth2"
 
 	"github.com/panyam/oneauth/client"
 	"github.com/panyam/oneauth/oauth2/oidc"
-	"github.com/panyam/oneauth/utils"
+	"github.com/panyam/oneauth/oauth2/oidc/oidctest"
 )
 
 const (
 	testClientID = "app"
 	testSecret   = "app-secret"
-	goodCode     = "good-code"
+	testSub      = "user-42"
 )
 
-type pendingAuth struct{ challenge, nonce string }
-
-// fakeIssuer is a minimal OpenID Provider: discovery, JWKS, token
-// (authorization_code and device_code) and device authorization.
-type fakeIssuer struct {
-	srv  *httptest.Server
-	key  *ecdsa.PrivateKey
-	mu   sync.Mutex
-	auth pendingAuth // the authorize request the test "sent" for goodCode
-
-	// knobs
-	noDevice       bool
-	noEndSession   bool
-	claimIssuer    string // discovery issuer override
-	tamper         bool
-	wrongNonce     bool
-	wrongAud       bool
-	omitIDToken    bool
-	devicePending  int
-	deviceApproved bool
-}
-
-func newFakeIssuer(t *testing.T) *fakeIssuer {
+// newIssuer starts the fake issuer with the app's client and one person,
+// who is signed in for the web flow.
+func newIssuer(t *testing.T, opts ...oidctest.Option) *oidctest.Server {
 	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	f := &fakeIssuer{key: key}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		doc := map[string]any{
-			"issuer":                 f.issuer(),
-			"authorization_endpoint": f.srv.URL + "/authorize",
-			"token_endpoint":         f.srv.URL + "/token",
-			"jwks_uri":               f.srv.URL + "/jwks",
-		}
-		if f.claimIssuer != "" {
-			doc["issuer"] = f.claimIssuer
-		}
-		if !f.noDevice {
-			doc["device_authorization_endpoint"] = f.srv.URL + "/device"
-		}
-		if !f.noEndSession {
-			doc["end_session_endpoint"] = f.srv.URL + "/logout?tenant=keep"
-		}
-		_ = json.NewEncoder(w).Encode(doc)
-	})
-	mux.HandleFunc("GET /jwks", func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(utils.JWKSet{Keys: []utils.JWK{utils.ECDSAPublicKeyToJWK("k1", "ES256", &key.PublicKey)}})
-	})
-	mux.HandleFunc("POST /device", func(w http.ResponseWriter, r *http.Request) {
-		// RFC 8628 §3.1: a confidential client authenticates here too.
-		_ = r.ParseForm()
-		if r.PostForm.Get("client_id") != testClientID || r.PostForm.Get("client_secret") != testSecret {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
-			return
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"device_code": "dev-1", "user_code": "ABCD-EFGH",
-			"verification_uri": f.srv.URL + "/activate", "expires_in": 60, "interval": 1,
-		})
-	})
-	mux.HandleFunc("POST /token", f.token)
-	f.srv = httptest.NewServer(mux)
-	t.Cleanup(f.srv.Close)
-	return f
+	iss := oidctest.New(t, append([]oidctest.Option{oidctest.WithClient(testClientID, testSecret)}, opts...)...)
+	iss.AddUser(testSub, map[string]any{"email": "ada@example.com", "email_verified": true})
+	iss.SignInAs(testSub)
+	return iss
 }
 
-func (f *fakeIssuer) issuer() string { return f.srv.URL }
-
-func (f *fakeIssuer) token(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
-	if id, secret, _ := r.BasicAuth(); id != testClientID || secret != testSecret {
-		if r.PostForm.Get("client_id") != testClientID || r.PostForm.Get("client_secret") != testSecret {
-			http.Error(w, `{"error":"invalid_client"}`, http.StatusUnauthorized)
-			return
-		}
-	}
-	nonce := ""
-	switch r.PostForm.Get("grant_type") {
-	case "authorization_code":
-		f.mu.Lock()
-		auth := f.auth
-		f.mu.Unlock()
-		sum := sha256.Sum256([]byte(r.PostForm.Get("code_verifier")))
-		if r.PostForm.Get("code") != goodCode || base64.RawURLEncoding.EncodeToString(sum[:]) != auth.challenge {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
-			return
-		}
-		nonce = auth.nonce
-	case "urn:ietf:params:oauth:grant-type:device_code":
-		f.mu.Lock()
-		pending := f.devicePending > 0
-		if pending {
-			f.devicePending--
-		}
-		f.mu.Unlock()
-		if pending {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"error":"authorization_pending"}`))
-			return
-		}
-	default:
-		http.Error(w, `{"error":"unsupported_grant_type"}`, http.StatusBadRequest)
-		return
-	}
-	resp := map[string]any{"access_token": "at-1", "token_type": "Bearer", "expires_in": 300}
-	if !f.omitIDToken {
-		resp["id_token"] = f.idToken(nonce, "at-1")
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
-}
-
-func (f *fakeIssuer) idToken(nonce, accessToken string) string {
-	sum := sha256.Sum256([]byte(accessToken))
-	claims := jwt.MapClaims{
-		"iss": f.issuer(), "sub": "user-42", "aud": testClientID,
-		"exp": time.Now().Add(5 * time.Minute).Unix(), "iat": time.Now().Unix(),
-		"email": "ada@example.com", "email_verified": true,
-		"at_hash": base64.RawURLEncoding.EncodeToString(sum[:16]),
-	}
-	if nonce != "" {
-		claims["nonce"] = nonce
-	}
-	if f.wrongNonce {
-		claims["nonce"] = "not-the-nonce"
-	}
-	if f.wrongAud {
-		claims["aud"] = "someone-else"
-	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
-	tok.Header["kid"] = "k1"
-	signed, err := tok.SignedString(f.key)
-	if err != nil {
-		panic(err)
-	}
-	if f.tamper {
-		parts := strings.Split(signed, ".")
-		payload, _ := base64.RawURLEncoding.DecodeString(parts[1])
-		payload = []byte(strings.Replace(string(payload), "user-42", "user-99", 1))
-		parts[1] = base64.RawURLEncoding.EncodeToString(payload)
-		signed = strings.Join(parts, ".")
-	}
-	return signed
+// tamper changes the ID token's payload after signing, so its signature
+// no longer matches.
+func tamper(resp map[string]any) {
+	parts := strings.Split(resp["id_token"].(string), ".")
+	payload, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	payload = []byte(strings.Replace(string(payload), testSub, "user-99", 1))
+	parts[1] = base64.RawURLEncoding.EncodeToString(payload)
+	resp["id_token"] = strings.Join(parts, ".")
 }
 
 type signedIn struct {
@@ -199,11 +63,11 @@ type signedIn struct {
 	claims   map[string]any
 }
 
-func newProvider(t *testing.T, f *fakeIssuer) (*oidc.Provider, *signedIn) {
+func newProvider(t *testing.T, iss *oidctest.Server) (*oidc.Provider, *signedIn) {
 	t.Helper()
 	got := &signedIn{}
 	p, err := oidc.New(context.Background(), oidc.Config{
-		Issuer: f.issuer(), ClientID: testClientID, ClientSecret: testSecret,
+		Issuer: iss.URL, ClientID: testClientID, ClientSecret: testSecret,
 		CallbackURL: "http://app.test/auth/oidc/callback/",
 		HandleUser: func(authtype, provider string, token *xoauth2.Token, userInfo map[string]any, w http.ResponseWriter, r *http.Request) {
 			got.called, got.provider, got.claims = true, provider, userInfo
@@ -214,21 +78,27 @@ func newProvider(t *testing.T, f *fakeIssuer) (*oidc.Provider, *signedIn) {
 	return p, got
 }
 
-// startSignIn runs GET / and records the authorize request on the fake,
-// as the provider's authorize page would. It returns the browser cookies
-// and the authorize URL.
-func startSignIn(t *testing.T, p *oidc.Provider, f *fakeIssuer) ([]*http.Cookie, *url.URL) {
+// startSignIn runs GET / on the provider, then sends the browser to the
+// fake's authorize endpoint, which redirects back with a code for the
+// signed-in person. It returns the provider's cookies, the authorize URL,
+// and the query the fake sent back to the callback.
+func startSignIn(t *testing.T, p *oidc.Provider) ([]*http.Cookie, *url.URL, url.Values) {
 	t.Helper()
 	rr := httptest.NewRecorder()
 	p.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
 	require.Equal(t, http.StatusFound, rr.Code)
 	loc, err := url.Parse(rr.Header().Get("Location"))
 	require.NoError(t, err)
-	q := loc.Query()
-	f.mu.Lock()
-	f.auth = pendingAuth{challenge: q.Get("code_challenge"), nonce: q.Get("nonce")}
-	f.mu.Unlock()
-	return rr.Result().Cookies(), loc
+
+	noRedirect := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := noRedirect.Get(loc.String())
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusFound, resp.StatusCode)
+	back, err := url.Parse(resp.Header.Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, "/auth/oidc/callback/", back.Path)
+	return rr.Result().Cookies(), loc, back.Query()
 }
 
 func finishSignIn(p *oidc.Provider, cookies []*http.Cookie, state, code string) *httptest.ResponseRecorder {
@@ -242,38 +112,38 @@ func finishSignIn(p *oidc.Provider, cookies []*http.Cookie, state, code string) 
 }
 
 func TestOIDCSignIn_WebFlow(t *testing.T) {
-	f := newFakeIssuer(t)
-	p, got := newProvider(t, f)
-	cookies, loc := startSignIn(t, p, f)
+	iss := newIssuer(t)
+	p, got := newProvider(t, iss)
+	cookies, loc, back := startSignIn(t, p)
 
 	q := loc.Query()
-	assert.Equal(t, f.srv.URL+"/authorize", loc.Scheme+"://"+loc.Host+loc.Path)
+	assert.Equal(t, iss.URL+"/authorize", loc.Scheme+"://"+loc.Host+loc.Path)
 	assert.Equal(t, "openid email profile", q.Get("scope"))
 	assert.Equal(t, "S256", q.Get("code_challenge_method"))
 	assert.NotEmpty(t, q.Get("nonce"))
 	assert.NotEqual(t, q.Get("nonce"), q.Get("state"))
+	assert.Equal(t, q.Get("state"), back.Get("state"))
 
-	rr := finishSignIn(p, cookies, q.Get("state"), goodCode)
+	rr := finishSignIn(p, cookies, back.Get("state"), back.Get("code"))
 	require.True(t, got.called, rr.Body.String())
 	assert.Equal(t, "oidc", got.provider)
-	assert.Equal(t, "user-42", got.claims["sub"])
+	assert.Equal(t, testSub, got.claims["sub"])
 	assert.Equal(t, "ada@example.com", got.claims["email"])
 	assert.Equal(t, q.Get("nonce"), got.claims["nonce"])
 }
 
 func TestOIDCSignIn_RefusesBadIDTokens(t *testing.T) {
-	for name, knob := range map[string]func(*fakeIssuer){
-		"tampered signature": func(f *fakeIssuer) { f.tamper = true },
-		"wrong nonce":        func(f *fakeIssuer) { f.wrongNonce = true },
-		"wrong audience":     func(f *fakeIssuer) { f.wrongAud = true },
-		"no id_token":        func(f *fakeIssuer) { f.omitIDToken = true },
+	for name, opt := range map[string]oidctest.Option{
+		"tampered signature": oidctest.WithTokenResponse(tamper),
+		"wrong nonce":        oidctest.WithIDTokenClaims(func(c map[string]any) { c["nonce"] = "not-the-nonce" }),
+		"wrong audience":     oidctest.WithIDTokenClaims(func(c map[string]any) { c["aud"] = "someone-else" }),
+		"no id_token":        oidctest.WithTokenResponse(func(r map[string]any) { delete(r, "id_token") }),
 	} {
 		t.Run(name, func(t *testing.T) {
-			f := newFakeIssuer(t)
-			knob(f)
-			p, got := newProvider(t, f)
-			cookies, loc := startSignIn(t, p, f)
-			rr := finishSignIn(p, cookies, loc.Query().Get("state"), goodCode)
+			iss := newIssuer(t, opt)
+			p, got := newProvider(t, iss)
+			cookies, _, back := startSignIn(t, p)
+			rr := finishSignIn(p, cookies, back.Get("state"), back.Get("code"))
 			assert.False(t, got.called)
 			assert.Equal(t, http.StatusTemporaryRedirect, rr.Code)
 			assert.Equal(t, "/auth/failed", rr.Header().Get("Location"))
@@ -301,14 +171,14 @@ func TestOIDCSignIn_RefusesCallbackNotStartedHere(t *testing.T) {
 		"no PKCE verifier": {drop: "pkce_verifier"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			f := newFakeIssuer(t)
-			p, got := newProvider(t, f)
-			cookies, loc := startSignIn(t, p, f)
-			state := loc.Query().Get("state")
+			iss := newIssuer(t)
+			p, got := newProvider(t, iss)
+			cookies, _, back := startSignIn(t, p)
+			state := back.Get("state")
 			if tc.badState {
 				state = "forged"
 			}
-			rr := finishSignIn(p, without(cookies, tc.drop), state, goodCode)
+			rr := finishSignIn(p, without(cookies, tc.drop), state, back.Get("code"))
 			assert.Equal(t, http.StatusBadRequest, rr.Code)
 			assert.False(t, got.called)
 		})
@@ -316,57 +186,81 @@ func TestOIDCSignIn_RefusesCallbackNotStartedHere(t *testing.T) {
 }
 
 func TestOIDCSignIn_New(t *testing.T) {
-	f := newFakeIssuer(t)
 	handle := func(string, string, *xoauth2.Token, map[string]any, http.ResponseWriter, *http.Request) {}
 
-	f.claimIssuer = "https://evil.example"
-	_, err := oidc.New(context.Background(), oidc.Config{Issuer: f.issuer(), ClientID: testClientID, HandleUser: handle})
+	liar := newIssuer(t, oidctest.WithDiscovery(func(doc map[string]any) { doc["issuer"] = "https://evil.example" }))
+	_, err := oidc.New(context.Background(), oidc.Config{Issuer: liar.URL, ClientID: testClientID, HandleUser: handle})
 	assert.ErrorIs(t, err, client.ErrMetadataIssuerMismatch)
-	f.claimIssuer = ""
 
+	iss := newIssuer(t)
 	_, err = oidc.New(context.Background(), oidc.Config{Issuer: "http://idp.example.com", ClientID: testClientID, HandleUser: handle})
 	assert.ErrorContains(t, err, "must use https")
 
-	_, err = oidc.New(context.Background(), oidc.Config{Issuer: f.issuer(), HandleUser: handle})
+	_, err = oidc.New(context.Background(), oidc.Config{Issuer: iss.URL, HandleUser: handle})
 	assert.ErrorContains(t, err, "ClientID")
 
-	p, err := oidc.New(context.Background(), oidc.Config{Issuer: f.issuer(), ClientID: testClientID, HandleUser: handle})
+	p, err := oidc.New(context.Background(), oidc.Config{Issuer: iss.URL, ClientID: testClientID, HandleUser: handle})
 	require.NoError(t, err)
-	assert.Equal(t, f.srv.URL+"/device", p.Metadata().DeviceAuthorizationEndpoint)
+	assert.Equal(t, iss.URL+"/device_authorization", p.Metadata().DeviceAuthorizationEndpoint)
 }
 
+// The person approves after the provider's first poll, so the provider
+// sees authorization_pending once before the tokens.
 func TestOIDCSignIn_DeviceFlow(t *testing.T) {
-	f := newFakeIssuer(t)
-	f.devicePending = 1
-	p, _ := newProvider(t, f)
+	iss := newIssuer(t)
+	p, _ := newProvider(t, iss)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	da, err := p.DeviceAuth(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, "ABCD-EFGH", da.UserCode)
+	assert.Regexp(t, `^[A-Z]{4}-[A-Z]{4}$`, da.UserCode)
 
+	approved := make(chan bool, 1)
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		approved <- iss.Approve(da.UserCode, testSub)
+	}()
 	token, claims, err := p.DeviceAccessToken(ctx, da)
 	require.NoError(t, err)
-	assert.Equal(t, "at-1", token.AccessToken)
-	assert.Equal(t, "user-42", claims.Subject)
-	assert.Equal(t, f.issuer(), claims.Issuer)
+	require.True(t, <-approved)
+	assert.NotEmpty(t, token.AccessToken)
+	assert.Equal(t, testSub, claims.Subject)
+	assert.Equal(t, iss.URL, claims.Issuer)
 }
 
 func TestOIDCSignIn_DeviceFlowRefusesTamperedIDToken(t *testing.T) {
-	f := newFakeIssuer(t)
-	f.tamper = true
-	p, _ := newProvider(t, f)
+	iss := newIssuer(t, oidctest.WithTokenResponse(tamper))
+	p, _ := newProvider(t, iss)
 	da, err := p.DeviceAuth(context.Background())
 	require.NoError(t, err)
+	require.True(t, iss.Approve(da.UserCode, testSub))
 	_, _, err = p.DeviceAccessToken(context.Background(), da)
 	assert.ErrorIs(t, err, client.ErrInvalidIDToken)
 }
 
+// A denied code ends polling with access_denied. Before the provider set
+// AuthStyle, x/oauth2 resent each failed poll at once, the fake answered
+// the resend with slow_down, and polling ran to the deadline.
+//
+// See: https://www.rfc-editor.org/rfc/rfc8628#section-3.5
+func TestOIDCSignIn_DeviceFlowDenied(t *testing.T) {
+	iss := newIssuer(t)
+	p, _ := newProvider(t, iss)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	da, err := p.DeviceAuth(ctx)
+	require.NoError(t, err)
+	require.True(t, iss.Deny(da.UserCode))
+	_, _, err = p.DeviceAccessToken(ctx, da)
+	var re *xoauth2.RetrieveError
+	require.ErrorAs(t, err, &re, "polling should end with the provider's answer, not the deadline")
+	assert.Equal(t, "access_denied", re.ErrorCode)
+}
+
 func TestOIDCSignIn_NoDeviceEndpoint(t *testing.T) {
-	f := newFakeIssuer(t)
-	f.noDevice = true
-	p, _ := newProvider(t, f)
+	iss := newIssuer(t, oidctest.WithDiscovery(func(doc map[string]any) { delete(doc, "device_authorization_endpoint") }))
+	p, _ := newProvider(t, iss)
 	_, err := p.DeviceAuth(context.Background())
 	assert.True(t, errors.Is(err, oidc.ErrNoDeviceEndpoint))
 }

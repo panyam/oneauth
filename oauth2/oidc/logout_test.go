@@ -9,21 +9,24 @@ import (
 	"testing"
 
 	"github.com/panyam/oneauth/oauth2/oidc"
+	"github.com/panyam/oneauth/oauth2/oidc/oidctest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // See: https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
 func TestOIDCLogout_URL(t *testing.T) {
-	f := newFakeIssuer(t)
-	p, _ := newProvider(t, f)
+	iss := newIssuer(t, oidctest.WithDiscovery(func(doc map[string]any) {
+		doc["end_session_endpoint"] = doc["end_session_endpoint"].(string) + "?tenant=keep"
+	}))
+	p, _ := newProvider(t, iss)
 
 	raw, err := p.LogoutURL("the-id-token", "http://app.test/bye", "st-1")
 	require.NoError(t, err)
 	u, err := url.Parse(raw)
 	require.NoError(t, err)
 
-	assert.Equal(t, f.srv.URL+"/logout", u.Scheme+"://"+u.Host+u.Path)
+	assert.Equal(t, iss.URL+"/logout", u.Scheme+"://"+u.Host+u.Path)
 	q := u.Query()
 	assert.Equal(t, "the-id-token", q.Get("id_token_hint"))
 	assert.Equal(t, testClientID, q.Get("client_id"))
@@ -33,8 +36,8 @@ func TestOIDCLogout_URL(t *testing.T) {
 }
 
 func TestOIDCLogout_OmitsEmptyParameters(t *testing.T) {
-	f := newFakeIssuer(t)
-	p, _ := newProvider(t, f)
+	iss := newIssuer(t)
+	p, _ := newProvider(t, iss)
 
 	raw, err := p.LogoutURL("", "", "")
 	require.NoError(t, err)
@@ -50,9 +53,8 @@ func TestOIDCLogout_OmitsEmptyParameters(t *testing.T) {
 }
 
 func TestOIDCLogout_NoEndSessionEndpoint(t *testing.T) {
-	f := newFakeIssuer(t)
-	f.noEndSession = true
-	p, _ := newProvider(t, f)
+	iss := newIssuer(t, oidctest.WithDiscovery(func(doc map[string]any) { delete(doc, "end_session_endpoint") }))
+	p, _ := newProvider(t, iss)
 
 	_, err := p.LogoutURL("tok", "", "")
 	assert.True(t, errors.Is(err, oidc.ErrNoEndSessionEndpoint))
