@@ -230,6 +230,18 @@ HandleUser: func(authtype, provider string, token *oauth2.Token, claims map[stri
 
 To sign the user out at the provider too (RP-Initiated Logout), clear your own session, then redirect to `p.LogoutURL(idTokenHint, postLogoutRedirectURI, state)`. `idTokenHint` is the raw ID token from sign-in, which `HandleUser` gets as `token.Extra("id_token")`, so keep it with the session. Most providers want it, and Keycloak shows its own confirmation page without it. `LogoutURL` returns `oidc.ErrNoEndSessionEndpoint` when the provider's discovery lists no `end_session_endpoint` (issue 546). A CLI signs in with `p.DeviceAuth` and `p.DeviceAccessToken` when the provider lists a device endpoint. `oauth2/oidc/example` runs both flows against the Keycloak in `docker-compose.yml`.
 
+To test your wiring without a real provider, point the provider at `oauth2/oidc/oidctest`. It is a fake issuer on an `httptest.Server`. A test picks who signs in, so `/authorize` redirects straight back with a code. Register the app's callback URL with `WithClient`, since the fake checks it exactly, as a real provider does:
+
+```go
+iss := oidctest.New(t, oidctest.WithClient("app", "secret", "http://127.0.0.1:8080/auth/oidc/callback/"))
+iss.AddUser("u-123", map[string]any{"email": "ada@example.com", "email_verified": true, "groups": []string{"g-eng"}})
+iss.SignInAs("u-123")
+p, _ := oidc.New(ctx, oidc.Config{Issuer: iss.URL, ClientID: "app", ClientSecret: "secret", ...})
+// A CLI test: da, _ := p.DeviceAuth(ctx); iss.Approve(da.UserCode, "u-123")
+```
+
+`WithGroupsOverage` makes the ID token name `groups` in `_claim_names` instead of carrying it, and `EntraGroups{GraphURL: iss.GraphURL()}` resolves it through the fake (issue 566).
+
 ### PKCE (Proof Key for Code Exchange)
 
 All OAuth2 flows use PKCE (RFC 7636) by default to prevent authorization code interception attacks. This is especially important for public clients (SPAs, mobile apps) where the client secret cannot be securely stored.

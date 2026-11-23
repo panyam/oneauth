@@ -170,3 +170,29 @@ func TestKeycloakOIDCSignIn_DeviceFlow(t *testing.T) {
 	assert.Equal(t, p.Metadata().Issuer, claims.Issuer)
 	assert.Equal(t, "testuser@example.com", claims.Claims["email"])
 }
+
+// The person denies the device code. DeviceAccessToken must return
+// access_denied promptly. With x/oauth2's auth-style probe, each failed
+// poll went out twice, Keycloak answered the second with slow_down, and
+// polling went on until the code expired (issue 566).
+//
+// See: https://www.rfc-editor.org/rfc/rfc8628#section-3.5
+func TestKeycloakOIDCSignIn_DeviceFlowDenied(t *testing.T) {
+	skipIfKeycloakNotRunning(t)
+	p, err := oidc.New(context.Background(), oidc.Config{
+		Issuer: realmURL(), ClientID: confidentialClientID, ClientSecret: confidentialClientSecret,
+		HandleUser: func(string, string, *xoauth2.Token, map[string]any, http.ResponseWriter, *http.Request) {},
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	da, err := p.DeviceAuth(ctx)
+	require.NoError(t, err)
+	kcAnswerDevice(t, da.VerificationURIComplete, url.Values{"cancel": {"No"}})
+
+	_, _, err = p.DeviceAccessToken(ctx, da)
+	var re *xoauth2.RetrieveError
+	require.ErrorAs(t, err, &re, "polling should end with the provider's answer, not the deadline")
+	assert.Equal(t, "access_denied", re.ErrorCode)
+}

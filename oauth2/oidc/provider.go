@@ -157,6 +157,7 @@ func New(ctx context.Context, cfg Config) (*Provider, error) {
 				AuthURL:       meta.AuthorizationEndpoint,
 				TokenURL:      meta.TokenEndpoint,
 				DeviceAuthURL: meta.DeviceAuthorizationEndpoint,
+				AuthStyle:     authStyle(cfg.ClientSecret, meta.TokenEndpointAuthMethods),
 			},
 		},
 		keys:   keys.NewJWKSKeyStore(meta.JWKSURI, keys.WithHTTPClient(hc)),
@@ -277,6 +278,19 @@ func (p *Provider) verify(ctx context.Context, token *oauth2.Token, nonce string
 		Nonce:       nonce,
 		AccessToken: token.AccessToken,
 	})
+}
+
+// authStyle picks how the client authenticates at the token endpoint,
+// from what discovery advertises, through client.SelectAuthMethod. Left
+// unset, x/oauth2 would probe: it resends every failed token request with
+// the other style. In the device flow every pending or denied poll fails,
+// so each poll went out twice. Keycloak answered the second with
+// slow_down, and polling went on until the code expired (issue 566).
+func authStyle(secret string, advertised []string) oauth2.AuthStyle {
+	if client.SelectAuthMethod(secret, advertised) == client.AuthMethodClientSecretBasic {
+		return oauth2.AuthStyleInHeader
+	}
+	return oauth2.AuthStyleInParams
 }
 
 func checkIssuerURL(issuer string) error {
