@@ -814,10 +814,6 @@ exercise-oidcdyn:
 exercise-mcpauth:
 	@set -e; for s in $(or $(SDK),gosdk mcpkit ts as); do ./scripts/exercise-mcpauth.sh $$s; done
 
-# Issue 410: the JARM mission's exercise (issue 409). A headless
-# `oneauth token browser --response-mode jwt` login against oneauth-server
-# and the test Keycloak realm, printing the decoded response JWT. MODE=
-# overrides jwt. See scripts/exercise-jarm.sh.
 # =============================================================================
 # OAuch (issue 567)
 # =============================================================================
@@ -870,6 +866,10 @@ oauch-browser:
 testoauch: upoauch
 	OAUCH_URL=https://localhost:$(OAUCH_PORT) ./scripts/exercise-oauch.sh
 
+# Issue 410: the JARM mission's exercise (issue 409). A headless
+# `oneauth token browser --response-mode jwt` login against oneauth-server
+# and the test Keycloak realm, printing the decoded response JWT. MODE=
+# overrides jwt. See scripts/exercise-jarm.sh.
 exercise-jarm:
 	@$(MAKE) --no-print-directory upkcl KC_PORT=$(KC_PORT)
 	KC_PORT=$(KC_PORT) MODE="$(MODE)" ./scripts/exercise-jarm.sh

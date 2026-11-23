@@ -1,0 +1,88 @@
+name: Conformance
+
+# Every suite in conformance/suites.yaml, through `make conformance`, the
+# same target as a laptop (issue 571). That covers the OIDF plans, native,
+# Keycloak, JARM, the MCP server-auth suites, OAuch, and Authlete when its
+# secrets are set. A run takes about an hour, so it runs nightly and on
+# demand rather than per PR. It also runs on a PR that changes this file, so
+# a workflow change gets one real run before it merges.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/conformance.yml
+
+# Read-only token by default; a job that needs more says so.
+permissions:
+  contents: read
+
+concurrency:
+  group: conformance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Every open gap in known-gaps.yaml must cite an open issue (mission 489).
+  gapcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Open gaps cite open issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/check-known-gaps.sh
+
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+
+      # The MCP server-auth suites run the conformance framework through npx,
+      # and the TS fixture through pnpm, the version its package.json pins.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - name: Enable pnpm
+        run: corepack enable
+
+      # OAuch's run drives Chromium through playwright-go. On Linux the
+      # browser needs system libraries, which --with-deps installs.
+      - name: Install Chromium for the OAuch run
+        run: cd tests/oauch && go run github.com/mxschmitt/playwright-go/cmd/playwright install --with-deps chromium
+
+      # The runner skips Authlete, with the reason, when these are unset.
+      - name: Run every conformance suite
+        env:
+          AUTHLETE_SERVICEID: ${{ secrets.AUTHLETE_SERVICEID }}
+          AUTHLETE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_ACCESS_TOKEN }}
+          AUTHLETE_CLIENTID: ${{ secrets.AUTHLETE_CLIENTID }}
+          AUTHLETE_CLIENTSECRET: ${{ secrets.AUTHLETE_CLIENTSECRET }}
+        run: make conformance
+
+      - name: Report
+        if: always()
+        run: cat docs/conformance/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the logs and the report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: conformance
+          path: |
+            test-reports/conformance/
+            test-reports/oauch/
+            docs/conformance/report.json
+            docs/conformance/REPORT.md
+            /tmp/oneauth-*.log
+          retention-days: 14
