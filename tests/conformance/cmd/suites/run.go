@@ -154,19 +154,22 @@ func WriteFailures(w io.Writer, results []Result) {
 }
 
 // summaryPatterns are the summary lines the registered suites print: the
-// OIDF exercise's per-plan total, the native ratchet's verdict, and, for
-// go test without -v, its package result.
+// OIDF exercise's per-plan total, the native ratchet's verdict, the OAuch
+// run's total against tests/oauch/expected.yaml, and, for go test without
+// -v, its package result. The last one must stay last.
 var summaryPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\d+ modules: map\[[^\]]*\], \d+ against known-gaps\.yaml`),
 	regexp.MustCompile(`ratchet OK.*`),
+	regexp.MustCompile(`\d+ OAuch tests: .*, \d+ against expected\.yaml`),
 	regexp.MustCompile(`(?m)^(ok|FAIL)\s+\S+.*$`),
 }
 
-// summaryLine returns the suite's summary: the OIDF total or the ratchet
-// verdict when present, else the count of go test's top-level tests when
+// summaryLine returns the suite's summary: the OIDF total, the ratchet
+// verdict or the OAuch total when present, else the count of go test's top-level tests when
 // it ran with -v, else the last package line, or "".
 func summaryLine(out string) string {
-	for _, p := range summaryPatterns[:2] {
+	last := len(summaryPatterns) - 1
+	for _, p := range summaryPatterns[:last] {
 		if all := p.FindAllString(out, -1); len(all) > 0 {
 			return strings.TrimSpace(all[len(all)-1])
 		}
@@ -174,7 +177,7 @@ func summaryLine(out string) string {
 	if c := countGoTests(out); c.total() > 0 {
 		return fmt.Sprintf("go test: %d passed, %d skipped, %d failed (top-level tests)", c.passed, c.skipped, c.failed)
 	}
-	if all := summaryPatterns[2].FindAllString(out, -1); len(all) > 0 {
+	if all := summaryPatterns[last].FindAllString(out, -1); len(all) > 0 {
 		return strings.TrimSpace(all[len(all)-1])
 	}
 	return ""

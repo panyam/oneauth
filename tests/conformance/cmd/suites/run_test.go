@@ -221,6 +221,12 @@ func TestRun_EveryTestSkippedIsASkip(t *testing.T) {
 	assert.Equal(t, "every test skipped: Authlete AS discovery returned status 500 (run 'make upauthlete')", results[0].Detail)
 }
 
+// The OAuch run's total beats go test's count, which would show one test.
+func TestSummaryLine_OAuchTotal(t *testing.T) {
+	out := "=== RUN   TestOAuch\n133 OAuch tests: 87 passed, 46 known, 0 now passing, 0 against expected.yaml\n--- PASS: TestOAuch (1012.30s)\nok  \tpkg\t1012.4s\n"
+	assert.Equal(t, "133 OAuch tests: 87 passed, 46 known, 0 now passing, 0 against expected.yaml", summaryLine(out))
+}
+
 // A go test suite's summary counts its tests instead of quoting the last
 // package line.
 func TestSummaryLine_CountsGoTests(t *testing.T) {
