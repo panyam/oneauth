@@ -205,12 +205,10 @@ suites:
     note: Needs an Authlete service account, so it skips on a machine without one.
 
   - name: oauch
-    kind: manual
+    kind: info
+    timeout: 30m
     covers: OAuch (DistriNet) checks the reference server against RFC 6749, 6750, 6819, 7009, 7636, 9700 and OIDC, and against their threat models
-    source: tests/oauch (server config); OAuch has only a web UI
-    tracking: "issue 497"
-    last_run:
-      date: "2026-11-20"
-      commit: 7e3b812
-      result: "109 tests, 9 failed (5 test setup, 4 tracked or accepted; form_post has shipped since); 33 of 40 relevant threats mitigated"
-      doc: docs/conformance/oauch.md
+    source: tests/oauch (playwright-go drives OAuch's dashboard; scripts/exercise-oauch.sh)
+    needs: [docker]
+    tracking: "issue 567"
+    note: About 15 minutes, most of it waiting for OAuch's timed tests. Checked against tests/oauch/expected.yaml; docs/conformance/oauch.md has the triage.

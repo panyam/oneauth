@@ -63,6 +63,11 @@ jobs:
       - name: Test (MCP auth conformance tooling)
         run: cd tests/mcpauth && GOWORK=off go test -count=1 ./... && GOWORK=off go vet ./...
 
+      # The OAuch run's site builder, export parser and expected.yaml check
+      # (issue 567). TestOAuch itself needs OAuch and a browser, and skips.
+      - name: Test (OAuch conformance tooling)
+        run: cd tests/oauch && GOWORK=off go test -count=1 ./... && GOWORK=off go vet ./...
+
       # The conformance runner and its drift check between
       # conformance/suites.yaml and conformance/Makefile (mission 489). The
       # suites themselves need Docker and run through `make conformance`.
