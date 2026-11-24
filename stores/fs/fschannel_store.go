@@ -147,3 +147,76 @@ func (s *FSChannelStore) GetChannelsByIdentity(ctx context.Context, req *account
 	}
 	return &accounts.GetChannelsByIdentityResponse{Channels: channels}, nil
 }
+
+// ListChannels implements accounts.ChannelAdmin. It reads every file under
+// channels/ and keeps those whose Provider equals req.Provider, or all of
+// them when req.Provider is empty. Credentials is nil in every listed
+// channel. A file another handle deletes mid-scan, or one that doesn't
+// parse, is skipped rather than failing the listing, as
+// GetChannelsByIdentity does. A store with no channels/ directory lists
+// none.
+func (s *FSChannelStore) ListChannels(ctx context.Context, req *accounts.ListChannelsRequest) (*accounts.ListChannelsResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ListChannels: req is required")
+	}
+	channelsDir := filepath.Join(s.StoragePath, "channels")
+	entries, err := os.ReadDir(channelsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &accounts.ListChannelsResponse{Channels: []*accounts.Channel{}}, nil
+		}
+		return nil, err
+	}
+	channels := []*accounts.Channel{}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(channelsDir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		var channel accounts.Channel
+		if err := json.Unmarshal(data, &channel); err != nil || channel.IdentityKey == "" {
+			continue
+		}
+		if req.Provider != "" && channel.Provider != req.Provider {
+			continue
+		}
+		channel.Credentials = nil
+		channels = append(channels, &channel)
+	}
+	return &accounts.ListChannelsResponse{Channels: channels}, nil
+}
+
+// DeleteChannel implements accounts.ChannelAdmin. It removes the file for
+// (req.Provider, req.IdentityKey) and reports Deleted from os.Remove, so of
+// two concurrent deletes only one sees true. A missing file is Deleted
+// false and no error. A file that holds another channel's record, since
+// file names fold some characters together, is left alone and returns
+// ErrKeyCollision.
+func (s *FSChannelStore) DeleteChannel(ctx context.Context, req *accounts.DeleteChannelRequest) (*accounts.DeleteChannelResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteChannel: req is required")
+	}
+	path, err := s.getChannelPath(req.Provider, req.IdentityKey)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkOwner(path, channelKey(req.Provider, req.IdentityKey), func(c *accounts.Channel) string {
+		return channelKey(c.Provider, c.IdentityKey)
+	}); err != nil {
+		return nil, err
+	}
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return &accounts.DeleteChannelResponse{}, nil
+		}
+		return nil, err
+	}
+	return &accounts.DeleteChannelResponse{Deleted: true}, nil
+}
+
+// channelKey joins a channel's provider and identity key into the one
+// string checkOwner compares.
+func channelKey(provider, identityKey string) string { return provider + "\x00" + identityKey }

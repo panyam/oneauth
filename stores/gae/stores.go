@@ -557,6 +557,77 @@ func (s *ChannelStore) GetChannelsByIdentity(ctx context.Context, req *accounts.
 	return &accounts.GetChannelsByIdentityResponse{Channels: channels}, nil
 }
 
+// ListChannels implements accounts.ChannelAdmin. It queries the Channel
+// kind, filtered on the built-in provider index when req.Provider is set,
+// so it needs no composite index. Credentials is nil in every listed
+// channel. Returns an empty slice, not an error, when nothing matches.
+func (s *ChannelStore) ListChannels(ctx context.Context, req *accounts.ListChannelsRequest) (*accounts.ListChannelsResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ListChannels: req is required")
+	}
+	query := datastore.NewQuery(KindChannel)
+	if req.Provider != "" {
+		query = query.FilterField("provider", "=", req.Provider)
+	}
+	if s.namespace != "" {
+		query = query.Namespace(s.namespace)
+	}
+	channels := []*accounts.Channel{}
+	it := s.client.Run(ctx, query)
+	for {
+		var entity ChannelEntity
+		_, err := it.Next(&entity)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		var profile map[string]any
+		if entity.Profile != nil {
+			json.Unmarshal(entity.Profile, &profile)
+		}
+		channels = append(channels, &accounts.Channel{
+			Provider:    entity.Provider,
+			IdentityKey: entity.IdentityKey,
+			Profile:     profile,
+			CreatedAt:   entity.CreatedAt,
+			UpdatedAt:   entity.UpdatedAt,
+			ExpiresAt:   entity.ExpiresAt,
+			Version:     entity.Version,
+		})
+	}
+	return &accounts.ListChannelsResponse{Channels: channels}, nil
+}
+
+// DeleteChannel implements accounts.ChannelAdmin. It runs the read and the
+// delete in one transaction, as TokenStore.DeleteToken does, so Deleted is
+// true for exactly one of two concurrent callers. A missing entity is
+// Deleted false and no error.
+func (s *ChannelStore) DeleteChannel(ctx context.Context, req *accounts.DeleteChannelRequest) (*accounts.DeleteChannelResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteChannel: req is required")
+	}
+	key := s.namespacedKey(KindChannel, s.channelKeyName(req.Provider, req.IdentityKey))
+	deleted := false
+	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		deleted = false
+		var entity ChannelEntity
+		if err := tx.Get(key, &entity); err != nil {
+			if err == datastore.ErrNoSuchEntity {
+				return nil
+			}
+			return err
+		}
+		deleted = true
+		return tx.Delete(key)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &accounts.DeleteChannelResponse{Deleted: deleted}, nil
+}
+
 // ============================================================================
 // TokenStore (AuthToken)
 // ============================================================================

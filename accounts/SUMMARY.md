@@ -6,7 +6,7 @@ and store interfaces — it does NOT own any HTTP handlers.
 
 ## Contents
 - **user.go** — `User` interface, `BasicUser` struct, `Identity`, `Channel`, `IdentityKey()`, `HandleUserFunc`, `CreateUserFunc`, `DetectUsernameType`, `LinkedChannels`
-- **stores.go** — `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`
+- **stores.go** — `UserStore`, `IdentityStore`, `ChannelStore`, `UsernameStore`, optional `ChannelAdmin` (`ListChannels` + `DeleteChannel`; contract suite `channeltest.RunAdmin`)
 - **errors.go** — `AuthError`, `AuthErrorHandler`, `ErrCode*` constants, `NewAuthError`, `CredentialsValidator` (function type)
 
 ## Who uses this

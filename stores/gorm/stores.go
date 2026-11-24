@@ -271,6 +271,45 @@ func (s *ChannelStore) GetChannelsByIdentity(ctx context.Context, req *accounts.
 	return &accounts.GetChannelsByIdentityResponse{Channels: channels}, nil
 }
 
+// ListChannels implements accounts.ChannelAdmin. It is one SELECT on the
+// channels table, filtered on provider when req.Provider is set, so a row
+// deleted by another caller is either in the result whole or absent.
+// Credentials is nil in every listed channel.
+func (s *ChannelStore) ListChannels(ctx context.Context, req *accounts.ListChannelsRequest) (*accounts.ListChannelsResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ListChannels: req is required")
+	}
+	q := s.db.WithContext(ctx)
+	if req.Provider != "" {
+		q = q.Where("provider = ?", req.Provider)
+	}
+	var models []ChannelModel
+	if err := q.Find(&models).Error; err != nil {
+		return nil, err
+	}
+	channels := make([]*accounts.Channel, len(models))
+	for i := range models {
+		channels[i] = models[i].ToChannel()
+		channels[i].Credentials = nil
+	}
+	return &accounts.ListChannelsResponse{Channels: channels}, nil
+}
+
+// DeleteChannel implements accounts.ChannelAdmin. It is one DELETE on the
+// (provider, identity_key) primary key and reports Deleted from
+// RowsAffected, so of two concurrent deletes only one sees true. A missing
+// row is Deleted false and no error.
+func (s *ChannelStore) DeleteChannel(ctx context.Context, req *accounts.DeleteChannelRequest) (*accounts.DeleteChannelResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("DeleteChannel: req is required")
+	}
+	res := s.db.WithContext(ctx).Where("provider = ? AND identity_key = ?", req.Provider, req.IdentityKey).Delete(&ChannelModel{})
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	return &accounts.DeleteChannelResponse{Deleted: res.RowsAffected > 0}, nil
+}
+
 // =============================================================================
 // TokenStore (for email verification and password reset)
 // =============================================================================
