@@ -48,6 +48,20 @@ type ChannelStore interface {
 
 Providers: `"local"`, `"google"`, `"github"`, etc.
 
+### ChannelAdmin (Optional)
+
+A `ChannelStore` looks channels up one at a time. An app whose operator creates and removes local accounts by hand also needs to list them and delete one. The fs, gorm and gae stores implement `accounts.ChannelAdmin` for that. A custom store may not, so check with a type assertion:
+
+```go
+if admin, ok := channelStore.(accounts.ChannelAdmin); ok {
+    all, _ := admin.ListChannels(ctx, &accounts.ListChannelsRequest{Provider: "local"}) // Credentials is nil
+    res, _ := admin.DeleteChannel(ctx, &accounts.DeleteChannelRequest{Provider: "local", IdentityKey: "username:alice"})
+    log.Printf("%d local accounts, deleted alice: %v", len(all.Channels), res.Deleted)
+}
+```
+
+A listing leaves `Credentials` out, so password hashes and provider tokens stay in the store. An empty `Provider` lists every channel. Deleting a channel that doesn't exist returns `Deleted: false` and no error. `localauth.HashPassword` and `localauth.CheckPassword` hash and check a local channel's `password_hash` the way the bundled validators do. `CheckPassword` with an empty hash runs a dummy comparison, so a missing account takes as long to refuse as a wrong password. The shared contract suite is `channeltest.RunAdmin`.
+
 ### UsernameStore (Optional)
 
 Manages username uniqueness and username-based login. Only needed if your app requires unique usernames or login with username.
