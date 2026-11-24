@@ -8,9 +8,9 @@ require (
 	cloud.google.com/go/datastore v1.21.0
 	cloud.google.com/go/secretmanager v1.16.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/panyam/oneauth v0.3.21
-	github.com/panyam/oneauth/stores/gae v0.3.21
-	github.com/panyam/oneauth/stores/gorm v0.3.21
+	github.com/panyam/oneauth v0.3.22
+	github.com/panyam/oneauth/stores/gae v0.3.22
+	github.com/panyam/oneauth/stores/gorm v0.3.22
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/oauth2 v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
