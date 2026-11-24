@@ -228,3 +228,63 @@ type UsernameStore interface {
 	// Returns error if new username is already taken.
 	ChangeUsername(ctx context.Context, req *ChangeUsernameRequest) (*ChangeUsernameResponse, error)
 }
+
+// ----------------------------------------------------------------------------
+// ChannelAdmin — optional listing and deletion for a ChannelStore
+// ----------------------------------------------------------------------------
+
+// ListChannelsRequest is the input to ChannelAdmin.ListChannels. An empty
+// Provider lists every channel in the store.
+type ListChannelsRequest struct {
+	Provider string
+}
+
+// ListChannelsResponse holds the listed channels, in no particular order,
+// each with Credentials nil.
+type ListChannelsResponse struct {
+	Channels []*Channel
+}
+
+// DeleteChannelRequest is the input to ChannelAdmin.DeleteChannel. It names
+// one channel by the same (Provider, IdentityKey) pair GetChannel takes.
+type DeleteChannelRequest struct {
+	Provider    string
+	IdentityKey string
+}
+
+// DeleteChannelResponse reports whether this call deleted the channel.
+// Deleted is false when no such channel existed, including when another
+// caller deleted it first.
+type DeleteChannelResponse struct {
+	Deleted bool
+}
+
+// ChannelAdmin is an optional interface for a ChannelStore that can list
+// its channels and delete one. An app whose operator manages accounts by
+// hand uses it to show every local account and to remove one, which the
+// lookup-only ChannelStore can't do. It's separate from ChannelStore so a
+// custom store still compiles; callers check for it with a type assertion.
+// The bundled fs, gorm and gae stores implement it.
+//
+// Implementations must:
+//   - leave Credentials nil in every listed channel, since a listing is for
+//     showing accounts and must not spread password hashes or provider
+//     tokens; a caller that needs them reads one channel with GetChannel;
+//   - list only channels whose Provider equals req.Provider, or every
+//     channel when req.Provider is empty;
+//   - leave out a channel deleted while the listing runs, rather than fail;
+//   - make DeleteChannel safe to repeat: deleting an absent channel returns
+//     Deleted false and no error;
+//   - delete only the named channel, so the same IdentityKey under another
+//     provider stays.
+//
+// The shared contract suite is channeltest.RunAdmin.
+type ChannelAdmin interface {
+	// ListChannels returns the channels for req.Provider, or every channel
+	// when it is empty, without their credentials.
+	ListChannels(ctx context.Context, req *ListChannelsRequest) (*ListChannelsResponse, error)
+
+	// DeleteChannel removes the channel req names, and reports whether it
+	// existed.
+	DeleteChannel(ctx context.Context, req *DeleteChannelRequest) (*DeleteChannelResponse, error)
+}
