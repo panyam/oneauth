@@ -45,3 +45,20 @@ func LocalRedirect(target, fallback string) string {
 	// names a host can survive into the Location header.
 	return (&url.URL{Path: u.Path, RawPath: u.RawPath, RawQuery: u.RawQuery, Fragment: u.Fragment}).String()
 }
+
+// CallbackURL returns the callbackURL a login or signup request carries, from
+// the query string or a posted form, when it is a path on this site. It
+// returns "" when there is none or it points off-site (see LocalRedirect).
+//
+// A login page that receives ?callbackURL= posts it back with the form, so the
+// handler that finishes the login can send the user to where they started.
+// The OAuth flow keeps the same value in the oauthCallbackURL cookie instead.
+// An app's login error handler can use it to keep the value when it redirects
+// back to the login page.
+func CallbackURL(r *http.Request) string {
+	target := r.URL.Query().Get("callbackURL")
+	if target == "" {
+		target = r.PostFormValue("callbackURL")
+	}
+	return LocalRedirect(target, "")
+}
