@@ -8,7 +8,29 @@ import (
 )
 
 // StoreOption configures a UserStore, IdentityStore or ChannelStore.
-type StoreOption func(*schemaIO)
+type StoreOption func(*storeConfig)
+
+type storeConfig struct {
+	reg             *dsmigrate.Registry
+	numericUserKeys bool
+}
+
+func applyOptions(opts []StoreOption) storeConfig {
+	var cfg storeConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	return cfg
+}
+
+// WithNumericUserKeys lets a UserStore find users that live at Datastore's numeric keys
+// (datastore.IDKey), as an app that created users with incomplete keys left them. A user whose
+// ID is all digits is looked up at its name key first, then at the numeric key with that value,
+// and SaveUser updates whichever one it found. New users still get name keys. It applies to
+// NewUserStore only.
+func WithNumericUserKeys() StoreOption {
+	return func(cfg *storeConfig) { cfg.numericUserKeys = true }
+}
 
 // WithSchemaRegistry makes the store upgrade old entities as it reads them and stamp the current
 // schema version on what it writes, using reg's Schema for each kind (KindUser, KindIdentity,
@@ -18,7 +40,7 @@ type StoreOption func(*schemaIO)
 //
 // Without it, a store reads and writes exactly as before, through the client.
 func WithSchemaRegistry(reg *dsmigrate.Registry) StoreOption {
-	return func(io *schemaIO) { io.reg = reg }
+	return func(cfg *storeConfig) { cfg.reg = reg }
 }
 
 // schemaIO routes a store's reads and writes through dsmigrate when a registry is set, and
@@ -28,12 +50,8 @@ type schemaIO struct {
 	reg    *dsmigrate.Registry
 }
 
-func newSchemaIO(client *datastore.Client, opts []StoreOption) schemaIO {
-	io := schemaIO{client: client}
-	for _, o := range opts {
-		o(&io)
-	}
-	return io
+func newSchemaIO(client *datastore.Client, cfg storeConfig) schemaIO {
+	return schemaIO{client: client, reg: cfg.reg}
 }
 
 func (io schemaIO) get(ctx context.Context, key *datastore.Key, dst any) error {

@@ -151,6 +151,8 @@ identityStore := gae.NewIdentityStore(datastoreClient, namespace, gae.WithSchema
 
 `NewUserStore`, `NewIdentityStore` and `NewChannelStore` take the option. With it, each read upgrades an old entity and writes it back if nothing changed it meanwhile, and each write stamps the current version. A query can't match an entity nobody has read yet, so run `dsmigrate.Backfill` for each kind once, while the app serves. Without the option, the stores read and write exactly as before.
 
+An app that created users with incomplete keys has them at Datastore's numeric keys, and refers to them by that number as a string. `gae.NewUserStore(client, namespace, gae.WithNumericUserKeys())` finds those users: an all-digit user ID missing at its name key is looked up at the numeric key with that value, and `SaveUser` updates the user where it lives. New users still get name keys.
+
 ## Custom Store Implementation
 
 Implement the store interfaces for your database:
