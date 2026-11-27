@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,19 +56,47 @@ func (u *GAEUser) LastUpdated() time.Time { return u.UpdatedAt }
 
 // UserStore implements accounts.UserStore using Google Cloud Datastore
 type UserStore struct {
-	client    *datastore.Client
-	namespace string
-	io        schemaIO
+	client      *datastore.Client
+	namespace   string
+	io          schemaIO
+	numericKeys bool
 }
 
 // NewUserStore creates a new Datastore-backed UserStore
-// Options such as WithSchemaRegistry change how it reads and writes entities.
+// Options such as WithSchemaRegistry and WithNumericUserKeys change how it reads and writes entities.
 func NewUserStore(client *datastore.Client, namespace string, opts ...StoreOption) *UserStore {
+	cfg := applyOptions(opts)
 	return &UserStore{
-		client:    client,
-		namespace: namespace,
-		io:        newSchemaIO(client, opts),
+		client:      client,
+		namespace:   namespace,
+		io:          newSchemaIO(client, cfg),
+		numericKeys: cfg.numericUserKeys,
 	}
+}
+
+// getUser loads the user with userID into entity and returns the key it lives at. A missing user
+// returns datastore.ErrNoSuchEntity with the name key, where a new user would go. With
+// WithNumericUserKeys, an all-digit userID missing at its name key is looked up at the numeric
+// key too.
+func (s *UserStore) getUser(ctx context.Context, userID string, entity *UserEntity) (*datastore.Key, error) {
+	key := s.namespacedKey(KindUser, userID)
+	err := s.io.get(ctx, key, entity)
+	if err != datastore.ErrNoSuchEntity || !s.numericKeys {
+		return key, err
+	}
+	n, perr := strconv.ParseInt(userID, 10, 64)
+	if perr != nil || n <= 0 || strconv.FormatInt(n, 10) != userID {
+		return key, err
+	}
+	idKey := datastore.IDKey(KindUser, n, nil)
+	idKey.Namespace = s.namespace
+	if idErr := s.io.get(ctx, idKey, entity); idErr != nil {
+		if idErr == datastore.ErrNoSuchEntity {
+			return key, idErr
+		}
+		return idKey, idErr
+	}
+	return idKey, nil
 }
 
 func (s *UserStore) namespacedKey(kind, name string) *datastore.Key {
@@ -125,9 +154,8 @@ func (s *UserStore) GetUserById(ctx context.Context, req *accounts.GetUserByIDRe
 	if req == nil {
 		return nil, fmt.Errorf("GetUserById: req is required")
 	}
-	key := s.namespacedKey(KindUser, req.UserID)
 	var entity UserEntity
-	if err := s.io.get(ctx, key, &entity); err != nil {
+	if _, err := s.getUser(ctx, req.UserID, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			return nil, fmt.Errorf("user not found: %s", req.UserID)
 		}
@@ -159,15 +187,16 @@ func (s *UserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest)
 		return nil, fmt.Errorf("SaveUser: req.User is required")
 	}
 	user := req.User
-	key := s.namespacedKey(KindUser, user.Id())
 
 	var profileBytes []byte
 	if user.Profile() != nil {
 		profileBytes, _ = json.Marshal(user.Profile())
 	}
 
+	// key is where the user already lives (a numeric key, with WithNumericUserKeys), or the name
+	// key for a new user.
 	var existing UserEntity
-	err := s.io.get(ctx, key, &existing)
+	key, err := s.getUser(ctx, user.Id(), &existing)
 	if err != nil && err != datastore.ErrNoSuchEntity {
 		return nil, err
 	}
@@ -210,7 +239,7 @@ func NewIdentityStore(client *datastore.Client, namespace string, opts ...StoreO
 	return &IdentityStore{
 		client:    client,
 		namespace: namespace,
-		io:        newSchemaIO(client, opts),
+		io:        newSchemaIO(client, applyOptions(opts)),
 	}
 }
 
@@ -387,7 +416,7 @@ func NewChannelStore(client *datastore.Client, namespace string, opts ...StoreOp
 	return &ChannelStore{
 		client:    client,
 		namespace: namespace,
-		io:        newSchemaIO(client, opts),
+		io:        newSchemaIO(client, applyOptions(opts)),
 	}
 }
 
