@@ -136,6 +136,21 @@ import "github.com/panyam/oneauth/stores/gae"
 usernameStore := gae.NewUsernameStore(datastoreClient, namespace)
 ```
 
+#### Upgrading old entities while serving
+
+An app that kept users, identities or channels in its own shape before adopting oneauth, or that changes their shape later, can upgrade them without a maintenance window. Register a [dsmigrate](https://panyam.github.io/goapplib/reference/dsmigrate/) `Schema` for the kind and pass the registry to the store:
+
+```go
+reg, _ := dsmigrate.NewRegistry(dsmigrate.Schema{
+    Kind:     gae.KindIdentity,
+    Current:  1,
+    Upgrades: map[int]dsmigrate.Upgrader{0: upgradeLegacyIdentity},
+})
+identityStore := gae.NewIdentityStore(datastoreClient, namespace, gae.WithSchemaRegistry(reg))
+```
+
+`NewUserStore`, `NewIdentityStore` and `NewChannelStore` take the option. With it, each read upgrades an old entity and writes it back if nothing changed it meanwhile, and each write stamps the current version. A query can't match an entity nobody has read yet, so run `dsmigrate.Backfill` for each kind once, while the app serves. Without the option, the stores read and write exactly as before.
+
 ## Custom Store Implementation
 
 Implement the store interfaces for your database:

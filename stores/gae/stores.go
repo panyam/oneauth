@@ -57,13 +57,16 @@ func (u *GAEUser) LastUpdated() time.Time { return u.UpdatedAt }
 type UserStore struct {
 	client    *datastore.Client
 	namespace string
+	io        schemaIO
 }
 
 // NewUserStore creates a new Datastore-backed UserStore
-func NewUserStore(client *datastore.Client, namespace string) *UserStore {
+// Options such as WithSchemaRegistry change how it reads and writes entities.
+func NewUserStore(client *datastore.Client, namespace string, opts ...StoreOption) *UserStore {
 	return &UserStore{
 		client:    client,
 		namespace: namespace,
+		io:        newSchemaIO(client, opts),
 	}
 }
 
@@ -99,7 +102,7 @@ func (s *UserStore) CreateUser(ctx context.Context, req *accounts.CreateUserRequ
 		UpdatedAt: now,
 	}
 
-	if _, err := s.client.Put(ctx, key, entity); err != nil {
+	if _, err := s.io.put(ctx, key, entity); err != nil {
 		return nil, err
 	}
 
@@ -124,7 +127,7 @@ func (s *UserStore) GetUserById(ctx context.Context, req *accounts.GetUserByIDRe
 	}
 	key := s.namespacedKey(KindUser, req.UserID)
 	var entity UserEntity
-	if err := s.client.Get(ctx, key, &entity); err != nil {
+	if err := s.io.get(ctx, key, &entity); err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			return nil, fmt.Errorf("user not found: %s", req.UserID)
 		}
@@ -164,7 +167,7 @@ func (s *UserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest)
 	}
 
 	var existing UserEntity
-	err := s.client.Get(ctx, key, &existing)
+	err := s.io.get(ctx, key, &existing)
 	if err != nil && err != datastore.ErrNoSuchEntity {
 		return nil, err
 	}
@@ -184,7 +187,7 @@ func (s *UserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest)
 		entity.IsActive = gaeUser.Active
 	}
 
-	if _, err := s.client.Put(ctx, key, entity); err != nil {
+	if _, err := s.io.put(ctx, key, entity); err != nil {
 		return nil, err
 	}
 	return &accounts.SaveUserResponse{}, nil
@@ -198,13 +201,16 @@ func (s *UserStore) SaveUser(ctx context.Context, req *accounts.SaveUserRequest)
 type IdentityStore struct {
 	client    *datastore.Client
 	namespace string
+	io        schemaIO
 }
 
 // NewIdentityStore creates a new Datastore-backed IdentityStore
-func NewIdentityStore(client *datastore.Client, namespace string) *IdentityStore {
+// Options such as WithSchemaRegistry change how it reads and writes entities.
+func NewIdentityStore(client *datastore.Client, namespace string, opts ...StoreOption) *IdentityStore {
 	return &IdentityStore{
 		client:    client,
 		namespace: namespace,
+		io:        newSchemaIO(client, opts),
 	}
 }
 
@@ -231,7 +237,7 @@ func (s *IdentityStore) GetIdentity(ctx context.Context, req *accounts.GetIdenti
 	}
 	key := s.namespacedKey(KindIdentity, s.identityKeyName(req.IdentityType, req.IdentityValue))
 	var entity IdentityEntity
-	err := s.client.Get(ctx, key, &entity)
+	err := s.io.get(ctx, key, &entity)
 
 	if err == datastore.ErrNoSuchEntity {
 		if req.CreateIfMissing {
@@ -246,7 +252,7 @@ func (s *IdentityStore) GetIdentity(ctx context.Context, req *accounts.GetIdenti
 				UpdatedAt: now,
 				Version:   1,
 			}
-			if _, err := s.client.Put(ctx, key, &entity); err != nil {
+			if _, err := s.io.put(ctx, key, &entity); err != nil {
 				return nil, err
 			}
 			return &accounts.GetIdentityResponse{Identity: entity.ToIdentity(), NewCreated: true}, nil
@@ -272,7 +278,7 @@ func (s *IdentityStore) SaveIdentity(ctx context.Context, req *accounts.SaveIden
 	identity := req.Identity
 	key := s.namespacedKey(KindIdentity, s.identityKeyName(identity.Type, identity.Value))
 	entity := IdentityToEntity(identity, key)
-	if _, err := s.client.Put(ctx, key, entity); err != nil {
+	if _, err := s.io.put(ctx, key, entity); err != nil {
 		return nil, err
 	}
 	return &accounts.SaveIdentityResponse{}, nil
@@ -291,13 +297,13 @@ func (s *IdentityStore) SetUserForIdentity(ctx context.Context, req *accounts.Se
 
 	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var entity IdentityEntity
-		if err := tx.Get(key, &entity); err != nil {
+		if err := s.io.txGet(tx, key, &entity); err != nil {
 			return err
 		}
 		entity.UserID = req.NewUserID
 		entity.UpdatedAt = time.Now()
 		entity.Version++
-		_, err := tx.Put(key, &entity)
+		_, err := s.io.txPut(tx, key, &entity)
 		return err
 	})
 	if err != nil {
@@ -318,13 +324,13 @@ func (s *IdentityStore) MarkIdentityVerified(ctx context.Context, req *accounts.
 
 	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		var entity IdentityEntity
-		if err := tx.Get(key, &entity); err != nil {
+		if err := s.io.txGet(tx, key, &entity); err != nil {
 			return err
 		}
 		entity.Verified = true
 		entity.UpdatedAt = time.Now()
 		entity.Version++
-		_, err := tx.Put(key, &entity)
+		_, err := s.io.txPut(tx, key, &entity)
 		return err
 	})
 	if err != nil {
@@ -352,7 +358,7 @@ func (s *IdentityStore) GetUserIdentities(ctx context.Context, req *accounts.Get
 	it := s.client.Run(ctx, query)
 	for {
 		var entity IdentityEntity
-		_, err := it.Next(&entity)
+		_, err := s.io.next(ctx, it, &entity)
 		if err == iterator.Done {
 			break
 		}
@@ -372,13 +378,16 @@ func (s *IdentityStore) GetUserIdentities(ctx context.Context, req *accounts.Get
 type ChannelStore struct {
 	client    *datastore.Client
 	namespace string
+	io        schemaIO
 }
 
 // NewChannelStore creates a new Datastore-backed ChannelStore
-func NewChannelStore(client *datastore.Client, namespace string) *ChannelStore {
+// Options such as WithSchemaRegistry change how it reads and writes entities.
+func NewChannelStore(client *datastore.Client, namespace string, opts ...StoreOption) *ChannelStore {
 	return &ChannelStore{
 		client:    client,
 		namespace: namespace,
+		io:        newSchemaIO(client, opts),
 	}
 }
 
@@ -405,7 +414,7 @@ func (s *ChannelStore) GetChannel(ctx context.Context, req *accounts.GetChannelR
 	}
 	key := s.namespacedKey(KindChannel, s.channelKeyName(req.Provider, req.IdentityKey))
 	var entity ChannelEntity
-	err := s.client.Get(ctx, key, &entity)
+	err := s.io.get(ctx, key, &entity)
 
 	if err == datastore.ErrNoSuchEntity {
 		if req.CreateIfMissing {
@@ -420,7 +429,7 @@ func (s *ChannelStore) GetChannel(ctx context.Context, req *accounts.GetChannelR
 				UpdatedAt:   now,
 				Version:     1,
 			}
-			if _, err := s.client.Put(ctx, key, &entity); err != nil {
+			if _, err := s.io.put(ctx, key, &entity); err != nil {
 				return nil, err
 			}
 			return &accounts.GetChannelResponse{Channel: &accounts.Channel{
@@ -481,7 +490,7 @@ func (s *ChannelStore) SaveChannel(ctx context.Context, req *accounts.SaveChanne
 	}
 
 	var existing ChannelEntity
-	err := s.client.Get(ctx, key, &existing)
+	err := s.io.get(ctx, key, &existing)
 	if err != nil && err != datastore.ErrNoSuchEntity {
 		return nil, err
 	}
@@ -503,7 +512,7 @@ func (s *ChannelStore) SaveChannel(ctx context.Context, req *accounts.SaveChanne
 		entity.Version = 1
 	}
 
-	if _, err := s.client.Put(ctx, key, entity); err != nil {
+	if _, err := s.io.put(ctx, key, entity); err != nil {
 		return nil, err
 	}
 	return &accounts.SaveChannelResponse{}, nil
@@ -527,7 +536,7 @@ func (s *ChannelStore) GetChannelsByIdentity(ctx context.Context, req *accounts.
 	it := s.client.Run(ctx, query)
 	for {
 		var entity ChannelEntity
-		_, err := it.Next(&entity)
+		_, err := s.io.next(ctx, it, &entity)
 		if err == iterator.Done {
 			break
 		}
@@ -576,7 +585,7 @@ func (s *ChannelStore) ListChannels(ctx context.Context, req *accounts.ListChann
 	it := s.client.Run(ctx, query)
 	for {
 		var entity ChannelEntity
-		_, err := it.Next(&entity)
+		_, err := s.io.next(ctx, it, &entity)
 		if err == iterator.Done {
 			break
 		}
@@ -613,7 +622,7 @@ func (s *ChannelStore) DeleteChannel(ctx context.Context, req *accounts.DeleteCh
 	_, err := s.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		deleted = false
 		var entity ChannelEntity
-		if err := tx.Get(key, &entity); err != nil {
+		if err := s.io.txGet(tx, key, &entity); err != nil {
 			if err == datastore.ErrNoSuchEntity {
 				return nil
 			}
