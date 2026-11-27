@@ -9,7 +9,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/panyam/mcpkit v0.8.21
 	github.com/panyam/mcpkit/ext/auth v0.8.21
-	github.com/panyam/oneauth v0.3.24
+	github.com/panyam/oneauth v0.3.25
 	github.com/stretchr/testify v1.12.1
 	gopkg.in/yaml.v3 v3.0.1
 )

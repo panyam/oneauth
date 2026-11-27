@@ -8,7 +8,7 @@ replace github.com/panyam/oneauth => ../..
 
 require (
 	github.com/mxschmitt/playwright-go v0.6201.1
-	github.com/panyam/oneauth v0.3.24
+	github.com/panyam/oneauth v0.3.25
 	github.com/stretchr/testify v1.12.1
 	gopkg.in/yaml.v3 v3.0.1
 )
