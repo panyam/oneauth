@@ -6,9 +6,9 @@ Maintained by /checkpoint: one thread per branch, pruned when the branch merges.
 ## At a glance
 
 - No mission is active, and #543 has nothing ready. The next pick goes through `retriage`.
-- No open threads on main. v0.3.20 carries PRs 561, 562, 564 and 565. Its release fires the trigger on #563, so goapplib and agni can now move to `GitHubHostsFor` and `Resolve`.
-- v0.3.21 carries PRs 568 (`oauth2/oidc/oidctest`, plus the device-flow `AuthStyle` fix) and 569 (automated OAuch run). agni#1811 can now move to `oidctest`.
-- This run: released v0.3.21.
+- No open threads on main. v0.3.24 (2026-11-27) is the latest tag, with #577 (`stores/gae` `WithSchemaRegistry`). #578 (`WithNumericUserKeys`) is merged but unreleased. Next: release v0.3.25. panyam/notation needs both to upgrade its pre-oneauth auth records online.
+- #579 tracks the Windows-only flake in the FS store's admin contract tests, which hit #577 and #578.
+- This run: #578 merged. Dropped the v0.3.20 and v0.3.21 lines, since v0.3.22 to v0.3.24 are out.
 
 ## Across threads
 
