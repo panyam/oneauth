@@ -6,7 +6,7 @@ toolchain go1.27.4
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/panyam/oneauth v0.3.23
+	github.com/panyam/oneauth v0.3.24
 	golang.org/x/oauth2 v0.36.0
 )
 
