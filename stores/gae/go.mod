@@ -6,6 +6,7 @@ toolchain go1.27.4
 
 require (
 	cloud.google.com/go/datastore v1.21.0
+	github.com/panyam/goapplib/dsmigrate v0.7.41
 	github.com/panyam/oneauth v0.3.24
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/crypto v0.57.0
@@ -27,7 +28,6 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.11 // indirect
 	github.com/googleapis/gax-go/v2 v2.17.0 // indirect
-	github.com/panyam/goapplib/dsmigrate v0.7.41 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
