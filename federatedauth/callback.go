@@ -68,10 +68,7 @@ func (b *OAuthBridge) SaveUserAndRedirect(authtype, provider string, token *oaut
 	// Auth done — go back to where we need to be
 	// The callback URL came from the request that started the login, so
 	// only a path on this site is honored (CWE-601).
-	callbackURL := "/"
-	if callbackURLCookie, _ := r.Cookie("oauthCallbackURL"); callbackURLCookie != nil {
-		callbackURL = httpauth.LocalRedirect(callbackURLCookie.Value, "/")
-	}
+	callbackURL := postLoginRedirect(r)
 	callbackURL = os.Getenv("OAUTH2_BASE_URL") + callbackURL
 	log.Println("Redirecting to CallbackURL: ", callbackURL)
 	// then delete the cookie too so it won't be used for subsequent redirects
@@ -206,10 +203,7 @@ func (b *OAuthBridge) HandleLinkOAuthCallback(linkingUserID, provider string, us
 
 	log.Printf("Linked %s account to user %s", provider, linkingUserID)
 
-	callbackURL := "/"
-	if callbackCookie, _ := r.Cookie("oauthCallbackURL"); callbackCookie != nil {
-		callbackURL = httpauth.LocalRedirect(callbackCookie.Value, "/")
-	}
+	callbackURL := postLoginRedirect(r)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauthCallbackURL",
@@ -242,4 +236,18 @@ func (b *OAuthBridge) StartLinkOAuth(r *http.Request, userID string) {
 // Call this in your OAuth callback to detect linking mode.
 func (b *OAuthBridge) GetLinkingUserID(r *http.Request) string {
 	return b.OneAuth.Session.PopString(r.Context(), "linkingUserID")
+}
+
+// postLoginRedirect picks where a finished login goes. The OAuth flow keeps
+// the starting page in the oauthCallbackURL cookie. Email login and signup
+// post it with the request as callbackURL instead (oneauth#575). Either way,
+// only a path on this site is honored, and "/" is the fallback.
+func postLoginRedirect(r *http.Request) string {
+	if c, _ := r.Cookie("oauthCallbackURL"); c != nil && c.Value != "" {
+		return httpauth.LocalRedirect(c.Value, "/")
+	}
+	if target := httpauth.CallbackURL(r); target != "" {
+		return target
+	}
+	return "/"
 }

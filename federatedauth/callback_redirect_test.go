@@ -12,6 +12,8 @@ package federatedauth_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/alexedwards/scs/v2"
@@ -55,6 +57,50 @@ func TestSaveUserAndRedirect_OnlyLocalCallbackURLs(t *testing.T) {
 			h.ServeHTTP(rr, req)
 			assert.Equal(t, http.StatusFound, rr.Code)
 			assert.Equal(t, want, rr.Header().Get("Location"))
+		})
+	}
+}
+
+// Email login and signup post callbackURL with the request instead of going
+// through the OAuth redirect that sets the cookie. The redirect honors it the
+// same way, and the cookie still wins when both are there.
+func TestSaveUserAndRedirect_RequestCallbackURL(t *testing.T) {
+	t.Setenv("OAUTH2_BASE_URL", "")
+	oa := (&httpauth.OneAuth{AppName: "App", Session: scs.New(), JWTSecretKey: "federated-test-secret-32-chars!!"}).EnsureDefaults()
+	bridge := federatedauth.NewOAuthBridge(oa, fakeAuthUserStore{})
+	h := oa.Session.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bridge.SaveUserAndRedirect("local", "local", nil, map[string]any{}, w, r)
+	}))
+
+	cases := []struct {
+		name, query, form, cookie, want string
+	}{
+		{name: "query", query: "/notations/x/compose", want: "/notations/x/compose"},
+		{name: "form", form: "/notations/x/compose", want: "/notations/x/compose"},
+		{name: "query off-site", query: "https://evil.example/home", want: "/"},
+		{name: "form off-site", form: "//evil.example/home", want: "/"},
+		{name: "none", want: "/"},
+		{name: "cookie wins", query: "/from-query", cookie: "/from-cookie", want: "/from-cookie"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			target := "/login"
+			if c.query != "" {
+				target += "?callbackURL=" + url.QueryEscape(c.query)
+			}
+			body := url.Values{"email": {"a@example.com"}}
+			if c.form != "" {
+				body.Set("callbackURL", c.form)
+			}
+			req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if c.cookie != "" {
+				req.AddCookie(&http.Cookie{Name: "oauthCallbackURL", Value: c.cookie})
+			}
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusFound, rr.Code)
+			assert.Equal(t, c.want, rr.Header().Get("Location"))
 		})
 	}
 }
